@@ -1,0 +1,26 @@
+{
+    "name": "ocidex-web",
+    "private": true,
+    "version": "0.0.1",
+    "type": "module",
+    "scripts": {
+        "dev": "vite --host",
+        "build": "tsc && vite build",
+        "preview": "vite preview",
+        "generate-api": "openapi-typescript openapi.json -o src/types/openapi.d.ts"
+    },
+    "dependencies": {
+        "@solidjs/router": "^0.15.3",
+        "@tailwindcss/vite": "^4.1.18",
+        "@tanstack/solid-query": "^5.75.7",
+        "openapi-fetch": "^0.17.0",
+        "solid-js": "^1.9.5",
+        "tailwindcss": "^4.1.18"
+    },
+    "devDependencies": {
+        "openapi-typescript": "^7.13.0",
+        "typescript": "^5.7.3",
+        "vite": "^6.3.5",
+        "vite-plugin-solid": "^2.11.6"
+    }
+}

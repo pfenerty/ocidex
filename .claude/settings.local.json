@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flox activate:*)",
+      "Bash(flox install:*)",
+      "Bash(flox list:*)",
+      "Bash(goose:*)",
+      "Bash(go install:*)",
+      "Bash(chmod:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(systemctl status:*)",
+      "Bash(dpkg:*)",
+      "Bash(podman:*)",
+      "Bash(pip3 show:*)",
+      "Bash(podman-compose:*)",
+      "Bash(curl:*)",
+      "Bash(python3 -m json.tool:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(bash -n /home/patrick/code/ocidex/ocidex/scripts/seed.sh)",
+      "WebFetch(domain:specs.opencontainers.org)",
+      "WebSearch",
+      "WebFetch(domain:snyk.io)",
+      "WebFetch(domain:docs.docker.com)",
+      "WebFetch(domain:documentation.ubuntu.com)",
+      "WebFetch(domain:catalog.redhat.com)",
+      "Bash(ls:*)",
+      "WebFetch(domain:huma.rocks)",
+      "WebFetch(domain:ogen.dev)",
+      "WebFetch(domain:openapi-ts.dev)"
+    ]
+  }
+}

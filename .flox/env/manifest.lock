@@ -1,0 +1,784 @@
+{
+  "lockfile-version": 1,
+  "manifest": {
+    "version": 1,
+    "install": {
+      "curl": {
+        "pkg-path": "curl"
+      },
+      "gnumake": {
+        "pkg-path": "gnumake"
+      },
+      "go": {
+        "pkg-path": "go"
+      },
+      "nodejs": {
+        "pkg-path": "nodejs"
+      },
+      "oras": {
+        "pkg-path": "oras"
+      },
+      "syft": {
+        "pkg-path": "syft"
+      }
+    },
+    "hook": {},
+    "profile": {},
+    "options": {}
+  },
+  "packages": [
+    {
+      "attr_path": "curl",
+      "broken": false,
+      "derivation": "/nix/store/vn7qyigb9aqbzk93v3yjz3zdacbp48vw-curl-8.17.0.drv",
+      "description": "Command line tool for transferring files with URL syntax",
+      "install_id": "curl",
+      "license": "curl",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "curl-8.17.0",
+      "pname": "curl",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T04:39:02.636176Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "8.17.0",
+      "outputs_to_install": [
+        "bin",
+        "man"
+      ],
+      "outputs": {
+        "bin": "/nix/store/qncd2qavd8nj797izhqzyzz5q9cr5bwx-curl-8.17.0-bin",
+        "dev": "/nix/store/27hnypizfhndg47s81v9gvc9ywsiqq5p-curl-8.17.0-dev",
+        "devdoc": "/nix/store/izi1l0h196fyaf7w06wqziq02m43acij-curl-8.17.0-devdoc",
+        "man": "/nix/store/2swlvcnn1xrsanyd4fc8mdlmx6c216dd-curl-8.17.0-man",
+        "out": "/nix/store/vzv2n6g3g6ynxdzflh4s5crn6px9b0wb-curl-8.17.0"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "curl",
+      "broken": false,
+      "derivation": "/nix/store/sbj1ds2n743q4zhfccjaylg7jvjp9q9n-curl-8.17.0.drv",
+      "description": "Command line tool for transferring files with URL syntax",
+      "install_id": "curl",
+      "license": "curl",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "curl-8.17.0",
+      "pname": "curl",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T05:11:38.740020Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "8.17.0",
+      "outputs_to_install": [
+        "bin",
+        "bin",
+        "man",
+        "man"
+      ],
+      "outputs": {
+        "bin": "/nix/store/wqz5jf32ywajllzfry6gjxhddbh21lvs-curl-8.17.0-bin",
+        "debug": "/nix/store/vwgx2lvkk8kygx6006a81qhb48f9hn7f-curl-8.17.0-debug",
+        "dev": "/nix/store/638hqfczwic54cln0cavh38l1a140ij3-curl-8.17.0-dev",
+        "devdoc": "/nix/store/gl74x82b8xiprhpqnw86rvha06gjzk8v-curl-8.17.0-devdoc",
+        "man": "/nix/store/9bpk7v03yq152wvf5rbv7pr7f5mvj7xp-curl-8.17.0-man",
+        "out": "/nix/store/7rls1f8815qd0b6lgicc53jwl7qs3fa2-curl-8.17.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "curl",
+      "broken": false,
+      "derivation": "/nix/store/7f4kfgr9bwbzm3xzah75z0qii7gramff-curl-8.17.0.drv",
+      "description": "Command line tool for transferring files with URL syntax",
+      "install_id": "curl",
+      "license": "curl",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "curl-8.17.0",
+      "pname": "curl",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T05:45:46.157741Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "8.17.0",
+      "outputs_to_install": [
+        "bin",
+        "man"
+      ],
+      "outputs": {
+        "bin": "/nix/store/9392lab8kdzr8ch1g2lfh63fm3gvkg77-curl-8.17.0-bin",
+        "dev": "/nix/store/k4vydyjfpc7j04dldqlmnc688xfzjlvv-curl-8.17.0-dev",
+        "devdoc": "/nix/store/h7rj1lxpqbfpd6l42rfbpby4zb1pxsjx-curl-8.17.0-devdoc",
+        "man": "/nix/store/1x5mhbmgag1x0m1iqg793w3nkpa879qa-curl-8.17.0-man",
+        "out": "/nix/store/073hhh572b5vjk02rdyd68rqip6zfdc5-curl-8.17.0"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "curl",
+      "broken": false,
+      "derivation": "/nix/store/a1kpbbk1lnnaw2gl5pffs92hxm54mjpm-curl-8.17.0.drv",
+      "description": "Command line tool for transferring files with URL syntax",
+      "install_id": "curl",
+      "license": "curl",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "curl-8.17.0",
+      "pname": "curl",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T06:21:09.001728Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "8.17.0",
+      "outputs_to_install": [
+        "bin",
+        "bin",
+        "man",
+        "man"
+      ],
+      "outputs": {
+        "bin": "/nix/store/jqfr3p49g3lch84y45jfzw9fshlv8jyp-curl-8.17.0-bin",
+        "debug": "/nix/store/lhdva5pd84cx2bm7gymrm7x75m95s3gb-curl-8.17.0-debug",
+        "dev": "/nix/store/gy73p60881n9nagq7grffjgy4ycw9a85-curl-8.17.0-dev",
+        "devdoc": "/nix/store/74hjnnn67f1ax4mkx4nwbcxaih6k5hrv-curl-8.17.0-devdoc",
+        "man": "/nix/store/msaigk8gy4rikyxbxiqksh8njd5dx13h-curl-8.17.0-man",
+        "out": "/nix/store/8ylzjm58ghiq60vklfy58j14sgryjjzw-curl-8.17.0"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnumake",
+      "broken": false,
+      "derivation": "/nix/store/2x0iq3b0ldv411ld1i6a9ma8dh182h14-gnumake-4.4.1.drv",
+      "description": "Tool to control the generation of non-source files from sources",
+      "install_id": "gnumake",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "gnumake-4.4.1",
+      "pname": "gnumake",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T04:39:03.421061Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.4.1",
+      "outputs_to_install": [
+        "man",
+        "out"
+      ],
+      "outputs": {
+        "doc": "/nix/store/8cnmyqhnlxpl7k9z15cridfdd9kka64b-gnumake-4.4.1-doc",
+        "info": "/nix/store/jar06k1k53zsig2iah8vaw1y9r0wxa55-gnumake-4.4.1-info",
+        "man": "/nix/store/2cd4idcvj4fnn4ss1ffz9fqagfhvjpy1-gnumake-4.4.1-man",
+        "out": "/nix/store/cz4rjcd28s9qqk2zcnn9d8pgs5l6qqy9-gnumake-4.4.1"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnumake",
+      "broken": false,
+      "derivation": "/nix/store/n3nk5kyi8ckasq265skqni13m34d2v20-gnumake-4.4.1.drv",
+      "description": "Tool to control the generation of non-source files from sources",
+      "install_id": "gnumake",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "gnumake-4.4.1",
+      "pname": "gnumake",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T05:11:40.338175Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.4.1",
+      "outputs_to_install": [
+        "man",
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/4wnafz38wr2jld58vr5j41b6mc4n26r6-gnumake-4.4.1-debug",
+        "doc": "/nix/store/15r3aanv0lh7mqi1gm3l8blpcnp05qzy-gnumake-4.4.1-doc",
+        "info": "/nix/store/gjd78rqz1k94n1c2s2kip126f8gjbb6g-gnumake-4.4.1-info",
+        "man": "/nix/store/i0rnnv9fm87c0228z34pgvk24ifqn6bm-gnumake-4.4.1-man",
+        "out": "/nix/store/z9wllcd2plhx8863ka0zfh0mffxm6jir-gnumake-4.4.1"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnumake",
+      "broken": false,
+      "derivation": "/nix/store/dhwc8f7yshq6m26lfn8sdsw9crnzfzkk-gnumake-4.4.1.drv",
+      "description": "Tool to control the generation of non-source files from sources",
+      "install_id": "gnumake",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "gnumake-4.4.1",
+      "pname": "gnumake",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T05:45:46.970819Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.4.1",
+      "outputs_to_install": [
+        "man",
+        "out"
+      ],
+      "outputs": {
+        "doc": "/nix/store/2kpsfrqzyr0kzckkdjbqnsdcz2d719lk-gnumake-4.4.1-doc",
+        "info": "/nix/store/jlb9r2mzq8660lhn9my1pgri15jiqljq-gnumake-4.4.1-info",
+        "man": "/nix/store/x7p2q0wx9828p9n8r3pisbijncsfphvr-gnumake-4.4.1-man",
+        "out": "/nix/store/sqp22z2pm7s7n0wb3al4c3h47shw5aic-gnumake-4.4.1"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "gnumake",
+      "broken": false,
+      "derivation": "/nix/store/cy06y5fkvbiif016ab9icsj7vqyyiky1-gnumake-4.4.1.drv",
+      "description": "Tool to control the generation of non-source files from sources",
+      "install_id": "gnumake",
+      "license": "GPL-3.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "gnumake-4.4.1",
+      "pname": "gnumake",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T06:21:10.763591Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "4.4.1",
+      "outputs_to_install": [
+        "man",
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/fa0f3msdrc5il96nn5qvrbhf6779vvh1-gnumake-4.4.1-debug",
+        "doc": "/nix/store/j2vz6gm38023yfg359cnawzvabqc0w9v-gnumake-4.4.1-doc",
+        "info": "/nix/store/2pqq9mdchp0s0cgl1qqql38v502kbdi1-gnumake-4.4.1-info",
+        "man": "/nix/store/an38a5jy0ivp1504yjbzgl4prvhjnix7-gnumake-4.4.1-man",
+        "out": "/nix/store/5lyy21zm97pj8l67r2xapdkxpxb6v6y0-gnumake-4.4.1"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "go",
+      "broken": false,
+      "derivation": "/nix/store/h19kjqi10ynjk0i6scllhv82gx45p58w-go-1.25.5.drv",
+      "description": "Go Programming language",
+      "install_id": "go",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "go-1.25.5",
+      "pname": "go",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T04:39:03.429812Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.25.5",
+      "outputs_to_install": [
+        "out",
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/wh88zz6r1ihcp2mm7ys1f2anp8aga6n2-go-1.25.5"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "go",
+      "broken": false,
+      "derivation": "/nix/store/32f3plvjz6apyxgi010l0c0ngqydzbyj-go-1.25.5.drv",
+      "description": "Go Programming language",
+      "install_id": "go",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "go-1.25.5",
+      "pname": "go",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T05:11:40.352825Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.25.5",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/k3knzdi0v21bf2m7vcxpdy1jnqg1h0zk-go-1.25.5"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "go",
+      "broken": false,
+      "derivation": "/nix/store/5m70w19x64mr74nzlmlmv2mia2k6mykd-go-1.25.5.drv",
+      "description": "Go Programming language",
+      "install_id": "go",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "go-1.25.5",
+      "pname": "go",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T05:45:46.979689Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.25.5",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/bwdahzajhqd5x14dbvkqww5f1wpsxif3-go-1.25.5"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "go",
+      "broken": false,
+      "derivation": "/nix/store/3xvlqyw28f7hk7qmk3f18pzi6c7ymzy8-go-1.25.5.drv",
+      "description": "Go Programming language",
+      "install_id": "go",
+      "license": "BSD-3-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "go-1.25.5",
+      "pname": "go",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T06:21:10.778878Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.25.5",
+      "outputs_to_install": [
+        "out",
+        "out",
+        "out",
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/zzvsjgylnphvhms3lgr2qlwdxmc68z66-go-1.25.5"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nodejs",
+      "broken": false,
+      "derivation": "/nix/store/0jp24w00c62cysdikz38xrnmxwzv0q4r-nodejs-24.13.0.drv",
+      "description": "Event-driven I/O framework for the V8 JavaScript engine",
+      "install_id": "nodejs",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "nodejs-24.13.0",
+      "pname": "nodejs",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T04:39:26.589020Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "24.13.0",
+      "outputs_to_install": [
+        "out",
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/ywm49y8ncwny2nr0wvs6vmaxqjiqg523-nodejs-24.13.0-dev",
+        "libv8": "/nix/store/67xyvmmgkisc7mr16wbpyjq2fqyz44af-nodejs-24.13.0-libv8",
+        "out": "/nix/store/szvl8aalaplzshakdpyq8l5yq8q1bw66-nodejs-24.13.0"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nodejs",
+      "broken": false,
+      "derivation": "/nix/store/l64r4vxgdpi0jxp27mvr9sj2c2mq2cys-nodejs-24.13.0.drv",
+      "description": "Event-driven I/O framework for the V8 JavaScript engine",
+      "install_id": "nodejs",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "nodejs-24.13.0",
+      "pname": "nodejs",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T05:12:15.430462Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "24.13.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/qk4n3r5bvqzvpaq1qbpwwf47zg51wrhq-nodejs-24.13.0-dev",
+        "libv8": "/nix/store/rh9dg0mdq0hnp4cbdy4zdbmy6hnhxcfh-nodejs-24.13.0-libv8",
+        "out": "/nix/store/rpyb0275h916mxx8a0cm7yavm4qbr4j9-nodejs-24.13.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nodejs",
+      "broken": false,
+      "derivation": "/nix/store/xgryfaiwfymf8ndij80ssly7q2kdq8y1-nodejs-24.13.0.drv",
+      "description": "Event-driven I/O framework for the V8 JavaScript engine",
+      "install_id": "nodejs",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "nodejs-24.13.0",
+      "pname": "nodejs",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T05:46:09.817265Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "24.13.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/rp55bch0hqxynmxnh7q5bs586kp0dib6-nodejs-24.13.0-dev",
+        "libv8": "/nix/store/dvl504xzwklpfjngdnn6kcpriklwsf6l-nodejs-24.13.0-libv8",
+        "out": "/nix/store/xhp1pnnq7hski7hwg36vw7kpxmg56khh-nodejs-24.13.0"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nodejs",
+      "broken": false,
+      "derivation": "/nix/store/qk40027pvikybl0lvr1wmia9n8ljf99c-nodejs-24.13.0.drv",
+      "description": "Event-driven I/O framework for the V8 JavaScript engine",
+      "install_id": "nodejs",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "nodejs-24.13.0",
+      "pname": "nodejs",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T06:21:48.475294Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "24.13.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/hc7fav9y6ai53nqbbpjxprwnkakl1w2d-nodejs-24.13.0-dev",
+        "libv8": "/nix/store/z7m56hl4rzdrfhnnkwig0ibzs1qz1x5d-nodejs-24.13.0-libv8",
+        "out": "/nix/store/9cyx2v23dip6p9q98384k9v06c96qskb-nodejs-24.13.0"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "oras",
+      "broken": false,
+      "derivation": "/nix/store/dy437mglwqhs8amky5hzmih0zy9vdmma-oras-1.3.0.drv",
+      "description": "Distribute artifacts across OCI registries with ease",
+      "install_id": "oras",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "oras-1.3.0",
+      "pname": "oras",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T04:39:31.739852Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.3.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/8272qx3ppc6f79238rc0yigxmcyvwjmy-oras-1.3.0"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "oras",
+      "broken": false,
+      "derivation": "/nix/store/xy1qs08vyxzvh3jzd8yj98qjw3ml0xr4-oras-1.3.0.drv",
+      "description": "Distribute artifacts across OCI registries with ease",
+      "install_id": "oras",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "oras-1.3.0",
+      "pname": "oras",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T05:12:22.523908Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.3.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/mmvk4njyf4akkvar54wvpjbmgwg6qw70-oras-1.3.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "oras",
+      "broken": false,
+      "derivation": "/nix/store/xi99xhw5pxf7rik9pxwf597222xcl8p1-oras-1.3.0.drv",
+      "description": "Distribute artifacts across OCI registries with ease",
+      "install_id": "oras",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "oras-1.3.0",
+      "pname": "oras",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T05:46:14.881327Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.3.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/yfr7zpbfg7km06ya90d4di1x117rvkdq-oras-1.3.0"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "oras",
+      "broken": false,
+      "derivation": "/nix/store/wkpnb678sx77mxpmkn5lnbfq53pxp86v-oras-1.3.0.drv",
+      "description": "Distribute artifacts across OCI registries with ease",
+      "install_id": "oras",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "oras-1.3.0",
+      "pname": "oras",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T06:21:55.957815Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.3.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/gijpfiqpx30dk1wdiqvwn3757g7mjjb0-oras-1.3.0"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "syft",
+      "broken": false,
+      "derivation": "/nix/store/s2sq47h1h4jmz8sc2q1kvbiylwkkvc4v-syft-1.41.2.drv",
+      "description": "CLI tool and library for generating a Software Bill of Materials from container images and filesystems",
+      "install_id": "syft",
+      "license": "[ Apache-2.0 ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "syft-1.41.2",
+      "pname": "syft",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T04:40:51.908271Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.41.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/d57lyy1hzgsvc8m98fl27b49inw1i731-syft-1.41.2"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "syft",
+      "broken": false,
+      "derivation": "/nix/store/d7k5s583gr5imvbp3wxjv23ffydncx1r-syft-1.41.2.drv",
+      "description": "CLI tool and library for generating a Software Bill of Materials from container images and filesystems",
+      "install_id": "syft",
+      "license": "[ Apache-2.0 ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "syft-1.41.2",
+      "pname": "syft",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T05:14:00.851745Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.41.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/wj7vn3smynmgndmwjgsm25ls1d58ljg4-syft-1.41.2"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "syft",
+      "broken": false,
+      "derivation": "/nix/store/ffzcrlz306qb0vlay081pmxj8x0h3qj2-syft-1.41.2.drv",
+      "description": "CLI tool and library for generating a Software Bill of Materials from container images and filesystems",
+      "install_id": "syft",
+      "license": "[ Apache-2.0 ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "syft-1.41.2",
+      "pname": "syft",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T05:47:32.232468Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.41.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/38hnhih6qrc5mdlhy5gsx4yspbgcgvld-syft-1.41.2"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "syft",
+      "broken": false,
+      "derivation": "/nix/store/wza2l1q1rddwk8vhq3w2b3w12rpkx0j5-syft-1.41.2.drv",
+      "description": "CLI tool and library for generating a Software Bill of Materials from container images and filesystems",
+      "install_id": "syft",
+      "license": "[ Apache-2.0 ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=a82ccc39b39b621151d6732718e3e250109076fa",
+      "name": "syft-1.41.2",
+      "pname": "syft",
+      "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+      "rev_count": 945868,
+      "rev_date": "2026-02-13T18:55:12Z",
+      "scrape_date": "2026-02-15T06:23:39.010645Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.41.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/zgjgi52c4rg4pyxcwibspw6vvxhqzk32-syft-1.41.2"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    }
+  ]
+}

@@ -1,0 +1,2662 @@
+{
+  "components": {
+    "schemas": {
+      "ArtifactDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ArtifactDetail.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "cpe": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "purl": {
+            "type": "string"
+          },
+          "sbomCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "createdAt",
+          "id",
+          "type",
+          "name",
+          "sbomCount"
+        ],
+        "type": "object"
+      },
+      "ArtifactSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "group": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sbomCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "name",
+          "sbomCount"
+        ],
+        "type": "object"
+      },
+      "ChangeSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "added": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "modified": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "removed": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "added",
+          "removed",
+          "modified"
+        ],
+        "type": "object"
+      },
+      "Changelog": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/Changelog.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "artifactId": {
+            "type": "string"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/ChangelogEntry"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "artifactId",
+          "entries"
+        ],
+        "type": "object"
+      },
+      "ChangelogEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ChangelogEntry.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentDiff"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "from": {
+            "$ref": "#/components/schemas/SBOMRef"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ChangeSummary"
+          },
+          "to": {
+            "$ref": "#/components/schemas/SBOMRef"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "summary",
+          "changes"
+        ],
+        "type": "object"
+      },
+      "ComponentDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ComponentDetail.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "bomRef": {
+            "type": "string"
+          },
+          "copyright": {
+            "type": "string"
+          },
+          "cpe": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "externalReferences": {
+            "items": {
+              "$ref": "#/components/schemas/ExternalRefEntry"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "group": {
+            "type": "string"
+          },
+          "hashes": {
+            "items": {
+              "$ref": "#/components/schemas/HashEntry"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "licenses": {
+            "items": {
+              "$ref": "#/components/schemas/LicenseSummary"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "publisher": {
+            "type": "string"
+          },
+          "purl": {
+            "type": "string"
+          },
+          "sbomId": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hashes",
+          "licenses",
+          "externalReferences",
+          "id",
+          "sbomId",
+          "type",
+          "name"
+        ],
+        "type": "object"
+      },
+      "ComponentDiff": {
+        "additionalProperties": false,
+        "properties": {
+          "group": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "previousVersion": {
+            "type": "string"
+          },
+          "purl": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "name"
+        ],
+        "type": "object"
+      },
+      "ComponentSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "bomRef": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "purl": {
+            "type": "string"
+          },
+          "sbomId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sbomId",
+          "type",
+          "name"
+        ],
+        "type": "object"
+      },
+      "ComponentVersionEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": {
+            "type": "string"
+          },
+          "artifactName": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "purl": {
+            "type": "string"
+          },
+          "sbomCreatedAt": {
+            "type": "string"
+          },
+          "sbomDigest": {
+            "type": "string"
+          },
+          "sbomId": {
+            "type": "string"
+          },
+          "subjectVersion": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sbomId",
+          "type",
+          "name",
+          "sbomCreatedAt"
+        ],
+        "type": "object"
+      },
+      "DependencyEdge": {
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "type": "object"
+      },
+      "DependencyGraph": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/DependencyGraph.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyEdge"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentSummary"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "nodes",
+          "edges"
+        ],
+        "type": "object"
+      },
+      "DistinctComponentSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "group": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "purlTypes": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "sbomCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "type": {
+            "type": "string"
+          },
+          "versionCount": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "versionCount",
+          "sbomCount"
+        ],
+        "type": "object"
+      },
+      "ErrorDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "location": {
+            "description": "Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id'",
+            "type": "string"
+          },
+          "message": {
+            "description": "Error message text",
+            "type": "string"
+          },
+          "value": {
+            "description": "The value at the given location"
+          }
+        },
+        "type": "object"
+      },
+      "ErrorModel": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ErrorModel.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "detail": {
+            "description": "A human-readable explanation specific to this occurrence of the problem.",
+            "examples": [
+              "Property foo is required but is missing."
+            ],
+            "type": "string"
+          },
+          "errors": {
+            "description": "Optional list of individual error details",
+            "items": {
+              "$ref": "#/components/schemas/ErrorDetail"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "instance": {
+            "description": "A URI reference that identifies the specific occurrence of the problem.",
+            "examples": [
+              "https://example.com/error-log/abc123"
+            ],
+            "format": "uri",
+            "type": "string"
+          },
+          "status": {
+            "description": "HTTP status code",
+            "examples": [
+              400
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "title": {
+            "description": "A short, human-readable summary of the problem type. This value should not change between occurrences of the error.",
+            "examples": [
+              "Bad Request"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "default": "about:blank",
+            "description": "A URI reference to human-readable documentation for the error.",
+            "examples": [
+              "https://example.com/errors/example"
+            ],
+            "format": "uri",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ExternalRefEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "url"
+        ],
+        "type": "object"
+      },
+      "GetArtifactLicenseSummaryOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/GetArtifactLicenseSummaryOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "licenses": {
+            "items": {
+              "$ref": "#/components/schemas/LicenseCount"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "licenses"
+        ],
+        "type": "object"
+      },
+      "GetComponentVersionsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/GetComponentVersionsOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentVersionEntry"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "versions"
+        ],
+        "type": "object"
+      },
+      "HashEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "algorithm": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "algorithm",
+          "value"
+        ],
+        "type": "object"
+      },
+      "HealthCheckOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/HealthCheckOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "status": {
+            "description": "Health status",
+            "examples": [
+              "ok"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "IngestSBOMOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/IngestSBOMOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "componentCount": {
+            "description": "Number of components in the SBOM",
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "description": "UUID of the created SBOM",
+            "type": "string"
+          },
+          "serialNumber": {
+            "description": "SBOM serial number",
+            "type": "string"
+          },
+          "specVersion": {
+            "description": "CycloneDX spec version",
+            "type": "string"
+          },
+          "status": {
+            "description": "Ingestion status",
+            "examples": [
+              "accepted"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "specVersion",
+          "componentCount"
+        ],
+        "type": "object"
+      },
+      "LicenseCount": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "componentCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "spdxId": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "componentCount",
+          "category"
+        ],
+        "type": "object"
+      },
+      "LicenseSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "spdxId": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "ListArtifactSBOMsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListArtifactSBOMsOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SBOMSummary"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        },
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "type": "object"
+      },
+      "ListArtifactsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListArtifactsOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactSummary"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        },
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "type": "object"
+      },
+      "ListComponentPurlTypesOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListComponentPurlTypesOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "types": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "types"
+        ],
+        "type": "object"
+      },
+      "ListComponentsByLicenseOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListComponentsByLicenseOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentSummary"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        },
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "type": "object"
+      },
+      "ListLicensesOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListLicensesOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/LicenseCount"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        },
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "type": "object"
+      },
+      "ListSBOMComponentsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListSBOMComponentsOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentSummary"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "components"
+        ],
+        "type": "object"
+      },
+      "ListSBOMsByDigestOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListSBOMsByDigestOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SBOMSummary"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        },
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "type": "object"
+      },
+      "ListSBOMsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListSBOMsOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SBOMSummary"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        },
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "type": "object"
+      },
+      "PaginationMeta": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "description": "The limit that was applied",
+            "format": "int32",
+            "type": "integer"
+          },
+          "offset": {
+            "description": "The offset that was applied",
+            "format": "int32",
+            "type": "integer"
+          },
+          "total": {
+            "description": "Total number of matching results",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
+      "ReadinessCheckOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ReadinessCheckOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "reason": {
+            "description": "Reason for unavailability",
+            "type": "string"
+          },
+          "status": {
+            "description": "Readiness status",
+            "examples": [
+              "ready"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "SBOMDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/SBOMDetail.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "artifactId": {
+            "type": "string"
+          },
+          "buildDate": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "componentCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "enrichments": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          },
+          "rawBom": {},
+          "serialNumber": {
+            "type": "string"
+          },
+          "specVersion": {
+            "type": "string"
+          },
+          "subjectVersion": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "specVersion",
+          "version",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "SBOMRef": {
+        "additionalProperties": false,
+        "properties": {
+          "buildDate": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "subjectVersion": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "SBOMSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": {
+            "type": "string"
+          },
+          "buildDate": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "componentCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "serialNumber": {
+            "type": "string"
+          },
+          "specVersion": {
+            "type": "string"
+          },
+          "subjectVersion": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "specVersion",
+          "version",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "SearchComponentsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/SearchComponentsOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentSummary"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        },
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "type": "object"
+      },
+      "SearchDistinctComponentsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/SearchDistinctComponentsOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/DistinctComponentSummary"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        },
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "type": "object"
+      },
+      "VersionOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/VersionOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "version": {
+            "description": "API version",
+            "examples": [
+              "v1"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Open Container Initiative Dex — SBOM metadata management service",
+    "title": "OCIDex API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/": {
+      "get": {
+        "operationId": "api-version",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "API version",
+        "tags": [
+          "Meta"
+        ]
+      }
+    },
+    "/api/v1/artifacts": {
+      "get": {
+        "operationId": "list-artifacts",
+        "parameters": [
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of results to skip",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Number of results to skip",
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Filter by artifact type",
+            "explode": false,
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "description": "Filter by artifact type",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by artifact name",
+            "explode": false,
+            "in": "query",
+            "name": "name",
+            "schema": {
+              "description": "Filter by artifact name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListArtifactsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List artifacts",
+        "tags": [
+          "Artifacts"
+        ]
+      }
+    },
+    "/api/v1/artifacts/{id}": {
+      "delete": {
+        "operationId": "delete-artifact",
+        "parameters": [
+          {
+            "description": "Artifact UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Artifact UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Delete an artifact",
+        "tags": [
+          "Artifacts"
+        ]
+      },
+      "get": {
+        "operationId": "get-artifact",
+        "parameters": [
+          {
+            "description": "Artifact UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Artifact UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get an artifact",
+        "tags": [
+          "Artifacts"
+        ]
+      }
+    },
+    "/api/v1/artifacts/{id}/changelog": {
+      "get": {
+        "operationId": "get-artifact-changelog",
+        "parameters": [
+          {
+            "description": "Artifact UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Artifact UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by subject version",
+            "explode": false,
+            "in": "query",
+            "name": "subject_version",
+            "schema": {
+              "description": "Filter by subject version",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Changelog"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get artifact changelog",
+        "tags": [
+          "Artifacts"
+        ]
+      }
+    },
+    "/api/v1/artifacts/{id}/license-summary": {
+      "get": {
+        "operationId": "get-artifact-license-summary",
+        "parameters": [
+          {
+            "description": "Artifact UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Artifact UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetArtifactLicenseSummaryOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get artifact license summary",
+        "tags": [
+          "Artifacts"
+        ]
+      }
+    },
+    "/api/v1/artifacts/{id}/sboms": {
+      "get": {
+        "operationId": "list-artifact-sboms",
+        "parameters": [
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of results to skip",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Number of results to skip",
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Artifact UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Artifact UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by subject version",
+            "explode": false,
+            "in": "query",
+            "name": "subject_version",
+            "schema": {
+              "description": "Filter by subject version",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListArtifactSBOMsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List SBOMs for an artifact",
+        "tags": [
+          "Artifacts"
+        ]
+      }
+    },
+    "/api/v1/components": {
+      "get": {
+        "operationId": "search-components",
+        "parameters": [
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of results to skip",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Number of results to skip",
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Component name to search for",
+            "explode": false,
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "Component name to search for",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by component group",
+            "explode": false,
+            "in": "query",
+            "name": "group",
+            "schema": {
+              "description": "Filter by component group",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by component version",
+            "explode": false,
+            "in": "query",
+            "name": "version",
+            "schema": {
+              "description": "Filter by component version",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchComponentsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Search components",
+        "tags": [
+          "Components"
+        ]
+      }
+    },
+    "/api/v1/components/distinct": {
+      "get": {
+        "operationId": "search-distinct-components",
+        "parameters": [
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of results to skip",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Number of results to skip",
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Filter by component name",
+            "explode": false,
+            "in": "query",
+            "name": "name",
+            "schema": {
+              "description": "Filter by component name",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by component group",
+            "explode": false,
+            "in": "query",
+            "name": "group",
+            "schema": {
+              "description": "Filter by component group",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by component type",
+            "explode": false,
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "description": "Filter by component type",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by purl type",
+            "explode": false,
+            "in": "query",
+            "name": "purl_type",
+            "schema": {
+              "description": "Filter by purl type",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort field",
+            "explode": false,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Sort field",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction (asc or desc)",
+            "explode": false,
+            "in": "query",
+            "name": "sort_dir",
+            "schema": {
+              "description": "Sort direction (asc or desc)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchDistinctComponentsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Search distinct components",
+        "tags": [
+          "Components"
+        ]
+      }
+    },
+    "/api/v1/components/purl-types": {
+      "get": {
+        "operationId": "list-component-purl-types",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListComponentPurlTypesOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List component PURL types",
+        "tags": [
+          "Components"
+        ]
+      }
+    },
+    "/api/v1/components/versions": {
+      "get": {
+        "operationId": "get-component-versions",
+        "parameters": [
+          {
+            "description": "Component name",
+            "explode": false,
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "Component name",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by component group",
+            "explode": false,
+            "in": "query",
+            "name": "group",
+            "schema": {
+              "description": "Filter by component group",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by component version",
+            "explode": false,
+            "in": "query",
+            "name": "version",
+            "schema": {
+              "description": "Filter by component version",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by component type",
+            "explode": false,
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "description": "Filter by component type",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetComponentVersionsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get component versions",
+        "tags": [
+          "Components"
+        ]
+      }
+    },
+    "/api/v1/components/{id}": {
+      "get": {
+        "operationId": "get-component",
+        "parameters": [
+          {
+            "description": "Component UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Component UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComponentDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a component",
+        "tags": [
+          "Components"
+        ]
+      }
+    },
+    "/api/v1/diff": {
+      "get": {
+        "description": "Computes the component diff between two SBOMs.",
+        "operationId": "diff-sboms",
+        "parameters": [
+          {
+            "description": "UUID of the source SBOM",
+            "explode": false,
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "description": "UUID of the source SBOM",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "UUID of the target SBOM",
+            "explode": false,
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "description": "UUID of the target SBOM",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangelogEntry"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Diff two SBOMs",
+        "tags": [
+          "Diff"
+        ]
+      }
+    },
+    "/api/v1/licenses": {
+      "get": {
+        "operationId": "list-licenses",
+        "parameters": [
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of results to skip",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Number of results to skip",
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Filter by SPDX identifier",
+            "explode": false,
+            "in": "query",
+            "name": "spdx_id",
+            "schema": {
+              "description": "Filter by SPDX identifier",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by license name",
+            "explode": false,
+            "in": "query",
+            "name": "name",
+            "schema": {
+              "description": "Filter by license name",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by license category",
+            "explode": false,
+            "in": "query",
+            "name": "category",
+            "schema": {
+              "description": "Filter by license category",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListLicensesOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List licenses",
+        "tags": [
+          "Licenses"
+        ]
+      }
+    },
+    "/api/v1/licenses/{id}/components": {
+      "get": {
+        "operationId": "list-components-by-license",
+        "parameters": [
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of results to skip",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Number of results to skip",
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "License UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "License UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListComponentsByLicenseOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List components by license",
+        "tags": [
+          "Licenses"
+        ]
+      }
+    },
+    "/api/v1/sbom": {
+      "get": {
+        "operationId": "list-sboms",
+        "parameters": [
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of results to skip",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Number of results to skip",
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Filter by serial number",
+            "explode": false,
+            "in": "query",
+            "name": "serial_number",
+            "schema": {
+              "description": "Filter by serial number",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by image digest",
+            "explode": false,
+            "in": "query",
+            "name": "digest",
+            "schema": {
+              "description": "Filter by image digest",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSBOMsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List SBOMs",
+        "tags": [
+          "SBOMs"
+        ]
+      },
+      "post": {
+        "description": "Accepts a CycloneDX JSON SBOM, validates it, and persists it.",
+        "operationId": "ingest-sbom",
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "contentMediaType": "application/octet-stream",
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestSBOMOutputBody"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Ingest an SBOM",
+        "tags": [
+          "SBOMs"
+        ]
+      }
+    },
+    "/api/v1/sbom/by-digest/{digest}": {
+      "get": {
+        "operationId": "list-sboms-by-digest",
+        "parameters": [
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of results to skip",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Number of results to skip",
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Image digest (e.g. sha256:abc123)",
+            "in": "path",
+            "name": "digest",
+            "required": true,
+            "schema": {
+              "description": "Image digest (e.g. sha256:abc123)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSBOMsByDigestOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List SBOMs by image digest",
+        "tags": [
+          "SBOMs"
+        ]
+      }
+    },
+    "/api/v1/sbom/{id}": {
+      "delete": {
+        "operationId": "delete-sbom",
+        "parameters": [
+          {
+            "description": "SBOM UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "SBOM UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Delete an SBOM",
+        "tags": [
+          "SBOMs"
+        ]
+      },
+      "get": {
+        "operationId": "get-sbom",
+        "parameters": [
+          {
+            "description": "SBOM UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "SBOM UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Set to 'raw' to include the raw BOM JSON",
+            "explode": false,
+            "in": "query",
+            "name": "include",
+            "schema": {
+              "description": "Set to 'raw' to include the raw BOM JSON",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SBOMDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get an SBOM",
+        "tags": [
+          "SBOMs"
+        ]
+      }
+    },
+    "/api/v1/sbom/{id}/components": {
+      "get": {
+        "operationId": "list-sbom-components",
+        "parameters": [
+          {
+            "description": "SBOM UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "SBOM UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSBOMComponentsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List components in an SBOM",
+        "tags": [
+          "SBOMs"
+        ]
+      }
+    },
+    "/api/v1/sbom/{id}/dependencies": {
+      "get": {
+        "operationId": "get-sbom-dependencies",
+        "parameters": [
+          {
+            "description": "SBOM UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "SBOM UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DependencyGraph"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get SBOM dependency graph",
+        "tags": [
+          "SBOMs"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health-check",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthCheckOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Liveness check",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/ready": {
+      "get": {
+        "description": "Verifies the database is reachable.",
+        "operationId": "readiness-check",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessCheckOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Readiness check",
+        "tags": [
+          "Health"
+        ]
+      }
+    }
+  }
+}

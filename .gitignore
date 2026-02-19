@@ -1,0 +1,25 @@
+# Build
+bin/
+/ocidex
+*.exe
+
+# Frontend
+web/node_modules/
+web/dist/
+
+# Test
+coverage.out
+coverage.html
+
+# Environment
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
