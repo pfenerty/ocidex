@@ -44,8 +44,9 @@ type Metadata struct {
 
 // Enricher fetches OCI image metadata from container registries.
 type Enricher struct {
-	timeout time.Duration
-	options []remote.Option
+	timeout  time.Duration
+	options  []remote.Option
+	insecure bool
 }
 
 // Option configures the OCI Enricher.
@@ -59,6 +60,11 @@ func WithTimeout(d time.Duration) Option {
 // WithRemoteOptions sets additional options for the remote client.
 func WithRemoteOptions(opts ...remote.Option) Option {
 	return func(e *Enricher) { e.options = append(e.options, opts...) }
+}
+
+// WithInsecure configures the enricher to use plain HTTP for registry connections.
+func WithInsecure() Option {
+	return func(e *Enricher) { e.insecure = true }
 }
 
 // NewEnricher creates an OCI metadata enricher.
@@ -89,7 +95,11 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 
 	imageRef := ref.ArtifactName + "@" + ref.Digest
 
-	parsedRef, err := name.ParseReference(imageRef)
+	nameOpts := []name.Option{}
+	if e.insecure {
+		nameOpts = append(nameOpts, name.Insecure)
+	}
+	parsedRef, err := name.ParseReference(imageRef, nameOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("parsing image ref %q: %w", imageRef, err)
 	}
@@ -142,8 +152,9 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 // Validator checks that a container image digest points to a single
 // image manifest and not a manifest list (image index).
 type Validator struct {
-	timeout time.Duration
-	options []remote.Option
+	timeout  time.Duration
+	options  []remote.Option
+	insecure bool
 }
 
 // NewValidator creates an OCI digest validator.
@@ -152,7 +163,7 @@ func NewValidator(opts ...Option) *Validator {
 	for _, o := range opts {
 		o(e)
 	}
-	return &Validator{timeout: e.timeout, options: e.options}
+	return &Validator{timeout: e.timeout, options: e.options, insecure: e.insecure}
 }
 
 // ValidateDigest verifies that imageName@digest points to a single image
@@ -163,7 +174,11 @@ func (v *Validator) ValidateDigest(ctx context.Context, imageName, digest string
 
 	imageRef := imageName + "@" + digest
 
-	parsedRef, err := name.ParseReference(imageRef)
+	nameOpts := []name.Option{}
+	if v.insecure {
+		nameOpts = append(nameOpts, name.Insecure)
+	}
+	parsedRef, err := name.ParseReference(imageRef, nameOpts...)
 	if err != nil {
 		return fmt.Errorf("parsing image ref %q: %w", imageRef, err)
 	}
@@ -206,7 +221,11 @@ func (e *Enricher) fetchParentIndexAnnotations(ctx context.Context, ref enrichme
 		repo = repo[:idx]
 	}
 
-	tagRef, err := name.ParseReference(repo + ":" + version)
+	nameOpts := []name.Option{}
+	if e.insecure {
+		nameOpts = append(nameOpts, name.Insecure)
+	}
+	tagRef, err := name.ParseReference(repo+":"+version, nameOpts...)
 	if err != nil {
 		return nil
 	}

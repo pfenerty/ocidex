@@ -20,6 +20,23 @@ type Config struct {
 	EnrichmentEnabled   bool `env:"ENRICHMENT_ENABLED"   envDefault:"true"`
 	EnrichmentWorkers   int  `env:"ENRICHMENT_WORKERS"   envDefault:"2"`
 	EnrichmentQueueSize int  `env:"ENRICHMENT_QUEUE_SIZE" envDefault:"100"`
+
+	// Audit logging.
+	AuditLogEnabled bool `env:"AUDIT_LOG_ENABLED" envDefault:"true"`
+
+	// NATS JetStream (optional outbound layer).
+	NATSEnabled    bool   `env:"NATS_ENABLED"        envDefault:"false"`
+	NATSURL        string `env:"NATS_URL"            envDefault:"nats://localhost:4222"`
+	NATSStreamName string `env:"NATS_STREAM_NAME"    envDefault:"ocidex"`
+	NATSEventTTL   int    `env:"NATS_EVENT_TTL_HOURS" envDefault:"24"`
+
+	// Scanner (OCI registry auto-scan via Zot webhook).
+	ScannerEnabled   bool   `env:"SCANNER_ENABLED"    envDefault:"false"`
+	ScannerWorkers   int    `env:"SCANNER_WORKERS"    envDefault:"2"`
+	ScannerQueueSize int    `env:"SCANNER_QUEUE_SIZE" envDefault:"50"`
+	ZotRegistryAddr     string `env:"ZOT_REGISTRY_ADDR"     envDefault:"zot:5000"`
+	ZotRegistryInsecure bool   `env:"ZOT_REGISTRY_INSECURE" envDefault:"false"`
+	ZotWebhookSecret    string `env:"ZOT_WEBHOOK_SECRET"`
 }
 
 // Load reads configuration from environment variables.

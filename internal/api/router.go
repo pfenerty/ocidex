@@ -47,6 +47,7 @@ func NewRouter(h *Handler, corsOrigins string) chi.Router {
 	registerLicenseOps(api, h)
 	registerArtifactOps(api, h)
 	registerDiffOps(api, h)
+	registerWebhookOps(api, h)
 
 	return r
 }
@@ -290,6 +291,22 @@ func registerDiffOps(api huma.API, h *Handler) {
 		Description: "Computes the component diff between two SBOMs.",
 		Tags:        []string{"Diff"},
 	}, h.DiffSBOMs)
+}
+
+// ---------------------------------------------------------------------------
+// Webhooks
+// ---------------------------------------------------------------------------
+
+func registerWebhookOps(api huma.API, h *Handler) {
+	huma.Register(api, huma.Operation{
+		OperationID:   "zot-webhook",
+		Method:        http.MethodPost,
+		Path:          "/api/v1/webhooks/zot",
+		Summary:       "Receive Zot registry push notifications",
+		Tags:          []string{"Webhooks"},
+		MaxBodyBytes:  64 * 1024,
+		DefaultStatus: http.StatusAccepted,
+	}, h.HandleZotWebhook)
 }
 
 // ---------------------------------------------------------------------------

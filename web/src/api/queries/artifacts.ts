@@ -72,7 +72,7 @@ export function useArtifactSBOMs(
     return createQuery(() => {
         const p = params();
         return {
-            queryKey: ["artifact", id(), "sboms", p.limit, p.offset] as const,
+            queryKey: ["artifact", id(), "sboms", p.subject_version, p.limit, p.offset] as const,
             queryFn: () =>
                 unwrap(
                     client.GET("/api/v1/artifacts/{id}/sboms", {
@@ -99,14 +99,17 @@ export function useArtifactSBOMs(
 
 export function useArtifactChangelog(
     id: Accessor<string>,
-    options?: { enabled?: Accessor<boolean> },
+    options?: { enabled?: Accessor<boolean>; arch?: Accessor<string | undefined> },
 ) {
     return createQuery(() => ({
-        queryKey: ["artifact", id(), "changelog"] as const,
+        queryKey: ["artifact", id(), "changelog", options?.arch?.()] as const,
         queryFn: () =>
             unwrap(
                 client.GET("/api/v1/artifacts/{id}/changelog", {
-                    params: { path: { id: id() } },
+                    params: {
+                        path: { id: id() },
+                        query: { arch: options?.arch?.() || undefined },
+                    },
                 }),
             ),
         enabled: options?.enabled?.() ?? true,

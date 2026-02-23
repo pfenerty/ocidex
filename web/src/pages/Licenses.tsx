@@ -110,7 +110,7 @@ export default function Licenses() {
                                             <th class="text-right">
                                                 Components
                                             </th>
-                                            <th></th>
+                                            <th />
                                         </tr>
                                     </thead>
                                     <tbody>

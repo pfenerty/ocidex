@@ -18,10 +18,15 @@ import (
 
 	"github.com/pfenerty/ocidex/db"
 	"github.com/pfenerty/ocidex/internal/api"
+	"github.com/pfenerty/ocidex/internal/audit"
 	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/enrichment"
 	"github.com/pfenerty/ocidex/internal/enrichment/oci"
+	"github.com/pfenerty/ocidex/internal/event"
+	"github.com/pfenerty/ocidex/internal/extension"
+	natspkg "github.com/pfenerty/ocidex/internal/nats"
 	"github.com/pfenerty/ocidex/internal/repository"
+	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -67,31 +72,81 @@ func run() error {
 		return fmt.Errorf("running migrations: %w", err)
 	}
 
-	// Wire enrichment pipeline.
-	var dispatcher *enrichment.Dispatcher
+	// Optionally connect to NATS JetStream.
+	var natsClient *natspkg.Client
+	if cfg.NATSEnabled {
+		natsClient, err = natspkg.Connect(natspkg.Config{
+			URL:           cfg.NATSURL,
+			StreamName:    cfg.NATSStreamName,
+			EventTTLHours: cfg.NATSEventTTL,
+		})
+		if err != nil {
+			return fmt.Errorf("connecting to NATS: %w", err)
+		}
+		defer natsClient.Close()
+		slog.Info("NATS connected", "url", cfg.NATSURL, "stream", cfg.NATSStreamName)
+	}
+
+	// Wire event bus and extension registry.
+	logger := slog.Default()
+	bus := event.NewBus(logger)
+	registry := extension.NewRegistry(bus, logger)
+
+	var ociOpts []oci.Option
+	if cfg.ZotRegistryInsecure {
+		ociOpts = append(ociOpts, oci.WithInsecure())
+	}
+
 	if cfg.EnrichmentEnabled {
 		enrichStore := repository.New(pool)
-		ociEnricher := oci.NewEnricher()
-		dispatcher = enrichment.NewDispatcher(
+		ociEnricher := oci.NewEnricher(ociOpts...)
+		dispatcher := enrichment.NewDispatcher(
 			enrichStore,
 			[]enrichment.Enricher{ociEnricher},
 			enrichment.WithWorkers(cfg.EnrichmentWorkers),
 			enrichment.WithQueueSize(cfg.EnrichmentQueueSize),
 		)
+		if cfg.NATSEnabled {
+			registry.Register(enrichment.NewNATSExtension(natsClient, dispatcher, logger))
+		} else {
+			registry.Register(enrichment.NewExtension(dispatcher))
+		}
 	}
 
-	// Wire dependencies.
-	ociValidator := oci.NewValidator()
-	sbomSvc := service.NewSBOMService(pool, dispatcher, ociValidator)
+	if cfg.AuditLogEnabled {
+		registry.Register(audit.NewExtension(logger))
+	}
+
+	if cfg.NATSEnabled {
+		registry.Register(natspkg.NewRelayExtension(natsClient, logger))
+	}
+
+	// Wire core services (scanner extension depends on sbomSvc).
+	ociValidator := oci.NewValidator(ociOpts...)
+	sbomSvc := service.NewSBOMService(pool, bus, ociValidator)
 	searchSvc := service.NewSearchService(pool)
-	handler := api.NewHandler(sbomSvc, searchSvc, pool)
+
+	var scanDispatcher *scanner.Dispatcher
+	if cfg.ScannerEnabled {
+		// Use nil validator: webhook confirms image exists at a known digest.
+		scannerSbomSvc := service.NewSBOMService(pool, bus, nil)
+		sc := scanner.NewScanner(cfg.ZotRegistryAddr, cfg.ZotRegistryInsecure, logger)
+		scanDispatcher = scanner.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerWorkers, cfg.ScannerQueueSize, logger)
+		registry.Register(scanner.NewExtension(scanDispatcher))
+	}
+
+	if err := registry.InitAll(); err != nil {
+		return fmt.Errorf("initializing extensions: %w", err)
+	}
+
+	handler := api.NewHandler(sbomSvc, searchSvc, pool, scanDispatcher, cfg.ZotWebhookSecret)
 	router := api.NewRouter(handler, cfg.CORSAllowedOrigins)
 
-	// Start enrichment workers.
-	enrichCtx, enrichCancel := context.WithCancel(context.Background())
-	defer enrichCancel()
-	if dispatcher != nil {
-		go dispatcher.Run(enrichCtx)
+	// Start extensions.
+	extCtx, extCancel := context.WithCancel(context.Background())
+	defer extCancel()
+	if err := registry.StartAll(extCtx); err != nil {
+		return fmt.Errorf("starting extensions: %w", err)
 	}
 
 	// Start HTTP server.
@@ -123,8 +178,11 @@ func run() error {
 		return fmt.Errorf("server error: %w", err)
 	}
 
-	// Stop enrichment workers first.
-	enrichCancel()
+	// Stop extensions first (enrichment workers, etc.).
+	extCancel()
+	if err := registry.StopAll(); err != nil {
+		slog.Error("extension shutdown error", "err", err)
+	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

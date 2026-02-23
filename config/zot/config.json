@@ -1,0 +1,19 @@
+{
+  "distSpecVersion": "1.1.0",
+  "storage": { "rootDirectory": "/var/lib/registry" },
+  "http": { "address": "0.0.0.0", "port": "5000" },
+  "log": { "level": "info" },
+  "extensions": {
+    "events": {
+      "enable": true,
+      "sinks": [
+        {
+          "type": "http",
+          "address": "http://ocidex:8080/api/v1/webhooks/zot",
+          "timeout": "10s",
+          "headers": { "Authorization": "Bearer change-me-in-production" }
+        }
+      ]
+    }
+  }
+}

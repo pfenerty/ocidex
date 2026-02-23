@@ -10,7 +10,7 @@ interface PurlParts {
 /** Parse a PURL string into its constituent parts. */
 export function parsePurl(purl: string): PurlParts | null {
   // Format: pkg:<type>/<namespace>/<name>@<version>?<qualifiers>#<subpath>
-  const match = purl.match(/^pkg:([^/]+)\/(.+?)(?:@([^?#]+))?(?:\?[^#]*)?(?:#.*)?$/);
+  const match = /^pkg:([^/]+)\/(.+?)(?:@([^?#]+))?(?:\?[^#]*)?(?:#.*)?$/.exec(purl);
   if (!match) return null;
 
   const [, type, path, version] = match;

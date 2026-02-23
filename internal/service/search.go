@@ -28,7 +28,7 @@ type SearchService interface {
 	GetArtifact(ctx context.Context, id pgtype.UUID) (ArtifactDetail, error)
 	ListArtifacts(ctx context.Context, filter ArtifactFilter) (PagedResult[ArtifactSummary], error)
 	ListSBOMsByArtifact(ctx context.Context, artifactID pgtype.UUID, subjectVersion string, limit, offset int32) (PagedResult[SBOMSummary], error)
-	GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion string) (Changelog, error)
+	GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch string) (Changelog, error)
 	DiffSBOMs(ctx context.Context, fromID, toID pgtype.UUID) (ChangelogEntry, error)
 	ListSBOMsByDigest(ctx context.Context, digest string, limit, offset int32) (PagedResult[SBOMSummary], error)
 	GetArtifactLicenseSummary(ctx context.Context, artifactID pgtype.UUID) ([]LicenseCount, error)
@@ -112,6 +112,8 @@ type SBOMSummary struct {
 	CreatedAt      time.Time  `json:"createdAt"`
 	ComponentCount int64      `json:"componentCount,omitempty"`
 	BuildDate      *time.Time `json:"buildDate,omitempty"`
+	ImageVersion   *string    `json:"imageVersion,omitempty"`
+	Architecture   *string    `json:"architecture,omitempty"`
 }
 
 // SBOMDetail extends SBOMSummary with optional raw BOM data and enrichments.
@@ -202,6 +204,7 @@ type ComponentVersionEntry struct {
 	SbomDigest     *string `json:"sbomDigest,omitempty"`
 	ArtifactName   *string `json:"artifactName,omitempty"`
 	SbomCreatedAt  string  `json:"sbomCreatedAt"`
+	Architecture   *string `json:"architecture,omitempty"`
 }
 
 // DependencyGraph represents the dependency structure of an SBOM.
@@ -425,7 +428,7 @@ func (s *searchService) GetComponentVersions(ctx context.Context, name, group, v
 
 	items := make([]ComponentVersionEntry, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, ComponentVersionEntry{
+		entry := ComponentVersionEntry{
 			ID:             uuidToString(row.ID),
 			SbomID:         uuidToString(row.SbomID),
 			Type:           row.Type,
@@ -438,7 +441,11 @@ func (s *searchService) GetComponentVersions(ctx context.Context, name, group, v
 			SbomDigest:     textToPtr(row.SbomDigest),
 			ArtifactName:   textToPtr(row.ArtifactName),
 			SbomCreatedAt:  row.SbomCreatedAt.Time.Format(time.RFC3339),
-		})
+		}
+		if s, ok := row.Architecture.(string); ok && s != "" {
+			entry.Architecture = &s
+		}
+		items = append(items, entry)
 	}
 
 	return items, nil
@@ -675,6 +682,12 @@ func (s *searchService) ListSBOMsByArtifact(ctx context.Context, artifactID pgty
 		if row.BuildDate.Valid {
 			t := row.BuildDate.Time
 			summary.BuildDate = &t
+		}
+		if s, ok := row.ImageVersion.(string); ok && s != "" {
+			summary.ImageVersion = &s
+		}
+		if s, ok := row.Architecture.(string); ok && s != "" {
+			summary.Architecture = &s
 		}
 		items = append(items, summary)
 	}

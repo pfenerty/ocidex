@@ -115,6 +115,15 @@
           "artifactId": {
             "type": "string"
           },
+          "availableArchitectures": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "entries": {
             "items": {
               "$ref": "#/components/schemas/ChangelogEntry"
@@ -127,6 +136,7 @@
         },
         "required": [
           "artifactId",
+          "availableArchitectures",
           "entries"
         ],
         "type": "object"
@@ -327,6 +337,9 @@
       "ComponentVersionEntry": {
         "additionalProperties": false,
         "properties": {
+          "architecture": {
+            "type": "string"
+          },
           "artifactId": {
             "type": "string"
           },
@@ -1064,6 +1077,9 @@
             "readOnly": true,
             "type": "string"
           },
+          "architecture": {
+            "type": "string"
+          },
           "artifactId": {
             "type": "string"
           },
@@ -1087,6 +1103,9 @@
             "type": "object"
           },
           "id": {
+            "type": "string"
+          },
+          "imageVersion": {
             "type": "string"
           },
           "rawBom": {},
@@ -1115,6 +1134,9 @@
       "SBOMRef": {
         "additionalProperties": false,
         "properties": {
+          "architecture": {
+            "type": "string"
+          },
           "buildDate": {
             "format": "date-time",
             "type": "string"
@@ -1139,6 +1161,9 @@
       "SBOMSummary": {
         "additionalProperties": false,
         "properties": {
+          "architecture": {
+            "type": "string"
+          },
           "artifactId": {
             "type": "string"
           },
@@ -1158,6 +1183,9 @@
             "type": "string"
           },
           "id": {
+            "type": "string"
+          },
+          "imageVersion": {
             "type": "string"
           },
           "serialNumber": {
@@ -1266,6 +1294,43 @@
         },
         "required": [
           "version"
+        ],
+        "type": "object"
+      },
+      "ZotEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ZotEvent.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "manifest": {
+            "type": "string"
+          },
+          "mediaType": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "reference",
+          "digest",
+          "mediaType",
+          "manifest"
         ],
         "type": "object"
       }
@@ -1490,6 +1555,16 @@
             "name": "subject_version",
             "schema": {
               "description": "Filter by subject version",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Architecture to show timeline for (e.g. amd64)",
+            "explode": false,
+            "in": "query",
+            "name": "arch",
+            "schema": {
+              "description": "Architecture to show timeline for (e.g. amd64)",
               "type": "string"
             }
           }
@@ -2592,6 +2667,49 @@
         "summary": "Get SBOM dependency graph",
         "tags": [
           "SBOMs"
+        ]
+      }
+    },
+    "/api/v1/webhooks/zot": {
+      "post": {
+        "operationId": "zot-webhook",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ZotEvent"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Receive Zot registry push notifications",
+        "tags": [
+          "Webhooks"
         ]
       }
     },

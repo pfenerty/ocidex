@@ -367,8 +367,9 @@ type ListArtifactSBOMsOutput struct {
 
 // GetArtifactChangelogInput is the request for GET /api/v1/artifacts/{id}/changelog.
 type GetArtifactChangelogInput struct {
-	ID             string `path:"id" doc:"Artifact UUID" format:"uuid"`
+	ID             string `path:"id"               doc:"Artifact UUID"    format:"uuid"`
 	SubjectVersion string `query:"subject_version" doc:"Filter by subject version"`
+	Arch           string `query:"arch"            doc:"Architecture to show timeline for (e.g. amd64)"`
 }
 
 // GetArtifactChangelogOutput is the response for GET /api/v1/artifacts/{id}/changelog.

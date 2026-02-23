@@ -138,7 +138,20 @@ export default function ComponentOverview() {
                             </div>
 
                             <For each={grouped()}>
-                                {(group) => (
+                                {(group) => {
+                                    const hasArch = () => group.entries.some(e => e.architecture != null);
+                                    const archGroups = () => {
+                                        if (!hasArch()) return null;
+                                        const order: string[] = [];
+                                        const map = new Map<string, ComponentVersionEntry[]>();
+                                        for (const e of group.entries) {
+                                            const key = e.subjectVersion ?? e.sbomId;
+                                            if (!map.has(key)) { order.push(key); map.set(key, []); }
+                                            map.get(key)!.push(e);
+                                        }
+                                        return { order, map };
+                                    };
+                                    return (
                                     <div class="card mb-md">
                                         <div class="card-header">
                                             <h3>
@@ -165,98 +178,140 @@ export default function ComponentOverview() {
                                             </div>
                                         </div>
                                         <div class="table-wrapper">
-                                            <table>
-                                                <thead>
-                                                    <tr>
-                                                        <th>Artifact</th>
-                                                        <th>Digest</th>
-                                                        <th>Ingested</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    <For each={group.entries}>
-                                                        {(entry) => (
+                                            <Show
+                                                when={hasArch()}
+                                                fallback={
+                                                    <table>
+                                                        <thead>
                                                             <tr>
-                                                                <td>
-                                                                    <Show
-                                                                        when={
-                                                                            entry.artifactId
-                                                                        }
-                                                                        fallback={
-                                                                            <A
-                                                                                href={`/sboms/${entry.sbomId}`}
-                                                                            >
-                                                                                {entry.subjectVersion ??
-                                                                                    formatDateTime(
-                                                                                        entry.sbomCreatedAt,
-                                                                                    )}
-                                                                            </A>
-                                                                        }
-                                                                    >
-                                                                        <A
-                                                                            href={`/artifacts/${entry.artifactId}`}
-                                                                        >
-                                                                            {entry.artifactName ??
-                                                                                entry.artifactId!.slice(
-                                                                                    0,
-                                                                                    8,
-                                                                                )}
-                                                                        </A>
-                                                                        <Show
-                                                                            when={
-                                                                                entry.subjectVersion
-                                                                            }
-                                                                        >
-                                                                            <span class="text-muted">
-                                                                                :
-                                                                                {
-                                                                                    entry.subjectVersion
-                                                                                }
-                                                                            </span>
-                                                                        </Show>
-                                                                    </Show>
-                                                                </td>
-                                                                <td>
-                                                                    <Show
-                                                                        when={
-                                                                            entry.sbomDigest
-                                                                        }
-                                                                        fallback={
-                                                                            <span class="text-muted">
-                                                                                —
-                                                                            </span>
-                                                                        }
-                                                                    >
-                                                                        <span
-                                                                            class="mono text-sm"
-                                                                            title={
-                                                                                entry.sbomDigest
-                                                                            }
-                                                                        >
-                                                                            {shortDigest(
-                                                                                entry.sbomDigest!,
-                                                                            )}
-                                                                        </span>
-                                                                    </Show>
-                                                                </td>
-                                                                <td
-                                                                    class="nowrap text-muted"
-                                                                    title={new Date(
-                                                                        entry.sbomCreatedAt,
-                                                                    ).toLocaleString()}
-                                                                >
-                                                                    {relativeDate(
-                                                                        entry.sbomCreatedAt,
-                                                                    )}
-                                                                </td>
+                                                                <th>Artifact</th>
+                                                                <th>Digest</th>
+                                                                <th>Ingested</th>
                                                             </tr>
-                                                        )}
-                                                    </For>
-                                                </tbody>
-                                            </table>
+                                                        </thead>
+                                                        <tbody>
+                                                            <For each={group.entries}>
+                                                                {(entry) => (
+                                                                    <tr>
+                                                                        <td>
+                                                                            <Show
+                                                                                when={entry.artifactId}
+                                                                                fallback={
+                                                                                    <A href={`/sboms/${entry.sbomId}`}>
+                                                                                        {entry.subjectVersion ?? formatDateTime(entry.sbomCreatedAt)}
+                                                                                    </A>
+                                                                                }
+                                                                            >
+                                                                                <A href={`/artifacts/${entry.artifactId}`}>
+                                                                                    {entry.artifactName ?? entry.artifactId!.slice(0, 8)}
+                                                                                </A>
+                                                                                <Show when={entry.subjectVersion}>
+                                                                                    <span class="text-muted">:{entry.subjectVersion}</span>
+                                                                                </Show>
+                                                                            </Show>
+                                                                        </td>
+                                                                        <td>
+                                                                            <Show
+                                                                                when={entry.sbomDigest}
+                                                                                fallback={<span class="text-muted">—</span>}
+                                                                            >
+                                                                                <span class="mono text-sm" title={entry.sbomDigest}>
+                                                                                    {shortDigest(entry.sbomDigest!)}
+                                                                                </span>
+                                                                            </Show>
+                                                                        </td>
+                                                                        <td
+                                                                            class="nowrap text-muted"
+                                                                            title={new Date(entry.sbomCreatedAt).toLocaleString()}
+                                                                        >
+                                                                            {relativeDate(entry.sbomCreatedAt)}
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </For>
+                                                        </tbody>
+                                                    </table>
+                                                }
+                                            >
+                                                <table>
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Artifact</th>
+                                                            <th>Architectures</th>
+                                                            <th>Ingested</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <For each={archGroups()!.order}>
+                                                            {(key) => {
+                                                                const entries = archGroups()!.map.get(key)!;
+                                                                const preferred = entries.find(e => e.architecture === "amd64") ?? entries[0];
+                                                                return (
+                                                                    <>
+                                                                        <tr style={{ "font-weight": "600" }}>
+                                                                            <td>
+                                                                                <Show
+                                                                                    when={preferred.artifactId}
+                                                                                    fallback={
+                                                                                        <A href={`/sboms/${preferred.sbomId}`}>
+                                                                                            {preferred.subjectVersion ?? formatDateTime(preferred.sbomCreatedAt)}
+                                                                                        </A>
+                                                                                    }
+                                                                                >
+                                                                                    <A href={`/artifacts/${preferred.artifactId}`}>
+                                                                                        {preferred.artifactName ?? preferred.artifactId!.slice(0, 8)}
+                                                                                    </A>
+                                                                                    <Show when={preferred.subjectVersion}>
+                                                                                        <span class="text-muted">:{preferred.subjectVersion}</span>
+                                                                                    </Show>
+                                                                                </Show>
+                                                                            </td>
+                                                                            <td>
+                                                                                <For each={entries}>
+                                                                                    {(e) => (
+                                                                                        <span class="badge badge-primary" style={{ "margin-right": "4px" }}>
+                                                                                            {e.architecture}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </For>
+                                                                            </td>
+                                                                            <td
+                                                                                class="nowrap text-muted"
+                                                                                title={new Date(preferred.sbomCreatedAt).toLocaleString()}
+                                                                            >
+                                                                                {relativeDate(preferred.sbomCreatedAt)}
+                                                                            </td>
+                                                                        </tr>
+                                                                        <For each={entries}>
+                                                                            {(e) => (
+                                                                                <tr style={{ background: "var(--color-bg-alt, #f8f9fa)" }}>
+                                                                                    <td style={{ "padding-left": "2rem" }} colspan={3}>
+                                                                                        <span class="badge badge-primary" style={{ "margin-right": "8px" }}>
+                                                                                            {e.architecture}
+                                                                                        </span>
+                                                                                        <A href={`/sboms/${e.sbomId}`} style={{ "margin-right": "12px" }}>
+                                                                                            SBOM
+                                                                                        </A>
+                                                                                        <Show when={e.sbomDigest}>
+                                                                                            <span class="mono text-sm text-muted" title={e.sbomDigest}>
+                                                                                                {shortDigest(e.sbomDigest!)}
+                                                                                            </span>
+                                                                                        </Show>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            )}
+                                                                        </For>
+                                                                    </>
+                                                                );
+                                                            }}
+                                                        </For>
+                                                    </tbody>
+                                                </table>
+                                            </Show>
                                         </div>
                                     </div>
-                                )}
+                                    );
+                                }}
                             </For>
                         </Show>
                     </Show>

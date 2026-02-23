@@ -1,6 +1,6 @@
 import { createSignal, createMemo, Show, For } from "solid-js";
-import { A, useParams } from "@solidjs/router";
-import { useSBOM, useSBOMComponents, useSBOMDependencies } from "~/api/queries";
+import { A, useParams, useNavigate } from "@solidjs/router";
+import { useSBOM, useSBOMComponents, useSBOMDependencies, useArtifactSBOMs } from "~/api/queries";
 import { useArtifactNames } from "~/api/queries";
 import type {
     OCIMetadata,
@@ -35,6 +35,16 @@ export default function SBOMDetail() {
     const depsQuery = useSBOMDependencies(() => params.id, {
         enabled: () => tab() === "dependencies",
     });
+
+    const navigate = useNavigate();
+
+    const siblingsQuery = useArtifactSBOMs(
+        () => sbomQuery.data?.artifactId ?? "",
+        () => ({ limit: 50, subject_version: sbomQuery.data?.subjectVersion }),
+        { enabled: () => !!(sbomQuery.data?.artifactId && sbomQuery.data?.subjectVersion) },
+    );
+
+    const archSiblings = () => (siblingsQuery.data?.data ?? []).filter(s => s.architecture != null);
 
     const title = () => {
         const s = sbomQuery.data;
@@ -254,6 +264,22 @@ export default function SBOMDetail() {
                                     />
                                 </Show>
 
+                                {/* --- Arch switcher --- */}
+                                <Show when={archSiblings().length > 1}>
+                                    <div class="tab-bar mb-sm">
+                                        <For each={archSiblings()}>
+                                            {(sibling) => (
+                                                <button
+                                                    class={sibling.id === params.id ? "active" : ""}
+                                                    onClick={() => navigate(`/sboms/${sibling.id}`)}
+                                                >
+                                                    {sibling.architecture}
+                                                </button>
+                                            )}
+                                        </For>
+                                    </div>
+                                </Show>
+
                                 {/* --- Tab bar --- */}
                                 <div class="tab-bar">
                                     <button
@@ -379,9 +405,9 @@ function PackagesTab(props: { components: ComponentSummary[] }) {
             if (t !== "all" && ecoType(c) !== t) return false;
             if (!q) return true;
             const display =
-                (c.group ? c.group + "/" : "") +
+                (c.group ? `${c.group  }/` : "") +
                 c.name +
-                (c.version ? "@" + c.version : "");
+                (c.version ? `@${  c.version}` : "");
             return (
                 display.toLowerCase().includes(q) ||
                 (c.purl?.toLowerCase().includes(q) ?? false)
@@ -449,7 +475,7 @@ function PackagesTab(props: { components: ComponentSummary[] }) {
                                 <th>Version</th>
                                 <th>Type</th>
                                 <th>Package URL</th>
-                                <th></th>
+                                <th />
                             </tr>
                         </thead>
                         <tbody>

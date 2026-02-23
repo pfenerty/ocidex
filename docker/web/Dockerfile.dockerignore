@@ -1,0 +1,28 @@
+# Version control
+.git/
+.gitignore
+
+# Dev tools
+.claude/
+.flox/
+.DS_Store
+
+# Go source (not needed for frontend build)
+cmd/
+internal/
+pkg/
+db/
+tests/
+bin/
+*.go
+go.mod
+go.sum
+coverage.out
+coverage.html
+
+# Frontend build artifacts and deps (rebuilt inside container)
+web/node_modules/
+web/dist/
+
+# Go test/toolchain artifacts
+*.test

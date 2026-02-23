@@ -56,14 +56,14 @@ func (f *failSBOMService) DeleteArtifact(_ context.Context, _ pgtype.UUID) error
 // newTestRouter builds a full huma router backed by the given services and a
 // healthy fakePinger.
 func newTestRouter(sbomSvc service.SBOMService, searchSvc service.SearchService) http.Handler {
-	h := api.NewHandler(sbomSvc, searchSvc, &fakePinger{})
+	h := api.NewHandler(sbomSvc, searchSvc, &fakePinger{}, nil, "")
 	return api.NewRouter(h, "*")
 }
 
 // newTestHandlerWithPinger creates a Handler with a custom DBPinger (e.g. for
 // testing readiness failures).
 func newTestHandlerWithPinger(sbomSvc service.SBOMService, searchSvc service.SearchService, pinger api.DBPinger) *api.Handler {
-	return api.NewHandler(sbomSvc, searchSvc, pinger)
+	return api.NewHandler(sbomSvc, searchSvc, pinger, nil, "")
 }
 
 // newTestRouterFromHandler builds a full huma router from an existing Handler.

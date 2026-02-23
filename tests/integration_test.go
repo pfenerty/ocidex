@@ -92,7 +92,7 @@ func setupServer(t *testing.T, pool *pgxpool.Pool) *httptest.Server {
 	t.Helper()
 	sbomSvc := service.NewSBOMService(pool, nil, nil)
 	searchSvc := service.NewSearchService(pool)
-	handler := api.NewHandler(sbomSvc, searchSvc, pool)
+	handler := api.NewHandler(sbomSvc, searchSvc, pool, nil, "")
 	router := api.NewRouter(handler, "*")
 	return httptest.NewServer(router)
 }

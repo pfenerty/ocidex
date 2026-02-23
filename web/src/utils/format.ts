@@ -10,8 +10,9 @@ import type { SBOMSummary } from "~/api/client";
  */
 export function sbomLabel(sbom: SBOMSummary): string {
     const date = formatDate(sbom.createdAt);
-    if (sbom.subjectVersion) {
-        return `${sbom.subjectVersion} · ${date}`;
+    const version = sbom.subjectVersion ?? sbom.imageVersion;
+    if (version) {
+        return `${version} · ${date}`;
     }
     if (sbom.componentCount) {
         return `${date} · ${sbom.componentCount} components`;
@@ -25,7 +26,8 @@ export function sbomLabel(sbom: SBOMSummary): string {
  *  "24.04"  or  "Jan 15, 2025"  or  "a1b2c3d4"
  */
 export function sbomShortLabel(sbom: SBOMSummary): string {
-    if (sbom.subjectVersion) return sbom.subjectVersion;
+    const version = sbom.subjectVersion ?? sbom.imageVersion;
+    if (version) return version;
     return formatDate(sbom.createdAt);
 }
 
@@ -43,9 +45,10 @@ export function sbomDescriptionParts(sbom: SBOMSummary): [string, string] {
         : null;
     const spec = `CycloneDX ${sbom.specVersion}`;
 
-    if (sbom.subjectVersion) {
+    const version = sbom.subjectVersion ?? sbom.imageVersion;
+    if (version) {
         const secondary = [date, comps, spec].filter(Boolean).join(" · ");
-        return [sbom.subjectVersion, secondary];
+        return [version, secondary];
     }
 
     const secondary = [comps, spec].filter(Boolean).join(" · ");

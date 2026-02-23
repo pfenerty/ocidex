@@ -97,7 +97,7 @@ func (f *fakeSearchService) ListSBOMsByArtifact(_ context.Context, _ pgtype.UUID
 	}, nil
 }
 
-func (f *fakeSearchService) GetArtifactChangelog(_ context.Context, _ pgtype.UUID, _ string) (service.Changelog, error) {
+func (f *fakeSearchService) GetArtifactChangelog(_ context.Context, _ pgtype.UUID, _, _ string) (service.Changelog, error) {
 	return service.Changelog{
 		ArtifactID: "art1",
 		Entries:    []service.ChangelogEntry{},

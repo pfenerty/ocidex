@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/pfenerty/ocidex/internal/enrichment"
+	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
@@ -32,14 +32,14 @@ type DigestValidator interface {
 
 type sbomService struct {
 	pool            *pgxpool.Pool
-	dispatcher      *enrichment.Dispatcher
+	publisher       event.Publisher
 	digestValidator DigestValidator
 }
 
-// NewSBOMService creates a new SBOMService. The dispatcher and validator
+// NewSBOMService creates a new SBOMService. The publisher and validator
 // are optional; if nil, the corresponding functionality is skipped.
-func NewSBOMService(pool *pgxpool.Pool, dispatcher *enrichment.Dispatcher, validator DigestValidator) SBOMService {
-	return &sbomService{pool: pool, dispatcher: dispatcher, digestValidator: validator}
+func NewSBOMService(pool *pgxpool.Pool, publisher event.Publisher, validator DigestValidator) SBOMService {
+	return &sbomService{pool: pool, publisher: publisher, digestValidator: validator}
 }
 
 // artifactInfo holds the resolved artifact identity extracted from a BOM's metadata.
@@ -108,6 +108,16 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte) 
 		return pgtype.UUID{}, err
 	}
 
+	// Idempotency check: if we already have an SBOM for this digest, skip ingestion.
+	if digest := extractDigestFromBOM(bom); digest != "" {
+		existing, err := repository.New(s.pool).GetSBOMByDigest(ctx, pgtype.Text{String: digest, Valid: true})
+		if err == nil {
+			slog.InfoContext(ctx, "skipping duplicate sbom ingestion", "digest", digest, "existing_id", existing)
+			return existing, nil
+		}
+		// pgx.ErrNoRows → proceed normally; other errors are ignored (UNIQUE index is the backstop)
+	}
+
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return pgtype.UUID{}, fmt.Errorf("beginning transaction: %w", err)
@@ -156,10 +166,10 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte) 
 		return pgtype.UUID{}, fmt.Errorf("committing transaction: %w", err)
 	}
 
-	// Submit for async enrichment after successful commit.
-	if s.dispatcher != nil && sbomRow.ID.Valid {
-		s.dispatcher.Submit(enrichment.SubjectRef{
-			SBOMId:         sbomRow.ID,
+	// Publish event after successful commit so extensions (enrichment, audit, etc.) can react.
+	if s.publisher != nil && sbomRow.ID.Valid {
+		s.publisher.Publish(ctx, event.SBOMIngested, event.SBOMIngestedData{
+			SBOMID:         sbomRow.ID,
 			ArtifactType:   string(bom.Metadata.Component.Type),
 			ArtifactName:   bom.Metadata.Component.Name,
 			Digest:         info.digest.String,
@@ -180,6 +190,10 @@ func (s *sbomService) DeleteSBOM(ctx context.Context, id pgtype.UUID) error {
 	}
 	if rows == 0 {
 		return ErrNotFound
+	}
+
+	if s.publisher != nil {
+		s.publisher.Publish(ctx, event.SBOMDeleted, event.SBOMDeletedData{SBOMID: id})
 	}
 	return nil
 }
@@ -210,6 +224,10 @@ func (s *sbomService) DeleteArtifact(ctx context.Context, id pgtype.UUID) error 
 
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("committing transaction: %w", err)
+	}
+
+	if s.publisher != nil {
+		s.publisher.Publish(ctx, event.ArtifactDeleted, event.ArtifactDeletedData{ArtifactID: id})
 	}
 	return nil
 }
@@ -467,6 +485,22 @@ func intOrNull(v int) pgtype.Int4 {
 		return pgtype.Int4{}
 	}
 	return pgtype.Int4{Int32: int32(v), Valid: true} //nolint:gosec // semver parts are always small
+}
+
+// extractDigestFromBOM returns the image digest from a BOM's metadata component,
+// mirroring the extraction logic in resolveArtifact.
+func extractDigestFromBOM(bom *cdx.BOM) string {
+	if bom.Metadata == nil || bom.Metadata.Component == nil {
+		return ""
+	}
+	mc := bom.Metadata.Component
+	if idx := strings.Index(mc.Name, "@sha256:"); idx != -1 {
+		return mc.Name[idx+1:]
+	}
+	if strings.HasPrefix(mc.Version, "sha256:") {
+		return mc.Version
+	}
+	return ""
 }
 
 // validateContainerDigest checks that container SBOMs reference a single image

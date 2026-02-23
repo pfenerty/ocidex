@@ -72,10 +72,12 @@ const getComponentVersions = `-- name: GetComponentVersions :many
 SELECT c.id, c.sbom_id, c.type, c.name, c.group_name, c.version, c.purl,
        s.artifact_id, s.subject_version, s.digest AS sbom_digest,
        a.name AS artifact_name,
-       s.created_at AS sbom_created_at
+       s.created_at AS sbom_created_at,
+       e.data->>'architecture' AS architecture
 FROM component c
 JOIN sbom s ON s.id = c.sbom_id
 LEFT JOIN artifact a ON a.id = s.artifact_id
+LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
 WHERE c.name = $1
   AND ($2::text IS NULL OR c.group_name = $2)
   AND ($3::text IS NULL OR c.version = $3)
@@ -106,6 +108,7 @@ type GetComponentVersionsRow struct {
 	SbomDigest     pgtype.Text        `json:"sbom_digest"`
 	ArtifactName   pgtype.Text        `json:"artifact_name"`
 	SbomCreatedAt  pgtype.Timestamptz `json:"sbom_created_at"`
+	Architecture   interface{}        `json:"architecture"`
 }
 
 func (q *Queries) GetComponentVersions(ctx context.Context, arg GetComponentVersionsParams) ([]GetComponentVersionsRow, error) {
@@ -135,6 +138,7 @@ func (q *Queries) GetComponentVersions(ctx context.Context, arg GetComponentVers
 			&i.SbomDigest,
 			&i.ArtifactName,
 			&i.SbomCreatedAt,
+			&i.Architecture,
 		); err != nil {
 			return nil, err
 		}
@@ -177,6 +181,17 @@ func (q *Queries) GetSBOM(ctx context.Context, id pgtype.UUID) (GetSBOMRow, erro
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const getSBOMByDigest = `-- name: GetSBOMByDigest :one
+SELECT id FROM sbom WHERE digest = $1
+`
+
+func (q *Queries) GetSBOMByDigest(ctx context.Context, digest pgtype.Text) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, getSBOMByDigest, digest)
+	var id pgtype.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getSBOMRaw = `-- name: GetSBOMRaw :one
@@ -363,19 +378,32 @@ func (q *Queries) ListComponentPurlTypes(ctx context.Context) ([]string, error) 
 }
 
 const listComponentsByLicense = `-- name: ListComponentsByLicense :many
-SELECT c.id, c.sbom_id, c.type, c.name, c.group_name, c.version, c.purl,
+WITH ranked AS (
+    SELECT c.id, c.sbom_id, c.type, c.name, c.group_name, c.version, c.purl,
+           c.version_major, c.version_minor, c.version_patch,
+           ROW_NUMBER() OVER (
+               PARTITION BY c.name, COALESCE(c.group_name, ''), COALESCE(c.version, ''), c.type
+               ORDER BY c.id
+           ) AS rn
+    FROM component c
+    JOIN component_license cl ON cl.component_id = c.id
+    WHERE cl.license_id = $3
+)
+SELECT id, sbom_id, type, name, group_name, version, purl,
        COUNT(*) OVER() AS total_count
-FROM component c
-JOIN component_license cl ON cl.component_id = c.id
-WHERE cl.license_id = $1
-ORDER BY c.name, c.version_major DESC NULLS LAST
-LIMIT $3 OFFSET $2
+FROM ranked
+WHERE rn = 1
+ORDER BY name,
+         version_major DESC NULLS LAST,
+         version_minor DESC NULLS LAST,
+         version_patch DESC NULLS LAST
+LIMIT $2 OFFSET $1
 `
 
 type ListComponentsByLicenseParams struct {
-	LicenseID pgtype.UUID `json:"license_id"`
 	RowOffset int32       `json:"row_offset"`
 	RowLimit  int32       `json:"row_limit"`
+	LicenseID pgtype.UUID `json:"license_id"`
 }
 
 type ListComponentsByLicenseRow struct {
@@ -390,7 +418,7 @@ type ListComponentsByLicenseRow struct {
 }
 
 func (q *Queries) ListComponentsByLicense(ctx context.Context, arg ListComponentsByLicenseParams) ([]ListComponentsByLicenseRow, error) {
-	rows, err := q.db.Query(ctx, listComponentsByLicense, arg.LicenseID, arg.RowOffset, arg.RowLimit)
+	rows, err := q.db.Query(ctx, listComponentsByLicense, arg.RowOffset, arg.RowLimit, arg.LicenseID)
 	if err != nil {
 		return nil, err
 	}
@@ -452,10 +480,11 @@ func (q *Queries) ListDependenciesBySBOM(ctx context.Context, sbomID pgtype.UUID
 
 const listLicenses = `-- name: ListLicenses :many
 SELECT l.id, l.spdx_id, l.name, l.url,
-       COUNT(DISTINCT cl.component_id) AS component_count,
+       COUNT(DISTINCT (c.name, COALESCE(c.group_name, ''), COALESCE(c.version, ''), c.type)) AS component_count,
        COUNT(*) OVER() AS total_count
 FROM license l
 LEFT JOIN component_license cl ON cl.license_id = l.id
+LEFT JOIN component c ON c.id = cl.component_id
 WHERE ($1::text IS NULL OR l.spdx_id = $1)
   AND ($2::text IS NULL OR l.name ILIKE $2)
   AND ($3::text IS NULL OR

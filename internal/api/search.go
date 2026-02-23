@@ -350,7 +350,7 @@ func (h *Handler) GetArtifactChangelog(ctx context.Context, input *GetArtifactCh
 		return nil, err
 	}
 
-	changelog, err := h.searchService.GetArtifactChangelog(ctx, id, input.SubjectVersion)
+	changelog, err := h.searchService.GetArtifactChangelog(ctx, id, input.SubjectVersion, input.Arch)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

@@ -336,6 +336,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/webhooks/zot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Receive Zot registry push notifications */
+        post: operations["zot-webhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -419,6 +436,7 @@ export interface components {
              */
             readonly $schema?: string;
             artifactId: string;
+            availableArchitectures: string[] | null;
             entries: components["schemas"]["ChangelogEntry"][] | null;
         };
         ChangelogEntry: {
@@ -476,6 +494,7 @@ export interface components {
             version?: string;
         };
         ComponentVersionEntry: {
+            architecture?: string;
             artifactId?: string;
             artifactName?: string;
             group?: string;
@@ -756,6 +775,7 @@ export interface components {
              * @example https://example.com/schemas/SBOMDetail.json
              */
             readonly $schema?: string;
+            architecture?: string;
             artifactId?: string;
             /** Format: date-time */
             buildDate?: string;
@@ -768,6 +788,7 @@ export interface components {
                 [key: string]: unknown;
             };
             id: string;
+            imageVersion?: string;
             rawBom?: unknown;
             serialNumber?: string;
             specVersion: string;
@@ -776,6 +797,7 @@ export interface components {
             version: number;
         };
         SBOMRef: {
+            architecture?: string;
             /** Format: date-time */
             buildDate?: string;
             /** Format: date-time */
@@ -784,6 +806,7 @@ export interface components {
             subjectVersion?: string;
         };
         SBOMSummary: {
+            architecture?: string;
             artifactId?: string;
             /** Format: date-time */
             buildDate?: string;
@@ -793,6 +816,7 @@ export interface components {
             createdAt: string;
             digest?: string;
             id: string;
+            imageVersion?: string;
             serialNumber?: string;
             specVersion: string;
             subjectVersion?: string;
@@ -831,6 +855,19 @@ export interface components {
              * @example v1
              */
             version: string;
+        };
+        ZotEvent: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ZotEvent.json
+             */
+            readonly $schema?: string;
+            digest: string;
+            manifest: string;
+            mediaType: string;
+            name: string;
+            reference: string;
         };
     };
     responses: never;
@@ -975,6 +1012,8 @@ export interface operations {
             query?: {
                 /** @description Filter by subject version */
                 subject_version?: string;
+                /** @description Architecture to show timeline for (e.g. amd64) */
+                arch?: string;
             };
             header?: never;
             path: {
@@ -1597,6 +1636,39 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["DependencyGraph"];
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "zot-webhook": {
+        parameters: {
+            query?: never;
+            header?: {
+                Authorization?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ZotEvent"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {
