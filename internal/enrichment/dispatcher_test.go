@@ -59,6 +59,25 @@ func (s *fakeStore) results() []repository.UpsertEnrichmentParams {
 	return out
 }
 
+func TestDispatcher_SubmitWithResult(t *testing.T) {
+	store := &fakeStore{}
+	d := NewDispatcher(store, nil, WithWorkers(1), WithQueueSize(1))
+
+	ref := SubjectRef{
+		SBOMId:       pgtype.UUID{Bytes: [16]byte{1}, Valid: true},
+		ArtifactName: "docker.io/alpine",
+	}
+
+	// First submit should succeed.
+	if !d.SubmitWithResult(ref) {
+		t.Fatal("expected SubmitWithResult to return true on empty queue")
+	}
+	// Queue is now full (size 1); second should return false.
+	if d.SubmitWithResult(ref) {
+		t.Fatal("expected SubmitWithResult to return false on full queue")
+	}
+}
+
 func TestDispatcher_SubmitAndProcess(t *testing.T) {
 	data, _ := json.Marshal(map[string]string{"arch": "amd64"})
 	enricher := &fakeEnricher{name: "test-enricher", canRun: true, output: data}

@@ -39,6 +39,12 @@ type SearchRepository interface {
 	ListSBOMsByDigest(ctx context.Context, arg ListSBOMsByDigestParams) ([]ListSBOMsByDigestRow, error)
 	LicenseSummaryByArtifact(ctx context.Context, artifactID pgtype.UUID) ([]LicenseSummaryByArtifactRow, error)
 	ListDependenciesBySBOM(ctx context.Context, sbomID pgtype.UUID) ([]ListDependenciesBySBOMRow, error)
+	GetSummaryCounts(ctx context.Context) (GetSummaryCountsRow, error)
+	GetLicenseCategoryCounts(ctx context.Context) ([]GetLicenseCategoryCountsRow, error)
+	GetSBOMIngestionTimeline(ctx context.Context, numDays int32) ([]GetSBOMIngestionTimelineRow, error)
+	GetPackageGrowthTimeline(ctx context.Context) ([]GetPackageGrowthTimelineRow, error)
+	GetVersionGrowthTimeline(ctx context.Context) ([]GetVersionGrowthTimelineRow, error)
+	GetTopPackagesByVersionCount(ctx context.Context, topN int32) ([]GetTopPackagesByVersionCountRow, error)
 }
 
 // EnrichmentRepository defines data access methods for enrichment results.
@@ -56,4 +62,21 @@ type ArtifactRepository interface {
 	ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([]ListArtifactsRow, error)
 	ListSBOMsByArtifact(ctx context.Context, arg ListSBOMsByArtifactParams) ([]ListSBOMsByArtifactRow, error)
 	DeleteArtifact(ctx context.Context, id pgtype.UUID) (int64, error)
+}
+
+// AuthRepository defines data access methods for authentication and authorization.
+type AuthRepository interface {
+	UpsertUser(ctx context.Context, arg UpsertUserParams) (OcidexUser, error)
+	GetUserByID(ctx context.Context, id pgtype.UUID) (OcidexUser, error)
+	ListUsers(ctx context.Context) ([]OcidexUser, error)
+	UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) (OcidexUser, error)
+	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
+	GetSessionByTokenHash(ctx context.Context, tokenHash string) (GetSessionByTokenHashRow, error)
+	DeleteSession(ctx context.Context, tokenHash string) error
+	DeleteExpiredSessions(ctx context.Context) error
+	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error)
+	GetAPIKeyByHash(ctx context.Context, keyHash string) (GetAPIKeyByHashRow, error)
+	TouchAPIKeyLastUsed(ctx context.Context, id pgtype.UUID) error
+	ListAPIKeysByUser(ctx context.Context, userID pgtype.UUID) ([]ListAPIKeysByUserRow, error)
+	DeleteAPIKey(ctx context.Context, arg DeleteAPIKeyParams) (int64, error)
 }

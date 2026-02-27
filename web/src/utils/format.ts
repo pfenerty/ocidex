@@ -10,10 +10,11 @@ import type { SBOMSummary } from "~/api/client";
  */
 export function sbomLabel(sbom: SBOMSummary): string {
     const date = formatDate(sbom.createdAt);
-    if (sbom.subjectVersion) {
-        return `${sbom.subjectVersion} · ${date}`;
+    const version = sbom.subjectVersion ?? sbom.imageVersion;
+    if (version !== undefined) {
+        return `${version} · ${date}`;
     }
-    if (sbom.componentCount) {
+    if (sbom.componentCount !== undefined && sbom.componentCount > 0) {
         return `${date} · ${sbom.componentCount} components`;
     }
     return `${shortId(sbom.id)} · ${date}`;
@@ -25,7 +26,8 @@ export function sbomLabel(sbom: SBOMSummary): string {
  *  "24.04"  or  "Jan 15, 2025"  or  "a1b2c3d4"
  */
 export function sbomShortLabel(sbom: SBOMSummary): string {
-    if (sbom.subjectVersion) return sbom.subjectVersion;
+    const version = sbom.subjectVersion ?? sbom.imageVersion;
+    if (version !== undefined) return version;
     return formatDate(sbom.createdAt);
 }
 
@@ -38,14 +40,16 @@ export function sbomShortLabel(sbom: SBOMSummary): string {
  */
 export function sbomDescriptionParts(sbom: SBOMSummary): [string, string] {
     const date = formatDate(sbom.createdAt);
-    const comps = sbom.componentCount
-        ? `${sbom.componentCount} component${sbom.componentCount !== 1 ? "s" : ""}`
-        : null;
+    const comps =
+        sbom.componentCount !== undefined
+            ? `${sbom.componentCount} component${sbom.componentCount !== 1 ? "s" : ""}`
+            : null;
     const spec = `CycloneDX ${sbom.specVersion}`;
 
-    if (sbom.subjectVersion) {
+    const version = sbom.subjectVersion ?? sbom.imageVersion;
+    if (version !== undefined) {
         const secondary = [date, comps, spec].filter(Boolean).join(" · ");
-        return [sbom.subjectVersion, secondary];
+        return [version, secondary];
     }
 
     const secondary = [comps, spec].filter(Boolean).join(" · ");
@@ -61,7 +65,7 @@ export function artifactDisplayName(artifact: {
     name: string;
     group?: string;
 }): string {
-    return artifact.group
+    return artifact.group !== undefined
         ? `${artifact.group}/${artifact.name}`
         : artifact.name;
 }
@@ -74,10 +78,11 @@ export function componentDisplayName(component: {
     group?: string;
     version?: string;
 }): string {
-    let display = component.group
-        ? `${component.group}/${component.name}`
-        : component.name;
-    if (component.version) {
+    let display =
+        component.group !== undefined
+            ? `${component.group}/${component.name}`
+            : component.name;
+    if (component.version !== undefined) {
         display += `@${component.version}`;
     }
     return display;
@@ -161,4 +166,18 @@ export function shortId(id: string): string {
  */
 export function plural(count: number, word: string): string {
     return `${count} ${word}${count !== 1 ? "s" : ""}`;
+}
+
+/**
+ * Type guard for non-null, non-undefined, non-empty strings.
+ *
+ * Replaces the verbose `s !== undefined && s !== ""` pattern.
+ *
+ *  hasText(undefined) → false
+ *  hasText(null)      → false
+ *  hasText("")        → false
+ *  hasText("hello")   → true
+ */
+export function hasText(s: string | null | undefined): s is string {
+    return s !== undefined && s !== null && s !== "";
 }

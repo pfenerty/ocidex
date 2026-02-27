@@ -4,6 +4,9 @@ import (
 	"context"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/gorilla/securecookie"
+	"github.com/pfenerty/ocidex/internal/config"
+	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -12,20 +15,39 @@ type DBPinger interface {
 	Ping(ctx context.Context) error
 }
 
+// ScanSubmitter is implemented by *scanner.Dispatcher.
+type ScanSubmitter interface {
+	Submit(req scanner.ScanRequest)
+}
+
 // Handler holds dependencies for HTTP handlers.
 type Handler struct {
-	sbomService   service.SBOMService
-	searchService service.SearchService
-	db            DBPinger
-	api           huma.API
+	sbomService       service.SBOMService
+	searchService     service.SearchService
+	authService       service.AuthService
+	db                DBPinger
+	api               huma.API
+	scannerDispatcher ScanSubmitter
+	webhookSecret     string
+	cfg               *config.Config
+	stateCookie       *securecookie.SecureCookie
 }
 
 // NewHandler creates a new Handler with the given dependencies.
-func NewHandler(sbomSvc service.SBOMService, searchSvc service.SearchService, db DBPinger) *Handler {
+func NewHandler(sbomSvc service.SBOMService, searchSvc service.SearchService, authSvc service.AuthService, db DBPinger, sc ScanSubmitter, webhookSecret string, cfg *config.Config) *Handler {
+	var sc2 *securecookie.SecureCookie
+	if cfg != nil {
+		sc2 = securecookie.New([]byte(cfg.SessionSecret), nil)
+	}
 	return &Handler{
-		sbomService:   sbomSvc,
-		searchService: searchSvc,
-		db:            db,
+		sbomService:       sbomSvc,
+		searchService:     searchSvc,
+		authService:       authSvc,
+		db:                db,
+		scannerDispatcher: sc,
+		webhookSecret:     webhookSecret,
+		cfg:               cfg,
+		stateCookie:       sc2,
 	}
 }
 

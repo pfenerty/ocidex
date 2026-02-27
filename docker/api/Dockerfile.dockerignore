@@ -1,0 +1,19 @@
+# Version control
+.git/
+.gitignore
+
+# Dev tools
+.claude/
+.flox/
+.DS_Store
+
+# Build artifacts
+bin/
+coverage.out
+coverage.html
+
+# Entire frontend (not needed for Go build)
+web/
+
+# Go test/toolchain artifacts
+*.test

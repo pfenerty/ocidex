@@ -164,6 +164,16 @@ OCIDex is configured via environment variables:
 | `ENRICHMENT_ENABLED` | `false` | Enable post-ingestion enrichment pipeline |
 | `ENRICHMENT_WORKERS` | `2` | Number of enrichment worker goroutines |
 | `ENRICHMENT_QUEUE_SIZE` | `100` | Enrichment request queue capacity |
+| `NATS_ENABLED` | `false` | Enable NATS JetStream event relay |
+| `NATS_URL` | `nats://localhost:4222` | NATS server URL |
+| `NATS_STREAM_NAME` | `ocidex` | JetStream stream name |
+| `NATS_EVENT_TTL_HOURS` | `24` | Event retention period (hours) |
+| `SCANNER_ENABLED` | `false` | Enable OCI registry auto-scan via Zot webhook |
+| `ZOT_REGISTRY_ADDR` | `zot:5000` | Zot registry address (host:port) |
+| `ZOT_WEBHOOK_SECRET` | — | Bearer token Zot sends with push notifications |
+| `SYFT_PATH` | `/usr/local/bin/syft` | Path to the syft binary |
+| `SCANNER_WORKERS` | `2` | Number of scanner worker goroutines |
+| `SCANNER_QUEUE_SIZE` | `50` | Scanner request queue capacity |
 
 ## Documentation
 

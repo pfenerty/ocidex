@@ -24,6 +24,7 @@ function applyTheme(pref: Theme) {
 const [theme, setThemeInternal] = createSignal<Theme>(getInitialTheme());
 
 // Apply on load
+// eslint-disable-next-line solid/reactivity
 applyTheme(theme());
 
 // Listen for system theme changes

@@ -1,0 +1,26 @@
+{
+  "distSpecVersion": "1.1.0",
+  "storage": { "rootDirectory": "/var/lib/registry" },
+  "http": { "address": "0.0.0.0", "port": "5000" },
+  "log": { "level": "info" },
+  "extensions": {
+    "search": { "enable": false },
+    "sync": { "enable": false },
+    "scrub": { "enable": false },
+    "lint": { "enable": false },
+    "trust": { "enable": false },
+    "ui": { "enable": false },
+    "metrics": { "enable": false },
+    "events": {
+      "enable": true,
+      "sinks": [
+        {
+          "type": "http",
+          "address": "http://ocidex:8080/api/v1/webhooks/zot",
+          "timeout": "10s",
+          "headers": { "Authorization": "Bearer change-me-in-production" }
+        }
+      ]
+    }
+  }
+}

@@ -6,6 +6,7 @@
 - Do not do extra work that was not asked for
 - Assume the user is a competent engineer asking for specific functionality — do not over-explain or add unrequested features
 - Challenge design decisions when necessary
+- After making frontend changes, run `make frontend-lint-fix` to auto-fix ESLint errors, then `make frontend-lint` to verify no remaining issues
 
 ## Project Overview
 
@@ -69,6 +70,8 @@ make migrate-down      # Roll back last database migration
 make seed              # Seed database with real SBOMs
 make frontend          # Build the SolidJS frontend
 make frontend-dev      # Start frontend dev server (proxies API to :8080)
+make frontend-lint     # Run ESLint on the SolidJS frontend
+make frontend-lint-fix # Run ESLint with auto-fix on the SolidJS frontend
 ```
 
 ## Project Structure

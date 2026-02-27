@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,8 +16,9 @@ import (
 
 // Changelog represents the full changelog for an artifact.
 type Changelog struct {
-	ArtifactID string           `json:"artifactId"`
-	Entries    []ChangelogEntry `json:"entries"`
+	ArtifactID             string           `json:"artifactId"`
+	AvailableArchitectures []string         `json:"availableArchitectures"`
+	Entries                []ChangelogEntry `json:"entries"`
 }
 
 // ChangelogEntry represents a diff between two consecutive SBOMs.
@@ -31,6 +33,7 @@ type ChangelogEntry struct {
 type SBOMRef struct {
 	ID             string     `json:"id"`
 	SubjectVersion *string    `json:"subjectVersion,omitempty"`
+	Architecture   *string    `json:"architecture,omitempty"`
 	CreatedAt      time.Time  `json:"createdAt"`
 	BuildDate      *time.Time `json:"buildDate,omitempty"`
 }
@@ -94,11 +97,11 @@ func (s *searchService) DiffSBOMs(ctx context.Context, fromID, toID pgtype.UUID)
 }
 
 // GetArtifactChangelog generates a changelog by diffing consecutive SBOMs for an artifact.
-// SBOMs are ordered by OCI build date when available, falling back to ingestion time.
-func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion string) (Changelog, error) {
+// SBOMs are grouped by architecture, deduplicated by (version, arch), then diffed within
+// the selected architecture's timeline.
+func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch string) (Changelog, error) {
 	q := repository.New(s.pool)
 
-	// Fetch all SBOMs for this artifact.
 	sboms, err := q.ListSBOMsByArtifact(ctx, repository.ListSBOMsByArtifactParams{
 		ArtifactID:     artifactID,
 		SubjectVersion: textOrNull(subjectVersion),
@@ -109,48 +112,111 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgt
 		return Changelog{}, fmt.Errorf("listing sboms: %w", err)
 	}
 
-	// Fetch enrichment build dates for all SBOMs in one query.
-	buildDates := buildDateMap(ctx, q, artifactID)
+	meta := buildEnrichmentMetaMap(ctx, q, artifactID)
 
-	// Sort chronologically by build date (falling back to ingestion time).
-	sort.Slice(sboms, func(i, j int) bool {
-		ti := sbomSortTime(sboms[i], buildDates)
-		tj := sbomSortTime(sboms[j], buildDates)
-		return ti.Before(tj)
-	})
-
-	changelog := Changelog{
-		ArtifactID: uuidToString(artifactID),
-		Entries:    []ChangelogEntry{},
+	// Deduplicate by (subject_version, arch): keep the latest representative per group.
+	type groupKey struct{ version, arch string }
+	type candidate struct {
+		sbom      repository.ListSBOMsByArtifactRow
+		buildDate *time.Time
+		arch      string
 	}
 
-	if len(sboms) < 2 {
+	best := map[groupKey]candidate{}
+	for _, sbom := range sboms {
+		m := meta[sbom.ID]
+		sv := sbom.SubjectVersion.String
+		if !sbom.SubjectVersion.Valid || sv == "" {
+			sv = uuidToString(sbom.ID)
+		}
+		key := groupKey{sv, m.architecture}
+		prev, exists := best[key]
+		if !exists || laterThan(m.buildDate, sbom.CreatedAt.Time, prev.buildDate, prev.sbom.CreatedAt.Time) {
+			best[key] = candidate{sbom: sbom, buildDate: m.buildDate, arch: m.architecture}
+		}
+	}
+
+	// Collect available architectures and select one.
+	available := map[string]bool{}
+	for k := range best {
+		available[k.arch] = true
+	}
+	selectedArch := selectArch(arch, available)
+
+	// Filter to the selected architecture.
+	var candidates []candidate
+	for k, c := range best {
+		if k.arch == selectedArch {
+			candidates = append(candidates, c)
+		}
+	}
+
+	// Sort by version string (numeric-aware) when available, falling back to build date then ingestion time.
+	sort.Slice(candidates, func(i, j int) bool {
+		vi := candidates[i].sbom.SubjectVersion.String
+		vj := candidates[j].sbom.SubjectVersion.String
+		hasVI := candidates[i].sbom.SubjectVersion.Valid && vi != ""
+		hasVJ := candidates[j].sbom.SubjectVersion.Valid && vj != ""
+
+		if hasVI && hasVJ {
+			if cmp := compareVersionStrings(vi, vj); cmp != 0 {
+				return cmp < 0
+			}
+		}
+
+		var ei, ej time.Time
+		if candidates[i].buildDate != nil {
+			ei = *candidates[i].buildDate
+		} else {
+			ei = candidates[i].sbom.CreatedAt.Time
+		}
+		if candidates[j].buildDate != nil {
+			ej = *candidates[j].buildDate
+		} else {
+			ej = candidates[j].sbom.CreatedAt.Time
+		}
+		if !ei.Equal(ej) {
+			return ei.Before(ej)
+		}
+		return candidates[i].sbom.CreatedAt.Time.Before(candidates[j].sbom.CreatedAt.Time)
+	})
+
+	arches := make([]string, 0, len(available))
+	for a := range available {
+		arches = append(arches, a)
+	}
+	sort.Strings(arches)
+	changelog := Changelog{
+		ArtifactID:             uuidToString(artifactID),
+		AvailableArchitectures: arches,
+		Entries:                []ChangelogEntry{},
+	}
+
+	if len(candidates) < 2 {
 		return changelog, nil
 	}
 
-	// Load components for the first SBOM.
-	prevComps, err := q.ListSBOMComponents(ctx, sboms[0].ID)
+	prevComps, err := q.ListSBOMComponents(ctx, candidates[0].sbom.ID)
 	if err != nil {
-		return Changelog{}, fmt.Errorf("listing components for sbom %s: %w", uuidToString(sboms[0].ID), err)
+		return Changelog{}, fmt.Errorf("listing components for sbom %s: %w", uuidToString(candidates[0].sbom.ID), err)
 	}
 	prevMap := buildComponentMap(prevComps)
 
-	// Diff each consecutive pair.
-	for i := 1; i < len(sboms); i++ {
-		currComps, err := q.ListSBOMComponents(ctx, sboms[i].ID)
+	for i := 1; i < len(candidates); i++ {
+		currComps, err := q.ListSBOMComponents(ctx, candidates[i].sbom.ID)
 		if err != nil {
-			return Changelog{}, fmt.Errorf("listing components for sbom %s: %w", uuidToString(sboms[i].ID), err)
+			return Changelog{}, fmt.Errorf("listing components for sbom %s: %w", uuidToString(candidates[i].sbom.ID), err)
 		}
 		currMap := buildComponentMap(currComps)
 
-		fromRef := sbomToRef(sboms[i-1])
-		fromRef.BuildDate = buildDates[sboms[i-1].ID]
-		toRef := sbomToRef(sboms[i])
-		toRef.BuildDate = buildDates[sboms[i].ID]
+		fromRef := sbomToRef(candidates[i-1].sbom)
+		fromRef.BuildDate = candidates[i-1].buildDate
+		fromRef.Architecture = nonEmptyStrPtr(candidates[i-1].arch)
+		toRef := sbomToRef(candidates[i].sbom)
+		toRef.BuildDate = candidates[i].buildDate
+		toRef.Architecture = nonEmptyStrPtr(candidates[i].arch)
 
 		entry := diffComponents(fromRef, toRef, prevMap, currMap)
-
-		// Only include entries that have changes.
 		if len(entry.Changes) > 0 {
 			changelog.Entries = append(changelog.Entries, entry)
 		}
@@ -166,10 +232,16 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgt
 	return changelog, nil
 }
 
-// buildDateMap fetches OCI metadata enrichments for all SBOMs of an artifact
-// and returns a map of sbom UUID → build date (the "created" field).
-func buildDateMap(ctx context.Context, q *repository.Queries, artifactID pgtype.UUID) map[pgtype.UUID]*time.Time {
-	m := make(map[pgtype.UUID]*time.Time)
+// enrichmentMeta holds OCI metadata extracted from an SBOM's oci-metadata enrichment.
+type enrichmentMeta struct {
+	buildDate    *time.Time
+	architecture string
+}
+
+// buildEnrichmentMetaMap fetches oci-metadata enrichments for all SBOMs of an artifact
+// and returns a map of sbom UUID → enrichmentMeta.
+func buildEnrichmentMetaMap(ctx context.Context, q *repository.Queries, artifactID pgtype.UUID) map[pgtype.UUID]enrichmentMeta {
+	m := make(map[pgtype.UUID]enrichmentMeta)
 
 	rows, err := q.ListSBOMEnrichmentsByArtifact(ctx, artifactID)
 	if err != nil {
@@ -180,23 +252,96 @@ func buildDateMap(ctx context.Context, q *repository.Queries, artifactID pgtype.
 		if row.EnricherName != "oci-metadata" || len(row.Data) == 0 {
 			continue
 		}
-		var meta struct {
-			Created *time.Time `json:"created"`
+		var raw struct {
+			Created      *time.Time `json:"created"`
+			Architecture string     `json:"architecture"`
 		}
-		if err := json.Unmarshal(row.Data, &meta); err == nil && meta.Created != nil {
-			m[row.SbomID] = meta.Created
+		if json.Unmarshal(row.Data, &raw) == nil {
+			m[row.SbomID] = enrichmentMeta{buildDate: raw.Created, architecture: raw.Architecture}
 		}
 	}
 
 	return m
 }
 
-// sbomSortTime returns the build date if available, otherwise the ingestion time.
-func sbomSortTime(sbom repository.ListSBOMsByArtifactRow, buildDates map[pgtype.UUID]*time.Time) time.Time {
-	if bd, ok := buildDates[sbom.ID]; ok && bd != nil {
-		return *bd
+// compareVersionStrings compares two version strings numerically.
+// Segments are split on "." and "-" and compared as integers when possible,
+// lexicographically otherwise. Returns -1, 0, or +1.
+func compareVersionStrings(a, b string) int {
+	splitVersion := func(s string) []string {
+		return strings.FieldsFunc(strings.ReplaceAll(s, "-", "."), func(r rune) bool {
+			return r == '.'
+		})
 	}
-	return sbom.CreatedAt.Time
+	pa, pb := splitVersion(a), splitVersion(b)
+	for i := 0; i < len(pa) && i < len(pb); i++ {
+		ia, aerr := strconv.Atoi(pa[i])
+		ib, berr := strconv.Atoi(pb[i])
+		if aerr == nil && berr == nil {
+			if ia != ib {
+				if ia < ib {
+					return -1
+				}
+				return 1
+			}
+		} else {
+			if pa[i] != pb[i] {
+				if pa[i] < pb[i] {
+					return -1
+				}
+				return 1
+			}
+		}
+	}
+	if len(pa) != len(pb) {
+		if len(pa) < len(pb) {
+			return -1
+		}
+		return 1
+	}
+	return 0
+}
+
+// laterThan reports whether (bd1, t1) is chronologically after (bd2, t2).
+// Build date is preferred; ingestion time is the tiebreaker.
+func laterThan(bd1 *time.Time, t1 time.Time, bd2 *time.Time, t2 time.Time) bool {
+	eff1, eff2 := t1, t2
+	if bd1 != nil {
+		eff1 = *bd1
+	}
+	if bd2 != nil {
+		eff2 = *bd2
+	}
+	if !eff1.Equal(eff2) {
+		return eff1.After(eff2)
+	}
+	return t1.After(t2)
+}
+
+// selectArch picks the architecture to use for the changelog timeline.
+// If requested is non-empty and present, it wins. Otherwise a canonical
+// preference order is applied, falling back to an arbitrary available arch.
+func selectArch(requested string, available map[string]bool) string {
+	if requested != "" && available[requested] {
+		return requested
+	}
+	for _, p := range []string{"amd64", "arm64", "arm", "386", "s390x"} {
+		if available[p] {
+			return p
+		}
+	}
+	for a := range available {
+		return a
+	}
+	return ""
+}
+
+// nonEmptyStrPtr returns a pointer to s, or nil if s is empty.
+func nonEmptyStrPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 // componentIdentity holds the fields used to match a component across SBOMs.

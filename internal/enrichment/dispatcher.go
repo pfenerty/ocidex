@@ -77,6 +77,18 @@ func (d *Dispatcher) Submit(ref SubjectRef) {
 	}
 }
 
+// SubmitWithResult queues a subject for enrichment. Returns true if queued, false if the queue is full.
+func (d *Dispatcher) SubmitWithResult(ref SubjectRef) bool {
+	select {
+	case d.queue <- ref:
+		d.logger.Debug("enrichment queued", "sbom_id", ref.SBOMId, "artifact_name", ref.ArtifactName)
+		return true
+	default:
+		d.logger.Warn("enrichment queue full", "artifact_name", ref.ArtifactName)
+		return false
+	}
+}
+
 // Run starts the worker goroutines and blocks until the context is cancelled.
 // Workers drain the queue before returning.
 func (d *Dispatcher) Run(ctx context.Context) {

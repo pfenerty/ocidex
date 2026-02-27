@@ -124,7 +124,7 @@ function LinkedField(props: {
                     rel="noopener noreferrer"
                     class="purl-link"
                 >
-                    <Show when={props.icon}>{props.icon!()}</Show>
+                    <Show when={props.icon}>{(icon) => icon()()}</Show>
                     {props.display ?? friendlyUrlDisplay(props.url)}
                     <ExternalLinkIcon />
                 </a>
@@ -208,10 +208,11 @@ export default function ImageMetadataCard(props: {
     metadata: OCIMetadata;
     ingestedAt: string;
 }) {
+    // eslint-disable-next-line solid/reactivity
     const m = props.metadata;
 
     const buildTimeDisplay = () => {
-        if (!m.created) return null;
+        if (m.created === undefined) return null;
         const built = new Date(m.created);
         const ingested = new Date(props.ingestedAt);
         const diffMs = ingested.getTime() - built.getTime();
@@ -224,17 +225,17 @@ export default function ImageMetadataCard(props: {
     };
 
     const sourceIcon = () =>
-        m.sourceUrl && isGitHubUrl(m.sourceUrl) ? GitHubIcon : undefined;
+        m.sourceUrl !== undefined && isGitHubUrl(m.sourceUrl) ? GitHubIcon : undefined;
     const urlIcon = () =>
-        m.url && isGitHubUrl(m.url) ? GitHubIcon : undefined;
+        m.url !== undefined && isGitHubUrl(m.url) ? GitHubIcon : undefined;
 
     const revisionUrl = () => {
-        if (!m.revision || !m.sourceUrl) return null;
+        if (m.revision === undefined || m.sourceUrl === undefined) return null;
         return gitHubCommitUrl(m.sourceUrl, m.revision);
     };
 
     const baseImageUrl = () =>
-        m.baseName ? containerRegistryUrl(m.baseName) : null;
+        m.baseName !== undefined ? containerRegistryUrl(m.baseName) : null;
 
     return (
         <div class="card mb-md">
@@ -260,7 +261,7 @@ export default function ImageMetadataCard(props: {
 
             <div class="detail-grid">
                 {/* Platform */}
-                <Show when={m.architecture || m.os}>
+                <Show when={Boolean(m.architecture) || Boolean(m.os)}>
                     <div class="detail-field">
                         <span class="detail-label">Platform</span>
                         <span class="detail-value">
@@ -287,49 +288,57 @@ export default function ImageMetadataCard(props: {
 
                 {/* Source URL */}
                 <Show when={m.sourceUrl}>
-                    <LinkedField
-                        label="Source"
-                        url={m.sourceUrl!}
-                        icon={sourceIcon()}
-                    />
+                    {(src) => (
+                        <LinkedField
+                            label="Source"
+                            url={src()}
+                            icon={sourceIcon()}
+                        />
+                    )}
                 </Show>
 
                 {/* URL (new) */}
-                <Show when={m.url && m.url !== m.sourceUrl}>
-                    <LinkedField label="URL" url={m.url!} icon={urlIcon()} />
+                <Show when={m.url !== undefined && m.url !== m.sourceUrl ? m.url : undefined}>
+                    {(url) => <LinkedField label="URL" url={url()} icon={urlIcon()} />}
                 </Show>
 
                 {/* Documentation (new) */}
                 <Show when={m.documentation}>
-                    <LinkedField
-                        label="Documentation"
-                        url={m.documentation!}
-                        icon={() => <DocsIcon />}
-                    />
+                    {(doc) => (
+                        <LinkedField
+                            label="Documentation"
+                            url={doc()}
+                            icon={() => <DocsIcon />}
+                        />
+                    )}
                 </Show>
 
                 {/* Revision */}
                 <Show when={m.revision}>
-                    <div class="detail-field">
-                        <span class="detail-label">Revision</span>
-                        <span class="detail-value mono text-sm">
-                            <Show
-                                when={revisionUrl()}
-                                fallback={m.revision!.substring(0, 12)}
-                            >
-                                <a
-                                    href={revisionUrl()!}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    class="purl-link"
+                    {(rev) => (
+                        <div class="detail-field">
+                            <span class="detail-label">Revision</span>
+                            <span class="detail-value mono text-sm">
+                                <Show
+                                    when={revisionUrl()}
+                                    fallback={rev().substring(0, 12)}
                                 >
-                                    <GitHubIcon />
-                                    {m.revision!.substring(0, 12)}
-                                    <ExternalLinkIcon />
-                                </a>
-                            </Show>
-                        </span>
-                    </div>
+                                    {(rUrl) => (
+                                        <a
+                                            href={rUrl()}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="purl-link"
+                                        >
+                                            <GitHubIcon />
+                                            {rev().substring(0, 12)}
+                                            <ExternalLinkIcon />
+                                        </a>
+                                    )}
+                                </Show>
+                            </span>
+                        </div>
+                    )}
                 </Show>
 
                 {/* Authors */}
@@ -366,54 +375,66 @@ export default function ImageMetadataCard(props: {
 
                 {/* Base Image */}
                 <Show when={m.baseName}>
-                    <div class="detail-field">
-                        <span class="detail-label">Base Image</span>
-                        <span class="detail-value mono text-sm">
-                            <Show when={baseImageUrl()} fallback={m.baseName}>
-                                <a
-                                    href={baseImageUrl()!}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    class="purl-link"
-                                >
-                                    <ContainerIcon />
-                                    {m.baseName}
-                                    <ExternalLinkIcon />
-                                </a>
-                            </Show>
-                        </span>
-                    </div>
+                    {(baseName) => (
+                        <div class="detail-field">
+                            <span class="detail-label">Base Image</span>
+                            <span class="detail-value mono text-sm">
+                                <Show when={baseImageUrl()} fallback={baseName()}>
+                                    {(bUrl) => (
+                                        <a
+                                            href={bUrl()}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="purl-link"
+                                        >
+                                            <ContainerIcon />
+                                            {baseName()}
+                                            <ExternalLinkIcon />
+                                        </a>
+                                    )}
+                                </Show>
+                            </span>
+                        </div>
+                    )}
                 </Show>
 
                 {/* Base Digest (new) */}
                 <Show when={m.baseDigest}>
-                    <div class="detail-field">
-                        <span class="detail-label">Base Digest</span>
-                        <span class="detail-value mono text-sm">
-                            {m.baseDigest!.substring(0, 19)}
-                        </span>
-                    </div>
+                    {(digest) => (
+                        <div class="detail-field">
+                            <span class="detail-label">Base Digest</span>
+                            <span class="detail-value mono text-sm">
+                                {digest().substring(0, 19)}
+                            </span>
+                        </div>
+                    )}
                 </Show>
             </div>
 
             {/* Annotation sections */}
             <Show when={m.labels}>
-                <AnnotationsSection
-                    title="Config Labels"
-                    annotations={m.labels!}
-                />
+                {(labels) => (
+                    <AnnotationsSection
+                        title="Config Labels"
+                        annotations={labels()}
+                    />
+                )}
             </Show>
             <Show when={m.manifestAnnotations}>
-                <AnnotationsSection
-                    title="Manifest Annotations"
-                    annotations={m.manifestAnnotations!}
-                />
+                {(anns) => (
+                    <AnnotationsSection
+                        title="Manifest Annotations"
+                        annotations={anns()}
+                    />
+                )}
             </Show>
             <Show when={m.indexAnnotations}>
-                <AnnotationsSection
-                    title="Index Annotations"
-                    annotations={m.indexAnnotations!}
-                />
+                {(anns) => (
+                    <AnnotationsSection
+                        title="Index Annotations"
+                        annotations={anns()}
+                    />
+                )}
             </Show>
         </div>
     );

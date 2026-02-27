@@ -44,8 +44,9 @@ type Metadata struct {
 
 // Enricher fetches OCI image metadata from container registries.
 type Enricher struct {
-	timeout time.Duration
-	options []remote.Option
+	timeout  time.Duration
+	options  []remote.Option
+	insecure bool
 }
 
 // Option configures the OCI Enricher.
@@ -59,6 +60,11 @@ func WithTimeout(d time.Duration) Option {
 // WithRemoteOptions sets additional options for the remote client.
 func WithRemoteOptions(opts ...remote.Option) Option {
 	return func(e *Enricher) { e.options = append(e.options, opts...) }
+}
+
+// WithInsecure configures the enricher to use plain HTTP for registry connections.
+func WithInsecure() Option {
+	return func(e *Enricher) { e.insecure = true }
 }
 
 // NewEnricher creates an OCI metadata enricher.
@@ -89,7 +95,11 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 
 	imageRef := ref.ArtifactName + "@" + ref.Digest
 
-	parsedRef, err := name.ParseReference(imageRef)
+	nameOpts := []name.Option{}
+	if e.insecure {
+		nameOpts = append(nameOpts, name.Insecure)
+	}
+	parsedRef, err := name.ParseReference(imageRef, nameOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("parsing image ref %q: %w", imageRef, err)
 	}
@@ -142,8 +152,9 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 // Validator checks that a container image digest points to a single
 // image manifest and not a manifest list (image index).
 type Validator struct {
-	timeout time.Duration
-	options []remote.Option
+	timeout  time.Duration
+	options  []remote.Option
+	insecure bool
 }
 
 // NewValidator creates an OCI digest validator.
@@ -152,7 +163,7 @@ func NewValidator(opts ...Option) *Validator {
 	for _, o := range opts {
 		o(e)
 	}
-	return &Validator{timeout: e.timeout, options: e.options}
+	return &Validator{timeout: e.timeout, options: e.options, insecure: e.insecure}
 }
 
 // ValidateDigest verifies that imageName@digest points to a single image
@@ -163,7 +174,11 @@ func (v *Validator) ValidateDigest(ctx context.Context, imageName, digest string
 
 	imageRef := imageName + "@" + digest
 
-	parsedRef, err := name.ParseReference(imageRef)
+	nameOpts := []name.Option{}
+	if v.insecure {
+		nameOpts = append(nameOpts, name.Insecure)
+	}
+	parsedRef, err := name.ParseReference(imageRef, nameOpts...)
 	if err != nil {
 		return fmt.Errorf("parsing image ref %q: %w", imageRef, err)
 	}
@@ -197,6 +212,12 @@ func (e *Enricher) fetchParentIndexAnnotations(ctx context.Context, ref enrichme
 		version = labels["org.opencontainers.image.version"]
 	}
 	if version == "" {
+		version = labels["org.label-schema.version"]
+	}
+	if version == "" {
+		version = labels["version"]
+	}
+	if version == "" {
 		return nil
 	}
 
@@ -206,7 +227,11 @@ func (e *Enricher) fetchParentIndexAnnotations(ctx context.Context, ref enrichme
 		repo = repo[:idx]
 	}
 
-	tagRef, err := name.ParseReference(repo + ":" + version)
+	nameOpts := []name.Option{}
+	if e.insecure {
+		nameOpts = append(nameOpts, name.Insecure)
+	}
+	tagRef, err := name.ParseReference(repo+":"+version, nameOpts...)
 	if err != nil {
 		return nil
 	}
@@ -243,6 +268,16 @@ func (e *Enricher) fetchParentIndexAnnotations(ctx context.Context, ref enrichme
 	return idxManifest.Annotations
 }
 
+// first returns the first non-empty string from vals.
+func first(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 // extractField returns the first non-empty value for key across the sources
 // in priority order: manifest annotations > config labels > index annotations.
 func extractField(key string, manifestAnnotations, labels, indexAnnotations map[string]string) string {
@@ -267,27 +302,66 @@ func extractMetadata(cfg *v1.ConfigFile, manifestAnnotations, indexAnnotations m
 		IndexAnnotations:    indexAnnotations,
 	}
 
-	if !cfg.Created.Time.IsZero() {
-		t := cfg.Created.Time
-		meta.Created = &t
-	}
-
 	labels := cfg.Config.Labels
 	if len(labels) > 0 {
 		meta.Labels = labels
 	}
 
-	meta.ImageVersion = extractField("org.opencontainers.image.version", manifestAnnotations, labels, indexAnnotations)
-	meta.SourceURL = extractField("org.opencontainers.image.source", manifestAnnotations, labels, indexAnnotations)
-	meta.Revision = extractField("org.opencontainers.image.revision", manifestAnnotations, labels, indexAnnotations)
+	if !cfg.Created.Time.IsZero() {
+		t := cfg.Created.Time
+		meta.Created = &t
+	} else if bd := first(
+		extractField("org.label-schema.build-date", manifestAnnotations, labels, indexAnnotations),
+		labels["build-date"],
+	); bd != "" {
+		if t, err := time.Parse(time.RFC3339, bd); err == nil {
+			meta.Created = &t
+		}
+	}
+
+	meta.ImageVersion = first(
+		extractField("org.opencontainers.image.version", manifestAnnotations, labels, indexAnnotations),
+		extractField("org.label-schema.version", manifestAnnotations, labels, indexAnnotations),
+		labels["version"],
+	)
+	meta.SourceURL = first(
+		extractField("org.opencontainers.image.source", manifestAnnotations, labels, indexAnnotations),
+		extractField("org.label-schema.vcs-url", manifestAnnotations, labels, indexAnnotations),
+		labels["vcs-url"],
+	)
+	meta.Revision = first(
+		extractField("org.opencontainers.image.revision", manifestAnnotations, labels, indexAnnotations),
+		extractField("org.label-schema.vcs-ref", manifestAnnotations, labels, indexAnnotations),
+		labels["vcs-ref"],
+	)
 	meta.Authors = extractField("org.opencontainers.image.authors", manifestAnnotations, labels, indexAnnotations)
-	meta.Description = extractField("org.opencontainers.image.description", manifestAnnotations, labels, indexAnnotations)
+	meta.Description = first(
+		extractField("org.opencontainers.image.description", manifestAnnotations, labels, indexAnnotations),
+		extractField("org.label-schema.description", manifestAnnotations, labels, indexAnnotations),
+		labels["description"],
+	)
 	meta.BaseName = extractField("org.opencontainers.image.base.name", manifestAnnotations, labels, indexAnnotations)
-	meta.URL = extractField("org.opencontainers.image.url", manifestAnnotations, labels, indexAnnotations)
-	meta.Documentation = extractField("org.opencontainers.image.documentation", manifestAnnotations, labels, indexAnnotations)
-	meta.Vendor = extractField("org.opencontainers.image.vendor", manifestAnnotations, labels, indexAnnotations)
+	meta.URL = first(
+		extractField("org.opencontainers.image.url", manifestAnnotations, labels, indexAnnotations),
+		extractField("org.label-schema.url", manifestAnnotations, labels, indexAnnotations),
+		labels["url"],
+	)
+	meta.Documentation = first(
+		extractField("org.opencontainers.image.documentation", manifestAnnotations, labels, indexAnnotations),
+		extractField("org.label-schema.usage", manifestAnnotations, labels, indexAnnotations),
+		labels["usage"],
+	)
+	meta.Vendor = first(
+		extractField("org.opencontainers.image.vendor", manifestAnnotations, labels, indexAnnotations),
+		extractField("org.label-schema.vendor", manifestAnnotations, labels, indexAnnotations),
+		labels["vendor"],
+	)
 	meta.Licenses = extractField("org.opencontainers.image.licenses", manifestAnnotations, labels, indexAnnotations)
-	meta.Title = extractField("org.opencontainers.image.title", manifestAnnotations, labels, indexAnnotations)
+	meta.Title = first(
+		extractField("org.opencontainers.image.title", manifestAnnotations, labels, indexAnnotations),
+		extractField("org.label-schema.name", manifestAnnotations, labels, indexAnnotations),
+		labels["name"],
+	)
 	meta.BaseDigest = extractField("org.opencontainers.image.base.digest", manifestAnnotations, labels, indexAnnotations)
 
 	return meta

@@ -88,7 +88,7 @@ func (f *fakeSearchService) ListArtifacts(_ context.Context, filter service.Arti
 	}, nil
 }
 
-func (f *fakeSearchService) ListSBOMsByArtifact(_ context.Context, _ pgtype.UUID, _ string, limit, offset int32) (service.PagedResult[service.SBOMSummary], error) {
+func (f *fakeSearchService) ListSBOMsByArtifact(_ context.Context, _ pgtype.UUID, _, _ string, limit, offset int32) (service.PagedResult[service.SBOMSummary], error) {
 	return service.PagedResult[service.SBOMSummary]{
 		Data:   []service.SBOMSummary{{ID: "sbom1", SpecVersion: "1.5", Version: 1, CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)}},
 		Total:  1,
@@ -97,7 +97,7 @@ func (f *fakeSearchService) ListSBOMsByArtifact(_ context.Context, _ pgtype.UUID
 	}, nil
 }
 
-func (f *fakeSearchService) GetArtifactChangelog(_ context.Context, _ pgtype.UUID, _ string) (service.Changelog, error) {
+func (f *fakeSearchService) GetArtifactChangelog(_ context.Context, _ pgtype.UUID, _, _ string) (service.Changelog, error) {
 	return service.Changelog{
 		ArtifactID: "art1",
 		Entries:    []service.ChangelogEntry{},
@@ -160,6 +160,10 @@ func (f *fakeSearchService) ListSBOMComponents(_ context.Context, _ pgtype.UUID)
 
 func (f *fakeSearchService) ListComponentPurlTypes(_ context.Context) ([]string, error) {
 	return []string{"apk", "deb", "golang", "npm", "rpm"}, nil
+}
+
+func (f *fakeSearchService) GetDashboardStats(_ context.Context) (*service.DashboardStats, error) {
+	return &service.DashboardStats{}, nil
 }
 
 // notFoundSearchService returns ErrNotFound for single-item lookups.

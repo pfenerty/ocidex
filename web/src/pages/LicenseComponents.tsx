@@ -59,7 +59,7 @@ export default function LicenseComponents() {
                     fallback={<ErrorBox error={query.error} />}
                 >
                     <Show
-                        when={query.data && query.data.data.length > 0}
+                        when={query.data !== undefined && query.data.data.length > 0 ? query.data : undefined}
                         fallback={
                             <EmptyState
                                 title="No components"
@@ -67,6 +67,7 @@ export default function LicenseComponents() {
                             />
                         }
                     >
+                        {(d) => (
                         <div class="card">
                             <div class="table-wrapper">
                                 <table>
@@ -80,14 +81,14 @@ export default function LicenseComponents() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <For each={query.data!.data}>
+                                        <For each={d().data}>
                                             {(component) => (
                                                 <tr>
                                                     <td>
                                                         <A
                                                             href={`/components/${component.id}`}
                                                         >
-                                                            {component.group
+                                                            {component.group !== undefined && component.group !== ""
                                                                 ? `${component.group}/`
                                                                 : ""}
                                                             {component.name}
@@ -105,7 +106,7 @@ export default function LicenseComponents() {
                                                     <td class="truncate">
                                                         <Show
                                                             when={
-                                                                component.purl
+                                                                component.purl !== undefined
                                                             }
                                                             fallback={
                                                                 <span class="text-muted">
@@ -115,7 +116,7 @@ export default function LicenseComponents() {
                                                         >
                                                             <PurlLink
                                                                 purl={
-                                                                    component.purl!
+                                                                    component.purl ?? ""
                                                                 }
                                                                 showBadge
                                                             />
@@ -136,10 +137,11 @@ export default function LicenseComponents() {
                                 </table>
                             </div>
                             <Pagination
-                                pagination={query.data!.pagination}
+                                pagination={d().pagination}
                                 onPageChange={setOffset}
                             />
                         </div>
+                        )}
                     </Show>
                 </Show>
             </Show>

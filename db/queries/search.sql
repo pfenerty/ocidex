@@ -1,3 +1,6 @@
+-- name: GetSBOMByDigest :one
+SELECT id FROM sbom WHERE digest = $1;
+
 -- name: GetSBOM :one
 SELECT id, serial_number, spec_version, version, artifact_id, subject_version, digest, created_at
 FROM sbom
@@ -61,10 +64,11 @@ WHERE component_id = $1;
 
 -- name: ListLicenses :many
 SELECT l.id, l.spdx_id, l.name, l.url,
-       COUNT(DISTINCT cl.component_id) AS component_count,
+       COUNT(DISTINCT (c.name, COALESCE(c.group_name, ''), COALESCE(c.version, ''), c.type)) AS component_count,
        COUNT(*) OVER() AS total_count
 FROM license l
 LEFT JOIN component_license cl ON cl.license_id = l.id
+LEFT JOIN component c ON c.id = cl.component_id
 WHERE (sqlc.narg('spdx_id')::text IS NULL OR l.spdx_id = sqlc.narg('spdx_id'))
   AND (sqlc.narg('name')::text IS NULL OR l.name ILIKE sqlc.narg('name'))
   AND (sqlc.narg('category')::text IS NULL OR
@@ -89,12 +93,25 @@ ORDER BY component_count DESC, l.name
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: ListComponentsByLicense :many
-SELECT c.id, c.sbom_id, c.type, c.name, c.group_name, c.version, c.purl,
+WITH ranked AS (
+    SELECT c.id, c.sbom_id, c.type, c.name, c.group_name, c.version, c.purl,
+           c.version_major, c.version_minor, c.version_patch,
+           ROW_NUMBER() OVER (
+               PARTITION BY c.name, COALESCE(c.group_name, ''), COALESCE(c.version, ''), c.type
+               ORDER BY c.id
+           ) AS rn
+    FROM component c
+    JOIN component_license cl ON cl.component_id = c.id
+    WHERE cl.license_id = @license_id
+)
+SELECT id, sbom_id, type, name, group_name, version, purl,
        COUNT(*) OVER() AS total_count
-FROM component c
-JOIN component_license cl ON cl.component_id = c.id
-WHERE cl.license_id = @license_id
-ORDER BY c.name, c.version_major DESC NULLS LAST
+FROM ranked
+WHERE rn = 1
+ORDER BY name,
+         version_major DESC NULLS LAST,
+         version_minor DESC NULLS LAST,
+         version_patch DESC NULLS LAST
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: LicenseSummaryByArtifact :many
@@ -155,10 +172,12 @@ LIMIT @row_limit OFFSET @row_offset;
 SELECT c.id, c.sbom_id, c.type, c.name, c.group_name, c.version, c.purl,
        s.artifact_id, s.subject_version, s.digest AS sbom_digest,
        a.name AS artifact_name,
-       s.created_at AS sbom_created_at
+       s.created_at AS sbom_created_at,
+       e.data->>'architecture' AS architecture
 FROM component c
 JOIN sbom s ON s.id = c.sbom_id
 LEFT JOIN artifact a ON a.id = s.artifact_id
+LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
 WHERE c.name = @name
   AND (sqlc.narg('group_name')::text IS NULL OR c.group_name = sqlc.narg('group_name'))
   AND (sqlc.narg('version')::text IS NULL OR c.version = sqlc.narg('version'))

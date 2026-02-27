@@ -127,18 +127,22 @@ const listSBOMsByArtifact = `-- name: ListSBOMsByArtifact :many
 SELECT s.id, s.serial_number, s.spec_version, s.version, s.subject_version, s.digest, s.created_at,
        (SELECT COUNT(*) FROM component c WHERE c.sbom_id = s.id) AS component_count,
        (e.data->>'created')::timestamptz AS build_date,
+       e.data->>'imageVersion' AS image_version,
+       e.data->>'architecture' AS architecture,
        COUNT(*) OVER() AS total_count
 FROM sbom s
 LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
 WHERE s.artifact_id = $1
   AND ($2::text IS NULL OR s.subject_version = $2)
+  AND ($3::text IS NULL OR e.data->>'imageVersion' = $3)
 ORDER BY s.created_at DESC
-LIMIT $4 OFFSET $3
+LIMIT $5 OFFSET $4
 `
 
 type ListSBOMsByArtifactParams struct {
 	ArtifactID     pgtype.UUID `json:"artifact_id"`
 	SubjectVersion pgtype.Text `json:"subject_version"`
+	ImageVersion   pgtype.Text `json:"image_version"`
 	RowOffset      int32       `json:"row_offset"`
 	RowLimit       int32       `json:"row_limit"`
 }
@@ -153,6 +157,8 @@ type ListSBOMsByArtifactRow struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	ComponentCount int64              `json:"component_count"`
 	BuildDate      pgtype.Timestamptz `json:"build_date"`
+	ImageVersion   interface{}        `json:"image_version"`
+	Architecture   interface{}        `json:"architecture"`
 	TotalCount     int64              `json:"total_count"`
 }
 
@@ -160,6 +166,7 @@ func (q *Queries) ListSBOMsByArtifact(ctx context.Context, arg ListSBOMsByArtifa
 	rows, err := q.db.Query(ctx, listSBOMsByArtifact,
 		arg.ArtifactID,
 		arg.SubjectVersion,
+		arg.ImageVersion,
 		arg.RowOffset,
 		arg.RowLimit,
 	)
@@ -180,6 +187,8 @@ func (q *Queries) ListSBOMsByArtifact(ctx context.Context, arg ListSBOMsByArtifa
 			&i.CreatedAt,
 			&i.ComponentCount,
 			&i.BuildDate,
+			&i.ImageVersion,
+			&i.Architecture,
 			&i.TotalCount,
 		); err != nil {
 			return nil, err

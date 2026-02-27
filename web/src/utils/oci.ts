@@ -28,7 +28,7 @@ export function gitHubCommitUrl(
   revision: string,
 ): string | null {
   const short = gitHubShortName(sourceUrl);
-  if (!short) return null;
+  if (short === null) return null;
   return `https://github.com/${short}/commit/${revision}`;
 }
 
@@ -104,7 +104,7 @@ export function detectRegistry(imageName: string): string {
 /** Returns a friendly short display string for a URL. */
 export function friendlyUrlDisplay(url: string): string {
   const gh = gitHubShortName(url);
-  if (gh) return gh;
+  if (gh !== null) return gh;
   try {
     const u = new URL(url);
     const path = u.pathname.replace(/\/$/, "");

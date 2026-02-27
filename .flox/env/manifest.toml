@@ -21,6 +21,7 @@ oras.pkg-path = "oras"
 syft.pkg-path = "syft"
 curl.pkg-path = "curl"
 gnumake.pkg-path = "gnumake"
+nushell.pkg-path = "nushell"
 # gum.pkg-path = "gum"
 # gum.version = "^0.14.5"
 

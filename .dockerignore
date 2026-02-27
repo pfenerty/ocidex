@@ -1,0 +1,20 @@
+# Version control
+.git/
+.gitignore
+
+# Dev tools
+.claude/
+.flox/
+.DS_Store
+
+# Build artifacts
+bin/
+coverage.out
+coverage.html
+
+# Frontend build artifacts and deps (excluded from API build)
+web/node_modules/
+web/dist/
+
+# Go test/toolchain artifacts
+*.test

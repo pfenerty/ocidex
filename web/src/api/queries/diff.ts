@@ -13,10 +13,10 @@ export function useDiff(params: Accessor<{ from?: string; to?: string }>) {
             queryFn: () =>
                 unwrap(
                     client.GET("/api/v1/diff", {
-                        params: { query: { from: p.from!, to: p.to! } },
+                        params: { query: { from: p.from ?? "", to: p.to ?? "" } },
                     }),
                 ),
-            enabled: !!p.from && !!p.to,
+            enabled: p.from !== undefined && p.to !== undefined,
             select: (resp) => ({ ...resp, changes: resp.changes ?? [] }),
         };
     });

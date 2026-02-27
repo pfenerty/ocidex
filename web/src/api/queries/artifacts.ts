@@ -26,8 +26,8 @@ export function useArtifacts(params: Accessor<UseArtifactsParams>) {
                             query: {
                                 limit: p.limit,
                                 offset: p.offset,
-                                name: p.name || undefined,
-                                type: p.type || undefined,
+                                name: p.name !== "" ? p.name : undefined,
+                                type: p.type !== "" ? p.type : undefined,
                             },
                         },
                     }),
@@ -62,6 +62,7 @@ export interface UseArtifactSBOMsParams {
     limit?: number;
     offset?: number;
     subject_version?: string;
+    image_version?: string;
 }
 
 export function useArtifactSBOMs(
@@ -72,7 +73,15 @@ export function useArtifactSBOMs(
     return createQuery(() => {
         const p = params();
         return {
-            queryKey: ["artifact", id(), "sboms", p.limit, p.offset] as const,
+            queryKey: [
+                "artifact",
+                id(),
+                "sboms",
+                p.subject_version,
+                p.image_version,
+                p.limit,
+                p.offset,
+            ] as const,
             queryFn: () =>
                 unwrap(
                     client.GET("/api/v1/artifacts/{id}/sboms", {
@@ -81,7 +90,8 @@ export function useArtifactSBOMs(
                             query: {
                                 limit: p.limit,
                                 offset: p.offset,
-                                subject_version: p.subject_version || undefined,
+                                subject_version: p.subject_version !== "" ? p.subject_version : undefined,
+                                image_version: p.image_version !== "" ? p.image_version : undefined,
                             },
                         },
                     }),
@@ -99,16 +109,24 @@ export function useArtifactSBOMs(
 
 export function useArtifactChangelog(
     id: Accessor<string>,
-    options?: { enabled?: Accessor<boolean> },
+    options?: {
+        enabled?: Accessor<boolean>;
+        arch?: Accessor<string | undefined>;
+    },
 ) {
     return createQuery(() => ({
-        queryKey: ["artifact", id(), "changelog"] as const,
-        queryFn: () =>
-            unwrap(
+        queryKey: ["artifact", id(), "changelog", options?.arch?.()] as const,
+        queryFn: () => {
+            const arch = options?.arch?.();
+            return unwrap(
                 client.GET("/api/v1/artifacts/{id}/changelog", {
-                    params: { path: { id: id() } },
+                    params: {
+                        path: { id: id() },
+                        query: { arch: arch !== "" ? arch : undefined },
+                    },
                 }),
-            ),
+            );
+        },
         enabled: options?.enabled?.() ?? true,
         select: (resp) => ({
             ...resp,
@@ -153,7 +171,7 @@ export function useArtifactNames(): (
         queryFn: () =>
             unwrap(
                 client.GET("/api/v1/artifacts", {
-                    params: { query: { limit: 500 } },
+                    params: { query: { limit: 200 } },
                 }),
             ),
         staleTime: 60_000,
@@ -170,8 +188,9 @@ export function useArtifactNames(): (
         return map;
     });
 
+    // eslint-disable-next-line solid/reactivity
     return (id: string | undefined) => {
-        if (!id) return undefined;
+        if (id === undefined) return undefined;
         return lookupMap().get(id);
     };
 }

@@ -24,7 +24,10 @@ func TestLoad(t *testing.T) {
 		{
 			name: "defaults applied",
 			env: map[string]string{
-				"DATABASE_URL": "postgres://localhost/test",
+				"DATABASE_URL":         "postgres://localhost/test",
+				"GITHUB_CLIENT_ID":     "test-id",
+				"GITHUB_CLIENT_SECRET": "test-secret",
+				"SESSION_SECRET":       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			},
 			check: func(is *is.I, cfg *config.Config) {
 				is.Equal(cfg.Port, 8080)
@@ -36,10 +39,13 @@ func TestLoad(t *testing.T) {
 		{
 			name: "overrides",
 			env: map[string]string{
-				"PORT":         "9090",
-				"LOG_LEVEL":    "debug",
-				"ENVIRONMENT":  "production",
-				"DATABASE_URL": "postgres://prod/ocidex",
+				"PORT":                 "9090",
+				"LOG_LEVEL":            "debug",
+				"ENVIRONMENT":          "production",
+				"DATABASE_URL":         "postgres://prod/ocidex",
+				"GITHUB_CLIENT_ID":     "prod-id",
+				"GITHUB_CLIENT_SECRET": "prod-secret",
+				"SESSION_SECRET":       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 			},
 			check: func(is *is.I, cfg *config.Config) {
 				is.Equal(cfg.Port, 9090)
