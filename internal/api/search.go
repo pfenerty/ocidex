@@ -6,6 +6,10 @@ import (
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
+func paginationMeta[T any](r service.PagedResult[T]) PaginationMeta {
+	return PaginationMeta{Total: r.Total, Limit: r.Limit, Offset: r.Offset}
+}
+
 // SearchDistinctComponents handles GET /api/v1/components/distinct.
 func (h *Handler) SearchDistinctComponents(ctx context.Context, input *SearchDistinctComponentsInput) (*SearchDistinctComponentsOutput, error) {
 	filter := service.ComponentFilter{
@@ -26,11 +30,7 @@ func (h *Handler) SearchDistinctComponents(ctx context.Context, input *SearchDis
 
 	out := &SearchDistinctComponentsOutput{}
 	out.Body.Data = result.Data
-	out.Body.Pagination = PaginationMeta{
-		Total:  result.Total,
-		Limit:  result.Limit,
-		Offset: result.Offset,
-	}
+	out.Body.Pagination = paginationMeta(result)
 	return out, nil
 }
 
@@ -91,11 +91,7 @@ func (h *Handler) ListSBOMs(ctx context.Context, input *ListSBOMsInput) (*ListSB
 
 	out := &ListSBOMsOutput{}
 	out.Body.Data = result.Data
-	out.Body.Pagination = PaginationMeta{
-		Total:  result.Total,
-		Limit:  result.Limit,
-		Offset: result.Offset,
-	}
+	out.Body.Pagination = paginationMeta(result)
 	return out, nil
 }
 
@@ -152,11 +148,7 @@ func (h *Handler) SearchComponents(ctx context.Context, input *SearchComponentsI
 
 	out := &SearchComponentsOutput{}
 	out.Body.Data = result.Data
-	out.Body.Pagination = PaginationMeta{
-		Total:  result.Total,
-		Limit:  result.Limit,
-		Offset: result.Offset,
-	}
+	out.Body.Pagination = paginationMeta(result)
 	return out, nil
 }
 
@@ -194,11 +186,7 @@ func (h *Handler) ListLicenses(ctx context.Context, input *ListLicensesInput) (*
 
 	out := &ListLicensesOutput{}
 	out.Body.Data = result.Data
-	out.Body.Pagination = PaginationMeta{
-		Total:  result.Total,
-		Limit:  result.Limit,
-		Offset: result.Offset,
-	}
+	out.Body.Pagination = paginationMeta(result)
 	return out, nil
 }
 
@@ -216,11 +204,7 @@ func (h *Handler) ListComponentsByLicense(ctx context.Context, input *ListCompon
 
 	out := &ListComponentsByLicenseOutput{}
 	out.Body.Data = result.Data
-	out.Body.Pagination = PaginationMeta{
-		Total:  result.Total,
-		Limit:  result.Limit,
-		Offset: result.Offset,
-	}
+	out.Body.Pagination = paginationMeta(result)
 	return out, nil
 }
 
@@ -240,11 +224,7 @@ func (h *Handler) ListArtifacts(ctx context.Context, input *ListArtifactsInput) 
 
 	out := &ListArtifactsOutput{}
 	out.Body.Data = result.Data
-	out.Body.Pagination = PaginationMeta{
-		Total:  result.Total,
-		Limit:  result.Limit,
-		Offset: result.Offset,
-	}
+	out.Body.Pagination = paginationMeta(result)
 	return out, nil
 }
 
@@ -272,18 +252,14 @@ func (h *Handler) ListArtifactSBOMs(ctx context.Context, input *ListArtifactSBOM
 		return nil, err
 	}
 
-	result, err := h.searchService.ListSBOMsByArtifact(ctx, id, input.SubjectVersion, input.Limit, input.Offset)
+	result, err := h.searchService.ListSBOMsByArtifact(ctx, id, input.SubjectVersion, input.ImageVersion, input.Limit, input.Offset)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
 
 	out := &ListArtifactSBOMsOutput{}
 	out.Body.Data = result.Data
-	out.Body.Pagination = PaginationMeta{
-		Total:  result.Total,
-		Limit:  result.Limit,
-		Offset: result.Offset,
-	}
+	out.Body.Pagination = paginationMeta(result)
 	return out, nil
 }
 
@@ -296,11 +272,7 @@ func (h *Handler) ListSBOMsByDigest(ctx context.Context, input *ListSBOMsByDiges
 
 	out := &ListSBOMsByDigestOutput{}
 	out.Body.Data = result.Data
-	out.Body.Pagination = PaginationMeta{
-		Total:  result.Total,
-		Limit:  result.Limit,
-		Offset: result.Offset,
-	}
+	out.Body.Pagination = paginationMeta(result)
 	return out, nil
 }
 
@@ -340,6 +312,58 @@ func (h *Handler) GetArtifactLicenseSummary(ctx context.Context, input *GetArtif
 
 	out := &GetArtifactLicenseSummaryOutput{}
 	out.Body.Licenses = summary
+	return out, nil
+}
+
+// GetDashboardStats handles GET /api/v1/stats/summary.
+func (h *Handler) GetDashboardStats(ctx context.Context, _ *struct{}) (*DashboardStatsOutput, error) {
+	stats, err := h.searchService.GetDashboardStats(ctx)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	cats := make([]CategoryCountEntry, 0, len(stats.LicenseCategories))
+	for _, c := range stats.LicenseCategories {
+		cats = append(cats, CategoryCountEntry{Category: c.Category, ComponentCount: c.ComponentCount})
+	}
+
+	timeline := make([]DailyCountEntry, 0, len(stats.IngestionTimeline))
+	for _, t := range stats.IngestionTimeline {
+		timeline = append(timeline, DailyCountEntry{Day: t.Day, Count: t.Count})
+	}
+
+	pkgs := make([]PackageSummaryEntry, 0, len(stats.TopPackages))
+	for _, p := range stats.TopPackages {
+		pkgs = append(pkgs, PackageSummaryEntry{
+			Name:         p.Name,
+			Group:        p.Group,
+			Type:         p.Type,
+			VersionCount: p.VersionCount,
+			SbomCount:    p.SbomCount,
+		})
+	}
+
+	out := &DashboardStatsOutput{}
+	out.Body.ArtifactCount = stats.ArtifactCount
+	out.Body.SBOMCount = stats.SBOMCount
+	out.Body.PackageCount = stats.PackageCount
+	out.Body.VersionCount = stats.VersionCount
+	out.Body.LicenseCount = stats.LicenseCount
+	pkgGrowth := make([]DailyCountEntry, 0, len(stats.PackageGrowthTimeline))
+	for _, p := range stats.PackageGrowthTimeline {
+		pkgGrowth = append(pkgGrowth, DailyCountEntry{Day: p.Day, Count: p.Count})
+	}
+
+	verGrowth := make([]DailyCountEntry, 0, len(stats.VersionGrowthTimeline))
+	for _, v := range stats.VersionGrowthTimeline {
+		verGrowth = append(verGrowth, DailyCountEntry{Day: v.Day, Count: v.Count})
+	}
+
+	out.Body.LicenseCategories = cats
+	out.Body.IngestionTimeline = timeline
+	out.Body.PackageGrowthTimeline = pkgGrowth
+	out.Body.VersionGrowthTimeline = verGrowth
+	out.Body.TopPackages = pkgs
 	return out, nil
 }
 

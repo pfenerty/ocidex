@@ -25,7 +25,10 @@ export async function unwrap<T>(
     promise: Promise<{ data?: T; error?: unknown; response: Response }>,
 ): Promise<T> {
     const { data, error, response } = await promise;
-    if (error) {
+    if (error !== undefined && error !== null) {
+        if (response.status === 401) {
+            window.location.href = "/login";
+        }
         throw new APIClientError(response.status, error);
     }
     return data as T;
@@ -58,6 +61,10 @@ export type ExternalRefEntry = components["schemas"]["ExternalRefEntry"];
 export type IngestResponse = components["schemas"]["IngestSBOMOutputBody"];
 export type PaginationMeta = components["schemas"]["PaginationMeta"];
 export type ErrorModel = components["schemas"]["ErrorModel"];
+export type DashboardStats = components["schemas"]["DashboardStatsOutputBody"];
+export type CategoryCountEntry = components["schemas"]["CategoryCountEntry"];
+export type DailyCountEntry = components["schemas"]["DailyCountEntry"];
+export type PackageSummaryEntry = components["schemas"]["PackageSummaryEntry"];
 
 /**
  * Client-side type for OCI image metadata stored in SBOM enrichments.

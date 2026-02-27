@@ -285,6 +285,191 @@ func TestExtractMetadata_NewConvenienceFields(t *testing.T) {
 	}
 }
 
+func TestExtractMetadata_LabelSchemaFallback(t *testing.T) {
+	tests := []struct {
+		name   string
+		cfg    *v1.ConfigFile
+		checks func(t *testing.T, meta Metadata)
+	}{
+		{
+			name: "label-schema fields used as fallback",
+			cfg: &v1.ConfigFile{
+				Config: v1.Config{
+					Labels: map[string]string{
+						"org.label-schema.version":     "1.2.3",
+						"org.label-schema.vcs-url":     "https://github.com/example/repo",
+						"org.label-schema.vcs-ref":     "deadbeef",
+						"org.label-schema.description": "An example image",
+						"org.label-schema.url":         "https://example.com",
+						"org.label-schema.usage":       "https://docs.example.com",
+						"org.label-schema.vendor":      "Example Corp",
+						"org.label-schema.name":        "example-image",
+					},
+				},
+			},
+			checks: func(t *testing.T, meta Metadata) {
+				if meta.ImageVersion != "1.2.3" {
+					t.Errorf("ImageVersion = %q, want %q", meta.ImageVersion, "1.2.3")
+				}
+				if meta.SourceURL != "https://github.com/example/repo" {
+					t.Errorf("SourceURL = %q, want %q", meta.SourceURL, "https://github.com/example/repo")
+				}
+				if meta.Revision != "deadbeef" {
+					t.Errorf("Revision = %q, want %q", meta.Revision, "deadbeef")
+				}
+				if meta.Description != "An example image" {
+					t.Errorf("Description = %q, want %q", meta.Description, "An example image")
+				}
+				if meta.URL != "https://example.com" {
+					t.Errorf("URL = %q, want %q", meta.URL, "https://example.com")
+				}
+				if meta.Documentation != "https://docs.example.com" {
+					t.Errorf("Documentation = %q, want %q", meta.Documentation, "https://docs.example.com")
+				}
+				if meta.Vendor != "Example Corp" {
+					t.Errorf("Vendor = %q, want %q", meta.Vendor, "Example Corp")
+				}
+				if meta.Title != "example-image" {
+					t.Errorf("Title = %q, want %q", meta.Title, "example-image")
+				}
+			},
+		},
+		{
+			name: "bare keys used as fallback",
+			cfg: &v1.ConfigFile{
+				Config: v1.Config{
+					Labels: map[string]string{
+						"version":     "10.1",
+						"vcs-ref":     "deadbeef",
+						"vcs-url":     "https://github.com/example/repo",
+						"description": "A bare-key image",
+						"url":         "https://example.com",
+						"usage":       "https://docs.example.com",
+						"vendor":      "Example Corp",
+						"name":        "example-image",
+					},
+				},
+			},
+			checks: func(t *testing.T, meta Metadata) {
+				if meta.ImageVersion != "10.1" {
+					t.Errorf("ImageVersion = %q, want %q", meta.ImageVersion, "10.1")
+				}
+				if meta.Revision != "deadbeef" {
+					t.Errorf("Revision = %q, want %q", meta.Revision, "deadbeef")
+				}
+				if meta.SourceURL != "https://github.com/example/repo" {
+					t.Errorf("SourceURL = %q, want %q", meta.SourceURL, "https://github.com/example/repo")
+				}
+				if meta.Description != "A bare-key image" {
+					t.Errorf("Description = %q, want %q", meta.Description, "A bare-key image")
+				}
+				if meta.URL != "https://example.com" {
+					t.Errorf("URL = %q, want %q", meta.URL, "https://example.com")
+				}
+				if meta.Documentation != "https://docs.example.com" {
+					t.Errorf("Documentation = %q, want %q", meta.Documentation, "https://docs.example.com")
+				}
+				if meta.Vendor != "Example Corp" {
+					t.Errorf("Vendor = %q, want %q", meta.Vendor, "Example Corp")
+				}
+				if meta.Title != "example-image" {
+					t.Errorf("Title = %q, want %q", meta.Title, "example-image")
+				}
+			},
+		},
+		{
+			name: "OCI annotations win over label-schema",
+			cfg: &v1.ConfigFile{
+				Config: v1.Config{
+					Labels: map[string]string{
+						"org.opencontainers.image.version":       "oci-ver",
+						"org.label-schema.version":               "ls-ver",
+						"org.opencontainers.image.source":        "https://oci.example.com",
+						"org.label-schema.vcs-url":               "https://ls.example.com",
+						"org.opencontainers.image.revision":      "oci-rev",
+						"org.label-schema.vcs-ref":               "ls-rev",
+						"org.opencontainers.image.description":   "OCI description",
+						"org.label-schema.description":           "LS description",
+						"org.opencontainers.image.url":           "https://oci-url.example.com",
+						"org.label-schema.url":                   "https://ls-url.example.com",
+						"org.opencontainers.image.documentation": "https://oci-docs.example.com",
+						"org.label-schema.usage":                 "https://ls-docs.example.com",
+						"org.opencontainers.image.vendor":        "OCI Vendor",
+						"org.label-schema.vendor":                "LS Vendor",
+						"org.opencontainers.image.title":         "oci-title",
+						"org.label-schema.name":                  "ls-title",
+					},
+				},
+			},
+			checks: func(t *testing.T, meta Metadata) {
+				if meta.ImageVersion != "oci-ver" {
+					t.Errorf("ImageVersion = %q, want %q", meta.ImageVersion, "oci-ver")
+				}
+				if meta.SourceURL != "https://oci.example.com" {
+					t.Errorf("SourceURL = %q, want %q", meta.SourceURL, "https://oci.example.com")
+				}
+				if meta.Revision != "oci-rev" {
+					t.Errorf("Revision = %q, want %q", meta.Revision, "oci-rev")
+				}
+				if meta.Description != "OCI description" {
+					t.Errorf("Description = %q, want %q", meta.Description, "OCI description")
+				}
+				if meta.URL != "https://oci-url.example.com" {
+					t.Errorf("URL = %q, want %q", meta.URL, "https://oci-url.example.com")
+				}
+				if meta.Documentation != "https://oci-docs.example.com" {
+					t.Errorf("Documentation = %q, want %q", meta.Documentation, "https://oci-docs.example.com")
+				}
+				if meta.Vendor != "OCI Vendor" {
+					t.Errorf("Vendor = %q, want %q", meta.Vendor, "OCI Vendor")
+				}
+				if meta.Title != "oci-title" {
+					t.Errorf("Title = %q, want %q", meta.Title, "oci-title")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			meta := extractMetadata(tt.cfg, nil, nil)
+			tt.checks(t, meta)
+		})
+	}
+}
+
+func TestExtractMetadata_LabelSchemaBuildDate(t *testing.T) {
+	buildDate := "2023-11-15T08:00:00Z"
+	want, _ := time.Parse(time.RFC3339, buildDate)
+
+	tests := []struct {
+		name   string
+		labels map[string]string
+	}{
+		{
+			name:   "org.label-schema.build-date",
+			labels: map[string]string{"org.label-schema.build-date": buildDate},
+		},
+		{
+			name:   "bare build-date",
+			labels: map[string]string{"build-date": buildDate},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &v1.ConfigFile{Config: v1.Config{Labels: tt.labels}}
+			meta := extractMetadata(cfg, nil, nil)
+			if meta.Created == nil {
+				t.Fatal("Created = nil, want non-nil")
+			}
+			if !meta.Created.Equal(want) {
+				t.Errorf("Created = %v, want %v", meta.Created, want)
+			}
+		})
+	}
+}
+
 func TestName(t *testing.T) {
 	e := NewEnricher()
 	if e.Name() != "oci-metadata" {

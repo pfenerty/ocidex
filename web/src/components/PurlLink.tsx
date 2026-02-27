@@ -8,15 +8,16 @@ export default function PurlLink(props: { purl: string; showBadge?: boolean }) {
 
   return (
     <span class="purl-link">
-      <Show when={props.showBadge && label()}>
+      <Show when={props.showBadge === true && label() !== null}>
         <span class="badge badge-sm">{label()}</span>{" "}
       </Show>
       <Show
         when={url()}
         fallback={<span class="mono text-sm" title={props.purl}>{purlDisplayName(props.purl)}</span>}
       >
+        {(u) => (
         <a
-          href={url()!}
+          href={u()}
           target="_blank"
           rel="noopener noreferrer"
           class="mono text-sm"
@@ -29,6 +30,7 @@ export default function PurlLink(props: { purl: string; showBadge?: boolean }) {
             <line x1="10" y1="14" x2="21" y2="3" />
           </svg>
         </a>
+        )}
       </Show>
     </span>
   );

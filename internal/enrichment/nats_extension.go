@@ -10,8 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/nats-io/nats.go/jetstream"
 
-	natspkg "github.com/pfenerty/ocidex/internal/nats"
 	"github.com/pfenerty/ocidex/internal/event"
+	natspkg "github.com/pfenerty/ocidex/internal/nats"
 )
 
 // DispatchRunner is implemented by Dispatcher and allows substitution in tests.

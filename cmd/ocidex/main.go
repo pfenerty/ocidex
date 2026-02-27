@@ -125,6 +125,7 @@ func run() error {
 	ociValidator := oci.NewValidator(ociOpts...)
 	sbomSvc := service.NewSBOMService(pool, bus, ociValidator)
 	searchSvc := service.NewSearchService(pool)
+	authSvc := service.NewAuthService(pool, cfg)
 
 	var scanDispatcher *scanner.Dispatcher
 	if cfg.ScannerEnabled {
@@ -139,7 +140,7 @@ func run() error {
 		return fmt.Errorf("initializing extensions: %w", err)
 	}
 
-	handler := api.NewHandler(sbomSvc, searchSvc, pool, scanDispatcher, cfg.ZotWebhookSecret)
+	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, pool, scanDispatcher, cfg.ZotWebhookSecret, cfg)
 	router := api.NewRouter(handler, cfg.CORSAllowedOrigins)
 
 	// Start extensions.
@@ -148,6 +149,20 @@ func run() error {
 	if err := registry.StartAll(extCtx); err != nil {
 		return fmt.Errorf("starting extensions: %w", err)
 	}
+
+	// Periodically purge expired sessions.
+	go func() {
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				_ = authSvc.CleanExpiredSessions(extCtx)
+			case <-extCtx.Done():
+				return
+			}
+		}
+	}()
 
 	// Start HTTP server.
 	srv := &http.Server{

@@ -8,6 +8,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ApiKey struct {
+	ID         pgtype.UUID        `json:"id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	Name       string             `json:"name"`
+	KeyHash    string             `json:"key_hash"`
+	Prefix     string             `json:"prefix"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
+}
+
 type Artifact struct {
 	ID        pgtype.UUID        `json:"id"`
 	Type      string             `json:"type"`
@@ -83,6 +93,15 @@ type License struct {
 	Url    pgtype.Text `json:"url"`
 }
 
+type OcidexUser struct {
+	ID             pgtype.UUID        `json:"id"`
+	GithubID       int64              `json:"github_id"`
+	GithubUsername string             `json:"github_username"`
+	Role           string             `json:"role"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Sbom struct {
 	ID             pgtype.UUID        `json:"id"`
 	SerialNumber   pgtype.Text        `json:"serial_number"`
@@ -93,4 +112,12 @@ type Sbom struct {
 	ArtifactID     pgtype.UUID        `json:"artifact_id"`
 	SubjectVersion pgtype.Text        `json:"subject_version"`
 	Digest         pgtype.Text        `json:"digest"`
+}
+
+type Session struct {
+	ID        pgtype.UUID        `json:"id"`
+	UserID    pgtype.UUID        `json:"user_id"`
+	TokenHash string             `json:"token_hash"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }

@@ -3,3 +3,5 @@ export { useSBOMs, useSBOM, useSBOMComponents, useSBOMDependencies } from "./sbo
 export { useDistinctComponents, useComponentPurlTypes, useComponentVersions, useComponent } from "./components";
 export { useLicenses, useLicenseComponents } from "./licenses";
 export { useDiff } from "./diff";
+export { useDashboardStats } from "./stats";
+export { useListAPIKeys, useCreateAPIKey, useDeleteAPIKey, useListUsers, useUpdateUserRole, useGetSystemStatus } from "./auth";

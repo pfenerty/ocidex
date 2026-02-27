@@ -30,10 +30,17 @@ type Config struct {
 	NATSStreamName string `env:"NATS_STREAM_NAME"    envDefault:"ocidex"`
 	NATSEventTTL   int    `env:"NATS_EVENT_TTL_HOURS" envDefault:"24"`
 
+	// GitHub OAuth.
+	GitHubClientID     string `env:"GITHUB_CLIENT_ID,required"`
+	GitHubClientSecret string `env:"GITHUB_CLIENT_SECRET,required"`
+	GitHubRedirectURL  string `env:"GITHUB_REDIRECT_URL" envDefault:"http://localhost:3000/auth/callback"`
+	SessionSecret      string `env:"SESSION_SECRET,required"`
+	SessionMaxAgeDays  int    `env:"SESSION_MAX_AGE_DAYS" envDefault:"7"`
+
 	// Scanner (OCI registry auto-scan via Zot webhook).
-	ScannerEnabled   bool   `env:"SCANNER_ENABLED"    envDefault:"false"`
-	ScannerWorkers   int    `env:"SCANNER_WORKERS"    envDefault:"2"`
-	ScannerQueueSize int    `env:"SCANNER_QUEUE_SIZE" envDefault:"50"`
+	ScannerEnabled      bool   `env:"SCANNER_ENABLED"    envDefault:"false"`
+	ScannerWorkers      int    `env:"SCANNER_WORKERS"    envDefault:"2"`
+	ScannerQueueSize    int    `env:"SCANNER_QUEUE_SIZE" envDefault:"50"`
 	ZotRegistryAddr     string `env:"ZOT_REGISTRY_ADDR"     envDefault:"zot:5000"`
 	ZotRegistryInsecure bool   `env:"ZOT_REGISTRY_INSECURE" envDefault:"false"`
 	ZotWebhookSecret    string `env:"ZOT_WEBHOOK_SECRET"`

@@ -58,7 +58,7 @@ export default function Components() {
 
     const overviewHref = (c: { name: string; group?: string }) => {
         const params = new URLSearchParams({ name: c.name });
-        if (c.group) params.set("group", c.group);
+        if (c.group !== undefined && c.group !== "") params.set("group", c.group);
         return `/components/overview?${params.toString()}`;
     };
 
@@ -118,7 +118,7 @@ export default function Components() {
                         {(t) => <option value={t}>{t}</option>}
                     </For>
                 </select>
-                <Show when={nameFilter() || groupFilter() || purlTypeFilter()}>
+                <Show when={nameFilter() !== "" || groupFilter() !== "" || purlTypeFilter() !== ""}>
                     <button type="button" onClick={handleClear}>
                         Clear
                     </button>
@@ -131,18 +131,19 @@ export default function Components() {
                     fallback={<ErrorBox error={query.error} />}
                 >
                     <Show
-                        when={query.data && query.data.data.length > 0}
+                        when={query.data !== undefined && query.data.data.length > 0 ? query.data : undefined}
                         fallback={
                             <EmptyState
                                 title="No components found"
                                 message={
-                                    nameFilter() || purlTypeFilter()
+                                    nameFilter() !== "" || purlTypeFilter() !== ""
                                         ? "No libraries matching your filters were found."
                                         : "No libraries have been ingested yet."
                                 }
                             />
                         }
                     >
+                        {(d) => (
                         <div class="card">
                             <div class="table-wrapper">
                                 <table>
@@ -177,7 +178,7 @@ export default function Components() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <For each={query.data!.data}>
+                                        <For each={d().data}>
                                             {(component) => (
                                                 <tr>
                                                     <td>
@@ -188,7 +189,7 @@ export default function Components() {
                                                         >
                                                             <Show
                                                                 when={
-                                                                    component.group
+                                                                    component.group !== undefined && component.group !== ""
                                                                 }
                                                             >
                                                                 <span class="text-muted">
@@ -234,10 +235,11 @@ export default function Components() {
                                 </table>
                             </div>
                             <Pagination
-                                pagination={query.data!.pagination}
+                                pagination={d().pagination}
                                 onPageChange={setOffset}
                             />
                         </div>
+                        )}
                     </Show>
                 </Show>
             </Show>

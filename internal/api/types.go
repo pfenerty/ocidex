@@ -1,6 +1,10 @@
 package api
 
-import "github.com/pfenerty/ocidex/internal/service"
+import (
+	"time"
+
+	"github.com/pfenerty/ocidex/internal/service"
+)
 
 // ---------------------------------------------------------------------------
 // Shared
@@ -351,6 +355,7 @@ type ListArtifactSBOMsInput struct {
 	PaginationParams
 	ID             string `path:"id" doc:"Artifact UUID" format:"uuid"`
 	SubjectVersion string `query:"subject_version" doc:"Filter by subject version"`
+	ImageVersion   string `query:"image_version"   doc:"Filter by image version"`
 }
 
 // ListArtifactSBOMsOutput is the response for GET /api/v1/artifacts/{id}/sboms.
@@ -391,4 +396,159 @@ type GetArtifactLicenseSummaryOutput struct {
 	Body struct {
 		Licenses []service.LicenseCount `json:"licenses"`
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Stats — Dashboard Summary
+// ---------------------------------------------------------------------------
+
+// DashboardStatsOutput is the response for GET /api/v1/stats/summary.
+type DashboardStatsOutput struct {
+	Body struct {
+		ArtifactCount         int64                 `json:"artifact_count"`
+		SBOMCount             int64                 `json:"sbom_count"`
+		PackageCount          int64                 `json:"package_count"`
+		VersionCount          int64                 `json:"version_count"`
+		LicenseCount          int64                 `json:"license_count"`
+		LicenseCategories     []CategoryCountEntry  `json:"license_categories"`
+		IngestionTimeline     []DailyCountEntry     `json:"ingestion_timeline"`
+		PackageGrowthTimeline []DailyCountEntry     `json:"package_growth_timeline"`
+		VersionGrowthTimeline []DailyCountEntry     `json:"version_growth_timeline"`
+		TopPackages           []PackageSummaryEntry `json:"top_packages"`
+	}
+}
+
+// CategoryCountEntry is a license compliance category with component count.
+type CategoryCountEntry struct {
+	Category       string `json:"category"`
+	ComponentCount int64  `json:"component_count"`
+}
+
+// DailyCountEntry is a date + SBOM ingestion count.
+type DailyCountEntry struct {
+	Day   string `json:"day"`
+	Count int64  `json:"count"`
+}
+
+// PackageSummaryEntry is a distinct package with version and SBOM counts.
+type PackageSummaryEntry struct {
+	Name         string  `json:"name"`
+	Group        *string `json:"group,omitempty"`
+	Type         string  `json:"type"`
+	VersionCount int64   `json:"version_count"`
+	SbomCount    int64   `json:"sbom_count"`
+}
+
+// ---------------------------------------------------------------------------
+// Auth — Me
+// ---------------------------------------------------------------------------
+
+// MeOutput is the response for GET /auth/me.
+type MeOutput struct {
+	Body struct {
+		ID             string `json:"id" doc:"User UUID"`
+		GitHubUsername string `json:"github_username" doc:"GitHub login"`
+		Role           string `json:"role" doc:"User role: admin, member, or viewer"`
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Auth — API Keys
+// ---------------------------------------------------------------------------
+
+// CreateAPIKeyInput is the request for POST /api/v1/auth/keys.
+type CreateAPIKeyInput struct {
+	Body struct {
+		Name string `json:"name" minLength:"1" maxLength:"100" doc:"Human-readable label for this key"`
+	}
+}
+
+// CreateAPIKeyOutput is the response for POST /api/v1/auth/keys.
+type CreateAPIKeyOutput struct {
+	Body struct {
+		Key string `json:"key" doc:"Full API key — shown once, store securely"`
+	}
+}
+
+// APIKeyMetaResponse is the display-safe API key representation.
+type APIKeyMetaResponse struct {
+	ID         string     `json:"id" doc:"Key UUID"`
+	Name       string     `json:"name"`
+	Prefix     string     `json:"prefix" doc:"First 8 characters of the key"`
+	CreatedAt  time.Time  `json:"created_at"`
+	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+}
+
+// ListAPIKeysOutput is the response for GET /api/v1/auth/keys.
+type ListAPIKeysOutput struct {
+	Body struct {
+		Keys []APIKeyMetaResponse `json:"keys"`
+	}
+}
+
+// DeleteAPIKeyInput is the request for DELETE /api/v1/auth/keys/{id}.
+type DeleteAPIKeyInput struct {
+	ID string `path:"id" doc:"Key UUID" format:"uuid"`
+}
+
+// ---------------------------------------------------------------------------
+// Auth — Users (admin)
+// ---------------------------------------------------------------------------
+
+// UserResponse is the public representation of a user.
+type UserResponse struct {
+	ID             string `json:"id"`
+	GitHubUsername string `json:"github_username"`
+	Role           string `json:"role"`
+}
+
+// ListUsersOutput is the response for GET /api/v1/users.
+type ListUsersOutput struct {
+	Body struct {
+		Users []UserResponse `json:"users"`
+	}
+}
+
+// UpdateUserRoleInput is the request for PATCH /api/v1/users/{id}/role.
+type UpdateUserRoleInput struct {
+	ID   string `path:"id" doc:"User UUID" format:"uuid"`
+	Body struct {
+		Role string `json:"role" enum:"admin,member,viewer" doc:"New role"`
+	}
+}
+
+// UpdateUserRoleOutput is the response for PATCH /api/v1/users/{id}/role.
+type UpdateUserRoleOutput struct {
+	Body UserResponse
+}
+
+// ---------------------------------------------------------------------------
+// Admin — System Status
+// ---------------------------------------------------------------------------
+
+// SystemStatusOutput is the response for GET /api/v1/admin/status.
+type SystemStatusOutput struct {
+	Body struct {
+		Enrichment EnrichmentStatus `json:"enrichment"`
+		Scanner    ScannerStatus    `json:"scanner"`
+		NATS       NATSStatus       `json:"nats"`
+	}
+}
+
+// EnrichmentStatus describes the enrichment pipeline configuration.
+type EnrichmentStatus struct {
+	Enabled   bool `json:"enabled"`
+	Workers   int  `json:"workers"`
+	QueueSize int  `json:"queue_size"`
+}
+
+// ScannerStatus describes the scanner configuration.
+type ScannerStatus struct {
+	Enabled bool `json:"enabled"`
+}
+
+// NATSStatus describes the NATS JetStream configuration.
+type NATSStatus struct {
+	Enabled bool   `json:"enabled"`
+	URL     string `json:"url"`
 }

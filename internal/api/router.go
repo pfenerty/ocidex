@@ -26,12 +26,13 @@ func NewRouter(h *Handler, corsOrigins string) chi.Router {
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   parseCORSOrigins(corsOrigins),
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Content-Type"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 		ExposedHeaders:   []string{"X-Request-Id"},
-		AllowCredentials: false,
+		AllowCredentials: true,
 		MaxAge:           300,
 	}))
+	r.Use(Authenticate(h.authService))
 	r.Use(middleware.Timeout(30 * time.Second))
 
 	config := huma.DefaultConfig("OCIDex API", "1.0.0")
@@ -48,6 +49,8 @@ func NewRouter(h *Handler, corsOrigins string) chi.Router {
 	registerArtifactOps(api, h)
 	registerDiffOps(api, h)
 	registerWebhookOps(api, h)
+	registerStatsOps(api, h)
+	registerAuthOps(r, api, h)
 
 	return r
 }
@@ -307,6 +310,20 @@ func registerWebhookOps(api huma.API, h *Handler) {
 		MaxBodyBytes:  64 * 1024,
 		DefaultStatus: http.StatusAccepted,
 	}, h.HandleZotWebhook)
+}
+
+// ---------------------------------------------------------------------------
+// Stats
+// ---------------------------------------------------------------------------
+
+func registerStatsOps(api huma.API, h *Handler) {
+	huma.Register(api, huma.Operation{
+		OperationID: "get-dashboard-stats",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/stats/summary",
+		Summary:     "Get dashboard summary statistics",
+		Tags:        []string{"Stats"},
+	}, h.GetDashboardStats)
 }
 
 // ---------------------------------------------------------------------------

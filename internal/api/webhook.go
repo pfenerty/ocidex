@@ -20,7 +20,7 @@ type zotEvent struct {
 
 // ZotWebhookInput is the huma input type for the Zot webhook handler.
 type ZotWebhookInput struct {
-	Authorization string   `header:"Authorization"`
+	Authorization string `header:"Authorization"`
 	Body          zotEvent
 }
 

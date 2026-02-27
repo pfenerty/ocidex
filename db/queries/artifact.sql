@@ -41,5 +41,6 @@ FROM sbom s
 LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
 WHERE s.artifact_id = $1
   AND (sqlc.narg('subject_version')::text IS NULL OR s.subject_version = sqlc.narg('subject_version'))
+  AND (sqlc.narg('image_version')::text IS NULL OR e.data->>'imageVersion' = sqlc.narg('image_version'))
 ORDER BY s.created_at DESC
 LIMIT @row_limit OFFSET @row_offset;

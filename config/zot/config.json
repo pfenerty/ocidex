@@ -4,6 +4,13 @@
   "http": { "address": "0.0.0.0", "port": "5000" },
   "log": { "level": "info" },
   "extensions": {
+    "search": { "enable": false },
+    "sync": { "enable": false },
+    "scrub": { "enable": false },
+    "lint": { "enable": false },
+    "trust": { "enable": false },
+    "ui": { "enable": false },
+    "metrics": { "enable": false },
     "events": {
       "enable": true,
       "sinks": [

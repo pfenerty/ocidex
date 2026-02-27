@@ -45,10 +45,10 @@ export function useDistinctComponents(
                     client.GET("/api/v1/components/distinct", {
                         params: {
                             query: {
-                                name: p.name || undefined,
-                                group: p.group || undefined,
-                                type: p.type || undefined,
-                                purl_type: p.purl_type || undefined,
+                                name: p.name !== "" ? p.name : undefined,
+                                group: p.group !== "" ? p.group : undefined,
+                                type: p.type !== "" ? p.type : undefined,
+                                purl_type: p.purl_type !== "" ? p.purl_type : undefined,
                                 sort: p.sort,
                                 sort_dir: p.sort_dir,
                                 limit: p.limit,
@@ -112,15 +112,15 @@ export function useComponentVersions(
                     client.GET("/api/v1/components/versions", {
                         params: {
                             query: {
-                                name: p!.name,
-                                group: p!.group || undefined,
-                                version: p!.version || undefined,
-                                type: p!.type || undefined,
+                                name: p?.name ?? "",
+                                group: p?.group !== "" ? p?.group : undefined,
+                                version: p?.version !== "" ? p?.version : undefined,
+                                type: p?.type !== "" ? p?.type : undefined,
                             },
                         },
                     }),
                 ),
-            enabled: options?.enabled?.() ?? !!p?.name,
+            enabled: options?.enabled?.() ?? p?.name !== undefined,
             select: (resp) => ({ ...resp, versions: resp.versions ?? [] }),
         };
     });

@@ -134,13 +134,15 @@ FROM sbom s
 LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
 WHERE s.artifact_id = $1
   AND ($2::text IS NULL OR s.subject_version = $2)
+  AND ($3::text IS NULL OR e.data->>'imageVersion' = $3)
 ORDER BY s.created_at DESC
-LIMIT $4 OFFSET $3
+LIMIT $5 OFFSET $4
 `
 
 type ListSBOMsByArtifactParams struct {
 	ArtifactID     pgtype.UUID `json:"artifact_id"`
 	SubjectVersion pgtype.Text `json:"subject_version"`
+	ImageVersion   pgtype.Text `json:"image_version"`
 	RowOffset      int32       `json:"row_offset"`
 	RowLimit       int32       `json:"row_limit"`
 }
@@ -164,6 +166,7 @@ func (q *Queries) ListSBOMsByArtifact(ctx context.Context, arg ListSBOMsByArtifa
 	rows, err := q.db.Query(ctx, listSBOMsByArtifact,
 		arg.ArtifactID,
 		arg.SubjectVersion,
+		arg.ImageVersion,
 		arg.RowOffset,
 		arg.RowLimit,
 	)

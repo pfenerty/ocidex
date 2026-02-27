@@ -1,10 +1,10 @@
 import { createSignal, Show, For } from "solid-js";
-import { A, useSearchParams } from "@solidjs/router";
+import { useSearchParams } from "@solidjs/router";
 import { useArtifacts, useArtifactSBOMs } from "~/api/queries";
 import { useDiff } from "~/api/queries";
-import type { SBOMSummary } from "~/api/client";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
-import { purlDisplayName } from "~/utils/purl";
+import DiffEntry from "~/components/DiffEntry";
+import { sbomLabel } from "~/utils/format";
 
 export default function Diff() {
     const [searchParams, setSearchParams] = useSearchParams<{
@@ -25,14 +25,14 @@ export default function Diff() {
     const fromSbomsQuery = useArtifactSBOMs(
         () => fromArtifactId(),
         () => ({ limit: 200 }),
-        { enabled: () => !!fromArtifactId() },
+        { enabled: () => fromArtifactId() !== "" },
     );
 
     // Load SBOMs for the selected "to" artifact
     const toSbomsQuery = useArtifactSBOMs(
         () => toArtifactId(),
         () => ({ limit: 200 }),
-        { enabled: () => !!toArtifactId() },
+        { enabled: () => toArtifactId() !== "" },
     );
 
     // Run the diff when both SBOM IDs are set via URL params
@@ -42,19 +42,16 @@ export default function Diff() {
     }));
 
     function handleCompare() {
-        if (fromSbomId() && toSbomId()) {
+        if (fromSbomId() !== "" && toSbomId() !== "") {
             setSearchParams({ from: fromSbomId(), to: toSbomId() });
         }
     }
 
-    function sbomLabel(sbom: SBOMSummary): string {
-        const version = sbom.subjectVersion ?? "";
-        const date = new Date(sbom.createdAt).toLocaleDateString();
-        const idShort = sbom.id.slice(0, 8);
-        return version
-            ? `${version} (${date}) ${idShort}`
-            : `${idShort} (${date})`;
-    }
+    const [packagesOnly, setPackagesOnly] = createSignal(true);
+    const [typeFilter, setTypeFilter] = createSignal<string | null>(null);
+    const [nameFilter, setNameFilter] = createSignal("");
+    const toggleTypeFilter = (kind: string) =>
+        setTypeFilter(prev => prev === kind ? null : kind);
 
     return (
         <>
@@ -79,7 +76,7 @@ export default function Diff() {
                             <For each={artifactsQuery.data?.data}>
                                 {(a) => (
                                     <option value={a.id}>
-                                        {a.group ? `${a.group}/` : ""}
+                                        {a.group !== undefined ? `${a.group}/` : ""}
                                         {a.name} ({a.type})
                                     </option>
                                 )}
@@ -88,7 +85,7 @@ export default function Diff() {
                         <select
                             value={fromSbomId()}
                             onChange={(e) => setFromSbomId(e.target.value)}
-                            disabled={!fromArtifactId()}
+                            disabled={fromArtifactId() === ""}
                         >
                             <option value="">Select SBOM...</option>
                             <For each={fromSbomsQuery.data?.data}>
@@ -113,7 +110,7 @@ export default function Diff() {
                             <For each={artifactsQuery.data?.data}>
                                 {(a) => (
                                     <option value={a.id}>
-                                        {a.group ? `${a.group}/` : ""}
+                                        {a.group !== undefined ? `${a.group}/` : ""}
                                         {a.name} ({a.type})
                                     </option>
                                 )}
@@ -122,7 +119,7 @@ export default function Diff() {
                         <select
                             value={toSbomId()}
                             onChange={(e) => setToSbomId(e.target.value)}
-                            disabled={!toArtifactId()}
+                            disabled={toArtifactId() === ""}
                         >
                             <option value="">Select SBOM...</option>
                             <For each={toSbomsQuery.data?.data}>
@@ -137,7 +134,7 @@ export default function Diff() {
                 <div class="mt-md">
                     <button
                         class="btn-primary"
-                        disabled={!fromSbomId() || !toSbomId()}
+                        disabled={fromSbomId() === "" || toSbomId() === ""}
                         onClick={handleCompare}
                     >
                         Compare
@@ -146,7 +143,7 @@ export default function Diff() {
             </div>
 
             {/* Diff results */}
-            <Show when={searchParams.from && searchParams.to}>
+            <Show when={searchParams.from !== undefined && searchParams.to !== undefined}>
                 <Show when={!diffQuery.isLoading} fallback={<Loading />}>
                     <Show
                         when={!diffQuery.isError}
@@ -163,177 +160,30 @@ export default function Diff() {
                         >
                             {(entry) => (
                                 <>
-                                    <div class="changelog-entry">
-                                        <div class="changelog-entry-header">
-                                            <div class="text-sm">
-                                                <A
-                                                    href={`/sboms/${entry().from.id}`}
-                                                    class="mono"
-                                                >
-                                                    {entry().from
-                                                        .subjectVersion ??
-                                                        entry().from.id.slice(
-                                                            0,
-                                                            8,
-                                                        )}
-                                                </A>
-                                                {" \u2192 "}
-                                                <A
-                                                    href={`/sboms/${entry().to.id}`}
-                                                    class="mono"
-                                                >
-                                                    {entry().to
-                                                        .subjectVersion ??
-                                                        entry().to.id.slice(
-                                                            0,
-                                                            8,
-                                                        )}
-                                                </A>
-                                                <span class="text-muted">
-                                                    {" "}
-                                                    (
-                                                    {new Date(
-                                                        entry().to.createdAt,
-                                                    ).toLocaleDateString()}
-                                                    )
-                                                </span>
-                                            </div>
-                                            <div class="changelog-summary">
-                                                <Show
-                                                    when={
-                                                        entry().summary.added >
-                                                        0
-                                                    }
-                                                >
-                                                    <span class="badge badge-success">
-                                                        +{entry().summary.added}{" "}
-                                                        added
-                                                    </span>
-                                                </Show>
-                                                <Show
-                                                    when={
-                                                        entry().summary
-                                                            .removed > 0
-                                                    }
-                                                >
-                                                    <span class="badge badge-danger">
-                                                        -
-                                                        {
-                                                            entry().summary
-                                                                .removed
-                                                        }{" "}
-                                                        removed
-                                                    </span>
-                                                </Show>
-                                                <Show
-                                                    when={
-                                                        entry().summary
-                                                            .modified > 0
-                                                    }
-                                                >
-                                                    <span class="badge badge-warning">
-                                                        ~
-                                                        {
-                                                            entry().summary
-                                                                .modified
-                                                        }{" "}
-                                                        modified
-                                                    </span>
-                                                </Show>
-                                            </div>
-                                        </div>
-
-                                        <Show
-                                            when={entry().changes.length > 0}
-                                            fallback={
-                                                <EmptyState
-                                                    title="No differences"
-                                                    message="These two SBOMs have identical components."
-                                                />
-                                            }
-                                        >
-                                            <div class="table-wrapper">
-                                                <table>
-                                                    <thead>
-                                                        <tr>
-                                                            <th>Change</th>
-                                                            <th>Name</th>
-                                                            <th>Version</th>
-                                                            <th>PURL</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        <For
-                                                            each={
-                                                                entry().changes
-                                                            }
-                                                        >
-                                                            {(change) => (
-                                                                <tr>
-                                                                    <td>
-                                                                        <span
-                                                                            class={`badge ${
-                                                                                change.type ===
-                                                                                "added"
-                                                                                    ? "badge-success"
-                                                                                    : change.type ===
-                                                                                        "removed"
-                                                                                      ? "badge-danger"
-                                                                                      : "badge-warning"
-                                                                            }`}
-                                                                        >
-                                                                            {
-                                                                                change.type
-                                                                            }
-                                                                        </span>
-                                                                    </td>
-                                                                    <td>
-                                                                        {change.group
-                                                                            ? `${change.group}/`
-                                                                            : ""}
-                                                                        {
-                                                                            change.name
-                                                                        }
-                                                                    </td>
-                                                                    <td class="mono">
-                                                                        <Show
-                                                                            when={
-                                                                                change.previousVersion
-                                                                            }
-                                                                        >
-                                                                            <span class="text-muted">
-                                                                                {
-                                                                                    change.previousVersion
-                                                                                }
-                                                                            </span>
-                                                                            {
-                                                                                " \u2192 "
-                                                                            }
-                                                                        </Show>
-                                                                        {change.version ??
-                                                                            "\u2014"}
-                                                                    </td>
-                                                                    <td
-                                                                        class="mono truncate text-muted"
-                                                                        title={
-                                                                            change.purl ??
-                                                                            undefined
-                                                                        }
-                                                                    >
-                                                                        {change.purl
-                                                                            ? purlDisplayName(
-                                                                                  change.purl,
-                                                                              )
-                                                                            : "\u2014"}
-                                                                    </td>
-                                                                </tr>
-                                                            )}
-                                                        </For>
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </Show>
+                                    <div class="mb-md" style={{ display: "flex", "align-items": "center", gap: "8px", "flex-wrap": "wrap" }}>
+                                        <label style={{ display: "flex", "align-items": "center", gap: "6px", cursor: "pointer", "font-size": "0.875rem" }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={packagesOnly()}
+                                                onChange={(e) => setPackagesOnly(e.target.checked)}
+                                            />
+                                            Packages only
+                                        </label>
+                                        <input
+                                            type="text"
+                                            placeholder="Filter by package…"
+                                            value={nameFilter()}
+                                            onInput={(e) => setNameFilter(e.currentTarget.value)}
+                                            style={{ flex: "1", "min-width": "160px", "font-size": "0.875rem" }}
+                                        />
                                     </div>
+                                    <DiffEntry
+                                        entry={entry()}
+                                        packagesOnly={packagesOnly()}
+                                        typeFilter={typeFilter()}
+                                        nameFilter={nameFilter()}
+                                        onTypeFilterToggle={toggleTypeFilter}
+                                    />
                                 </>
                             )}
                         </Show>

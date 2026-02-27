@@ -15,6 +15,8 @@
         "@solidjs/router": "^0.15.3",
         "@tailwindcss/vite": "^4.1.18",
         "@tanstack/solid-query": "^5.75.7",
+        "@unovis/solid": "^1.6.4",
+        "@unovis/ts": "^1.6.4",
         "openapi-fetch": "^0.17.0",
         "solid-js": "^1.9.5",
         "tailwindcss": "^4.1.18"

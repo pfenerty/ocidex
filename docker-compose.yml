@@ -26,7 +26,7 @@ services:
             - "4222:4222"
 
     zot:
-        image: ghcr.io/project-zot/zot-linux-amd64:latest
+        image: ghcr.io/project-zot/zot:v2.1.14
         container_name: ocidex-zot
         restart: unless-stopped
         ports:
@@ -68,6 +68,9 @@ services:
             ZOT_REGISTRY_ADDR: "zot:5000"
             ZOT_REGISTRY_INSECURE: "true"
             ZOT_WEBHOOK_SECRET: "change-me-in-production"
+            GITHUB_REDIRECT_URL: "http://100.104.73.75:3000/auth/callback"
+        env_file:
+            - .env
         ports:
             - "8080:8080"
 

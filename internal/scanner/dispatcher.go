@@ -13,11 +13,11 @@ import (
 
 // Dispatcher manages a worker pool that scans OCI images and ingests the resulting SBOMs.
 type Dispatcher struct {
-	queue     chan ScanRequest
-	scanner   *Scanner
-	sbomSvc   service.SBOMService
-	workers   int
-	logger    *slog.Logger
+	queue   chan ScanRequest
+	scanner *Scanner
+	sbomSvc service.SBOMService
+	workers int
+	logger  *slog.Logger
 }
 
 // NewDispatcher creates a Dispatcher with the given scanner, SBOM service, and pool configuration.

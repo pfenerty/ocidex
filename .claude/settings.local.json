@@ -30,7 +30,9 @@
       "WebFetch(domain:ogen.dev)",
       "WebFetch(domain:openapi-ts.dev)",
       "WebFetch(domain:zotregistry.dev)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(cat:*)",
+      "Bash(wc:*)"
     ]
   }
 }

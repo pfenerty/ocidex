@@ -4,7 +4,7 @@ FROM docker.io/node:22-bookworm AS build
 WORKDIR /app
 
 COPY web/package.json web/package-lock.json* ./
-RUN npm install
+RUN --mount=type=cache,target=/root/.npm npm install
 
 COPY web/ .
 RUN npx tsc && npx vite build

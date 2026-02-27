@@ -212,6 +212,12 @@ func (e *Enricher) fetchParentIndexAnnotations(ctx context.Context, ref enrichme
 		version = labels["org.opencontainers.image.version"]
 	}
 	if version == "" {
+		version = labels["org.label-schema.version"]
+	}
+	if version == "" {
+		version = labels["version"]
+	}
+	if version == "" {
 		return nil
 	}
 
@@ -262,6 +268,16 @@ func (e *Enricher) fetchParentIndexAnnotations(ctx context.Context, ref enrichme
 	return idxManifest.Annotations
 }
 
+// first returns the first non-empty string from vals.
+func first(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 // extractField returns the first non-empty value for key across the sources
 // in priority order: manifest annotations > config labels > index annotations.
 func extractField(key string, manifestAnnotations, labels, indexAnnotations map[string]string) string {
@@ -286,27 +302,66 @@ func extractMetadata(cfg *v1.ConfigFile, manifestAnnotations, indexAnnotations m
 		IndexAnnotations:    indexAnnotations,
 	}
 
-	if !cfg.Created.Time.IsZero() {
-		t := cfg.Created.Time
-		meta.Created = &t
-	}
-
 	labels := cfg.Config.Labels
 	if len(labels) > 0 {
 		meta.Labels = labels
 	}
 
-	meta.ImageVersion = extractField("org.opencontainers.image.version", manifestAnnotations, labels, indexAnnotations)
-	meta.SourceURL = extractField("org.opencontainers.image.source", manifestAnnotations, labels, indexAnnotations)
-	meta.Revision = extractField("org.opencontainers.image.revision", manifestAnnotations, labels, indexAnnotations)
+	if !cfg.Created.Time.IsZero() {
+		t := cfg.Created.Time
+		meta.Created = &t
+	} else if bd := first(
+		extractField("org.label-schema.build-date", manifestAnnotations, labels, indexAnnotations),
+		labels["build-date"],
+	); bd != "" {
+		if t, err := time.Parse(time.RFC3339, bd); err == nil {
+			meta.Created = &t
+		}
+	}
+
+	meta.ImageVersion = first(
+		extractField("org.opencontainers.image.version", manifestAnnotations, labels, indexAnnotations),
+		extractField("org.label-schema.version", manifestAnnotations, labels, indexAnnotations),
+		labels["version"],
+	)
+	meta.SourceURL = first(
+		extractField("org.opencontainers.image.source", manifestAnnotations, labels, indexAnnotations),
+		extractField("org.label-schema.vcs-url", manifestAnnotations, labels, indexAnnotations),
+		labels["vcs-url"],
+	)
+	meta.Revision = first(
+		extractField("org.opencontainers.image.revision", manifestAnnotations, labels, indexAnnotations),
+		extractField("org.label-schema.vcs-ref", manifestAnnotations, labels, indexAnnotations),
+		labels["vcs-ref"],
+	)
 	meta.Authors = extractField("org.opencontainers.image.authors", manifestAnnotations, labels, indexAnnotations)
-	meta.Description = extractField("org.opencontainers.image.description", manifestAnnotations, labels, indexAnnotations)
+	meta.Description = first(
+		extractField("org.opencontainers.image.description", manifestAnnotations, labels, indexAnnotations),
+		extractField("org.label-schema.description", manifestAnnotations, labels, indexAnnotations),
+		labels["description"],
+	)
 	meta.BaseName = extractField("org.opencontainers.image.base.name", manifestAnnotations, labels, indexAnnotations)
-	meta.URL = extractField("org.opencontainers.image.url", manifestAnnotations, labels, indexAnnotations)
-	meta.Documentation = extractField("org.opencontainers.image.documentation", manifestAnnotations, labels, indexAnnotations)
-	meta.Vendor = extractField("org.opencontainers.image.vendor", manifestAnnotations, labels, indexAnnotations)
+	meta.URL = first(
+		extractField("org.opencontainers.image.url", manifestAnnotations, labels, indexAnnotations),
+		extractField("org.label-schema.url", manifestAnnotations, labels, indexAnnotations),
+		labels["url"],
+	)
+	meta.Documentation = first(
+		extractField("org.opencontainers.image.documentation", manifestAnnotations, labels, indexAnnotations),
+		extractField("org.label-schema.usage", manifestAnnotations, labels, indexAnnotations),
+		labels["usage"],
+	)
+	meta.Vendor = first(
+		extractField("org.opencontainers.image.vendor", manifestAnnotations, labels, indexAnnotations),
+		extractField("org.label-schema.vendor", manifestAnnotations, labels, indexAnnotations),
+		labels["vendor"],
+	)
 	meta.Licenses = extractField("org.opencontainers.image.licenses", manifestAnnotations, labels, indexAnnotations)
-	meta.Title = extractField("org.opencontainers.image.title", manifestAnnotations, labels, indexAnnotations)
+	meta.Title = first(
+		extractField("org.opencontainers.image.title", manifestAnnotations, labels, indexAnnotations),
+		extractField("org.label-schema.name", manifestAnnotations, labels, indexAnnotations),
+		labels["name"],
+	)
 	meta.BaseDigest = extractField("org.opencontainers.image.base.digest", manifestAnnotations, labels, indexAnnotations)
 
 	return meta
