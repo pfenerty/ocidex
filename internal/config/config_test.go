@@ -24,33 +24,36 @@ func TestLoad(t *testing.T) {
 		{
 			name: "defaults applied",
 			env: map[string]string{
-				"DATABASE_URL":         "postgres://localhost/test",
-				"GITHUB_CLIENT_ID":     "test-id",
-				"GITHUB_CLIENT_SECRET": "test-secret",
-				"SESSION_SECRET":       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"DATABASE_URL": "postgres://localhost/test",
 			},
 			check: func(is *is.I, cfg *config.Config) {
 				is.Equal(cfg.Port, 8080)
 				is.Equal(cfg.LogLevel, "info")
 				is.Equal(cfg.Environment, "development")
 				is.Equal(cfg.DatabaseURL, "postgres://localhost/test")
+				is.Equal(cfg.DatabaseMaxConns, 10)
+				is.Equal(cfg.NATSStreamReplicas, 1)
+				is.Equal(cfg.EnrichmentNATSMode, false)
 			},
 		},
 		{
 			name: "overrides",
 			env: map[string]string{
-				"PORT":                 "9090",
-				"LOG_LEVEL":            "debug",
-				"ENVIRONMENT":          "production",
-				"DATABASE_URL":         "postgres://prod/ocidex",
-				"GITHUB_CLIENT_ID":     "prod-id",
-				"GITHUB_CLIENT_SECRET": "prod-secret",
-				"SESSION_SECRET":       "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+				"PORT":                    "9090",
+				"LOG_LEVEL":               "debug",
+				"ENVIRONMENT":             "production",
+				"DATABASE_URL":            "postgres://prod/ocidex",
+				"DATABASE_MAX_CONNECTIONS": "3",
+				"NATS_STREAM_REPLICAS":    "3",
+				"ENRICHMENT_NATS_MODE":    "true",
 			},
 			check: func(is *is.I, cfg *config.Config) {
 				is.Equal(cfg.Port, 9090)
 				is.Equal(cfg.LogLevel, "debug")
 				is.Equal(cfg.Environment, "production")
+				is.Equal(cfg.DatabaseMaxConns, 3)
+				is.Equal(cfg.NATSStreamReplicas, 3)
+				is.Equal(cfg.EnrichmentNATSMode, true)
 			},
 		},
 	}
@@ -65,6 +68,12 @@ func TestLoad(t *testing.T) {
 			// os.Unsetenv then actually removes it for the duration of the test.
 			t.Setenv("DATABASE_URL", "")
 			os.Unsetenv("DATABASE_URL") //nolint:errcheck
+
+			// Clear OAuth vars — no longer required by config.Load().
+			for _, k := range []string{"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "SESSION_SECRET"} {
+				t.Setenv(k, "")
+				os.Unsetenv(k) //nolint:errcheck
+			}
 
 			// Set env vars for this test.
 			for k, v := range tt.env {

@@ -25,25 +25,33 @@ type Config struct {
 	AuditLogEnabled bool `env:"AUDIT_LOG_ENABLED" envDefault:"true"`
 
 	// NATS JetStream (optional outbound layer).
-	NATSEnabled    bool   `env:"NATS_ENABLED"        envDefault:"false"`
-	NATSURL        string `env:"NATS_URL"            envDefault:"nats://localhost:4222"`
-	NATSStreamName string `env:"NATS_STREAM_NAME"    envDefault:"ocidex"`
-	NATSEventTTL   int    `env:"NATS_EVENT_TTL_HOURS" envDefault:"24"`
+	NATSEnabled        bool   `env:"NATS_ENABLED"          envDefault:"false"`
+	NATSURL            string `env:"NATS_URL"              envDefault:"nats://localhost:4222"`
+	NATSStreamName     string `env:"NATS_STREAM_NAME"      envDefault:"ocidex"`
+	NATSEventTTL       int    `env:"NATS_EVENT_TTL_HOURS"  envDefault:"24"`
+	NATSStreamReplicas int    `env:"NATS_STREAM_REPLICAS"  envDefault:"1"`
+
+	// Database pool.
+	DatabaseMaxConns int `env:"DATABASE_MAX_CONNECTIONS" envDefault:"10"`
 
 	// GitHub OAuth.
-	GitHubClientID     string `env:"GITHUB_CLIENT_ID,required"`
-	GitHubClientSecret string `env:"GITHUB_CLIENT_SECRET,required"`
+	GitHubClientID     string `env:"GITHUB_CLIENT_ID"`
+	GitHubClientSecret string `env:"GITHUB_CLIENT_SECRET"`
 	GitHubRedirectURL  string `env:"GITHUB_REDIRECT_URL" envDefault:"http://localhost:3000/auth/callback"`
-	SessionSecret      string `env:"SESSION_SECRET,required"`
+	SessionSecret      string `env:"SESSION_SECRET"`
 	SessionMaxAgeDays  int    `env:"SESSION_MAX_AGE_DAYS" envDefault:"7"`
 
 	// Scanner (OCI registry auto-scan via webhook).
-	ScannerEnabled      bool `env:"SCANNER_ENABLED"      envDefault:"false"`
-	ScannerWorkers      int  `env:"SCANNER_WORKERS"      envDefault:"2"`
-	ScannerQueueSize    int  `env:"SCANNER_QUEUE_SIZE"   envDefault:"50"`
+	ScannerEnabled   bool `env:"SCANNER_ENABLED"    envDefault:"false"`
+	ScannerWorkers   int  `env:"SCANNER_WORKERS"    envDefault:"2"`
+	ScannerQueueSize int  `env:"SCANNER_QUEUE_SIZE" envDefault:"50"`
 	// ScannerNATSMode routes scan submissions to NATS instead of in-process workers.
 	// Requires NATS_ENABLED=true. Run cmd/scanner-worker separately when true.
-	ScannerNATSMode     bool `env:"SCANNER_NATS_MODE"    envDefault:"false"`
+	ScannerNATSMode bool `env:"SCANNER_NATS_MODE" envDefault:"false"`
+
+	// EnrichmentNATSMode offloads enrichment to standalone enrichment-worker processes.
+	// Requires NATS_ENABLED=true. The API only publishes; enrichment-worker consumes.
+	EnrichmentNATSMode bool `env:"ENRICHMENT_NATS_MODE" envDefault:"false"`
 }
 
 // Load reads configuration from environment variables.
