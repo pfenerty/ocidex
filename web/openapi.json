@@ -502,6 +502,12 @@
             "minLength": 1,
             "type": "string"
           },
+          "poll_interval_minutes": {
+            "description": "Minutes between polls",
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
           "repository_patterns": {
             "description": "Glob patterns for repositories to ingest; empty = all",
             "items": {
@@ -511,6 +517,15 @@
               "array",
               "null"
             ]
+          },
+          "scan_mode": {
+            "description": "Scanning mode",
+            "enum": [
+              "webhook",
+              "poll",
+              "both"
+            ],
+            "type": "string"
           },
           "tag_patterns": {
             "description": "Glob patterns or 'semver' for tags to ingest; empty = all",
@@ -1545,8 +1560,15 @@
           "insecure": {
             "type": "boolean"
           },
+          "last_polled_at": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
+          },
+          "poll_interval_minutes": {
+            "format": "int64",
+            "type": "integer"
           },
           "repository_patterns": {
             "description": "Glob patterns for repositories to ingest; empty = all",
@@ -1557,6 +1579,9 @@
               "array",
               "null"
             ]
+          },
+          "scan_mode": {
+            "type": "string"
           },
           "tag_patterns": {
             "description": "Glob patterns or 'semver' for tags to ingest; empty = all",
@@ -1592,6 +1617,8 @@
           "webhook_path",
           "repository_patterns",
           "tag_patterns",
+          "scan_mode",
+          "poll_interval_minutes",
           "created_at",
           "updated_at"
         ],
@@ -1982,6 +2009,12 @@
             "minLength": 1,
             "type": "string"
           },
+          "poll_interval_minutes": {
+            "description": "Minutes between polls",
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
           "repository_patterns": {
             "items": {
               "type": "string"
@@ -1990,6 +2023,15 @@
               "array",
               "null"
             ]
+          },
+          "scan_mode": {
+            "description": "Scanning mode",
+            "enum": [
+              "webhook",
+              "poll",
+              "both"
+            ],
+            "type": "string"
           },
           "tag_patterns": {
             "items": {
