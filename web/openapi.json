@@ -480,6 +480,76 @@
         ],
         "type": "object"
       },
+      "CreateRegistryInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/CreateRegistryInputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "insecure": {
+            "description": "Allow HTTP (non-TLS) connections",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "Human-readable registry name",
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "repository_patterns": {
+            "description": "Glob patterns for repositories to ingest; empty = all",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "tag_patterns": {
+            "description": "Glob patterns or 'semver' for tags to ingest; empty = all",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": {
+            "description": "Registry type",
+            "enum": [
+              "zot",
+              "harbor",
+              "docker",
+              "generic"
+            ],
+            "type": "string"
+          },
+          "url": {
+            "description": "Registry address (e.g. zot:5000)",
+            "minLength": 1,
+            "type": "string"
+          },
+          "webhook_secret": {
+            "description": "Bearer token required on incoming webhooks; omit to disable auth",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "url",
+          "insecure"
+        ],
+        "type": "object"
+      },
       "DailyCountEntry": {
         "additionalProperties": false,
         "properties": {
@@ -1173,6 +1243,33 @@
         ],
         "type": "object"
       },
+      "ListRegistriesOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListRegistriesOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "registries": {
+            "items": {
+              "$ref": "#/components/schemas/RegistryResponse"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "registries"
+        ],
+        "type": "object"
+      },
       "ListSBOMComponentsOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -1421,6 +1518,122 @@
         ],
         "type": "object"
       },
+      "RegistryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/RegistryResponse.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "has_secret": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "insecure": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "repository_patterns": {
+            "description": "Glob patterns for repositories to ingest; empty = all",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "tag_patterns": {
+            "description": "Glob patterns or 'semver' for tags to ingest; empty = all",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "webhook_path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "url",
+          "insecure",
+          "has_secret",
+          "enabled",
+          "webhook_path",
+          "repository_patterns",
+          "tag_patterns",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "RegistryWebhookInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/RegistryWebhookInputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "manifest": {
+            "type": "string"
+          },
+          "mediaType": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "reference",
+          "digest",
+          "mediaType",
+          "manifest"
+        ],
+        "type": "object"
+      },
       "SBOMDetail": {
         "additionalProperties": false,
         "properties": {
@@ -1566,6 +1779,28 @@
         ],
         "type": "object"
       },
+      "ScanRegistryOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ScanRegistryOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "message": {
+            "description": "Confirmation that ad-hoc scan has been initiated",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      },
       "ScannerStatus": {
         "additionalProperties": false,
         "properties": {
@@ -1669,6 +1904,128 @@
         ],
         "type": "object"
       },
+      "TestRegistryConnectionInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/TestRegistryConnectionInputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "insecure": {
+            "description": "Use HTTP instead of HTTPS",
+            "type": "boolean"
+          },
+          "url": {
+            "description": "Registry address (e.g. zot:5000)",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "insecure"
+        ],
+        "type": "object"
+      },
+      "TestRegistryConnectionOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/TestRegistryConnectionOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "message": {
+            "description": "Human-readable result (e.g. HTTP 200 or error text)",
+            "type": "string"
+          },
+          "reachable": {
+            "description": "Whether the registry responded",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "reachable",
+          "message"
+        ],
+        "type": "object"
+      },
+      "UpdateRegistryInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/UpdateRegistryInputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "insecure": {
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "repository_patterns": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "tag_patterns": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": {
+            "enum": [
+              "zot",
+              "harbor",
+              "docker",
+              "generic"
+            ],
+            "type": "string"
+          },
+          "url": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "webhook_secret": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "url",
+          "insecure",
+          "enabled"
+        ],
+        "type": "object"
+      },
       "UpdateUserRoleInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -1747,43 +2104,6 @@
         },
         "required": [
           "version"
-        ],
-        "type": "object"
-      },
-      "ZotEvent": {
-        "additionalProperties": false,
-        "properties": {
-          "$schema": {
-            "description": "A URL to the JSON Schema for this object.",
-            "examples": [
-              "https://example.com/schemas/ZotEvent.json"
-            ],
-            "format": "uri",
-            "readOnly": true,
-            "type": "string"
-          },
-          "digest": {
-            "type": "string"
-          },
-          "manifest": {
-            "type": "string"
-          },
-          "mediaType": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "reference": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "reference",
-          "digest",
-          "mediaType",
-          "manifest"
         ],
         "type": "object"
       }
@@ -2902,6 +3222,294 @@
         ]
       }
     },
+    "/api/v1/registries": {
+      "get": {
+        "operationId": "list-registries",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListRegistriesOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List registries",
+        "tags": [
+          "Registries"
+        ]
+      },
+      "post": {
+        "operationId": "create-registry",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRegistryInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryResponse"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a registry",
+        "tags": [
+          "Registries"
+        ]
+      }
+    },
+    "/api/v1/registries/test-connection": {
+      "post": {
+        "description": "Probes the registry's /v2/ endpoint and reports whether it is reachable.",
+        "operationId": "test-registry-connection",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestRegistryConnectionInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestRegistryConnectionOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Test registry connectivity",
+        "tags": [
+          "Registries"
+        ]
+      }
+    },
+    "/api/v1/registries/{id}": {
+      "delete": {
+        "operationId": "delete-registry",
+        "parameters": [
+          {
+            "description": "Registry UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Registry UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Delete a registry",
+        "tags": [
+          "Registries"
+        ]
+      },
+      "get": {
+        "operationId": "get-registry",
+        "parameters": [
+          {
+            "description": "Registry UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Registry UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a registry",
+        "tags": [
+          "Registries"
+        ]
+      },
+      "put": {
+        "operationId": "update-registry",
+        "parameters": [
+          {
+            "description": "Registry UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Registry UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRegistryInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Update a registry",
+        "tags": [
+          "Registries"
+        ]
+      }
+    },
+    "/api/v1/registries/{id}/scan": {
+      "post": {
+        "description": "Walks the registry catalog, filters by configured patterns, and queues scan requests for all matching images.",
+        "operationId": "scan-registry",
+        "parameters": [
+          {
+            "description": "Registry UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Registry UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanRegistryOutputBody"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Trigger ad-hoc registry scan",
+        "tags": [
+          "Registries"
+        ]
+      }
+    },
     "/api/v1/sbom": {
       "get": {
         "operationId": "list-sboms",
@@ -2984,6 +3592,38 @@
       "post": {
         "description": "Accepts a CycloneDX JSON SBOM, validates it, and persists it.",
         "operationId": "ingest-sbom",
+        "parameters": [
+          {
+            "description": "Image version/tag (overrides BOM-extracted value for subject_version and imageVersion)",
+            "explode": false,
+            "in": "query",
+            "name": "version",
+            "schema": {
+              "description": "Image version/tag (overrides BOM-extracted value for subject_version and imageVersion)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Image architecture (e.g. amd64, arm64)",
+            "explode": false,
+            "in": "query",
+            "name": "architecture",
+            "schema": {
+              "description": "Image architecture (e.g. amd64, arm64)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Image build date (RFC3339 or date string)",
+            "explode": false,
+            "in": "query",
+            "name": "build_date",
+            "schema": {
+              "description": "Image build date (RFC3339 or date string)",
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/octet-stream": {
@@ -3387,10 +4027,20 @@
         ]
       }
     },
-    "/api/v1/webhooks/zot": {
+    "/api/v1/webhooks/{registryID}": {
       "post": {
-        "operationId": "zot-webhook",
+        "operationId": "registry-webhook",
         "parameters": [
+          {
+            "description": "Registry UUID",
+            "in": "path",
+            "name": "registryID",
+            "required": true,
+            "schema": {
+              "description": "Registry UUID",
+              "type": "string"
+            }
+          },
           {
             "in": "header",
             "name": "Authorization",
@@ -3403,7 +4053,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ZotEvent"
+                "$ref": "#/components/schemas/RegistryWebhookInputBody"
               }
             }
           },
@@ -3424,7 +4074,7 @@
             "description": "Error"
           }
         },
-        "summary": "Receive Zot registry push notifications",
+        "summary": "Receive registry push notifications",
         "tags": [
           "Webhooks"
         ]

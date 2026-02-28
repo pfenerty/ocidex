@@ -126,15 +126,17 @@ func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([
 const listSBOMsByArtifact = `-- name: ListSBOMsByArtifact :many
 SELECT s.id, s.serial_number, s.spec_version, s.version, s.subject_version, s.digest, s.created_at,
        (SELECT COUNT(*) FROM component c WHERE c.sbom_id = s.id) AS component_count,
-       (e.data->>'created')::timestamptz AS build_date,
-       e.data->>'imageVersion' AS image_version,
-       e.data->>'architecture' AS architecture,
+       (COALESCE(e.data->>'created', u.data->>'created'))::timestamptz AS build_date,
+       COALESCE(e.data->>'imageVersion', u.data->>'imageVersion') AS image_version,
+       COALESCE(e.data->>'architecture', u.data->>'architecture') AS architecture,
        COUNT(*) OVER() AS total_count
 FROM sbom s
 LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
+LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user' AND u.status = 'success'
 WHERE s.artifact_id = $1
   AND ($2::text IS NULL OR s.subject_version = $2)
-  AND ($3::text IS NULL OR e.data->>'imageVersion' = $3)
+  AND ($3::text IS NULL
+       OR COALESCE(e.data->>'imageVersion', u.data->>'imageVersion') = $3)
 ORDER BY s.created_at DESC
 LIMIT $5 OFFSET $4
 `

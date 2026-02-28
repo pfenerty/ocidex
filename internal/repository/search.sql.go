@@ -73,11 +73,12 @@ SELECT c.id, c.sbom_id, c.type, c.name, c.group_name, c.version, c.purl,
        s.artifact_id, s.subject_version, s.digest AS sbom_digest,
        a.name AS artifact_name,
        s.created_at AS sbom_created_at,
-       e.data->>'architecture' AS architecture
+       COALESCE(e.data->>'architecture', u.data->>'architecture') AS architecture
 FROM component c
 JOIN sbom s ON s.id = c.sbom_id
 LEFT JOIN artifact a ON a.id = s.artifact_id
 LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
+LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user' AND u.status = 'success'
 WHERE c.name = $1
   AND ($2::text IS NULL OR c.group_name = $2)
   AND ($3::text IS NULL OR c.version = $3)

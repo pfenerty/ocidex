@@ -19,7 +19,7 @@ import (
 // fakeSBOMService is a stub that always succeeds.
 type fakeSBOMService struct{}
 
-func (f *fakeSBOMService) Ingest(_ context.Context, _ *cdx.BOM, _ []byte) (pgtype.UUID, error) {
+func (f *fakeSBOMService) Ingest(_ context.Context, _ *cdx.BOM, _ []byte, _ service.IngestParams) (pgtype.UUID, error) {
 	return pgtype.UUID{
 		Bytes: [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
 		Valid: true,
@@ -37,7 +37,7 @@ func (f *fakeSBOMService) DeleteArtifact(_ context.Context, _ pgtype.UUID) error
 // failSBOMService is a stub that always returns an error.
 type failSBOMService struct{}
 
-func (f *failSBOMService) Ingest(_ context.Context, _ *cdx.BOM, _ []byte) (pgtype.UUID, error) {
+func (f *failSBOMService) Ingest(_ context.Context, _ *cdx.BOM, _ []byte, _ service.IngestParams) (pgtype.UUID, error) {
 	return pgtype.UUID{}, errors.New("database unavailable")
 }
 
@@ -56,14 +56,14 @@ func (f *failSBOMService) DeleteArtifact(_ context.Context, _ pgtype.UUID) error
 // newTestRouter builds a full huma router backed by the given services and a
 // healthy fakePinger. Auth middleware is disabled (nil authSvc).
 func newTestRouter(sbomSvc service.SBOMService, searchSvc service.SearchService) http.Handler {
-	h := api.NewHandler(sbomSvc, searchSvc, nil, &fakePinger{}, nil, "", nil)
+	h := api.NewHandler(sbomSvc, searchSvc, nil, nil, &fakePinger{}, nil, nil)
 	return api.NewRouter(h, "*")
 }
 
 // newTestHandlerWithPinger creates a Handler with a custom DBPinger (e.g. for
 // testing readiness failures). Auth middleware is disabled (nil authSvc).
 func newTestHandlerWithPinger(sbomSvc service.SBOMService, searchSvc service.SearchService, pinger api.DBPinger) *api.Handler {
-	return api.NewHandler(sbomSvc, searchSvc, nil, pinger, nil, "", nil)
+	return api.NewHandler(sbomSvc, searchSvc, nil, nil, pinger, nil, nil)
 }
 
 // newTestRouterFromHandler builds a full huma router from an existing Handler.

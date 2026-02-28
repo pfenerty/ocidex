@@ -59,7 +59,10 @@ type VersionOutput struct {
 
 // IngestSBOMInput is the request for POST /api/v1/sbom.
 type IngestSBOMInput struct {
-	RawBody []byte
+	RawBody      []byte
+	Version      string `query:"version"      doc:"Image version/tag (overrides BOM-extracted value for subject_version and imageVersion)"`
+	Architecture string `query:"architecture" doc:"Image architecture (e.g. amd64, arm64)"`
+	BuildDate    string `query:"build_date"   doc:"Image build date (RFC3339 or date string)"`
 }
 
 // IngestSBOMOutput is the response for POST /api/v1/sbom.
@@ -551,4 +554,125 @@ type ScannerStatus struct {
 type NATSStatus struct {
 	Enabled bool   `json:"enabled"`
 	URL     string `json:"url"`
+}
+
+// ---------------------------------------------------------------------------
+// Registries
+// ---------------------------------------------------------------------------
+
+// RegistryResponse is the public representation of a configured OCI registry.
+type RegistryResponse struct {
+	ID                 string   `json:"id"`
+	Name               string   `json:"name"`
+	Type               string   `json:"type"`
+	URL                string   `json:"url"`
+	Insecure           bool     `json:"insecure"`
+	HasSecret          bool     `json:"has_secret"`
+	Enabled            bool     `json:"enabled"`
+	WebhookPath        string   `json:"webhook_path"`
+	RepositoryPatterns []string `json:"repository_patterns" doc:"Glob patterns for repositories to ingest; empty = all"`
+	TagPatterns        []string `json:"tag_patterns" doc:"Glob patterns or 'semver' for tags to ingest; empty = all"`
+	CreatedAt          string   `json:"created_at"`
+	UpdatedAt          string   `json:"updated_at"`
+}
+
+// ListRegistriesOutput is the response for GET /api/v1/registries.
+type ListRegistriesOutput struct {
+	Body struct {
+		Registries []RegistryResponse `json:"registries"`
+	}
+}
+
+// GetRegistryInput is the request for GET /api/v1/registries/{id}.
+type GetRegistryInput struct {
+	ID string `path:"id" doc:"Registry UUID" format:"uuid"`
+}
+
+// GetRegistryOutput is the response for GET /api/v1/registries/{id}.
+type GetRegistryOutput struct {
+	Body RegistryResponse
+}
+
+// CreateRegistryInput is the request for POST /api/v1/registries.
+type CreateRegistryInput struct {
+	Body struct {
+		Name               string   `json:"name" minLength:"1" maxLength:"100" doc:"Human-readable registry name"`
+		Type               string   `json:"type" enum:"zot,harbor,docker,generic" doc:"Registry type"`
+		URL                string   `json:"url" minLength:"1" doc:"Registry address (e.g. zot:5000)"`
+		Insecure           bool     `json:"insecure" doc:"Allow HTTP (non-TLS) connections"`
+		WebhookSecret      *string  `json:"webhook_secret,omitempty" doc:"Bearer token required on incoming webhooks; omit to disable auth"`
+		RepositoryPatterns []string `json:"repository_patterns,omitempty" doc:"Glob patterns for repositories to ingest; empty = all"`
+		TagPatterns        []string `json:"tag_patterns,omitempty" doc:"Glob patterns or 'semver' for tags to ingest; empty = all"`
+	}
+}
+
+// CreateRegistryOutput is the response for POST /api/v1/registries.
+type CreateRegistryOutput struct {
+	Body RegistryResponse
+}
+
+// UpdateRegistryInput is the request for PUT /api/v1/registries/{id}.
+type UpdateRegistryInput struct {
+	ID   string `path:"id" doc:"Registry UUID" format:"uuid"`
+	Body struct {
+		Name               string   `json:"name" minLength:"1" maxLength:"100"`
+		Type               string   `json:"type" enum:"zot,harbor,docker,generic"`
+		URL                string   `json:"url" minLength:"1"`
+		Insecure           bool     `json:"insecure"`
+		WebhookSecret      *string  `json:"webhook_secret,omitempty"`
+		Enabled            bool     `json:"enabled"`
+		RepositoryPatterns []string `json:"repository_patterns,omitempty"`
+		TagPatterns        []string `json:"tag_patterns,omitempty"`
+	}
+}
+
+// ScanRegistryInput is the request for POST /api/v1/registries/{id}/scan.
+type ScanRegistryInput struct {
+	ID string `path:"id" doc:"Registry UUID" format:"uuid"`
+}
+
+// ScanRegistryOutput is the response for POST /api/v1/registries/{id}/scan.
+type ScanRegistryOutput struct {
+	Body struct {
+		Message string `json:"message" doc:"Confirmation that ad-hoc scan has been initiated"`
+	}
+}
+
+// UpdateRegistryOutput is the response for PUT /api/v1/registries/{id}.
+type UpdateRegistryOutput struct {
+	Body RegistryResponse
+}
+
+// DeleteRegistryInput is the request for DELETE /api/v1/registries/{id}.
+type DeleteRegistryInput struct {
+	ID string `path:"id" doc:"Registry UUID" format:"uuid"`
+}
+
+// TestRegistryConnectionInput is the request for POST /api/v1/registries/test-connection.
+type TestRegistryConnectionInput struct {
+	Body struct {
+		URL      string `json:"url" minLength:"1" doc:"Registry address (e.g. zot:5000)"`
+		Insecure bool   `json:"insecure" doc:"Use HTTP instead of HTTPS"`
+	}
+}
+
+// TestRegistryConnectionOutput is the response for POST /api/v1/registries/test-connection.
+type TestRegistryConnectionOutput struct {
+	Body struct {
+		Reachable bool   `json:"reachable" doc:"Whether the registry responded"`
+		Message   string `json:"message" doc:"Human-readable result (e.g. HTTP 200 or error text)"`
+	}
+}
+
+// RegistryWebhookInput is the request for POST /api/v1/webhooks/{registryID}.
+type RegistryWebhookInput struct {
+	RegistryID    string `path:"registryID" doc:"Registry UUID"`
+	Authorization string `header:"Authorization"`
+	Body          struct {
+		Name      string `json:"name"`
+		Reference string `json:"reference"`
+		Digest    string `json:"digest"`
+		MediaType string `json:"mediaType"`
+		Manifest  string `json:"manifest"`
+	}
 }

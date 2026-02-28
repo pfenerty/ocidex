@@ -92,7 +92,7 @@ func setupServer(t *testing.T, pool *pgxpool.Pool) *httptest.Server {
 	t.Helper()
 	sbomSvc := service.NewSBOMService(pool, nil, nil)
 	searchSvc := service.NewSearchService(pool)
-	handler := api.NewHandler(sbomSvc, searchSvc, nil, pool, nil, "", nil)
+	handler := api.NewHandler(sbomSvc, searchSvc, nil, nil, pool, nil, nil)
 	router := api.NewRouter(handler, "*")
 	return httptest.NewServer(router)
 }
@@ -105,8 +105,12 @@ const minimalSBOM = `{
 	"metadata": {
 		"component": {
 			"type": "container",
-			"name": "docker.io/ubuntu",
-			"version": "24.04"
+			"name": "docker.io/ubuntu@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"version": "24.04",
+			"properties": [
+				{"name": "syft:image:config.Architecture", "value": "amd64"},
+				{"name": "syft:image:labels:org.opencontainers.image.created", "value": "2024-01-01T00:00:00Z"}
+			]
 		}
 	},
 	"components": [
@@ -133,8 +137,12 @@ const secondSBOM = `{
 	"metadata": {
 		"component": {
 			"type": "container",
-			"name": "docker.io/ubuntu",
-			"version": "24.04"
+			"name": "docker.io/ubuntu@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+			"version": "24.04",
+			"properties": [
+				{"name": "syft:image:config.Architecture", "value": "amd64"},
+				{"name": "syft:image:labels:org.opencontainers.image.created", "value": "2024-02-01T00:00:00Z"}
+			]
 		}
 	},
 	"components": [
@@ -315,7 +323,11 @@ func TestDigestNormalization(t *testing.T) {
 			"component": {
 				"type": "container",
 				"name": "docker.io/ubuntu",
-				"version": "sha256:8feb4d8ca5354def3d8fce243717141ce31e2c428701f6682bd2fafe15388214"
+				"version": "sha256:8feb4d8ca5354def3d8fce243717141ce31e2c428701f6682bd2fafe15388214",
+				"properties": [
+					{"name": "syft:image:config.Architecture", "value": "amd64"},
+					{"name": "syft:image:labels:org.opencontainers.image.created", "value": "2024-01-01T00:00:00Z"}
+				]
 			},
 			"properties": [
 				{"name": "syft:image:labels:org.opencontainers.image.version", "value": "20.04"}
@@ -335,7 +347,9 @@ func TestDigestNormalization(t *testing.T) {
 				"type": "container",
 				"name": "docker.io/ubuntu@sha256:8feb4d8ca5354def3d8fce243717141ce31e2c428701f6682bd2fafe15388214",
 				"properties": [
-					{"name": "aquasecurity:trivy:Labels:org.opencontainers.image.version", "value": "20.04"}
+					{"name": "aquasecurity:trivy:Labels:org.opencontainers.image.version", "value": "20.04"},
+					{"name": "syft:image:config.Architecture", "value": "amd64"},
+					{"name": "syft:image:labels:org.opencontainers.image.created", "value": "2024-01-01T00:00:00Z"}
 				]
 			}
 		},

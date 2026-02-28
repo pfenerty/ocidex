@@ -1,26 +1,28 @@
 {
-  "distSpecVersion": "1.1.0",
-  "storage": { "rootDirectory": "/var/lib/registry" },
-  "http": { "address": "0.0.0.0", "port": "5000" },
-  "log": { "level": "info" },
-  "extensions": {
-    "search": { "enable": false },
-    "sync": { "enable": false },
-    "scrub": { "enable": false },
-    "lint": { "enable": false },
-    "trust": { "enable": false },
-    "ui": { "enable": false },
-    "metrics": { "enable": false },
-    "events": {
-      "enable": true,
-      "sinks": [
-        {
-          "type": "http",
-          "address": "http://ocidex:8080/api/v1/webhooks/zot",
-          "timeout": "10s",
-          "headers": { "Authorization": "Bearer change-me-in-production" }
+    "distSpecVersion": "1.1.0",
+    "storage": { "rootDirectory": "/var/lib/registry" },
+    "http": { "address": "0.0.0.0", "port": "5000" },
+    "log": { "level": "info" },
+    "extensions": {
+        "search": { "enable": false },
+        "sync": { "enable": false },
+        "scrub": { "enable": false },
+        "lint": { "enable": false },
+        "trust": { "enable": false },
+        "ui": { "enable": false },
+        "metrics": { "enable": false },
+        "events": {
+            "enable": true,
+            "sinks": [
+                {
+                    "type": "http",
+                    "address": "http://web:3000/api/v1/webhooks/8b81d430-e6bc-4c5f-ab2b-4cf386ee1390",
+                    "timeout": "10s",
+                    "headers": {
+                        "Authorization": "Bearer change-me-in-production"
+                    }
+                }
+            ]
         }
-      ]
     }
-  }
 }

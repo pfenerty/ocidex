@@ -102,6 +102,20 @@ type OcidexUser struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
+type Registry struct {
+	ID                 pgtype.UUID        `json:"id"`
+	Name               string             `json:"name"`
+	Type               string             `json:"type"`
+	Url                string             `json:"url"`
+	Insecure           bool               `json:"insecure"`
+	WebhookSecret      pgtype.Text        `json:"webhook_secret"`
+	Enabled            bool               `json:"enabled"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	RepositoryPatterns []string           `json:"repository_patterns"`
+	TagPatterns        []string           `json:"tag_patterns"`
+}
+
 type Sbom struct {
 	ID             pgtype.UUID        `json:"id"`
 	SerialNumber   pgtype.Text        `json:"serial_number"`

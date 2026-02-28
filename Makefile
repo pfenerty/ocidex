@@ -11,8 +11,9 @@ endif
 
 all: check build ## Run all checks and build
 
-build: ## Build the Go binary
+build: ## Build the Go binaries
 	go build -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/ocidex
+	go build -o $(BUILD_DIR)/scanner-worker ./cmd/scanner-worker
 
 run: build ## Run the API server
 	./$(BUILD_DIR)/$(BINARY_NAME)

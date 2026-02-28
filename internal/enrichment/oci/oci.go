@@ -44,9 +44,10 @@ type Metadata struct {
 
 // Enricher fetches OCI image metadata from container registries.
 type Enricher struct {
-	timeout  time.Duration
-	options  []remote.Option
-	insecure bool
+	timeout          time.Duration
+	options          []remote.Option
+	insecure         bool
+	insecureResolver func(host string) bool
 }
 
 // Option configures the OCI Enricher.
@@ -65,6 +66,20 @@ func WithRemoteOptions(opts ...remote.Option) Option {
 // WithInsecure configures the enricher to use plain HTTP for registry connections.
 func WithInsecure() Option {
 	return func(e *Enricher) { e.insecure = true }
+}
+
+// WithInsecureResolver sets a per-host function that returns true when plain
+// HTTP should be used. Takes precedence over WithInsecure for resolved hosts.
+func WithInsecureResolver(fn func(host string) bool) Option {
+	return func(e *Enricher) { e.insecureResolver = fn }
+}
+
+// insecureFor returns true if the given host should be contacted over plain HTTP.
+func (e *Enricher) insecureFor(host string) bool {
+	if e.insecureResolver != nil && e.insecureResolver(host) {
+		return true
+	}
+	return e.insecure
 }
 
 // NewEnricher creates an OCI metadata enricher.
@@ -95,8 +110,14 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 
 	imageRef := ref.ArtifactName + "@" + ref.Digest
 
+	// Extract host from artifact name for per-host insecure resolution.
+	host := ref.ArtifactName
+	if i := strings.Index(host, "/"); i != -1 {
+		host = host[:i]
+	}
+
 	nameOpts := []name.Option{}
-	if e.insecure {
+	if e.insecureFor(host) {
 		nameOpts = append(nameOpts, name.Insecure)
 	}
 	parsedRef, err := name.ParseReference(imageRef, nameOpts...)
@@ -152,9 +173,18 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 // Validator checks that a container image digest points to a single
 // image manifest and not a manifest list (image index).
 type Validator struct {
-	timeout  time.Duration
-	options  []remote.Option
-	insecure bool
+	timeout          time.Duration
+	options          []remote.Option
+	insecure         bool
+	insecureResolver func(host string) bool
+}
+
+// insecureFor returns true if the given host should be contacted over plain HTTP.
+func (v *Validator) insecureFor(host string) bool {
+	if v.insecureResolver != nil && v.insecureResolver(host) {
+		return true
+	}
+	return v.insecure
 }
 
 // NewValidator creates an OCI digest validator.
@@ -163,7 +193,7 @@ func NewValidator(opts ...Option) *Validator {
 	for _, o := range opts {
 		o(e)
 	}
-	return &Validator{timeout: e.timeout, options: e.options, insecure: e.insecure}
+	return &Validator{timeout: e.timeout, options: e.options, insecure: e.insecure, insecureResolver: e.insecureResolver}
 }
 
 // ValidateDigest verifies that imageName@digest points to a single image
@@ -174,8 +204,13 @@ func (v *Validator) ValidateDigest(ctx context.Context, imageName, digest string
 
 	imageRef := imageName + "@" + digest
 
+	host := imageName
+	if i := strings.Index(host, "/"); i != -1 {
+		host = host[:i]
+	}
+
 	nameOpts := []name.Option{}
-	if v.insecure {
+	if v.insecureFor(host) {
 		nameOpts = append(nameOpts, name.Insecure)
 	}
 	parsedRef, err := name.ParseReference(imageRef, nameOpts...)
@@ -227,8 +262,13 @@ func (e *Enricher) fetchParentIndexAnnotations(ctx context.Context, ref enrichme
 		repo = repo[:idx]
 	}
 
+	host := repo
+	if i := strings.Index(host, "/"); i != -1 {
+		host = host[:i]
+	}
+
 	nameOpts := []name.Option{}
-	if e.insecure {
+	if e.insecureFor(host) {
 		nameOpts = append(nameOpts, name.Insecure)
 	}
 	tagRef, err := name.ParseReference(repo+":"+version, nameOpts...)
