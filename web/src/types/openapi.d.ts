@@ -752,8 +752,18 @@ export interface components {
             insecure: boolean;
             /** @description Human-readable registry name */
             name: string;
+            /**
+             * Format: int64
+             * @description Minutes between polls
+             */
+            poll_interval_minutes?: number;
             /** @description Glob patterns for repositories to ingest; empty = all */
             repository_patterns?: string[] | null;
+            /**
+             * @description Scanning mode
+             * @enum {string}
+             */
+            scan_mode?: "webhook" | "poll" | "both";
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
             tag_patterns?: string[] | null;
             /**
@@ -1127,9 +1137,13 @@ export interface components {
             has_secret: boolean;
             id: string;
             insecure: boolean;
+            last_polled_at?: string;
             name: string;
+            /** Format: int64 */
+            poll_interval_minutes: number;
             /** @description Glob patterns for repositories to ingest; empty = all */
             repository_patterns: string[] | null;
+            scan_mode: string;
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
             tag_patterns: string[] | null;
             type: string;
@@ -1166,7 +1180,9 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             digest?: string;
-            enrichments?: Record<string, unknown>;
+            enrichments?: {
+                [key: string]: unknown;
+            };
             id: string;
             imageVersion?: string;
             rawBom?: unknown;
@@ -1281,7 +1297,17 @@ export interface components {
             enabled: boolean;
             insecure: boolean;
             name: string;
+            /**
+             * Format: int64
+             * @description Minutes between polls
+             */
+            poll_interval_minutes?: number;
             repository_patterns?: string[] | null;
+            /**
+             * @description Scanning mode
+             * @enum {string}
+             */
+            scan_mode?: "webhook" | "poll" | "both";
             tag_patterns?: string[] | null;
             /** @enum {string} */
             type: "zot" | "harbor" | "docker" | "generic";
@@ -1345,14 +1371,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["VersionOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1370,14 +1400,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["SystemStatusOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1404,14 +1438,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["ListArtifactsOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1432,14 +1470,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["ArtifactDetail"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1460,12 +1502,16 @@ export interface operations {
         responses: {
             /** @description No Content */
             204: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content?: never;
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1491,14 +1537,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["Changelog"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1519,14 +1569,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["GetArtifactLicenseSummaryOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1556,14 +1610,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["ListArtifactSBOMsOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1581,14 +1639,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["ListAPIKeysOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1610,14 +1672,18 @@ export interface operations {
         responses: {
             /** @description Created */
             201: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["CreateAPIKeyOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1638,12 +1704,16 @@ export interface operations {
         responses: {
             /** @description No Content */
             204: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content?: never;
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1672,14 +1742,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["SearchComponentsOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1714,14 +1788,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["SearchDistinctComponentsOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1739,14 +1817,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["ListComponentPurlTypesOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1773,14 +1855,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["GetComponentVersionsOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1801,14 +1887,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["ComponentDetail"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1831,14 +1921,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["ChangelogEntry"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1867,14 +1961,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["ListLicensesOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1900,14 +1998,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["ListComponentsByLicenseOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1925,14 +2027,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["ListRegistriesOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1954,14 +2060,18 @@ export interface operations {
         responses: {
             /** @description Created */
             201: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["RegistryResponse"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -1983,14 +2093,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["TestRegistryConnectionOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -2011,14 +2125,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["RegistryResponse"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -2043,14 +2161,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["RegistryResponse"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -2071,12 +2193,16 @@ export interface operations {
         responses: {
             /** @description No Content */
             204: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content?: never;
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -2097,14 +2223,18 @@ export interface operations {
         responses: {
             /** @description Accepted */
             202: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["ScanRegistryOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -2131,14 +2261,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["ListSBOMsOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -2167,14 +2301,18 @@ export interface operations {
         responses: {
             /** @description Created */
             201: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["IngestSBOMOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -2200,14 +2338,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["ListSBOMsByDigestOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -2231,14 +2373,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["SBOMDetail"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -2259,12 +2405,16 @@ export interface operations {
         responses: {
             /** @description No Content */
             204: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content?: never;
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -2285,14 +2435,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["ListSBOMComponentsOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -2313,14 +2467,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["DependencyGraph"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -2338,14 +2496,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["DashboardStatsOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -2363,14 +2525,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["ListUsersOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -2395,14 +2561,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["UserResponse"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -2429,12 +2599,16 @@ export interface operations {
         responses: {
             /** @description Accepted */
             202: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content?: never;
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -2452,14 +2626,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["MeOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -2477,14 +2655,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["HealthCheckOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
@@ -2502,14 +2684,18 @@ export interface operations {
         responses: {
             /** @description OK */
             200: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/json": components["schemas"]["ReadinessCheckOutputBody"];
                 };
             };
             /** @description Error */
             default: {
-                headers: Record<string, unknown>;
+                headers: {
+                    [name: string]: unknown;
+                };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
                 };
