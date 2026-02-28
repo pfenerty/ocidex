@@ -32,7 +32,12 @@
       "WebFetch(domain:zotregistry.dev)",
       "Bash(test:*)",
       "Bash(cat:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(/home/patrick/code/ocidex/ocidex/db/migrations/00012_registry_explicit_repos.sql:*)",
+      "Bash(python3:*)"
     ]
   }
 }

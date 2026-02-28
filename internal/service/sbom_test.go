@@ -146,6 +146,107 @@ func TestResolveSubjectVersion(t *testing.T) {
 			is.Equal(resolveSubjectVersion(tt.bom, IngestParams{}), tt.want)
 		})
 	}
+
+	// Tests with params.Version set (patch-refinement logic).
+	paramsTests := []struct {
+		name          string
+		paramsVersion string
+		mcVersion     string
+		want          string
+	}{
+		{
+			name:          "mc patch refinement preferred over floating tag",
+			paramsVersion: "v1.41",
+			mcVersion:     "1.41.5",
+			want:          "1.41.5",
+		},
+		{
+			name:          "mc patch 0 is still more specific",
+			paramsVersion: "v1.41",
+			mcVersion:     "1.41.0",
+			want:          "1.41.0",
+		},
+		{
+			name:          "params already full semver, params wins",
+			paramsVersion: "v1.41.5",
+			mcVersion:     "1.41.5",
+			want:          "v1.41.5",
+		},
+		{
+			name:          "different major, params wins",
+			paramsVersion: "v2.0",
+			mcVersion:     "1.41.5",
+			want:          "v2.0",
+		},
+		{
+			name:          "no mc version, params wins",
+			paramsVersion: "v1.41",
+			mcVersion:     "",
+			want:          "v1.41",
+		},
+		{
+			name:          "non-semver params passes through",
+			paramsVersion: "nightly",
+			mcVersion:     "1.41.5",
+			want:          "nightly",
+		},
+	}
+
+	for _, tt := range paramsTests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			bom := &cdx.BOM{Metadata: &cdx.Metadata{Component: &cdx.Component{
+				Version: tt.mcVersion,
+			}}}
+			got := resolveSubjectVersion(bom, IngestParams{Version: tt.paramsVersion})
+			is.Equal(got, pgtype.Text{String: tt.want, Valid: true})
+		})
+	}
+}
+
+func TestResolveArchitecture(t *testing.T) {
+	prop := func(name, value string) cdx.Property { return cdx.Property{Name: name, Value: value} }
+	props := func(ps ...cdx.Property) *[]cdx.Property { return &ps }
+
+	tests := []struct {
+		name   string
+		bom    *cdx.BOM
+		params IngestParams
+		want   string
+	}{
+		{
+			name:   "params wins",
+			bom:    &cdx.BOM{Metadata: &cdx.Metadata{Component: &cdx.Component{}}},
+			params: IngestParams{Architecture: "arm64"},
+			want:   "arm64",
+		},
+		{
+			name: "label property resolves",
+			bom: &cdx.BOM{Metadata: &cdx.Metadata{Component: &cdx.Component{
+				Properties: props(prop("syft:image:labels:org.opencontainers.image.architecture", "amd64")),
+			}}},
+			want: "amd64",
+		},
+		{
+			name: "absent property returns empty",
+			bom:  &cdx.BOM{Metadata: &cdx.Metadata{Component: &cdx.Component{}}},
+			want: "",
+		},
+		{
+			name: "syft:image:config.Architecture does not match",
+			bom: &cdx.BOM{Metadata: &cdx.Metadata{Component: &cdx.Component{
+				Properties: props(prop("syft:image:config.Architecture", "amd64")),
+			}}},
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			is.Equal(resolveArchitecture(tt.bom, tt.params), tt.want)
+		})
+	}
 }
 
 func TestIntOrNull(t *testing.T) {

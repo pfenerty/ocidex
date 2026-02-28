@@ -38,10 +38,11 @@ func (f *fakeEnricher) callCount() int {
 	return f.called
 }
 
-// fakeStore records UpsertEnrichment calls.
+// fakeStore records UpsertEnrichment and UpdateSBOMSubjectVersion calls.
 type fakeStore struct {
-	params []repository.UpsertEnrichmentParams
-	mu     sync.Mutex
+	params         []repository.UpsertEnrichmentParams
+	versionUpdates []repository.UpdateSBOMSubjectVersionParams
+	mu             sync.Mutex
 }
 
 func (s *fakeStore) UpsertEnrichment(_ context.Context, arg repository.UpsertEnrichmentParams) error {
@@ -51,11 +52,26 @@ func (s *fakeStore) UpsertEnrichment(_ context.Context, arg repository.UpsertEnr
 	return nil
 }
 
+func (s *fakeStore) UpdateSBOMSubjectVersion(_ context.Context, arg repository.UpdateSBOMSubjectVersionParams) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.versionUpdates = append(s.versionUpdates, arg)
+	return nil
+}
+
 func (s *fakeStore) results() []repository.UpsertEnrichmentParams {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := make([]repository.UpsertEnrichmentParams, len(s.params))
 	copy(out, s.params)
+	return out
+}
+
+func (s *fakeStore) versionResults() []repository.UpdateSBOMSubjectVersionParams {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]repository.UpdateSBOMSubjectVersionParams, len(s.versionUpdates))
+	copy(out, s.versionUpdates)
 	return out
 }
 
@@ -191,5 +207,73 @@ func TestDispatcher_ErrorRecording(t *testing.T) {
 	}
 	if !results[0].ErrorMessage.Valid {
 		t.Error("expected error message to be set")
+	}
+}
+
+func TestDispatcher_OCIVersionPromotion(t *testing.T) {
+	data, _ := json.Marshal(map[string]string{"imageVersion": "1.41.5", "arch": "amd64"})
+	enricher := &fakeEnricher{name: "oci-metadata", canRun: true, output: data}
+	store := &fakeStore{}
+
+	d := NewDispatcher(store, []Enricher{enricher}, WithWorkers(1), WithQueueSize(10))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		d.Run(ctx)
+		close(done)
+	}()
+
+	sbomID := pgtype.UUID{Bytes: [16]byte{3}, Valid: true}
+	d.Submit(SubjectRef{
+		SBOMId:       sbomID,
+		ArtifactType: "container",
+		ArtifactName: "docker.io/myapp",
+		Digest:       "sha256:def456",
+	})
+
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+	<-done
+
+	updates := store.versionResults()
+	if len(updates) != 1 {
+		t.Fatalf("expected 1 subject_version update, got %d", len(updates))
+	}
+	if updates[0].ID != sbomID {
+		t.Errorf("expected sbom ID %v, got %v", sbomID, updates[0].ID)
+	}
+	if !updates[0].SubjectVersion.Valid || updates[0].SubjectVersion.String != "1.41.5" {
+		t.Errorf("expected subject_version '1.41.5', got %v", updates[0].SubjectVersion)
+	}
+}
+
+func TestDispatcher_OCIVersionPromotion_SkipsNonOCI(t *testing.T) {
+	data, _ := json.Marshal(map[string]string{"imageVersion": "1.0.0"})
+	enricher := &fakeEnricher{name: "other-enricher", canRun: true, output: data}
+	store := &fakeStore{}
+
+	d := NewDispatcher(store, []Enricher{enricher}, WithWorkers(1), WithQueueSize(10))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		d.Run(ctx)
+		close(done)
+	}()
+
+	d.Submit(SubjectRef{
+		SBOMId:       pgtype.UUID{Bytes: [16]byte{4}, Valid: true},
+		ArtifactType: "container",
+		ArtifactName: "docker.io/myapp",
+		Digest:       "sha256:ghi789",
+	})
+
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+	<-done
+
+	if updates := store.versionResults(); len(updates) != 0 {
+		t.Errorf("expected no subject_version updates for non-OCI enricher, got %d", len(updates))
 	}
 }

@@ -465,7 +465,6 @@ var ociVersionKeys = []string{
 
 // ociArchKeys are property names that contain the image architecture.
 var ociArchKeys = []string{
-	"syft:image:config.Architecture",
 	"syft:image:labels:org.opencontainers.image.architecture",
 }
 
@@ -475,11 +474,27 @@ var ociBuildDateKeys = []string{
 	"syft:image:labels:org.label-schema.build-date", // legacy
 }
 
+// isMoreSpecific reports whether candidate is a patch-level refinement of base:
+// same major.minor, base has no patch component, candidate has a valid patch.
+func isMoreSpecific(candidate, base string) bool {
+	cMaj, cMin, cPatch := parseSemver(candidate)
+	bMaj, bMin, bPatch := parseSemver(base)
+	return cMaj >= 0 && cMin >= 0 && cPatch >= 0 &&
+		bMaj == cMaj && bMin == cMin &&
+		bPatch < 0
+}
+
 // resolveSubjectVersion returns the human-readable version for an SBOM's subject.
 // params.Version takes precedence; then metadata.component.version when it is not
 // a digest; then well-known OCI label properties emitted by Syft and Trivy.
 func resolveSubjectVersion(bom *cdx.BOM, params IngestParams) pgtype.Text {
 	if params.Version != "" {
+		mc := bom.Metadata.Component
+		if mc != nil && mc.Version != "" && !strings.HasPrefix(mc.Version, "sha256:") {
+			if isMoreSpecific(mc.Version, params.Version) {
+				return pgtype.Text{String: mc.Version, Valid: true}
+			}
+		}
 		return pgtype.Text{String: params.Version, Valid: true}
 	}
 

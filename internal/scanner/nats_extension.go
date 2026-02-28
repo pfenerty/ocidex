@@ -151,6 +151,7 @@ func (e *NATSExtension) handleMsg(msg natsMsg) {
 		Tag:          wire.Tag,
 		Architecture: wire.Architecture,
 		BuildDate:    wire.BuildDate,
+		ImageVersion: wire.ImageVersion,
 	}
 
 	if !e.dispatcher.SubmitWithResult(req) {

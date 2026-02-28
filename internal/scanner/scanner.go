@@ -28,6 +28,7 @@ type ScanRequest struct {
 	Tag          string // optional, for logging
 	Architecture string // e.g. "amd64"; resolved from index entry during catalog walk
 	BuildDate    string // org.opencontainers.image.created from manifest annotations
+	ImageVersion string // org.opencontainers.image.version from manifest annotations or config labels
 }
 
 // NewScanner creates a stateless Scanner.
@@ -42,7 +43,7 @@ func (s *Scanner) Scan(ctx context.Context, req ScanRequest) ([]byte, error) {
 
 	regOpts := &image.RegistryOptions{InsecureUseHTTP: req.Insecure}
 	srcCfg := syft.DefaultGetSourceConfig().
-		WithSources("registry").
+		WithSources("oci-registry").
 		WithRegistryOptions(regOpts)
 
 	src, err := syft.GetSource(ctx, ref, srcCfg)

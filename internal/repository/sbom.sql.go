@@ -194,6 +194,20 @@ func (q *Queries) InsertSBOM(ctx context.Context, arg InsertSBOMParams) (InsertS
 	return i, err
 }
 
+const updateSBOMSubjectVersion = `-- name: UpdateSBOMSubjectVersion :exec
+UPDATE sbom SET subject_version = $2 WHERE id = $1
+`
+
+type UpdateSBOMSubjectVersionParams struct {
+	ID             pgtype.UUID `json:"id"`
+	SubjectVersion pgtype.Text `json:"subject_version"`
+}
+
+func (q *Queries) UpdateSBOMSubjectVersion(ctx context.Context, arg UpdateSBOMSubjectVersionParams) error {
+	_, err := q.db.Exec(ctx, updateSBOMSubjectVersion, arg.ID, arg.SubjectVersion)
+	return err
+}
+
 const upsertLicenseByName = `-- name: UpsertLicenseByName :one
 INSERT INTO license (name, url)
 VALUES ($1, $2)
