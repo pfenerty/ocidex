@@ -24,9 +24,18 @@ func WalkRegistry(ctx context.Context, reg service.Registry, sub Submitter, logg
 	baseURL := scheme + "://" + host
 	client := &http.Client{Timeout: 15 * time.Second}
 
-	repos, err := ociListCatalog(ctx, client, baseURL)
-	if err != nil {
-		return 0, fmt.Errorf("listing catalog: %w", err)
+	var repos []string
+	if len(reg.Repositories) > 0 {
+		repos = reg.Repositories
+	} else {
+		var err error
+		repos, err = ociListCatalog(ctx, client, baseURL)
+		if err != nil {
+			return 0, fmt.Errorf("listing catalog: %w", err)
+		}
+		if len(repos) == 0 {
+			logger.Warn("catalog returned 0 repositories; if this registry does not support /v2/_catalog, set explicit repositories on the registry config", "registry", reg.Name)
+		}
 	}
 
 	queued := 0

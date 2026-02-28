@@ -508,6 +508,16 @@
             "minimum": 1,
             "type": "integer"
           },
+          "repositories": {
+            "description": "Explicit repositories to walk; bypasses /v2/_catalog discovery when non-empty",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "repository_patterns": {
             "description": "Glob patterns for repositories to ingest; empty = all",
             "items": {
@@ -1570,6 +1580,16 @@
             "format": "int64",
             "type": "integer"
           },
+          "repositories": {
+            "description": "Explicit repositories to walk; overrides catalog discovery when non-empty",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "repository_patterns": {
             "description": "Glob patterns for repositories to ingest; empty = all",
             "items": {
@@ -1615,6 +1635,7 @@
           "has_secret",
           "enabled",
           "webhook_path",
+          "repositories",
           "repository_patterns",
           "tag_patterns",
           "scan_mode",
@@ -2014,6 +2035,15 @@
             "format": "int64",
             "minimum": 1,
             "type": "integer"
+          },
+          "repositories": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "repository_patterns": {
             "items": {

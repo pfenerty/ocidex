@@ -25,6 +25,7 @@ type Registry struct {
 	Enabled            bool
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+	Repositories       []string   // explicit repos to walk; empty = use catalog discovery
 	RepositoryPatterns []string   // glob patterns; empty = accept all
 	TagPatterns        []string   // glob patterns or "semver"; empty = accept all
 	ScanMode           string     // "webhook" | "poll" | "both"
@@ -97,10 +98,10 @@ func matchGlob(pattern, s string) bool {
 
 // RegistryService manages registry configuration.
 type RegistryService interface {
-	Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int) (Registry, error)
+	Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int) (Registry, error)
 	Get(ctx context.Context, id string) (Registry, error)
 	List(ctx context.Context) ([]Registry, error)
-	Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int) (Registry, error)
+	Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int) (Registry, error)
 	SetEnabled(ctx context.Context, id string, enabled bool) (Registry, error)
 	Delete(ctx context.Context, id string) error
 	ListPollable(ctx context.Context) ([]Registry, error)
@@ -120,13 +121,14 @@ func NewRegistryService(pool *pgxpool.Pool) RegistryService {
 	}
 }
 
-func (s *registryService) Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int) (Registry, error) {
+func (s *registryService) Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int) (Registry, error) {
 	r, err := s.repo.CreateRegistry(ctx, repository.CreateRegistryParams{
 		Name:                name,
 		Type:                regType,
 		Url:                 url,
 		Insecure:            insecure,
 		WebhookSecret:       toNullText(webhookSecret),
+		Repositories:        nonEmpty(repositories),
 		RepositoryPatterns:  nonEmpty(repositoryPatterns),
 		TagPatterns:         nonEmpty(tagPatterns),
 		ScanMode:            scanMode,
@@ -162,7 +164,7 @@ func (s *registryService) List(ctx context.Context) ([]Registry, error) {
 	return out, nil
 }
 
-func (s *registryService) Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int) (Registry, error) {
+func (s *registryService) Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int) (Registry, error) {
 	uid, err := parseRegistryUUID(id)
 	if err != nil {
 		return Registry{}, ErrNotFound
@@ -175,6 +177,7 @@ func (s *registryService) Update(ctx context.Context, id, name, regType, url str
 		Insecure:            insecure,
 		WebhookSecret:       toNullText(webhookSecret),
 		Enabled:             enabled,
+		Repositories:        nonEmpty(repositories),
 		RepositoryPatterns:  nonEmpty(repositoryPatterns),
 		TagPatterns:         nonEmpty(tagPatterns),
 		ScanMode:            scanMode,
@@ -250,6 +253,7 @@ func fromRepo(r repository.Registry) Registry {
 		Enabled:             r.Enabled,
 		CreatedAt:           r.CreatedAt.Time,
 		UpdatedAt:           r.UpdatedAt.Time,
+		Repositories:        r.Repositories,
 		RepositoryPatterns:  r.RepositoryPatterns,
 		TagPatterns:         r.TagPatterns,
 		ScanMode:            r.ScanMode,

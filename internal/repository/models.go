@@ -117,6 +117,7 @@ type Registry struct {
 	ScanMode            string             `json:"scan_mode"`
 	PollIntervalMinutes int32              `json:"poll_interval_minutes"`
 	LastPolledAt        pgtype.Timestamptz `json:"last_polled_at"`
+	Repositories        []string           `json:"repositories"`
 }
 
 type Sbom struct {

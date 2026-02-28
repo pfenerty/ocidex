@@ -562,21 +562,22 @@ type NATSStatus struct {
 
 // RegistryResponse is the public representation of a configured OCI registry.
 type RegistryResponse struct {
-	ID                  string  `json:"id"`
-	Name                string  `json:"name"`
-	Type                string  `json:"type"`
-	URL                 string  `json:"url"`
-	Insecure            bool    `json:"insecure"`
-	HasSecret           bool    `json:"has_secret"`
-	Enabled             bool    `json:"enabled"`
-	WebhookPath         string  `json:"webhook_path"`
+	ID                  string   `json:"id"`
+	Name                string   `json:"name"`
+	Type                string   `json:"type"`
+	URL                 string   `json:"url"`
+	Insecure            bool     `json:"insecure"`
+	HasSecret           bool     `json:"has_secret"`
+	Enabled             bool     `json:"enabled"`
+	WebhookPath         string   `json:"webhook_path"`
+	Repositories        []string `json:"repositories" doc:"Explicit repositories to walk; overrides catalog discovery when non-empty"`
 	RepositoryPatterns  []string `json:"repository_patterns" doc:"Glob patterns for repositories to ingest; empty = all"`
 	TagPatterns         []string `json:"tag_patterns" doc:"Glob patterns or 'semver' for tags to ingest; empty = all"`
-	ScanMode            string  `json:"scan_mode"`
-	PollIntervalMinutes int     `json:"poll_interval_minutes"`
-	LastPolledAt        *string `json:"last_polled_at,omitempty"`
-	CreatedAt           string  `json:"created_at"`
-	UpdatedAt           string  `json:"updated_at"`
+	ScanMode            string   `json:"scan_mode"`
+	PollIntervalMinutes int      `json:"poll_interval_minutes"`
+	LastPolledAt        *string  `json:"last_polled_at,omitempty"`
+	CreatedAt           string   `json:"created_at"`
+	UpdatedAt           string   `json:"updated_at"`
 }
 
 // ListRegistriesOutput is the response for GET /api/v1/registries.
@@ -604,6 +605,7 @@ type CreateRegistryInput struct {
 		URL                 string   `json:"url" minLength:"1" doc:"Registry address (e.g. zot:5000)"`
 		Insecure            bool     `json:"insecure" doc:"Allow HTTP (non-TLS) connections"`
 		WebhookSecret       *string  `json:"webhook_secret,omitempty" doc:"Bearer token required on incoming webhooks; omit to disable auth"`
+		Repositories        []string `json:"repositories,omitempty" doc:"Explicit repositories to walk; bypasses /v2/_catalog discovery when non-empty"`
 		RepositoryPatterns  []string `json:"repository_patterns,omitempty" doc:"Glob patterns for repositories to ingest; empty = all"`
 		TagPatterns         []string `json:"tag_patterns,omitempty" doc:"Glob patterns or 'semver' for tags to ingest; empty = all"`
 		ScanMode            string   `json:"scan_mode,omitempty" enum:"webhook,poll,both" doc:"Scanning mode"`
@@ -626,6 +628,7 @@ type UpdateRegistryInput struct {
 		Insecure            bool     `json:"insecure"`
 		WebhookSecret       *string  `json:"webhook_secret,omitempty"`
 		Enabled             bool     `json:"enabled"`
+		Repositories        []string `json:"repositories,omitempty"`
 		RepositoryPatterns  []string `json:"repository_patterns,omitempty"`
 		TagPatterns         []string `json:"tag_patterns,omitempty"`
 		ScanMode            string   `json:"scan_mode,omitempty" enum:"webhook,poll,both" doc:"Scanning mode"`

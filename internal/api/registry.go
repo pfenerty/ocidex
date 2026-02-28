@@ -67,7 +67,7 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 	if pollInterval == 0 {
 		pollInterval = 60
 	}
-	reg, err := h.registryService.Create(ctx, in.Body.Name, in.Body.Type, in.Body.URL, in.Body.Insecure, in.Body.WebhookSecret, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval)
+	reg, err := h.registryService.Create(ctx, in.Body.Name, in.Body.Type, in.Body.URL, in.Body.Insecure, in.Body.WebhookSecret, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("creating registry: %v", err))
 	}
@@ -91,7 +91,7 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 	if pollInterval == 0 {
 		pollInterval = 60
 	}
-	reg, err := h.registryService.Update(ctx, in.ID, in.Body.Name, in.Body.Type, in.Body.URL, in.Body.Insecure, in.Body.WebhookSecret, in.Body.Enabled, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval)
+	reg, err := h.registryService.Update(ctx, in.ID, in.Body.Name, in.Body.Type, in.Body.URL, in.Body.Insecure, in.Body.WebhookSecret, in.Body.Enabled, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval)
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}
@@ -195,6 +195,7 @@ func toRegistryResponse(r service.Registry) RegistryResponse {
 		HasSecret:           r.WebhookSecret != nil && *r.WebhookSecret != "",
 		Enabled:             r.Enabled,
 		WebhookPath:         "/api/v1/webhooks/" + r.ID,
+		Repositories:        r.Repositories,
 		RepositoryPatterns:  r.RepositoryPatterns,
 		TagPatterns:         r.TagPatterns,
 		ScanMode:            r.ScanMode,
@@ -205,6 +206,9 @@ func toRegistryResponse(r service.Registry) RegistryResponse {
 	if r.LastPolledAt != nil {
 		s := r.LastPolledAt.UTC().Format("2006-01-02T15:04:05Z")
 		rr.LastPolledAt = &s
+	}
+	if rr.Repositories == nil {
+		rr.Repositories = []string{}
 	}
 	if rr.RepositoryPatterns == nil {
 		rr.RepositoryPatterns = []string{}

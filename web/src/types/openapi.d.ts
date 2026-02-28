@@ -757,6 +757,8 @@ export interface components {
              * @description Minutes between polls
              */
             poll_interval_minutes?: number;
+            /** @description Explicit repositories to walk; bypasses /v2/_catalog discovery when non-empty */
+            repositories?: string[] | null;
             /** @description Glob patterns for repositories to ingest; empty = all */
             repository_patterns?: string[] | null;
             /**
@@ -1141,6 +1143,8 @@ export interface components {
             name: string;
             /** Format: int64 */
             poll_interval_minutes: number;
+            /** @description Explicit repositories to walk; overrides catalog discovery when non-empty */
+            repositories: string[] | null;
             /** @description Glob patterns for repositories to ingest; empty = all */
             repository_patterns: string[] | null;
             scan_mode: string;
@@ -1302,6 +1306,7 @@ export interface components {
              * @description Minutes between polls
              */
             poll_interval_minutes?: number;
+            repositories?: string[] | null;
             repository_patterns?: string[] | null;
             /**
              * @description Scanning mode

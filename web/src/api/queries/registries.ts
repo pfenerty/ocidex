@@ -17,6 +17,7 @@ export function useCreateRegistry() {
             url: string;
             insecure: boolean;
             webhook_secret?: string;
+            repositories?: string[];
             repository_patterns?: string[];
             tag_patterns?: string[];
             scan_mode?: "webhook" | "poll" | "both";
@@ -40,6 +41,7 @@ export function useUpdateRegistry() {
             insecure: boolean;
             webhook_secret?: string;
             enabled: boolean;
+            repositories?: string[];
             repository_patterns?: string[];
             tag_patterns?: string[];
             scan_mode?: "webhook" | "poll" | "both";

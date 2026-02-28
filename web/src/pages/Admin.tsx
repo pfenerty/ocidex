@@ -263,6 +263,7 @@ interface RegistryFormState {
     url: string;
     insecure: boolean;
     webhookSecret: string;
+    repositories: string;       // newline-separated explicit repos
     repositoryPatterns: string; // newline-separated
     tagPatterns: string;        // newline-separated
     scanMode: ScanMode;
@@ -275,6 +276,7 @@ const emptyForm = (): RegistryFormState => ({
     url: "",
     insecure: false,
     webhookSecret: "",
+    repositories: "",
     repositoryPatterns: "",
     tagPatterns: "",
     scanMode: "webhook",
@@ -308,7 +310,7 @@ function RegistriesTab() {
         setTestResult(null);
     }
 
-    function startEdit(reg: { id: string; name: string; type: string; url: string; insecure: boolean; has_secret: boolean; enabled: boolean; repository_patterns?: string[] | null; tag_patterns?: string[] | null; scan_mode?: string; poll_interval_minutes?: number }) {
+    function startEdit(reg: { id: string; name: string; type: string; url: string; insecure: boolean; has_secret: boolean; enabled: boolean; repositories?: string[] | null; repository_patterns?: string[] | null; tag_patterns?: string[] | null; scan_mode?: string; poll_interval_minutes?: number }) {
         setEditingID(reg.id);
         setEditEnabled(reg.enabled);
         setForm({
@@ -317,6 +319,7 @@ function RegistriesTab() {
             url: reg.url,
             insecure: reg.insecure,
             webhookSecret: "",
+            repositories: (reg.repositories ?? []).join("\n"),
             repositoryPatterns: (reg.repository_patterns ?? []).join("\n"),
             tagPatterns: (reg.tag_patterns ?? []).join("\n"),
             scanMode: (reg.scan_mode ?? "webhook") as ScanMode,
@@ -330,13 +333,14 @@ function RegistriesTab() {
         const f = form();
         const secret = f.webhookSecret.trim() || undefined;
 
+        const repos = toPatternArray(f.repositories);
         const repoPats = toPatternArray(f.repositoryPatterns);
         const tagPats = toPatternArray(f.tagPatterns);
 
         const currentID = editingID();
         if (currentID !== null) {
             updateReg.mutate(
-                { id: currentID, name: f.name, type: f.type, url: f.url, insecure: f.insecure, webhook_secret: secret, enabled: editEnabled(), repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes },
+                { id: currentID, name: f.name, type: f.type, url: f.url, insecure: f.insecure, webhook_secret: secret, enabled: editEnabled(), repositories: repos, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes },
                 {
                     onSuccess: () => { toast("Registry updated", "success"); resetForm(); },
                     onError: () => toast("Failed to update registry", "error"),
@@ -344,7 +348,7 @@ function RegistriesTab() {
             );
         } else {
             createReg.mutate(
-                { name: f.name, type: f.type, url: f.url, insecure: f.insecure, webhook_secret: secret, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes },
+                { name: f.name, type: f.type, url: f.url, insecure: f.insecure, webhook_secret: secret, repositories: repos, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes },
                 {
                     onSuccess: () => { toast("Registry created", "success"); resetForm(); },
                     onError: () => toast("Failed to create registry", "error"),
@@ -442,7 +446,19 @@ function RegistriesTab() {
                             </div>
                             <div>
                                 <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>
-                                    Repository Patterns <span style={{ color: "var(--color-text-muted)" }}>(one per line; empty = all)</span>
+                                    Repositories <span style={{ color: "var(--color-text-muted)" }}>(one per line; bypasses catalog discovery — use for registries like quay.io)</span>
+                                </label>
+                                <textarea
+                                    value={form().repositories}
+                                    onInput={(e) => setForm(f => ({ ...f, repositories: e.currentTarget.value }))}
+                                    placeholder={"buildah/buildah\nbuildah/buildah-testing"}
+                                    rows={3}
+                                    style={{ width: "100%", "font-family": "monospace", "font-size": "0.85rem" }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>
+                                    Repository Patterns <span style={{ color: "var(--color-text-muted)" }}>(one per line; filters catalog-discovered repos; empty = all)</span>
                                 </label>
                                 <textarea
                                     value={form().repositoryPatterns}
