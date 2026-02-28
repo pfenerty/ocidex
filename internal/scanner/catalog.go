@@ -81,6 +81,7 @@ func WalkRegistry(ctx context.Context, reg service.Registry, sub Submitter, logg
 						Tag:          tag,
 						Architecture: arch,
 						BuildDate:    meta.buildDate,
+						ImageVersion: meta.imageVersion,
 					})
 					queued++
 				}
@@ -95,6 +96,7 @@ func WalkRegistry(ctx context.Context, reg service.Registry, sub Submitter, logg
 				Tag:          tag,
 				Architecture: meta.architecture,
 				BuildDate:    meta.buildDate,
+				ImageVersion: meta.imageVersion,
 			})
 			queued++
 		}
@@ -203,10 +205,11 @@ func ociExpandIndex(ctx context.Context, c *http.Client, baseURL, repo, indexDig
 	return entries, nil
 }
 
-// imageMetadata holds the architecture and build date resolved from a manifest + config blob.
+// imageMetadata holds the architecture, build date, and version resolved from a manifest + config blob.
 type imageMetadata struct {
 	architecture string
 	buildDate    string
+	imageVersion string
 }
 
 // ociGetImageMetadata fetches a manifest and its config blob to extract
@@ -232,31 +235,60 @@ func ociGetImageMetadata(ctx context.Context, c *http.Client, baseURL, repo, dig
 	if err := json.NewDecoder(resp.Body).Decode(&manifest); err != nil {
 		return imageMetadata{}
 	}
-	meta := imageMetadata{
-		buildDate: manifest.Annotations["org.opencontainers.image.created"],
-	}
+	annotationVersion := manifest.Annotations["org.opencontainers.image.version"]
+	annotationCreated := manifest.Annotations["org.opencontainers.image.created"]
+
 	if manifest.Config.Digest == "" {
-		return meta
+		return imageMetadata{
+			buildDate:    annotationCreated,
+			imageVersion: annotationVersion,
+		}
 	}
 	req2, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/v2/"+repo+"/blobs/"+manifest.Config.Digest, nil)
 	resp2, err := c.Do(req2)
 	if err != nil {
-		return meta
+		return imageMetadata{buildDate: annotationCreated, imageVersion: annotationVersion}
 	}
 	defer resp2.Body.Close()
 	if resp2.StatusCode != http.StatusOK {
-		return meta
+		return imageMetadata{buildDate: annotationCreated, imageVersion: annotationVersion}
 	}
 	var config struct {
 		Architecture string `json:"architecture"`
 		Created      string `json:"created"`
+		Config       struct {
+			Labels map[string]string `json:"Labels"`
+		} `json:"config"`
 	}
 	if err := json.NewDecoder(resp2.Body).Decode(&config); err != nil {
-		return meta
+		return imageMetadata{buildDate: annotationCreated, imageVersion: annotationVersion}
 	}
-	meta.architecture = config.Architecture
-	if meta.buildDate == "" {
+
+	// architecture: config blob field is authoritative; label is fallback.
+	meta := imageMetadata{architecture: config.Architecture}
+	if meta.architecture == "" {
+		meta.architecture = config.Config.Labels["org.opencontainers.image.architecture"]
+	}
+
+	// build_date: config.Created > manifest annotation > config labels.
+	switch {
+	case config.Created != "":
 		meta.buildDate = config.Created
+	case annotationCreated != "":
+		meta.buildDate = annotationCreated
+	case config.Config.Labels["org.opencontainers.image.created"] != "":
+		meta.buildDate = config.Config.Labels["org.opencontainers.image.created"]
+	default:
+		meta.buildDate = config.Config.Labels["org.label-schema.build-date"]
+	}
+	// image_version: manifest annotation > config labels.
+	switch {
+	case annotationVersion != "":
+		meta.imageVersion = annotationVersion
+	case config.Config.Labels["org.opencontainers.image.version"] != "":
+		meta.imageVersion = config.Config.Labels["org.opencontainers.image.version"]
+	default:
+		meta.imageVersion = config.Config.Labels["org.label-schema.version"]
 	}
 	return meta
 }
