@@ -49,6 +49,7 @@ func NewRouter(h *Handler, corsOrigins string) chi.Router {
 	registerArtifactOps(api, h)
 	registerDiffOps(api, h)
 	registerWebhookOps(api, h)
+	registerRegistryOps(api, h)
 	registerStatsOps(api, h)
 	registerAuthOps(r, api, h)
 
@@ -302,14 +303,82 @@ func registerDiffOps(api huma.API, h *Handler) {
 
 func registerWebhookOps(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
-		OperationID:   "zot-webhook",
+		OperationID:   "registry-webhook",
 		Method:        http.MethodPost,
-		Path:          "/api/v1/webhooks/zot",
-		Summary:       "Receive Zot registry push notifications",
+		Path:          "/api/v1/webhooks/{registryID}",
+		Summary:       "Receive registry push notifications",
 		Tags:          []string{"Webhooks"},
 		MaxBodyBytes:  64 * 1024,
 		DefaultStatus: http.StatusAccepted,
-	}, h.HandleZotWebhook)
+	}, h.HandleRegistryWebhook)
+}
+
+// ---------------------------------------------------------------------------
+// Registries
+// ---------------------------------------------------------------------------
+
+func registerRegistryOps(api huma.API, h *Handler) {
+	huma.Register(api, huma.Operation{
+		OperationID:   "test-registry-connection",
+		Method:        http.MethodPost,
+		Path:          "/api/v1/registries/test-connection",
+		Summary:       "Test registry connectivity",
+		Description:   "Probes the registry's /v2/ endpoint and reports whether it is reachable.",
+		Tags:          []string{"Registries"},
+		DefaultStatus: http.StatusOK,
+	}, h.TestRegistryConnection)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-registries",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/registries",
+		Summary:     "List registries",
+		Tags:        []string{"Registries"},
+	}, h.ListRegistries)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "create-registry",
+		Method:        http.MethodPost,
+		Path:          "/api/v1/registries",
+		Summary:       "Create a registry",
+		Tags:          []string{"Registries"},
+		DefaultStatus: http.StatusCreated,
+	}, h.CreateRegistry)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-registry",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/registries/{id}",
+		Summary:     "Get a registry",
+		Tags:        []string{"Registries"},
+	}, h.GetRegistry)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "update-registry",
+		Method:      http.MethodPut,
+		Path:        "/api/v1/registries/{id}",
+		Summary:     "Update a registry",
+		Tags:        []string{"Registries"},
+	}, h.UpdateRegistry)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "delete-registry",
+		Method:        http.MethodDelete,
+		Path:          "/api/v1/registries/{id}",
+		Summary:       "Delete a registry",
+		Tags:          []string{"Registries"},
+		DefaultStatus: http.StatusNoContent,
+	}, h.DeleteRegistry)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "scan-registry",
+		Method:        http.MethodPost,
+		Path:          "/api/v1/registries/{id}/scan",
+		Summary:       "Trigger ad-hoc registry scan",
+		Description:   "Walks the registry catalog, filters by configured patterns, and queues scan requests for all matching images.",
+		Tags:          []string{"Registries"},
+		DefaultStatus: http.StatusAccepted,
+	}, h.ScanRegistry)
 }
 
 // ---------------------------------------------------------------------------

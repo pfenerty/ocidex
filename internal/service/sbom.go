@@ -3,6 +3,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -17,9 +18,17 @@ import (
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
+// IngestParams carries supplemental metadata for SBOM ingestion.
+// Fields take precedence over BOM-extracted values when set.
+type IngestParams struct {
+	Version      string // image tag / subject version
+	Architecture string // e.g. "amd64"
+	BuildDate    string // RFC3339 or date string
+}
+
 // SBOMService defines the business logic for SBOM ingestion and management.
 type SBOMService interface {
-	Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte) (pgtype.UUID, error)
+	Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (pgtype.UUID, error)
 	DeleteSBOM(ctx context.Context, id pgtype.UUID) error
 	DeleteArtifact(ctx context.Context, id pgtype.UUID) error
 }
@@ -51,7 +60,7 @@ type artifactInfo struct {
 
 // resolveArtifact extracts artifact identity from the BOM metadata and upserts
 // the artifact row. It returns the artifact ID, subject version, and image digest.
-func resolveArtifact(ctx context.Context, q *repository.Queries, bom *cdx.BOM) (artifactInfo, error) {
+func resolveArtifact(ctx context.Context, q *repository.Queries, bom *cdx.BOM, params IngestParams) (artifactInfo, error) {
 	if bom.Metadata == nil || bom.Metadata.Component == nil {
 		return artifactInfo{}, nil
 	}
@@ -95,13 +104,13 @@ func resolveArtifact(ctx context.Context, q *repository.Queries, bom *cdx.BOM) (
 
 	return artifactInfo{
 		artifactID:     artifactID,
-		subjectVersion: resolveSubjectVersion(bom),
+		subjectVersion: resolveSubjectVersion(bom, params),
 		digest:         digest,
 	}, nil
 }
 
 // Ingest decomposes a CycloneDX BOM and persists it in a single transaction.
-func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte) (pgtype.UUID, error) {
+func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (pgtype.UUID, error) {
 	// Validate container digests before starting the transaction.
 	// This makes a network call to the registry, so it runs outside the tx.
 	if err := s.validateContainerDigest(ctx, bom); err != nil {
@@ -126,9 +135,32 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte) 
 
 	q := repository.New(tx)
 
-	info, err := resolveArtifact(ctx, q, bom)
+	info, err := resolveArtifact(ctx, q, bom, params)
 	if err != nil {
 		return pgtype.UUID{}, err
+	}
+
+	arch := resolveArchitecture(bom, params)
+	bd := resolveBuildDate(bom, params)
+
+	// Mandatory validation for container SBOMs.
+	if bom.Metadata != nil && bom.Metadata.Component != nil &&
+		bom.Metadata.Component.Type == cdx.ComponentTypeContainer {
+		var missing []string
+		if !info.subjectVersion.Valid {
+			missing = append(missing, "subject_version")
+		}
+		if arch == "" {
+			missing = append(missing, "architecture")
+		}
+		if bd == "" {
+			missing = append(missing, "build_date")
+		}
+		if len(missing) > 0 {
+			return pgtype.UUID{}, &ValidationError{
+				Message: fmt.Sprintf("container SBOM missing required metadata: %s", strings.Join(missing, ", ")),
+			}
+		}
 	}
 
 	sbomRow, err := q.InsertSBOM(ctx, repository.InsertSBOMParams{
@@ -149,6 +181,30 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte) 
 		"spec_version", sbomRow.SpecVersion,
 		"artifact_id", info.artifactID,
 	)
+
+	// Write "user" enrichment so metadata is immediately visible in queries,
+	// before the async OCI enricher runs.
+	if arch != "" || bd != "" || info.subjectVersion.Valid {
+		data := map[string]string{}
+		if arch != "" {
+			data["architecture"] = arch
+		}
+		if bd != "" {
+			data["created"] = bd
+		}
+		if info.subjectVersion.Valid {
+			data["imageVersion"] = info.subjectVersion.String
+		}
+		dataJSON, _ := json.Marshal(data)
+		if err := q.UpsertEnrichment(ctx, repository.UpsertEnrichmentParams{
+			SbomID:       sbomRow.ID,
+			EnricherName: "user",
+			Status:       "success",
+			Data:         dataJSON,
+		}); err != nil {
+			return pgtype.UUID{}, fmt.Errorf("writing user enrichment: %w", err)
+		}
+	}
 
 	if bom.Components != nil {
 		if err := s.insertComponents(ctx, q, sbomRow.ID, pgtype.UUID{}, *bom.Components); err != nil {
@@ -404,12 +460,29 @@ func (s *sbomService) insertDependencies(
 var ociVersionKeys = []string{
 	"syft:image:labels:org.opencontainers.image.version",
 	"aquasecurity:trivy:Labels:org.opencontainers.image.version",
+	"syft:image:labels:org.label-schema.version", // legacy
+}
+
+// ociArchKeys are property names that contain the image architecture.
+var ociArchKeys = []string{
+	"syft:image:config.Architecture",
+	"syft:image:labels:org.opencontainers.image.architecture",
+}
+
+// ociBuildDateKeys are property names that contain the image build date.
+var ociBuildDateKeys = []string{
+	"syft:image:labels:org.opencontainers.image.created",
+	"syft:image:labels:org.label-schema.build-date", // legacy
 }
 
 // resolveSubjectVersion returns the human-readable version for an SBOM's subject.
-// It prefers metadata.component.version when it is not a digest, then falls back
-// to well-known OCI label properties emitted by Syft and Trivy.
-func resolveSubjectVersion(bom *cdx.BOM) pgtype.Text {
+// params.Version takes precedence; then metadata.component.version when it is not
+// a digest; then well-known OCI label properties emitted by Syft and Trivy.
+func resolveSubjectVersion(bom *cdx.BOM, params IngestParams) pgtype.Text {
+	if params.Version != "" {
+		return pgtype.Text{String: params.Version, Valid: true}
+	}
+
 	mc := bom.Metadata.Component
 
 	// Use the explicit version if it exists and isn't a digest.
@@ -429,6 +502,48 @@ func resolveSubjectVersion(bom *cdx.BOM) pgtype.Text {
 	}
 
 	return pgtype.Text{}
+}
+
+// resolveArchitecture returns the image architecture from params or BOM properties.
+func resolveArchitecture(bom *cdx.BOM, params IngestParams) string {
+	if params.Architecture != "" {
+		return params.Architecture
+	}
+	if bom.Metadata == nil || bom.Metadata.Component == nil {
+		return ""
+	}
+	mc := bom.Metadata.Component
+	for _, props := range [][]cdx.Property{propertySlice(mc.Properties), propertySlice(bom.Metadata.Properties)} {
+		for _, p := range props {
+			for _, key := range ociArchKeys {
+				if p.Name == key && p.Value != "" {
+					return p.Value
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// resolveBuildDate returns the image build date from params or BOM properties.
+func resolveBuildDate(bom *cdx.BOM, params IngestParams) string {
+	if params.BuildDate != "" {
+		return params.BuildDate
+	}
+	if bom.Metadata == nil || bom.Metadata.Component == nil {
+		return ""
+	}
+	mc := bom.Metadata.Component
+	for _, props := range [][]cdx.Property{propertySlice(mc.Properties), propertySlice(bom.Metadata.Properties)} {
+		for _, p := range props {
+			for _, key := range ociBuildDateKeys {
+				if p.Name == key && p.Value != "" {
+					return p.Value
+				}
+			}
+		}
+	}
+	return ""
 }
 
 // propertySlice safely dereferences a *[]cdx.Property.

@@ -16,11 +16,10 @@ import (
 
 // publicPaths bypass Authenticate.
 var publicPaths = map[string]bool{
-	"/health":              true,
-	"/ready":               true,
-	"/auth/login":          true,
-	"/auth/callback":       true,
-	"/api/v1/webhooks/zot": true,
+	"/health":        true,
+	"/ready":         true,
+	"/auth/login":    true,
+	"/auth/callback": true,
 }
 
 type ctxKeyUser struct{}
@@ -33,7 +32,7 @@ func Authenticate(authSvc service.AuthService) func(http.Handler) http.Handler {
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if publicPaths[r.URL.Path] {
+			if publicPaths[r.URL.Path] || strings.HasPrefix(r.URL.Path, "/api/v1/webhooks/") {
 				next.ServeHTTP(w, r)
 				return
 			}

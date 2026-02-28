@@ -14,34 +14,33 @@ import (
 )
 
 // Scanner runs syft against an OCI registry to produce CycloneDX JSON SBOMs.
+// It is stateless; registry address and insecure flag are provided per-request.
 type Scanner struct {
-	registryAddr string
-	insecure     bool
-	logger       *slog.Logger
+	logger *slog.Logger
 }
 
 // ScanRequest identifies an OCI image to scan.
 type ScanRequest struct {
-	Repository string
-	Digest     string
-	Tag        string // optional, for logging
+	RegistryURL  string // e.g. "zot:5000"
+	Insecure     bool
+	Repository   string
+	Digest       string
+	Tag          string // optional, for logging
+	Architecture string // e.g. "amd64"; resolved from index entry during catalog walk
+	BuildDate    string // org.opencontainers.image.created from manifest annotations
 }
 
-// NewScanner creates a Scanner using the given registry address and insecure flag.
-func NewScanner(registryAddr string, insecure bool, logger *slog.Logger) *Scanner {
-	return &Scanner{
-		registryAddr: registryAddr,
-		insecure:     insecure,
-		logger:       logger,
-	}
+// NewScanner creates a stateless Scanner.
+func NewScanner(logger *slog.Logger) *Scanner {
+	return &Scanner{logger: logger}
 }
 
 // Scan runs syft against the image identified by req and returns CycloneDX JSON.
 func (s *Scanner) Scan(ctx context.Context, req ScanRequest) ([]byte, error) {
-	ref := fmt.Sprintf("%s/%s@%s", s.registryAddr, req.Repository, req.Digest)
+	ref := fmt.Sprintf("%s/%s@%s", req.RegistryURL, req.Repository, req.Digest)
 	s.logger.Info("scanning image", "ref", ref, "tag", req.Tag)
 
-	regOpts := &image.RegistryOptions{InsecureUseHTTP: s.insecure}
+	regOpts := &image.RegistryOptions{InsecureUseHTTP: req.Insecure}
 	srcCfg := syft.DefaultGetSourceConfig().
 		WithSources("registry").
 		WithRegistryOptions(regOpts)

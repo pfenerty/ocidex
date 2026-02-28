@@ -15,39 +15,39 @@ type DBPinger interface {
 	Ping(ctx context.Context) error
 }
 
-// ScanSubmitter is implemented by *scanner.Dispatcher.
+// ScanSubmitter is implemented by *scanner.Dispatcher and *scanner.NATSSubmitter.
 type ScanSubmitter interface {
 	Submit(req scanner.ScanRequest)
 }
 
 // Handler holds dependencies for HTTP handlers.
 type Handler struct {
-	sbomService       service.SBOMService
-	searchService     service.SearchService
-	authService       service.AuthService
-	db                DBPinger
-	api               huma.API
-	scannerDispatcher ScanSubmitter
-	webhookSecret     string
-	cfg               *config.Config
-	stateCookie       *securecookie.SecureCookie
+	sbomService     service.SBOMService
+	searchService   service.SearchService
+	authService     service.AuthService
+	registryService service.RegistryService
+	db              DBPinger
+	api             huma.API
+	scanSubmitter   ScanSubmitter
+	cfg             *config.Config
+	stateCookie     *securecookie.SecureCookie
 }
 
 // NewHandler creates a new Handler with the given dependencies.
-func NewHandler(sbomSvc service.SBOMService, searchSvc service.SearchService, authSvc service.AuthService, db DBPinger, sc ScanSubmitter, webhookSecret string, cfg *config.Config) *Handler {
+func NewHandler(sbomSvc service.SBOMService, searchSvc service.SearchService, authSvc service.AuthService, registrySvc service.RegistryService, db DBPinger, sc ScanSubmitter, cfg *config.Config) *Handler {
 	var sc2 *securecookie.SecureCookie
 	if cfg != nil {
 		sc2 = securecookie.New([]byte(cfg.SessionSecret), nil)
 	}
 	return &Handler{
-		sbomService:       sbomSvc,
-		searchService:     searchSvc,
-		authService:       authSvc,
-		db:                db,
-		scannerDispatcher: sc,
-		webhookSecret:     webhookSecret,
-		cfg:               cfg,
-		stateCookie:       sc2,
+		sbomService:     sbomSvc,
+		searchService:   searchSvc,
+		authService:     authSvc,
+		registryService: registrySvc,
+		db:              db,
+		scanSubmitter:   sc,
+		cfg:             cfg,
+		stateCookie:     sc2,
 	}
 }
 

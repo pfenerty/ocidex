@@ -298,6 +298,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/registries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List registries */
+        get: operations["list-registries"];
+        put?: never;
+        /** Create a registry */
+        post: operations["create-registry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/registries/test-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test registry connectivity
+         * @description Probes the registry's /v2/ endpoint and reports whether it is reachable.
+         */
+        post: operations["test-registry-connection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/registries/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a registry */
+        get: operations["get-registry"];
+        /** Update a registry */
+        put: operations["update-registry"];
+        post?: never;
+        /** Delete a registry */
+        delete: operations["delete-registry"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/registries/{id}/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trigger ad-hoc registry scan
+         * @description Walks the registry catalog, filters by configured patterns, and queues scan requests for all matching images.
+         */
+        post: operations["scan-registry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sbom": {
         parameters: {
             query?: never;
@@ -439,7 +516,7 @@ export interface paths {
         patch: operations["update-user-role"];
         trace?: never;
     };
-    "/api/v1/webhooks/zot": {
+    "/api/v1/webhooks/{registryID}": {
         parameters: {
             query?: never;
             header?: never;
@@ -448,8 +525,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Receive Zot registry push notifications */
-        post: operations["zot-webhook"];
+        /** Receive registry push notifications */
+        post: operations["registry-webhook"];
         delete?: never;
         options?: never;
         head?: never;
@@ -663,6 +740,31 @@ export interface components {
             readonly $schema?: string;
             /** @description Full API key — shown once, store securely */
             key: string;
+        };
+        CreateRegistryInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/CreateRegistryInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Allow HTTP (non-TLS) connections */
+            insecure: boolean;
+            /** @description Human-readable registry name */
+            name: string;
+            /** @description Glob patterns for repositories to ingest; empty = all */
+            repository_patterns?: string[] | null;
+            /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
+            tag_patterns?: string[] | null;
+            /**
+             * @description Registry type
+             * @enum {string}
+             */
+            type: "zot" | "harbor" | "docker" | "generic";
+            /** @description Registry address (e.g. zot:5000) */
+            url: string;
+            /** @description Bearer token required on incoming webhooks; omit to disable auth */
+            webhook_secret?: string;
         };
         DailyCountEntry: {
             /** Format: int64 */
@@ -907,6 +1009,15 @@ export interface components {
             data: components["schemas"]["LicenseCount"][] | null;
             pagination: components["schemas"]["PaginationMeta"];
         };
+        ListRegistriesOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListRegistriesOutputBody.json
+             */
+            readonly $schema?: string;
+            registries: components["schemas"]["RegistryResponse"][] | null;
+        };
         ListSBOMComponentsOutputBody: {
             /**
              * Format: uri
@@ -1004,6 +1115,41 @@ export interface components {
              */
             status: string;
         };
+        RegistryResponse: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/RegistryResponse.json
+             */
+            readonly $schema?: string;
+            created_at: string;
+            enabled: boolean;
+            has_secret: boolean;
+            id: string;
+            insecure: boolean;
+            name: string;
+            /** @description Glob patterns for repositories to ingest; empty = all */
+            repository_patterns: string[] | null;
+            /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
+            tag_patterns: string[] | null;
+            type: string;
+            updated_at: string;
+            url: string;
+            webhook_path: string;
+        };
+        RegistryWebhookInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/RegistryWebhookInputBody.json
+             */
+            readonly $schema?: string;
+            digest: string;
+            manifest: string;
+            mediaType: string;
+            name: string;
+            reference: string;
+        };
         SBOMDetail: {
             /**
              * Format: uri
@@ -1057,6 +1203,16 @@ export interface components {
             /** Format: int32 */
             version: number;
         };
+        ScanRegistryOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ScanRegistryOutputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Confirmation that ad-hoc scan has been initiated */
+            message: string;
+        };
         ScannerStatus: {
             enabled: boolean;
         };
@@ -1090,6 +1246,47 @@ export interface components {
             enrichment: components["schemas"]["EnrichmentStatus"];
             nats: components["schemas"]["NATSStatus"];
             scanner: components["schemas"]["ScannerStatus"];
+        };
+        TestRegistryConnectionInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/TestRegistryConnectionInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Use HTTP instead of HTTPS */
+            insecure: boolean;
+            /** @description Registry address (e.g. zot:5000) */
+            url: string;
+        };
+        TestRegistryConnectionOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/TestRegistryConnectionOutputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Human-readable result (e.g. HTTP 200 or error text) */
+            message: string;
+            /** @description Whether the registry responded */
+            reachable: boolean;
+        };
+        UpdateRegistryInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/UpdateRegistryInputBody.json
+             */
+            readonly $schema?: string;
+            enabled: boolean;
+            insecure: boolean;
+            name: string;
+            repository_patterns?: string[] | null;
+            tag_patterns?: string[] | null;
+            /** @enum {string} */
+            type: "zot" | "harbor" | "docker" | "generic";
+            url: string;
+            webhook_secret?: string;
         };
         UpdateUserRoleInputBody: {
             /**
@@ -1127,19 +1324,6 @@ export interface components {
              * @example v1
              */
             version: string;
-        };
-        ZotEvent: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/ZotEvent.json
-             */
-            readonly $schema?: string;
-            digest: string;
-            manifest: string;
-            mediaType: string;
-            name: string;
-            reference: string;
         };
     };
     responses: never;
@@ -1730,6 +1914,203 @@ export interface operations {
             };
         };
     };
+    "list-registries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["ListRegistriesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "create-registry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRegistryInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["RegistryResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "test-registry-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestRegistryConnectionInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["TestRegistryConnectionOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-registry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Registry UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["RegistryResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-registry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Registry UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRegistryInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["RegistryResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "delete-registry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Registry UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: Record<string, unknown>;
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "scan-registry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Registry UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/json": components["schemas"]["ScanRegistryOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: Record<string, unknown>;
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "list-sboms": {
         parameters: {
             query?: {
@@ -1766,7 +2147,14 @@ export interface operations {
     };
     "ingest-sbom": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Image version/tag (overrides BOM-extracted value for subject_version and imageVersion) */
+                version?: string;
+                /** @description Image architecture (e.g. amd64, arm64) */
+                architecture?: string;
+                /** @description Image build date (RFC3339 or date string) */
+                build_date?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2021,18 +2409,21 @@ export interface operations {
             };
         };
     };
-    "zot-webhook": {
+    "registry-webhook": {
         parameters: {
             query?: never;
             header?: {
                 Authorization?: string;
             };
-            path?: never;
+            path: {
+                /** @description Registry UUID */
+                registryID: string;
+            };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ZotEvent"];
+                "application/json": components["schemas"]["RegistryWebhookInputBody"];
             };
         };
         responses: {

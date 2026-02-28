@@ -64,6 +64,16 @@ type ArtifactRepository interface {
 	DeleteArtifact(ctx context.Context, id pgtype.UUID) (int64, error)
 }
 
+// RegistryRepository defines data access methods for registry management.
+type RegistryRepository interface {
+	CreateRegistry(ctx context.Context, arg CreateRegistryParams) (Registry, error)
+	GetRegistry(ctx context.Context, id pgtype.UUID) (Registry, error)
+	ListRegistries(ctx context.Context) ([]Registry, error)
+	UpdateRegistry(ctx context.Context, arg UpdateRegistryParams) (Registry, error)
+	SetRegistryEnabled(ctx context.Context, arg SetRegistryEnabledParams) (Registry, error)
+	DeleteRegistry(ctx context.Context, id pgtype.UUID) (int64, error)
+}
+
 // AuthRepository defines data access methods for authentication and authorization.
 type AuthRepository interface {
 	UpsertUser(ctx context.Context, arg UpsertUserParams) (OcidexUser, error)

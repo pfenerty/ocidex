@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -92,14 +93,30 @@ func run() error {
 	bus := event.NewBus(logger)
 	registry := extension.NewRegistry(bus, logger)
 
-	var ociOpts []oci.Option
-	if cfg.ZotRegistryInsecure {
-		ociOpts = append(ociOpts, oci.WithInsecure())
+	// Registry service must be created before OCI enricher/validator so the
+	// insecure resolver closure can look up per-registry HTTP settings.
+	registrySvc := service.NewRegistryService(pool)
+	insecureResolver := func(host string) bool {
+		regs, err := registrySvc.List(context.Background())
+		if err != nil {
+			return false
+		}
+		for _, r := range regs {
+			regHost := r.URL
+			if i := strings.Index(regHost, "://"); i != -1 {
+				regHost = regHost[i+3:]
+			}
+			regHost = strings.TrimSuffix(regHost, "/")
+			if regHost == host && r.Insecure {
+				return true
+			}
+		}
+		return false
 	}
 
 	if cfg.EnrichmentEnabled {
 		enrichStore := repository.New(pool)
-		ociEnricher := oci.NewEnricher(ociOpts...)
+		ociEnricher := oci.NewEnricher(oci.WithInsecureResolver(insecureResolver))
 		dispatcher := enrichment.NewDispatcher(
 			enrichStore,
 			[]enrichment.Enricher{ociEnricher},
@@ -121,26 +138,34 @@ func run() error {
 		registry.Register(natspkg.NewRelayExtension(natsClient, logger))
 	}
 
-	// Wire core services (scanner extension depends on sbomSvc).
-	ociValidator := oci.NewValidator(ociOpts...)
+	// Wire core services.
+	ociValidator := oci.NewValidator(oci.WithInsecureResolver(insecureResolver))
 	sbomSvc := service.NewSBOMService(pool, bus, ociValidator)
 	searchSvc := service.NewSearchService(pool)
 	authSvc := service.NewAuthService(pool, cfg)
 
-	var scanDispatcher *scanner.Dispatcher
+	var scanSubmitter api.ScanSubmitter
 	if cfg.ScannerEnabled {
 		// Use nil validator: webhook confirms image exists at a known digest.
 		scannerSbomSvc := service.NewSBOMService(pool, bus, nil)
-		sc := scanner.NewScanner(cfg.ZotRegistryAddr, cfg.ZotRegistryInsecure, logger)
-		scanDispatcher = scanner.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerWorkers, cfg.ScannerQueueSize, logger)
-		registry.Register(scanner.NewExtension(scanDispatcher))
+		sc := scanner.NewScanner(logger)
+
+		if cfg.NATSEnabled && cfg.ScannerNATSMode {
+			// External workers consume from NATS — main process only publishes.
+			scanSubmitter = scanner.NewNATSSubmitter(natsClient, logger)
+		} else {
+			// In-process mode.
+			scanDispatcher := scanner.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerWorkers, cfg.ScannerQueueSize, logger)
+			registry.Register(scanner.NewExtension(scanDispatcher))
+			scanSubmitter = scanDispatcher
+		}
 	}
 
 	if err := registry.InitAll(); err != nil {
 		return fmt.Errorf("initializing extensions: %w", err)
 	}
 
-	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, pool, scanDispatcher, cfg.ZotWebhookSecret, cfg)
+	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, pool, scanSubmitter, cfg)
 	router := api.NewRouter(handler, cfg.CORSAllowedOrigins)
 
 	// Start extensions.

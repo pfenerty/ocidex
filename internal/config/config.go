@@ -37,13 +37,13 @@ type Config struct {
 	SessionSecret      string `env:"SESSION_SECRET,required"`
 	SessionMaxAgeDays  int    `env:"SESSION_MAX_AGE_DAYS" envDefault:"7"`
 
-	// Scanner (OCI registry auto-scan via Zot webhook).
-	ScannerEnabled      bool   `env:"SCANNER_ENABLED"    envDefault:"false"`
-	ScannerWorkers      int    `env:"SCANNER_WORKERS"    envDefault:"2"`
-	ScannerQueueSize    int    `env:"SCANNER_QUEUE_SIZE" envDefault:"50"`
-	ZotRegistryAddr     string `env:"ZOT_REGISTRY_ADDR"     envDefault:"zot:5000"`
-	ZotRegistryInsecure bool   `env:"ZOT_REGISTRY_INSECURE" envDefault:"false"`
-	ZotWebhookSecret    string `env:"ZOT_WEBHOOK_SECRET"`
+	// Scanner (OCI registry auto-scan via webhook).
+	ScannerEnabled      bool `env:"SCANNER_ENABLED"      envDefault:"false"`
+	ScannerWorkers      int  `env:"SCANNER_WORKERS"      envDefault:"2"`
+	ScannerQueueSize    int  `env:"SCANNER_QUEUE_SIZE"   envDefault:"50"`
+	// ScannerNATSMode routes scan submissions to NATS instead of in-process workers.
+	// Requires NATS_ENABLED=true. Run cmd/scanner-worker separately when true.
+	ScannerNATSMode     bool `env:"SCANNER_NATS_MODE"    envDefault:"false"`
 }
 
 // Load reads configuration from environment variables.

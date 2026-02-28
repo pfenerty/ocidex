@@ -7,6 +7,8 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/pfenerty/ocidex/internal/service"
 )
 
 // IngestSBOM accepts a CycloneDX JSON SBOM, validates it, and persists it.
@@ -21,7 +23,11 @@ func (h *Handler) IngestSBOM(ctx context.Context, input *IngestSBOMInput) (*Inge
 		return nil, huma.Error422UnprocessableEntity("validation failed", details...)
 	}
 
-	sbomID, err := h.sbomService.Ingest(ctx, bom, input.RawBody)
+	sbomID, err := h.sbomService.Ingest(ctx, bom, input.RawBody, service.IngestParams{
+		Version:      input.Version,
+		Architecture: input.Architecture,
+		BuildDate:    input.BuildDate,
+	})
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

@@ -53,6 +53,7 @@ export default function App() {
                 <Route path="/diff" component={Diff} />
                 <Route path="/admin" component={Admin} />
                 <Route path="/admin/keys" component={Admin} />
+                <Route path="/admin/registries" component={Admin} />
                 <Route path="/admin/status" component={Admin} />
                 <Route path="/login" component={Login} />
                 <Route path="*404" component={NotFound} />

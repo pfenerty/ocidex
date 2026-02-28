@@ -1,5 +1,6 @@
 import { For, Show, createSignal } from "solid-js";
 import { useLocation, A } from "@solidjs/router";
+import { copyText } from "~/utils/clipboard";
 import { useAuth } from "~/context/auth";
 import { useToast } from "~/context/toast";
 import { Loading, ErrorBox } from "~/components/Feedback";
@@ -10,6 +11,12 @@ import {
     useCreateAPIKey,
     useDeleteAPIKey,
     useGetSystemStatus,
+    useListRegistries,
+    useCreateRegistry,
+    useUpdateRegistry,
+    useDeleteRegistry,
+    useTestRegistryConnection,
+    useScanRegistry,
 } from "~/api/queries";
 
 // ---------------------------------------------------------------------------
@@ -114,9 +121,9 @@ function APIKeysTab() {
                     </code>
                     <div style={{ display: "flex", gap: "0.5rem" }}>
                         <button class="btn btn-primary" onClick={() => {
-                            const key = revealedKey() ?? "";
-                            void navigator.clipboard.writeText(key);
-                            toast("Copied to clipboard", "success");
+                            void copyText(revealedKey() ?? "").then(() => {
+                                toast("Copied to clipboard", "success");
+                            });
                         }}>
                             Copy
                         </button>
@@ -244,15 +251,343 @@ function StatusTab() {
 }
 
 // ---------------------------------------------------------------------------
+// Registries Tab
+// ---------------------------------------------------------------------------
+
+type RegType = "zot" | "harbor" | "docker" | "generic";
+
+interface RegistryFormState {
+    name: string;
+    type: RegType;
+    url: string;
+    insecure: boolean;
+    webhookSecret: string;
+    repositoryPatterns: string; // newline-separated
+    tagPatterns: string;        // newline-separated
+}
+
+const emptyForm = (): RegistryFormState => ({
+    name: "",
+    type: "generic",
+    url: "",
+    insecure: false,
+    webhookSecret: "",
+    repositoryPatterns: "",
+    tagPatterns: "",
+});
+
+function toPatternArray(s: string): string[] {
+    return s.split("\n").map(p => p.trim()).filter(p => p !== "");
+}
+
+function RegistriesTab() {
+    const query = useListRegistries();
+    const createReg = useCreateRegistry();
+    const updateReg = useUpdateRegistry();
+    const deleteReg = useDeleteRegistry();
+    const testConn = useTestRegistryConnection();
+    const scanReg = useScanRegistry();
+    const toast = useToast();
+
+    const [form, setForm] = createSignal<RegistryFormState>(emptyForm());
+    const [testResult, setTestResult] = createSignal<{ reachable: boolean; message: string } | null>(null);
+    const [editingID, setEditingID] = createSignal<string | null>(null);
+    const [editEnabled, setEditEnabled] = createSignal(true);
+    const [showForm, setShowForm] = createSignal(false);
+
+    function resetForm() {
+        setForm(emptyForm());
+        setEditingID(null);
+        setEditEnabled(true);
+        setShowForm(false);
+        setTestResult(null);
+    }
+
+    function startEdit(reg: { id: string; name: string; type: string; url: string; insecure: boolean; has_secret: boolean; enabled: boolean; repository_patterns?: string[] | null; tag_patterns?: string[] | null }) {
+        setEditingID(reg.id);
+        setEditEnabled(reg.enabled);
+        setForm({
+            name: reg.name,
+            type: reg.type as RegType,
+            url: reg.url,
+            insecure: reg.insecure,
+            webhookSecret: "",
+            repositoryPatterns: (reg.repository_patterns ?? []).join("\n"),
+            tagPatterns: (reg.tag_patterns ?? []).join("\n"),
+        });
+        setShowForm(true);
+    }
+
+    function handleSubmit(e: Event) {
+        e.preventDefault();
+        const f = form();
+        const secret = f.webhookSecret.trim() || undefined;
+
+        const repoPats = toPatternArray(f.repositoryPatterns);
+        const tagPats = toPatternArray(f.tagPatterns);
+
+        const currentID = editingID();
+        if (currentID !== null) {
+            updateReg.mutate(
+                { id: currentID, name: f.name, type: f.type, url: f.url, insecure: f.insecure, webhook_secret: secret, enabled: editEnabled(), repository_patterns: repoPats, tag_patterns: tagPats },
+                {
+                    onSuccess: () => { toast("Registry updated", "success"); resetForm(); },
+                    onError: () => toast("Failed to update registry", "error"),
+                }
+            );
+        } else {
+            createReg.mutate(
+                { name: f.name, type: f.type, url: f.url, insecure: f.insecure, webhook_secret: secret, repository_patterns: repoPats, tag_patterns: tagPats },
+                {
+                    onSuccess: () => { toast("Registry created", "success"); resetForm(); },
+                    onError: () => toast("Failed to create registry", "error"),
+                }
+            );
+        }
+    }
+
+    function copyWebhookURL(path: string) {
+        void copyText(window.location.origin + path).then(() => {
+            toast("Webhook URL copied", "success");
+        });
+    }
+
+    return (
+        <>
+            <Show when={showForm()}>
+                <div class="card" style={{ "margin-bottom": "1rem" }}>
+                    <div class="card-header">
+                        <h3>{editingID() !== null ? "Edit Registry" : "Add Registry"}</h3>
+                    </div>
+                    <form onSubmit={handleSubmit}>
+                        <div style={{ display: "grid", "grid-template-columns": "1fr 1fr", gap: "0.75rem", "margin-bottom": "0.75rem" }}>
+                            <div>
+                                <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>Name</label>
+                                <input
+                                    type="text"
+                                    value={form().name}
+                                    onInput={(e) => setForm(f => ({ ...f, name: e.currentTarget.value }))}
+                                    placeholder="my-registry"
+                                    style={{ width: "100%" }}
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>Type</label>
+                                <select
+                                    value={form().type}
+                                    onChange={(e) => setForm(f => ({ ...f, type: e.currentTarget.value as RegType }))}
+                                    style={{ width: "100%" }}
+                                >
+                                    <option value="generic">generic</option>
+                                    <option value="zot">zot</option>
+                                    <option value="harbor">harbor</option>
+                                    <option value="docker">docker</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>URL</label>
+                                <div style={{ display: "flex", gap: "0.4rem" }}>
+                                    <input
+                                        type="text"
+                                        value={form().url}
+                                        onInput={(e) => { setForm(f => ({ ...f, url: e.currentTarget.value })); setTestResult(null); }}
+                                        placeholder="registry:5000"
+                                        style={{ flex: "1" }}
+                                        required
+                                    />
+                                    <button
+                                        type="button"
+                                        class="btn"
+                                        disabled={testConn.isPending || !form().url.trim()}
+                                        onClick={() => {
+                                            setTestResult(null);
+                                            testConn.mutate(
+                                                { url: form().url.trim(), insecure: form().insecure },
+                                                { onSuccess: (data) => setTestResult(data) }
+                                            );
+                                        }}
+                                    >
+                                        {testConn.isPending ? "Testing…" : "Test"}
+                                    </button>
+                                </div>
+                                <Show when={testResult()}>
+                                    <div style={{
+                                        "margin-top": "0.3rem",
+                                        "font-size": "0.8rem",
+                                        color: testResult()?.reachable === true ? "var(--color-success)" : "var(--color-error, #e53e3e)",
+                                    }}>
+                                        {testResult()?.reachable === true ? "✓" : "✗"} {testResult()?.message}
+                                    </div>
+                                </Show>
+                            </div>
+                            <div>
+                                <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>
+                                    Webhook Secret <span style={{ color: "var(--color-text-muted)" }}>(optional)</span>
+                                </label>
+                                <input
+                                    type="password"
+                                    value={form().webhookSecret}
+                                    onInput={(e) => setForm(f => ({ ...f, webhookSecret: e.currentTarget.value }))}
+                                    placeholder={editingID() !== null ? "Leave blank to keep existing" : "Leave blank to disable auth"}
+                                    style={{ width: "100%" }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>
+                                    Repository Patterns <span style={{ color: "var(--color-text-muted)" }}>(one per line; empty = all)</span>
+                                </label>
+                                <textarea
+                                    value={form().repositoryPatterns}
+                                    onInput={(e) => setForm(f => ({ ...f, repositoryPatterns: e.currentTarget.value }))}
+                                    placeholder={"my/project/**\nmy/other/app"}
+                                    rows={3}
+                                    style={{ width: "100%", "font-family": "monospace", "font-size": "0.85rem" }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>
+                                    Tag Patterns <span style={{ color: "var(--color-text-muted)" }}>(one per line; "semver" for semantic versions; empty = all)</span>
+                                </label>
+                                <textarea
+                                    value={form().tagPatterns}
+                                    onInput={(e) => setForm(f => ({ ...f, tagPatterns: e.currentTarget.value }))}
+                                    placeholder={"semver\nlatest"}
+                                    rows={3}
+                                    style={{ width: "100%", "font-family": "monospace", "font-size": "0.85rem" }}
+                                />
+                            </div>
+                        </div>
+                        <div style={{ display: "flex", gap: "1rem", "align-items": "center", "margin-bottom": "0.75rem" }}>
+                            <label style={{ display: "flex", "align-items": "center", gap: "0.4rem", cursor: "pointer" }}>
+                                <input
+                                    type="checkbox"
+                                    checked={form().insecure}
+                                    onChange={(e) => setForm(f => ({ ...f, insecure: e.currentTarget.checked }))}
+                                />
+                                Allow insecure (HTTP)
+                            </label>
+                            <Show when={editingID() !== null}>
+                                <label style={{ display: "flex", "align-items": "center", gap: "0.4rem", cursor: "pointer" }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={editEnabled()}
+                                        onChange={(e) => setEditEnabled(e.currentTarget.checked)}
+                                    />
+                                    Enabled
+                                </label>
+                            </Show>
+                        </div>
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                            <button class="btn btn-primary" type="submit" disabled={createReg.isPending || updateReg.isPending}>
+                                {editingID() !== null ? "Save" : "Create"}
+                            </button>
+                            <button class="btn" type="button" onClick={resetForm}>
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </Show>
+
+            <Show when={!showForm()}>
+                <div style={{ "margin-bottom": "1rem" }}>
+                    <button class="btn btn-primary" onClick={() => setShowForm(true)}>
+                        Add Registry
+                    </button>
+                </div>
+            </Show>
+
+            <Show when={!query.isLoading} fallback={<Loading />}>
+                <Show when={!query.isError} fallback={<ErrorBox error={query.error} />}>
+                    <div class="card">
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>URL</th>
+                                        <th>Status</th>
+                                        <th>Webhook URL</th>
+                                        <th />
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <For each={query.data?.registries ?? []}>
+                                        {(reg) => (
+                                            <tr>
+                                                <td>{reg.name}</td>
+                                                <td><code>{reg.type}</code></td>
+                                                <td><code>{reg.url}</code></td>
+                                                <td>
+                                                    <span style={{ color: reg.enabled ? "var(--color-success)" : "var(--color-text-muted)" }}>
+                                                        {reg.enabled ? "Enabled" : "Disabled"}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <button
+                                                        class="btn"
+                                                        style={{ "font-size": "0.75rem", padding: "0.2rem 0.5rem" }}
+                                                        onClick={() => copyWebhookURL(reg.webhook_path)}
+                                                    >
+                                                        Copy URL
+                                                    </button>
+                                                </td>
+                                                <td style={{ display: "flex", gap: "0.4rem" }}>
+                                                    <button
+                                                        class="btn"
+                                                        onClick={() => startEdit(reg)}
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        class="btn"
+                                                        title="Scan all matching images in this registry"
+                                                        onClick={() => scanReg.mutate(reg.id, {
+                                                            onSuccess: (data) => toast(data.message, "success"),
+                                                            onError: () => toast("Failed to start scan", "error"),
+                                                        })}
+                                                        disabled={scanReg.isPending}
+                                                    >
+                                                        Scan
+                                                    </button>
+                                                    <button
+                                                        class="btn"
+                                                        onClick={() => deleteReg.mutate(reg.id, {
+                                                            onSuccess: () => toast("Registry deleted", "success"),
+                                                            onError: () => toast("Failed to delete registry", "error"),
+                                                        })}
+                                                        disabled={deleteReg.isPending}
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </For>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </Show>
+            </Show>
+        </>
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Admin Page
 // ---------------------------------------------------------------------------
 
 export default function Admin() {
     const location = useLocation();
+    const { user } = useAuth();
 
     const isUsersTab = () => location.pathname === "/admin";
     const isKeysTab = () => location.pathname === "/admin/keys";
     const isStatusTab = () => location.pathname === "/admin/status";
+    const isRegistriesTab = () => location.pathname === "/admin/registries";
 
     return (
         <>
@@ -290,6 +625,20 @@ export default function Admin() {
                 >
                     API Keys
                 </A>
+                <Show when={user()?.role === "admin"}>
+                    <A
+                        href="/admin/registries"
+                        style={{
+                            padding: "0.5rem 1rem",
+                            "border-bottom": isRegistriesTab() ? "2px solid var(--color-primary)" : "2px solid transparent",
+                            color: isRegistriesTab() ? "var(--color-primary)" : "inherit",
+                            "font-weight": isRegistriesTab() ? "600" : "400",
+                            "margin-bottom": "-1px",
+                        }}
+                    >
+                        Registries
+                    </A>
+                </Show>
                 <A
                     href="/admin/status"
                     style={{
@@ -309,6 +658,9 @@ export default function Admin() {
             </Show>
             <Show when={isKeysTab()}>
                 <APIKeysTab />
+            </Show>
+            <Show when={isRegistriesTab()}>
+                <RegistriesTab />
             </Show>
             <Show when={isStatusTab()}>
                 <StatusTab />

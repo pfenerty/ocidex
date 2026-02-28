@@ -33,11 +33,18 @@ func NewDispatcher(sc *Scanner, sbomSvc service.SBOMService, workers, queueSize 
 
 // Submit enqueues a scan request. Non-blocking; drops and warns if the queue is full.
 func (d *Dispatcher) Submit(req ScanRequest) {
+	d.SubmitWithResult(req)
+}
+
+// SubmitWithResult enqueues a scan request and returns true if accepted, false if queue is full.
+func (d *Dispatcher) SubmitWithResult(req ScanRequest) bool {
 	select {
 	case d.queue <- req:
 		d.logger.Debug("scan queued", "repo", req.Repository, "digest", req.Digest)
+		return true
 	default:
 		d.logger.Warn("scan queue full, dropping request", "repo", req.Repository, "digest", req.Digest)
+		return false
 	}
 }
 
@@ -83,7 +90,11 @@ func (d *Dispatcher) process(ctx context.Context, req ScanRequest) {
 		return
 	}
 
-	if _, err := d.sbomSvc.Ingest(ctx, bom, raw); err != nil {
+	if _, err := d.sbomSvc.Ingest(ctx, bom, raw, service.IngestParams{
+		Version:      req.Tag,
+		Architecture: req.Architecture,
+		BuildDate:    req.BuildDate,
+	}); err != nil {
 		d.logger.Error("failed to ingest scanned SBOM", "repo", req.Repository, "digest", req.Digest, "err", err)
 		return
 	}

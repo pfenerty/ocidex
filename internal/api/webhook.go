@@ -9,35 +9,30 @@ import (
 	"github.com/pfenerty/ocidex/internal/scanner"
 )
 
-// zotEvent is the payload Zot sends for image push/update events.
-type zotEvent struct {
-	Name      string `json:"name"`
-	Reference string `json:"reference"`
-	Digest    string `json:"digest"`
-	MediaType string `json:"mediaType"`
-	Manifest  string `json:"manifest"`
-}
+// HandleRegistryWebhook receives push notifications from a configured registry.
+func (h *Handler) HandleRegistryWebhook(ctx context.Context, in *RegistryWebhookInput) (*struct{}, error) {
+	if h.registryService == nil {
+		return nil, huma.Error503ServiceUnavailable("registry service not configured")
+	}
 
-// ZotWebhookInput is the huma input type for the Zot webhook handler.
-type ZotWebhookInput struct {
-	Authorization string `header:"Authorization"`
-	Body          zotEvent
-}
+	reg, err := h.registryService.Get(ctx, in.RegistryID)
+	if err != nil {
+		return nil, huma.Error404NotFound("registry not found")
+	}
 
-// HandleZotWebhook receives Zot registry push notifications.
-func (h *Handler) HandleZotWebhook(ctx context.Context, in *ZotWebhookInput) (*struct{}, error) {
-	// Validate bearer token if a secret is configured.
-	if h.webhookSecret != "" {
+	if !reg.Enabled {
+		return nil, huma.Error503ServiceUnavailable("registry disabled")
+	}
+
+	if reg.WebhookSecret != nil && *reg.WebhookSecret != "" {
 		token := strings.TrimPrefix(in.Authorization, "Bearer ")
-		if token != h.webhookSecret {
+		if token != *reg.WebhookSecret {
 			return nil, huma.Error401Unauthorized("invalid webhook secret")
 		}
 	}
 
-	ev := in.Body
-
 	// Only scan standard image manifests; skip indexes, attestations, and other artifact types.
-	switch ev.MediaType {
+	switch in.Body.MediaType {
 	case "application/vnd.oci.image.manifest.v1+json",
 		"application/vnd.docker.distribution.manifest.v2+json":
 		// scannable
@@ -45,14 +40,21 @@ func (h *Handler) HandleZotWebhook(ctx context.Context, in *ZotWebhookInput) (*s
 		return nil, nil
 	}
 
-	if h.scannerDispatcher == nil {
+	// Apply registry-level ingestion filters.
+	if !reg.MatchesImage(in.Body.Name, in.Body.Reference) {
+		return nil, nil
+	}
+
+	if h.scanSubmitter == nil {
 		return nil, huma.Error503ServiceUnavailable("scanner not enabled")
 	}
 
-	h.scannerDispatcher.Submit(scanner.ScanRequest{
-		Repository: ev.Name,
-		Digest:     ev.Digest,
-		Tag:        ev.Reference,
+	h.scanSubmitter.Submit(scanner.ScanRequest{
+		RegistryURL: reg.URL,
+		Insecure:    reg.Insecure,
+		Repository:  in.Body.Name,
+		Digest:      in.Body.Digest,
+		Tag:         in.Body.Reference,
 	})
 
 	return nil, nil
