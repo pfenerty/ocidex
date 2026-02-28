@@ -25,9 +25,18 @@ type Registry struct {
 	Enabled            bool
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
-	RepositoryPatterns []string // glob patterns; empty = accept all
-	TagPatterns        []string // glob patterns or "semver"; empty = accept all
+	RepositoryPatterns []string   // glob patterns; empty = accept all
+	TagPatterns        []string   // glob patterns or "semver"; empty = accept all
+	ScanMode           string     // "webhook" | "poll" | "both"
+	PollIntervalMinutes int
+	LastPolledAt       *time.Time // nil if never polled
 }
+
+// AcceptsWebhooks returns true if the registry should process incoming webhooks.
+func (r Registry) AcceptsWebhooks() bool { return r.ScanMode == "webhook" || r.ScanMode == "both" }
+
+// NeedsPolling returns true if the registry should be periodically polled.
+func (r Registry) NeedsPolling() bool { return r.ScanMode == "poll" || r.ScanMode == "both" }
 
 // MatchesRepository returns true if repo matches the registry's configured
 // repository patterns. An empty pattern list accepts everything.
@@ -88,12 +97,14 @@ func matchGlob(pattern, s string) bool {
 
 // RegistryService manages registry configuration.
 type RegistryService interface {
-	Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositoryPatterns, tagPatterns []string) (Registry, error)
+	Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int) (Registry, error)
 	Get(ctx context.Context, id string) (Registry, error)
 	List(ctx context.Context) ([]Registry, error)
-	Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositoryPatterns, tagPatterns []string) (Registry, error)
+	Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int) (Registry, error)
 	SetEnabled(ctx context.Context, id string, enabled bool) (Registry, error)
 	Delete(ctx context.Context, id string) error
+	ListPollable(ctx context.Context) ([]Registry, error)
+	MarkPolled(ctx context.Context, id string) (Registry, error)
 }
 
 type registryService struct {
@@ -109,15 +120,17 @@ func NewRegistryService(pool *pgxpool.Pool) RegistryService {
 	}
 }
 
-func (s *registryService) Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositoryPatterns, tagPatterns []string) (Registry, error) {
+func (s *registryService) Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int) (Registry, error) {
 	r, err := s.repo.CreateRegistry(ctx, repository.CreateRegistryParams{
-		Name:               name,
-		Type:               regType,
-		Url:                url,
-		Insecure:           insecure,
-		WebhookSecret:      toNullText(webhookSecret),
-		RepositoryPatterns: nonEmpty(repositoryPatterns),
-		TagPatterns:        nonEmpty(tagPatterns),
+		Name:                name,
+		Type:                regType,
+		Url:                 url,
+		Insecure:            insecure,
+		WebhookSecret:       toNullText(webhookSecret),
+		RepositoryPatterns:  nonEmpty(repositoryPatterns),
+		TagPatterns:         nonEmpty(tagPatterns),
+		ScanMode:            scanMode,
+		PollIntervalMinutes: int32(pollIntervalMinutes),
 	})
 	if err != nil {
 		return Registry{}, fmt.Errorf("creating registry: %w", err)
@@ -149,24 +162,50 @@ func (s *registryService) List(ctx context.Context) ([]Registry, error) {
 	return out, nil
 }
 
-func (s *registryService) Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositoryPatterns, tagPatterns []string) (Registry, error) {
+func (s *registryService) Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int) (Registry, error) {
 	uid, err := parseRegistryUUID(id)
 	if err != nil {
 		return Registry{}, ErrNotFound
 	}
 	r, err := s.repo.UpdateRegistry(ctx, repository.UpdateRegistryParams{
-		ID:                 uid,
-		Name:               name,
-		Type:               regType,
-		Url:                url,
-		Insecure:           insecure,
-		WebhookSecret:      toNullText(webhookSecret),
-		Enabled:            enabled,
-		RepositoryPatterns: nonEmpty(repositoryPatterns),
-		TagPatterns:        nonEmpty(tagPatterns),
+		ID:                  uid,
+		Name:                name,
+		Type:                regType,
+		Url:                 url,
+		Insecure:            insecure,
+		WebhookSecret:       toNullText(webhookSecret),
+		Enabled:             enabled,
+		RepositoryPatterns:  nonEmpty(repositoryPatterns),
+		TagPatterns:         nonEmpty(tagPatterns),
+		ScanMode:            scanMode,
+		PollIntervalMinutes: int32(pollIntervalMinutes),
 	})
 	if err != nil {
 		return Registry{}, fmt.Errorf("updating registry: %w", err)
+	}
+	return fromRepo(r), nil
+}
+
+func (s *registryService) ListPollable(ctx context.Context) ([]Registry, error) {
+	rows, err := s.repo.ListPollableRegistries(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("listing pollable registries: %w", err)
+	}
+	out := make([]Registry, len(rows))
+	for i, r := range rows {
+		out[i] = fromRepo(r)
+	}
+	return out, nil
+}
+
+func (s *registryService) MarkPolled(ctx context.Context, id string) (Registry, error) {
+	uid, err := parseRegistryUUID(id)
+	if err != nil {
+		return Registry{}, ErrNotFound
+	}
+	r, err := s.repo.UpdateRegistryLastPolled(ctx, uid)
+	if err != nil {
+		return Registry{}, fmt.Errorf("marking registry polled: %w", err)
 	}
 	return fromRepo(r), nil
 }
@@ -203,20 +242,26 @@ func (s *registryService) Delete(ctx context.Context, id string) error {
 
 func fromRepo(r repository.Registry) Registry {
 	out := Registry{
-		ID:                 uuidToStr(r.ID),
-		Name:               r.Name,
-		Type:               r.Type,
-		URL:                r.Url,
-		Insecure:           r.Insecure,
-		Enabled:            r.Enabled,
-		CreatedAt:          r.CreatedAt.Time,
-		UpdatedAt:          r.UpdatedAt.Time,
-		RepositoryPatterns: r.RepositoryPatterns,
-		TagPatterns:        r.TagPatterns,
+		ID:                  uuidToStr(r.ID),
+		Name:                r.Name,
+		Type:                r.Type,
+		URL:                 r.Url,
+		Insecure:            r.Insecure,
+		Enabled:             r.Enabled,
+		CreatedAt:           r.CreatedAt.Time,
+		UpdatedAt:           r.UpdatedAt.Time,
+		RepositoryPatterns:  r.RepositoryPatterns,
+		TagPatterns:         r.TagPatterns,
+		ScanMode:            r.ScanMode,
+		PollIntervalMinutes: int(r.PollIntervalMinutes),
 	}
 	if r.WebhookSecret.Valid {
 		s := r.WebhookSecret.String
 		out.WebhookSecret = &s
+	}
+	if r.LastPolledAt.Valid {
+		t := r.LastPolledAt.Time
+		out.LastPolledAt = &t
 	}
 	return out
 }

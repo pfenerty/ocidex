@@ -255,6 +255,7 @@ function StatusTab() {
 // ---------------------------------------------------------------------------
 
 type RegType = "zot" | "harbor" | "docker" | "generic";
+type ScanMode = "webhook" | "poll" | "both";
 
 interface RegistryFormState {
     name: string;
@@ -264,6 +265,8 @@ interface RegistryFormState {
     webhookSecret: string;
     repositoryPatterns: string; // newline-separated
     tagPatterns: string;        // newline-separated
+    scanMode: ScanMode;
+    pollIntervalMinutes: number;
 }
 
 const emptyForm = (): RegistryFormState => ({
@@ -274,6 +277,8 @@ const emptyForm = (): RegistryFormState => ({
     webhookSecret: "",
     repositoryPatterns: "",
     tagPatterns: "",
+    scanMode: "webhook",
+    pollIntervalMinutes: 60,
 });
 
 function toPatternArray(s: string): string[] {
@@ -303,7 +308,7 @@ function RegistriesTab() {
         setTestResult(null);
     }
 
-    function startEdit(reg: { id: string; name: string; type: string; url: string; insecure: boolean; has_secret: boolean; enabled: boolean; repository_patterns?: string[] | null; tag_patterns?: string[] | null }) {
+    function startEdit(reg: { id: string; name: string; type: string; url: string; insecure: boolean; has_secret: boolean; enabled: boolean; repository_patterns?: string[] | null; tag_patterns?: string[] | null; scan_mode?: string; poll_interval_minutes?: number }) {
         setEditingID(reg.id);
         setEditEnabled(reg.enabled);
         setForm({
@@ -314,6 +319,8 @@ function RegistriesTab() {
             webhookSecret: "",
             repositoryPatterns: (reg.repository_patterns ?? []).join("\n"),
             tagPatterns: (reg.tag_patterns ?? []).join("\n"),
+            scanMode: (reg.scan_mode ?? "webhook") as ScanMode,
+            pollIntervalMinutes: reg.poll_interval_minutes ?? 60,
         });
         setShowForm(true);
     }
@@ -329,7 +336,7 @@ function RegistriesTab() {
         const currentID = editingID();
         if (currentID !== null) {
             updateReg.mutate(
-                { id: currentID, name: f.name, type: f.type, url: f.url, insecure: f.insecure, webhook_secret: secret, enabled: editEnabled(), repository_patterns: repoPats, tag_patterns: tagPats },
+                { id: currentID, name: f.name, type: f.type, url: f.url, insecure: f.insecure, webhook_secret: secret, enabled: editEnabled(), repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes },
                 {
                     onSuccess: () => { toast("Registry updated", "success"); resetForm(); },
                     onError: () => toast("Failed to update registry", "error"),
@@ -337,7 +344,7 @@ function RegistriesTab() {
             );
         } else {
             createReg.mutate(
-                { name: f.name, type: f.type, url: f.url, insecure: f.insecure, webhook_secret: secret, repository_patterns: repoPats, tag_patterns: tagPats },
+                { name: f.name, type: f.type, url: f.url, insecure: f.insecure, webhook_secret: secret, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes },
                 {
                     onSuccess: () => { toast("Registry created", "success"); resetForm(); },
                     onError: () => toast("Failed to create registry", "error"),
@@ -457,6 +464,30 @@ function RegistriesTab() {
                                     style={{ width: "100%", "font-family": "monospace", "font-size": "0.85rem" }}
                                 />
                             </div>
+                            <div>
+                                <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>Scan Mode</label>
+                                <select
+                                    value={form().scanMode}
+                                    onChange={(e) => setForm(f => ({ ...f, scanMode: e.currentTarget.value as ScanMode }))}
+                                    style={{ width: "100%" }}
+                                >
+                                    <option value="webhook">webhook</option>
+                                    <option value="poll">poll</option>
+                                    <option value="both">both</option>
+                                </select>
+                            </div>
+                            <Show when={form().scanMode !== "webhook"}>
+                                <div>
+                                    <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>Poll Interval (minutes)</label>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        value={form().pollIntervalMinutes}
+                                        onInput={(e) => setForm(f => ({ ...f, pollIntervalMinutes: parseInt(e.currentTarget.value, 10) || 60 }))}
+                                        style={{ width: "100%" }}
+                                    />
+                                </div>
+                            </Show>
                         </div>
                         <div style={{ display: "flex", gap: "1rem", "align-items": "center", "margin-bottom": "0.75rem" }}>
                             <label style={{ display: "flex", "align-items": "center", gap: "0.4rem", cursor: "pointer" }}>
@@ -509,6 +540,7 @@ function RegistriesTab() {
                                         <th>Type</th>
                                         <th>URL</th>
                                         <th>Status</th>
+                                        <th>Scan Mode</th>
                                         <th>Webhook URL</th>
                                         <th />
                                     </tr>
@@ -525,6 +557,7 @@ function RegistriesTab() {
                                                         {reg.enabled ? "Enabled" : "Disabled"}
                                                     </span>
                                                 </td>
+                                                <td><code>{reg.scan_mode}</code></td>
                                                 <td>
                                                     <button
                                                         class="btn"

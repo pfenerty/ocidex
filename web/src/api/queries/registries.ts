@@ -19,6 +19,8 @@ export function useCreateRegistry() {
             webhook_secret?: string;
             repository_patterns?: string[];
             tag_patterns?: string[];
+            scan_mode?: "webhook" | "poll" | "both";
+            poll_interval_minutes?: number;
         }) => unwrap(client.POST("/api/v1/registries", { body })),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ["registries"] }),
     }));
@@ -40,6 +42,8 @@ export function useUpdateRegistry() {
             enabled: boolean;
             repository_patterns?: string[];
             tag_patterns?: string[];
+            scan_mode?: "webhook" | "poll" | "both";
+            poll_interval_minutes?: number;
         }) =>
             unwrap(
                 client.PUT("/api/v1/registries/{id}", {

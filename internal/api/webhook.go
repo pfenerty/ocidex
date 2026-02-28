@@ -24,6 +24,11 @@ func (h *Handler) HandleRegistryWebhook(ctx context.Context, in *RegistryWebhook
 		return nil, huma.Error503ServiceUnavailable("registry disabled")
 	}
 
+	if !reg.AcceptsWebhooks() {
+		// Poll-only registry: accept silently without scanning.
+		return nil, nil
+	}
+
 	if reg.WebhookSecret != nil && *reg.WebhookSecret != "" {
 		token := strings.TrimPrefix(in.Authorization, "Bearer ")
 		if token != *reg.WebhookSecret {

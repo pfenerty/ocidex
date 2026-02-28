@@ -191,6 +191,12 @@ func run() error {
 		return fmt.Errorf("starting extensions: %w", err)
 	}
 
+	if cfg.ScannerEnabled && cfg.RegistryPollerEnabled && scanSubmitter != nil {
+		poller := scanner.NewPoller(registrySvc, scanSubmitter, logger)
+		go poller.Run(extCtx)
+		slog.Info("registry poller started")
+	}
+
 	// Periodically purge expired sessions.
 	go func() {
 		ticker := time.NewTicker(time.Hour)

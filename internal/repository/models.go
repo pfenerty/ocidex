@@ -103,17 +103,20 @@ type OcidexUser struct {
 }
 
 type Registry struct {
-	ID                 pgtype.UUID        `json:"id"`
-	Name               string             `json:"name"`
-	Type               string             `json:"type"`
-	Url                string             `json:"url"`
-	Insecure           bool               `json:"insecure"`
-	WebhookSecret      pgtype.Text        `json:"webhook_secret"`
-	Enabled            bool               `json:"enabled"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
-	RepositoryPatterns []string           `json:"repository_patterns"`
-	TagPatterns        []string           `json:"tag_patterns"`
+	ID                  pgtype.UUID        `json:"id"`
+	Name                string             `json:"name"`
+	Type                string             `json:"type"`
+	Url                 string             `json:"url"`
+	Insecure            bool               `json:"insecure"`
+	WebhookSecret       pgtype.Text        `json:"webhook_secret"`
+	Enabled             bool               `json:"enabled"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	RepositoryPatterns  []string           `json:"repository_patterns"`
+	TagPatterns         []string           `json:"tag_patterns"`
+	ScanMode            string             `json:"scan_mode"`
+	PollIntervalMinutes int32              `json:"poll_interval_minutes"`
+	LastPolledAt        pgtype.Timestamptz `json:"last_polled_at"`
 }
 
 type Sbom struct {

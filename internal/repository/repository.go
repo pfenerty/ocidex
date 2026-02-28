@@ -72,6 +72,8 @@ type RegistryRepository interface {
 	UpdateRegistry(ctx context.Context, arg UpdateRegistryParams) (Registry, error)
 	SetRegistryEnabled(ctx context.Context, arg SetRegistryEnabledParams) (Registry, error)
 	DeleteRegistry(ctx context.Context, id pgtype.UUID) (int64, error)
+	ListPollableRegistries(ctx context.Context) ([]Registry, error)
+	UpdateRegistryLastPolled(ctx context.Context, id pgtype.UUID) (Registry, error)
 }
 
 // AuthRepository defines data access methods for authentication and authorization.

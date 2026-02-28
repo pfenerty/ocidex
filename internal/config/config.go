@@ -52,6 +52,9 @@ type Config struct {
 	// EnrichmentNATSMode offloads enrichment to standalone enrichment-worker processes.
 	// Requires NATS_ENABLED=true. The API only publishes; enrichment-worker consumes.
 	EnrichmentNATSMode bool `env:"ENRICHMENT_NATS_MODE" envDefault:"false"`
+
+	// RegistryPollerEnabled starts the background poller for poll-mode registries.
+	RegistryPollerEnabled bool `env:"REGISTRY_POLLER_ENABLED" envDefault:"false"`
 }
 
 // Load reads configuration from environment variables.

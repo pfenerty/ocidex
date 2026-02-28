@@ -562,18 +562,21 @@ type NATSStatus struct {
 
 // RegistryResponse is the public representation of a configured OCI registry.
 type RegistryResponse struct {
-	ID                 string   `json:"id"`
-	Name               string   `json:"name"`
-	Type               string   `json:"type"`
-	URL                string   `json:"url"`
-	Insecure           bool     `json:"insecure"`
-	HasSecret          bool     `json:"has_secret"`
-	Enabled            bool     `json:"enabled"`
-	WebhookPath        string   `json:"webhook_path"`
-	RepositoryPatterns []string `json:"repository_patterns" doc:"Glob patterns for repositories to ingest; empty = all"`
-	TagPatterns        []string `json:"tag_patterns" doc:"Glob patterns or 'semver' for tags to ingest; empty = all"`
-	CreatedAt          string   `json:"created_at"`
-	UpdatedAt          string   `json:"updated_at"`
+	ID                  string  `json:"id"`
+	Name                string  `json:"name"`
+	Type                string  `json:"type"`
+	URL                 string  `json:"url"`
+	Insecure            bool    `json:"insecure"`
+	HasSecret           bool    `json:"has_secret"`
+	Enabled             bool    `json:"enabled"`
+	WebhookPath         string  `json:"webhook_path"`
+	RepositoryPatterns  []string `json:"repository_patterns" doc:"Glob patterns for repositories to ingest; empty = all"`
+	TagPatterns         []string `json:"tag_patterns" doc:"Glob patterns or 'semver' for tags to ingest; empty = all"`
+	ScanMode            string  `json:"scan_mode"`
+	PollIntervalMinutes int     `json:"poll_interval_minutes"`
+	LastPolledAt        *string `json:"last_polled_at,omitempty"`
+	CreatedAt           string  `json:"created_at"`
+	UpdatedAt           string  `json:"updated_at"`
 }
 
 // ListRegistriesOutput is the response for GET /api/v1/registries.
@@ -596,13 +599,15 @@ type GetRegistryOutput struct {
 // CreateRegistryInput is the request for POST /api/v1/registries.
 type CreateRegistryInput struct {
 	Body struct {
-		Name               string   `json:"name" minLength:"1" maxLength:"100" doc:"Human-readable registry name"`
-		Type               string   `json:"type" enum:"zot,harbor,docker,generic" doc:"Registry type"`
-		URL                string   `json:"url" minLength:"1" doc:"Registry address (e.g. zot:5000)"`
-		Insecure           bool     `json:"insecure" doc:"Allow HTTP (non-TLS) connections"`
-		WebhookSecret      *string  `json:"webhook_secret,omitempty" doc:"Bearer token required on incoming webhooks; omit to disable auth"`
-		RepositoryPatterns []string `json:"repository_patterns,omitempty" doc:"Glob patterns for repositories to ingest; empty = all"`
-		TagPatterns        []string `json:"tag_patterns,omitempty" doc:"Glob patterns or 'semver' for tags to ingest; empty = all"`
+		Name                string   `json:"name" minLength:"1" maxLength:"100" doc:"Human-readable registry name"`
+		Type                string   `json:"type" enum:"zot,harbor,docker,generic" doc:"Registry type"`
+		URL                 string   `json:"url" minLength:"1" doc:"Registry address (e.g. zot:5000)"`
+		Insecure            bool     `json:"insecure" doc:"Allow HTTP (non-TLS) connections"`
+		WebhookSecret       *string  `json:"webhook_secret,omitempty" doc:"Bearer token required on incoming webhooks; omit to disable auth"`
+		RepositoryPatterns  []string `json:"repository_patterns,omitempty" doc:"Glob patterns for repositories to ingest; empty = all"`
+		TagPatterns         []string `json:"tag_patterns,omitempty" doc:"Glob patterns or 'semver' for tags to ingest; empty = all"`
+		ScanMode            string   `json:"scan_mode,omitempty" enum:"webhook,poll,both" doc:"Scanning mode"`
+		PollIntervalMinutes int      `json:"poll_interval_minutes,omitempty" minimum:"1" doc:"Minutes between polls"`
 	}
 }
 
@@ -615,14 +620,16 @@ type CreateRegistryOutput struct {
 type UpdateRegistryInput struct {
 	ID   string `path:"id" doc:"Registry UUID" format:"uuid"`
 	Body struct {
-		Name               string   `json:"name" minLength:"1" maxLength:"100"`
-		Type               string   `json:"type" enum:"zot,harbor,docker,generic"`
-		URL                string   `json:"url" minLength:"1"`
-		Insecure           bool     `json:"insecure"`
-		WebhookSecret      *string  `json:"webhook_secret,omitempty"`
-		Enabled            bool     `json:"enabled"`
-		RepositoryPatterns []string `json:"repository_patterns,omitempty"`
-		TagPatterns        []string `json:"tag_patterns,omitempty"`
+		Name                string   `json:"name" minLength:"1" maxLength:"100"`
+		Type                string   `json:"type" enum:"zot,harbor,docker,generic"`
+		URL                 string   `json:"url" minLength:"1"`
+		Insecure            bool     `json:"insecure"`
+		WebhookSecret       *string  `json:"webhook_secret,omitempty"`
+		Enabled             bool     `json:"enabled"`
+		RepositoryPatterns  []string `json:"repository_patterns,omitempty"`
+		TagPatterns         []string `json:"tag_patterns,omitempty"`
+		ScanMode            string   `json:"scan_mode,omitempty" enum:"webhook,poll,both" doc:"Scanning mode"`
+		PollIntervalMinutes int      `json:"poll_interval_minutes,omitempty" minimum:"1" doc:"Minutes between polls"`
 	}
 }
 
