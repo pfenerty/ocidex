@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ocidex-enrichment-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ocidex-enrichment-worker
+  template:
+    metadata:
+      labels:
+        app: ocidex-enrichment-worker
+    spec:
+      # Must exceed enrichment AckWait (5 minutes).
+      terminationGracePeriodSeconds: 360
+      containers:
+        - name: enrichment-worker
+          image: ocidex:latest
+          args: ["/enrichment-worker"]
+          env:
+            - name: NATS_ENABLED
+              value: "true"
+            - name: NATS_STREAM_REPLICAS
+              value: "3"
+            - name: ENRICHMENT_ENABLED
+              value: "true"
+            - name: DATABASE_MAX_CONNECTIONS
+              value: "3"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ocidex-secrets
+                  key: database-url
+            - name: NATS_URL
+              value: "nats://nats:4222"

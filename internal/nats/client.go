@@ -15,6 +15,7 @@ type Config struct {
 	URL           string
 	StreamName    string
 	EventTTLHours int
+	Replicas      int
 }
 
 // Client wraps a NATS connection and JetStream context.
@@ -41,13 +42,17 @@ func Connect(cfg Config) (*Client, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	replicas := cfg.Replicas
+	if replicas < 1 {
+		replicas = 1
+	}
 	_, err = js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
 		Name:      cfg.StreamName,
 		Subjects:  []string{cfg.StreamName + ".>"},
 		Storage:   jetstream.FileStorage,
 		Retention: jetstream.LimitsPolicy,
 		MaxAge:    time.Duration(cfg.EventTTLHours) * time.Hour,
-		Replicas:  1,
+		Replicas:  replicas,
 	})
 	if err != nil {
 		nc.Close()

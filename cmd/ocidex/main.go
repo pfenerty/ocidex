@@ -45,6 +45,11 @@ func run() error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
+	// OAuth fields are required for the API binary.
+	if cfg.GitHubClientID == "" || cfg.GitHubClientSecret == "" || cfg.SessionSecret == "" {
+		return fmt.Errorf("GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and SESSION_SECRET are required")
+	}
+
 	// Initialize structured logging.
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: cfg.SlogLevel(),
@@ -57,7 +62,14 @@ func run() error {
 
 	// Connect to PostgreSQL.
 	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	poolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+	if err != nil {
+		return fmt.Errorf("parsing database config: %w", err)
+	}
+	if cfg.DatabaseMaxConns > 0 {
+		poolCfg.MaxConns = int32(cfg.DatabaseMaxConns)
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
 		return fmt.Errorf("connecting to database: %w", err)
 	}
@@ -80,6 +92,7 @@ func run() error {
 			URL:           cfg.NATSURL,
 			StreamName:    cfg.NATSStreamName,
 			EventTTLHours: cfg.NATSEventTTL,
+			Replicas:      cfg.NATSStreamReplicas,
 		})
 		if err != nil {
 			return fmt.Errorf("connecting to NATS: %w", err)
@@ -114,7 +127,10 @@ func run() error {
 		return false
 	}
 
-	if cfg.EnrichmentEnabled {
+	if cfg.NATSEnabled && cfg.EnrichmentNATSMode {
+		// Enrichment-worker processes consume from NATS; API only publishes via relay.
+		// No NATSExtension registered here.
+	} else if cfg.EnrichmentEnabled {
 		enrichStore := repository.New(pool)
 		ociEnricher := oci.NewEnricher(oci.WithInsecureResolver(insecureResolver))
 		dispatcher := enrichment.NewDispatcher(

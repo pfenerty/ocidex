@@ -1,7 +1,7 @@
-// Package main is the entry point for the OCIDex scanner worker.
-// It consumes scan requests from NATS JetStream, runs Syft, and ingests
-// the resulting SBOMs. Designed to run as a standalone process alongside
-// the main ocidex server when SCANNER_NATS_MODE=true.
+// Package main is the entry point for the OCIDex enrichment worker.
+// It consumes SBOMIngested events from NATS JetStream, runs the enrichment
+// pipeline, and persists results. Designed to run as a standalone process
+// alongside the main ocidex server when ENRICHMENT_NATS_MODE=true.
 package main
 
 import (
@@ -10,15 +10,18 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pfenerty/ocidex/internal/config"
+	"github.com/pfenerty/ocidex/internal/enrichment"
+	"github.com/pfenerty/ocidex/internal/enrichment/oci"
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/extension"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
-	"github.com/pfenerty/ocidex/internal/scanner"
+	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -38,7 +41,7 @@ func run() error {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: cfg.SlogLevel(),
 	})))
-	slog.Info("starting scanner-worker",
+	slog.Info("starting enrichment-worker",
 		"environment", cfg.Environment,
 		"log_level", cfg.LogLevel,
 	)
@@ -76,25 +79,45 @@ func run() error {
 
 	logger := slog.Default()
 	bus := event.NewBus(logger)
-	registry := extension.NewRegistry(bus, logger)
+	reg := extension.NewRegistry(bus, logger)
 
-	// Relay SBOM events to NATS so enrichment workers can pick them up.
-	registry.Register(natspkg.NewRelayExtension(natsClient, logger))
+	registrySvc := service.NewRegistryService(pool)
+	insecureResolver := func(host string) bool {
+		regs, err := registrySvc.List(context.Background())
+		if err != nil {
+			return false
+		}
+		for _, r := range regs {
+			regHost := r.URL
+			if i := strings.Index(regHost, "://"); i != -1 {
+				regHost = regHost[i+3:]
+			}
+			regHost = strings.TrimSuffix(regHost, "/")
+			if regHost == host && r.Insecure {
+				return true
+			}
+		}
+		return false
+	}
 
-	// Wire scanner worker: stateless scanner + nil OCI validator (webhook confirms image exists).
-	scannerSbomSvc := service.NewSBOMService(pool, bus, nil)
-	sc := scanner.NewScanner(logger)
-	dispatcher := scanner.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerWorkers, cfg.ScannerQueueSize, logger)
-	registry.Register(scanner.NewNATSExtension(natsClient, dispatcher, logger))
+	enrichStore := repository.New(pool)
+	ociEnricher := oci.NewEnricher(oci.WithInsecureResolver(insecureResolver))
+	dispatcher := enrichment.NewDispatcher(
+		enrichStore,
+		[]enrichment.Enricher{ociEnricher},
+		enrichment.WithWorkers(cfg.EnrichmentWorkers),
+		enrichment.WithQueueSize(cfg.EnrichmentQueueSize),
+	)
+	reg.Register(enrichment.NewNATSExtension(natsClient, dispatcher, logger))
 
-	if err := registry.InitAll(); err != nil {
+	if err := reg.InitAll(); err != nil {
 		return fmt.Errorf("initializing extensions: %w", err)
 	}
 
 	extCtx, extCancel := context.WithCancel(context.Background())
 	defer extCancel()
 
-	if err := registry.StartAll(extCtx); err != nil {
+	if err := reg.StartAll(extCtx); err != nil {
 		return fmt.Errorf("starting extensions: %w", err)
 	}
 
@@ -104,10 +127,10 @@ func run() error {
 	slog.Info("shutdown signal received", "signal", sig)
 
 	extCancel()
-	if err := registry.StopAll(); err != nil {
+	if err := reg.StopAll(); err != nil {
 		slog.Error("extension shutdown error", "err", err)
 	}
 
-	slog.Info("scanner-worker stopped")
+	slog.Info("enrichment-worker stopped")
 	return nil
 }

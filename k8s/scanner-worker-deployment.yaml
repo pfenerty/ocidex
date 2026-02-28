@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ocidex-scanner-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ocidex-scanner-worker
+  template:
+    metadata:
+      labels:
+        app: ocidex-scanner-worker
+    spec:
+      # Must exceed scanner AckWait (10 minutes).
+      terminationGracePeriodSeconds: 660
+      containers:
+        - name: scanner-worker
+          image: ocidex:latest
+          args: ["/scanner-worker"]
+          env:
+            - name: NATS_ENABLED
+              value: "true"
+            - name: NATS_STREAM_REPLICAS
+              value: "3"
+            - name: DATABASE_MAX_CONNECTIONS
+              value: "3"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ocidex-secrets
+                  key: database-url
+            - name: NATS_URL
+              value: "nats://nats:4222"

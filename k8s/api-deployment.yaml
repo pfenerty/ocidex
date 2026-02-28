@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ocidex-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ocidex-api
+  template:
+    metadata:
+      labels:
+        app: ocidex-api
+    spec:
+      terminationGracePeriodSeconds: 40
+      containers:
+        - name: ocidex
+          image: ocidex:latest
+          args: ["/ocidex"]
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: NATS_ENABLED
+              value: "true"
+            - name: NATS_STREAM_REPLICAS
+              value: "3"
+            - name: SCANNER_NATS_MODE
+              value: "true"
+            - name: ENRICHMENT_NATS_MODE
+              value: "true"
+            - name: ENRICHMENT_ENABLED
+              value: "false"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ocidex-secrets
+                  key: database-url
+            - name: GITHUB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: ocidex-secrets
+                  key: github-client-id
+            - name: GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ocidex-secrets
+                  key: github-client-secret
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ocidex-secrets
+                  key: session-secret
+            - name: NATS_URL
+              value: "nats://nats:4222"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
