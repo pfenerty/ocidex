@@ -110,19 +110,21 @@ type LicenseFilter struct {
 
 // ArtifactFilter holds parameters for listing artifacts.
 type ArtifactFilter struct {
-	Type   string
-	Name   string
-	Limit  int32
-	Offset int32
+	Type              string
+	Name              string
+	RequireSufficient bool
+	Limit             int32
+	Offset            int32
 }
 
 // ArtifactSummary is a lightweight artifact representation for list views.
 type ArtifactSummary struct {
-	ID        string  `json:"id"`
-	Type      string  `json:"type"`
-	Name      string  `json:"name"`
-	Group     *string `json:"group,omitempty"`
-	SbomCount int64   `json:"sbomCount"`
+	ID                  string  `json:"id"`
+	Type                string  `json:"type"`
+	Name                string  `json:"name"`
+	Group               *string `json:"group,omitempty"`
+	SbomCount           int64   `json:"sbomCount"`
+	SufficientSbomCount int64   `json:"sufficientSbomCount"`
 }
 
 // ArtifactDetail extends ArtifactSummary with full metadata.
@@ -147,6 +149,9 @@ type SBOMSummary struct {
 	BuildDate      *time.Time `json:"buildDate,omitempty"`
 	ImageVersion   *string    `json:"imageVersion,omitempty"`
 	Architecture   *string    `json:"architecture,omitempty"`
+	Revision       *string    `json:"revision,omitempty"`
+	SourceURL      *string    `json:"sourceUrl,omitempty"`
+	Sufficient     bool       `json:"sufficient"`
 }
 
 // SBOMDetail extends SBOMSummary with optional raw BOM data and enrichments.

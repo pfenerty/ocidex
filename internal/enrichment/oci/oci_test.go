@@ -470,6 +470,41 @@ func TestExtractMetadata_LabelSchemaBuildDate(t *testing.T) {
 	}
 }
 
+func TestExtractMetadata_RefName(t *testing.T) {
+	cfg := &v1.ConfigFile{
+		Config: v1.Config{
+			Labels: map[string]string{
+				"org.opencontainers.image.ref.name": "v1.2.3",
+			},
+		},
+	}
+
+	meta := extractMetadata(cfg, nil, nil)
+
+	if meta.RefName != "v1.2.3" {
+		t.Errorf("RefName = %q, want %q", meta.RefName, "v1.2.3")
+	}
+}
+
+func TestExtractMetadata_RefName_ManifestPriority(t *testing.T) {
+	cfg := &v1.ConfigFile{
+		Config: v1.Config{
+			Labels: map[string]string{
+				"org.opencontainers.image.ref.name": "from-labels",
+			},
+		},
+	}
+	manifest := map[string]string{
+		"org.opencontainers.image.ref.name": "from-manifest",
+	}
+
+	meta := extractMetadata(cfg, manifest, nil)
+
+	if meta.RefName != "from-manifest" {
+		t.Errorf("RefName = %q, want %q", meta.RefName, "from-manifest")
+	}
+}
+
 func TestName(t *testing.T) {
 	e := NewEnricher()
 	if e.Name() != "oci-metadata" {

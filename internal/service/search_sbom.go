@@ -145,6 +145,13 @@ func (s *searchService) ListSBOMsByArtifact(ctx context.Context, artifactID pgty
 		if s, ok := row.Architecture.(string); ok && s != "" {
 			summary.Architecture = &s
 		}
+		if s, ok := row.Revision.(string); ok && s != "" {
+			summary.Revision = &s
+		}
+		if s, ok := row.SourceUrl.(string); ok && s != "" {
+			summary.SourceURL = &s
+		}
+		summary.Sufficient = row.EnrichmentSufficient
 		items = append(items, summary)
 	}
 

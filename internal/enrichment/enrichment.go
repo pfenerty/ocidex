@@ -37,4 +37,5 @@ type Enricher interface {
 type Store interface {
 	UpsertEnrichment(ctx context.Context, arg repository.UpsertEnrichmentParams) error
 	UpdateSBOMSubjectVersion(ctx context.Context, arg repository.UpdateSBOMSubjectVersionParams) error
+	UpdateSBOMEnrichmentSufficient(ctx context.Context, arg repository.UpdateSBOMEnrichmentSufficientParams) error
 }
