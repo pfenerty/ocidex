@@ -121,15 +121,16 @@ type Registry struct {
 }
 
 type Sbom struct {
-	ID             pgtype.UUID        `json:"id"`
-	SerialNumber   pgtype.Text        `json:"serial_number"`
-	SpecVersion    string             `json:"spec_version"`
-	Version        int32              `json:"version"`
-	RawBom         []byte             `json:"raw_bom"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	ArtifactID     pgtype.UUID        `json:"artifact_id"`
-	SubjectVersion pgtype.Text        `json:"subject_version"`
-	Digest         pgtype.Text        `json:"digest"`
+	ID                   pgtype.UUID        `json:"id"`
+	SerialNumber         pgtype.Text        `json:"serial_number"`
+	SpecVersion          string             `json:"spec_version"`
+	Version              int32              `json:"version"`
+	RawBom               []byte             `json:"raw_bom"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	ArtifactID           pgtype.UUID        `json:"artifact_id"`
+	SubjectVersion       pgtype.Text        `json:"subject_version"`
+	Digest               pgtype.Text        `json:"digest"`
+	EnrichmentSufficient bool               `json:"enrichment_sufficient"`
 }
 
 type Session struct {

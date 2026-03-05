@@ -115,6 +115,20 @@ func (q *Queries) ListSBOMEnrichmentsByArtifact(ctx context.Context, artifactID 
 	return items, nil
 }
 
+const updateSBOMEnrichmentSufficient = `-- name: UpdateSBOMEnrichmentSufficient :exec
+UPDATE sbom SET enrichment_sufficient = $2 WHERE id = $1
+`
+
+type UpdateSBOMEnrichmentSufficientParams struct {
+	ID                   pgtype.UUID `json:"id"`
+	EnrichmentSufficient bool        `json:"enrichment_sufficient"`
+}
+
+func (q *Queries) UpdateSBOMEnrichmentSufficient(ctx context.Context, arg UpdateSBOMEnrichmentSufficientParams) error {
+	_, err := q.db.Exec(ctx, updateSBOMEnrichmentSufficient, arg.ID, arg.EnrichmentSufficient)
+	return err
+}
+
 const upsertEnrichment = `-- name: UpsertEnrichment :exec
 INSERT INTO enrichment (sbom_id, enricher_name, status, data, error_message, updated_at)
 VALUES ($1, $2, $3, $4, $5, now())

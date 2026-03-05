@@ -12,13 +12,14 @@ export interface UseArtifactsParams {
     offset?: number;
     name?: string;
     type?: string;
+    sufficient?: boolean;
 }
 
 export function useArtifacts(params: Accessor<UseArtifactsParams>) {
     return createQuery(() => {
         const p = params();
         return {
-            queryKey: ["artifacts", p.name, p.type, p.limit, p.offset] as const,
+            queryKey: ["artifacts", p.name, p.type, p.limit, p.offset, p.sufficient] as const,
             queryFn: () =>
                 unwrap(
                     client.GET("/api/v1/artifacts", {
@@ -28,6 +29,7 @@ export function useArtifacts(params: Accessor<UseArtifactsParams>) {
                                 offset: p.offset,
                                 name: p.name !== "" ? p.name : undefined,
                                 type: p.type !== "" ? p.type : undefined,
+                                sufficient: p.sufficient,
                             },
                         },
                     }),

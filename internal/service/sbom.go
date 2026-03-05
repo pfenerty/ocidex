@@ -204,6 +204,16 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		}); err != nil {
 			return pgtype.UUID{}, fmt.Errorf("writing user enrichment: %w", err)
 		}
+
+		// Mark as sufficiently enriched when both version and architecture are present.
+		if arch != "" && info.subjectVersion.Valid {
+			if err := q.UpdateSBOMEnrichmentSufficient(ctx, repository.UpdateSBOMEnrichmentSufficientParams{
+				ID:                   sbomRow.ID,
+				EnrichmentSufficient: true,
+			}); err != nil {
+				return pgtype.UUID{}, fmt.Errorf("updating enrichment sufficiency: %w", err)
+			}
+		}
 	}
 
 	if bom.Components != nil {
@@ -607,6 +617,15 @@ func textOrNull(s string) pgtype.Text {
 		return pgtype.Text{}
 	}
 	return pgtype.Text{String: s, Valid: true}
+}
+
+// boolOrNull returns a valid pgtype.Bool when b is true, null otherwise.
+// This allows the SQL query to skip the filter when the value is not set.
+func boolOrNull(b bool) pgtype.Bool {
+	if !b {
+		return pgtype.Bool{}
+	}
+	return pgtype.Bool{Bool: true, Valid: true}
 }
 
 // intOrNull returns a valid pgtype.Int4 if v >= 0, null otherwise.

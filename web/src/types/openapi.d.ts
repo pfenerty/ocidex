@@ -626,6 +626,8 @@ export interface components {
             name: string;
             /** Format: int64 */
             sbomCount: number;
+            /** Format: int64 */
+            sufficientSbomCount: number;
             type: string;
         };
         CategoryCountEntry: {
@@ -1217,9 +1219,12 @@ export interface components {
             digest?: string;
             id: string;
             imageVersion?: string;
+            revision?: string;
             serialNumber?: string;
+            sourceUrl?: string;
             specVersion: string;
             subjectVersion?: string;
+            sufficient: boolean;
             /** Format: int32 */
             version: number;
         };
@@ -1434,6 +1439,8 @@ export interface operations {
                 type?: string;
                 /** @description Filter by artifact name */
                 name?: string;
+                /** @description Filter by enrichment sufficiency */
+                sufficient?: boolean;
             };
             header?: never;
             path?: never;
