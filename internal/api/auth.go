@@ -132,7 +132,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "get-me",
 		Method:      http.MethodGet,
-		Path:        "/auth/me",
+		Path:        "/api/v1/users/me",
 		Summary:     "Get current user",
 		Tags:        []string{"Auth"},
 	}, h.GetMe)

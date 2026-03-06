@@ -23,7 +23,7 @@ export function useSBOMs(
             ] as const,
             queryFn: () =>
                 unwrap(
-                    client.GET("/api/v1/sbom", {
+                    client.GET("/api/v1/sboms", {
                         params: { query: p },
                     }),
                 ),
@@ -42,7 +42,7 @@ export function useSBOM(
         queryKey: ["sbom", id(), options?.include?.()] as const,
         queryFn: () =>
             unwrap(
-                client.GET("/api/v1/sbom/{id}", {
+                client.GET("/api/v1/sboms/{id}", {
                     params: {
                         path: { id: id() },
                         query: { include: options?.include?.() },
@@ -58,7 +58,7 @@ export function useSBOMComponents(id: Accessor<string>) {
         queryKey: ["sbom", id(), "components"] as const,
         queryFn: () =>
             unwrap(
-                client.GET("/api/v1/sbom/{id}/components", {
+                client.GET("/api/v1/sboms/{id}/components", {
                     params: { path: { id: id() } },
                 }),
             ),
@@ -75,7 +75,7 @@ export function useSBOMDependencies(
         queryKey: ["sbom", id(), "dependencies"] as const,
         queryFn: () =>
             unwrap(
-                client.GET("/api/v1/sbom/{id}/dependencies", {
+                client.GET("/api/v1/sboms/{id}/dependencies", {
                     params: { path: { id: id() } },
                 }),
             ),

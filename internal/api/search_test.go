@@ -195,7 +195,7 @@ func TestListSBOMs(t *testing.T) {
 	is := is.New(t)
 	router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
 
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/sbom?limit=10", nil)
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/sboms?limit=10", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, r)
 
@@ -224,7 +224,7 @@ func TestGetSBOM(t *testing.T) {
 			is := is.New(t)
 			router := newTestRouter(&fakeSBOMService{}, tt.search)
 
-			r := httptest.NewRequest(http.MethodGet, "/api/v1/sbom/"+tt.id, nil)
+			r := httptest.NewRequest(http.MethodGet, "/api/v1/sboms/"+tt.id, nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, r)
 
@@ -385,32 +385,6 @@ func TestGetArtifactChangelog(t *testing.T) {
 	}
 }
 
-func TestListSBOMsByDigest(t *testing.T) {
-	tests := []struct {
-		name       string
-		digest     string
-		wantStatus int
-	}{
-		{"valid digest", "sha256:abc123", http.StatusOK},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			is := is.New(t)
-			router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
-
-			r := httptest.NewRequest(http.MethodGet, "/api/v1/sbom/by-digest/"+tt.digest, nil)
-			w := httptest.NewRecorder()
-			router.ServeHTTP(w, r)
-
-			is.Equal(w.Code, tt.wantStatus)
-
-			var resp pagedBody
-			is.NoErr(json.Unmarshal(w.Body.Bytes(), &resp))
-			is.Equal(resp.Pagination.Total, int64(1))
-		})
-	}
-}
 
 func TestGetSBOMDependencies(t *testing.T) {
 	tests := []struct {
@@ -427,7 +401,7 @@ func TestGetSBOMDependencies(t *testing.T) {
 			is := is.New(t)
 			router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
 
-			r := httptest.NewRequest(http.MethodGet, "/api/v1/sbom/"+tt.id+"/dependencies", nil)
+			r := httptest.NewRequest(http.MethodGet, "/api/v1/sboms/"+tt.id+"/dependencies", nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, r)
 
@@ -480,7 +454,7 @@ func TestDiffSBOMs(t *testing.T) {
 			is := is.New(t)
 			router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
 
-			r := httptest.NewRequest(http.MethodGet, "/api/v1/diff"+tt.query, nil)
+			r := httptest.NewRequest(http.MethodGet, "/api/v1/sboms/diff"+tt.query, nil)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, r)
 

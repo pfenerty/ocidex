@@ -134,7 +134,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID:   "ingest-sbom",
 		Method:        http.MethodPost,
-		Path:          "/api/v1/sbom",
+		Path:          "/api/v1/sboms",
 		Summary:       "Ingest an SBOM",
 		Description:   "Accepts a CycloneDX JSON SBOM, validates it, and persists it.",
 		Tags:          []string{"SBOMs"},
@@ -145,23 +145,16 @@ func registerSBOMOps(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "list-sboms",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/sbom",
+		Path:        "/api/v1/sboms",
 		Summary:     "List SBOMs",
+		Description: "Supports filtering by serial_number and digest query parameters.",
 		Tags:        []string{"SBOMs"},
 	}, h.ListSBOMs)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "list-sboms-by-digest",
-		Method:      http.MethodGet,
-		Path:        "/api/v1/sbom/by-digest/{digest}",
-		Summary:     "List SBOMs by image digest",
-		Tags:        []string{"SBOMs"},
-	}, h.ListSBOMsByDigest)
-
-	huma.Register(api, huma.Operation{
 		OperationID: "get-sbom",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/sbom/{id}",
+		Path:        "/api/v1/sboms/{id}",
 		Summary:     "Get an SBOM",
 		Tags:        []string{"SBOMs"},
 	}, h.GetSBOM)
@@ -169,7 +162,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "get-sbom-dependencies",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/sbom/{id}/dependencies",
+		Path:        "/api/v1/sboms/{id}/dependencies",
 		Summary:     "Get SBOM dependency graph",
 		Tags:        []string{"SBOMs"},
 	}, h.GetSBOMDependencies)
@@ -177,7 +170,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "list-sbom-components",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/sbom/{id}/components",
+		Path:        "/api/v1/sboms/{id}/components",
 		Summary:     "List components in an SBOM",
 		Tags:        []string{"SBOMs"},
 	}, h.ListSBOMComponents)
@@ -185,7 +178,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID:   "delete-sbom",
 		Method:        http.MethodDelete,
-		Path:          "/api/v1/sbom/{id}",
+		Path:          "/api/v1/sboms/{id}",
 		Summary:       "Delete an SBOM",
 		Tags:          []string{"SBOMs"},
 		DefaultStatus: http.StatusNoContent,
@@ -323,10 +316,10 @@ func registerDiffOps(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "diff-sboms",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/diff",
+		Path:        "/api/v1/sboms/diff",
 		Summary:     "Diff two SBOMs",
 		Description: "Computes the component diff between two SBOMs.",
-		Tags:        []string{"Diff"},
+		Tags:        []string{"SBOMs"},
 	}, h.DiffSBOMs)
 }
 
@@ -338,9 +331,9 @@ func registerWebhookOps(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID:   "registry-webhook",
 		Method:        http.MethodPost,
-		Path:          "/api/v1/webhooks/{registryID}",
+		Path:          "/api/v1/registries/{id}/webhook",
 		Summary:       "Receive registry push notifications",
-		Tags:          []string{"Webhooks"},
+		Tags:          []string{"Registries"},
 		MaxBodyBytes:  64 * 1024,
 		DefaultStatus: http.StatusAccepted,
 		Security:      []map[string][]string{},
@@ -423,7 +416,7 @@ func registerStatsOps(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "get-dashboard-stats",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/stats/summary",
+		Path:        "/api/v1/stats",
 		Summary:     "Get dashboard summary statistics",
 		Tags:        []string{"Stats"},
 	}, h.GetDashboardStats)

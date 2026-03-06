@@ -12,7 +12,7 @@ export function useDiff(params: Accessor<{ from?: string; to?: string }>) {
             queryKey: ["diff", p.from, p.to] as const,
             queryFn: () =>
                 unwrap(
-                    client.GET("/api/v1/diff", {
+                    client.GET("/api/v1/sboms/diff", {
                         params: { query: { from: p.from ?? "", to: p.to ?? "" } },
                     }),
                 ),

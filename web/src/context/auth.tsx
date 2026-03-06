@@ -21,7 +21,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue>();
 
 async function fetchMe(): Promise<User | undefined> {
-    const res = await fetch(`${API_BASE_URL}/auth/me`, { credentials: "include" });
+    const res = await fetch(`${API_BASE_URL}/api/v1/users/me`, { credentials: "include" });
     if (res.status === 401) return undefined;
     if (!res.ok) return undefined;
     const data: unknown = await res.json();

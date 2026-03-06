@@ -150,34 +150,16 @@ type DeleteSBOMInput struct {
 }
 
 // ---------------------------------------------------------------------------
-// SBOM — By Digest
-// ---------------------------------------------------------------------------
-
-// ListSBOMsByDigestInput is the request for GET /api/v1/sbom/by-digest/{digest}.
-type ListSBOMsByDigestInput struct {
-	PaginationParams
-	Digest string `path:"digest" doc:"Image digest (e.g. sha256:abc123)"`
-}
-
-// ListSBOMsByDigestOutput is the response for GET /api/v1/sbom/by-digest/{digest}.
-type ListSBOMsByDigestOutput struct {
-	Body struct {
-		Data       []service.SBOMSummary `json:"data"`
-		Pagination PaginationMeta        `json:"pagination"`
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Diff
 // ---------------------------------------------------------------------------
 
-// DiffSBOMsInput is the request for GET /api/v1/diff.
+// DiffSBOMsInput is the request for GET /api/v1/sboms/diff.
 type DiffSBOMsInput struct {
 	From string `query:"from" required:"true" doc:"UUID of the source SBOM" format:"uuid"`
 	To   string `query:"to" required:"true" doc:"UUID of the target SBOM" format:"uuid"`
 }
 
-// DiffSBOMsOutput is the response for GET /api/v1/diff.
+// DiffSBOMsOutput is the response for GET /api/v1/sboms/diff.
 type DiffSBOMsOutput struct {
 	Body service.ChangelogEntry
 }
@@ -447,7 +429,7 @@ type PackageSummaryEntry struct {
 // Auth — Me
 // ---------------------------------------------------------------------------
 
-// MeOutput is the response for GET /auth/me.
+// MeOutput is the response for GET /api/v1/users/me.
 type MeOutput struct {
 	Body struct {
 		ID             string `json:"id" doc:"User UUID"`
@@ -675,9 +657,9 @@ type TestRegistryConnectionOutput struct {
 	}
 }
 
-// RegistryWebhookInput is the request for POST /api/v1/webhooks/{registryID}.
+// RegistryWebhookInput is the request for POST /api/v1/registries/{id}/webhook.
 type RegistryWebhookInput struct {
-	RegistryID    string `path:"registryID" doc:"Registry UUID"`
+	ID            string `path:"id" doc:"Registry UUID" format:"uuid"`
 	Authorization string `header:"Authorization"`
 	Body          struct {
 		Name      string `json:"name"`
