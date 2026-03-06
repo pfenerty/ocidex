@@ -40,6 +40,7 @@ type Metadata struct {
 	Licenses      string `json:"licenses,omitempty"`
 	Title         string `json:"title,omitempty"`
 	BaseDigest    string `json:"baseDigest,omitempty"`
+	RefName       string `json:"refName,omitempty"`
 }
 
 // Enricher fetches OCI image metadata from container registries.
@@ -403,6 +404,7 @@ func extractMetadata(cfg *v1.ConfigFile, manifestAnnotations, indexAnnotations m
 		labels["name"],
 	)
 	meta.BaseDigest = extractField("org.opencontainers.image.base.digest", manifestAnnotations, labels, indexAnnotations)
+	meta.RefName = extractField("org.opencontainers.image.ref.name", manifestAnnotations, labels, indexAnnotations)
 
 	return meta
 }

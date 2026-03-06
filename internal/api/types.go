@@ -314,8 +314,9 @@ type ListComponentsByLicenseOutput struct {
 // ListArtifactsInput is the request for GET /api/v1/artifacts.
 type ListArtifactsInput struct {
 	PaginationParams
-	Type string `query:"type" doc:"Filter by artifact type"`
-	Name string `query:"name" doc:"Filter by artifact name"`
+	Type       string `query:"type" doc:"Filter by artifact type"`
+	Name       string `query:"name" doc:"Filter by artifact name"`
+	Sufficient *bool  `query:"sufficient" doc:"Filter to artifacts with sufficiently enriched SBOMs (default true)"`
 }
 
 // ListArtifactsOutput is the response for GET /api/v1/artifacts.

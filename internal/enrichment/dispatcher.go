@@ -2,6 +2,7 @@ package enrichment
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"sync"
 
@@ -160,5 +161,53 @@ func (d *Dispatcher) processSubject(ctx context.Context, ref SubjectRef) {
 				"err", storeErr,
 			)
 		}
+
+		if err == nil && e.Name() == "oci-metadata" {
+			d.applyOCIVersion(ctx, ref.SBOMId, data)
+			d.applyEnrichmentSufficiency(ctx, ref.SBOMId, data)
+		}
+	}
+}
+
+// applyEnrichmentSufficiency reads imageVersion and architecture from OCI enrichment
+// JSON and marks the SBOM as sufficiently enriched when both are present.
+func (d *Dispatcher) applyEnrichmentSufficiency(ctx context.Context, sbomID pgtype.UUID, data []byte) {
+	var meta struct {
+		ImageVersion string `json:"imageVersion"`
+		Architecture string `json:"architecture"`
+	}
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return
+	}
+	sufficient := meta.ImageVersion != "" && meta.Architecture != ""
+	if err := d.store.UpdateSBOMEnrichmentSufficient(ctx, repository.UpdateSBOMEnrichmentSufficientParams{
+		ID:                   sbomID,
+		EnrichmentSufficient: sufficient,
+	}); err != nil {
+		d.logger.Error("failed to update enrichment_sufficient",
+			"sbom_id", sbomID,
+			"err", err,
+		)
+	}
+}
+
+// applyOCIVersion reads imageVersion from OCI enrichment JSON and updates
+// sbom.subject_version to the authoritative annotation value.
+func (d *Dispatcher) applyOCIVersion(ctx context.Context, sbomID pgtype.UUID, data []byte) {
+	var meta struct {
+		ImageVersion string `json:"imageVersion"`
+	}
+	if err := json.Unmarshal(data, &meta); err != nil || meta.ImageVersion == "" {
+		return
+	}
+	if err := d.store.UpdateSBOMSubjectVersion(ctx, repository.UpdateSBOMSubjectVersionParams{
+		ID:             sbomID,
+		SubjectVersion: pgtype.Text{String: meta.ImageVersion, Valid: true},
+	}); err != nil {
+		d.logger.Error("failed to update subject_version from OCI annotations",
+			"sbom_id", sbomID,
+			"image_version", meta.ImageVersion,
+			"err", err,
+		)
 	}
 }

@@ -58,10 +58,11 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 	q := repository.New(s.pool)
 
 	rows, err := q.ListArtifacts(ctx, repository.ListArtifactsParams{
-		Type:      textOrNull(filter.Type),
-		Name:      textOrNull(filter.Name),
-		RowLimit:  filter.Limit,
-		RowOffset: filter.Offset,
+		Type:              textOrNull(filter.Type),
+		Name:              textOrNull(filter.Name),
+		RequireSufficient: boolOrNull(filter.RequireSufficient),
+		RowLimit:          filter.Limit,
+		RowOffset:         filter.Offset,
 	})
 	if err != nil {
 		return PagedResult[ArtifactSummary]{}, fmt.Errorf("listing artifacts: %w", err)
@@ -72,11 +73,12 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 	for _, row := range rows {
 		total = row.TotalCount
 		items = append(items, ArtifactSummary{
-			ID:        uuidToString(row.ID),
-			Type:      row.Type,
-			Name:      row.Name,
-			Group:     textToPtr(row.GroupName),
-			SbomCount: row.SbomCount,
+			ID:                  uuidToString(row.ID),
+			Type:                row.Type,
+			Name:                row.Name,
+			Group:               textToPtr(row.GroupName),
+			SbomCount:           row.SbomCount,
+			SufficientSbomCount: row.SufficientSbomCount,
 		})
 	}
 

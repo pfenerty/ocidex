@@ -210,11 +210,17 @@ func (h *Handler) ListComponentsByLicense(ctx context.Context, input *ListCompon
 
 // ListArtifacts handles GET /api/v1/artifacts.
 func (h *Handler) ListArtifacts(ctx context.Context, input *ListArtifactsInput) (*ListArtifactsOutput, error) {
+	// Default to showing only sufficiently enriched artifacts.
+	requireSufficient := true
+	if input.Sufficient != nil {
+		requireSufficient = *input.Sufficient
+	}
 	filter := service.ArtifactFilter{
-		Type:   input.Type,
-		Name:   input.Name,
-		Limit:  input.Limit,
-		Offset: input.Offset,
+		Type:              input.Type,
+		Name:              input.Name,
+		RequireSufficient: requireSufficient,
+		Limit:             input.Limit,
+		Offset:            input.Offset,
 	}
 
 	result, err := h.searchService.ListArtifacts(ctx, filter)

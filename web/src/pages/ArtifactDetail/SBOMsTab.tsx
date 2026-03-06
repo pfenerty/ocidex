@@ -108,6 +108,7 @@ export function SBOMsTab(props: {
                         <thead>
                             <tr>
                                 <th>Version</th>
+                                <th>Revision</th>
                                 <th>Build Date</th>
                                 <th>Architectures</th>
                                 <th>Components</th>
@@ -130,6 +131,7 @@ export function SBOMsTab(props: {
                                         (n, s) => n + (s.componentCount ?? 0),
                                         0,
                                     );
+                                    const revision = newest.revision;
                                     return (
                                         <tr>
                                             <td>
@@ -138,6 +140,27 @@ export function SBOMsTab(props: {
                                                 >
                                                     {vKey}
                                                 </A>
+                                            </td>
+                                            <td>
+                                                <Show
+                                                    when={revision}
+                                                    fallback={<span class="text-muted">—</span>}
+                                                >
+                                                    {(rev) => (
+                                                        <Show
+                                                            when={newest.sourceUrl}
+                                                            fallback={
+                                                                <code title={rev()}>{rev().slice(0, 7)}</code>
+                                                            }
+                                                        >
+                                                            {(url) => (
+                                                                <a href={url()} target="_blank" rel="noopener noreferrer">
+                                                                    <code title={rev()}>{rev().slice(0, 7)}</code>
+                                                                </a>
+                                                            )}
+                                                        </Show>
+                                                    )}
+                                                </Show>
                                             </td>
                                             <td
                                                 class="nowrap text-muted"
@@ -196,6 +219,7 @@ export function SBOMsTab(props: {
                                                 {sbomShortLabel(sbom)}
                                             </A>
                                         </td>
+                                        <td><span class="text-muted">—</span></td>
                                         <td
                                             class="nowrap text-muted"
                                             title={new Date(

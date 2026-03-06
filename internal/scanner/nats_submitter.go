@@ -34,6 +34,7 @@ type scanRequestWire struct {
 	Tag          string `json:"tag"`
 	Architecture string `json:"architecture,omitempty"`
 	BuildDate    string `json:"build_date,omitempty"`
+	ImageVersion string `json:"image_version,omitempty"`
 }
 
 // Submit publishes a scan request to "ocidex.scan.requested".
@@ -47,6 +48,7 @@ func (s *NATSSubmitter) Submit(req ScanRequest) {
 		Tag:          req.Tag,
 		Architecture: req.Architecture,
 		BuildDate:    req.BuildDate,
+		ImageVersion: req.ImageVersion,
 	})
 	if err != nil {
 		s.logger.Error("nats submitter: marshal payload", "err", err)

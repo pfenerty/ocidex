@@ -25,3 +25,6 @@ FROM enrichment e
 JOIN sbom s ON s.id = e.sbom_id
 WHERE s.artifact_id = $1 AND e.status = 'success'
 ORDER BY e.sbom_id;
+
+-- name: UpdateSBOMEnrichmentSufficient :exec
+UPDATE sbom SET enrichment_sufficient = $2 WHERE id = $1;

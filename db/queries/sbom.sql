@@ -48,3 +48,6 @@ VALUES ($1, $2, $3, $4);
 
 -- name: DeleteSBOM :execrows
 DELETE FROM sbom WHERE id = $1;
+
+-- name: UpdateSBOMSubjectVersion :exec
+UPDATE sbom SET subject_version = $2 WHERE id = $1;
