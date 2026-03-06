@@ -15,7 +15,7 @@ func (h *Handler) HandleRegistryWebhook(ctx context.Context, in *RegistryWebhook
 		return nil, huma.Error503ServiceUnavailable("registry service not configured")
 	}
 
-	reg, err := h.registryService.Get(ctx, in.RegistryID)
+	reg, err := h.registryService.Get(ctx, in.ID)
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}

@@ -269,20 +269,7 @@ func (h *Handler) ListArtifactSBOMs(ctx context.Context, input *ListArtifactSBOM
 	return out, nil
 }
 
-// ListSBOMsByDigest handles GET /api/v1/sbom/by-digest/{digest}.
-func (h *Handler) ListSBOMsByDigest(ctx context.Context, input *ListSBOMsByDigestInput) (*ListSBOMsByDigestOutput, error) {
-	result, err := h.searchService.ListSBOMsByDigest(ctx, input.Digest, input.Limit, input.Offset)
-	if err != nil {
-		return nil, mapServiceError(err)
-	}
-
-	out := &ListSBOMsByDigestOutput{}
-	out.Body.Data = result.Data
-	out.Body.Pagination = paginationMeta(result)
-	return out, nil
-}
-
-// DiffSBOMs handles GET /api/v1/diff?from={id}&to={id}.
+// DiffSBOMs handles GET /api/v1/sboms/diff?from={id}&to={id}.
 func (h *Handler) DiffSBOMs(ctx context.Context, input *DiffSBOMsInput) (*DiffSBOMsOutput, error) {
 	fromID, err := parseUUID(input.From)
 	if err != nil {
