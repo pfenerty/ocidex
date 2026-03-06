@@ -204,6 +204,16 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		}); err != nil {
 			return pgtype.UUID{}, fmt.Errorf("writing user enrichment: %w", err)
 		}
+
+		// Mark as sufficiently enriched when both version and architecture are present.
+		if arch != "" && info.subjectVersion.Valid {
+			if err := q.UpdateSBOMEnrichmentSufficient(ctx, repository.UpdateSBOMEnrichmentSufficientParams{
+				ID:                   sbomRow.ID,
+				EnrichmentSufficient: true,
+			}); err != nil {
+				return pgtype.UUID{}, fmt.Errorf("updating enrichment sufficiency: %w", err)
+			}
+		}
 	}
 
 	if bom.Components != nil {
@@ -465,7 +475,6 @@ var ociVersionKeys = []string{
 
 // ociArchKeys are property names that contain the image architecture.
 var ociArchKeys = []string{
-	"syft:image:config.Architecture",
 	"syft:image:labels:org.opencontainers.image.architecture",
 }
 
@@ -475,11 +484,27 @@ var ociBuildDateKeys = []string{
 	"syft:image:labels:org.label-schema.build-date", // legacy
 }
 
+// isMoreSpecific reports whether candidate is a patch-level refinement of base:
+// same major.minor, base has no patch component, candidate has a valid patch.
+func isMoreSpecific(candidate, base string) bool {
+	cMaj, cMin, cPatch := parseSemver(candidate)
+	bMaj, bMin, bPatch := parseSemver(base)
+	return cMaj >= 0 && cMin >= 0 && cPatch >= 0 &&
+		bMaj == cMaj && bMin == cMin &&
+		bPatch < 0
+}
+
 // resolveSubjectVersion returns the human-readable version for an SBOM's subject.
 // params.Version takes precedence; then metadata.component.version when it is not
 // a digest; then well-known OCI label properties emitted by Syft and Trivy.
 func resolveSubjectVersion(bom *cdx.BOM, params IngestParams) pgtype.Text {
 	if params.Version != "" {
+		mc := bom.Metadata.Component
+		if mc != nil && mc.Version != "" && !strings.HasPrefix(mc.Version, "sha256:") {
+			if isMoreSpecific(mc.Version, params.Version) {
+				return pgtype.Text{String: mc.Version, Valid: true}
+			}
+		}
 		return pgtype.Text{String: params.Version, Valid: true}
 	}
 
@@ -592,6 +617,15 @@ func textOrNull(s string) pgtype.Text {
 		return pgtype.Text{}
 	}
 	return pgtype.Text{String: s, Valid: true}
+}
+
+// boolOrNull returns a valid pgtype.Bool when b is true, null otherwise.
+// This allows the SQL query to skip the filter when the value is not set.
+func boolOrNull(b bool) pgtype.Bool {
+	if !b {
+		return pgtype.Bool{}
+	}
+	return pgtype.Bool{Bool: true, Valid: true}
 }
 
 // intOrNull returns a valid pgtype.Int4 if v >= 0, null otherwise.

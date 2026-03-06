@@ -59,39 +59,46 @@ func (q *Queries) GetArtifact(ctx context.Context, id pgtype.UUID) (Artifact, er
 const listArtifacts = `-- name: ListArtifacts :many
 SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
        COUNT(s.id) AS sbom_count,
+       COUNT(s.id) FILTER (WHERE s.enrichment_sufficient) AS sufficient_sbom_count,
        COUNT(*) OVER() AS total_count
 FROM artifact a
 LEFT JOIN sbom s ON s.artifact_id = a.id
 WHERE ($1::text IS NULL OR a.type = $1)
   AND ($2::text IS NULL OR a.name = $2)
+  AND ($3::boolean IS NULL
+       OR NOT $3::boolean
+       OR EXISTS (SELECT 1 FROM sbom s2 WHERE s2.artifact_id = a.id AND s2.enrichment_sufficient))
 GROUP BY a.id
 ORDER BY a.name, a.type
-LIMIT $4 OFFSET $3
+LIMIT $6 OFFSET $5
 `
 
 type ListArtifactsParams struct {
-	Type      pgtype.Text `json:"type"`
-	Name      pgtype.Text `json:"name"`
-	RowOffset int32       `json:"row_offset"`
-	RowLimit  int32       `json:"row_limit"`
+	Type              pgtype.Text `json:"type"`
+	Name              pgtype.Text `json:"name"`
+	RequireSufficient pgtype.Bool `json:"require_sufficient"`
+	RowOffset         int32       `json:"row_offset"`
+	RowLimit          int32       `json:"row_limit"`
 }
 
 type ListArtifactsRow struct {
-	ID         pgtype.UUID        `json:"id"`
-	Type       string             `json:"type"`
-	Name       string             `json:"name"`
-	GroupName  pgtype.Text        `json:"group_name"`
-	Purl       pgtype.Text        `json:"purl"`
-	Cpe        pgtype.Text        `json:"cpe"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	SbomCount  int64              `json:"sbom_count"`
-	TotalCount int64              `json:"total_count"`
+	ID                  pgtype.UUID        `json:"id"`
+	Type                string             `json:"type"`
+	Name                string             `json:"name"`
+	GroupName           pgtype.Text        `json:"group_name"`
+	Purl                pgtype.Text        `json:"purl"`
+	Cpe                 pgtype.Text        `json:"cpe"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	SbomCount           int64              `json:"sbom_count"`
+	SufficientSbomCount int64              `json:"sufficient_sbom_count"`
+	TotalCount          int64              `json:"total_count"`
 }
 
 func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([]ListArtifactsRow, error) {
 	rows, err := q.db.Query(ctx, listArtifacts,
 		arg.Type,
 		arg.Name,
+		arg.RequireSufficient,
 		arg.RowOffset,
 		arg.RowLimit,
 	)
@@ -111,6 +118,7 @@ func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([
 			&i.Cpe,
 			&i.CreatedAt,
 			&i.SbomCount,
+			&i.SufficientSbomCount,
 			&i.TotalCount,
 		); err != nil {
 			return nil, err
@@ -129,6 +137,9 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.subject_version, s.di
        (COALESCE(e.data->>'created', u.data->>'created'))::timestamptz AS build_date,
        COALESCE(e.data->>'imageVersion', u.data->>'imageVersion') AS image_version,
        COALESCE(e.data->>'architecture', u.data->>'architecture') AS architecture,
+       COALESCE(e.data->>'revision', u.data->>'revision') AS revision,
+       COALESCE(e.data->>'sourceUrl', u.data->>'sourceUrl') AS source_url,
+       s.enrichment_sufficient,
        COUNT(*) OVER() AS total_count
 FROM sbom s
 LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
@@ -150,18 +161,21 @@ type ListSBOMsByArtifactParams struct {
 }
 
 type ListSBOMsByArtifactRow struct {
-	ID             pgtype.UUID        `json:"id"`
-	SerialNumber   pgtype.Text        `json:"serial_number"`
-	SpecVersion    string             `json:"spec_version"`
-	Version        int32              `json:"version"`
-	SubjectVersion pgtype.Text        `json:"subject_version"`
-	Digest         pgtype.Text        `json:"digest"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	ComponentCount int64              `json:"component_count"`
-	BuildDate      pgtype.Timestamptz `json:"build_date"`
-	ImageVersion   interface{}        `json:"image_version"`
-	Architecture   interface{}        `json:"architecture"`
-	TotalCount     int64              `json:"total_count"`
+	ID                   pgtype.UUID        `json:"id"`
+	SerialNumber         pgtype.Text        `json:"serial_number"`
+	SpecVersion          string             `json:"spec_version"`
+	Version              int32              `json:"version"`
+	SubjectVersion       pgtype.Text        `json:"subject_version"`
+	Digest               pgtype.Text        `json:"digest"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	ComponentCount       int64              `json:"component_count"`
+	BuildDate            pgtype.Timestamptz `json:"build_date"`
+	ImageVersion         interface{}        `json:"image_version"`
+	Architecture         interface{}        `json:"architecture"`
+	Revision             interface{}        `json:"revision"`
+	SourceUrl            interface{}        `json:"source_url"`
+	EnrichmentSufficient bool               `json:"enrichment_sufficient"`
+	TotalCount           int64              `json:"total_count"`
 }
 
 func (q *Queries) ListSBOMsByArtifact(ctx context.Context, arg ListSBOMsByArtifactParams) ([]ListSBOMsByArtifactRow, error) {
@@ -191,6 +205,9 @@ func (q *Queries) ListSBOMsByArtifact(ctx context.Context, arg ListSBOMsByArtifa
 			&i.BuildDate,
 			&i.ImageVersion,
 			&i.Architecture,
+			&i.Revision,
+			&i.SourceUrl,
+			&i.EnrichmentSufficient,
 			&i.TotalCount,
 		); err != nil {
 			return nil, err

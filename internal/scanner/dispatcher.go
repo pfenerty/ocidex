@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
+	"net/http"
 	"sync"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
@@ -77,6 +78,27 @@ func (d *Dispatcher) worker(ctx context.Context, id int) {
 }
 
 func (d *Dispatcher) process(ctx context.Context, req ScanRequest) {
+	// Fill in missing metadata from the registry manifest/config before scanning.
+	// Webhook-triggered requests don't pre-fetch this; the catalog walker does.
+	if req.Architecture == "" || req.BuildDate == "" || req.ImageVersion == "" {
+		scheme := "https"
+		if req.Insecure {
+			scheme = "http"
+		}
+		baseURL := scheme + "://" + req.RegistryURL
+		client := &http.Client{}
+		meta := ociGetImageMetadata(ctx, client, baseURL, req.Repository, req.Digest)
+		if req.Architecture == "" {
+			req.Architecture = meta.architecture
+		}
+		if req.BuildDate == "" {
+			req.BuildDate = meta.buildDate
+		}
+		if req.ImageVersion == "" {
+			req.ImageVersion = meta.imageVersion
+		}
+	}
+
 	raw, err := d.scanner.Scan(ctx, req)
 	if err != nil {
 		d.logger.Error("scan failed", "repo", req.Repository, "digest", req.Digest, "err", err)
@@ -90,8 +112,12 @@ func (d *Dispatcher) process(ctx context.Context, req ScanRequest) {
 		return
 	}
 
+	version := req.Tag
+	if req.ImageVersion != "" {
+		version = req.ImageVersion
+	}
 	if _, err := d.sbomSvc.Ingest(ctx, bom, raw, service.IngestParams{
-		Version:      req.Tag,
+		Version:      version,
 		Architecture: req.Architecture,
 		BuildDate:    req.BuildDate,
 	}); err != nil {

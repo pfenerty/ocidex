@@ -9,6 +9,7 @@ export default function Artifacts() {
     const [offset, setOffset] = createSignal(0);
     const [nameFilter, setNameFilter] = createSignal("");
     const [typeFilter, setTypeFilter] = createSignal("");
+    const [showAll, setShowAll] = createSignal(false);
     const limit = 50;
 
     const query = useArtifacts(() => ({
@@ -16,6 +17,7 @@ export default function Artifacts() {
         type: typeFilter(),
         limit,
         offset: offset(),
+        sufficient: showAll() ? undefined : true,
     }));
 
     const handleSearch = (e: Event) => {
@@ -54,6 +56,20 @@ export default function Artifacts() {
                     Search
                 </button>
             </form>
+
+            <div class="mb-md" style={{ display: "flex", "align-items": "center", gap: "0.5rem" }}>
+                <label style={{ display: "flex", "align-items": "center", gap: "0.5rem", cursor: "pointer" }}>
+                    <input
+                        type="checkbox"
+                        checked={showAll()}
+                        onChange={(e) => {
+                            setShowAll(e.currentTarget.checked);
+                            setOffset(0);
+                        }}
+                    />
+                    Show insufficiently enriched artifacts
+                </label>
+            </div>
 
             <QueryResult
                 query={query}
