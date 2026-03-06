@@ -98,11 +98,11 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		MaxAge:   h.cfg.SessionMaxAgeDays * 86400,
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteNoneMode,
 		Secure:   h.cfg.Environment == "production",
 	})
 
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, h.cfg.FrontendURL, http.StatusSeeOther)
 }
 
 // HandleLogout clears the session.

@@ -1,3 +1,5 @@
+import { API_BASE_URL } from "~/api/client";
+
 export default function Login() {
     return (
         <div style={{
@@ -58,7 +60,7 @@ export default function Login() {
                         Sign in to access the dashboard
                     </p>
                     <a
-                        href="/auth/login"
+                        href={`${API_BASE_URL}/auth/login`}
                         target="_self"
                         style={{
                             display: "inline-flex",

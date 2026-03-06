@@ -182,7 +182,7 @@ func run() error {
 	}
 
 	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, pool, scanSubmitter, cfg)
-	router := api.NewRouter(handler, cfg.CORSAllowedOrigins)
+	router := api.NewRouter(handler, cfg.CORSAllowedOrigins, cfg.APIBaseURL)
 
 	// Start extensions.
 	extCtx, extCancel := context.WithCancel(context.Background())

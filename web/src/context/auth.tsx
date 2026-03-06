@@ -5,6 +5,7 @@ import {
     type ParentProps,
     type ResourceReturn,
 } from "solid-js";
+import { API_BASE_URL } from "~/api/client";
 
 interface User {
     id: string;
@@ -20,7 +21,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue>();
 
 async function fetchMe(): Promise<User | undefined> {
-    const res = await fetch("/auth/me", { credentials: "include" });
+    const res = await fetch(`${API_BASE_URL}/auth/me`, { credentials: "include" });
     if (res.status === 401) return undefined;
     if (!res.ok) return undefined;
     const data: unknown = await res.json();

@@ -16,7 +16,8 @@ const maxSBOMBodyBytes int64 = 10 << 20 // 10 MB
 
 // NewRouter creates and configures the chi router with huma API registration.
 // corsOrigins is a comma-separated list of allowed origins (e.g. "*" or "http://localhost:3000,https://app.example.com").
-func NewRouter(h *Handler, corsOrigins string) chi.Router {
+// apiBaseURL, when non-empty, is added to the OpenAPI servers block so clients know where to reach the API.
+func NewRouter(h *Handler, corsOrigins, apiBaseURL string) chi.Router {
 	r := chi.NewRouter()
 
 	// Middleware stack
@@ -37,6 +38,35 @@ func NewRouter(h *Handler, corsOrigins string) chi.Router {
 
 	config := huma.DefaultConfig("OCIDex API", "1.0.0")
 	config.Info.Description = "Open Container Initiative Dex — SBOM metadata management service"
+
+	// Security schemes: Bearer API key or session cookie.
+	if config.Components == nil {
+		config.Components = &huma.Components{}
+	}
+	config.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
+		"bearerAuth": {
+			Type:         "http",
+			Scheme:       "bearer",
+			BearerFormat: "ocidex_<token>",
+			Description:  "API key issued via POST /api/v1/auth/keys",
+		},
+		"cookieAuth": {
+			Type:        "apiKey",
+			In:          "cookie",
+			Name:        sessionCookieName,
+			Description: "Session cookie obtained via GitHub OAuth (/auth/login)",
+		},
+	}
+	// Global security: any request must satisfy bearerAuth OR cookieAuth.
+	config.Security = []map[string][]string{
+		{"bearerAuth": {}},
+		{"cookieAuth": {}},
+	}
+
+	if apiBaseURL != "" {
+		config.Servers = []*huma.Server{{URL: apiBaseURL, Description: "OCIDex API"}}
+	}
+
 	api := humachi.New(r, config)
 
 	h.api = api
@@ -67,6 +97,7 @@ func registerHealthOps(api huma.API, h *Handler) {
 		Path:        "/health",
 		Summary:     "Liveness check",
 		Tags:        []string{"Health"},
+		Security:    []map[string][]string{},
 	}, h.HealthCheck)
 
 	huma.Register(api, huma.Operation{
@@ -76,6 +107,7 @@ func registerHealthOps(api huma.API, h *Handler) {
 		Summary:     "Readiness check",
 		Description: "Verifies the database is reachable.",
 		Tags:        []string{"Health"},
+		Security:    []map[string][]string{},
 	}, h.ReadinessCheck)
 }
 
@@ -90,6 +122,7 @@ func registerVersionOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/",
 		Summary:     "API version",
 		Tags:        []string{"Meta"},
+		Security:    []map[string][]string{},
 	}, h.APIVersion)
 }
 
@@ -310,6 +343,7 @@ func registerWebhookOps(api huma.API, h *Handler) {
 		Tags:          []string{"Webhooks"},
 		MaxBodyBytes:  64 * 1024,
 		DefaultStatus: http.StatusAccepted,
+		Security:      []map[string][]string{},
 	}, h.HandleRegistryWebhook)
 }
 

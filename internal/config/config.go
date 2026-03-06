@@ -37,9 +37,15 @@ type Config struct {
 	// GitHub OAuth.
 	GitHubClientID     string `env:"GITHUB_CLIENT_ID"`
 	GitHubClientSecret string `env:"GITHUB_CLIENT_SECRET"`
-	GitHubRedirectURL  string `env:"GITHUB_REDIRECT_URL" envDefault:"http://localhost:3000/auth/callback"`
+	GitHubRedirectURL  string `env:"GITHUB_REDIRECT_URL" envDefault:"http://localhost:8080/auth/callback"`
 	SessionSecret      string `env:"SESSION_SECRET"`
 	SessionMaxAgeDays  int    `env:"SESSION_MAX_AGE_DAYS" envDefault:"7"`
+
+	// Frontend URL — used as the post-OAuth redirect target and for CORS defaults.
+	FrontendURL string `env:"FRONTEND_URL" envDefault:"http://localhost:3000"`
+
+	// APIBaseURL — optional public base URL of the API, used to populate the OpenAPI servers block.
+	APIBaseURL string `env:"API_BASE_URL" envDefault:""`
 
 	// Scanner (OCI registry auto-scan via webhook).
 	ScannerEnabled   bool `env:"SCANNER_ENABLED"    envDefault:"false"`
