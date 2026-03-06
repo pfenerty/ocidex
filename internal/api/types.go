@@ -456,8 +456,8 @@ type CreateAPIKeyOutput struct {
 	}
 }
 
-// APIKeyMetaResponse is the display-safe API key representation.
-type APIKeyMetaResponse struct {
+// KeyMetaResponse is the display-safe API key representation.
+type KeyMetaResponse struct {
 	ID         string     `json:"id" doc:"Key UUID"`
 	Name       string     `json:"name"`
 	Prefix     string     `json:"prefix" doc:"First 8 characters of the key"`
@@ -468,7 +468,7 @@ type APIKeyMetaResponse struct {
 // ListAPIKeysOutput is the response for GET /api/v1/auth/keys.
 type ListAPIKeysOutput struct {
 	Body struct {
-		Keys []APIKeyMetaResponse `json:"keys"`
+		Keys []KeyMetaResponse `json:"keys"`
 	}
 }
 

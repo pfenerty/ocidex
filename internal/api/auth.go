@@ -17,6 +17,9 @@ const (
 	sessionCookieName = "ocidex_session"
 	stateCookieName   = "ocidex_oauth_state"
 	stateMaxAge       = 5 * time.Minute
+
+	roleAdmin  = "admin"
+	roleMember = "member"
 )
 
 // HandleLogin initiates GitHub OAuth flow.
@@ -209,7 +212,7 @@ func (h *Handler) CreateAPIKey(ctx context.Context, in *CreateAPIKeyInput) (*Cre
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if user.Role != "admin" && user.Role != "member" {
+	if user.Role != roleAdmin && user.Role != roleMember {
 		return nil, huma.Error403Forbidden("insufficient role")
 	}
 	plaintext, err := h.authService.CreateAPIKey(ctx, user.ID, in.Body.Name)
@@ -226,7 +229,7 @@ func (h *Handler) ListAPIKeys(ctx context.Context, _ *struct{}) (*ListAPIKeysOut
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if user.Role != "admin" && user.Role != "member" {
+	if user.Role != roleAdmin && user.Role != roleMember {
 		return nil, huma.Error403Forbidden("insufficient role")
 	}
 	keys, err := h.authService.ListAPIKeys(ctx, user.ID)
@@ -234,9 +237,9 @@ func (h *Handler) ListAPIKeys(ctx context.Context, _ *struct{}) (*ListAPIKeysOut
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing keys: %v", err))
 	}
 	out := &ListAPIKeysOutput{}
-	out.Body.Keys = make([]APIKeyMetaResponse, len(keys))
+	out.Body.Keys = make([]KeyMetaResponse, len(keys))
 	for i, k := range keys {
-		out.Body.Keys[i] = APIKeyMetaResponse{
+		out.Body.Keys[i] = KeyMetaResponse{
 			ID:         uuid.UUID(k.ID.Bytes).String(),
 			Name:       k.Name,
 			Prefix:     k.Prefix,
@@ -252,7 +255,7 @@ func (h *Handler) DeleteAPIKey(ctx context.Context, in *DeleteAPIKeyInput) (*str
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if user.Role != "admin" && user.Role != "member" {
+	if user.Role != roleAdmin && user.Role != roleMember {
 		return nil, huma.Error403Forbidden("insufficient role")
 	}
 	keyID, err := parseUUID(in.ID)
@@ -270,7 +273,7 @@ func (h *Handler) ListUsers(ctx context.Context, _ *struct{}) (*ListUsersOutput,
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if user.Role != "admin" {
+	if user.Role != roleAdmin {
 		return nil, huma.Error403Forbidden("admin only")
 	}
 	users, err := h.authService.ListUsers(ctx)
@@ -294,7 +297,7 @@ func (h *Handler) UpdateUserRole(ctx context.Context, in *UpdateUserRoleInput) (
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if caller.Role != "admin" {
+	if caller.Role != roleAdmin {
 		return nil, huma.Error403Forbidden("admin only")
 	}
 	targetID, err := parseUUID(in.ID)
@@ -317,7 +320,7 @@ func (h *Handler) GetSystemStatus(ctx context.Context, _ *struct{}) (*SystemStat
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if user.Role != "admin" {
+	if user.Role != roleAdmin {
 		return nil, huma.Error403Forbidden("admin only")
 	}
 	out := &SystemStatusOutput{}

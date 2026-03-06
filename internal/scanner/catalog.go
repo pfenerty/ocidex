@@ -195,7 +195,7 @@ func ociExpandIndex(ctx context.Context, c *http.Client, baseURL, repo, indexDig
 	if err := json.NewDecoder(resp.Body).Decode(&index); err != nil {
 		return nil, fmt.Errorf("decoding index: %w", err)
 	}
-	var entries []platformEntry
+	entries := make([]platformEntry, 0, len(index.Manifests))
 	for _, m := range index.Manifests {
 		if m.Digest == "" || m.Platform.OS == "" || m.Platform.OS == "unknown" {
 			continue
