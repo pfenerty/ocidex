@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix openapi help
+.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix openapi openapi-check help
 
 all: check build ## Run all checks and build
 
@@ -35,7 +35,7 @@ test-coverage: ## Run tests with HTML coverage report
 test-integration: ## Run integration tests
 	go test -v -race ./tests/...
 
-check: fmt lint test ## Run fmt, lint, and test
+check: fmt lint test openapi-check ## Run fmt, lint, test, and openapi staleness check
 
 init: ## Download dependencies and install tools
 	go mod download
@@ -56,6 +56,12 @@ migrate-down: ## Roll back last database migration
 openapi: ## Regenerate OpenAPI spec and TypeScript types
 	go run ./cmd/specgen > web/openapi.json
 	cd web && npm run generate-api
+
+openapi-check: ## Verify OpenAPI spec and TypeScript types are up-to-date
+	go run ./cmd/specgen > /tmp/openapi-check.json
+	diff web/openapi.json /tmp/openapi-check.json || (echo "ERROR: web/openapi.json is stale. Run 'make openapi'." && exit 1)
+	cd web && npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts
+	diff web/src/types/openapi.d.ts /tmp/openapi-check.d.ts || (echo "ERROR: openapi.d.ts is stale. Run 'make openapi'." && exit 1)
 
 seed: ## Seed database with real SBOMs from public OCI registries
 	nu scripts/seed.nu
