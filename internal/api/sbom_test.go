@@ -73,7 +73,7 @@ func TestIngestSBOM(t *testing.T) {
 			is := is.New(t)
 			router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
 
-			r := httptest.NewRequest(http.MethodPost, "/api/v1/sbom", strings.NewReader(tt.body))
+			r := httptest.NewRequest(http.MethodPost, "/api/v1/sboms", strings.NewReader(tt.body))
 			r.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 
@@ -99,7 +99,7 @@ func TestDeleteSBOM(t *testing.T) {
 			is := is.New(t)
 			router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
 
-			r := httptest.NewRequest(http.MethodDelete, "/api/v1/sbom/"+tt.id, nil)
+			r := httptest.NewRequest(http.MethodDelete, "/api/v1/sboms/"+tt.id, nil)
 			w := httptest.NewRecorder()
 
 			router.ServeHTTP(w, r)
@@ -143,7 +143,7 @@ func TestIngestSBOM_ServiceError(t *testing.T) {
 			{"type": "library", "name": "test-lib", "version": "1.0.0"}
 		]
 	}`
-	r := httptest.NewRequest(http.MethodPost, "/api/v1/sbom", strings.NewReader(body))
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/sboms", strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
