@@ -382,7 +382,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List SBOMs */
+        /**
+         * List SBOMs
+         * @description Supports filtering by serial_number and digest query parameters.
+         */
         get: operations["list-sboms"];
         put?: never;
         /**
@@ -574,17 +577,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        APIKeyMetaResponse: {
-            /** Format: date-time */
-            created_at: string;
-            /** @description Key UUID */
-            id: string;
-            /** Format: date-time */
-            last_used_at?: string;
-            name: string;
-            /** @description First 8 characters of the key */
-            prefix: string;
-        };
         ArtifactDetail: {
             /**
              * Format: uri
@@ -602,6 +594,8 @@ export interface components {
             /** Format: int64 */
             sbomCount: number;
             type: string;
+            /** Format: int64 */
+            sufficientSbomCount: number;
         };
         ArtifactSummary: {
             group?: string;
@@ -610,6 +604,8 @@ export interface components {
             /** Format: int64 */
             sbomCount: number;
             type: string;
+            /** Format: int64 */
+            sufficientSbomCount: number;
         };
         CategoryCountEntry: {
             category: string;
@@ -953,7 +949,7 @@ export interface components {
              * @example https://example.com/schemas/ListAPIKeysOutputBody.json
              */
             readonly $schema?: string;
-            keys: components["schemas"]["APIKeyMetaResponse"][] | null;
+            keys: components["schemas"]["KeyMetaResponse"][] | null;
         };
         ListArtifactSBOMsOutputBody: {
             /**
@@ -1021,16 +1017,6 @@ export interface components {
              */
             readonly $schema?: string;
             components: components["schemas"]["ComponentSummary"][] | null;
-        };
-        ListSBOMsByDigestOutputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/ListSBOMsByDigestOutputBody.json
-             */
-            readonly $schema?: string;
-            data: components["schemas"]["SBOMSummary"][] | null;
-            pagination: components["schemas"]["PaginationMeta"];
         };
         ListSBOMsOutputBody: {
             /**
@@ -1178,6 +1164,9 @@ export interface components {
             subjectVersion?: string;
             /** Format: int32 */
             version: number;
+            revision?: string;
+            sourceUrl?: string;
+            sufficient: boolean;
         };
         SBOMRef: {
             architecture?: string;
@@ -1205,6 +1194,9 @@ export interface components {
             subjectVersion?: string;
             /** Format: int32 */
             version: number;
+            revision?: string;
+            sourceUrl?: string;
+            sufficient: boolean;
         };
         ScanRegistryOutputBody: {
             /**
@@ -1338,6 +1330,17 @@ export interface components {
              * @example v1
              */
             version: string;
+        };
+        KeyMetaResponse: {
+            /** Format: date-time */
+            created_at: string;
+            /** @description Key UUID */
+            id: string;
+            /** Format: date-time */
+            last_used_at?: string;
+            name: string;
+            /** @description First 8 characters of the key */
+            prefix: string;
         };
     };
     responses: never;
