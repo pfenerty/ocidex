@@ -173,16 +173,8 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		return pgtype.UUID{}, err
 	}
 
-	if bom.Components != nil {
-		if err := s.insertComponents(ctx, q, sbomRow.ID, pgtype.UUID{}, *bom.Components); err != nil {
-			return pgtype.UUID{}, err
-		}
-	}
-
-	if bom.Dependencies != nil {
-		if err := s.insertDependencies(ctx, q, sbomRow.ID, *bom.Dependencies); err != nil {
-			return pgtype.UUID{}, err
-		}
+	if err := s.insertBOMContent(ctx, q, sbomRow.ID, bom); err != nil {
+		return pgtype.UUID{}, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -260,6 +252,21 @@ func writeUserEnrichment(ctx context.Context, q *repository.Queries, sbomID pgty
 			EnrichmentSufficient: true,
 		}); err != nil {
 			return fmt.Errorf("updating enrichment sufficiency: %w", err)
+		}
+	}
+	return nil
+}
+
+// insertBOMContent inserts components and dependencies for an SBOM within a transaction.
+func (s *sbomService) insertBOMContent(ctx context.Context, q *repository.Queries, sbomID pgtype.UUID, bom *cdx.BOM) error {
+	if bom.Components != nil {
+		if err := s.insertComponents(ctx, q, sbomID, pgtype.UUID{}, *bom.Components); err != nil {
+			return err
+		}
+	}
+	if bom.Dependencies != nil {
+		if err := s.insertDependencies(ctx, q, sbomID, *bom.Dependencies); err != nil {
+			return err
 		}
 	}
 	return nil

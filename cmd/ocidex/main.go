@@ -45,9 +45,8 @@ func run() error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	// OAuth fields are required for the API binary.
-	if cfg.GitHubClientID == "" || cfg.GitHubClientSecret == "" || cfg.SessionSecret == "" {
-		return fmt.Errorf("GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and SESSION_SECRET are required")
+	if err := validateOAuthConfig(cfg); err != nil {
+		return err
 	}
 
 	// Initialize structured logging.
@@ -83,13 +82,7 @@ func run() error {
 	insecureResolver := buildInsecureResolver(registrySvc)
 
 	setupEnrichmentExt(cfg, reg, pool, insecureResolver, natsClient, logger)
-
-	if cfg.AuditLogEnabled {
-		reg.Register(audit.NewExtension(logger))
-	}
-	if cfg.NATSEnabled {
-		reg.Register(natspkg.NewRelayExtension(natsClient, logger))
-	}
+	setupOptionalExts(cfg, reg, natsClient, logger)
 
 	ociValidator := oci.NewValidator(oci.WithInsecureResolver(insecureResolver))
 	sbomSvc := service.NewSBOMService(pool, bus, ociValidator)
@@ -204,6 +197,22 @@ func buildInsecureResolver(registrySvc service.RegistryService) func(string) boo
 			}
 		}
 		return false
+	}
+}
+
+func validateOAuthConfig(cfg *config.Config) error {
+	if cfg.GitHubClientID == "" || cfg.GitHubClientSecret == "" || cfg.SessionSecret == "" {
+		return fmt.Errorf("GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and SESSION_SECRET are required")
+	}
+	return nil
+}
+
+func setupOptionalExts(cfg *config.Config, reg *extension.Registry, natsClient *natspkg.Client, logger *slog.Logger) {
+	if cfg.AuditLogEnabled {
+		reg.Register(audit.NewExtension(logger))
+	}
+	if cfg.NATSEnabled {
+		reg.Register(natspkg.NewRelayExtension(natsClient, logger))
 	}
 }
 

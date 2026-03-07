@@ -19,7 +19,7 @@ func (h *Handler) ListRegistries(ctx context.Context, _ *struct{}) (*ListRegistr
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if user.Role != "admin" {
+	if user.Role != roleAdmin {
 		return nil, huma.Error403Forbidden("admin only")
 	}
 	regs, err := h.registryService.List(ctx)
@@ -40,7 +40,7 @@ func (h *Handler) GetRegistry(ctx context.Context, in *GetRegistryInput) (*GetRe
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if user.Role != "admin" {
+	if user.Role != roleAdmin {
 		return nil, huma.Error403Forbidden("admin only")
 	}
 	reg, err := h.registryService.Get(ctx, in.ID)
@@ -56,7 +56,7 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if user.Role != "admin" {
+	if user.Role != roleAdmin {
 		return nil, huma.Error403Forbidden("admin only")
 	}
 	scanMode := in.Body.ScanMode
@@ -80,7 +80,7 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if user.Role != "admin" {
+	if user.Role != roleAdmin {
 		return nil, huma.Error403Forbidden("admin only")
 	}
 	scanMode := in.Body.ScanMode
@@ -104,7 +104,7 @@ func (h *Handler) DeleteRegistry(ctx context.Context, in *DeleteRegistryInput) (
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if user.Role != "admin" {
+	if user.Role != roleAdmin {
 		return nil, huma.Error403Forbidden("admin only")
 	}
 	if err := h.registryService.Delete(ctx, in.ID); err != nil {
@@ -119,7 +119,7 @@ func (h *Handler) TestRegistryConnection(ctx context.Context, in *TestRegistryCo
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if user.Role != "admin" {
+	if user.Role != roleAdmin {
 		return nil, huma.Error403Forbidden("admin only")
 	}
 
@@ -160,7 +160,7 @@ func (h *Handler) ScanRegistry(ctx context.Context, in *ScanRegistryInput) (*Sca
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if user.Role != "admin" {
+	if user.Role != roleAdmin {
 		return nil, huma.Error403Forbidden("admin only")
 	}
 	reg, err := h.registryService.Get(ctx, in.ID)
