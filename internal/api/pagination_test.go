@@ -14,7 +14,7 @@ func TestPaginationDefaults(t *testing.T) {
 	is := is.New(t)
 	router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
 
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/sbom", nil)
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/sboms", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, r)
 
@@ -30,7 +30,7 @@ func TestPaginationCustomValues(t *testing.T) {
 	is := is.New(t)
 	router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
 
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/sbom?limit=25&offset=100", nil)
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/sboms?limit=25&offset=100", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, r)
 
@@ -46,7 +46,7 @@ func TestPaginationCapAtMax(t *testing.T) {
 	is := is.New(t)
 	router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
 
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/sbom?limit=500", nil)
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/sboms?limit=500", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, r)
 
