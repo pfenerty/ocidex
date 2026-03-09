@@ -1,7 +1,11 @@
 import createClient from "openapi-fetch";
 import type { paths, components } from "~/types/openapi";
 
-export const client = createClient<paths>();
+// Base URL of the API server. Set VITE_API_URL at build time; defaults to
+// same-origin (e.g. when the Go binary serves the frontend statically).
+export const API_BASE_URL: string = import.meta.env.VITE_API_URL ?? "";
+
+export const client = createClient<paths>({ baseUrl: API_BASE_URL });
 
 /**
  * APIClientError wraps a non-2xx response from the API.

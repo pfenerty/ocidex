@@ -49,7 +49,7 @@ func run() error {
 		return fmt.Errorf("parsing database config: %w", err)
 	}
 	if cfg.DatabaseMaxConns > 0 {
-		poolCfg.MaxConns = int32(cfg.DatabaseMaxConns)
+		poolCfg.MaxConns = int32(cfg.DatabaseMaxConns) //nolint:gosec // G115: value is a configured pool size
 	}
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {

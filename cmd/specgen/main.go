@@ -17,7 +17,7 @@ import (
 
 func main() {
 	h := api.NewHandler(nil, nil, nil, nil, nil, nil, nil)
-	_ = api.NewRouter(h, "*")
+	_ = api.NewRouter(h, "*", "")
 
 	spec := h.API().OpenAPI()
 

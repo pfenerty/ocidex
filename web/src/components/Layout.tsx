@@ -2,6 +2,7 @@ import { A, useNavigate, useLocation } from "@solidjs/router";
 import { createEffect, Show, type ParentProps } from "solid-js";
 import ThemeToggle from "~/components/ThemeToggle";
 import { useAuth } from "~/context/auth";
+import { API_BASE_URL } from "~/api/client";
 
 export default function Layout(props: ParentProps) {
     const { user, refetch } = useAuth();
@@ -15,7 +16,7 @@ export default function Layout(props: ParentProps) {
     });
 
     async function handleLogout() {
-        await fetch("/auth/logout", { method: "POST", credentials: "include" });
+        await fetch(`${API_BASE_URL}/auth/logout`, { method: "POST", credentials: "include" });
         void refetch();
     }
 

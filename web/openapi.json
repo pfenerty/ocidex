@@ -471,7 +471,7 @@
             "type": "string"
           },
           "key": {
-            "description": "Full API key — shown once, store securely",
+            "description": "Full API key \u2014 shown once, store securely",
             "type": "string"
           }
         },
@@ -2182,7 +2182,7 @@
     }
   },
   "info": {
-    "description": "Open Container Initiative Dex — SBOM metadata management service",
+    "description": "Open Container Initiative Dex \u2014 SBOM metadata management service",
     "title": "OCIDex API",
     "version": "1.0.0"
   },
@@ -3075,7 +3075,7 @@
         ]
       }
     },
-    "/api/v1/diff": {
+    "/api/v1/sboms/diff": {
       "get": {
         "description": "Computes the component diff between two SBOMs.",
         "operationId": "diff-sboms",
@@ -3582,7 +3582,7 @@
         ]
       }
     },
-    "/api/v1/sbom": {
+    "/api/v1/sboms": {
       "get": {
         "operationId": "list-sboms",
         "parameters": [
@@ -3736,77 +3736,7 @@
         ]
       }
     },
-    "/api/v1/sbom/by-digest/{digest}": {
-      "get": {
-        "operationId": "list-sboms-by-digest",
-        "parameters": [
-          {
-            "description": "Maximum number of results per page",
-            "explode": false,
-            "in": "query",
-            "name": "limit",
-            "schema": {
-              "default": 50,
-              "description": "Maximum number of results per page",
-              "format": "int32",
-              "maximum": 200,
-              "minimum": 1,
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Number of results to skip",
-            "explode": false,
-            "in": "query",
-            "name": "offset",
-            "schema": {
-              "default": 0,
-              "description": "Number of results to skip",
-              "format": "int32",
-              "minimum": 0,
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Image digest (e.g. sha256:abc123)",
-            "in": "path",
-            "name": "digest",
-            "required": true,
-            "schema": {
-              "description": "Image digest (e.g. sha256:abc123)",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ListSBOMsByDigestOutputBody"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "summary": "List SBOMs by image digest",
-        "tags": [
-          "SBOMs"
-        ]
-      }
-    },
-    "/api/v1/sbom/{id}": {
+    "/api/v1/sboms/{id}": {
       "delete": {
         "operationId": "delete-sbom",
         "parameters": [
@@ -3895,7 +3825,7 @@
         ]
       }
     },
-    "/api/v1/sbom/{id}/components": {
+    "/api/v1/sboms/{id}/components": {
       "get": {
         "operationId": "list-sbom-components",
         "parameters": [
@@ -3939,7 +3869,7 @@
         ]
       }
     },
-    "/api/v1/sbom/{id}/dependencies": {
+    "/api/v1/sboms/{id}/dependencies": {
       "get": {
         "operationId": "get-sbom-dependencies",
         "parameters": [
@@ -3983,7 +3913,7 @@
         ]
       }
     },
-    "/api/v1/stats/summary": {
+    "/api/v1/stats": {
       "get": {
         "operationId": "get-dashboard-stats",
         "responses": {
@@ -4099,14 +4029,14 @@
         ]
       }
     },
-    "/api/v1/webhooks/{registryID}": {
+    "/api/v1/registries/{id}/webhook": {
       "post": {
         "operationId": "registry-webhook",
         "parameters": [
           {
             "description": "Registry UUID",
             "in": "path",
-            "name": "registryID",
+            "name": "id",
             "required": true,
             "schema": {
               "description": "Registry UUID",
@@ -4152,7 +4082,7 @@
         ]
       }
     },
-    "/auth/me": {
+    "/api/v1/users/me": {
       "get": {
         "operationId": "get-me",
         "responses": {

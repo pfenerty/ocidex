@@ -32,7 +32,8 @@ func Authenticate(authSvc service.AuthService) func(http.Handler) http.Handler {
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if publicPaths[r.URL.Path] || strings.HasPrefix(r.URL.Path, "/api/v1/webhooks/") {
+			if publicPaths[r.URL.Path] ||
+				(strings.HasPrefix(r.URL.Path, "/api/v1/registries/") && strings.HasSuffix(r.URL.Path, "/webhook")) {
 				next.ServeHTTP(w, r)
 				return
 			}

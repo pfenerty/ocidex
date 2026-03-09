@@ -45,9 +45,8 @@ func run() error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	// OAuth fields are required for the API binary.
-	if cfg.GitHubClientID == "" || cfg.GitHubClientSecret == "" || cfg.SessionSecret == "" {
-		return fmt.Errorf("GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and SESSION_SECRET are required")
+	if err := validateOAuthConfig(cfg); err != nil {
+		return err
 	}
 
 	// Initialize structured logging.
@@ -60,56 +59,129 @@ func run() error {
 		"log_level", cfg.LogLevel,
 	)
 
-	// Connect to PostgreSQL.
 	ctx := context.Background()
-	poolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+	pool, err := setupDatabase(ctx, cfg)
 	if err != nil {
-		return fmt.Errorf("parsing database config: %w", err)
-	}
-	if cfg.DatabaseMaxConns > 0 {
-		poolCfg.MaxConns = int32(cfg.DatabaseMaxConns)
-	}
-	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
-	if err != nil {
-		return fmt.Errorf("connecting to database: %w", err)
+		return err
 	}
 	defer pool.Close()
 
-	if err := pool.Ping(ctx); err != nil {
-		return fmt.Errorf("pinging database: %w", err)
+	natsClient, err := setupNATSClient(cfg)
+	if err != nil {
+		return err
 	}
-	slog.Info("database connected")
-
-	// Run migrations.
-	if err := runMigrations(cfg.DatabaseURL); err != nil {
-		return fmt.Errorf("running migrations: %w", err)
-	}
-
-	// Optionally connect to NATS JetStream.
-	var natsClient *natspkg.Client
-	if cfg.NATSEnabled {
-		natsClient, err = natspkg.Connect(natspkg.Config{
-			URL:           cfg.NATSURL,
-			StreamName:    cfg.NATSStreamName,
-			EventTTLHours: cfg.NATSEventTTL,
-			Replicas:      cfg.NATSStreamReplicas,
-		})
-		if err != nil {
-			return fmt.Errorf("connecting to NATS: %w", err)
-		}
+	if natsClient != nil {
 		defer natsClient.Close()
-		slog.Info("NATS connected", "url", cfg.NATSURL, "stream", cfg.NATSStreamName)
 	}
 
-	// Wire event bus and extension registry.
 	logger := slog.Default()
 	bus := event.NewBus(logger)
-	registry := extension.NewRegistry(bus, logger)
+	reg := extension.NewRegistry(bus, logger)
 
-	// Registry service must be created before OCI enricher/validator so the
-	// insecure resolver closure can look up per-registry HTTP settings.
 	registrySvc := service.NewRegistryService(pool)
-	insecureResolver := func(host string) bool {
+	insecureResolver := buildInsecureResolver(registrySvc)
+
+	setupEnrichmentExt(cfg, reg, pool, insecureResolver, natsClient, logger)
+	setupOptionalExts(cfg, reg, natsClient, logger)
+
+	ociValidator := oci.NewValidator(oci.WithInsecureResolver(insecureResolver))
+	sbomSvc := service.NewSBOMService(pool, bus, ociValidator)
+	searchSvc := service.NewSearchService(pool)
+	authSvc := service.NewAuthService(pool, cfg)
+
+	scanSubmitter := setupScannerExt(cfg, pool, bus, reg, natsClient, logger)
+
+	if err := reg.InitAll(); err != nil {
+		return fmt.Errorf("initializing extensions: %w", err)
+	}
+
+	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, pool, scanSubmitter, cfg)
+	router := api.NewRouter(handler, cfg.CORSAllowedOrigins, cfg.APIBaseURL)
+
+	extCtx, extCancel := context.WithCancel(context.Background())
+	defer extCancel()
+	if err := reg.StartAll(extCtx); err != nil {
+		return fmt.Errorf("starting extensions: %w", err)
+	}
+
+	if cfg.ScannerEnabled && cfg.RegistryPollerEnabled && scanSubmitter != nil {
+		poller := scanner.NewPoller(registrySvc, scanSubmitter, logger)
+		go poller.Run(extCtx)
+		slog.Info("registry poller started")
+	}
+
+	go runSessionCleaner(extCtx, authSvc)
+
+	srv := &http.Server{
+		Addr:         fmt.Sprintf(":%d", cfg.Port),
+		Handler:      router,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	if err := serveAndWait(srv); err != nil {
+		return err
+	}
+
+	extCancel()
+	if err := reg.StopAll(); err != nil {
+		slog.Error("extension shutdown error", "err", err)
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("server shutdown: %w", err)
+	}
+	slog.Info("server stopped")
+	return nil
+}
+
+func setupDatabase(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
+	poolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("parsing database config: %w", err)
+	}
+	if cfg.DatabaseMaxConns > 0 {
+		poolCfg.MaxConns = int32(cfg.DatabaseMaxConns) //nolint:gosec // G115: value is a configured pool size
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
+	if err != nil {
+		return nil, fmt.Errorf("connecting to database: %w", err)
+	}
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("pinging database: %w", err)
+	}
+	slog.Info("database connected")
+	if err := runMigrations(cfg.DatabaseURL); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("running migrations: %w", err)
+	}
+	return pool, nil
+}
+
+func setupNATSClient(cfg *config.Config) (*natspkg.Client, error) {
+	if !cfg.NATSEnabled {
+		return nil, nil
+	}
+	client, err := natspkg.Connect(natspkg.Config{
+		URL:           cfg.NATSURL,
+		StreamName:    cfg.NATSStreamName,
+		EventTTLHours: cfg.NATSEventTTL,
+		Replicas:      cfg.NATSStreamReplicas,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("connecting to NATS: %w", err)
+	}
+	slog.Info("NATS connected", "url", cfg.NATSURL, "stream", cfg.NATSStreamName)
+	return client, nil
+}
+
+func buildInsecureResolver(registrySvc service.RegistryService) func(string) bool {
+	return func(host string) bool {
 		regs, err := registrySvc.List(context.Background())
 		if err != nil {
 			return false
@@ -126,101 +198,77 @@ func run() error {
 		}
 		return false
 	}
+}
 
-	if cfg.NATSEnabled && cfg.EnrichmentNATSMode {
-		// Enrichment-worker processes consume from NATS; API only publishes via relay.
-		// No NATSExtension registered here.
-	} else if cfg.EnrichmentEnabled {
-		enrichStore := repository.New(pool)
-		ociEnricher := oci.NewEnricher(oci.WithInsecureResolver(insecureResolver))
-		dispatcher := enrichment.NewDispatcher(
-			enrichStore,
-			[]enrichment.Enricher{ociEnricher},
-			enrichment.WithWorkers(cfg.EnrichmentWorkers),
-			enrichment.WithQueueSize(cfg.EnrichmentQueueSize),
-		)
-		if cfg.NATSEnabled {
-			registry.Register(enrichment.NewNATSExtension(natsClient, dispatcher, logger))
-		} else {
-			registry.Register(enrichment.NewExtension(dispatcher))
-		}
+func validateOAuthConfig(cfg *config.Config) error {
+	if cfg.GitHubClientID == "" || cfg.GitHubClientSecret == "" || cfg.SessionSecret == "" {
+		return fmt.Errorf("GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and SESSION_SECRET are required")
 	}
+	return nil
+}
 
+func setupOptionalExts(cfg *config.Config, reg *extension.Registry, natsClient *natspkg.Client, logger *slog.Logger) {
 	if cfg.AuditLogEnabled {
-		registry.Register(audit.NewExtension(logger))
+		reg.Register(audit.NewExtension(logger))
 	}
-
 	if cfg.NATSEnabled {
-		registry.Register(natspkg.NewRelayExtension(natsClient, logger))
+		reg.Register(natspkg.NewRelayExtension(natsClient, logger))
 	}
+}
 
-	// Wire core services.
-	ociValidator := oci.NewValidator(oci.WithInsecureResolver(insecureResolver))
-	sbomSvc := service.NewSBOMService(pool, bus, ociValidator)
-	searchSvc := service.NewSearchService(pool)
-	authSvc := service.NewAuthService(pool, cfg)
+func setupEnrichmentExt(cfg *config.Config, reg *extension.Registry, pool *pgxpool.Pool, insecureResolver func(string) bool, natsClient *natspkg.Client, logger *slog.Logger) {
+	if cfg.NATSEnabled && cfg.EnrichmentNATSMode {
+		return
+	}
+	if !cfg.EnrichmentEnabled {
+		return
+	}
+	enrichStore := repository.New(pool)
+	ociEnricher := oci.NewEnricher(oci.WithInsecureResolver(insecureResolver))
+	dispatcher := enrichment.NewDispatcher(
+		enrichStore,
+		[]enrichment.Enricher{ociEnricher},
+		enrichment.WithWorkers(cfg.EnrichmentWorkers),
+		enrichment.WithQueueSize(cfg.EnrichmentQueueSize),
+	)
+	if cfg.NATSEnabled {
+		reg.Register(enrichment.NewNATSExtension(natsClient, dispatcher, logger))
+	} else {
+		reg.Register(enrichment.NewExtension(dispatcher))
+	}
+}
 
-	var scanSubmitter api.ScanSubmitter
-	if cfg.ScannerEnabled {
-		// Use nil validator: webhook confirms image exists at a known digest.
-		scannerSbomSvc := service.NewSBOMService(pool, bus, nil)
-		sc := scanner.NewScanner(logger)
+func setupScannerExt(cfg *config.Config, pool *pgxpool.Pool, bus *event.Bus, reg *extension.Registry, natsClient *natspkg.Client, logger *slog.Logger) api.ScanSubmitter {
+	if !cfg.ScannerEnabled {
+		return nil
+	}
+	// Use nil validator: webhook confirms image exists at a known digest.
+	scannerSbomSvc := service.NewSBOMService(pool, bus, nil)
+	sc := scanner.NewScanner(logger)
+	if cfg.NATSEnabled && cfg.ScannerNATSMode {
+		// External workers consume from NATS — main process only publishes.
+		return scanner.NewNATSSubmitter(natsClient, logger)
+	}
+	// In-process mode.
+	scanDispatcher := scanner.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerWorkers, cfg.ScannerQueueSize, logger)
+	reg.Register(scanner.NewExtension(scanDispatcher))
+	return scanDispatcher
+}
 
-		if cfg.NATSEnabled && cfg.ScannerNATSMode {
-			// External workers consume from NATS — main process only publishes.
-			scanSubmitter = scanner.NewNATSSubmitter(natsClient, logger)
-		} else {
-			// In-process mode.
-			scanDispatcher := scanner.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerWorkers, cfg.ScannerQueueSize, logger)
-			registry.Register(scanner.NewExtension(scanDispatcher))
-			scanSubmitter = scanDispatcher
+func runSessionCleaner(ctx context.Context, authSvc service.AuthService) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			_ = authSvc.CleanExpiredSessions(ctx)
+		case <-ctx.Done():
+			return
 		}
 	}
+}
 
-	if err := registry.InitAll(); err != nil {
-		return fmt.Errorf("initializing extensions: %w", err)
-	}
-
-	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, pool, scanSubmitter, cfg)
-	router := api.NewRouter(handler, cfg.CORSAllowedOrigins)
-
-	// Start extensions.
-	extCtx, extCancel := context.WithCancel(context.Background())
-	defer extCancel()
-	if err := registry.StartAll(extCtx); err != nil {
-		return fmt.Errorf("starting extensions: %w", err)
-	}
-
-	if cfg.ScannerEnabled && cfg.RegistryPollerEnabled && scanSubmitter != nil {
-		poller := scanner.NewPoller(registrySvc, scanSubmitter, logger)
-		go poller.Run(extCtx)
-		slog.Info("registry poller started")
-	}
-
-	// Periodically purge expired sessions.
-	go func() {
-		ticker := time.NewTicker(time.Hour)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				_ = authSvc.CleanExpiredSessions(extCtx)
-			case <-extCtx.Done():
-				return
-			}
-		}
-	}()
-
-	// Start HTTP server.
-	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.Port),
-		Handler:      router,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  120 * time.Second,
-	}
-
-	// Graceful shutdown.
+func serveAndWait(srv *http.Server) error {
 	errCh := make(chan error, 1)
 	go func() {
 		slog.Info("listening", "addr", srv.Addr)
@@ -239,20 +287,6 @@ func run() error {
 	case err := <-errCh:
 		return fmt.Errorf("server error: %w", err)
 	}
-
-	// Stop extensions first (enrichment workers, etc.).
-	extCancel()
-	if err := registry.StopAll(); err != nil {
-		slog.Error("extension shutdown error", "err", err)
-	}
-
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("server shutdown: %w", err)
-	}
-	slog.Info("server stopped")
 	return nil
 }
 

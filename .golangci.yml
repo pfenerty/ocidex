@@ -54,3 +54,4 @@ issues:
         - gocyclo
         - errcheck
         - dupl
+        - goconst

@@ -96,6 +96,16 @@ func (s *searchService) DiffSBOMs(ctx context.Context, fromID, toID pgtype.UUID)
 	return diffComponents(fromRef, toRef, buildComponentMap(fromComps), buildComponentMap(toComps)), nil
 }
 
+// changelogGroupKey identifies a unique (version, arch) pair for deduplication.
+type changelogGroupKey struct{ version, arch string }
+
+// changelogCandidate is a deduplicated SBOM representative for changelog diffing.
+type changelogCandidate struct {
+	sbom      repository.ListSBOMsByArtifactRow
+	buildDate *time.Time
+	arch      string
+}
+
 // GetArtifactChangelog generates a changelog by diffing consecutive SBOMs for an artifact.
 // SBOMs are grouped by architecture, deduplicated by (version, arch), then diffed within
 // the selected architecture's timeline.
@@ -113,73 +123,10 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgt
 	}
 
 	meta := buildEnrichmentMetaMap(ctx, q, artifactID)
-
-	// Deduplicate by (subject_version, arch): keep the latest representative per group.
-	type groupKey struct{ version, arch string }
-	type candidate struct {
-		sbom      repository.ListSBOMsByArtifactRow
-		buildDate *time.Time
-		arch      string
-	}
-
-	best := map[groupKey]candidate{}
-	for _, sbom := range sboms {
-		m := meta[sbom.ID]
-		sv := sbom.SubjectVersion.String
-		if !sbom.SubjectVersion.Valid || sv == "" {
-			sv = uuidToString(sbom.ID)
-		}
-		key := groupKey{sv, m.architecture}
-		prev, exists := best[key]
-		if !exists || laterThan(m.buildDate, sbom.CreatedAt.Time, prev.buildDate, prev.sbom.CreatedAt.Time) {
-			best[key] = candidate{sbom: sbom, buildDate: m.buildDate, arch: m.architecture}
-		}
-	}
-
-	// Collect available architectures and select one.
-	available := map[string]bool{}
-	for k := range best {
-		available[k.arch] = true
-	}
+	best, available := deduplicateSBOMs(sboms, meta)
 	selectedArch := selectArch(arch, available)
-
-	// Filter to the selected architecture.
-	var candidates []candidate
-	for k, c := range best {
-		if k.arch == selectedArch {
-			candidates = append(candidates, c)
-		}
-	}
-
-	// Sort by version string (numeric-aware) when available, falling back to build date then ingestion time.
-	sort.Slice(candidates, func(i, j int) bool {
-		vi := candidates[i].sbom.SubjectVersion.String
-		vj := candidates[j].sbom.SubjectVersion.String
-		hasVI := candidates[i].sbom.SubjectVersion.Valid && vi != ""
-		hasVJ := candidates[j].sbom.SubjectVersion.Valid && vj != ""
-
-		if hasVI && hasVJ {
-			if cmp := compareVersionStrings(vi, vj); cmp != 0 {
-				return cmp < 0
-			}
-		}
-
-		var ei, ej time.Time
-		if candidates[i].buildDate != nil {
-			ei = *candidates[i].buildDate
-		} else {
-			ei = candidates[i].sbom.CreatedAt.Time
-		}
-		if candidates[j].buildDate != nil {
-			ej = *candidates[j].buildDate
-		} else {
-			ej = candidates[j].sbom.CreatedAt.Time
-		}
-		if !ei.Equal(ej) {
-			return ei.Before(ej)
-		}
-		return candidates[i].sbom.CreatedAt.Time.Before(candidates[j].sbom.CreatedAt.Time)
-	})
+	candidates := filterByArch(best, selectedArch)
+	sortCandidates(candidates)
 
 	arches := make([]string, 0, len(available))
 	for a := range available {
@@ -230,6 +177,72 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgt
 	}
 
 	return changelog, nil
+}
+
+// deduplicateSBOMs groups SBOMs by (version, arch) keeping the latest per group.
+// Returns the best-per-group map and the set of available architectures.
+func deduplicateSBOMs(sboms []repository.ListSBOMsByArtifactRow, meta map[pgtype.UUID]enrichmentMeta) (map[changelogGroupKey]changelogCandidate, map[string]bool) {
+	best := map[changelogGroupKey]changelogCandidate{}
+	available := map[string]bool{}
+	for _, sbom := range sboms {
+		m := meta[sbom.ID]
+		sv := sbom.SubjectVersion.String
+		if !sbom.SubjectVersion.Valid || sv == "" {
+			sv = uuidToString(sbom.ID)
+		}
+		key := changelogGroupKey{sv, m.architecture}
+		prev, exists := best[key]
+		if !exists || laterThan(m.buildDate, sbom.CreatedAt.Time, prev.buildDate, prev.sbom.CreatedAt.Time) {
+			best[key] = changelogCandidate{sbom: sbom, buildDate: m.buildDate, arch: m.architecture}
+		}
+		available[m.architecture] = true
+	}
+	return best, available
+}
+
+// filterByArch returns candidates matching the given architecture.
+func filterByArch(best map[changelogGroupKey]changelogCandidate, arch string) []changelogCandidate {
+	var out []changelogCandidate
+	for k, c := range best {
+		if k.arch == arch {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// sortCandidates sorts in-place by version (numeric-aware), falling back to build date then ingestion time.
+func sortCandidates(candidates []changelogCandidate) {
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidateLess(candidates, i, j)
+	})
+}
+
+func candidateLess(candidates []changelogCandidate, i, j int) bool {
+	vi := candidates[i].sbom.SubjectVersion.String
+	vj := candidates[j].sbom.SubjectVersion.String
+	hasVI := candidates[i].sbom.SubjectVersion.Valid && vi != ""
+	hasVJ := candidates[j].sbom.SubjectVersion.Valid && vj != ""
+
+	if hasVI && hasVJ {
+		if cmp := compareVersionStrings(vi, vj); cmp != 0 {
+			return cmp < 0
+		}
+	}
+
+	ei := candidateEffectiveTime(candidates[i])
+	ej := candidateEffectiveTime(candidates[j])
+	if !ei.Equal(ej) {
+		return ei.Before(ej)
+	}
+	return candidates[i].sbom.CreatedAt.Time.Before(candidates[j].sbom.CreatedAt.Time)
+}
+
+func candidateEffectiveTime(c changelogCandidate) time.Time {
+	if c.buildDate != nil {
+		return *c.buildDate
+	}
+	return c.sbom.CreatedAt.Time
 }
 
 // enrichmentMeta holds OCI metadata extracted from an SBOM's oci-metadata enrichment.

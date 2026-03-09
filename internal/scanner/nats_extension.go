@@ -143,16 +143,7 @@ func (e *NATSExtension) handleMsg(msg natsMsg) {
 		return
 	}
 
-	req := ScanRequest{
-		RegistryURL:  wire.RegistryURL,
-		Insecure:     wire.Insecure,
-		Repository:   wire.Repository,
-		Digest:       wire.Digest,
-		Tag:          wire.Tag,
-		Architecture: wire.Architecture,
-		BuildDate:    wire.BuildDate,
-		ImageVersion: wire.ImageVersion,
-	}
+	req := ScanRequest(wire)
 
 	if !e.dispatcher.SubmitWithResult(req) {
 		// Queue full — nack so JetStream redelivers after AckWait.

@@ -132,7 +132,7 @@ func (s *registryService) Create(ctx context.Context, name, regType, url string,
 		RepositoryPatterns:  nonEmpty(repositoryPatterns),
 		TagPatterns:         nonEmpty(tagPatterns),
 		ScanMode:            scanMode,
-		PollIntervalMinutes: int32(pollIntervalMinutes),
+		PollIntervalMinutes: int32(pollIntervalMinutes), //nolint:gosec // G115: poll interval is validated to fit int32
 	})
 	if err != nil {
 		return Registry{}, fmt.Errorf("creating registry: %w", err)
@@ -181,7 +181,7 @@ func (s *registryService) Update(ctx context.Context, id, name, regType, url str
 		RepositoryPatterns:  nonEmpty(repositoryPatterns),
 		TagPatterns:         nonEmpty(tagPatterns),
 		ScanMode:            scanMode,
-		PollIntervalMinutes: int32(pollIntervalMinutes),
+		PollIntervalMinutes: int32(pollIntervalMinutes), //nolint:gosec // G115: poll interval is validated to fit int32
 	})
 	if err != nil {
 		return Registry{}, fmt.Errorf("updating registry: %w", err)

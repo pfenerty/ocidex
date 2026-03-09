@@ -16,7 +16,8 @@ const maxSBOMBodyBytes int64 = 10 << 20 // 10 MB
 
 // NewRouter creates and configures the chi router with huma API registration.
 // corsOrigins is a comma-separated list of allowed origins (e.g. "*" or "http://localhost:3000,https://app.example.com").
-func NewRouter(h *Handler, corsOrigins string) chi.Router {
+// apiBaseURL, when non-empty, is added to the OpenAPI servers block so clients know where to reach the API.
+func NewRouter(h *Handler, corsOrigins, apiBaseURL string) chi.Router {
 	r := chi.NewRouter()
 
 	// Middleware stack
@@ -37,6 +38,35 @@ func NewRouter(h *Handler, corsOrigins string) chi.Router {
 
 	config := huma.DefaultConfig("OCIDex API", "1.0.0")
 	config.Info.Description = "Open Container Initiative Dex — SBOM metadata management service"
+
+	// Security schemes: Bearer API key or session cookie.
+	if config.Components == nil {
+		config.Components = &huma.Components{}
+	}
+	config.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
+		"bearerAuth": {
+			Type:         "http",
+			Scheme:       "bearer",
+			BearerFormat: "ocidex_<token>",
+			Description:  "API key issued via POST /api/v1/auth/keys",
+		},
+		"cookieAuth": {
+			Type:        "apiKey",
+			In:          "cookie",
+			Name:        sessionCookieName,
+			Description: "Session cookie obtained via GitHub OAuth (/auth/login)",
+		},
+	}
+	// Global security: any request must satisfy bearerAuth OR cookieAuth.
+	config.Security = []map[string][]string{
+		{"bearerAuth": {}},
+		{"cookieAuth": {}},
+	}
+
+	if apiBaseURL != "" {
+		config.Servers = []*huma.Server{{URL: apiBaseURL, Description: "OCIDex API"}}
+	}
+
 	api := humachi.New(r, config)
 
 	h.api = api
@@ -67,6 +97,7 @@ func registerHealthOps(api huma.API, h *Handler) {
 		Path:        "/health",
 		Summary:     "Liveness check",
 		Tags:        []string{"Health"},
+		Security:    []map[string][]string{},
 	}, h.HealthCheck)
 
 	huma.Register(api, huma.Operation{
@@ -76,6 +107,7 @@ func registerHealthOps(api huma.API, h *Handler) {
 		Summary:     "Readiness check",
 		Description: "Verifies the database is reachable.",
 		Tags:        []string{"Health"},
+		Security:    []map[string][]string{},
 	}, h.ReadinessCheck)
 }
 
@@ -90,6 +122,7 @@ func registerVersionOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/",
 		Summary:     "API version",
 		Tags:        []string{"Meta"},
+		Security:    []map[string][]string{},
 	}, h.APIVersion)
 }
 
@@ -101,7 +134,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID:   "ingest-sbom",
 		Method:        http.MethodPost,
-		Path:          "/api/v1/sbom",
+		Path:          "/api/v1/sboms",
 		Summary:       "Ingest an SBOM",
 		Description:   "Accepts a CycloneDX JSON SBOM, validates it, and persists it.",
 		Tags:          []string{"SBOMs"},
@@ -112,23 +145,16 @@ func registerSBOMOps(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "list-sboms",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/sbom",
+		Path:        "/api/v1/sboms",
 		Summary:     "List SBOMs",
+		Description: "Supports filtering by serial_number and digest query parameters.",
 		Tags:        []string{"SBOMs"},
 	}, h.ListSBOMs)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "list-sboms-by-digest",
-		Method:      http.MethodGet,
-		Path:        "/api/v1/sbom/by-digest/{digest}",
-		Summary:     "List SBOMs by image digest",
-		Tags:        []string{"SBOMs"},
-	}, h.ListSBOMsByDigest)
-
-	huma.Register(api, huma.Operation{
 		OperationID: "get-sbom",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/sbom/{id}",
+		Path:        "/api/v1/sboms/{id}",
 		Summary:     "Get an SBOM",
 		Tags:        []string{"SBOMs"},
 	}, h.GetSBOM)
@@ -136,7 +162,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "get-sbom-dependencies",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/sbom/{id}/dependencies",
+		Path:        "/api/v1/sboms/{id}/dependencies",
 		Summary:     "Get SBOM dependency graph",
 		Tags:        []string{"SBOMs"},
 	}, h.GetSBOMDependencies)
@@ -144,7 +170,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "list-sbom-components",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/sbom/{id}/components",
+		Path:        "/api/v1/sboms/{id}/components",
 		Summary:     "List components in an SBOM",
 		Tags:        []string{"SBOMs"},
 	}, h.ListSBOMComponents)
@@ -152,7 +178,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID:   "delete-sbom",
 		Method:        http.MethodDelete,
-		Path:          "/api/v1/sbom/{id}",
+		Path:          "/api/v1/sboms/{id}",
 		Summary:       "Delete an SBOM",
 		Tags:          []string{"SBOMs"},
 		DefaultStatus: http.StatusNoContent,
@@ -290,10 +316,10 @@ func registerDiffOps(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "diff-sboms",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/diff",
+		Path:        "/api/v1/sboms/diff",
 		Summary:     "Diff two SBOMs",
 		Description: "Computes the component diff between two SBOMs.",
-		Tags:        []string{"Diff"},
+		Tags:        []string{"SBOMs"},
 	}, h.DiffSBOMs)
 }
 
@@ -305,11 +331,12 @@ func registerWebhookOps(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID:   "registry-webhook",
 		Method:        http.MethodPost,
-		Path:          "/api/v1/webhooks/{registryID}",
+		Path:          "/api/v1/registries/{id}/webhook",
 		Summary:       "Receive registry push notifications",
-		Tags:          []string{"Webhooks"},
+		Tags:          []string{"Registries"},
 		MaxBodyBytes:  64 * 1024,
 		DefaultStatus: http.StatusAccepted,
+		Security:      []map[string][]string{},
 	}, h.HandleRegistryWebhook)
 }
 
@@ -389,7 +416,7 @@ func registerStatsOps(api huma.API, h *Handler) {
 	huma.Register(api, huma.Operation{
 		OperationID: "get-dashboard-stats",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/stats/summary",
+		Path:        "/api/v1/stats",
 		Summary:     "Get dashboard summary statistics",
 		Tags:        []string{"Stats"},
 	}, h.GetDashboardStats)

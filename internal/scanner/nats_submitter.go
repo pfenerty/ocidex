@@ -40,16 +40,7 @@ type scanRequestWire struct {
 // Submit publishes a scan request to "ocidex.scan.requested".
 // Best-effort: failures are logged but do not block the caller.
 func (s *NATSSubmitter) Submit(req ScanRequest) {
-	payload, err := json.Marshal(scanRequestWire{
-		RegistryURL:  req.RegistryURL,
-		Insecure:     req.Insecure,
-		Repository:   req.Repository,
-		Digest:       req.Digest,
-		Tag:          req.Tag,
-		Architecture: req.Architecture,
-		BuildDate:    req.BuildDate,
-		ImageVersion: req.ImageVersion,
-	})
+	payload, err := json.Marshal(scanRequestWire(req))
 	if err != nil {
 		s.logger.Error("nats submitter: marshal payload", "err", err)
 		return

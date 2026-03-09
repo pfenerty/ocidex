@@ -150,34 +150,16 @@ type DeleteSBOMInput struct {
 }
 
 // ---------------------------------------------------------------------------
-// SBOM — By Digest
-// ---------------------------------------------------------------------------
-
-// ListSBOMsByDigestInput is the request for GET /api/v1/sbom/by-digest/{digest}.
-type ListSBOMsByDigestInput struct {
-	PaginationParams
-	Digest string `path:"digest" doc:"Image digest (e.g. sha256:abc123)"`
-}
-
-// ListSBOMsByDigestOutput is the response for GET /api/v1/sbom/by-digest/{digest}.
-type ListSBOMsByDigestOutput struct {
-	Body struct {
-		Data       []service.SBOMSummary `json:"data"`
-		Pagination PaginationMeta        `json:"pagination"`
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Diff
 // ---------------------------------------------------------------------------
 
-// DiffSBOMsInput is the request for GET /api/v1/diff.
+// DiffSBOMsInput is the request for GET /api/v1/sboms/diff.
 type DiffSBOMsInput struct {
 	From string `query:"from" required:"true" doc:"UUID of the source SBOM" format:"uuid"`
 	To   string `query:"to" required:"true" doc:"UUID of the target SBOM" format:"uuid"`
 }
 
-// DiffSBOMsOutput is the response for GET /api/v1/diff.
+// DiffSBOMsOutput is the response for GET /api/v1/sboms/diff.
 type DiffSBOMsOutput struct {
 	Body service.ChangelogEntry
 }
@@ -316,7 +298,7 @@ type ListArtifactsInput struct {
 	PaginationParams
 	Type       string `query:"type" doc:"Filter by artifact type"`
 	Name       string `query:"name" doc:"Filter by artifact name"`
-	Sufficient *bool  `query:"sufficient" doc:"Filter to artifacts with sufficiently enriched SBOMs (default true)"`
+	Sufficient string `query:"sufficient" doc:"Filter to artifacts with sufficiently enriched SBOMs; pass 'false' to include all (default: true)"`
 }
 
 // ListArtifactsOutput is the response for GET /api/v1/artifacts.
@@ -447,7 +429,7 @@ type PackageSummaryEntry struct {
 // Auth — Me
 // ---------------------------------------------------------------------------
 
-// MeOutput is the response for GET /auth/me.
+// MeOutput is the response for GET /api/v1/users/me.
 type MeOutput struct {
 	Body struct {
 		ID             string `json:"id" doc:"User UUID"`
@@ -474,8 +456,8 @@ type CreateAPIKeyOutput struct {
 	}
 }
 
-// APIKeyMetaResponse is the display-safe API key representation.
-type APIKeyMetaResponse struct {
+// KeyMetaResponse is the display-safe API key representation.
+type KeyMetaResponse struct {
 	ID         string     `json:"id" doc:"Key UUID"`
 	Name       string     `json:"name"`
 	Prefix     string     `json:"prefix" doc:"First 8 characters of the key"`
@@ -486,7 +468,7 @@ type APIKeyMetaResponse struct {
 // ListAPIKeysOutput is the response for GET /api/v1/auth/keys.
 type ListAPIKeysOutput struct {
 	Body struct {
-		Keys []APIKeyMetaResponse `json:"keys"`
+		Keys []KeyMetaResponse `json:"keys"`
 	}
 }
 
@@ -675,9 +657,9 @@ type TestRegistryConnectionOutput struct {
 	}
 }
 
-// RegistryWebhookInput is the request for POST /api/v1/webhooks/{registryID}.
+// RegistryWebhookInput is the request for POST /api/v1/registries/{id}/webhook.
 type RegistryWebhookInput struct {
-	RegistryID    string `path:"registryID" doc:"Registry UUID"`
+	ID            string `path:"id" doc:"Registry UUID" format:"uuid"`
 	Authorization string `header:"Authorization"`
 	Body          struct {
 		Name      string `json:"name"`

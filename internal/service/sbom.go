@@ -144,23 +144,8 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 	bd := resolveBuildDate(bom, params)
 
 	// Mandatory validation for container SBOMs.
-	if bom.Metadata != nil && bom.Metadata.Component != nil &&
-		bom.Metadata.Component.Type == cdx.ComponentTypeContainer {
-		var missing []string
-		if !info.subjectVersion.Valid {
-			missing = append(missing, "subject_version")
-		}
-		if arch == "" {
-			missing = append(missing, "architecture")
-		}
-		if bd == "" {
-			missing = append(missing, "build_date")
-		}
-		if len(missing) > 0 {
-			return pgtype.UUID{}, &ValidationError{
-				Message: fmt.Sprintf("container SBOM missing required metadata: %s", strings.Join(missing, ", ")),
-			}
-		}
+	if err := validateContainerRequired(bom, info, arch, bd); err != nil {
+		return pgtype.UUID{}, err
 	}
 
 	sbomRow, err := q.InsertSBOM(ctx, repository.InsertSBOMParams{
@@ -184,48 +169,12 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 
 	// Write "user" enrichment so metadata is immediately visible in queries,
 	// before the async OCI enricher runs.
-	if arch != "" || bd != "" || info.subjectVersion.Valid {
-		data := map[string]string{}
-		if arch != "" {
-			data["architecture"] = arch
-		}
-		if bd != "" {
-			data["created"] = bd
-		}
-		if info.subjectVersion.Valid {
-			data["imageVersion"] = info.subjectVersion.String
-		}
-		dataJSON, _ := json.Marshal(data)
-		if err := q.UpsertEnrichment(ctx, repository.UpsertEnrichmentParams{
-			SbomID:       sbomRow.ID,
-			EnricherName: "user",
-			Status:       "success",
-			Data:         dataJSON,
-		}); err != nil {
-			return pgtype.UUID{}, fmt.Errorf("writing user enrichment: %w", err)
-		}
-
-		// Mark as sufficiently enriched when both version and architecture are present.
-		if arch != "" && info.subjectVersion.Valid {
-			if err := q.UpdateSBOMEnrichmentSufficient(ctx, repository.UpdateSBOMEnrichmentSufficientParams{
-				ID:                   sbomRow.ID,
-				EnrichmentSufficient: true,
-			}); err != nil {
-				return pgtype.UUID{}, fmt.Errorf("updating enrichment sufficiency: %w", err)
-			}
-		}
+	if err := writeUserEnrichment(ctx, q, sbomRow.ID, arch, bd, info); err != nil {
+		return pgtype.UUID{}, err
 	}
 
-	if bom.Components != nil {
-		if err := s.insertComponents(ctx, q, sbomRow.ID, pgtype.UUID{}, *bom.Components); err != nil {
-			return pgtype.UUID{}, err
-		}
-	}
-
-	if bom.Dependencies != nil {
-		if err := s.insertDependencies(ctx, q, sbomRow.ID, *bom.Dependencies); err != nil {
-			return pgtype.UUID{}, err
-		}
+	if err := s.insertBOMContent(ctx, q, sbomRow.ID, bom); err != nil {
+		return pgtype.UUID{}, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -244,6 +193,83 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 	}
 
 	return sbomRow.ID, nil
+}
+
+// validateContainerRequired returns a ValidationError if a container SBOM is missing
+// mandatory metadata fields.
+func validateContainerRequired(bom *cdx.BOM, info artifactInfo, arch, bd string) error {
+	if bom.Metadata == nil || bom.Metadata.Component == nil ||
+		bom.Metadata.Component.Type != cdx.ComponentTypeContainer {
+		return nil
+	}
+	var missing []string
+	if !info.subjectVersion.Valid {
+		missing = append(missing, "subject_version")
+	}
+	if arch == "" {
+		missing = append(missing, "architecture")
+	}
+	if bd == "" {
+		missing = append(missing, "build_date")
+	}
+	if len(missing) > 0 {
+		return &ValidationError{
+			Message: fmt.Sprintf("container SBOM missing required metadata: %s", strings.Join(missing, ", ")),
+		}
+	}
+	return nil
+}
+
+// writeUserEnrichment persists caller-supplied metadata as a "user" enrichment record
+// so it is immediately queryable before the async OCI enricher runs.
+func writeUserEnrichment(ctx context.Context, q *repository.Queries, sbomID pgtype.UUID, arch, bd string, info artifactInfo) error {
+	if arch == "" && bd == "" && !info.subjectVersion.Valid {
+		return nil
+	}
+	data := map[string]string{}
+	if arch != "" {
+		data["architecture"] = arch
+	}
+	if bd != "" {
+		data["created"] = bd
+	}
+	if info.subjectVersion.Valid {
+		data["imageVersion"] = info.subjectVersion.String
+	}
+	dataJSON, _ := json.Marshal(data)
+	if err := q.UpsertEnrichment(ctx, repository.UpsertEnrichmentParams{
+		SbomID:       sbomID,
+		EnricherName: "user",
+		Status:       "success",
+		Data:         dataJSON,
+	}); err != nil {
+		return fmt.Errorf("writing user enrichment: %w", err)
+	}
+	// Mark as sufficiently enriched when both version and architecture are present.
+	if arch != "" && info.subjectVersion.Valid {
+		if err := q.UpdateSBOMEnrichmentSufficient(ctx, repository.UpdateSBOMEnrichmentSufficientParams{
+			ID:                   sbomID,
+			EnrichmentSufficient: true,
+		}); err != nil {
+			return fmt.Errorf("updating enrichment sufficiency: %w", err)
+		}
+	}
+	return nil
+}
+
+// insertBOMContent inserts components and dependencies for an SBOM within a transaction.
+func (s *sbomService) insertBOMContent(ctx context.Context, q *repository.Queries, sbomID pgtype.UUID, bom *cdx.BOM) error {
+	if bom.Components != nil {
+		if err := s.insertComponents(ctx, q, sbomID, pgtype.UUID{}, *bom.Components); err != nil {
+			return err
+		}
+	}
+	if bom.Dependencies != nil {
+		if err := s.insertDependencies(ctx, q, sbomID, *bom.Dependencies); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // DeleteSBOM removes an SBOM and all its associated data (components, hashes,
