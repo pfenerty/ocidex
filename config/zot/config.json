@@ -16,7 +16,7 @@
             "sinks": [
                 {
                     "type": "http",
-                    "address": "http://web:3000/api/v1/webhooks/69caa4ea-d571-467a-b283-7f21b5b2128c",
+                    "address": "http://app:8080/api/v1/webhooks/308b853f-01cf-4b40-92d4-550efd886f00",
                     "timeout": "10s",
                     "headers": {
                         "Authorization": "Bearer change-me-in-production"

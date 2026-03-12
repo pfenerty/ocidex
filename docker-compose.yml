@@ -68,7 +68,6 @@ services:
             ZOT_REGISTRY_ADDR: "zot:5000"
             ZOT_REGISTRY_INSECURE: "true"
             ZOT_WEBHOOK_SECRET: "change-me-in-production"
-            GITHUB_REDIRECT_URL: "http://100.104.73.75:3000/auth/callback"
         env_file:
             - .env
         ports:
