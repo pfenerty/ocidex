@@ -24,7 +24,6 @@ func TestHealthCheck(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/health", nil)
-
 	router.ServeHTTP(w, r)
 
 	is.Equal(w.Code, http.StatusOK)
@@ -37,7 +36,6 @@ func TestReadinessCheck_Healthy(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/ready", nil)
-
 	router.ServeHTTP(w, r)
 
 	is.Equal(w.Code, http.StatusOK)
@@ -52,7 +50,6 @@ func TestReadinessCheck_Unavailable(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/ready", nil)
-
 	router.ServeHTTP(w, r)
 
 	is.Equal(w.Code, http.StatusServiceUnavailable)

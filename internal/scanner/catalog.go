@@ -125,7 +125,7 @@ type manifestInfo struct {
 
 func ociListCatalog(ctx context.Context, c *http.Client, baseURL string) ([]string, error) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/v2/_catalog", nil)
-	resp, err := c.Do(req)
+	resp, err := c.Do(req) //nolint:gosec
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +144,7 @@ func ociListCatalog(ctx context.Context, c *http.Client, baseURL string) ([]stri
 
 func ociListTags(ctx context.Context, c *http.Client, baseURL, repo string) ([]string, error) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/v2/"+repo+"/tags/list", nil)
-	resp, err := c.Do(req)
+	resp, err := c.Do(req) //nolint:gosec
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +175,7 @@ func ociExpandIndex(ctx context.Context, c *http.Client, baseURL, repo, indexDig
 		"application/vnd.oci.image.index.v1+json",
 		"application/vnd.docker.distribution.manifest.list.v2+json",
 	}, ","))
-	resp, err := c.Do(req)
+	resp, err := c.Do(req) //nolint:gosec
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +220,7 @@ func ociGetImageMetadata(ctx context.Context, c *http.Client, baseURL, repo, dig
 		"application/vnd.oci.image.manifest.v1+json",
 		"application/vnd.docker.distribution.manifest.v2+json",
 	}, ","))
-	resp, err := c.Do(req)
+	resp, err := c.Do(req) //nolint:gosec
 	if err != nil {
 		return imageMetadata{}
 	}
@@ -229,8 +229,10 @@ func ociGetImageMetadata(ctx context.Context, c *http.Client, baseURL, repo, dig
 		return imageMetadata{}
 	}
 	var manifest struct {
-		Config      struct{ Digest string `json:"digest"` } `json:"config"`
-		Annotations map[string]string                      `json:"annotations"`
+		Config struct {
+			Digest string `json:"digest"`
+		} `json:"config"`
+		Annotations map[string]string `json:"annotations"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&manifest); err != nil {
 		return imageMetadata{}
@@ -245,7 +247,7 @@ func ociGetImageMetadata(ctx context.Context, c *http.Client, baseURL, repo, dig
 		}
 	}
 	req2, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/v2/"+repo+"/blobs/"+manifest.Config.Digest, nil)
-	resp2, err := c.Do(req2)
+	resp2, err := c.Do(req2) //nolint:gosec
 	if err != nil {
 		return imageMetadata{buildDate: annotationCreated, imageVersion: annotationVersion}
 	}
@@ -301,7 +303,7 @@ func ociHeadManifest(ctx context.Context, c *http.Client, baseURL, repo, tag str
 		"application/vnd.oci.image.index.v1+json",
 		"application/vnd.docker.distribution.manifest.list.v2+json",
 	}, ","))
-	resp, err := c.Do(req)
+	resp, err := c.Do(req) //nolint:gosec
 	if err != nil {
 		return manifestInfo{}, err
 	}

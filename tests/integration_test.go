@@ -108,7 +108,7 @@ const minimalSBOM = `{
 			"name": "docker.io/ubuntu@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			"version": "24.04",
 			"properties": [
-				{"name": "syft:image:config.Architecture", "value": "amd64"},
+				{"name": "syft:image:labels:org.opencontainers.image.architecture", "value": "amd64"},
 				{"name": "syft:image:labels:org.opencontainers.image.created", "value": "2024-01-01T00:00:00Z"}
 			]
 		}
@@ -138,9 +138,9 @@ const secondSBOM = `{
 		"component": {
 			"type": "container",
 			"name": "docker.io/ubuntu@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-			"version": "24.04",
+			"version": "24.04.1",
 			"properties": [
-				{"name": "syft:image:config.Architecture", "value": "amd64"},
+				{"name": "syft:image:labels:org.opencontainers.image.architecture", "value": "amd64"},
 				{"name": "syft:image:labels:org.opencontainers.image.created", "value": "2024-02-01T00:00:00Z"}
 			]
 		}
@@ -176,7 +176,7 @@ func TestFullLifecycle(t *testing.T) {
 	is := is.New(t)
 
 	// --- Ingest first SBOM ---
-	resp, err := doPost(t, srv.URL+"/api/v1/sbom", strings.NewReader(minimalSBOM))
+	resp, err := doPost(t, srv.URL+"/api/v1/sboms", strings.NewReader(minimalSBOM))
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 
@@ -233,7 +233,7 @@ func TestFullLifecycle(t *testing.T) {
 	// Small delay so created_at differs for changelog ordering.
 	time.Sleep(100 * time.Millisecond)
 
-	resp, err = doPost(t, srv.URL+"/api/v1/sbom", strings.NewReader(secondSBOM))
+	resp, err = doPost(t, srv.URL+"/api/v1/sboms", strings.NewReader(secondSBOM))
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 
@@ -269,7 +269,7 @@ func TestFullLifecycle(t *testing.T) {
 	is.Equal(summary["modified"], float64(1)) // adduser
 
 	// --- Delete first SBOM ---
-	req, _ := http.NewRequestWithContext(t.Context(), http.MethodDelete, fmt.Sprintf("%s/api/v1/sbom/%s", srv.URL, sbomID1), nil)
+	req, _ := http.NewRequestWithContext(t.Context(), http.MethodDelete, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomID1), nil)
 	resp, err = http.DefaultClient.Do(req)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusNoContent)
@@ -325,7 +325,7 @@ func TestDigestNormalization(t *testing.T) {
 				"name": "docker.io/ubuntu",
 				"version": "sha256:8feb4d8ca5354def3d8fce243717141ce31e2c428701f6682bd2fafe15388214",
 				"properties": [
-					{"name": "syft:image:config.Architecture", "value": "amd64"},
+					{"name": "syft:image:labels:org.opencontainers.image.architecture", "value": "amd64"},
 					{"name": "syft:image:labels:org.opencontainers.image.created", "value": "2024-01-01T00:00:00Z"}
 				]
 			},
@@ -338,17 +338,17 @@ func TestDigestNormalization(t *testing.T) {
 		]
 	}`
 
-	// Trivy-style: name includes digest, no version field
+	// Trivy-style: name includes digest, no version field (different digest than syftSBOM)
 	trivySBOM := `{
 		"bomFormat": "CycloneDX",
 		"specVersion": "1.6",
 		"metadata": {
 			"component": {
 				"type": "container",
-				"name": "docker.io/ubuntu@sha256:8feb4d8ca5354def3d8fce243717141ce31e2c428701f6682bd2fafe15388214",
+				"name": "docker.io/ubuntu@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
 				"properties": [
 					{"name": "aquasecurity:trivy:Labels:org.opencontainers.image.version", "value": "20.04"},
-					{"name": "syft:image:config.Architecture", "value": "amd64"},
+					{"name": "syft:image:labels:org.opencontainers.image.architecture", "value": "amd64"},
 					{"name": "syft:image:labels:org.opencontainers.image.created", "value": "2024-01-01T00:00:00Z"}
 				]
 			}
@@ -359,12 +359,12 @@ func TestDigestNormalization(t *testing.T) {
 	}`
 
 	// Ingest both
-	resp, err := doPost(t, srv.URL+"/api/v1/sbom", strings.NewReader(syftSBOM))
+	resp, err := doPost(t, srv.URL+"/api/v1/sboms", strings.NewReader(syftSBOM))
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	resp.Body.Close()
 
-	resp, err = doPost(t, srv.URL+"/api/v1/sbom", strings.NewReader(trivySBOM))
+	resp, err = doPost(t, srv.URL+"/api/v1/sboms", strings.NewReader(trivySBOM))
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	resp.Body.Close()
