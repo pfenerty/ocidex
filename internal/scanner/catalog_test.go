@@ -31,11 +31,11 @@ func catalogTestServer(t *testing.T, manifestAnnotations, configLabels map[strin
 	}
 
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/v2/repo/manifests/sha256:testdigest":
+		switch r.URL.Path {
+		case "/v2/repo/manifests/sha256:testdigest":
 			w.Header().Set("Content-Type", "application/vnd.oci.image.manifest.v1+json")
 			_ = json.NewEncoder(w).Encode(manifest)
-		case r.URL.Path == "/v2/repo/blobs/sha256:configdigest":
+		case "/v2/repo/blobs/sha256:configdigest":
 			w.Header().Set("Content-Type", "application/octet-stream")
 			_, _ = w.Write(configBytes)
 		default:
@@ -96,13 +96,13 @@ func TestOciGetImageMetadata(t *testing.T) {
 	t.Run("manifest annotation used when config.Created is empty", func(t *testing.T) {
 		is := is.New(t)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch {
-			case r.URL.Path == "/v2/repo/manifests/sha256:testdigest":
+			switch r.URL.Path {
+			case "/v2/repo/manifests/sha256:testdigest":
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"config":      map[string]any{"digest": "sha256:configdigest"},
 					"annotations": map[string]string{"org.opencontainers.image.created": "2025-06-01T00:00:00Z"},
 				})
-			case r.URL.Path == "/v2/repo/blobs/sha256:configdigest":
+			case "/v2/repo/blobs/sha256:configdigest":
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"architecture": "amd64",
 					// no "created" field
@@ -120,13 +120,13 @@ func TestOciGetImageMetadata(t *testing.T) {
 		is := is.New(t)
 		// Serve a config blob with no top-level created but a label
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch {
-			case r.URL.Path == "/v2/repo/manifests/sha256:testdigest":
+			switch r.URL.Path {
+			case "/v2/repo/manifests/sha256:testdigest":
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"config":      map[string]any{"digest": "sha256:configdigest"},
 					"annotations": map[string]string{},
 				})
-			case r.URL.Path == "/v2/repo/blobs/sha256:configdigest":
+			case "/v2/repo/blobs/sha256:configdigest":
 				_ = json.NewEncoder(w).Encode(map[string]any{
 					"architecture": "amd64",
 					"config": map[string]any{

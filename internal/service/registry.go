@@ -16,21 +16,21 @@ import (
 
 // Registry is the domain model for a configured OCI registry.
 type Registry struct {
-	ID                 string
-	Name               string
-	Type               string
-	URL                string
-	Insecure           bool
-	WebhookSecret      *string // nil = no auth required
-	Enabled            bool
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
-	Repositories       []string   // explicit repos to walk; empty = use catalog discovery
-	RepositoryPatterns []string   // glob patterns; empty = accept all
-	TagPatterns        []string   // glob patterns or "semver"; empty = accept all
-	ScanMode           string     // "webhook" | "poll" | "both"
+	ID                  string
+	Name                string
+	Type                string
+	URL                 string
+	Insecure            bool
+	WebhookSecret       *string // nil = no auth required
+	Enabled             bool
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	Repositories        []string // explicit repos to walk; empty = use catalog discovery
+	RepositoryPatterns  []string // glob patterns; empty = accept all
+	TagPatterns         []string // glob patterns or "semver"; empty = accept all
+	ScanMode            string   // "webhook" | "poll" | "both"
 	PollIntervalMinutes int
-	LastPolledAt       *time.Time // nil if never polled
+	LastPolledAt        *time.Time // nil if never polled
 }
 
 // AcceptsWebhooks returns true if the registry should process incoming webhooks.

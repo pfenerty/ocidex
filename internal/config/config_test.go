@@ -39,13 +39,13 @@ func TestLoad(t *testing.T) {
 		{
 			name: "overrides",
 			env: map[string]string{
-				"PORT":                    "9090",
-				"LOG_LEVEL":               "debug",
-				"ENVIRONMENT":             "production",
-				"DATABASE_URL":            "postgres://prod/ocidex",
+				"PORT":                     "9090",
+				"LOG_LEVEL":                "debug",
+				"ENVIRONMENT":              "production",
+				"DATABASE_URL":             "postgres://prod/ocidex",
 				"DATABASE_MAX_CONNECTIONS": "3",
-				"NATS_STREAM_REPLICAS":    "3",
-				"ENRICHMENT_NATS_MODE":    "true",
+				"NATS_STREAM_REPLICAS":     "3",
+				"ENRICHMENT_NATS_MODE":     "true",
 			},
 			check: func(is *is.I, cfg *config.Config) {
 				is.Equal(cfg.Port, 9090)

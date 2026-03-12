@@ -385,7 +385,6 @@ func TestGetArtifactChangelog(t *testing.T) {
 	}
 }
 
-
 func TestGetSBOMDependencies(t *testing.T) {
 	tests := []struct {
 		name       string
