@@ -1,4 +1,4 @@
-import { createSignal, createMemo, Show, For } from "solid-js";
+import { createSignal, createMemo, Show, For, untrack } from "solid-js";
 import { A } from "@solidjs/router";
 import type { ComponentSummary, DependencyEdge } from "~/api/client";
 import { EmptyState } from "~/components/Feedback";
@@ -38,9 +38,9 @@ export function PackagesTab(props: { components: ComponentSummary[] }) {
             if (t !== "all" && ecoType(c) !== t) return false;
             if (!q) return true;
             const display =
-                (c.group ? `${c.group}/` : "") +
+                (c.group !== undefined && c.group !== "" ? `${c.group}/` : "") +
                 c.name +
-                (c.version ? `@${c.version}` : "");
+                (c.version !== undefined && c.version !== "" ? `@${c.version}` : "");
             return (
                 display.toLowerCase().includes(q) ||
                 (c.purl?.toLowerCase().includes(q) ?? false)
@@ -117,7 +117,7 @@ export function PackagesTab(props: { components: ComponentSummary[] }) {
                                     <tr>
                                         <td>
                                             <A href={`/components/${c.id}`}>
-                                                {c.group ? `${c.group}/` : ""}
+                                                {c.group !== undefined && c.group !== "" ? `${c.group}/` : ""}
                                                 {c.name}
                                             </A>
                                         </td>
@@ -141,11 +141,14 @@ export function PackagesTab(props: { components: ComponentSummary[] }) {
                                                         —
                                                     </span>
                                                 }
+                                                keyed
                                             >
-                                                <PurlLink
-                                                    purl={c.purl!}
-                                                    showBadge
-                                                />
+                                                {(purl) => (
+                                                    <PurlLink
+                                                        purl={purl}
+                                                        showBadge
+                                                    />
+                                                )}
                                             </Show>
                                         </td>
                                         <td>
@@ -211,7 +214,7 @@ export function DependencyTreeView(props: {
 
         for (const edge of props.graph.edges) {
             if (!adj.has(edge.from)) adj.set(edge.from, []);
-            adj.get(edge.from)!.push(edge.to);
+            adj.get(edge.from)?.push(edge.to);
             allTargets.add(edge.to);
         }
 
@@ -221,13 +224,13 @@ export function DependencyTreeView(props: {
             { label: string; id?: string; purl?: string }
         >();
         for (const node of props.graph.nodes) {
-            const label = node.group ? `${node.group}/${node.name}` : node.name;
-            const display = node.version ? `${label}@${node.version}` : label;
+            const label = node.group !== undefined && node.group !== "" ? `${node.group}/${node.name}` : node.name;
+            const display = node.version !== undefined && node.version !== "" ? `${label}@${node.version}` : label;
             const info = { label: display, id: node.id, purl: node.purl };
             nameMap.set(node.id, info);
             nameMap.set(node.name, info);
-            if (node.purl) nameMap.set(node.purl, info);
-            if (node.bomRef) nameMap.set(node.bomRef, info);
+            if (node.purl !== undefined) nameMap.set(node.purl, info);
+            if (node.bomRef !== undefined) nameMap.set(node.bomRef, info);
         }
 
         // Find root nodes
@@ -296,7 +299,7 @@ function TreeNodeRow(props: {
     depth: number;
     visited: Set<string>;
 }) {
-    const [expanded, setExpanded] = createSignal(props.depth === 0);
+    const [expanded, setExpanded] = createSignal(untrack(() => props.depth === 0));
     const hasChildren = () => props.node.children.length > 0;
     const isCyclic = () => props.visited.has(props.node.ref);
 
