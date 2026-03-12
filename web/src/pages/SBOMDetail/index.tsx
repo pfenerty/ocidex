@@ -36,7 +36,7 @@ export default function SBOMDetail() {
     const siblingsQuery = useArtifactSBOMs(
         () => sbomQuery.data?.artifactId ?? "",
         () => ({ limit: 50, subject_version: sbomQuery.data?.subjectVersion }),
-        { enabled: () => !!(sbomQuery.data?.artifactId && sbomQuery.data.subjectVersion) },
+        { enabled: () => sbomQuery.data?.artifactId !== undefined && sbomQuery.data.subjectVersion !== undefined },
     );
 
     const archSiblings = () => (siblingsQuery.data?.data ?? []).filter(s => s.architecture !== undefined);
@@ -45,9 +45,9 @@ export default function SBOMDetail() {
         const s = sbomQuery.data;
         if (!s) return params.id;
         const name = artifactLabel(s.artifactId);
-        if (name && s.subjectVersion) return `${name} @ ${s.subjectVersion}`;
-        if (name) return name;
-        if (s.subjectVersion) return s.subjectVersion;
+        if (name !== undefined && s.subjectVersion !== undefined && s.subjectVersion !== "") return `${name} @ ${s.subjectVersion}`;
+        if (name !== undefined) return name;
+        if (s.subjectVersion !== undefined && s.subjectVersion !== "") return s.subjectVersion;
         return "SBOM Detail";
     };
 
@@ -68,12 +68,15 @@ export default function SBOMDetail() {
             <div class="breadcrumb">
                 <A href="/sboms">SBOMs</A>
                 <span class="separator">/</span>
-                <Show when={sbomQuery.data?.artifactId}>
-                    <A href={`/artifacts/${sbomQuery.data!.artifactId}`}>
-                        {artifactLabel(sbomQuery.data!.artifactId) ??
-                            "Artifact"}
-                    </A>
-                    <span class="separator">/</span>
+                <Show when={sbomQuery.data?.artifactId} keyed>
+                    {(artifactId) => (
+                        <>
+                            <A href={`/artifacts/${artifactId}`}>
+                                {artifactLabel(artifactId) ?? "Artifact"}
+                            </A>
+                            <span class="separator">/</span>
+                        </>
+                    )}
                 </Show>
                 <span>
                     {(sbomQuery.data?.subjectVersion ??
@@ -84,12 +87,11 @@ export default function SBOMDetail() {
 
             <Show when={!sbomQuery.isLoading} fallback={<Loading />}>
                 <Show
-                    when={!sbomQuery.isError}
+                    when={!sbomQuery.isError && sbomQuery.data !== undefined ? sbomQuery.data : undefined}
+                    keyed
                     fallback={<ErrorBox error={sbomQuery.error} />}
                 >
-                    {(() => {
-                        const s = sbomQuery.data!;
-                        return (
+                    {(s) => (
                             <>
                                 <div class="page-header">
                                     <div class="page-header-row">
@@ -161,23 +163,25 @@ export default function SBOMDetail() {
                                                 </span>
                                                 <span class="detail-value">
                                                     {plural(
-                                                        s.componentCount!,
+                                                        s.componentCount ?? 0,
                                                         "component",
                                                     )}
                                                 </span>
                                             </div>
                                         </Show>
-                                        <Show when={s.digest}>
-                                            <div class="detail-field">
-                                                <span class="detail-label">
-                                                    Image Digest
-                                                </span>
-                                                <CopyDigest
-                                                    digest={s.digest!}
-                                                    artifactName={artifactLookup(s.artifactId)?.name}
-                                                    class="detail-value"
-                                                />
-                                            </div>
+                                        <Show when={s.digest} keyed>
+                                            {(digest) => (
+                                                <div class="detail-field">
+                                                    <span class="detail-label">
+                                                        Image Digest
+                                                    </span>
+                                                    <CopyDigest
+                                                        digest={digest}
+                                                        artifactName={artifactLookup(s.artifactId)?.name}
+                                                        class="detail-value"
+                                                    />
+                                                </div>
+                                            )}
                                         </Show>
                                         <div class="detail-field">
                                             <span class="detail-label">
@@ -233,32 +237,32 @@ export default function SBOMDetail() {
                                                 {s.id}
                                             </span>
                                         </div>
-                                        <Show when={s.digest}>
-                                            <div class="detail-field">
-                                                <span class="detail-label">
-                                                    Full Digest
-                                                </span>
-                                                <CopyDigest
-                                                    digest={s.digest!}
-                                                    artifactName={artifactLookup(s.artifactId)?.name}
-                                                    full
-                                                    class="detail-value"
-                                                />
-                                            </div>
+                                        <Show when={s.digest} keyed>
+                                            {(digest) => (
+                                                <div class="detail-field">
+                                                    <span class="detail-label">
+                                                        Full Digest
+                                                    </span>
+                                                    <CopyDigest
+                                                        digest={digest}
+                                                        artifactName={artifactLookup(s.artifactId)?.name}
+                                                        full
+                                                        class="detail-value"
+                                                    />
+                                                </div>
+                                            )}
                                         </Show>
                                     </div>
                                 </details>
 
                                 {/* --- OCI Image Metadata (from enrichment) --- */}
-                                <Show when={s.enrichments?.["oci-metadata"]}>
-                                    <ImageMetadataCard
-                                        metadata={
-                                            s.enrichments![
-                                                "oci-metadata"
-                                            ] as OCIMetadata
-                                        }
-                                        ingestedAt={s.createdAt}
-                                    />
+                                <Show when={s.enrichments?.["oci-metadata"] as OCIMetadata | undefined} keyed>
+                                    {(metadata) => (
+                                        <ImageMetadataCard
+                                            metadata={metadata}
+                                            ingestedAt={s.createdAt}
+                                        />
+                                    )}
                                 </Show>
 
                                 {/* --- Arch switcher --- */}
@@ -309,7 +313,8 @@ export default function SBOMDetail() {
                                         fallback={<Loading />}
                                     >
                                         <Show
-                                            when={!componentsQuery.isError}
+                                            when={!componentsQuery.isError && componentsQuery.data !== undefined ? componentsQuery.data : undefined}
+                                            keyed
                                             fallback={
                                                 <ErrorBox
                                                     error={
@@ -318,12 +323,11 @@ export default function SBOMDetail() {
                                                 />
                                             }
                                         >
-                                            <PackagesTab
-                                                components={
-                                                    componentsQuery.data!
-                                                        .components
-                                                }
-                                            />
+                                            {(data) => (
+                                                <PackagesTab
+                                                    components={data.components}
+                                                />
+                                            )}
                                         </Show>
                                     </Show>
                                 </Show>
@@ -343,10 +347,12 @@ export default function SBOMDetail() {
                                         >
                                             <Show
                                                 when={
-                                                    depsQuery.data &&
-                                                    depsQuery.data.edges
-                                                        .length > 0
+                                                    depsQuery.data !== undefined &&
+                                                    depsQuery.data.edges.length > 0
+                                                        ? depsQuery.data
+                                                        : undefined
                                                 }
+                                                keyed
                                                 fallback={
                                                     <EmptyState
                                                         title="No dependency relationships"
@@ -354,16 +360,17 @@ export default function SBOMDetail() {
                                                     />
                                                 }
                                             >
-                                                <DependencyTreeView
-                                                    graph={depsQuery.data!}
-                                                />
+                                                {(graph) => (
+                                                    <DependencyTreeView
+                                                        graph={graph}
+                                                    />
+                                                )}
                                             </Show>
                                         </Show>
                                     </Show>
                                 </Show>
                             </>
-                        );
-                    })()}
+                    )}
                 </Show>
             </Show>
         </>
