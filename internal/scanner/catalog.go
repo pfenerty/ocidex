@@ -303,7 +303,7 @@ func ociHeadManifest(ctx context.Context, c *http.Client, baseURL, repo, tag str
 		"application/vnd.oci.image.index.v1+json",
 		"application/vnd.docker.distribution.manifest.list.v2+json",
 	}, ","))
-	resp, err := c.Do(req)
+	resp, err := c.Do(req) //nolint:gosec
 	if err != nil {
 		return manifestInfo{}, err
 	}

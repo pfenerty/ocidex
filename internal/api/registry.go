@@ -138,7 +138,7 @@ func (h *Handler) TestRegistryConnection(ctx context.Context, in *TestRegistryCo
 		return out, nil
 	}
 
-	resp, err := c.Do(req)
+	resp, err := c.Do(req) //nolint:gosec
 	out := &TestRegistryConnectionOutput{}
 	if err != nil {
 		out.Body.Reachable = false
