@@ -19,7 +19,7 @@ export default function ComponentOverview() {
 
     const query = useComponentVersions(
         () =>
-            params.name
+            params.name !== undefined
                 ? {
                       name: params.name,
                       group: params.group !== "" ? params.group : undefined,
@@ -57,7 +57,7 @@ export default function ComponentOverview() {
     const firstPurl = () => {
         const versions = query.data?.versions;
         if (!versions) return undefined;
-        return versions.find((v) => v.purl)?.purl;
+        return versions.find((v) => v.purl !== undefined)?.purl;
     };
 
     return (
@@ -188,16 +188,15 @@ export default function ComponentOverview() {
                                                         </h3>
                                                         <div class="btn-group">
                                                             <Show
-                                                                when={
-                                                                    group.purl
-                                                                }
+                                                                when={group.purl}
+                                                                keyed
                                                             >
-                                                                <PurlLink
-                                                                    purl={
-                                                                        group.purl!
-                                                                    }
-                                                                    showBadge
-                                                                />
+                                                                {(purl) => (
+                                                                    <PurlLink
+                                                                        purl={purl}
+                                                                        showBadge
+                                                                    />
+                                                                )}
                                                             </Show>
                                                             <span class="badge">
                                                                 {plural(
@@ -211,7 +210,8 @@ export default function ComponentOverview() {
                                                     </div>
                                                     <div class="table-wrapper">
                                                         <Show
-                                                            when={hasArch()}
+                                                            when={archGroups() ?? undefined}
+                                                            keyed
                                                             fallback={
                                                                 <table>
                                                                     <thead>
@@ -239,9 +239,7 @@ export default function ComponentOverview() {
                                                                                 <tr>
                                                                                     <td>
                                                                                         <Show
-                                                                                            when={
-                                                                                                entry.artifactId
-                                                                                            }
+                                                                                            when={entry.artifactId}
                                                                                             fallback={
                                                                                                 <A
                                                                                                     href={`/sboms/${entry.sbomId}`}
@@ -252,50 +250,54 @@ export default function ComponentOverview() {
                                                                                                         )}
                                                                                                 </A>
                                                                                             }
+                                                                                            keyed
                                                                                         >
-                                                                                            <A
-                                                                                                href={`/artifacts/${entry.artifactId}`}
-                                                                                            >
-                                                                                                {entry.artifactName ??
-                                                                                                    entry.artifactId!.slice(
-                                                                                                        0,
-                                                                                                        8,
-                                                                                                    )}
-                                                                                            </A>
-                                                                                            <Show
-                                                                                                when={
-                                                                                                    entry.subjectVersion
-                                                                                                }
-                                                                                            >
-                                                                                                <span class="text-muted">
-                                                                                                    :
-                                                                                                    {
-                                                                                                        entry.subjectVersion
-                                                                                                    }
-                                                                                                </span>
-                                                                                            </Show>
+                                                                                            {(artifactId) => (
+                                                                                                <>
+                                                                                                    <A
+                                                                                                        href={`/artifacts/${artifactId}`}
+                                                                                                    >
+                                                                                                        {entry.artifactName ??
+                                                                                                            artifactId.slice(
+                                                                                                                0,
+                                                                                                                8,
+                                                                                                            )}
+                                                                                                    </A>
+                                                                                                    <Show
+                                                                                                        when={
+                                                                                                            entry.subjectVersion
+                                                                                                        }
+                                                                                                    >
+                                                                                                        <span class="text-muted">
+                                                                                                            :
+                                                                                                            {
+                                                                                                                entry.subjectVersion
+                                                                                                            }
+                                                                                                        </span>
+                                                                                                    </Show>
+                                                                                                </>
+                                                                                            )}
                                                                                         </Show>
                                                                                     </td>
                                                                                     <td>
                                                                                         <Show
-                                                                                            when={
-                                                                                                entry.sbomDigest
-                                                                                            }
+                                                                                            when={entry.sbomDigest}
                                                                                             fallback={
                                                                                                 <span class="text-muted">
                                                                                                     —
                                                                                                 </span>
                                                                                             }
+                                                                                            keyed
                                                                                         >
-                                                                                            <CopyDigest
-                                                                                                digest={
-                                                                                                    entry.sbomDigest!
-                                                                                                }
-                                                                                                artifactName={
-                                                                                                    entry.artifactName ??
-                                                                                                    undefined
-                                                                                                }
-                                                                                            />
+                                                                                            {(digest) => (
+                                                                                                <CopyDigest
+                                                                                                    digest={digest}
+                                                                                                    artifactName={
+                                                                                                        entry.artifactName ??
+                                                                                                        undefined
+                                                                                                    }
+                                                                                                />
+                                                                                            )}
                                                                                         </Show>
                                                                                     </td>
                                                                                     <td
@@ -315,6 +317,7 @@ export default function ComponentOverview() {
                                                                 </table>
                                                             }
                                                         >
+                                                            {(ag) => (
                                                             <table>
                                                                 <thead>
                                                                     <tr>
@@ -331,18 +334,15 @@ export default function ComponentOverview() {
                                                                 </thead>
                                                                 <tbody>
                                                                     <For
-                                                                        each={
-                                                                            archGroups()!
-                                                                                .order
-                                                                        }
+                                                                        each={ag.order}
                                                                     >
                                                                         {(
                                                                             key,
                                                                         ) => {
                                                                             const entries =
-                                                                                archGroups()!.map.get(
+                                                                                ag.map.get(
                                                                                     key,
-                                                                                )!;
+                                                                                ) ?? [];
                                                                             const preferred =
                                                                                 entries.find(
                                                                                     (
@@ -375,28 +375,33 @@ export default function ComponentOverview() {
                                                                                                             )}
                                                                                                     </A>
                                                                                                 }
+                                                                                                keyed
                                                                                             >
-                                                                                                <A
-                                                                                                    href={`/artifacts/${preferred.artifactId}`}
-                                                                                                >
-                                                                                                    {preferred.artifactName ??
-                                                                                                        preferred.artifactId!.slice(
-                                                                                                            0,
-                                                                                                            8,
-                                                                                                        )}
-                                                                                                </A>
-                                                                                                <Show
-                                                                                                    when={
-                                                                                                        preferred.subjectVersion
-                                                                                                    }
-                                                                                                >
-                                                                                                    <span class="text-muted">
-                                                                                                        :
-                                                                                                        {
-                                                                                                            preferred.subjectVersion
-                                                                                                        }
-                                                                                                    </span>
-                                                                                                </Show>
+                                                                                                {(artifactId) => (
+                                                                                                    <>
+                                                                                                        <A
+                                                                                                            href={`/artifacts/${artifactId}`}
+                                                                                                        >
+                                                                                                            {preferred.artifactName ??
+                                                                                                                artifactId.slice(
+                                                                                                                    0,
+                                                                                                                    8,
+                                                                                                                )}
+                                                                                                        </A>
+                                                                                                        <Show
+                                                                                                            when={
+                                                                                                                preferred.subjectVersion
+                                                                                                            }
+                                                                                                        >
+                                                                                                            <span class="text-muted">
+                                                                                                                :
+                                                                                                                {
+                                                                                                                    preferred.subjectVersion
+                                                                                                                }
+                                                                                                            </span>
+                                                                                                        </Show>
+                                                                                                    </>
+                                                                                                )}
                                                                                             </Show>
                                                                                         </td>
                                                                                         <td>
@@ -477,19 +482,18 @@ export default function ComponentOverview() {
                                                                                                         SBOM
                                                                                                     </A>
                                                                                                     <Show
-                                                                                                        when={
-                                                                                                            e.sbomDigest
-                                                                                                        }
+                                                                                                        when={e.sbomDigest}
+                                                                                                        keyed
                                                                                                     >
-                                                                                                        <CopyDigest
-                                                                                                            digest={
-                                                                                                                e.sbomDigest!
-                                                                                                            }
-                                                                                                            artifactName={
-                                                                                                                e.artifactName ??
-                                                                                                                undefined
-                                                                                                            }
-                                                                                                        />
+                                                                                                        {(digest) => (
+                                                                                                            <CopyDigest
+                                                                                                                digest={digest}
+                                                                                                                artifactName={
+                                                                                                                    e.artifactName ??
+                                                                                                                    undefined
+                                                                                                                }
+                                                                                                            />
+                                                                                                        )}
                                                                                                     </Show>
                                                                                                 </td>
                                                                                             </tr>
@@ -501,6 +505,7 @@ export default function ComponentOverview() {
                                                                     </For>
                                                                 </tbody>
                                                             </table>
+                                                            )}
                                                         </Show>
                                                     </div>
                                                 </div>
