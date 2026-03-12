@@ -13,8 +13,8 @@
     },
     "dependencies": {
         "@solidjs/router": "^0.15.3",
-        "@tailwindcss/vite": "^4.1.18",
-        "@tanstack/solid-query": "^5.75.7",
+        "@tailwindcss/vite": "^4.2.1",
+        "@tanstack/solid-query": "^5.90.24",
         "@unovis/solid": "^1.6.4",
         "@unovis/ts": "^1.6.4",
         "openapi-fetch": "^0.17.0",
@@ -27,7 +27,7 @@
         "eslint-plugin-solid": "^0.14.5",
         "openapi-typescript": "^7.13.0",
         "typescript": "^5.7.3",
-        "typescript-eslint": "^8.56.0",
+        "typescript-eslint": "^8.57.0",
         "vite": "^7.3.1",
         "vite-plugin-solid": "^2.11.6"
     }
