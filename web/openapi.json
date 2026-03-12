@@ -1,37 +1,6 @@
 {
   "components": {
     "schemas": {
-      "APIKeyMetaResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "created_at": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "id": {
-            "description": "Key UUID",
-            "type": "string"
-          },
-          "last_used_at": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "prefix": {
-            "description": "First 8 characters of the key",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "prefix",
-          "created_at"
-        ],
-        "type": "object"
-      },
       "ArtifactDetail": {
         "additionalProperties": false,
         "properties": {
@@ -67,6 +36,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "sufficientSbomCount": {
+            "format": "int64",
+            "type": "integer"
+          },
           "type": {
             "type": "string"
           }
@@ -76,7 +49,8 @@
           "id",
           "type",
           "name",
-          "sbomCount"
+          "sbomCount",
+          "sufficientSbomCount"
         ],
         "type": "object"
       },
@@ -96,6 +70,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "sufficientSbomCount": {
+            "format": "int64",
+            "type": "integer"
+          },
           "type": {
             "type": "string"
           }
@@ -104,7 +82,8 @@
           "id",
           "type",
           "name",
-          "sbomCount"
+          "sbomCount",
+          "sufficientSbomCount"
         ],
         "type": "object"
       },
@@ -471,7 +450,7 @@
             "type": "string"
           },
           "key": {
-            "description": "Full API key \u2014 shown once, store securely",
+            "description": "Full API key — shown once, store securely",
             "type": "string"
           }
         },
@@ -1037,6 +1016,37 @@
         ],
         "type": "object"
       },
+      "KeyMetaResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "description": "Key UUID",
+            "type": "string"
+          },
+          "last_used_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "prefix": {
+            "description": "First 8 characters of the key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "created_at"
+        ],
+        "type": "object"
+      },
       "LicenseCount": {
         "additionalProperties": false,
         "properties": {
@@ -1104,7 +1114,7 @@
           },
           "keys": {
             "items": {
-              "$ref": "#/components/schemas/APIKeyMetaResponse"
+              "$ref": "#/components/schemas/KeyMetaResponse"
             },
             "type": [
               "array",
@@ -1319,37 +1329,6 @@
         },
         "required": [
           "components"
-        ],
-        "type": "object"
-      },
-      "ListSBOMsByDigestOutputBody": {
-        "additionalProperties": false,
-        "properties": {
-          "$schema": {
-            "description": "A URL to the JSON Schema for this object.",
-            "examples": [
-              "https://example.com/schemas/ListSBOMsByDigestOutputBody.json"
-            ],
-            "format": "uri",
-            "readOnly": true,
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/SBOMSummary"
-            },
-            "type": [
-              "array",
-              "null"
-            ]
-          },
-          "pagination": {
-            "$ref": "#/components/schemas/PaginationMeta"
-          }
-        },
-        "required": [
-          "data",
-          "pagination"
         ],
         "type": "object"
       },
@@ -1726,7 +1705,13 @@
             "type": "string"
           },
           "rawBom": {},
+          "revision": {
+            "type": "string"
+          },
           "serialNumber": {
+            "type": "string"
+          },
+          "sourceUrl": {
             "type": "string"
           },
           "specVersion": {
@@ -1734,6 +1719,9 @@
           },
           "subjectVersion": {
             "type": "string"
+          },
+          "sufficient": {
+            "type": "boolean"
           },
           "version": {
             "format": "int32",
@@ -1744,7 +1732,8 @@
           "id",
           "specVersion",
           "version",
-          "createdAt"
+          "createdAt",
+          "sufficient"
         ],
         "type": "object"
       },
@@ -1805,7 +1794,13 @@
           "imageVersion": {
             "type": "string"
           },
+          "revision": {
+            "type": "string"
+          },
           "serialNumber": {
+            "type": "string"
+          },
+          "sourceUrl": {
             "type": "string"
           },
           "specVersion": {
@@ -1813,6 +1808,9 @@
           },
           "subjectVersion": {
             "type": "string"
+          },
+          "sufficient": {
+            "type": "boolean"
           },
           "version": {
             "format": "int32",
@@ -1823,7 +1821,8 @@
           "id",
           "specVersion",
           "version",
-          "createdAt"
+          "createdAt",
+          "sufficient"
         ],
         "type": "object"
       },
@@ -2179,10 +2178,24 @@
         ],
         "type": "object"
       }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "bearerFormat": "ocidex_\u003ctoken\u003e",
+        "description": "API key issued via POST /api/v1/auth/keys",
+        "scheme": "bearer",
+        "type": "http"
+      },
+      "cookieAuth": {
+        "description": "Session cookie obtained via GitHub OAuth (/auth/login)",
+        "in": "cookie",
+        "name": "ocidex_session",
+        "type": "apiKey"
+      }
     }
   },
   "info": {
-    "description": "Open Container Initiative Dex \u2014 SBOM metadata management service",
+    "description": "Open Container Initiative Dex — SBOM metadata management service",
     "title": "OCIDex API",
     "version": "1.0.0"
   },
@@ -2213,6 +2226,7 @@
             "description": "Error"
           }
         },
+        "security": [],
         "summary": "API version",
         "tags": [
           "Meta"
@@ -2298,6 +2312,16 @@
             "name": "name",
             "schema": {
               "description": "Filter by artifact name",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter to artifacts with sufficiently enriched SBOMs; pass 'false' to include all (default: true)",
+            "explode": false,
+            "in": "query",
+            "name": "sufficient",
+            "schema": {
+              "description": "Filter to artifacts with sufficiently enriched SBOMs; pass 'false' to include all (default: true)",
               "type": "string"
             }
           }
@@ -3075,64 +3099,6 @@
         ]
       }
     },
-    "/api/v1/sboms/diff": {
-      "get": {
-        "description": "Computes the component diff between two SBOMs.",
-        "operationId": "diff-sboms",
-        "parameters": [
-          {
-            "description": "UUID of the source SBOM",
-            "explode": false,
-            "in": "query",
-            "name": "from",
-            "required": true,
-            "schema": {
-              "description": "UUID of the source SBOM",
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "description": "UUID of the target SBOM",
-            "explode": false,
-            "in": "query",
-            "name": "to",
-            "required": true,
-            "schema": {
-              "description": "UUID of the target SBOM",
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChangelogEntry"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "summary": "Diff two SBOMs",
-        "tags": [
-          "Diff"
-        ]
-      }
-    },
     "/api/v1/licenses": {
       "get": {
         "operationId": "list-licenses",
@@ -3582,8 +3548,64 @@
         ]
       }
     },
+    "/api/v1/registries/{id}/webhook": {
+      "post": {
+        "operationId": "registry-webhook",
+        "parameters": [
+          {
+            "description": "Registry UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Registry UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistryWebhookInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [],
+        "summary": "Receive registry push notifications",
+        "tags": [
+          "Registries"
+        ]
+      }
+    },
     "/api/v1/sboms": {
       "get": {
+        "description": "Supports filtering by serial_number and digest query parameters.",
         "operationId": "list-sboms",
         "parameters": [
           {
@@ -3731,6 +3753,64 @@
           }
         },
         "summary": "Ingest an SBOM",
+        "tags": [
+          "SBOMs"
+        ]
+      }
+    },
+    "/api/v1/sboms/diff": {
+      "get": {
+        "description": "Computes the component diff between two SBOMs.",
+        "operationId": "diff-sboms",
+        "parameters": [
+          {
+            "description": "UUID of the source SBOM",
+            "explode": false,
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "description": "UUID of the source SBOM",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "UUID of the target SBOM",
+            "explode": false,
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "description": "UUID of the target SBOM",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangelogEntry"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Diff two SBOMs",
         "tags": [
           "SBOMs"
         ]
@@ -3975,6 +4055,37 @@
         ]
       }
     },
+    "/api/v1/users/me": {
+      "get": {
+        "operationId": "get-me",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get current user",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/users/{id}/role": {
       "patch": {
         "operationId": "update-user-role",
@@ -4029,90 +4140,6 @@
         ]
       }
     },
-    "/api/v1/registries/{id}/webhook": {
-      "post": {
-        "operationId": "registry-webhook",
-        "parameters": [
-          {
-            "description": "Registry UUID",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "description": "Registry UUID",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Authorization",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RegistryWebhookInputBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "202": {
-            "description": "Accepted"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "summary": "Receive registry push notifications",
-        "tags": [
-          "Webhooks"
-        ]
-      }
-    },
-    "/api/v1/users/me": {
-      "get": {
-        "operationId": "get-me",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MeOutputBody"
-                }
-              }
-            },
-            "description": "OK"
-          },
-          "default": {
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorModel"
-                }
-              }
-            },
-            "description": "Error"
-          }
-        },
-        "summary": "Get current user",
-        "tags": [
-          "Auth"
-        ]
-      }
-    },
     "/health": {
       "get": {
         "operationId": "health-check",
@@ -4138,6 +4165,7 @@
             "description": "Error"
           }
         },
+        "security": [],
         "summary": "Liveness check",
         "tags": [
           "Health"
@@ -4170,11 +4198,20 @@
             "description": "Error"
           }
         },
+        "security": [],
         "summary": "Readiness check",
         "tags": [
           "Health"
         ]
       }
     }
-  }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    },
+    {
+      "cookieAuth": []
+    }
+  ]
 }
