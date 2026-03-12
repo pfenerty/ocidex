@@ -40,10 +40,10 @@ func (f *fakeEnricher) callCount() int {
 
 // fakeStore records UpsertEnrichment, UpdateSBOMSubjectVersion, and UpdateSBOMEnrichmentSufficient calls.
 type fakeStore struct {
-	params              []repository.UpsertEnrichmentParams
-	versionUpdates      []repository.UpdateSBOMSubjectVersionParams
-	sufficiencyUpdates  []repository.UpdateSBOMEnrichmentSufficientParams
-	mu                  sync.Mutex
+	params             []repository.UpsertEnrichmentParams
+	versionUpdates     []repository.UpdateSBOMSubjectVersionParams
+	sufficiencyUpdates []repository.UpdateSBOMEnrichmentSufficientParams
+	mu                 sync.Mutex
 }
 
 func (s *fakeStore) UpsertEnrichment(_ context.Context, arg repository.UpsertEnrichmentParams) error {
@@ -296,9 +296,9 @@ func TestDispatcher_OCIVersionPromotion_SkipsNonOCI(t *testing.T) {
 
 func TestDispatcher_EnrichmentSufficiency(t *testing.T) {
 	tests := []struct {
-		name     string
-		data     map[string]string
-		wantSuf  bool
+		name    string
+		data    map[string]string
+		wantSuf bool
 	}{
 		{
 			name:    "both imageVersion and architecture present",

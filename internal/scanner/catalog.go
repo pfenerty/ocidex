@@ -229,8 +229,10 @@ func ociGetImageMetadata(ctx context.Context, c *http.Client, baseURL, repo, dig
 		return imageMetadata{}
 	}
 	var manifest struct {
-		Config      struct{ Digest string `json:"digest"` } `json:"config"`
-		Annotations map[string]string                      `json:"annotations"`
+		Config struct {
+			Digest string `json:"digest"`
+		} `json:"config"`
+		Annotations map[string]string `json:"annotations"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&manifest); err != nil {
 		return imageMetadata{}

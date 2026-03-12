@@ -218,4 +218,3 @@ func toRegistryResponse(r service.Registry) RegistryResponse {
 	}
 	return rr
 }
-
