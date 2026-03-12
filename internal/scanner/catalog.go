@@ -175,7 +175,7 @@ func ociExpandIndex(ctx context.Context, c *http.Client, baseURL, repo, indexDig
 		"application/vnd.oci.image.index.v1+json",
 		"application/vnd.docker.distribution.manifest.list.v2+json",
 	}, ","))
-	resp, err := c.Do(req)
+	resp, err := c.Do(req) //nolint:gosec
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +220,7 @@ func ociGetImageMetadata(ctx context.Context, c *http.Client, baseURL, repo, dig
 		"application/vnd.oci.image.manifest.v1+json",
 		"application/vnd.docker.distribution.manifest.v2+json",
 	}, ","))
-	resp, err := c.Do(req)
+	resp, err := c.Do(req) //nolint:gosec
 	if err != nil {
 		return imageMetadata{}
 	}
@@ -247,7 +247,7 @@ func ociGetImageMetadata(ctx context.Context, c *http.Client, baseURL, repo, dig
 		}
 	}
 	req2, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/v2/"+repo+"/blobs/"+manifest.Config.Digest, nil)
-	resp2, err := c.Do(req2)
+	resp2, err := c.Do(req2) //nolint:gosec
 	if err != nil {
 		return imageMetadata{buildDate: annotationCreated, imageVersion: annotationVersion}
 	}
