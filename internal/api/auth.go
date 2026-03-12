@@ -5,7 +5,9 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -22,6 +24,30 @@ const (
 	roleMember = "member"
 )
 
+// deriveFrontendURL returns a frontend URL using the request's host with the
+// port from the configured FRONTEND_URL. This lets the post-OAuth redirect
+// follow the host the browser used (e.g. Tailscale IP or localhost).
+func deriveFrontendURL(r *http.Request, configuredFrontendURL string) string {
+	parsed, err := url.Parse(configuredFrontendURL)
+	if err != nil {
+		return configuredFrontendURL
+	}
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	// r.Host may include a port (the API port); strip it to get just the hostname.
+	host := r.Host
+	if h, _, splitErr := net.SplitHostPort(host); splitErr == nil {
+		host = h
+	}
+	port := parsed.Port()
+	if port != "" {
+		return scheme + "://" + host + ":" + port
+	}
+	return scheme + "://" + host
+}
+
 // HandleLogin initiates GitHub OAuth flow.
 func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	nonce := make([]byte, 16)
@@ -31,7 +57,11 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	nonceStr := base64.RawURLEncoding.EncodeToString(nonce)
 
-	state, err := h.stateCookie.Encode("oauth-state", map[string]string{"nonce": nonceStr})
+	frontendURL := deriveFrontendURL(r, h.cfg.FrontendURL)
+	state, err := h.stateCookie.Encode("oauth-state", map[string]string{
+		"nonce":        nonceStr,
+		"frontend_url": frontendURL,
+	})
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
@@ -95,17 +125,26 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	secure := h.cfg.Environment == "production"
+	sameSite := http.SameSiteNoneMode
+	if !secure {
+		sameSite = http.SameSiteLaxMode
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    token,
 		Path:     "/",
 		MaxAge:   h.cfg.SessionMaxAgeDays * 86400,
 		HttpOnly: true,
-		SameSite: http.SameSiteNoneMode,
-		Secure:   h.cfg.Environment == "production",
+		SameSite: sameSite,
+		Secure:   secure,
 	})
 
-	http.Redirect(w, r, h.cfg.FrontendURL, http.StatusSeeOther)
+	frontendURL := stateData["frontend_url"]
+	if frontendURL == "" {
+		frontendURL = h.cfg.FrontendURL
+	}
+	http.Redirect(w, r, frontendURL, http.StatusSeeOther)
 }
 
 // HandleLogout clears the session.
