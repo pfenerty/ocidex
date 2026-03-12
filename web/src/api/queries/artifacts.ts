@@ -29,7 +29,7 @@ export function useArtifacts(params: Accessor<UseArtifactsParams>) {
                                 offset: p.offset,
                                 name: p.name !== "" ? p.name : undefined,
                                 type: p.type !== "" ? p.type : undefined,
-                                sufficient: p.sufficient,
+                                sufficient: p.sufficient !== undefined ? String(p.sufficient) : undefined,
                             },
                         },
                     }),
