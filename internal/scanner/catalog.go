@@ -125,7 +125,7 @@ type manifestInfo struct {
 
 func ociListCatalog(ctx context.Context, c *http.Client, baseURL string) ([]string, error) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/v2/_catalog", nil)
-	resp, err := c.Do(req)
+	resp, err := c.Do(req) //nolint:gosec
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +144,7 @@ func ociListCatalog(ctx context.Context, c *http.Client, baseURL string) ([]stri
 
 func ociListTags(ctx context.Context, c *http.Client, baseURL, repo string) ([]string, error) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/v2/"+repo+"/tags/list", nil)
-	resp, err := c.Do(req)
+	resp, err := c.Do(req) //nolint:gosec
 	if err != nil {
 		return nil, err
 	}

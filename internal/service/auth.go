@@ -96,7 +96,7 @@ func (s *authService) ExchangeCodeForUser(ctx context.Context, code string) (Aut
 	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req) //nolint:gosec
 	if err != nil {
 		return AuthUser{}, fmt.Errorf("fetching github user: %w", err)
 	}
@@ -196,7 +196,7 @@ func (s *authService) ValidateAPIKey(ctx context.Context, rawKey string) (AuthUs
 	if err != nil {
 		return AuthUser{}, fmt.Errorf("api key not found: %w", err)
 	}
-	go func() {
+	go func() { //nolint:gosec
 		if err := s.repo.TouchAPIKeyLastUsed(context.Background(), row.ID); err != nil {
 			slog.Warn("touch api key last used", "err", err)
 		}

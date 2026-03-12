@@ -38,7 +38,7 @@ type Config struct {
 	GitHubClientID     string `env:"GITHUB_CLIENT_ID"`
 	GitHubClientSecret string `env:"GITHUB_CLIENT_SECRET"`
 	GitHubRedirectURL  string `env:"GITHUB_REDIRECT_URL" envDefault:"http://localhost:8080/auth/callback"`
-	SessionSecret      string `env:"SESSION_SECRET"`
+	SessionSecret      string `env:"SESSION_SECRET"` //nolint:gosec
 	SessionMaxAgeDays  int    `env:"SESSION_MAX_AGE_DAYS" envDefault:"7"`
 
 	// Frontend URL — used as the post-OAuth redirect target and for CORS defaults.

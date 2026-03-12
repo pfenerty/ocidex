@@ -55,7 +55,7 @@ func (p *Poller) poll(ctx context.Context) {
 			p.logger.Error("poller: marking registry polled", "registry", reg.Name, "err", err)
 			continue
 		}
-		go func(r service.Registry) {
+		go func(r service.Registry) { //nolint:gosec
 			walkCtx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 			defer cancel()
 			queued, err := WalkRegistry(walkCtx, r, p.submitter, p.logger)

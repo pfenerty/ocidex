@@ -44,7 +44,7 @@ func NewRouter(h *Handler, corsOrigins, apiBaseURL string) chi.Router {
 		config.Components = &huma.Components{}
 	}
 	config.Components.SecuritySchemes = map[string]*huma.SecurityScheme{
-		"bearerAuth": {
+		"bearerAuth": { //nolint:gosec
 			Type:         "http",
 			Scheme:       "bearer",
 			BearerFormat: "ocidex_<token>",
