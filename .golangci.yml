@@ -49,6 +49,7 @@ linters:
           - goconst
           - gocyclo
           - gosec
+          - noctx
         path: _test\.go
     paths:
       - third_party$

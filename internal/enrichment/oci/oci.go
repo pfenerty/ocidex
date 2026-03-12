@@ -348,7 +348,7 @@ func extractMetadata(cfg *v1.ConfigFile, manifestAnnotations, indexAnnotations m
 		meta.Labels = labels
 	}
 
-	if !cfg.Created.Time.IsZero() {
+	if !cfg.Created.IsZero() {
 		t := cfg.Created.Time
 		meta.Created = &t
 	} else if bd := first(

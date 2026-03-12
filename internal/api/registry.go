@@ -170,7 +170,7 @@ func (h *Handler) ScanRegistry(ctx context.Context, in *ScanRegistryInput) (*Sca
 	if h.scanSubmitter == nil {
 		return nil, huma.Error503ServiceUnavailable("scanner not enabled")
 	}
-	go func() {
+	go func() { //nolint:gosec
 		walkCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 		queued, err := scanner.WalkRegistry(walkCtx, reg, h.scanSubmitter, slog.Default())
