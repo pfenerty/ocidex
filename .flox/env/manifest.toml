@@ -1,12 +1,4 @@
-## Flox Environment Manifest -----------------------------------------
-##
-##   _Everything_ you need to know about the _manifest_ is here:
-##
-##   https://flox.dev/docs/reference/command-reference/manifest.toml/
-##
-## -------------------------------------------------------------------
-# Flox manifest version managed by Flox CLI
-version = 1
+schema-version = "1.10.0"
 
 
 ## Install Packages --------------------------------------------------
@@ -17,11 +9,15 @@ version = 1
 [install]
 go.pkg-path = "go"
 nodejs.pkg-path = "nodejs"
+nodejs.outputs = "all"
 oras.pkg-path = "oras"
 syft.pkg-path = "syft"
 curl.pkg-path = "curl"
+curl.outputs = "all"
 gnumake.pkg-path = "gnumake"
+gnumake.outputs = "all"
 nushell.pkg-path = "nushell"
+golangci-lint.pkg-path = "golangci-lint"
 # gum.pkg-path = "gum"
 # gum.version = "^0.14.5"
 

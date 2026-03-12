@@ -28,10 +28,10 @@ type registryImage struct {
 
 // registryIndex describes an OCI image index served at a tag.
 type registryIndex struct {
-	annotations     map[string]string
-	imageDigest     string // digest of the child image manifest
-	imageArch       string
-	imageOS         string
+	annotations map[string]string
+	imageDigest string // digest of the child image manifest
+	imageArch   string
+	imageOS     string
 }
 
 // buildConfigBlob creates a JSON config blob matching go-containerregistry's expected format.
@@ -458,7 +458,7 @@ func TestEnrich_RealWorldScenarios(t *testing.T) {
 			index: &registryIndex{
 				annotations: map[string]string{
 					"org.opencontainers.image.version":  "index-version", // should be overridden by label
-					"org.opencontainers.image.licenses": "Apache-2.0",   // only in index
+					"org.opencontainers.image.licenses": "Apache-2.0",    // only in index
 					"org.opencontainers.image.vendor":   "Index Vendor",  // only in index
 				},
 				imageArch: "amd64",
