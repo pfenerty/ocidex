@@ -251,8 +251,8 @@ type enrichmentMeta struct {
 	architecture string
 }
 
-// buildEnrichmentMetaMap fetches oci-metadata enrichments for all SBOMs of an artifact
-// and returns a map of sbom UUID → enrichmentMeta.
+// buildEnrichmentMetaMap fetches enrichments for all SBOMs of an artifact and returns
+// a map of sbom UUID → enrichmentMeta. "oci-metadata" takes precedence over "user".
 func buildEnrichmentMetaMap(ctx context.Context, q *repository.Queries, artifactID pgtype.UUID) map[pgtype.UUID]enrichmentMeta {
 	m := make(map[pgtype.UUID]enrichmentMeta)
 
@@ -261,17 +261,36 @@ func buildEnrichmentMetaMap(ctx context.Context, q *repository.Queries, artifact
 		return m
 	}
 
+	type rawMeta struct {
+		Created      *time.Time `json:"created"`
+		Architecture string     `json:"architecture"`
+	}
+
+	// Two-pass: collect user enrichments first, then overwrite with oci-metadata.
+	user := make(map[pgtype.UUID]enrichmentMeta)
+	oci := make(map[pgtype.UUID]enrichmentMeta)
 	for _, row := range rows {
-		if row.EnricherName != "oci-metadata" || len(row.Data) == 0 {
+		if len(row.Data) == 0 {
 			continue
 		}
-		var raw struct {
-			Created      *time.Time `json:"created"`
-			Architecture string     `json:"architecture"`
+		var raw rawMeta
+		if json.Unmarshal(row.Data, &raw) != nil {
+			continue
 		}
-		if json.Unmarshal(row.Data, &raw) == nil {
-			m[row.SbomID] = enrichmentMeta{buildDate: raw.Created, architecture: raw.Architecture}
+		entry := enrichmentMeta{buildDate: raw.Created, architecture: raw.Architecture}
+		switch row.EnricherName {
+		case "oci-metadata":
+			oci[row.SbomID] = entry
+		case "user":
+			user[row.SbomID] = entry
 		}
+	}
+
+	for id, e := range user {
+		m[id] = e
+	}
+	for id, e := range oci {
+		m[id] = e
 	}
 
 	return m

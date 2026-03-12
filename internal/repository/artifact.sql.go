@@ -70,7 +70,7 @@ WHERE ($1::text IS NULL OR a.type = $1)
        OR EXISTS (SELECT 1 FROM sbom s2 WHERE s2.artifact_id = a.id AND s2.enrichment_sufficient))
 GROUP BY a.id
 ORDER BY a.name, a.type
-LIMIT $6 OFFSET $5
+LIMIT $5 OFFSET $4
 `
 
 type ListArtifactsParams struct {
