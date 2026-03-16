@@ -27,7 +27,7 @@ jobs:
       - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         if: matrix.language == 'go'
         with:
-          go-version: "1.25.x"
+          go-version: "1.26.x"
           cache: true
 
       - uses: github/codeql-action/init@820e3160e279568db735cee8ed8f8e77a6da7818 # v3
