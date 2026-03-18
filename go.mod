@@ -10,7 +10,7 @@ require (
 	github.com/danielgtaylor/huma/v2 v2.37.2
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/go-chi/cors v1.2.2
-	github.com/google/go-containerregistry v0.21.1
+	github.com/google/go-containerregistry v0.21.3
 	github.com/jackc/pgx/v5 v5.8.0
 	github.com/matryer/is v1.4.1
 	github.com/nats-io/nats.go v1.49.0
