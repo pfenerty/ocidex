@@ -21,7 +21,7 @@ jobs:
             docker-web: ${{ steps.filter.outputs.docker-web }}
         steps:
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-            - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
+            - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
               id: filter
               with:
                   filters: |
@@ -91,7 +91,7 @@ jobs:
                   cache: true
             - name: Test
               run: go test -v -race -short -coverprofile=coverage.out -covermode=atomic ./...
-            - uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5
+            - uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad # v5
               with:
                   files: ./coverage.out
                   flags: unit
