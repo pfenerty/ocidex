@@ -77,16 +77,27 @@ make frontend-lint-fix # Run ESLint with auto-fix on the SolidJS frontend
 ## Project Structure
 
 ```
-cmd/ocidex/main.go     # Entry point, HTTP server setup, graceful shutdown
-internal/api/          # HTTP handlers and routing (chi)
+cmd/ocidex/            # API server entry point
+cmd/scanner-worker/    # OCI registry scanner worker
+cmd/enrichment-worker/ # SBOM enrichment worker
+cmd/specgen/           # OpenAPI spec generator
+internal/api/          # HTTP handlers and routing (chi + huma)
 internal/config/       # Configuration management (caarlos0/env)
 internal/repository/   # Data access layer (sqlc-generated + models)
 internal/service/      # Business logic
 internal/enrichment/   # SBOM enrichment pipeline
+internal/scanner/      # OCI registry scanning
+internal/nats/         # NATS JetStream integration
+internal/event/        # In-process event bus
+internal/extension/    # Extension lifecycle management
+internal/audit/        # Audit logging
 db/migrations/         # goose SQL migrations
 db/queries/            # sqlc SQL queries (source of truth for repository layer)
 web/                   # SolidJS frontend (Vite + Tailwind)
-pkg/                   # Public libraries (use sparingly)
+docker/                # Multi-stage Dockerfiles (api, web)
+k8s/                   # Kubernetes manifests
+config/                # Configuration templates (zot registry)
+scripts/               # Utility scripts (seed.nu)
 tests/                 # Integration tests (testcontainers)
 docs/adr/              # Architecture Decision Records (see summary below)
 docs/DEVELOPMENT.md    # Coding patterns and examples

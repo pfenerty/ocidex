@@ -14,6 +14,16 @@ coverage.html
 # Environment
 .env
 
+# Dolt (beads issue tracker)
+config.yaml
+.doltcfg/
+
+# Temp
+tmp/
+
+# Claude Code (local settings are machine-specific)
+.claude/settings.local.json
+
 # IDE
 .idea/
 .vscode/
