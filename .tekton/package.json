@@ -1,0 +1,17 @@
+{
+  "name": "ocidex-ci",
+  "private": true,
+  "scripts": {
+    "synth": "ts-node pipeline.ts"
+  },
+  "dependencies": {
+    "@pfenerty/tektonic": "github:pfenerty/tektonic",
+    "cdk8s": "^2.68.0",
+    "constructs": "^10.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.4.0"
+  }
+}

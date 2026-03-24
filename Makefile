@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix openapi openapi-check help
+.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix openapi openapi-check tekton-synth tekton-check help
 
 all: check build ## Run all checks and build
 
@@ -80,6 +80,13 @@ frontend-lint: ## Run ESLint on the frontend
 
 frontend-lint-fix: ## Run ESLint with auto-fix on the frontend
 	cd web && npm run lint:fix
+
+tekton-synth: ## Synthesize Tekton pipeline YAML from TypeScript
+	cd .tekton && npm ci && npx ts-node pipeline.ts
+
+tekton-check: ## Verify generated Tekton YAML is up-to-date
+	cd .tekton && npm ci && npx ts-node pipeline.ts
+	cd .tekton && git diff --exit-code generated/ || (echo "ERROR: .tekton/generated/ is stale. Run 'make tekton-synth'." && exit 1)
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'

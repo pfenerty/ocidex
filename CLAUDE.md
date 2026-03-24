@@ -72,6 +72,8 @@ make frontend          # Build the SolidJS frontend
 make frontend-dev      # Start frontend dev server (proxies API to :8080)
 make frontend-lint     # Run ESLint on the SolidJS frontend
 make frontend-lint-fix # Run ESLint with auto-fix on the SolidJS frontend
+make tekton-synth      # Synthesize Tekton pipeline YAML from TypeScript
+make tekton-check      # Verify generated Tekton YAML is up-to-date
 ```
 
 ## Project Structure
@@ -99,6 +101,7 @@ k8s/                   # Kubernetes manifests
 config/                # Configuration templates (zot registry)
 scripts/               # Utility scripts (seed.nu)
 tests/                 # Integration tests (testcontainers)
+.tekton/               # Tekton CI pipeline (tektonic TypeScript → generated YAML)
 docs/adr/              # Architecture Decision Records (see summary below)
 docs/DEVELOPMENT.md    # Coding patterns and examples
 ```
