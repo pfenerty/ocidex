@@ -25,6 +25,7 @@ config.yaml
 
 # Deployment manifests
 k8s/
+.tekton/
 
 # Scripts and tests
 scripts/

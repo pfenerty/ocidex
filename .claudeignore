@@ -10,6 +10,7 @@ docs/adr/
 # Lock/dependency files
 go.sum
 web/package-lock.json
+.tekton/package-lock.json
 .flox/env/manifest.lock
 
 # Build artifacts

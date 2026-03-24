@@ -1,0 +1,69 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-openapi-check
+  namespace: ocidex-ci
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+    - name: revision
+      type: string
+  stepTemplate:
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
+  steps:
+    - args:
+        - 'curl -fsS -X POST   -H "Authorization: token $GITHUB_TOKEN"   -H "Accept: application/vnd.github+json"   -d "{\"state\":\"pending\",\"context\":\"ocidex/openapi\",\"description\":\"Running\"}"   "https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"'
+      command:
+        - sh
+        - -c
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-token
+      image: cgr.dev/chainguard/curl:latest-dev
+      name: set-pending
+    - args:
+        - go run ./cmd/specgen > /tmp/openapi-check.json && diff web/openapi.json /tmp/openapi-check.json; EC=$?; echo $EC > /tekton/home/.exit-code; exit $EC
+      command:
+        - sh
+        - -c
+      image: docker.io/golang:1.25-bookworm
+      name: check-spec
+      onError: continue
+      workingDir: $(workspaces.workspace.path)
+    - args:
+        - PREV_EC=$(cat /tekton/home/.exit-code); npm ci --ignore-scripts && npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts && diff src/types/openapi.d.ts /tmp/openapi-check.d.ts; EC=$?; if [ "$PREV_EC" -ne 0 ]; then EC=$PREV_EC; fi; echo $EC > /tekton/home/.exit-code; exit $EC
+      command:
+        - sh
+        - -c
+      image: docker.io/node:22-bookworm
+      name: check-types
+      onError: continue
+      workingDir: $(workspaces.workspace.path)/web
+    - args:
+        - |-
+          EXIT_CODE=$(cat /tekton/home/.exit-code)
+          if [ "$EXIT_CODE" -eq 0 ]; then STATE=success DESC=Passed; else STATE=failure DESC=Failed; fi
+          curl -fsS -X POST   -H "Authorization: token $GITHUB_TOKEN"   -H "Accept: application/vnd.github+json"   -d "{\"state\":\"$STATE\",\"context\":\"ocidex/openapi\",\"description\":\"$DESC\"}"   "https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+      command:
+        - sh
+        - -c
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-token
+      image: cgr.dev/chainguard/curl:latest-dev
+      name: report-status
+  workspaces:
+    - name: workspace
