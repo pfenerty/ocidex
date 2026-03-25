@@ -13,7 +13,7 @@ import {
 const gitImage = "cgr.dev/chainguard/git:latest";
 const curlImage = "cgr.dev/chainguard/curl:latest-dev";
 const goImage = "docker.io/golang:1.25-bookworm";
-const lintImage = "docker.io/golangci/golangci-lint:v2";
+const lintImage = "docker.io/golangci/golangci-lint:v2.11.4";
 const nodeImage = "docker.io/node:22-bookworm";
 
 // ─── Shared workspace ───────────────────────────────────────────────────────
