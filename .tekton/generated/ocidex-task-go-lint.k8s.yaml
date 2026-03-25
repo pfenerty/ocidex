@@ -36,7 +36,7 @@ spec:
       command:
         - sh
         - -c
-      image: docker.io/golangci/golangci-lint:v2
+      image: docker.io/golangci/golangci-lint:v2.11.4
       name: lint
       onError: continue
       workingDir: $(workspaces.workspace.path)
