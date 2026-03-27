@@ -10,27 +10,20 @@ spec:
     - name: revision
       type: string
   stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
         drop:
           - ALL
-      seccompProfile:
-        type: RuntimeDefault
+    workingDir: $(workspaces.workspace.path)
   steps:
-    - args:
-        - 'curl -fsS -X POST   -H "Authorization: token $GITHUB_TOKEN"   -H "Accept: application/vnd.github+json"   -d "{\"state\":\"pending\",\"context\":\"ocidex/fmt\",\"description\":\"Running\"}"   "https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"'
-      command:
-        - sh
-        - -c
-      env:
-        - name: GITHUB_TOKEN
-          valueFrom:
-            secretKeyRef:
-              key: token
-              name: github-token
-      image: cgr.dev/chainguard/curl:latest-dev
-      name: set-pending
     - args:
         - OUTPUT=$(gofmt -l .); EC=0; if [ -n "$OUTPUT" ]; then echo "Unformatted files:"; echo "$OUTPUT"; EC=1; fi; echo $EC > /tekton/home/.exit-code; exit $EC
       command:
@@ -39,12 +32,11 @@ spec:
       image: docker.io/golang:1.25-bookworm
       name: fmt
       onError: continue
-      workingDir: $(workspaces.workspace.path)
     - args:
         - |-
           EXIT_CODE=$(cat /tekton/home/.exit-code)
           if [ "$EXIT_CODE" -eq 0 ]; then STATE=success DESC=Passed; else STATE=failure DESC=Failed; fi
-          curl -fsS -X POST   -H "Authorization: token $GITHUB_TOKEN"   -H "Accept: application/vnd.github+json"   -d "{\"state\":\"$STATE\",\"context\":\"ocidex/fmt\",\"description\":\"$DESC\"}"   "https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+          curl -fsS -X POST   -H "Authorization: token $GITHUB_TOKEN"   -H "Accept: application/vnd.github+json"   -H "Content-Type: application/json"   -d "{\"state\":\"$STATE\",\"context\":\"ocidex/fmt\",\"description\":\"$DESC\"}"   "https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
       command:
         - sh
         - -c

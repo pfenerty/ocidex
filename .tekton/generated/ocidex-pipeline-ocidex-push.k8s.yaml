@@ -14,6 +14,17 @@ spec:
     - name: url
       type: string
   tasks:
+    - name: set-status-pending
+      params:
+        - name: repo-full-name
+          value: $(params.repo-full-name)
+        - name: revision
+          value: $(params.revision)
+      runAfter:
+        - git-clone
+      taskRef:
+        kind: Task
+        name: ocidex-set-status-pending
     - name: git-clone
       params:
         - name: url
@@ -33,7 +44,7 @@ spec:
         - name: revision
           value: $(params.revision)
       runAfter:
-        - git-clone
+        - set-status-pending
       taskRef:
         kind: Task
         name: ocidex-go-fmt
@@ -47,11 +58,14 @@ spec:
         - name: revision
           value: $(params.revision)
       runAfter:
-        - git-clone
+        - go-fmt
+        - set-status-pending
       taskRef:
         kind: Task
         name: ocidex-go-lint
       workspaces:
+        - name: go-cache
+          workspace: go-cache
         - name: workspace
           workspace: workspace
     - name: go-test
@@ -61,11 +75,14 @@ spec:
         - name: revision
           value: $(params.revision)
       runAfter:
-        - git-clone
+        - go-lint
+        - set-status-pending
       taskRef:
         kind: Task
         name: ocidex-go-test
       workspaces:
+        - name: go-cache
+          workspace: go-cache
         - name: workspace
           workspace: workspace
     - name: go-build
@@ -75,11 +92,14 @@ spec:
         - name: revision
           value: $(params.revision)
       runAfter:
-        - git-clone
+        - go-test
+        - set-status-pending
       taskRef:
         kind: Task
         name: ocidex-go-build
       workspaces:
+        - name: go-cache
+          workspace: go-cache
         - name: workspace
           workspace: workspace
     - name: openapi-check
@@ -89,11 +109,16 @@ spec:
         - name: revision
           value: $(params.revision)
       runAfter:
-        - git-clone
+        - go-test
+        - set-status-pending
       taskRef:
         kind: Task
         name: ocidex-openapi-check
       workspaces:
+        - name: go-cache
+          workspace: go-cache
+        - name: node-cache
+          workspace: node-cache
         - name: workspace
           workspace: workspace
     - name: frontend-lint
@@ -103,12 +128,17 @@ spec:
         - name: revision
           value: $(params.revision)
       runAfter:
-        - git-clone
+        - openapi-check
+        - set-status-pending
       taskRef:
         kind: Task
         name: ocidex-frontend-lint
       workspaces:
+        - name: node-cache
+          workspace: node-cache
         - name: workspace
           workspace: workspace
   workspaces:
     - name: workspace
+    - name: go-cache
+    - name: node-cache

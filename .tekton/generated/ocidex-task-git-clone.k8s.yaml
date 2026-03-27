@@ -10,21 +10,28 @@ spec:
     - name: revision
       type: string
   stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
         drop:
           - ALL
-      runAsNonRoot: true
-      seccompProfile:
-        type: RuntimeDefault
   steps:
-    - image: cgr.dev/chainguard/git:latest
+    - env:
+        - name: GIT_CONFIG_GLOBAL
+          value: $(workspaces.workspace.path)/.gitconfig
+      image: cgr.dev/chainguard/git:latest
       name: clone
       script: |-
         #!/bin/sh
         set -e
-        git clone -v $(params.url) .
+        git clone $(params.url) .
         git config --global --add safe.directory $(workspaces.workspace.path)
         git checkout $(params.revision)
       workingDir: $(workspaces.workspace.path)

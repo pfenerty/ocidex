@@ -10,27 +10,35 @@ spec:
     - name: revision
       type: string
   stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
         drop:
           - ALL
-      seccompProfile:
-        type: RuntimeDefault
+    workingDir: $(workspaces.workspace.path)
   steps:
-    - args:
-        - 'curl -fsS -X POST   -H "Authorization: token $GITHUB_TOKEN"   -H "Accept: application/vnd.github+json"   -d "{\"state\":\"pending\",\"context\":\"ocidex/frontend-lint\",\"description\":\"Running\"}"   "https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"'
-      command:
-        - sh
-        - -c
-      env:
-        - name: GITHUB_TOKEN
-          valueFrom:
-            secretKeyRef:
-              key: token
-              name: github-token
-      image: cgr.dev/chainguard/curl:latest-dev
-      name: set-pending
+    - image: alpine
+      name: cache-restore-node-cache
+      script: |-
+        #!/bin/sh
+        set -e
+        HASH=$(cat $(workspaces.workspace.path)/web/package-lock.json | sha256sum | cut -c1-16)
+        echo "$HASH" > /tekton/home/.cache-node-cache-hash
+        ARCHIVE="$(workspaces.node-cache.path)/$HASH.tar.gz"
+        if [ -f "$ARCHIVE" ]; then
+          echo "cache hit ($HASH)"
+          tar -xzf "$ARCHIVE"
+        else
+          echo "cache miss ($HASH)"
+        fi
+      workingDir: /
     - args:
         - npm ci && npm run lint; EC=$?; echo $EC > /tekton/home/.exit-code; exit $EC
       command:
@@ -40,11 +48,24 @@ spec:
       name: lint
       onError: continue
       workingDir: $(workspaces.workspace.path)/web
+    - image: alpine
+      name: cache-save-node-cache
+      onError: continue
+      script: |-
+        #!/bin/sh
+        HASH=$(cat /tekton/home/.cache-node-cache-hash 2>/dev/null || echo "")
+        [ -z "$HASH" ] && exit 0
+        ARCHIVE="$(workspaces.node-cache.path)/$HASH.tar.gz"
+        if [ ! -f "$ARCHIVE" ]; then
+          echo "saving cache ($HASH)"
+          tar -czf "$ARCHIVE" root/.npm
+        fi
+      workingDir: /
     - args:
         - |-
           EXIT_CODE=$(cat /tekton/home/.exit-code)
           if [ "$EXIT_CODE" -eq 0 ]; then STATE=success DESC=Passed; else STATE=failure DESC=Failed; fi
-          curl -fsS -X POST   -H "Authorization: token $GITHUB_TOKEN"   -H "Accept: application/vnd.github+json"   -d "{\"state\":\"$STATE\",\"context\":\"ocidex/frontend-lint\",\"description\":\"$DESC\"}"   "https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+          curl -fsS -X POST   -H "Authorization: token $GITHUB_TOKEN"   -H "Accept: application/vnd.github+json"   -H "Content-Type: application/json"   -d "{\"state\":\"$STATE\",\"context\":\"ocidex/frontend-lint\",\"description\":\"$DESC\"}"   "https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
       command:
         - sh
         - -c
@@ -57,4 +78,5 @@ spec:
       image: cgr.dev/chainguard/curl:latest-dev
       name: report-status
   workspaces:
+    - name: node-cache
     - name: workspace
