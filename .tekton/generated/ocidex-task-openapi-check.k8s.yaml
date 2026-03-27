@@ -24,27 +24,12 @@ spec:
           - ALL
     workingDir: $(workspaces.workspace.path)
   steps:
-    - image: alpine
-      name: cache-restore-go-cache
-      script: |-
-        #!/bin/sh
-        set -e
-        HASH=$(cat $(workspaces.workspace.path)/go.sum | sha256sum | cut -c1-16)
-        echo "$HASH" > /tekton/home/.cache-go-cache-hash
-        ARCHIVE="$(workspaces.go-cache.path)/$HASH.tar.gz"
-        if [ -f "$ARCHIVE" ]; then
-          echo "cache hit ($HASH)"
-          tar -xzf "$ARCHIVE"
-        else
-          echo "cache miss ($HASH)"
-        fi
-      workingDir: /
-    - image: alpine
+    - image: docker.io/node:22-bookworm
       name: cache-restore-node-cache
       script: |-
         #!/bin/sh
         set -e
-        HASH=$(cat $(workspaces.workspace.path)/web/package-lock.json | sha256sum | cut -c1-16)
+        HASH=$(cat web/package-lock.json | sha256sum | cut -c1-16)
         echo "$HASH" > /tekton/home/.cache-node-cache-hash
         ARCHIVE="$(workspaces.node-cache.path)/$HASH.tar.gz"
         if [ -f "$ARCHIVE" ]; then
@@ -53,38 +38,34 @@ spec:
         else
           echo "cache miss ($HASH)"
         fi
-      workingDir: /
+      workingDir: $(workspaces.workspace.path)
     - args:
         - go run ./cmd/specgen > /tmp/openapi-check.json && diff web/openapi.json /tmp/openapi-check.json; EC=$?; echo $EC > /tekton/home/.exit-code; exit $EC
       command:
         - sh
         - -c
+      env:
+        - name: GOPATH
+          value: $(workspaces.go-cache.path)
+        - name: GOCACHE
+          value: $(workspaces.go-cache.path)/.go-build-cache
       image: docker.io/golang:1.25-bookworm
       name: check-spec
       onError: continue
-    - args:
-        - PREV_EC=$(cat /tekton/home/.exit-code); npm ci --ignore-scripts && npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts && diff src/types/openapi.d.ts /tmp/openapi-check.d.ts; EC=$?; if [ "$PREV_EC" -ne 0 ]; then EC=$PREV_EC; fi; echo $EC > /tekton/home/.exit-code; exit $EC
-      command:
-        - sh
-        - -c
+    - env:
+        - name: npm_config_cache
+          value: $(workspaces.node-cache.path)
       image: docker.io/node:22-bookworm
       name: check-types
       onError: continue
-      workingDir: $(workspaces.workspace.path)/web
-    - image: alpine
-      name: cache-save-go-cache
-      onError: continue
       script: |-
         #!/bin/sh
-        HASH=$(cat /tekton/home/.cache-go-cache-hash 2>/dev/null || echo "")
-        [ -z "$HASH" ] && exit 0
-        ARCHIVE="$(workspaces.go-cache.path)/$HASH.tar.gz"
-        if [ ! -f "$ARCHIVE" ]; then
-          echo "saving cache ($HASH)"
-          tar -czf "$ARCHIVE" go/pkg/mod root/.cache/go-build
-        fi
-      workingDir: /
-    - image: alpine
+        PREV_EC=$(cat /tekton/home/.exit-code)
+        [ ! -d node_modules ] && npm ci --ignore-scripts
+        npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts && diff src/types/openapi.d.ts /tmp/openapi-check.d.ts
+        EC=$?; if [ "$PREV_EC" -ne 0 ]; then EC=$PREV_EC; fi; echo $EC > /tekton/home/.exit-code; exit $EC
+      workingDir: $(workspaces.workspace.path)/web
+    - image: docker.io/node:22-bookworm
       name: cache-save-node-cache
       onError: continue
       script: |-
@@ -94,9 +75,9 @@ spec:
         ARCHIVE="$(workspaces.node-cache.path)/$HASH.tar.gz"
         if [ ! -f "$ARCHIVE" ]; then
           echo "saving cache ($HASH)"
-          tar -czf "$ARCHIVE" root/.npm
+          tar -czf "$ARCHIVE" web/node_modules
         fi
-      workingDir: /
+      workingDir: $(workspaces.workspace.path)
     - args:
         - |-
           EXIT_CODE=$(cat /tekton/home/.exit-code)

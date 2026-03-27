@@ -22,23 +22,31 @@ const goCacheWs = new Workspace({ name: "go-cache" });
 const nodeCacheWs = new Workspace({ name: "node-cache" });
 
 // ─── Cache specs ─────────────────────────────────────────────────────────────
-// Go module + build cache keyed on go.sum, stored at filesystem root-relative paths
-const goCache: TaskCacheSpec = {
-    key: ["$(workspaces.workspace.path)/go.sum"],
-    paths: ["go/pkg/mod", "root/.cache/go-build"],
-    workspace: goCacheWs,
+// node_modules is cached by content-hashing web/package-lock.json.
+// The restore step unpacks node_modules into the workspace; the step then skips
+// `npm ci` if node_modules already exists (cache hit).
+const nodeModulesCache: TaskCacheSpec = {
+    key: ["web/package-lock.json"],
+    paths: ["web/node_modules"],
+    workspace: nodeCacheWs,
+    image: nodeImage,
     compress: true,
-    workingDir: "/",
+    workingDir: "$(workspaces.workspace.path)",
 };
 
-// npm cache keyed on web/package-lock.json; caching ~/.npm speeds up npm ci
-const nodeCache: TaskCacheSpec = {
-    key: ["$(workspaces.workspace.path)/web/package-lock.json"],
-    paths: ["root/.npm"],
-    workspace: nodeCacheWs,
-    compress: true,
-    workingDir: "/",
-};
+// ─── Go env helpers ──────────────────────────────────────────────────────────
+// Point all Go toolchain caches directly at the go-cache PVC mount.
+// The NFS PVC is writable by uid 1024 (all_squash anonuid=1024), so no
+// tar restore/save steps are needed — the PVC IS the persistent cache.
+const goEnv = [
+    { name: "GOPATH", value: "$(workspaces.go-cache.path)" },
+    { name: "GOCACHE", value: "$(workspaces.go-cache.path)/.go-build-cache" },
+];
+
+const lintEnv = [
+    ...goEnv,
+    { name: "GOLANGCI_LINT_CACHE", value: "$(workspaces.go-cache.path)/.golangci-cache" },
+];
 
 // ─── Tasks ──────────────────────────────────────────────────────────────────
 
@@ -64,13 +72,14 @@ const goLint = new Task({
     name: "go-lint",
     params: [...statusReporter.requiredParams],
     needs: [goFmt],
+    workspaces: [goCacheWs],
     statusContext: "ocidex/lint",
     statusReporter,
-    caches: [goCache],
     steps: [
         {
             name: "lint",
             image: lintImage,
+            env: lintEnv,
             command: ["sh", "-c"],
             args: [
                 "golangci-lint run ./...; EC=$?; echo $EC > /tekton/home/.exit-code; exit $EC",
@@ -84,13 +93,14 @@ const goTest = new Task({
     name: "go-test",
     params: [...statusReporter.requiredParams],
     needs: [goLint],
+    workspaces: [goCacheWs],
     statusContext: "ocidex/test",
     statusReporter,
-    caches: [goCache],
     steps: [
         {
             name: "test",
             image: goImage,
+            env: goEnv,
             command: ["sh", "-c"],
             args: [
                 "go test -v -race -short ./...; EC=$?; echo $EC > /tekton/home/.exit-code; exit $EC",
@@ -104,13 +114,14 @@ const goBuild = new Task({
     name: "go-build",
     params: [...statusReporter.requiredParams],
     needs: [goTest],
+    workspaces: [goCacheWs],
     statusContext: "ocidex/build",
     statusReporter,
-    caches: [goCache],
     steps: [
         {
             name: "build",
             image: goImage,
+            env: goEnv,
             command: ["sh", "-c"],
             args: [
                 "go build -o /dev/null ./cmd/ocidex && go build -o /dev/null ./cmd/scanner-worker && go build -o /dev/null ./cmd/enrichment-worker; EC=$?; echo $EC > /tekton/home/.exit-code; exit $EC",
@@ -124,13 +135,15 @@ const openapiCheck = new Task({
     name: "openapi-check",
     params: [...statusReporter.requiredParams],
     needs: [goTest],
+    workspaces: [goCacheWs],
     statusContext: "ocidex/openapi",
     statusReporter,
-    caches: [goCache, nodeCache],
+    caches: [nodeModulesCache],
     steps: [
         {
             name: "check-spec",
             image: goImage,
+            env: goEnv,
             command: ["sh", "-c"],
             args: [
                 "go run ./cmd/specgen > /tmp/openapi-check.json && diff web/openapi.json /tmp/openapi-check.json; EC=$?; echo $EC > /tekton/home/.exit-code; exit $EC",
@@ -140,11 +153,13 @@ const openapiCheck = new Task({
         {
             name: "check-types",
             image: nodeImage,
+            env: [{ name: "npm_config_cache", value: nodeCacheWs.path }],
             workingDir: "$(workspaces.workspace.path)/web",
-            command: ["sh", "-c"],
-            args: [
-                `PREV_EC=$(cat /tekton/home/.exit-code); npm ci --ignore-scripts && npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts && diff src/types/openapi.d.ts /tmp/openapi-check.d.ts; EC=$?; if [ "$PREV_EC" -ne 0 ]; then EC=$PREV_EC; fi; echo $EC > /tekton/home/.exit-code; exit $EC`,
-            ],
+            script: `#!/bin/sh
+PREV_EC=$(cat /tekton/home/.exit-code)
+[ ! -d node_modules ] && npm ci --ignore-scripts
+npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts && diff src/types/openapi.d.ts /tmp/openapi-check.d.ts
+EC=$?; if [ "$PREV_EC" -ne 0 ]; then EC=$PREV_EC; fi; echo $EC > /tekton/home/.exit-code; exit $EC`,
             onError: "continue",
         },
     ],
@@ -156,16 +171,16 @@ const frontendLint = new Task({
     needs: [openapiCheck],
     statusContext: "ocidex/frontend-lint",
     statusReporter,
-    caches: [nodeCache],
+    caches: [nodeModulesCache],
     steps: [
         {
             name: "lint",
             image: nodeImage,
+            env: [{ name: "npm_config_cache", value: nodeCacheWs.path }],
             workingDir: "$(workspaces.workspace.path)/web",
-            command: ["sh", "-c"],
-            args: [
-                "npm ci && npm run lint; EC=$?; echo $EC > /tekton/home/.exit-code; exit $EC",
-            ],
+            script: `#!/bin/sh
+[ ! -d node_modules ] && npm ci
+npm run lint; EC=$?; echo $EC > /tekton/home/.exit-code; exit $EC`,
             onError: "continue",
         },
     ],
@@ -196,6 +211,15 @@ new TektonProject({
     webhookSecretRef: {
         secretName: "github-webhook-secret",
         secretKey: "secret",
+    },
+    // The nfs-client storage class uses all_squash (anonuid=1024), which maps every
+    // client UID/GID to 1024 on the NFS server. Running pods as 1024 ensures the
+    // process UID matches the file owner UID, granting write access to PVC-backed
+    // cache directories.
+    defaultPodSecurityContext: {
+        runAsUser: 1024,
+        runAsGroup: 1024,
+        fsGroup: 1024,
     },
     caches: [
         { workspace: goCacheWs, storageSize: "5Gi" },

@@ -24,42 +24,19 @@ spec:
           - ALL
     workingDir: $(workspaces.workspace.path)
   steps:
-    - image: alpine
-      name: cache-restore-go-cache
-      script: |-
-        #!/bin/sh
-        set -e
-        HASH=$(cat $(workspaces.workspace.path)/go.sum | sha256sum | cut -c1-16)
-        echo "$HASH" > /tekton/home/.cache-go-cache-hash
-        ARCHIVE="$(workspaces.go-cache.path)/$HASH.tar.gz"
-        if [ -f "$ARCHIVE" ]; then
-          echo "cache hit ($HASH)"
-          tar -xzf "$ARCHIVE"
-        else
-          echo "cache miss ($HASH)"
-        fi
-      workingDir: /
     - args:
         - go build -o /dev/null ./cmd/ocidex && go build -o /dev/null ./cmd/scanner-worker && go build -o /dev/null ./cmd/enrichment-worker; EC=$?; echo $EC > /tekton/home/.exit-code; exit $EC
       command:
         - sh
         - -c
+      env:
+        - name: GOPATH
+          value: $(workspaces.go-cache.path)
+        - name: GOCACHE
+          value: $(workspaces.go-cache.path)/.go-build-cache
       image: docker.io/golang:1.25-bookworm
       name: build
       onError: continue
-    - image: alpine
-      name: cache-save-go-cache
-      onError: continue
-      script: |-
-        #!/bin/sh
-        HASH=$(cat /tekton/home/.cache-go-cache-hash 2>/dev/null || echo "")
-        [ -z "$HASH" ] && exit 0
-        ARCHIVE="$(workspaces.go-cache.path)/$HASH.tar.gz"
-        if [ ! -f "$ARCHIVE" ]; then
-          echo "saving cache ($HASH)"
-          tar -czf "$ARCHIVE" go/pkg/mod root/.cache/go-build
-        fi
-      workingDir: /
     - args:
         - |-
           EXIT_CODE=$(cat /tekton/home/.exit-code)
