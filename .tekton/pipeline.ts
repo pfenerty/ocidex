@@ -136,7 +136,7 @@ const goTest = new Task({
             image: goImage,
             computeResources: {
                 limits: { cpu: "2", memory: "2Gi" },
-                requests: { cpu: "500m", memory: "1Gi" },
+                requests: { cpu: "500m", memory: "256Mi" },
             },
             script: nuHeader + `
 log "Running go test"
@@ -164,7 +164,7 @@ const goBuild = new Task({
             image: goImage,
             computeResources: {
                 limits: { cpu: "2", memory: "2Gi" },
-                requests: { cpu: "500m", memory: "512Mi" },
+                requests: { cpu: "500m", memory: "256Mi" },
             },
             script: nuHeader + `
 log "Building ocidex binaries"
