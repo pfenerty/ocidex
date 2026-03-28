@@ -17,6 +17,13 @@ spec:
       requests:
         cpu: 200m
         memory: 512Mi
+    env:
+      - name: GOPATH
+        value: $(workspaces.workspace.path)/.gopath
+      - name: GOCACHE
+        value: $(workspaces.workspace.path)/.gocache
+      - name: GOLANGCI_LINT_CACHE
+        value: $(workspaces.workspace.path)/.golangci-cache
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
@@ -59,4 +66,5 @@ spec:
       image: cgr.dev/chainguard/curl:latest-dev
       name: report-status
   workspaces:
+    - name: go-cache
     - name: workspace

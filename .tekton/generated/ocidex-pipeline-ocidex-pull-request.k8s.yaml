@@ -64,6 +64,8 @@ spec:
         kind: Task
         name: ocidex-go-lint
       workspaces:
+        - name: go-cache
+          workspace: go-cache
         - name: workspace
           workspace: workspace
     - name: go-test
@@ -79,6 +81,8 @@ spec:
         kind: Task
         name: ocidex-go-test
       workspaces:
+        - name: go-cache
+          workspace: go-cache
         - name: workspace
           workspace: workspace
     - name: go-build
@@ -94,6 +98,8 @@ spec:
         kind: Task
         name: ocidex-go-build
       workspaces:
+        - name: go-cache
+          workspace: go-cache
         - name: workspace
           workspace: workspace
     - name: openapi-check
@@ -109,6 +115,10 @@ spec:
         kind: Task
         name: ocidex-openapi-check
       workspaces:
+        - name: go-cache
+          workspace: go-cache
+        - name: node-cache
+          workspace: node-cache
         - name: workspace
           workspace: workspace
     - name: frontend-lint
@@ -124,7 +134,11 @@ spec:
         kind: Task
         name: ocidex-frontend-lint
       workspaces:
+        - name: node-cache
+          workspace: node-cache
         - name: workspace
           workspace: workspace
   workspaces:
     - name: workspace
+    - name: go-cache
+    - name: node-cache

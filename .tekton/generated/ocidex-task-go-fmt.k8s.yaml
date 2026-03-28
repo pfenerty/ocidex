@@ -39,8 +39,6 @@ spec:
         }
 
         log "Checking gofmt"
-        # gofmt -l prints unformatted files to stdout; no output means clean.
-        # Use | complete here since gofmt is fast and we need to inspect stdout.
         let result = (^gofmt -l . | complete)
         let ec = if ($result.stdout | str trim | str length) > 0 {
             print "Unformatted files:"; print $result.stdout; 1

@@ -31,6 +31,32 @@ subjects:
     name: ocidex-tekton-triggers
     namespace: ocidex-ci
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ocidex-go-cache
+  namespace: ocidex-ci
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: nfs-client
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ocidex-node-cache
+  namespace: ocidex-ci
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: nfs-client
+---
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerBinding
 metadata:
@@ -108,6 +134,12 @@ spec:
                   requests:
                     storage: 1Gi
                 storageClassName: local-path
+          - name: go-cache
+            persistentVolumeClaim:
+              claimName: ocidex-go-cache
+          - name: node-cache
+            persistentVolumeClaim:
+              claimName: ocidex-node-cache
 ---
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerBinding
@@ -186,6 +218,12 @@ spec:
                   requests:
                     storage: 1Gi
                 storageClassName: local-path
+          - name: go-cache
+            persistentVolumeClaim:
+              claimName: ocidex-go-cache
+          - name: node-cache
+            persistentVolumeClaim:
+              claimName: ocidex-node-cache
 ---
 apiVersion: triggers.tekton.dev/v1beta1
 kind: EventListener

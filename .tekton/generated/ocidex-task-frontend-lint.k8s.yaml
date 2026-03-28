@@ -25,6 +25,20 @@ spec:
     workingDir: $(workspaces.workspace.path)
   steps:
     - image: ghcr.io/pfenerty/apko-cicd/nodejs:22
+      name: cache-restore-node-cache
+      script: |-
+        #!/usr/bin/env nu
+        let hash = (["web/package-lock.json"] | each { |f| open --raw $f } | bytes collect | hash sha256 | str substring 0..15)
+        $hash | save -f /tekton/home/.cache-node-cache-hash
+        let archive = $"$(workspaces.node-cache.path)/($hash).tar.zst"
+        if ($archive | path exists) {
+          print $"cache hit ($hash)"
+          ^tar --zstd -xf $archive
+        } else {
+          print $"cache miss ($hash)"
+        }
+      workingDir: $(workspaces.workspace.path)
+    - image: ghcr.io/pfenerty/apko-cicd/nodejs:22
       name: lint
       onError: continue
       script: |-
@@ -38,13 +52,24 @@ spec:
             $worst
         }
 
-        log "Installing node dependencies"
-        if not ("node_modules" | path exists) { try { ^npm ci } catch { null } }
         log "Running ESLint"
         let ec = run_and_save 0 "npm" "run" "lint"
         log (if $ec == 0 { "OK: no lint errors" } else { "FAIL: lint errors found" })
         exit $ec
       workingDir: $(workspaces.workspace.path)/web
+    - image: ghcr.io/pfenerty/apko-cicd/nodejs:22
+      name: cache-save-node-cache
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        let hash = (try { open --raw /tekton/home/.cache-node-cache-hash | str trim } catch { "" })
+        if ($hash | str length) == 0 { exit 0 }
+        let archive = $"$(workspaces.node-cache.path)/($hash).tar.zst"
+        if not ($archive | path exists) {
+          print $"saving cache ($hash)"
+          ^tar --zstd -cf $archive web/node_modules
+        }
+      workingDir: $(workspaces.workspace.path)
     - args:
         - |-
           EXIT_CODE=$(cat /tekton/home/.exit-code)
@@ -62,4 +87,5 @@ spec:
       image: cgr.dev/chainguard/curl:latest-dev
       name: report-status
   workspaces:
+    - name: node-cache
     - name: workspace

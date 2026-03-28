@@ -12,11 +12,16 @@ spec:
   stepTemplate:
     computeResources:
       limits:
-        cpu: "1"
-        memory: 512Mi
+        cpu: "2"
+        memory: 2Gi
       requests:
-        cpu: 100m
-        memory: 128Mi
+        cpu: 500m
+        memory: 512Mi
+    env:
+      - name: GOPATH
+        value: $(workspaces.workspace.path)/.gopath
+      - name: GOCACHE
+        value: $(workspaces.workspace.path)/.gocache
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
@@ -24,6 +29,20 @@ spec:
           - ALL
     workingDir: $(workspaces.workspace.path)
   steps:
+    - image: ghcr.io/pfenerty/apko-cicd/golang:1.25
+      name: cache-restore-go-cache
+      script: |-
+        #!/usr/bin/env nu
+        let hash = (["go.sum"] | each { |f| open --raw $f } | bytes collect | hash sha256 | str substring 0..15)
+        $hash | save -f /tekton/home/.cache-go-cache-hash
+        let archive = $"$(workspaces.go-cache.path)/($hash).tar.zst"
+        if ($archive | path exists) {
+          print $"cache hit ($hash)"
+          ^tar --zstd -xf $archive
+        } else {
+          print $"cache miss ($hash)"
+        }
+      workingDir: $(workspaces.workspace.path)
     - image: ghcr.io/pfenerty/apko-cicd/golang:1.25
       name: build
       onError: continue
@@ -46,6 +65,19 @@ spec:
         }
         log $"Exit code: ($ec)"
         exit $ec
+    - image: ghcr.io/pfenerty/apko-cicd/golang:1.25
+      name: cache-save-go-cache
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        let hash = (try { open --raw /tekton/home/.cache-go-cache-hash | str trim } catch { "" })
+        if ($hash | str length) == 0 { exit 0 }
+        let archive = $"$(workspaces.go-cache.path)/($hash).tar.zst"
+        if not ($archive | path exists) {
+          print $"saving cache ($hash)"
+          ^tar --zstd -cf $archive .gopath .gocache
+        }
+      workingDir: $(workspaces.workspace.path)
     - args:
         - |-
           EXIT_CODE=$(cat /tekton/home/.exit-code)
@@ -63,4 +95,5 @@ spec:
       image: cgr.dev/chainguard/curl:latest-dev
       name: report-status
   workspaces:
+    - name: go-cache
     - name: workspace

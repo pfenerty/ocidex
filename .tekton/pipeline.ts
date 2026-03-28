@@ -1,5 +1,7 @@
 import {
     Task,
+    Workspace,
+    TaskCacheSpec,
     GitPipeline,
     TektonProject,
     TRIGGER_EVENTS,
@@ -14,9 +16,46 @@ const nodeImage = "ghcr.io/pfenerty/apko-cicd/nodejs:22";
 // ─── Status reporter ─────────────────────────────────────────────────────────
 const statusReporter = new GitHubStatusReporter();
 
-// ─── Nushell helpers ─────────────────────────────────────────────────────────
-// run_and_save runs a command with streaming output and saves its exit code.
-// Unlike `| complete`, this does not buffer output — logs appear in real time.
+// ─── Cache workspaces (NFS RWX — persist across runs) ────────────────────────
+const goCacheWs   = new Workspace({ name: "go-cache" });
+const nodeCacheWs = new Workspace({ name: "node-cache" });
+
+// ─── Cache specs ─────────────────────────────────────────────────────────────
+// Compressed tarballs on NFS — one large sequential read/write per run instead
+// of thousands of small NFS file operations. GOPATH/GOCACHE are placed inside
+// the main workspace so Go tooling uses fast local-path storage during the run.
+const goModuleCache: TaskCacheSpec = {
+    key: ["go.sum"],
+    paths: [".gopath", ".gocache"],
+    workspace: goCacheWs,
+    image: goImage,
+    compress: true,
+    workingDir: "$(workspaces.workspace.path)",
+};
+
+const nodeModulesCache: TaskCacheSpec = {
+    key: ["web/package-lock.json"],
+    paths: ["web/node_modules"],
+    workspace: nodeCacheWs,
+    image: nodeImage,
+    compress: true,
+    workingDir: "$(workspaces.workspace.path)",
+};
+
+// ─── Go env ──────────────────────────────────────────────────────────────────
+// Point GOPATH/GOCACHE inside the workspace so the cache restore/save steps
+// can manage them as relative paths. Actual builds run on local-path storage.
+const goEnv = [
+    { name: "GOPATH",  value: "$(workspaces.workspace.path)/.gopath" },
+    { name: "GOCACHE", value: "$(workspaces.workspace.path)/.gocache" },
+];
+
+const lintEnv = [
+    ...goEnv,
+    { name: "GOLANGCI_LINT_CACHE", value: "$(workspaces.workspace.path)/.golangci-cache" },
+];
+
+// ─── Nushell helper ──────────────────────────────────────────────────────────
 const nuHeader = `#!/usr/bin/env nu
 def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
 def run_and_save [prev_ec: int, ...args: string] {
@@ -41,8 +80,6 @@ const goFmt = new Task({
             image: goImage,
             script: nuHeader + `
 log "Checking gofmt"
-# gofmt -l prints unformatted files to stdout; no output means clean.
-# Use | complete here since gofmt is fast and we need to inspect stdout.
 let result = (^gofmt -l . | complete)
 let ec = if ($result.stdout | str trim | str length) > 0 {
     print "Unformatted files:"; print $result.stdout; 1
@@ -59,9 +96,11 @@ const goLint = new Task({
     name: "go-lint",
     params: [...statusReporter.requiredParams],
     needs: [goFmt],
+    workspaces: [goCacheWs],
     statusContext: "ocidex/lint",
     statusReporter,
     stepTemplate: {
+        env: lintEnv,
         computeResources: {
             limits: { cpu: "2", memory: "2Gi" },
             requests: { cpu: "200m", memory: "512Mi" },
@@ -85,8 +124,16 @@ const goTest = new Task({
     name: "go-test",
     params: [...statusReporter.requiredParams],
     needs: [goLint],
+    caches: [goModuleCache],
     statusContext: "ocidex/test",
     statusReporter,
+    stepTemplate: {
+        env: goEnv,
+        computeResources: {
+            limits: { cpu: "2", memory: "3Gi" },
+            requests: { cpu: "500m", memory: "1Gi" },
+        },
+    },
     steps: [
         {
             name: "test",
@@ -105,8 +152,16 @@ const goBuild = new Task({
     name: "go-build",
     params: [...statusReporter.requiredParams],
     needs: [goTest],
+    caches: [goModuleCache],
     statusContext: "ocidex/build",
     statusReporter,
+    stepTemplate: {
+        env: goEnv,
+        computeResources: {
+            limits: { cpu: "2", memory: "2Gi" },
+            requests: { cpu: "500m", memory: "512Mi" },
+        },
+    },
     steps: [
         {
             name: "build",
@@ -129,6 +184,7 @@ const openapiCheck = new Task({
     name: "openapi-check",
     params: [...statusReporter.requiredParams],
     needs: [goTest],
+    caches: [goModuleCache, nodeModulesCache],
     statusContext: "ocidex/openapi",
     statusReporter,
     steps: [
@@ -156,8 +212,6 @@ exit $ec`,
             workingDir: "$(workspaces.workspace.path)/web",
             script: nuHeader + `
 let prev_ec = (open /tekton/home/.exit-code | str trim | into int)
-log "Installing node dependencies"
-if not ("node_modules" | path exists) { try { ^npm ci --ignore-scripts } catch { null } }
 log "Generating TypeScript types from spec"
 try { ^npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts } catch { null }
 let gen_ec = $env.LAST_EXIT_CODE
@@ -179,6 +233,7 @@ const frontendLint = new Task({
     name: "frontend-lint",
     params: [...statusReporter.requiredParams],
     needs: [openapiCheck],
+    caches: [nodeModulesCache],
     statusContext: "ocidex/frontend-lint",
     statusReporter,
     steps: [
@@ -187,8 +242,6 @@ const frontendLint = new Task({
             image: nodeImage,
             workingDir: "$(workspaces.workspace.path)/web",
             script: nuHeader + `
-log "Installing node dependencies"
-if not ("node_modules" | path exists) { try { ^npm ci } catch { null } }
 log "Running ESLint"
 let ec = run_and_save 0 "npm" "run" "lint"
 log (if $ec == 0 { "OK: no lint errors" } else { "FAIL: lint errors found" })
@@ -230,4 +283,10 @@ new TektonProject({
         runAsGroup: 1024,
         fsGroup: 1024,
     },
+    // Cache PVCs on NFS (RWX) — persist compressed tarballs across runs.
+    // Pods run as uid 1024 to match NFS all_squash anonuid.
+    caches: [
+        { workspace: goCacheWs,   storageSize: "5Gi", storageClassName: "nfs-client" },
+        { workspace: nodeCacheWs, storageSize: "2Gi", storageClassName: "nfs-client" },
+    ],
 });
