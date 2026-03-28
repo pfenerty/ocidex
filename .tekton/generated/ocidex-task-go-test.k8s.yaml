@@ -33,7 +33,7 @@ spec:
       name: cache-restore-go-cache
       script: |-
         #!/usr/bin/env nu
-        let hash = (["go.sum"] | each { |f| open --raw $f } | bytes collect | hash sha256 | str substring 0..15)
+        let hash = (["go.sum"] | each { |f| open $f } | str join | hash sha256 | str substring 0..15)
         $hash | save -f /tekton/home/.cache-go-cache-hash
         let archive = $"$(workspaces.go-cache.path)/($hash).tar.zst"
         if ($archive | path exists) {
