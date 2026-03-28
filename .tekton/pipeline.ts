@@ -130,7 +130,7 @@ const goTest = new Task({
     stepTemplate: {
         env: goEnv,
         computeResources: {
-            limits: { cpu: "2", memory: "3Gi" },
+            limits: { cpu: "2", memory: "2Gi" },
             requests: { cpu: "500m", memory: "1Gi" },
         },
     },
