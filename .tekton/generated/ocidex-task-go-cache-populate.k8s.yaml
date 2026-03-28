@@ -1,0 +1,66 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-go-cache-populate
+  namespace: ocidex-ci
+spec:
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    workingDir: $(workspaces.workspace.path)
+  steps:
+    - computeResources:
+        limits:
+          cpu: "2"
+          memory: 1Gi
+        requests:
+          cpu: 500m
+          memory: 256Mi
+      env:
+        - name: GOPATH
+          value: $(workspaces.workspace.path)/.gopath
+        - name: GOCACHE
+          value: $(workspaces.workspace.path)/.gocache
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.25
+      name: populate
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def run_and_save [prev_ec: int, ...args: string] {
+            try { run-external ...$args } catch { null }
+            let ec = $env.LAST_EXIT_CODE
+            let worst = if $prev_ec != 0 { $prev_ec } else { $ec }
+            $"($worst)" | save -f /tekton/home/.exit-code
+            $worst
+        }
+
+        let cache_dir = "$(workspaces.go-cache.path)"
+        let workspace_dir = "$(workspaces.workspace.path)"
+        let hash = (open go.sum | hash sha256 | str substring 0..15)
+        let archive = $"($cache_dir)/($hash).tar.zst"
+        log $"Cache key: ($hash)"
+        if ($archive | path exists) {
+            log "Cache hit — extracting archive"
+            ^zstd -d $archive --stdout | ^tar -x -C $workspace_dir
+            log "Done"
+        } else {
+            log "Cache miss — downloading modules"
+            ^go mod download all
+            log "Saving cache archive"
+            ^tar -c -C $workspace_dir ".gopath" ".gocache" | ^zstd -T2 - -o $archive
+            log "Done"
+        }
+      workingDir: $(workspaces.workspace.path)
+  workspaces:
+    - name: go-cache
+    - name: workspace

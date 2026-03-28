@@ -24,15 +24,6 @@ const nodeCacheWs = new Workspace({ name: "node-cache" });
 // Compressed tarballs on NFS — one large sequential read/write per run instead
 // of thousands of small NFS file operations. GOPATH/GOCACHE are placed inside
 // the main workspace so Go tooling uses fast local-path storage during the run.
-const goModuleCache: TaskCacheSpec = {
-    key: ["go.sum"],
-    paths: [".gopath", ".gocache"],
-    workspace: goCacheWs,
-    image: goImage,
-    compress: true,
-    workingDir: "$(workspaces.workspace.path)",
-};
-
 const nodeModulesCache: TaskCacheSpec = {
     key: ["web/package-lock.json"],
     paths: ["web/node_modules"],
@@ -69,6 +60,40 @@ def run_and_save [prev_ec: int, ...args: string] {
 
 // ─── Tasks ──────────────────────────────────────────────────────────────────
 
+const goCachePopulate = new Task({
+    name: "go-cache-populate",
+    workspaces: [goCacheWs],
+    steps: [
+        {
+            name: "populate",
+            image: goImage,
+            workingDir: "$(workspaces.workspace.path)",
+            computeResources: {
+                limits: { cpu: "2", memory: "1Gi" },
+                requests: { cpu: "500m", memory: "256Mi" },
+            },
+            env: goEnv,
+            script: nuHeader + `
+let cache_dir = "$(workspaces.go-cache.path)"
+let workspace_dir = "$(workspaces.workspace.path)"
+let hash = (open go.sum | hash sha256 | str substring 0..15)
+let archive = $"($cache_dir)/($hash).tar.zst"
+log $"Cache key: ($hash)"
+if ($archive | path exists) {
+    log "Cache hit — extracting archive"
+    ^zstd -d $archive --stdout | ^tar -x -C $workspace_dir
+    log "Done"
+} else {
+    log "Cache miss — downloading modules"
+    ^go mod download all
+    log "Saving cache archive"
+    ^tar -c -C $workspace_dir ".gopath" ".gocache" | ^zstd -T2 - -o $archive
+    log "Done"
+}`,
+        },
+    ],
+});
+
 const goFmt = new Task({
     name: "go-fmt",
     params: [...statusReporter.requiredParams],
@@ -96,7 +121,6 @@ const goLint = new Task({
     name: "go-lint",
     params: [...statusReporter.requiredParams],
     needs: [goFmt],
-    workspaces: [goCacheWs],
     statusContext: "ocidex/lint",
     statusReporter,
     stepTemplate: {
@@ -123,12 +147,15 @@ exit $ec`,
 const goTest = new Task({
     name: "go-test",
     params: [...statusReporter.requiredParams],
-    needs: [goLint],
-    caches: [goModuleCache],
+    needs: [goLint, goCachePopulate],
     statusContext: "ocidex/test",
     statusReporter,
     stepTemplate: {
-        env: goEnv,
+        env: [
+            ...goEnv,
+            { name: "GOMAXPROCS", value: "2" },
+            { name: "GOMEMLIMIT", value: "1800MiB" },
+        ],
     },
     steps: [
         {
@@ -139,8 +166,12 @@ const goTest = new Task({
                 requests: { cpu: "500m", memory: "256Mi" },
             },
             script: nuHeader + `
+if not ("$(workspaces.workspace.path)/.gopath" | path exists) {
+    log "ERROR: .gopath missing — go-cache-populate task did not succeed"
+    exit 1
+}
 log "Running go test"
-let ec = run_and_save 0 "go" "test" "-v" "-race" "-short" "./..."
+let ec = run_and_save 0 "go" "test" "-v" "-short" "-p" "2" "./..."
 log $"Exit code: ($ec)"
 exit $ec`,
             onError: "continue",
@@ -152,7 +183,6 @@ const goBuild = new Task({
     name: "go-build",
     params: [...statusReporter.requiredParams],
     needs: [goTest],
-    caches: [goModuleCache],
     statusContext: "ocidex/build",
     statusReporter,
     stepTemplate: {
@@ -184,7 +214,7 @@ const openapiCheck = new Task({
     name: "openapi-check",
     params: [...statusReporter.requiredParams],
     needs: [goTest],
-    caches: [goModuleCache, nodeModulesCache],
+    caches: [nodeModulesCache],
     statusContext: "ocidex/openapi",
     statusReporter,
     steps: [
@@ -253,7 +283,7 @@ exit $ec`,
 
 // ─── Pipelines ──────────────────────────────────────────────────────────────
 
-const allTasks = [goFmt, goLint, goTest, goBuild, openapiCheck, frontendLint];
+const allTasks = [goCachePopulate, goFmt, goLint, goTest, goBuild, openapiCheck, frontendLint];
 
 const pushPipeline = new GitPipeline({
     name: "ocidex-push",
