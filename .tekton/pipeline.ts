@@ -1,8 +1,5 @@
 import {
-    Param,
-    Workspace,
     Task,
-    TaskCacheSpec,
     GitPipeline,
     TektonProject,
     TRIGGER_EVENTS,
@@ -10,43 +7,12 @@ import {
 } from "@pfenerty/tektonic";
 
 // --- Images ─────────────────────────────────────────────────────────────────
-const goImage = "docker.io/golang:1.25-bookworm";
-const lintImage = "docker.io/golangci/golangci-lint:v2.11.4";
-const nodeImage = "docker.io/node:22-bookworm";
+const goImage   = "ghcr.io/pfenerty/apko-cicd/golang:1.25";
+const lintImage = "ghcr.io/pfenerty/apko-cicd/golangci-lint:2.11.4";
+const nodeImage = "ghcr.io/pfenerty/apko-cicd/nodejs:22";
 
 // ─── Status reporter ─────────────────────────────────────────────────────────
 const statusReporter = new GitHubStatusReporter();
-
-// ─── Cache workspaces ────────────────────────────────────────────────────────
-const goCacheWs = new Workspace({ name: "go-cache" });
-const nodeCacheWs = new Workspace({ name: "node-cache" });
-
-// ─── Cache specs ─────────────────────────────────────────────────────────────
-// node_modules is cached by content-hashing web/package-lock.json.
-// The restore step unpacks node_modules into the workspace; the step then skips
-// `npm ci` if node_modules already exists (cache hit).
-const nodeModulesCache: TaskCacheSpec = {
-    key: ["web/package-lock.json"],
-    paths: ["web/node_modules"],
-    workspace: nodeCacheWs,
-    image: nodeImage,
-    compress: true,
-    workingDir: "$(workspaces.workspace.path)",
-};
-
-// ─── Go env helpers ──────────────────────────────────────────────────────────
-// Point all Go toolchain caches directly at the go-cache PVC mount.
-// The NFS PVC is writable by uid 1024 (all_squash anonuid=1024), so no
-// tar restore/save steps are needed — the PVC IS the persistent cache.
-const goEnv = [
-    { name: "GOPATH", value: "$(workspaces.go-cache.path)" },
-    { name: "GOCACHE", value: "$(workspaces.go-cache.path)/.go-build-cache" },
-];
-
-const lintEnv = [
-    ...goEnv,
-    { name: "GOLANGCI_LINT_CACHE", value: "$(workspaces.go-cache.path)/.golangci-cache" },
-];
 
 // ─── Tasks ──────────────────────────────────────────────────────────────────
 
@@ -59,10 +25,16 @@ const goFmt = new Task({
         {
             name: "fmt",
             image: goImage,
-            command: ["sh", "-c"],
-            args: [
-                `OUTPUT=$(gofmt -l .); EC=0; if [ -n "$OUTPUT" ]; then echo "Unformatted files:"; echo "$OUTPUT"; EC=1; fi; echo $EC > /tekton/home/.exit-code; exit $EC`,
-            ],
+            script: `#!/usr/bin/env nu
+def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+log "Checking gofmt"
+let result = (^gofmt -l . | complete)
+let ec = if ($result.stdout | str trim | str length) > 0 {
+    print "Unformatted files:"; print $result.stdout; 1
+} else { 0 }
+$"($ec)" | save -f /tekton/home/.exit-code
+log (if $ec == 0 { "OK: all files formatted" } else { "FAIL: formatting issues found" })
+exit $ec`,
             onError: "continue",
         },
     ],
@@ -72,18 +44,27 @@ const goLint = new Task({
     name: "go-lint",
     params: [...statusReporter.requiredParams],
     needs: [goFmt],
-    workspaces: [goCacheWs],
     statusContext: "ocidex/lint",
     statusReporter,
+    stepTemplate: {
+        computeResources: {
+            limits: { cpu: "2", memory: "2Gi" },
+            requests: { cpu: "200m", memory: "512Mi" },
+        },
+    },
     steps: [
         {
             name: "lint",
             image: lintImage,
-            env: lintEnv,
-            command: ["sh", "-c"],
-            args: [
-                "golangci-lint run ./...; EC=$?; echo $EC > /tekton/home/.exit-code; exit $EC",
-            ],
+            script: `#!/usr/bin/env nu
+def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+log "Running golangci-lint"
+let result = (^golangci-lint run ./... | complete)
+print $result.stdout
+if ($result.stderr | str trim | str length) > 0 { print $result.stderr }
+$"($result.exit_code)" | save -f /tekton/home/.exit-code
+log $"Exit code: ($result.exit_code)"
+exit $result.exit_code`,
             onError: "continue",
         },
     ],
@@ -93,18 +74,21 @@ const goTest = new Task({
     name: "go-test",
     params: [...statusReporter.requiredParams],
     needs: [goLint],
-    workspaces: [goCacheWs],
     statusContext: "ocidex/test",
     statusReporter,
     steps: [
         {
             name: "test",
             image: goImage,
-            env: goEnv,
-            command: ["sh", "-c"],
-            args: [
-                "go test -v -race -short ./...; EC=$?; echo $EC > /tekton/home/.exit-code; exit $EC",
-            ],
+            script: `#!/usr/bin/env nu
+def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+log "Running go test"
+let result = (^go test -v -race -short ./... | complete)
+print $result.stdout
+if ($result.stderr | str trim | str length) > 0 { print $result.stderr }
+$"($result.exit_code)" | save -f /tekton/home/.exit-code
+log $"Exit code: ($result.exit_code)"
+exit $result.exit_code`,
             onError: "continue",
         },
     ],
@@ -114,18 +98,28 @@ const goBuild = new Task({
     name: "go-build",
     params: [...statusReporter.requiredParams],
     needs: [goTest],
-    workspaces: [goCacheWs],
     statusContext: "ocidex/build",
     statusReporter,
     steps: [
         {
             name: "build",
             image: goImage,
-            env: goEnv,
-            command: ["sh", "-c"],
-            args: [
-                "go build -o /dev/null ./cmd/ocidex && go build -o /dev/null ./cmd/scanner-worker && go build -o /dev/null ./cmd/enrichment-worker; EC=$?; echo $EC > /tekton/home/.exit-code; exit $EC",
-            ],
+            script: `#!/usr/bin/env nu
+def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+log "Building ocidex binaries"
+mut ec = 0
+for cmd in ["./cmd/ocidex", "./cmd/scanner-worker", "./cmd/enrichment-worker"] {
+    log $"Building ($cmd)"
+    let r = (^go build -o /dev/null $cmd | complete)
+    if $r.exit_code != 0 {
+        print $r.stdout
+        if ($r.stderr | str trim | str length) > 0 { print $r.stderr }
+        $ec = $r.exit_code
+    }
+}
+$"($ec)" | save -f /tekton/home/.exit-code
+log $"Exit code: ($ec)"
+exit $ec`,
             onError: "continue",
         },
     ],
@@ -135,31 +129,54 @@ const openapiCheck = new Task({
     name: "openapi-check",
     params: [...statusReporter.requiredParams],
     needs: [goTest],
-    workspaces: [goCacheWs],
     statusContext: "ocidex/openapi",
     statusReporter,
-    caches: [nodeModulesCache],
     steps: [
         {
             name: "check-spec",
             image: goImage,
-            env: goEnv,
-            command: ["sh", "-c"],
-            args: [
-                "go run ./cmd/specgen > /tmp/openapi-check.json && diff web/openapi.json /tmp/openapi-check.json; EC=$?; echo $EC > /tekton/home/.exit-code; exit $EC",
-            ],
+            script: `#!/usr/bin/env nu
+def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+log "Generating OpenAPI spec"
+let gen = (^go run ./cmd/specgen out> /tmp/openapi-check.json | complete)
+if $gen.exit_code != 0 {
+    print $gen.stderr
+    $"($gen.exit_code)" | save -f /tekton/home/.exit-code
+    log $"FAIL: specgen exit ($gen.exit_code)"
+    exit $gen.exit_code
+}
+log "Diffing against committed spec"
+let diff = (^diff web/openapi.json /tmp/openapi-check.json | complete)
+print $diff.stdout
+$"($diff.exit_code)" | save -f /tekton/home/.exit-code
+log (if $diff.exit_code == 0 { "OK: spec is up to date" } else { "FAIL: spec out of date" })
+exit $diff.exit_code`,
             onError: "continue",
         },
         {
             name: "check-types",
             image: nodeImage,
-            env: [{ name: "npm_config_cache", value: nodeCacheWs.path }],
             workingDir: "$(workspaces.workspace.path)/web",
-            script: `#!/bin/sh
-PREV_EC=$(cat /tekton/home/.exit-code)
-[ ! -d node_modules ] && npm ci --ignore-scripts
-npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts && diff src/types/openapi.d.ts /tmp/openapi-check.d.ts
-EC=$?; if [ "$PREV_EC" -ne 0 ]; then EC=$PREV_EC; fi; echo $EC > /tekton/home/.exit-code; exit $EC`,
+            script: `#!/usr/bin/env nu
+def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+let prev_ec = (open /tekton/home/.exit-code | str trim | into int)
+log "Installing node dependencies"
+if not ("node_modules" | path exists) { ^npm ci --ignore-scripts }
+log "Generating TypeScript types from spec"
+let gen = (^npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts | complete)
+if $gen.exit_code != 0 {
+    print $gen.stderr
+    let ec = if $prev_ec != 0 { $prev_ec } else { $gen.exit_code }
+    $"($ec)" | save -f /tekton/home/.exit-code
+    exit $ec
+}
+log "Diffing against committed types"
+let diff = (^diff src/types/openapi.d.ts /tmp/openapi-check.d.ts | complete)
+print $diff.stdout
+let ec = if $prev_ec != 0 { $prev_ec } else { $diff.exit_code }
+$"($ec)" | save -f /tekton/home/.exit-code
+log (if $diff.exit_code == 0 { "OK: types up to date" } else { "FAIL: types out of date" })
+exit $ec`,
             onError: "continue",
         },
     ],
@@ -171,16 +188,22 @@ const frontendLint = new Task({
     needs: [openapiCheck],
     statusContext: "ocidex/frontend-lint",
     statusReporter,
-    caches: [nodeModulesCache],
     steps: [
         {
             name: "lint",
             image: nodeImage,
-            env: [{ name: "npm_config_cache", value: nodeCacheWs.path }],
             workingDir: "$(workspaces.workspace.path)/web",
-            script: `#!/bin/sh
-[ ! -d node_modules ] && npm ci
-npm run lint; EC=$?; echo $EC > /tekton/home/.exit-code; exit $EC`,
+            script: `#!/usr/bin/env nu
+def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+log "Installing node dependencies"
+if not ("node_modules" | path exists) { ^npm ci }
+log "Running ESLint"
+let result = (^npm run lint | complete)
+print $result.stdout
+if ($result.stderr | str trim | str length) > 0 { print $result.stderr }
+$"($result.exit_code)" | save -f /tekton/home/.exit-code
+log (if $result.exit_code == 0 { "OK: no lint errors" } else { "FAIL: lint errors found" })
+exit $result.exit_code`,
             onError: "continue",
         },
     ],
@@ -212,17 +235,10 @@ new TektonProject({
         secretName: "github-webhook-secret",
         secretKey: "secret",
     },
-    // The nfs-client storage class uses all_squash (anonuid=1024), which maps every
-    // client UID/GID to 1024 on the NFS server. Running pods as 1024 ensures the
-    // process UID matches the file owner UID, granting write access to PVC-backed
-    // cache directories.
+    workspaceStorageClass: "local-path",
     defaultPodSecurityContext: {
         runAsUser: 1024,
         runAsGroup: 1024,
         fsGroup: 1024,
     },
-    caches: [
-        { workspace: goCacheWs, storageSize: "5Gi" },
-        { workspace: nodeCacheWs, storageSize: "2Gi" },
-    ],
 });

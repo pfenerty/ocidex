@@ -24,45 +24,22 @@ spec:
           - ALL
     workingDir: $(workspaces.workspace.path)
   steps:
-    - image: docker.io/node:22-bookworm
-      name: cache-restore-node-cache
-      script: |-
-        #!/bin/sh
-        set -e
-        HASH=$(cat web/package-lock.json | sha256sum | cut -c1-16)
-        echo "$HASH" > /tekton/home/.cache-node-cache-hash
-        ARCHIVE="$(workspaces.node-cache.path)/$HASH.tar.gz"
-        if [ -f "$ARCHIVE" ]; then
-          echo "cache hit ($HASH)"
-          tar -xzf "$ARCHIVE"
-        else
-          echo "cache miss ($HASH)"
-        fi
-      workingDir: $(workspaces.workspace.path)
-    - env:
-        - name: npm_config_cache
-          value: $(workspaces.node-cache.path)
-      image: docker.io/node:22-bookworm
+    - image: ghcr.io/pfenerty/apko-cicd/nodejs:22
       name: lint
       onError: continue
       script: |-
-        #!/bin/sh
-        [ ! -d node_modules ] && npm ci
-        npm run lint; EC=$?; echo $EC > /tekton/home/.exit-code; exit $EC
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        log "Installing node dependencies"
+        if not ("node_modules" | path exists) { ^npm ci }
+        log "Running ESLint"
+        let result = (^npm run lint | complete)
+        print $result.stdout
+        if ($result.stderr | str trim | str length) > 0 { print $result.stderr }
+        $"($result.exit_code)" | save -f /tekton/home/.exit-code
+        log (if $result.exit_code == 0 { "OK: no lint errors" } else { "FAIL: lint errors found" })
+        exit $result.exit_code
       workingDir: $(workspaces.workspace.path)/web
-    - image: docker.io/node:22-bookworm
-      name: cache-save-node-cache
-      onError: continue
-      script: |-
-        #!/bin/sh
-        HASH=$(cat /tekton/home/.cache-node-cache-hash 2>/dev/null || echo "")
-        [ -z "$HASH" ] && exit 0
-        ARCHIVE="$(workspaces.node-cache.path)/$HASH.tar.gz"
-        if [ ! -f "$ARCHIVE" ]; then
-          echo "saving cache ($HASH)"
-          tar -czf "$ARCHIVE" web/node_modules
-        fi
-      workingDir: $(workspaces.workspace.path)
     - args:
         - |-
           EXIT_CODE=$(cat /tekton/home/.exit-code)
@@ -80,5 +57,4 @@ spec:
       image: cgr.dev/chainguard/curl:latest-dev
       name: report-status
   workspaces:
-    - name: node-cache
     - name: workspace

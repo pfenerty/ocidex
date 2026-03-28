@@ -24,14 +24,20 @@ spec:
           - ALL
     workingDir: $(workspaces.workspace.path)
   steps:
-    - args:
-        - OUTPUT=$(gofmt -l .); EC=0; if [ -n "$OUTPUT" ]; then echo "Unformatted files:"; echo "$OUTPUT"; EC=1; fi; echo $EC > /tekton/home/.exit-code; exit $EC
-      command:
-        - sh
-        - -c
-      image: docker.io/golang:1.25-bookworm
+    - image: ghcr.io/pfenerty/apko-cicd/golang:1.25
       name: fmt
       onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        log "Checking gofmt"
+        let result = (^gofmt -l . | complete)
+        let ec = if ($result.stdout | str trim | str length) > 0 {
+            print "Unformatted files:"; print $result.stdout; 1
+        } else { 0 }
+        $"($ec)" | save -f /tekton/home/.exit-code
+        log (if $ec == 0 { "OK: all files formatted" } else { "FAIL: formatting issues found" })
+        exit $ec
     - args:
         - |-
           EXIT_CODE=$(cat /tekton/home/.exit-code)

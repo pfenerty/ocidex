@@ -24,60 +24,51 @@ spec:
           - ALL
     workingDir: $(workspaces.workspace.path)
   steps:
-    - image: docker.io/node:22-bookworm
-      name: cache-restore-node-cache
-      script: |-
-        #!/bin/sh
-        set -e
-        HASH=$(cat web/package-lock.json | sha256sum | cut -c1-16)
-        echo "$HASH" > /tekton/home/.cache-node-cache-hash
-        ARCHIVE="$(workspaces.node-cache.path)/$HASH.tar.gz"
-        if [ -f "$ARCHIVE" ]; then
-          echo "cache hit ($HASH)"
-          tar -xzf "$ARCHIVE"
-        else
-          echo "cache miss ($HASH)"
-        fi
-      workingDir: $(workspaces.workspace.path)
-    - args:
-        - go run ./cmd/specgen > /tmp/openapi-check.json && diff web/openapi.json /tmp/openapi-check.json; EC=$?; echo $EC > /tekton/home/.exit-code; exit $EC
-      command:
-        - sh
-        - -c
-      env:
-        - name: GOPATH
-          value: $(workspaces.go-cache.path)
-        - name: GOCACHE
-          value: $(workspaces.go-cache.path)/.go-build-cache
-      image: docker.io/golang:1.25-bookworm
+    - image: ghcr.io/pfenerty/apko-cicd/golang:1.25
       name: check-spec
       onError: continue
-    - env:
-        - name: npm_config_cache
-          value: $(workspaces.node-cache.path)
-      image: docker.io/node:22-bookworm
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        log "Generating OpenAPI spec"
+        let gen = (^go run ./cmd/specgen out> /tmp/openapi-check.json | complete)
+        if $gen.exit_code != 0 {
+            print $gen.stderr
+            $"($gen.exit_code)" | save -f /tekton/home/.exit-code
+            log $"FAIL: specgen exit ($gen.exit_code)"
+            exit $gen.exit_code
+        }
+        log "Diffing against committed spec"
+        let diff = (^diff web/openapi.json /tmp/openapi-check.json | complete)
+        print $diff.stdout
+        $"($diff.exit_code)" | save -f /tekton/home/.exit-code
+        log (if $diff.exit_code == 0 { "OK: spec is up to date" } else { "FAIL: spec out of date" })
+        exit $diff.exit_code
+    - image: ghcr.io/pfenerty/apko-cicd/nodejs:22
       name: check-types
       onError: continue
       script: |-
-        #!/bin/sh
-        PREV_EC=$(cat /tekton/home/.exit-code)
-        [ ! -d node_modules ] && npm ci --ignore-scripts
-        npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts && diff src/types/openapi.d.ts /tmp/openapi-check.d.ts
-        EC=$?; if [ "$PREV_EC" -ne 0 ]; then EC=$PREV_EC; fi; echo $EC > /tekton/home/.exit-code; exit $EC
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let prev_ec = (open /tekton/home/.exit-code | str trim | into int)
+        log "Installing node dependencies"
+        if not ("node_modules" | path exists) { ^npm ci --ignore-scripts }
+        log "Generating TypeScript types from spec"
+        let gen = (^npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts | complete)
+        if $gen.exit_code != 0 {
+            print $gen.stderr
+            let ec = if $prev_ec != 0 { $prev_ec } else { $gen.exit_code }
+            $"($ec)" | save -f /tekton/home/.exit-code
+            exit $ec
+        }
+        log "Diffing against committed types"
+        let diff = (^diff src/types/openapi.d.ts /tmp/openapi-check.d.ts | complete)
+        print $diff.stdout
+        let ec = if $prev_ec != 0 { $prev_ec } else { $diff.exit_code }
+        $"($ec)" | save -f /tekton/home/.exit-code
+        log (if $diff.exit_code == 0 { "OK: types up to date" } else { "FAIL: types out of date" })
+        exit $ec
       workingDir: $(workspaces.workspace.path)/web
-    - image: docker.io/node:22-bookworm
-      name: cache-save-node-cache
-      onError: continue
-      script: |-
-        #!/bin/sh
-        HASH=$(cat /tekton/home/.cache-node-cache-hash 2>/dev/null || echo "")
-        [ -z "$HASH" ] && exit 0
-        ARCHIVE="$(workspaces.node-cache.path)/$HASH.tar.gz"
-        if [ ! -f "$ARCHIVE" ]; then
-          echo "saving cache ($HASH)"
-          tar -czf "$ARCHIVE" web/node_modules
-        fi
-      workingDir: $(workspaces.workspace.path)
     - args:
         - |-
           EXIT_CODE=$(cat /tekton/home/.exit-code)
@@ -95,6 +86,4 @@ spec:
       image: cgr.dev/chainguard/curl:latest-dev
       name: report-status
   workspaces:
-    - name: go-cache
-    - name: node-cache
     - name: workspace

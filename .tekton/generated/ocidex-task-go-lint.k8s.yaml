@@ -12,11 +12,11 @@ spec:
   stepTemplate:
     computeResources:
       limits:
-        cpu: "1"
-        memory: 512Mi
+        cpu: "2"
+        memory: 2Gi
       requests:
-        cpu: 100m
-        memory: 128Mi
+        cpu: 200m
+        memory: 512Mi
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
@@ -24,21 +24,19 @@ spec:
           - ALL
     workingDir: $(workspaces.workspace.path)
   steps:
-    - args:
-        - golangci-lint run ./...; EC=$?; echo $EC > /tekton/home/.exit-code; exit $EC
-      command:
-        - sh
-        - -c
-      env:
-        - name: GOPATH
-          value: $(workspaces.go-cache.path)
-        - name: GOCACHE
-          value: $(workspaces.go-cache.path)/.go-build-cache
-        - name: GOLANGCI_LINT_CACHE
-          value: $(workspaces.go-cache.path)/.golangci-cache
-      image: docker.io/golangci/golangci-lint:v2.11.4
+    - image: ghcr.io/pfenerty/apko-cicd/golangci-lint:2.11.4
       name: lint
       onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        log "Running golangci-lint"
+        let result = (^golangci-lint run ./... | complete)
+        print $result.stdout
+        if ($result.stderr | str trim | str length) > 0 { print $result.stderr }
+        $"($result.exit_code)" | save -f /tekton/home/.exit-code
+        log $"Exit code: ($result.exit_code)"
+        exit $result.exit_code
     - args:
         - |-
           EXIT_CODE=$(cat /tekton/home/.exit-code)
@@ -56,5 +54,4 @@ spec:
       image: cgr.dev/chainguard/curl:latest-dev
       name: report-status
   workspaces:
-    - name: go-cache
     - name: workspace
