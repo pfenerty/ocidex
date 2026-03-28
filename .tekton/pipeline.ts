@@ -101,15 +101,15 @@ const goLint = new Task({
     statusReporter,
     stepTemplate: {
         env: lintEnv,
-        computeResources: {
-            limits: { cpu: "2", memory: "2Gi" },
-            requests: { cpu: "200m", memory: "512Mi" },
-        },
     },
     steps: [
         {
             name: "lint",
             image: lintImage,
+            computeResources: {
+                limits: { cpu: "2", memory: "2Gi" },
+                requests: { cpu: "200m", memory: "512Mi" },
+            },
             script: nuHeader + `
 log "Running golangci-lint"
 let ec = run_and_save 0 "golangci-lint" "run" "./..."
@@ -129,15 +129,15 @@ const goTest = new Task({
     statusReporter,
     stepTemplate: {
         env: goEnv,
-        computeResources: {
-            limits: { cpu: "2", memory: "2Gi" },
-            requests: { cpu: "500m", memory: "1Gi" },
-        },
     },
     steps: [
         {
             name: "test",
             image: goImage,
+            computeResources: {
+                limits: { cpu: "2", memory: "2Gi" },
+                requests: { cpu: "500m", memory: "1Gi" },
+            },
             script: nuHeader + `
 log "Running go test"
 let ec = run_and_save 0 "go" "test" "-v" "-race" "-short" "./..."
@@ -157,15 +157,15 @@ const goBuild = new Task({
     statusReporter,
     stepTemplate: {
         env: goEnv,
-        computeResources: {
-            limits: { cpu: "2", memory: "2Gi" },
-            requests: { cpu: "500m", memory: "512Mi" },
-        },
     },
     steps: [
         {
             name: "build",
             image: goImage,
+            computeResources: {
+                limits: { cpu: "2", memory: "2Gi" },
+                requests: { cpu: "500m", memory: "512Mi" },
+            },
             script: nuHeader + `
 log "Building ocidex binaries"
 mut ec = 0

@@ -12,11 +12,11 @@ spec:
   stepTemplate:
     computeResources:
       limits:
-        cpu: "2"
-        memory: 2Gi
+        cpu: "1"
+        memory: 512Mi
       requests:
-        cpu: 500m
-        memory: 1Gi
+        cpu: 100m
+        memory: 128Mi
     env:
       - name: GOPATH
         value: $(workspaces.workspace.path)/.gopath
@@ -43,7 +43,14 @@ spec:
           print $"cache miss ($hash)"
         }
       workingDir: $(workspaces.workspace.path)
-    - image: ghcr.io/pfenerty/apko-cicd/golang:1.25
+    - computeResources:
+        limits:
+          cpu: "2"
+          memory: 2Gi
+        requests:
+          cpu: 500m
+          memory: 1Gi
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.25
       name: test
       onError: continue
       script: |-
