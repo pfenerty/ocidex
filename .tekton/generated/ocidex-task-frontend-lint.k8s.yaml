@@ -30,15 +30,20 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def run_and_save [prev_ec: int, ...args: string] {
+            try { run-external ...$args } catch { null }
+            let ec = $env.LAST_EXIT_CODE
+            let worst = if $prev_ec != 0 { $prev_ec } else { $ec }
+            $"($worst)" | save -f /tekton/home/.exit-code
+            $worst
+        }
+
         log "Installing node dependencies"
-        if not ("node_modules" | path exists) { ^npm ci }
+        if not ("node_modules" | path exists) { try { ^npm ci } catch { null } }
         log "Running ESLint"
-        let result = (^npm run lint | complete)
-        print $result.stdout
-        if ($result.stderr | str trim | str length) > 0 { print $result.stderr }
-        $"($result.exit_code)" | save -f /tekton/home/.exit-code
-        log (if $result.exit_code == 0 { "OK: no lint errors" } else { "FAIL: lint errors found" })
-        exit $result.exit_code
+        let ec = run_and_save 0 "npm" "run" "lint"
+        log (if $ec == 0 { "OK: no lint errors" } else { "FAIL: lint errors found" })
+        exit $ec
       workingDir: $(workspaces.workspace.path)/web
     - args:
         - |-

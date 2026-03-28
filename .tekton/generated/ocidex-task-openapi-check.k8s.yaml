@@ -30,43 +30,54 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def run_and_save [prev_ec: int, ...args: string] {
+            try { run-external ...$args } catch { null }
+            let ec = $env.LAST_EXIT_CODE
+            let worst = if $prev_ec != 0 { $prev_ec } else { $ec }
+            $"($worst)" | save -f /tekton/home/.exit-code
+            $worst
+        }
+
         log "Generating OpenAPI spec"
-        let gen = (^go run ./cmd/specgen out> /tmp/openapi-check.json | complete)
-        if $gen.exit_code != 0 {
-            print $gen.stderr
-            $"($gen.exit_code)" | save -f /tekton/home/.exit-code
-            log $"FAIL: specgen exit ($gen.exit_code)"
-            exit $gen.exit_code
+        try { ^go run ./cmd/specgen out> /tmp/openapi-check.json } catch { null }
+        let gen_ec = $env.LAST_EXIT_CODE
+        if $gen_ec != 0 {
+            $"($gen_ec)" | save -f /tekton/home/.exit-code
+            log $"FAIL: specgen exit ($gen_ec)"
+            exit $gen_ec
         }
         log "Diffing against committed spec"
-        let diff = (^diff web/openapi.json /tmp/openapi-check.json | complete)
-        print $diff.stdout
-        $"($diff.exit_code)" | save -f /tekton/home/.exit-code
-        log (if $diff.exit_code == 0 { "OK: spec is up to date" } else { "FAIL: spec out of date" })
-        exit $diff.exit_code
+        let ec = run_and_save 0 "diff" "web/openapi.json" "/tmp/openapi-check.json"
+        log (if $ec == 0 { "OK: spec is up to date" } else { "FAIL: spec out of date" })
+        exit $ec
     - image: ghcr.io/pfenerty/apko-cicd/nodejs:22
       name: check-types
       onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def run_and_save [prev_ec: int, ...args: string] {
+            try { run-external ...$args } catch { null }
+            let ec = $env.LAST_EXIT_CODE
+            let worst = if $prev_ec != 0 { $prev_ec } else { $ec }
+            $"($worst)" | save -f /tekton/home/.exit-code
+            $worst
+        }
+
         let prev_ec = (open /tekton/home/.exit-code | str trim | into int)
         log "Installing node dependencies"
-        if not ("node_modules" | path exists) { ^npm ci --ignore-scripts }
+        if not ("node_modules" | path exists) { try { ^npm ci --ignore-scripts } catch { null } }
         log "Generating TypeScript types from spec"
-        let gen = (^npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts | complete)
-        if $gen.exit_code != 0 {
-            print $gen.stderr
-            let ec = if $prev_ec != 0 { $prev_ec } else { $gen.exit_code }
+        try { ^npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts } catch { null }
+        let gen_ec = $env.LAST_EXIT_CODE
+        if $gen_ec != 0 {
+            let ec = if $prev_ec != 0 { $prev_ec } else { $gen_ec }
             $"($ec)" | save -f /tekton/home/.exit-code
             exit $ec
         }
         log "Diffing against committed types"
-        let diff = (^diff src/types/openapi.d.ts /tmp/openapi-check.d.ts | complete)
-        print $diff.stdout
-        let ec = if $prev_ec != 0 { $prev_ec } else { $diff.exit_code }
-        $"($ec)" | save -f /tekton/home/.exit-code
-        log (if $diff.exit_code == 0 { "OK: types up to date" } else { "FAIL: types out of date" })
+        let ec = run_and_save $prev_ec "diff" "src/types/openapi.d.ts" "/tmp/openapi-check.d.ts"
+        log (if $ec == 0 { "OK: types up to date" } else { "FAIL: types out of date" })
         exit $ec
       workingDir: $(workspaces.workspace.path)/web
     - args:
