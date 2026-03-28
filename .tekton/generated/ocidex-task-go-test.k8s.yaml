@@ -30,13 +30,20 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        log "Running go test"
-        let result = (^go test -v -race -short ./... | complete)
-        print $result.stdout
-        if ($result.stderr | str trim | str length) > 0 { print $result.stderr }
-        $"($result.exit_code)" | save -f /tekton/home/.exit-code
-        log $"Exit code: ($result.exit_code)"
-        exit $result.exit_code
+        let packages = (^go list ./... | complete).stdout | lines | where ($it | str trim | str length) > 0
+        log $"Testing ($packages | length) packages"
+        mut ec = 0
+        for pkg in $packages {
+            log $"  running ($pkg)"
+            let r = (^go test -v -race -short $pkg | complete)
+            print $r.stdout
+            if ($r.stderr | str trim | str length) > 0 { print $r.stderr }
+            if $r.exit_code != 0 { $ec = $r.exit_code }
+            log $"  done ($pkg) — exit ($r.exit_code)"
+        }
+        $"($ec)" | save -f /tekton/home/.exit-code
+        log $"All packages done — exit ($ec)"
+        exit $ec
     - args:
         - |-
           EXIT_CODE=$(cat /tekton/home/.exit-code)
