@@ -24,19 +24,19 @@ spec:
           - ALL
     workingDir: $(workspaces.workspace.path)
   steps:
-    - args:
-        - go test -v -race -short ./...; EC=$?; echo $EC > /tekton/home/.exit-code; exit $EC
-      command:
-        - sh
-        - -c
-      env:
-        - name: GOPATH
-          value: $(workspaces.go-cache.path)
-        - name: GOCACHE
-          value: $(workspaces.go-cache.path)/.go-build-cache
-      image: docker.io/golang:1.25-bookworm
+    - image: ghcr.io/pfenerty/apko-cicd/golang:1.25
       name: test
       onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        log "Running go test"
+        let result = (^go test -v -race -short ./... | complete)
+        print $result.stdout
+        if ($result.stderr | str trim | str length) > 0 { print $result.stderr }
+        $"($result.exit_code)" | save -f /tekton/home/.exit-code
+        log $"Exit code: ($result.exit_code)"
+        exit $result.exit_code
     - args:
         - |-
           EXIT_CODE=$(cat /tekton/home/.exit-code)
@@ -54,5 +54,4 @@ spec:
       image: cgr.dev/chainguard/curl:latest-dev
       name: report-status
   workspaces:
-    - name: go-cache
     - name: workspace

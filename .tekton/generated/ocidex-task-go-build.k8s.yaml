@@ -24,19 +24,26 @@ spec:
           - ALL
     workingDir: $(workspaces.workspace.path)
   steps:
-    - args:
-        - go build -o /dev/null ./cmd/ocidex && go build -o /dev/null ./cmd/scanner-worker && go build -o /dev/null ./cmd/enrichment-worker; EC=$?; echo $EC > /tekton/home/.exit-code; exit $EC
-      command:
-        - sh
-        - -c
-      env:
-        - name: GOPATH
-          value: $(workspaces.go-cache.path)
-        - name: GOCACHE
-          value: $(workspaces.go-cache.path)/.go-build-cache
-      image: docker.io/golang:1.25-bookworm
+    - image: ghcr.io/pfenerty/apko-cicd/golang:1.25
       name: build
       onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        log "Building ocidex binaries"
+        mut ec = 0
+        for cmd in ["./cmd/ocidex", "./cmd/scanner-worker", "./cmd/enrichment-worker"] {
+            log $"Building ($cmd)"
+            let r = (^go build -o /dev/null $cmd | complete)
+            if $r.exit_code != 0 {
+                print $r.stdout
+                if ($r.stderr | str trim | str length) > 0 { print $r.stderr }
+                $ec = $r.exit_code
+            }
+        }
+        $"($ec)" | save -f /tekton/home/.exit-code
+        log $"Exit code: ($ec)"
+        exit $ec
     - args:
         - |-
           EXIT_CODE=$(cat /tekton/home/.exit-code)
@@ -54,5 +61,4 @@ spec:
       image: cgr.dev/chainguard/curl:latest-dev
       name: report-status
   workspaces:
-    - name: go-cache
     - name: workspace
