@@ -30,13 +30,18 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def run_and_save [prev_ec: int, ...args: string] {
+            try { run-external ...$args } catch { null }
+            let ec = $env.LAST_EXIT_CODE
+            let worst = if $prev_ec != 0 { $prev_ec } else { $ec }
+            $"($worst)" | save -f /tekton/home/.exit-code
+            $worst
+        }
+
         log "Running golangci-lint"
-        let result = (^golangci-lint run ./... | complete)
-        print $result.stdout
-        if ($result.stderr | str trim | str length) > 0 { print $result.stderr }
-        $"($result.exit_code)" | save -f /tekton/home/.exit-code
-        log $"Exit code: ($result.exit_code)"
-        exit $result.exit_code
+        let ec = run_and_save 0 "golangci-lint" "run" "./..."
+        log $"Exit code: ($ec)"
+        exit $ec
     - args:
         - |-
           EXIT_CODE=$(cat /tekton/home/.exit-code)

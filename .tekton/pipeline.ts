@@ -14,6 +14,20 @@ const nodeImage = "ghcr.io/pfenerty/apko-cicd/nodejs:22";
 // ─── Status reporter ─────────────────────────────────────────────────────────
 const statusReporter = new GitHubStatusReporter();
 
+// ─── Nushell helpers ─────────────────────────────────────────────────────────
+// run_and_save runs a command with streaming output and saves its exit code.
+// Unlike `| complete`, this does not buffer output — logs appear in real time.
+const nuHeader = `#!/usr/bin/env nu
+def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+def run_and_save [prev_ec: int, ...args: string] {
+    try { run-external ...$args } catch { null }
+    let ec = $env.LAST_EXIT_CODE
+    let worst = if $prev_ec != 0 { $prev_ec } else { $ec }
+    $"($worst)" | save -f /tekton/home/.exit-code
+    $worst
+}
+`;
+
 // ─── Tasks ──────────────────────────────────────────────────────────────────
 
 const goFmt = new Task({
@@ -25,9 +39,10 @@ const goFmt = new Task({
         {
             name: "fmt",
             image: goImage,
-            script: `#!/usr/bin/env nu
-def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+            script: nuHeader + `
 log "Checking gofmt"
+# gofmt -l prints unformatted files to stdout; no output means clean.
+# Use | complete here since gofmt is fast and we need to inspect stdout.
 let result = (^gofmt -l . | complete)
 let ec = if ($result.stdout | str trim | str length) > 0 {
     print "Unformatted files:"; print $result.stdout; 1
@@ -56,15 +71,11 @@ const goLint = new Task({
         {
             name: "lint",
             image: lintImage,
-            script: `#!/usr/bin/env nu
-def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+            script: nuHeader + `
 log "Running golangci-lint"
-let result = (^golangci-lint run ./... | complete)
-print $result.stdout
-if ($result.stderr | str trim | str length) > 0 { print $result.stderr }
-$"($result.exit_code)" | save -f /tekton/home/.exit-code
-log $"Exit code: ($result.exit_code)"
-exit $result.exit_code`,
+let ec = run_and_save 0 "golangci-lint" "run" "./..."
+log $"Exit code: ($ec)"
+exit $ec`,
             onError: "continue",
         },
     ],
@@ -80,21 +91,10 @@ const goTest = new Task({
         {
             name: "test",
             image: goImage,
-            script: `#!/usr/bin/env nu
-def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-let packages = (^go list ./... | complete).stdout | lines | where ($it | str trim | str length) > 0
-log $"Testing ($packages | length) packages"
-mut ec = 0
-for pkg in $packages {
-    log $"  running ($pkg)"
-    let r = (^go test -v -race -short $pkg | complete)
-    print $r.stdout
-    if ($r.stderr | str trim | str length) > 0 { print $r.stderr }
-    if $r.exit_code != 0 { $ec = $r.exit_code }
-    log $"  done ($pkg) — exit ($r.exit_code)"
-}
-$"($ec)" | save -f /tekton/home/.exit-code
-log $"All packages done — exit ($ec)"
+            script: nuHeader + `
+log "Running go test"
+let ec = run_and_save 0 "go" "test" "-v" "-race" "-short" "./..."
+log $"Exit code: ($ec)"
 exit $ec`,
             onError: "continue",
         },
@@ -111,20 +111,13 @@ const goBuild = new Task({
         {
             name: "build",
             image: goImage,
-            script: `#!/usr/bin/env nu
-def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+            script: nuHeader + `
 log "Building ocidex binaries"
 mut ec = 0
 for cmd in ["./cmd/ocidex", "./cmd/scanner-worker", "./cmd/enrichment-worker"] {
     log $"Building ($cmd)"
-    let r = (^go build -o /dev/null $cmd | complete)
-    if $r.exit_code != 0 {
-        print $r.stdout
-        if ($r.stderr | str trim | str length) > 0 { print $r.stderr }
-        $ec = $r.exit_code
-    }
+    $ec = (run_and_save $ec "go" "build" "-o" "/dev/null" $cmd)
 }
-$"($ec)" | save -f /tekton/home/.exit-code
 log $"Exit code: ($ec)"
 exit $ec`,
             onError: "continue",
@@ -142,47 +135,40 @@ const openapiCheck = new Task({
         {
             name: "check-spec",
             image: goImage,
-            script: `#!/usr/bin/env nu
-def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+            script: nuHeader + `
 log "Generating OpenAPI spec"
-let gen = (^go run ./cmd/specgen out> /tmp/openapi-check.json | complete)
-if $gen.exit_code != 0 {
-    print $gen.stderr
-    $"($gen.exit_code)" | save -f /tekton/home/.exit-code
-    log $"FAIL: specgen exit ($gen.exit_code)"
-    exit $gen.exit_code
+try { ^go run ./cmd/specgen out> /tmp/openapi-check.json } catch { null }
+let gen_ec = $env.LAST_EXIT_CODE
+if $gen_ec != 0 {
+    $"($gen_ec)" | save -f /tekton/home/.exit-code
+    log $"FAIL: specgen exit ($gen_ec)"
+    exit $gen_ec
 }
 log "Diffing against committed spec"
-let diff = (^diff web/openapi.json /tmp/openapi-check.json | complete)
-print $diff.stdout
-$"($diff.exit_code)" | save -f /tekton/home/.exit-code
-log (if $diff.exit_code == 0 { "OK: spec is up to date" } else { "FAIL: spec out of date" })
-exit $diff.exit_code`,
+let ec = run_and_save 0 "diff" "web/openapi.json" "/tmp/openapi-check.json"
+log (if $ec == 0 { "OK: spec is up to date" } else { "FAIL: spec out of date" })
+exit $ec`,
             onError: "continue",
         },
         {
             name: "check-types",
             image: nodeImage,
             workingDir: "$(workspaces.workspace.path)/web",
-            script: `#!/usr/bin/env nu
-def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+            script: nuHeader + `
 let prev_ec = (open /tekton/home/.exit-code | str trim | into int)
 log "Installing node dependencies"
-if not ("node_modules" | path exists) { ^npm ci --ignore-scripts }
+if not ("node_modules" | path exists) { try { ^npm ci --ignore-scripts } catch { null } }
 log "Generating TypeScript types from spec"
-let gen = (^npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts | complete)
-if $gen.exit_code != 0 {
-    print $gen.stderr
-    let ec = if $prev_ec != 0 { $prev_ec } else { $gen.exit_code }
+try { ^npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts } catch { null }
+let gen_ec = $env.LAST_EXIT_CODE
+if $gen_ec != 0 {
+    let ec = if $prev_ec != 0 { $prev_ec } else { $gen_ec }
     $"($ec)" | save -f /tekton/home/.exit-code
     exit $ec
 }
 log "Diffing against committed types"
-let diff = (^diff src/types/openapi.d.ts /tmp/openapi-check.d.ts | complete)
-print $diff.stdout
-let ec = if $prev_ec != 0 { $prev_ec } else { $diff.exit_code }
-$"($ec)" | save -f /tekton/home/.exit-code
-log (if $diff.exit_code == 0 { "OK: types up to date" } else { "FAIL: types out of date" })
+let ec = run_and_save $prev_ec "diff" "src/types/openapi.d.ts" "/tmp/openapi-check.d.ts"
+log (if $ec == 0 { "OK: types up to date" } else { "FAIL: types out of date" })
 exit $ec`,
             onError: "continue",
         },
@@ -200,17 +186,13 @@ const frontendLint = new Task({
             name: "lint",
             image: nodeImage,
             workingDir: "$(workspaces.workspace.path)/web",
-            script: `#!/usr/bin/env nu
-def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+            script: nuHeader + `
 log "Installing node dependencies"
-if not ("node_modules" | path exists) { ^npm ci }
+if not ("node_modules" | path exists) { try { ^npm ci } catch { null } }
 log "Running ESLint"
-let result = (^npm run lint | complete)
-print $result.stdout
-if ($result.stderr | str trim | str length) > 0 { print $result.stderr }
-$"($result.exit_code)" | save -f /tekton/home/.exit-code
-log (if $result.exit_code == 0 { "OK: no lint errors" } else { "FAIL: lint errors found" })
-exit $result.exit_code`,
+let ec = run_and_save 0 "npm" "run" "lint"
+log (if $ec == 0 { "OK: no lint errors" } else { "FAIL: lint errors found" })
+exit $ec`,
             onError: "continue",
         },
     ],

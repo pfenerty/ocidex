@@ -30,18 +30,20 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def run_and_save [prev_ec: int, ...args: string] {
+            try { run-external ...$args } catch { null }
+            let ec = $env.LAST_EXIT_CODE
+            let worst = if $prev_ec != 0 { $prev_ec } else { $ec }
+            $"($worst)" | save -f /tekton/home/.exit-code
+            $worst
+        }
+
         log "Building ocidex binaries"
         mut ec = 0
         for cmd in ["./cmd/ocidex", "./cmd/scanner-worker", "./cmd/enrichment-worker"] {
             log $"Building ($cmd)"
-            let r = (^go build -o /dev/null $cmd | complete)
-            if $r.exit_code != 0 {
-                print $r.stdout
-                if ($r.stderr | str trim | str length) > 0 { print $r.stderr }
-                $ec = $r.exit_code
-            }
+            $ec = (run_and_save $ec "go" "build" "-o" "/dev/null" $cmd)
         }
-        $"($ec)" | save -f /tekton/home/.exit-code
         log $"Exit code: ($ec)"
         exit $ec
     - args:

@@ -30,19 +30,17 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let packages = (^go list ./... | complete).stdout | lines | where ($it | str trim | str length) > 0
-        log $"Testing ($packages | length) packages"
-        mut ec = 0
-        for pkg in $packages {
-            log $"  running ($pkg)"
-            let r = (^go test -v -race -short $pkg | complete)
-            print $r.stdout
-            if ($r.stderr | str trim | str length) > 0 { print $r.stderr }
-            if $r.exit_code != 0 { $ec = $r.exit_code }
-            log $"  done ($pkg) — exit ($r.exit_code)"
+        def run_and_save [prev_ec: int, ...args: string] {
+            try { run-external ...$args } catch { null }
+            let ec = $env.LAST_EXIT_CODE
+            let worst = if $prev_ec != 0 { $prev_ec } else { $ec }
+            $"($worst)" | save -f /tekton/home/.exit-code
+            $worst
         }
-        $"($ec)" | save -f /tekton/home/.exit-code
-        log $"All packages done — exit ($ec)"
+
+        log "Running go test"
+        let ec = run_and_save 0 "go" "test" "-v" "-race" "-short" "./..."
+        log $"Exit code: ($ec)"
         exit $ec
     - args:
         - |-
