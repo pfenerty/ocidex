@@ -49,7 +49,7 @@ spec:
           memory: 2Gi
         requests:
           cpu: 500m
-          memory: 512Mi
+          memory: 256Mi
       image: ghcr.io/pfenerty/apko-cicd/golang:1.25
       name: build
       onError: continue
