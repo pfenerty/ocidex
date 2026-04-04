@@ -357,8 +357,8 @@ function RegistriesTab() {
         }
     }
 
-    function copyWebhookURL(path: string) {
-        void copyText(window.location.origin + path).then(() => {
+    function copyWebhookURL(url: string) {
+        void copyText(url).then(() => {
             toast("Webhook URL copied", "success");
         });
     }
@@ -578,7 +578,7 @@ function RegistriesTab() {
                                                     <button
                                                         class="btn"
                                                         style={{ "font-size": "0.75rem", padding: "0.2rem 0.5rem" }}
-                                                        onClick={() => copyWebhookURL(reg.webhook_path)}
+                                                        onClick={() => copyWebhookURL(reg.webhook_url)}
                                                     >
                                                         Copy URL
                                                     </button>
