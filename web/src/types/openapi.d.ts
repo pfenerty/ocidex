@@ -1133,7 +1133,7 @@ export interface components {
             type: string;
             updated_at: string;
             url: string;
-            webhook_path: string;
+            webhook_url: string;
         };
         RegistryWebhookInputBody: {
             /**
