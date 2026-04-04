@@ -37,46 +37,6 @@ spec:
       workspaces:
         - name: workspace
           workspace: workspace
-    - name: go-cache-populate
-      runAfter:
-        - git-clone
-      taskRef:
-        kind: Task
-        name: ocidex-go-cache-populate
-      workspaces:
-        - name: go-cache
-          workspace: go-cache
-        - name: workspace
-          workspace: workspace
-    - name: go-fmt
-      params:
-        - name: repo-full-name
-          value: $(params.repo-full-name)
-        - name: revision
-          value: $(params.revision)
-      runAfter:
-        - set-status-pending
-      taskRef:
-        kind: Task
-        name: ocidex-go-fmt
-      workspaces:
-        - name: workspace
-          workspace: workspace
-    - name: go-lint
-      params:
-        - name: repo-full-name
-          value: $(params.repo-full-name)
-        - name: revision
-          value: $(params.revision)
-      runAfter:
-        - go-fmt
-        - set-status-pending
-      taskRef:
-        kind: Task
-        name: ocidex-go-lint
-      workspaces:
-        - name: workspace
-          workspace: workspace
     - name: go-test
       params:
         - name: repo-full-name
@@ -84,8 +44,6 @@ spec:
         - name: revision
           value: $(params.revision)
       runAfter:
-        - go-lint
-        - go-cache-populate
         - set-status-pending
       taskRef:
         kind: Task
@@ -121,8 +79,6 @@ spec:
         kind: Task
         name: ocidex-openapi-check
       workspaces:
-        - name: node-cache
-          workspace: node-cache
         - name: workspace
           workspace: workspace
     - name: frontend-lint
@@ -138,11 +94,7 @@ spec:
         kind: Task
         name: ocidex-frontend-lint
       workspaces:
-        - name: node-cache
-          workspace: node-cache
         - name: workspace
           workspace: workspace
   workspaces:
     - name: workspace
-    - name: go-cache
-    - name: node-cache

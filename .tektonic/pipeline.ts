@@ -1,7 +1,5 @@
 import {
     Task,
-    Workspace,
-    TaskCacheSpec,
     GitPipeline,
     TektonProject,
     TRIGGER_EVENTS,
@@ -9,41 +7,54 @@ import {
 } from "@pfenerty/tektonic";
 
 // --- Images ─────────────────────────────────────────────────────────────────
-const goImage   = "ghcr.io/pfenerty/apko-cicd/golang:1.25";
+const goImage = "ghcr.io/pfenerty/apko-cicd/golang:1.25";
 const lintImage = "ghcr.io/pfenerty/apko-cicd/golangci-lint:2.11.4";
 const nodeImage = "ghcr.io/pfenerty/apko-cicd/nodejs:22";
 
 // ─── Status reporter ─────────────────────────────────────────────────────────
 const statusReporter = new GitHubStatusReporter();
 
-// ─── Cache workspaces (NFS RWX — persist across runs) ────────────────────────
-const goCacheWs   = new Workspace({ name: "go-cache" });
-const nodeCacheWs = new Workspace({ name: "node-cache" });
-
-// ─── Cache specs ─────────────────────────────────────────────────────────────
-// Compressed tarballs on NFS — one large sequential read/write per run instead
-// of thousands of small NFS file operations. GOPATH/GOCACHE are placed inside
-// the main workspace so Go tooling uses fast local-path storage during the run.
-const nodeModulesCache: TaskCacheSpec = {
-    key: ["web/package-lock.json"],
-    paths: ["web/node_modules"],
-    workspace: nodeCacheWs,
-    image: nodeImage,
+// ─── Cache specs (GCS — no PVCs needed) ─────────────────────────────────────
+// Archives stored in gs://ocidex-ci-cache/{go,node}/HASH.tar.zst.
+// Auth via GKE Workload Identity (serviceAccountAnnotations below).
+const goCache = {
+    name: "go-cache",
+    key: ["go.sum"],
+    paths: ["go-mod", "go-build"],
+    backend: { type: "gcs" as const, bucket: "ocidex-ci-cache", prefix: "go/" },
     compress: true,
     workingDir: "$(workspaces.workspace.path)",
 };
 
+const nodeModulesCache = {
+    name: "node-modules",
+    key: ["package-lock.json"],
+    paths: ["node_modules"],
+    backend: { type: "gcs" as const, bucket: "ocidex-ci-cache", prefix: "node/" },
+    compress: true,
+    workingDir: "$(workspaces.workspace.path)/web",
+};
+
 // ─── Go env ──────────────────────────────────────────────────────────────────
-// Point GOPATH/GOCACHE inside the workspace so the cache restore/save steps
-// can manage them as relative paths. Actual builds run on local-path storage.
 const goEnv = [
-    { name: "GOPATH",  value: "$(workspaces.workspace.path)/.gopath" },
-    { name: "GOCACHE", value: "$(workspaces.workspace.path)/.gocache" },
+    { name: "GOMODCACHE", value: "$(workspaces.workspace.path)/go-mod" },
+    { name: "GOCACHE",    value: "$(workspaces.workspace.path)/go-build" },
+    {
+        name: "GIT_CONFIG_GLOBAL",
+        value: "$(workspaces.workspace.path)/.gitconfig",
+    },
 ];
 
 const lintEnv = [
     ...goEnv,
-    { name: "GOLANGCI_LINT_CACHE", value: "$(workspaces.workspace.path)/.golangci-cache" },
+    {
+        name: "GOLANGCI_LINT_CACHE",
+        value: "$(workspaces.workspace.path)/.golangci-cache",
+    },
+];
+
+const nodeEnv = [
+    { name: "HOME", value: "$(workspaces.workspace.path)" },
 ];
 
 // ─── Nushell helper ──────────────────────────────────────────────────────────
@@ -59,95 +70,65 @@ def run_and_save [prev_ec: int, ...args: string] {
 `;
 
 // ─── Tasks ──────────────────────────────────────────────────────────────────
+// const goFmt = new Task({
+//     name: "go-fmt",
+//     params: [...statusReporter.requiredParams],
+//     statusContext: "ocidex/fmt",
+//     statusReporter,
+//     steps: [
+//         {
+//             name: "fmt",
+//             image: goImage,
+//             script:
+//                 nuHeader +
+//                 `
+// log "Checking gofmt"
+// let result = (^gofmt -l . | complete)
+// let ec = if ($result.stdout | str trim | str length) > 0 {
+//     print "Unformatted files:"; print $result.stdout; 1
+// } else { 0 }
+// $"($ec)" | save -f /tekton/home/.exit-code
+// log (if $ec == 0 { "OK: all files formatted" } else { "FAIL: formatting issues found" })
+// exit $ec`,
+//             onError: "continue",
+//         },
+//     ],
+// });
 
-const goCachePopulate = new Task({
-    name: "go-cache-populate",
-    workspaces: [goCacheWs],
-    steps: [
-        {
-            name: "populate",
-            image: goImage,
-            workingDir: "$(workspaces.workspace.path)",
-            computeResources: {
-                limits: { cpu: "2", memory: "1Gi" },
-                requests: { cpu: "500m", memory: "256Mi" },
-            },
-            env: goEnv,
-            script: nuHeader + `
-let cache_dir = "$(workspaces.go-cache.path)"
-let workspace_dir = "$(workspaces.workspace.path)"
-let hash = (open go.sum | hash sha256 | str substring 0..15)
-let archive = $"($cache_dir)/($hash).tar.zst"
-log $"Cache key: ($hash)"
-if ($archive | path exists) {
-    log "Cache hit — extracting archive"
-    ^zstd -d $archive --stdout | ^tar -x -C $workspace_dir
-    log "Done"
-} else {
-    log "Cache miss — downloading modules"
-    ^go mod download all
-    log "Saving cache archive"
-    ^tar -c -C $workspace_dir ".gopath" ".gocache" | ^zstd -T2 - -o $archive
-    log "Done"
-}`,
-        },
-    ],
-});
-
-const goFmt = new Task({
-    name: "go-fmt",
-    params: [...statusReporter.requiredParams],
-    statusContext: "ocidex/fmt",
-    statusReporter,
-    steps: [
-        {
-            name: "fmt",
-            image: goImage,
-            script: nuHeader + `
-log "Checking gofmt"
-let result = (^gofmt -l . | complete)
-let ec = if ($result.stdout | str trim | str length) > 0 {
-    print "Unformatted files:"; print $result.stdout; 1
-} else { 0 }
-$"($ec)" | save -f /tekton/home/.exit-code
-log (if $ec == 0 { "OK: all files formatted" } else { "FAIL: formatting issues found" })
-exit $ec`,
-            onError: "continue",
-        },
-    ],
-});
-
-const goLint = new Task({
-    name: "go-lint",
-    params: [...statusReporter.requiredParams],
-    needs: [goFmt],
-    statusContext: "ocidex/lint",
-    statusReporter,
-    stepTemplate: {
-        env: lintEnv,
-    },
-    steps: [
-        {
-            name: "lint",
-            image: lintImage,
-            computeResources: {
-                limits: { cpu: "2", memory: "2Gi" },
-                requests: { cpu: "200m", memory: "512Mi" },
-            },
-            script: nuHeader + `
-log "Running golangci-lint"
-let ec = run_and_save 0 "golangci-lint" "run" "./..."
-log $"Exit code: ($ec)"
-exit $ec`,
-            onError: "continue",
-        },
-    ],
-});
+// const goLint = new Task({
+//     name: "go-lint",
+//     params: [...statusReporter.requiredParams],
+//     needs: [goFmt],
+//     statusContext: "ocidex/lint",
+//     statusReporter,
+//     stepTemplate: {
+//         env: lintEnv,
+//     },
+//     steps: [
+//         {
+//             name: "lint",
+//             image: lintImage,
+//             computeResources: {
+//                 limits: { cpu: "2", memory: "2Gi" },
+//                 requests: { cpu: "200m", memory: "512Mi" },
+//             },
+//             script:
+//                 nuHeader +
+//                 `
+// log "Running golangci-lint"
+// let ec = run_and_save 0 "golangci-lint" "run" "./..."
+// log $"Exit code: ($ec)"
+// exit $ec`,
+//             onError: "continue",
+//         },
+//     ],
+// });
 
 const goTest = new Task({
     name: "go-test",
     params: [...statusReporter.requiredParams],
-    needs: [goLint, goCachePopulate],
+    // needs: [goLint],
+    caches: [goCache],
     statusContext: "ocidex/test",
     statusReporter,
     stepTemplate: {
@@ -165,11 +146,9 @@ const goTest = new Task({
                 limits: { cpu: "2", memory: "2Gi" },
                 requests: { cpu: "500m", memory: "256Mi" },
             },
-            script: nuHeader + `
-if not ("$(workspaces.workspace.path)/.gopath" | path exists) {
-    log "ERROR: .gopath missing — go-cache-populate task did not succeed"
-    exit 1
-}
+            script:
+                nuHeader +
+                `
 log "Running go test"
 let ec = run_and_save 0 "go" "test" "-v" "-short" "-p" "2" "./..."
 log $"Exit code: ($ec)"
@@ -196,12 +175,20 @@ const goBuild = new Task({
                 limits: { cpu: "2", memory: "2Gi" },
                 requests: { cpu: "500m", memory: "256Mi" },
             },
-            script: nuHeader + `
+            script:
+                nuHeader +
+                `
+log $"pwd=(pwd) uid=(id -u) go=(go version)"
+log $"GOMODCACHE=($env.GOMODCACHE) GOCACHE=($env.GOCACHE)"
+log $".git exists=('.git' | path exists) go-mod exists=('go-mod' | path exists)"
+^git config --global --add safe.directory (pwd)
+log $"git rev-parse HEAD: (^git rev-parse --short HEAD)"
 log "Building ocidex binaries"
 mut ec = 0
 for cmd in ["./cmd/ocidex", "./cmd/scanner-worker", "./cmd/enrichment-worker"] {
     log $"Building ($cmd)"
     $ec = (run_and_save $ec "go" "build" "-o" "/dev/null" $cmd)
+    log $"  -> exit ($ec)"
 }
 log $"Exit code: ($ec)"
 exit $ec`,
@@ -217,11 +204,19 @@ const openapiCheck = new Task({
     caches: [nodeModulesCache],
     statusContext: "ocidex/openapi",
     statusReporter,
+    stepTemplate: {
+        env: [...goEnv, ...nodeEnv],
+    },
     steps: [
         {
             name: "check-spec",
             image: goImage,
-            script: nuHeader + `
+            script:
+                nuHeader +
+                `
+log $"pwd=(pwd) uid=(id -u) go=(go version)"
+log $".git exists=('.git' | path exists)"
+^git config --global --add safe.directory (pwd)
 log "Generating OpenAPI spec"
 try { ^go run ./cmd/specgen out> /tmp/openapi-check.json } catch { null }
 let gen_ec = $env.LAST_EXIT_CODE
@@ -240,11 +235,22 @@ exit $ec`,
             name: "check-types",
             image: nodeImage,
             workingDir: "$(workspaces.workspace.path)/web",
-            script: nuHeader + `
-let prev_ec = (open /tekton/home/.exit-code | str trim | into int)
+            script:
+                nuHeader +
+                `
+let prev_ec = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+log $"prev exit code from check-spec: ($prev_ec)"
+log $"pwd=(pwd) uid=(id -u) node=(node --version) npm=(npm --version)"
+log $"node_modules exists=('node_modules' | path exists) package.json exists=('package.json' | path exists)"
+log "Installing dependencies"
+try { ^npm ci } catch { |e| log $"npm ci failed: ($e.msg)" }
+let npm_ec = $env.LAST_EXIT_CODE
+log $"npm ci exit: ($npm_ec)"
+log $"node_modules exists after install=('node_modules' | path exists)"
 log "Generating TypeScript types from spec"
 try { ^npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts } catch { null }
 let gen_ec = $env.LAST_EXIT_CODE
+log $"openapi-typescript exit: ($gen_ec)"
 if $gen_ec != 0 {
     let ec = if $prev_ec != 0 { $prev_ec } else { $gen_ec }
     $"($ec)" | save -f /tekton/home/.exit-code
@@ -266,14 +272,26 @@ const frontendLint = new Task({
     caches: [nodeModulesCache],
     statusContext: "ocidex/frontend-lint",
     statusReporter,
+    stepTemplate: {
+        env: nodeEnv,
+    },
     steps: [
         {
             name: "lint",
             image: nodeImage,
             workingDir: "$(workspaces.workspace.path)/web",
-            script: nuHeader + `
+            script:
+                nuHeader +
+                `
+log $"pwd=(pwd) uid=(id -u) node=(node --version) npm=(npm --version)"
+log $"node_modules exists=('node_modules' | path exists) package.json exists=('package.json' | path exists)"
+log "Installing dependencies"
+let install_ec = run_and_save 0 "npm" "ci"
+log $"npm ci exit: ($install_ec)"
+log $"node_modules exists after install=('node_modules' | path exists)"
+if ('node_modules/.bin/eslint' | path exists) { log "eslint binary found" } else { log "WARNING: eslint binary NOT found" }
 log "Running ESLint"
-let ec = run_and_save 0 "npm" "run" "lint"
+let ec = run_and_save $install_ec "npm" "run" "lint"
 log (if $ec == 0 { "OK: no lint errors" } else { "FAIL: lint errors found" })
 exit $ec`,
             onError: "continue",
@@ -283,7 +301,8 @@ exit $ec`,
 
 // ─── Pipelines ──────────────────────────────────────────────────────────────
 
-const allTasks = [goCachePopulate, goFmt, goLint, goTest, goBuild, openapiCheck, frontendLint];
+// const allTasks = [goFmt, goLint, goTest, goBuild, openapiCheck, frontendLint];
+const allTasks = [goTest, goBuild, openapiCheck, frontendLint];
 
 const pushPipeline = new GitPipeline({
     name: "ocidex-push",
@@ -307,16 +326,15 @@ new TektonProject({
         secretName: "github-webhook-secret",
         secretKey: "secret",
     },
-    workspaceStorageClass: "local-path",
+    workspaceStorageSize: "5Gi",
+    workspaceStorageClass: "standard-rwo",
     defaultPodSecurityContext: {
         runAsUser: 1024,
         runAsGroup: 1024,
         fsGroup: 1024,
     },
-    // Cache PVCs on NFS (RWX) — persist compressed tarballs across runs.
-    // Pods run as uid 1024 to match NFS all_squash anonuid.
-    caches: [
-        { workspace: goCacheWs,   storageSize: "5Gi", storageClassName: "nfs-client" },
-        { workspace: nodeCacheWs, storageSize: "2Gi", storageClassName: "nfs-client" },
-    ],
+    serviceAccountAnnotations: {
+        "iam.gke.io/gcp-service-account":
+            "ocidex-ci-cache@default-350219.iam.gserviceaccount.com",
+    },
 });

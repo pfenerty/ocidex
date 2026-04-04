@@ -1,0 +1,145 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-set-status-pending
+  namespace: ocidex-ci
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+    - name: revision
+      type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+  steps:
+    - env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: pending-ocidex-test
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] {
+          print $"[(date now | format date '%H:%M:%S')] status-pending [ocidex/test]: ($msg)"
+        }
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: "pending", context: "ocidex/test", description: "Running" }
+
+        log $"POST ($url)"
+        log $"body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "done"
+        } catch { |e|
+          log $"error: ($e.msg)"
+          exit 1
+        }
+    - env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: pending-ocidex-build
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] {
+          print $"[(date now | format date '%H:%M:%S')] status-pending [ocidex/build]: ($msg)"
+        }
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: "pending", context: "ocidex/build", description: "Running" }
+
+        log $"POST ($url)"
+        log $"body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "done"
+        } catch { |e|
+          log $"error: ($e.msg)"
+          exit 1
+        }
+    - env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: pending-ocidex-openapi
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] {
+          print $"[(date now | format date '%H:%M:%S')] status-pending [ocidex/openapi]: ($msg)"
+        }
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: "pending", context: "ocidex/openapi", description: "Running" }
+
+        log $"POST ($url)"
+        log $"body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "done"
+        } catch { |e|
+          log $"error: ($e.msg)"
+          exit 1
+        }
+    - env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: pending-ocidex-frontend-lint
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] {
+          print $"[(date now | format date '%H:%M:%S')] status-pending [ocidex/frontend-lint]: ($msg)"
+        }
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: "pending", context: "ocidex/frontend-lint", description: "Running" }
+
+        log $"POST ($url)"
+        log $"body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "done"
+        } catch { |e|
+          log $"error: ($e.msg)"
+          exit 1
+        }

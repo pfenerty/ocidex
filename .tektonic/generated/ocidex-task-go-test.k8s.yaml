@@ -1,0 +1,218 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-go-test
+  namespace: ocidex-ci
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+    - name: revision
+      type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    env:
+      - name: GOMODCACHE
+        value: $(workspaces.workspace.path)/go-mod
+      - name: GOCACHE
+        value: $(workspaces.workspace.path)/go-build
+      - name: GIT_CONFIG_GLOBAL
+        value: $(workspaces.workspace.path)/.gitconfig
+      - name: GOMAXPROCS
+        value: "2"
+      - name: GOMEMLIMIT
+        value: 1800MiB
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    workingDir: $(workspaces.workspace.path)
+  steps:
+    - image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: restore-go-cache-cache
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] {
+          print $"[(date now | format date '%H:%M:%S')] restore-go-cache-cache: ($msg)"
+        }
+
+        let hash = (
+          ["go.sum"]
+          | each { |f| if ($f | path exists) { open --raw $f } else { "" } }
+          | str join | hash sha256 | str substring 0..15
+        )
+        $hash | save -f /tekton/home/.cache-go-cache-hash
+
+        let token_resp = (try {
+          http get "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" -H [Metadata-Flavor Google]
+        } catch { |e|
+          log $"ERROR: failed to fetch Workload Identity token: ($e.msg)"
+          exit 1
+        })
+        let token = ($token_resp | get access_token)
+        let token_ttl = ($token_resp | get expires_in)
+        log $"token ok, expires in ($token_ttl)s"
+
+        let object = $"go/($hash).tar.zst"
+        let meta_url = $"https://storage.googleapis.com/storage/v1/b/ocidex-ci-cache/o/($object | str replace --all '/' '%2F')"
+        log $"checking gs://ocidex-ci-cache/($object)"
+        log $"  url: ($meta_url)"
+
+        let metadata = (try {
+          http get $meta_url -H [Authorization $"Bearer ($token)"]
+        } catch { |e|
+          log $"  miss: ($e.msg)"
+          null
+        })
+
+        if $metadata != null {
+          let archive_size = ($metadata.size | into int)
+          log $"hit ($hash) size=(($archive_size / 1_000_000) | math round --precision 1)MB"
+          let cache_paths = ["go-mod", "go-build"]
+          for p in $cache_paths {
+            if ($p | path exists) { ^chmod -R u+w $p; rm -rf $p }
+          }
+          log "downloading ..."
+          let t0 = (date now)
+          let dl_url = $"($meta_url)?alt=media"
+          http get $dl_url -H [Authorization $"Bearer ($token)"] --raw | ^zstd -d -T0 -c | ^tar xf - -o --no-same-permissions
+          let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+          let speed = (if $elapsed > 0 { ($archive_size / 1_000_000) / $elapsed | math round --precision 1 } else { 0 })
+          log $"restored in ($elapsed)s ($speed) MB/s"
+        } else {
+          log $"miss ($hash) — object not found in bucket"
+        }
+      workingDir: $(workspaces.workspace.path)
+    - computeResources:
+        limits:
+          cpu: "2"
+          memory: 2Gi
+        requests:
+          cpu: 500m
+          memory: 256Mi
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.25
+      name: test
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def run_and_save [prev_ec: int, ...args: string] {
+            try { run-external ...$args } catch { null }
+            let ec = $env.LAST_EXIT_CODE
+            let worst = if $prev_ec != 0 { $prev_ec } else { $ec }
+            $"($worst)" | save -f /tekton/home/.exit-code
+            $worst
+        }
+
+        log "Running go test"
+        let ec = run_and_save 0 "go" "test" "-v" "-short" "-p" "2" "./..."
+        log $"Exit code: ($ec)"
+        exit $ec
+    - image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: save-go-cache-cache
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] {
+          print $"[(date now | format date '%H:%M:%S')] save-go-cache-cache: ($msg)"
+        }
+
+        let hash = (try { open --raw /tekton/home/.cache-go-cache-hash | str trim } catch { "" })
+        if ($hash | is-empty) { log "no hash, skipping"; exit 0 }
+
+        let token = (try {
+          http get "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" -H [Metadata-Flavor Google] | get access_token
+        } catch { |e|
+          log $"ERROR: failed to fetch Workload Identity token: ($e.msg)"
+          exit 1
+        })
+
+        let object = $"go/($hash).tar.zst"
+        let meta_url = $"https://storage.googleapis.com/storage/v1/b/ocidex-ci-cache/o/($object | str replace --all '/' '%2F')"
+        let already_exists = (try { http get $meta_url -H [Authorization $"Bearer ($token)"]; true } catch { false })
+        if $already_exists { log $"($hash) exists, skipping"; exit 0 }
+
+        let paths = ["go-mod", "go-build"] | where { |p| ($p | path exists) }
+        if ($paths | is-empty) { log "no paths to cache"; exit 0 }
+
+        for p in $paths { ^chmod -R u+w $p }
+
+        let max = 3
+        if $max > 0 {
+          let list_url = $"https://storage.googleapis.com/storage/v1/b/ocidex-ci-cache/o?prefix=($"go/" | str replace --all '/' '%2F')"
+          let entries = (try {
+            http get $list_url -H [Authorization $"Bearer ($token)"]
+            | get items? | default []
+            | where { |e| ($e.name | str ends-with ".tar.zst") }
+            | sort-by timeCreated | reverse | skip $max
+          } catch { [] })
+          for e in $entries {
+            let del_url = $"https://storage.googleapis.com/storage/v1/b/ocidex-ci-cache/o/($e.name | str replace --all '/' '%2F')"
+            try { http delete $del_url -H [Authorization $"Bearer ($token)"] }
+            log $"evicted ($e.name)"
+          }
+        }
+
+        let uncompressed = ($paths | each { |p| try { du $p | get apparent.0 | into int } catch { 0 } } | math sum)
+        log $"compressing (($uncompressed / 1_000_000) | math round --precision 1)MB ..."
+        let tmp = $"/tmp/cache-($hash).tar.zst"
+        let t0 = (date now)
+        ^tar cf - ...$paths | ^zstd -3 -T0 -o $tmp
+        let compress_elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+        let compressed = (ls $tmp | get size.0 | into int)
+        let ratio = (if $compressed > 0 { $uncompressed / $compressed | math round --precision 1 } else { 0 })
+        log $"compressed to (($compressed / 1_000_000) | math round --precision 1)MB ratio=($ratio)x in ($compress_elapsed)s"
+
+        log "uploading ..."
+        let upload_url = $"https://storage.googleapis.com/upload/storage/v1/b/ocidex-ci-cache/o?uploadType=media&name=($object | str replace --all '/' '%2F')"
+        let t1 = (date now)
+        open --raw $tmp | http post $upload_url -H [Authorization $"Bearer ($token)"] -t "application/octet-stream"
+        let upload_elapsed = (((date now) - $t1) | into int) / 1_000_000_000
+        let speed = (if $upload_elapsed > 0 { ($compressed / 1_000_000) / $upload_elapsed | math round --precision 1 } else { 0 })
+        rm $tmp
+        log $"uploaded gs://ocidex-ci-cache/($object) in ($upload_elapsed)s ($speed) MB/s"
+      workingDir: $(workspaces.workspace.path)
+    - env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: report-status
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] {
+          print $"[(date now | format date '%H:%M:%S')] report-status [ocidex/test]: ($msg)"
+        }
+
+        let exit_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        let state = if $exit_code == 0 { "success" } else { "failure" }
+        let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
+
+        log $"exit-code=($exit_code) state=($state)"
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "ocidex/test", description: $desc }
+
+        log $"POST ($url)"
+        log $"body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "done"
+        } catch { |e|
+          log $"error: ($e.msg)"
+        }
+  workspaces:
+    - name: workspace

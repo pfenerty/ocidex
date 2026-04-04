@@ -82,11 +82,15 @@ frontend-lint-fix: ## Run ESLint with auto-fix on the frontend
 	cd web && npm run lint:fix
 
 tekton-synth: ## Synthesize Tekton pipeline YAML from TypeScript
-	cd .tekton && npm ci && npx ts-node pipeline.ts
+	cd .tektonic && npm ci && npx ts-node pipeline.ts
+	printf 'apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\n\nresources:\n' > .tektonic/generated/kustomization.yaml
+	ls -1 .tektonic/generated/*.k8s.yaml | xargs -n1 basename | sed 's/^/  - /' >> .tektonic/generated/kustomization.yaml
 
 tekton-check: ## Verify generated Tekton YAML is up-to-date
-	cd .tekton && npm ci && npx ts-node pipeline.ts
-	cd .tekton && git diff --exit-code generated/ || (echo "ERROR: .tekton/generated/ is stale. Run 'make tekton-synth'." && exit 1)
+	cd .tektonic && npm ci && npx ts-node pipeline.ts
+	printf 'apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\n\nresources:\n' > .tektonic/generated/kustomization.yaml
+	ls -1 .tektonic/generated/*.k8s.yaml | xargs -n1 basename | sed 's/^/  - /' >> .tektonic/generated/kustomization.yaml
+	cd .tektonic && git diff --exit-code generated/ || (echo "ERROR: .tektonic/generated/ is stale. Run 'make tekton-synth'." && exit 1)
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'

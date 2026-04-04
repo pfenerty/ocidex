@@ -26,11 +26,10 @@ spec:
     - env:
         - name: GIT_CONFIG_GLOBAL
           value: $(workspaces.workspace.path)/.gitconfig
-      image: cgr.dev/chainguard/git:latest
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: clone
       script: |-
-        #!/bin/sh
-        set -e
+        #!/usr/bin/env nu
         # Mark workspace as safe before any git operations that check directory ownership.
         # The workspace dir may be owned by root (local-path provisioner) while the pod
         # runs as a non-root uid; git 2.35.2+ rejects such repos without this config.
@@ -41,6 +40,25 @@ spec:
         # The revision is always a branch tip in CI (push/PR events), so it will be present.
         git fetch --depth=1 origin '+refs/heads/*:refs/remotes/origin/*'
         git -c advice.detachedHead=false checkout $(params.revision)
+
+        # Capture git metadata for downstream tasks
+        let sha = (git rev-parse HEAD | str trim)
+        let short_sha = (git rev-parse --short HEAD | str trim)
+        let commit_message = (git log -1 --format=%s | str trim)
+        let author_name = (git log -1 --format=%an | str trim)
+        let author_email = (git log -1 --format=%ae | str trim)
+        let timestamp = (git log -1 --format=%aI | str trim)
+
+        {
+            sha: $sha,
+            short_sha: $short_sha,
+            branch: "$(params.revision)",
+            commit_message: $commit_message,
+            author_name: $author_name,
+            author_email: $author_email,
+            timestamp: $timestamp,
+            remote_url: "$(params.url)",
+        } | to json | save $(workspaces.workspace.path)/git-metadata.json
       workingDir: $(workspaces.workspace.path)
   workspaces:
     - name: workspace
