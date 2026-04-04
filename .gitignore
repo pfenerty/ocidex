@@ -7,8 +7,8 @@ bin/
 web/node_modules/
 web/dist/
 
-# Tekton pipeline
-.tekton/node_modules/
+# node_modules (all subdirs)
+node_modules/
 
 # Test
 coverage.out
