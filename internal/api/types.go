@@ -552,7 +552,7 @@ type RegistryResponse struct {
 	Insecure            bool     `json:"insecure"`
 	HasSecret           bool     `json:"has_secret"`
 	Enabled             bool     `json:"enabled"`
-	WebhookPath         string   `json:"webhook_path"`
+	WebhookURL          string   `json:"webhook_url"`
 	Repositories        []string `json:"repositories" doc:"Explicit repositories to walk; overrides catalog discovery when non-empty"`
 	RepositoryPatterns  []string `json:"repository_patterns" doc:"Glob patterns for repositories to ingest; empty = all"`
 	TagPatterns         []string `json:"tag_patterns" doc:"Glob patterns or 'semver' for tags to ingest; empty = all"`

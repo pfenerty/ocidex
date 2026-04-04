@@ -1601,7 +1601,7 @@
           "url": {
             "type": "string"
           },
-          "webhook_path": {
+          "webhook_url": {
             "type": "string"
           }
         },
@@ -1613,7 +1613,7 @@
           "insecure",
           "has_secret",
           "enabled",
-          "webhook_path",
+          "webhook_url",
           "repositories",
           "repository_patterns",
           "tag_patterns",

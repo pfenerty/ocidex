@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ocidex-pipeline-ocidex-pull-request.k8s.yaml
+  - ocidex-pipeline-ocidex-push.k8s.yaml
+  - ocidex-task-frontend-lint.k8s.yaml
+  - ocidex-task-git-clone.k8s.yaml
+  - ocidex-task-go-build.k8s.yaml
+  - ocidex-task-go-fmt.k8s.yaml
+  - ocidex-task-go-lint.k8s.yaml
+  - ocidex-task-go-test.k8s.yaml
+  - ocidex-task-openapi-check.k8s.yaml
+  - ocidex-task-set-status-pending.k8s.yaml
+  - ocidex-tekton-infra.k8s.yaml
