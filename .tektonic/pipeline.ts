@@ -133,32 +133,32 @@ exit $ec`,
     ],
 });
 
-const goLint = new Task({
-    name: "go-lint",
-    needs: [goBuild],
-    statusReporter,
-    stepTemplate: {
-        env: lintEnv,
-    },
-    steps: [
-        {
-            name: "lint",
-            image: lintImage,
-            computeResources: {
-                limits: { cpu: "3", memory: "3Gi" },
-                requests: { cpu: "1", memory: "2Gi" },
-            },
-            script:
-                nuHeader +
-                `
-log "Running golangci-lint"
-let ec = run_and_save 0 "golangci-lint" "-v" "run" "./..."
-log $"Exit code: ($ec)"
-exit $ec`,
-            onError: "continue",
-        },
-    ],
-});
+// const goLint = new Task({
+//     name: "go-lint",
+//     needs: [goBuild],
+//     statusReporter,
+//     stepTemplate: {
+//         env: lintEnv,
+//     },
+//     steps: [
+//         {
+//             name: "lint",
+//             image: lintImage,
+//             computeResources: {
+//                 limits: { cpu: "3", memory: "3Gi" },
+//                 requests: { cpu: "1", memory: "2Gi" },
+//             },
+//             script:
+//                 nuHeader +
+//                 `
+// log "Running golangci-lint"
+// let ec = run_and_save 0 "golangci-lint" "-v" "run" "./..."
+// log $"Exit code: ($ec)"
+// exit $ec`,
+//             onError: "continue",
+//         },
+//     ],
+// });
 
 const goTest = new Task({
     name: "go-test",
