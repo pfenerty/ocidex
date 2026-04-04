@@ -31,6 +31,49 @@ spec:
           - ALL
     workingDir: $(workspaces.workspace.path)
   steps:
+    - env:
+        - name: CLOUDSDK_CONFIG
+          value: /tekton/home/.config/gcloud
+      image: ghcr.io/pfenerty/apko-cicd/gcloud:563.0.0
+      name: restore-go-cache-cache
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] {
+          print $"[(date now | format date '%H:%M:%S')] restore-go-cache-cache: ($msg)"
+        }
+
+        let hash = (
+          ["go.sum"]
+          | each { |f| if ($f | path exists) { open --raw $f } else { "" } }
+          | str join | hash sha256 | str substring 0..15
+        )
+        $hash | save -f /tekton/home/.cache-go-cache-hash
+
+        let object = $"go/($hash).tar.zst"
+        let gcs_url = $"gs://ocidex-ci-cache/($object)"
+        log $"checking ($gcs_url)"
+
+        let exists = ((^gcloud storage ls $gcs_url | complete).exit_code == 0)
+        if $exists {
+          let size = (
+            ^gcloud storage ls -l $gcs_url
+            | lines | first | str trim | split words | first | into int
+          )
+          log $"hit ($hash) size=(($size / 1_000_000) | math round --precision 1)MB"
+          let cache_paths = [".go-mod", ".go-build"]
+          for p in $cache_paths {
+            if ($p | path exists) { ^chmod -R u+w $p; rm -rf $p }
+          }
+          log "downloading ..."
+          let t0 = (date now)
+          ^gcloud --verbosity=error storage cp $gcs_url - | ^zstd -d -T0 -c | ^tar xf - -o --no-same-permissions
+          let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+          let speed = (if $elapsed > 0 { ($size / 1_000_000) / $elapsed | math round --precision 1 } else { 0 })
+          log $"restored in ($elapsed)s ($speed) MB/s"
+        } else {
+          log $"miss ($hash) — object not found in bucket"
+        }
+      workingDir: $(workspaces.workspace.path)
     - computeResources:
         limits:
           cpu: "2"
@@ -67,6 +110,67 @@ spec:
         log $"Exit code: ($ec)"
         exit $ec
     - env:
+        - name: CLOUDSDK_CONFIG
+          value: /tekton/home/.config/gcloud
+      image: ghcr.io/pfenerty/apko-cicd/gcloud:563.0.0
+      name: save-go-cache-cache
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] {
+          print $"[(date now | format date '%H:%M:%S')] save-go-cache-cache: ($msg)"
+        }
+
+        let hash = (try { open --raw /tekton/home/.cache-go-cache-hash | str trim } catch { "" })
+        if ($hash | is-empty) { log "no hash, skipping"; exit 0 }
+
+        let object = $"go/($hash).tar.zst"
+        let gcs_url = $"gs://ocidex-ci-cache/($object)"
+        let already_exists = ((^gcloud storage ls $gcs_url | complete).exit_code == 0)
+        if $already_exists { log $"($hash) exists, skipping"; exit 0 }
+
+        let paths = [".go-mod", ".go-build"] | where { |p| ($p | path exists) }
+        if ($paths | is-empty) { log "no paths to cache"; exit 0 }
+
+        for p in $paths { ^chmod -R u+w $p }
+
+        let max = 3
+        if $max > 0 {
+          let entries = (try {
+            ^gcloud storage ls -l $"gs://ocidex-ci-cache/go/*.tar.zst"
+            | lines
+            | where { |l| $l | str ends-with ".tar.zst" }
+            | each { |l|
+                let parts = ($l | str trim | split row -r '\s+')
+                { url: ($parts | last), created: ($parts | get 1) }
+              }
+            | sort-by created | reverse | skip $max
+          } catch { [] })
+          for e in $entries {
+            ^gcloud storage rm $e.url | complete | ignore
+            log $"evicted ($e.url)"
+          }
+        }
+
+        let uncompressed = ($paths | each { |p| try { du $p | get apparent.0 | into int } catch { 0 } } | math sum)
+        log $"compressing (($uncompressed / 1_000_000) | math round --precision 1)MB ..."
+        let tmp = $"$(workspaces.workspace.path)/cache-($hash).tar.zst"
+        let t0 = (date now)
+        ^tar cf - ...$paths | ^zstd -3 -T0 -o $tmp
+        let compress_elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+        let compressed = (ls $tmp | get size.0 | into int)
+        let ratio = (if $compressed > 0 { $uncompressed / $compressed | math round --precision 1 } else { 0 })
+        log $"compressed to (($compressed / 1_000_000) | math round --precision 1)MB ratio=($ratio)x in ($compress_elapsed)s"
+
+        log "uploading ..."
+        let t1 = (date now)
+        ^gcloud storage cp $tmp $gcs_url
+        rm $tmp
+        let upload_elapsed = (((date now) - $t1) | into int) / 1_000_000_000
+        let speed = (if $upload_elapsed > 0 { ($compressed / 1_000_000) / $upload_elapsed | math round --precision 1 } else { 0 })
+        log $"uploaded ($gcs_url) in ($upload_elapsed)s ($speed) MB/s"
+      workingDir: $(workspaces.workspace.path)
+    - env:
         - name: GITHUB_TOKEN
           valueFrom:
             secretKeyRef:
@@ -77,7 +181,7 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] {
-          print $"[(date now | format date '%H:%M:%S')] report-status [ocidex/build]: ($msg)"
+          print $"[(date now | format date '%H:%M:%S')] report-status [go-build]: ($msg)"
         }
 
         let exit_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
@@ -87,7 +191,7 @@ spec:
         log $"exit-code=($exit_code) state=($state)"
 
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: $state, context: "ocidex/build", description: $desc }
+        let body = { state: $state, context: "go-build", description: $desc }
 
         log $"POST ($url)"
         log $"body: ($body | to json -r)"

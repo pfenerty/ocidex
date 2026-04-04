@@ -37,7 +37,7 @@ spec:
       workspaces:
         - name: workspace
           workspace: workspace
-    - name: go-test
+    - name: go-fmt
       params:
         - name: repo-full-name
           value: $(params.repo-full-name)
@@ -47,7 +47,7 @@ spec:
         - set-status-pending
       taskRef:
         kind: Task
-        name: ocidex-go-test
+        name: ocidex-go-fmt
       workspaces:
         - name: workspace
           workspace: workspace
@@ -58,7 +58,6 @@ spec:
         - name: revision
           value: $(params.revision)
       runAfter:
-        - go-test
         - set-status-pending
       taskRef:
         kind: Task
@@ -66,18 +65,33 @@ spec:
       workspaces:
         - name: workspace
           workspace: workspace
-    - name: openapi-check
+    - name: go-lint
       params:
         - name: repo-full-name
           value: $(params.repo-full-name)
         - name: revision
           value: $(params.revision)
       runAfter:
-        - go-test
+        - go-build
         - set-status-pending
       taskRef:
         kind: Task
-        name: ocidex-openapi-check
+        name: ocidex-go-lint
+      workspaces:
+        - name: workspace
+          workspace: workspace
+    - name: go-test
+      params:
+        - name: repo-full-name
+          value: $(params.repo-full-name)
+        - name: revision
+          value: $(params.revision)
+      runAfter:
+        - go-build
+        - set-status-pending
+      taskRef:
+        kind: Task
+        name: ocidex-go-test
       workspaces:
         - name: workspace
           workspace: workspace
@@ -88,11 +102,26 @@ spec:
         - name: revision
           value: $(params.revision)
       runAfter:
-        - openapi-check
         - set-status-pending
       taskRef:
         kind: Task
         name: ocidex-frontend-lint
+      workspaces:
+        - name: workspace
+          workspace: workspace
+    - name: openapi-check
+      params:
+        - name: repo-full-name
+          value: $(params.repo-full-name)
+        - name: revision
+          value: $(params.revision)
+      runAfter:
+        - go-build
+        - frontend-lint
+        - set-status-pending
+      taskRef:
+        kind: Task
+        name: ocidex-openapi-check
       workspaces:
         - name: workspace
           workspace: workspace

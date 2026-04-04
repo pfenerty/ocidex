@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: ocidex-go-test
+  name: ocidex-go-fmt
   namespace: ocidex-ci
 spec:
   params:
@@ -17,17 +17,6 @@ spec:
       requests:
         cpu: 100m
         memory: 128Mi
-    env:
-      - name: GOMODCACHE
-        value: $(workspaces.workspace.path)/.go-mod
-      - name: GOCACHE
-        value: $(workspaces.workspace.path)/.go-build
-      - name: GIT_CONFIG_GLOBAL
-        value: $(workspaces.workspace.path)/.gitconfig
-      - name: GOMAXPROCS
-        value: "2"
-      - name: GOMEMLIMIT
-        value: 1800MiB
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
@@ -35,17 +24,8 @@ spec:
           - ALL
     workingDir: $(workspaces.workspace.path)
   steps:
-    - computeResources:
-        limits:
-          cpu: "2"
-          ephemeral-storage: 2Gi
-          memory: 2Gi
-        requests:
-          cpu: 500m
-          ephemeral-storage: 2Gi
-          memory: 256Mi
-      image: ghcr.io/pfenerty/apko-cicd/golang:1.25
-      name: test
+    - image: ghcr.io/pfenerty/apko-cicd/golang:1.25
+      name: fmt
       onError: continue
       script: |-
         #!/usr/bin/env nu
@@ -58,9 +38,13 @@ spec:
             $worst
         }
 
-        log "Running go test"
-        let ec = run_and_save 0 "go" "test" "-v" "-short" "-p" "2" "./..."
-        log $"Exit code: ($ec)"
+        log "Checking gofmt"
+        let result = (^gofmt -l . | complete)
+        let ec = if ($result.stdout | str trim | str length) > 0 {
+            print "Unformatted files:"; print $result.stdout; 1
+        } else { 0 }
+        $"($ec)" | save -f /tekton/home/.exit-code
+        log (if $ec == 0 { "OK: all files formatted" } else { "FAIL: formatting issues found" })
         exit $ec
     - env:
         - name: GITHUB_TOKEN
@@ -73,7 +57,7 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] {
-          print $"[(date now | format date '%H:%M:%S')] report-status [go-test]: ($msg)"
+          print $"[(date now | format date '%H:%M:%S')] report-status [go-fmt]: ($msg)"
         }
 
         let exit_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
@@ -83,7 +67,7 @@ spec:
         log $"exit-code=($exit_code) state=($state)"
 
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: $state, context: "go-test", description: $desc }
+        let body = { state: $state, context: "go-fmt", description: $desc }
 
         log $"POST ($url)"
         log $"body: ($body | to json -r)"

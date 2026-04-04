@@ -8,7 +8,7 @@ import {
 
 // --- Images ─────────────────────────────────────────────────────────────────
 const goImage = "ghcr.io/pfenerty/apko-cicd/golang:1.25";
-const lintImage = "ghcr.io/pfenerty/apko-cicd/golangci-lint:2.11.4";
+const lintImage = "ghcr.io/pfenerty/apko-cicd/golangci-lint:2.11.4-go1.25";
 const nodeImage = "ghcr.io/pfenerty/apko-cicd/nodejs:22";
 
 // ─── Status reporter ─────────────────────────────────────────────────────────
@@ -73,66 +73,96 @@ def run_and_save [prev_ec: int, ...args: string] {
 `;
 
 // ─── Tasks ──────────────────────────────────────────────────────────────────
-// const goFmt = new Task({
-//     name: "go-fmt",
-//     params: [...statusReporter.requiredParams],
-//     statusContext: "ocidex/fmt",
-//     statusReporter,
-//     steps: [
-//         {
-//             name: "fmt",
-//             image: goImage,
-//             script:
-//                 nuHeader +
-//                 `
-// log "Checking gofmt"
-// let result = (^gofmt -l . | complete)
-// let ec = if ($result.stdout | str trim | str length) > 0 {
-//     print "Unformatted files:"; print $result.stdout; 1
-// } else { 0 }
-// $"($ec)" | save -f /tekton/home/.exit-code
-// log (if $ec == 0 { "OK: all files formatted" } else { "FAIL: formatting issues found" })
-// exit $ec`,
-//             onError: "continue",
-//         },
-//     ],
-// });
+const goFmt = new Task({
+    name: "go-fmt",
+    statusReporter,
+    steps: [
+        {
+            name: "fmt",
+            image: goImage,
+            script:
+                nuHeader +
+                `
+log "Checking gofmt"
+let result = (^gofmt -l . | complete)
+let ec = if ($result.stdout | str trim | str length) > 0 {
+    print "Unformatted files:"; print $result.stdout; 1
+} else { 0 }
+$"($ec)" | save -f /tekton/home/.exit-code
+log (if $ec == 0 { "OK: all files formatted" } else { "FAIL: formatting issues found" })
+exit $ec`,
+            onError: "continue",
+        },
+    ],
+});
 
-// const goLint = new Task({
-//     name: "go-lint",
-//     params: [...statusReporter.requiredParams],
-//     needs: [goFmt],
-//     statusContext: "ocidex/lint",
-//     statusReporter,
-//     stepTemplate: {
-//         env: lintEnv,
-//     },
-//     steps: [
-//         {
-//             name: "lint",
-//             image: lintImage,
-//             computeResources: {
-//                 limits: { cpu: "2", memory: "2Gi" },
-//                 requests: { cpu: "200m", memory: "512Mi" },
-//             },
-//             script:
-//                 nuHeader +
-//                 `
-// log "Running golangci-lint"
-// let ec = run_and_save 0 "golangci-lint" "run" "./..."
-// log $"Exit code: ($ec)"
-// exit $ec`,
-//             onError: "continue",
-//         },
-//     ],
-// });
+const goBuild = new Task({
+    name: "go-build",
+    caches: [goCache],
+    statusReporter,
+    stepTemplate: {
+        env: goEnv,
+    },
+    steps: [
+        {
+            name: "build",
+            image: goImage,
+            computeResources: {
+                limits: { cpu: "2", memory: "2Gi" },
+                requests: { cpu: "500m", memory: "256Mi" },
+            },
+            script:
+                nuHeader +
+                `
+log $"pwd=(pwd) uid=(id -u) go=(go version)"
+log $"GOMODCACHE=($env.GOMODCACHE) GOCACHE=($env.GOCACHE)"
+log $".git exists=('.git' | path exists) go-mod exists=('go-mod' | path exists)"
+^git config --global --add safe.directory (pwd)
+log $"git rev-parse HEAD: (^git rev-parse --short HEAD)"
+log "Building ocidex binaries"
+mut ec = 0
+for cmd in ["./cmd/ocidex", "./cmd/scanner-worker", "./cmd/enrichment-worker"] {
+    log $"Building ($cmd)"
+    $ec = (run_and_save $ec "go" "build" "-o" "/dev/null" $cmd)
+    log $"  -> exit ($ec)"
+}
+log $"Exit code: ($ec)"
+exit $ec`,
+            onError: "continue",
+        },
+    ],
+});
+
+const goLint = new Task({
+    name: "go-lint",
+    needs: [goBuild],
+    statusReporter,
+    stepTemplate: {
+        env: lintEnv,
+    },
+    steps: [
+        {
+            name: "lint",
+            image: lintImage,
+            computeResources: {
+                limits: { cpu: "3", memory: "3Gi" },
+                requests: { cpu: "1", memory: "2Gi" },
+            },
+            script:
+                nuHeader +
+                `
+log "Running golangci-lint"
+let ec = run_and_save 0 "golangci-lint" "-v" "run" "./..."
+log $"Exit code: ($ec)"
+exit $ec`,
+            onError: "continue",
+        },
+    ],
+});
 
 const goTest = new Task({
     name: "go-test",
-    params: [...statusReporter.requiredParams],
-    // needs: [goLint],
-    caches: [goCache],
-    statusContext: "ocidex/test",
+    needs: [goBuild],
     statusReporter,
     stepTemplate: {
         env: [
@@ -168,39 +198,35 @@ exit $ec`,
     ],
 });
 
-const goBuild = new Task({
-    name: "go-build",
-    params: [...statusReporter.requiredParams],
-    needs: [goTest],
-    statusContext: "ocidex/build",
+const frontendLint = new Task({
+    name: "frontend-lint",
     statusReporter,
+    caches: [nodeModulesCache],
     stepTemplate: {
-        env: goEnv,
+        env: nodeEnv,
     },
     steps: [
         {
-            name: "build",
-            image: goImage,
+            name: "lint",
+            image: nodeImage,
+            workingDir: "$(workspaces.workspace.path)/web",
             computeResources: {
-                limits: { cpu: "2", memory: "2Gi" },
-                requests: { cpu: "500m", memory: "256Mi" },
+                limits: { cpu: "2", memory: "3Gi" },
+                requests: { cpu: "1", memory: "2Gi" },
             },
             script:
                 nuHeader +
                 `
-log $"pwd=(pwd) uid=(id -u) go=(go version)"
-log $"GOMODCACHE=($env.GOMODCACHE) GOCACHE=($env.GOCACHE)"
-log $".git exists=('.git' | path exists) go-mod exists=('go-mod' | path exists)"
-^git config --global --add safe.directory (pwd)
-log $"git rev-parse HEAD: (^git rev-parse --short HEAD)"
-log "Building ocidex binaries"
-mut ec = 0
-for cmd in ["./cmd/ocidex", "./cmd/scanner-worker", "./cmd/enrichment-worker"] {
-    log $"Building ($cmd)"
-    $ec = (run_and_save $ec "go" "build" "-o" "/dev/null" $cmd)
-    log $"  -> exit ($ec)"
-}
-log $"Exit code: ($ec)"
+log $"pwd=(pwd) uid=(id -u) node=(node --version) npm=(npm --version)"
+log $"node_modules exists=('node_modules' | path exists) package.json exists=('package.json' | path exists)"
+log "Installing dependencies"
+let install_ec = run_and_save 0 "npm" "ci"
+log $"npm ci exit: ($install_ec)"
+log $"node_modules exists after install=('node_modules' | path exists)"
+if ('node_modules/.bin/eslint' | path exists) { log "eslint binary found" } else { log "WARNING: eslint binary NOT found" }
+log "Running ESLint"
+let ec = run_and_save $install_ec "npm" "run" "lint"
+log (if $ec == 0 { "OK: no lint errors" } else { "FAIL: lint errors found" })
 exit $ec`,
             onError: "continue",
         },
@@ -209,10 +235,7 @@ exit $ec`,
 
 const openapiCheck = new Task({
     name: "openapi-check",
-    params: [...statusReporter.requiredParams],
-    needs: [goTest],
-    caches: [nodeModulesCache],
-    statusContext: "ocidex/openapi",
+    needs: [goBuild, frontendLint],
     statusReporter,
     stepTemplate: {
         env: [...goEnv, ...nodeEnv],
@@ -275,44 +298,9 @@ exit $ec`,
     ],
 });
 
-const frontendLint = new Task({
-    name: "frontend-lint",
-    params: [...statusReporter.requiredParams],
-    needs: [openapiCheck],
-    caches: [nodeModulesCache],
-    statusContext: "ocidex/frontend-lint",
-    statusReporter,
-    stepTemplate: {
-        env: nodeEnv,
-    },
-    steps: [
-        {
-            name: "lint",
-            image: nodeImage,
-            workingDir: "$(workspaces.workspace.path)/web",
-            script:
-                nuHeader +
-                `
-log $"pwd=(pwd) uid=(id -u) node=(node --version) npm=(npm --version)"
-log $"node_modules exists=('node_modules' | path exists) package.json exists=('package.json' | path exists)"
-log "Installing dependencies"
-let install_ec = run_and_save 0 "npm" "ci"
-log $"npm ci exit: ($install_ec)"
-log $"node_modules exists after install=('node_modules' | path exists)"
-if ('node_modules/.bin/eslint' | path exists) { log "eslint binary found" } else { log "WARNING: eslint binary NOT found" }
-log "Running ESLint"
-let ec = run_and_save $install_ec "npm" "run" "lint"
-log (if $ec == 0 { "OK: no lint errors" } else { "FAIL: lint errors found" })
-exit $ec`,
-            onError: "continue",
-        },
-    ],
-});
-
 // ─── Pipelines ──────────────────────────────────────────────────────────────
 
-// const allTasks = [goFmt, goLint, goTest, goBuild, openapiCheck, frontendLint];
-const allTasks = [goTest, goBuild, openapiCheck, frontendLint];
+const allTasks = [goFmt, goLint, goTest, goBuild, openapiCheck, frontendLint];
 
 const pushPipeline = new GitPipeline({
     name: "ocidex-push",
