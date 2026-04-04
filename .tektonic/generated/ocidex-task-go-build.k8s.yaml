@@ -19,9 +19,9 @@ spec:
         memory: 128Mi
     env:
       - name: GOMODCACHE
-        value: $(workspaces.workspace.path)/go-mod
+        value: $(workspaces.workspace.path)/.go-mod
       - name: GOCACHE
-        value: $(workspaces.workspace.path)/go-build
+        value: $(workspaces.workspace.path)/.go-build
       - name: GIT_CONFIG_GLOBAL
         value: $(workspaces.workspace.path)/.gitconfig
     securityContext:

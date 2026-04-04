@@ -20,7 +20,8 @@ const statusReporter = new GitHubStatusReporter();
 const goCache = {
     name: "go-cache",
     key: ["go.sum"],
-    paths: ["go-mod", "go-build"],
+    // Use dotdir paths so `go test ./...` skips them (Go ignores dirs starting with '.')
+    paths: [".go-mod", ".go-build"],
     backend: { type: "gcs" as const, bucket: "ocidex-ci-cache", prefix: "go/" },
     compress: true,
     workingDir: "$(workspaces.workspace.path)",
@@ -30,15 +31,19 @@ const nodeModulesCache = {
     name: "node-modules",
     key: ["package-lock.json"],
     paths: ["node_modules"],
-    backend: { type: "gcs" as const, bucket: "ocidex-ci-cache", prefix: "node/" },
+    backend: {
+        type: "gcs" as const,
+        bucket: "ocidex-ci-cache",
+        prefix: "node/",
+    },
     compress: true,
     workingDir: "$(workspaces.workspace.path)/web",
 };
 
 // ─── Go env ──────────────────────────────────────────────────────────────────
 const goEnv = [
-    { name: "GOMODCACHE", value: "$(workspaces.workspace.path)/go-mod" },
-    { name: "GOCACHE",    value: "$(workspaces.workspace.path)/go-build" },
+    { name: "GOMODCACHE", value: "$(workspaces.workspace.path)/.go-mod" },
+    { name: "GOCACHE", value: "$(workspaces.workspace.path)/.go-build" },
     {
         name: "GIT_CONFIG_GLOBAL",
         value: "$(workspaces.workspace.path)/.gitconfig",
@@ -53,9 +58,7 @@ const lintEnv = [
     },
 ];
 
-const nodeEnv = [
-    { name: "HOME", value: "$(workspaces.workspace.path)" },
-];
+const nodeEnv = [{ name: "HOME", value: "$(workspaces.workspace.path)" }];
 
 // ─── Nushell helper ──────────────────────────────────────────────────────────
 const nuHeader = `#!/usr/bin/env nu
@@ -143,8 +146,15 @@ const goTest = new Task({
             name: "test",
             image: goImage,
             computeResources: {
-                limits: { cpu: "2", memory: "2Gi" },
-                requests: { cpu: "500m", memory: "256Mi" },
+                // GKE Autopilot assigns ephemeral-storage: 1Gi by default; go test
+                // writes compiled test binaries to $TMPDIR which can exceed that.
+                // Request 2Gi so the container has room without routing to the PVC.
+                limits: { cpu: "2", memory: "2Gi", "ephemeral-storage": "2Gi" },
+                requests: {
+                    cpu: "500m",
+                    memory: "256Mi",
+                    "ephemeral-storage": "2Gi",
+                },
             },
             script:
                 nuHeader +
