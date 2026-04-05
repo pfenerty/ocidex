@@ -31,7 +31,12 @@ type Registry struct {
 	ScanMode            string   // "webhook" | "poll" | "both"
 	PollIntervalMinutes int
 	LastPolledAt        *time.Time // nil if never polled
+	AuthUsername        *string    // nil = no auth
+	AuthToken           *string    // nil = no auth
 }
+
+// HasAuth returns true if the registry has authentication credentials configured.
+func (r Registry) HasAuth() bool { return r.AuthToken != nil && *r.AuthToken != "" }
 
 // AcceptsWebhooks returns true if the registry should process incoming webhooks.
 func (r Registry) AcceptsWebhooks() bool { return r.ScanMode == "webhook" || r.ScanMode == "both" }
@@ -98,10 +103,10 @@ func matchGlob(pattern, s string) bool {
 
 // RegistryService manages registry configuration.
 type RegistryService interface {
-	Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int) (Registry, error)
+	Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string) (Registry, error)
 	Get(ctx context.Context, id string) (Registry, error)
 	List(ctx context.Context) ([]Registry, error)
-	Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int) (Registry, error)
+	Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string) (Registry, error)
 	SetEnabled(ctx context.Context, id string, enabled bool) (Registry, error)
 	Delete(ctx context.Context, id string) error
 	ListPollable(ctx context.Context) ([]Registry, error)
@@ -121,7 +126,7 @@ func NewRegistryService(pool *pgxpool.Pool) RegistryService {
 	}
 }
 
-func (s *registryService) Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int) (Registry, error) {
+func (s *registryService) Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string) (Registry, error) {
 	r, err := s.repo.CreateRegistry(ctx, repository.CreateRegistryParams{
 		Name:                name,
 		Type:                regType,
@@ -133,6 +138,8 @@ func (s *registryService) Create(ctx context.Context, name, regType, url string,
 		TagPatterns:         nonEmpty(tagPatterns),
 		ScanMode:            scanMode,
 		PollIntervalMinutes: int32(pollIntervalMinutes), //nolint:gosec // G115: poll interval is validated to fit int32
+		AuthUsername:        toNullText(authUsername),
+		AuthToken:           toNullText(authToken),
 	})
 	if err != nil {
 		return Registry{}, fmt.Errorf("creating registry: %w", err)
@@ -164,7 +171,7 @@ func (s *registryService) List(ctx context.Context) ([]Registry, error) {
 	return out, nil
 }
 
-func (s *registryService) Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int) (Registry, error) {
+func (s *registryService) Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string) (Registry, error) {
 	uid, err := parseRegistryUUID(id)
 	if err != nil {
 		return Registry{}, ErrNotFound
@@ -182,6 +189,8 @@ func (s *registryService) Update(ctx context.Context, id, name, regType, url str
 		TagPatterns:         nonEmpty(tagPatterns),
 		ScanMode:            scanMode,
 		PollIntervalMinutes: int32(pollIntervalMinutes), //nolint:gosec // G115: poll interval is validated to fit int32
+		AuthUsername:        toNullText(authUsername),
+		AuthToken:           toNullText(authToken),
 	})
 	if err != nil {
 		return Registry{}, fmt.Errorf("updating registry: %w", err)
@@ -266,6 +275,14 @@ func fromRepo(r repository.Registry) Registry {
 	if r.LastPolledAt.Valid {
 		t := r.LastPolledAt.Time
 		out.LastPolledAt = &t
+	}
+	if r.AuthUsername.Valid {
+		s := r.AuthUsername.String
+		out.AuthUsername = &s
+	}
+	if r.AuthToken.Valid {
+		s := r.AuthToken.String
+		out.AuthToken = &s
 	}
 	return out
 }

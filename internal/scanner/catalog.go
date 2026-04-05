@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pfenerty/ocidex/internal/service"
@@ -22,7 +23,10 @@ type Submitter interface {
 func WalkRegistry(ctx context.Context, reg service.Registry, sub Submitter, logger *slog.Logger) (int, error) {
 	scheme, host := registrySchemeHost(reg)
 	baseURL := scheme + "://" + host
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := &http.Client{
+		Timeout:   15 * time.Second,
+		Transport: newOCITokenTransport(derefStr(reg.AuthUsername), derefStr(reg.AuthToken)),
+	}
 
 	var repos []string
 	if len(reg.Repositories) > 0 {
@@ -82,6 +86,8 @@ func WalkRegistry(ctx context.Context, reg service.Registry, sub Submitter, logg
 						Architecture: arch,
 						BuildDate:    meta.buildDate,
 						ImageVersion: meta.imageVersion,
+						AuthUsername: derefStr(reg.AuthUsername),
+						AuthToken:    derefStr(reg.AuthToken),
 					})
 					queued++
 				}
@@ -97,6 +103,8 @@ func WalkRegistry(ctx context.Context, reg service.Registry, sub Submitter, logg
 				Architecture: meta.architecture,
 				BuildDate:    meta.buildDate,
 				ImageVersion: meta.imageVersion,
+				AuthUsername: derefStr(reg.AuthUsername),
+				AuthToken:    derefStr(reg.AuthToken),
 			})
 			queued++
 		}
@@ -320,4 +328,143 @@ func ociHeadManifest(ctx context.Context, c *http.Client, baseURL, repo, tag str
 func isIndexMediaType(mt string) bool {
 	return mt == "application/vnd.oci.image.index.v1+json" ||
 		mt == "application/vnd.docker.distribution.manifest.list.v2+json"
+}
+
+// ociTokenTransport implements OCI Distribution Spec token authentication.
+// On 401, it parses the Www-Authenticate challenge, exchanges credentials
+// (or requests an anonymous token) at the realm, caches the bearer token,
+// and retries the original request.
+type ociTokenTransport struct {
+	base     http.RoundTripper
+	username string // empty = anonymous
+	password string // PAT or password
+	mu       sync.Mutex
+	tokens   map[string]string // scope -> bearer token
+}
+
+func newOCITokenTransport(username, password string) *ociTokenTransport {
+	return &ociTokenTransport{
+		base:     http.DefaultTransport,
+		username: username,
+		password: password,
+		tokens:   make(map[string]string),
+	}
+}
+
+func (t *ociTokenTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Try with a cached token if we have one for this host.
+	t.mu.Lock()
+	cachedToken := t.tokens[req.URL.Host]
+	t.mu.Unlock()
+	if cachedToken != "" {
+		req = req.Clone(req.Context())
+		req.Header.Set("Authorization", "Bearer "+cachedToken)
+	}
+
+	resp, err := t.base.RoundTrip(req)
+	if err != nil || resp.StatusCode != http.StatusUnauthorized {
+		return resp, err
+	}
+
+	// Parse the Www-Authenticate challenge.
+	challenge := resp.Header.Get("Www-Authenticate")
+	realm, svc, scope := parseWWWAuthenticate(challenge)
+	if realm == "" {
+		return resp, nil // not a bearer challenge, return as-is
+	}
+
+	// Exchange credentials for a bearer token.
+	token, err := t.fetchToken(req.Context(), realm, svc, scope)
+	if err != nil {
+		// Token exchange failed (e.g. ghcr.io returns 403 for unsupported scopes
+		// like catalog). Return the original 401 so the caller can handle it
+		// rather than surfacing a transport-level error.
+		return resp, nil //nolint:nilerr // intentional: fall back to original 401 response
+	}
+	resp.Body.Close()
+
+	t.mu.Lock()
+	t.tokens[req.URL.Host] = token
+	t.mu.Unlock()
+
+	// Retry the original request with the bearer token.
+	retry := req.Clone(req.Context())
+	retry.Header.Set("Authorization", "Bearer "+token)
+	return t.base.RoundTrip(retry)
+}
+
+func (t *ociTokenTransport) fetchToken(ctx context.Context, realm, svc, scope string) (string, error) {
+	u := realm + "?"
+	if svc != "" {
+		u += "service=" + svc + "&"
+	}
+	if scope != "" {
+		u += "scope=" + scope
+	}
+
+	tokenReq, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil) //nolint:gosec // G704: URL is from registry's Www-Authenticate header
+	if err != nil {
+		return "", err
+	}
+	if t.username != "" && t.password != "" {
+		tokenReq.SetBasicAuth(t.username, t.password)
+	}
+
+	resp, err := t.base.RoundTrip(tokenReq)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("token endpoint returned HTTP %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Token       string `json:"token"`
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+	// Some registries use "token", others use "access_token".
+	if result.Token != "" {
+		return result.Token, nil
+	}
+	return result.AccessToken, nil
+}
+
+// parseWWWAuthenticate extracts realm, service, and scope from a
+// Www-Authenticate header of the form:
+//
+//	Bearer realm="...",service="...",scope="..."
+func parseWWWAuthenticate(header string) (realm, svc, scope string) {
+	if !strings.HasPrefix(header, "Bearer ") {
+		return "", "", ""
+	}
+	params := header[len("Bearer "):]
+	for _, part := range strings.Split(params, ",") {
+		part = strings.TrimSpace(part)
+		k, v, ok := strings.Cut(part, "=")
+		if !ok {
+			continue
+		}
+		v = strings.Trim(v, "\"")
+		switch k {
+		case "realm":
+			realm = v
+		case "service":
+			svc = v
+		case "scope":
+			scope = v
+		}
+	}
+	return realm, svc, scope
+}
+
+// derefStr returns the string value of a *string pointer, or "" if nil.
+func derefStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

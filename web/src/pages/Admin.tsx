@@ -254,7 +254,7 @@ function StatusTab() {
 // Registries Tab
 // ---------------------------------------------------------------------------
 
-type RegType = "zot" | "harbor" | "docker" | "generic";
+type RegType = "zot" | "harbor" | "docker" | "generic" | "ghcr";
 type ScanMode = "webhook" | "poll" | "both";
 
 interface RegistryFormState {
@@ -263,6 +263,8 @@ interface RegistryFormState {
     url: string;
     insecure: boolean;
     webhookSecret: string;
+    authUsername: string;
+    authToken: string;
     repositories: string;       // newline-separated explicit repos
     repositoryPatterns: string; // newline-separated
     tagPatterns: string;        // newline-separated
@@ -276,6 +278,8 @@ const emptyForm = (): RegistryFormState => ({
     url: "",
     insecure: false,
     webhookSecret: "",
+    authUsername: "",
+    authToken: "",
     repositories: "",
     repositoryPatterns: "",
     tagPatterns: "",
@@ -310,7 +314,7 @@ function RegistriesTab() {
         setTestResult(null);
     }
 
-    function startEdit(reg: { id: string; name: string; type: string; url: string; insecure: boolean; has_secret: boolean; enabled: boolean; repositories?: string[] | null; repository_patterns?: string[] | null; tag_patterns?: string[] | null; scan_mode?: string; poll_interval_minutes?: number }) {
+    function startEdit(reg: { id: string; name: string; type: string; url: string; insecure: boolean; has_secret: boolean; has_auth: boolean; enabled: boolean; repositories?: string[] | null; repository_patterns?: string[] | null; tag_patterns?: string[] | null; scan_mode?: string; poll_interval_minutes?: number }) {
         setEditingID(reg.id);
         setEditEnabled(reg.enabled);
         setForm({
@@ -319,6 +323,8 @@ function RegistriesTab() {
             url: reg.url,
             insecure: reg.insecure,
             webhookSecret: "",
+            authUsername: "",
+            authToken: "",
             repositories: (reg.repositories ?? []).join("\n"),
             repositoryPatterns: (reg.repository_patterns ?? []).join("\n"),
             tagPatterns: (reg.tag_patterns ?? []).join("\n"),
@@ -332,6 +338,8 @@ function RegistriesTab() {
         e.preventDefault();
         const f = form();
         const secret = f.webhookSecret.trim() || undefined;
+        const authUsername = f.authUsername.trim() || undefined;
+        const authToken = f.authToken.trim() || undefined;
 
         const repos = toPatternArray(f.repositories);
         const repoPats = toPatternArray(f.repositoryPatterns);
@@ -340,7 +348,7 @@ function RegistriesTab() {
         const currentID = editingID();
         if (currentID !== null) {
             updateReg.mutate(
-                { id: currentID, name: f.name, type: f.type, url: f.url, insecure: f.insecure, webhook_secret: secret, enabled: editEnabled(), repositories: repos, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes },
+                { id: currentID, name: f.name, type: f.type, url: f.url, insecure: f.insecure, webhook_secret: secret, auth_username: authUsername, auth_token: authToken, enabled: editEnabled(), repositories: repos, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes },
                 {
                     onSuccess: () => { toast("Registry updated", "success"); resetForm(); },
                     onError: () => toast("Failed to update registry", "error"),
@@ -348,7 +356,7 @@ function RegistriesTab() {
             );
         } else {
             createReg.mutate(
-                { name: f.name, type: f.type, url: f.url, insecure: f.insecure, webhook_secret: secret, repositories: repos, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes },
+                { name: f.name, type: f.type, url: f.url, insecure: f.insecure, webhook_secret: secret, auth_username: authUsername, auth_token: authToken, repositories: repos, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes },
                 {
                     onSuccess: () => { toast("Registry created", "success"); resetForm(); },
                     onError: () => toast("Failed to create registry", "error"),
@@ -387,10 +395,18 @@ function RegistriesTab() {
                                 <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>Type</label>
                                 <select
                                     value={form().type}
-                                    onChange={(e) => setForm(f => ({ ...f, type: e.currentTarget.value as RegType }))}
+                                    onChange={(e) => {
+                                        const newType = e.currentTarget.value as RegType;
+                                        setForm(f => ({
+                                            ...f,
+                                            type: newType,
+                                            ...(newType === "ghcr" && !f.url ? { url: "ghcr.io" } : {}),
+                                        }));
+                                    }}
                                     style={{ width: "100%" }}
                                 >
                                     <option value="generic">generic</option>
+                                    <option value="ghcr">ghcr</option>
                                     <option value="zot">zot</option>
                                     <option value="harbor">harbor</option>
                                     <option value="docker">docker</option>
@@ -414,7 +430,7 @@ function RegistriesTab() {
                                         onClick={() => {
                                             setTestResult(null);
                                             testConn.mutate(
-                                                { url: form().url.trim(), insecure: form().insecure },
+                                                { url: form().url.trim(), insecure: form().insecure, auth_username: form().authUsername.trim() || undefined, auth_token: form().authToken.trim() || undefined },
                                                 { onSuccess: (data) => setTestResult(data) }
                                             );
                                         }}
@@ -446,12 +462,39 @@ function RegistriesTab() {
                             </div>
                             <div>
                                 <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>
-                                    Repositories <span style={{ color: "var(--color-text-muted)" }}>(one per line; bypasses catalog discovery — use for registries like quay.io)</span>
+                                    Auth Username <span style={{ color: "var(--color-text-muted)" }}>(optional; for registries requiring credentials)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={form().authUsername}
+                                    onInput={(e) => setForm(f => ({ ...f, authUsername: e.currentTarget.value }))}
+                                    placeholder={editingID() !== null ? "Leave blank to keep existing" : "Leave blank for anonymous"}
+                                    style={{ width: "100%" }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>
+                                    Auth Token <span style={{ color: "var(--color-text-muted)" }}>(PAT or password; for registries requiring credentials)</span>
+                                </label>
+                                <input
+                                    type="password"
+                                    value={form().authToken}
+                                    onInput={(e) => setForm(f => ({ ...f, authToken: e.currentTarget.value }))}
+                                    placeholder={editingID() !== null ? "Leave blank to keep existing" : "Leave blank for anonymous"}
+                                    style={{ width: "100%" }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>
+                                    Repositories {form().type === "ghcr"
+                                        ? <span style={{ color: "var(--color-error, #e53e3e)", "font-weight": "bold" }}>(required for ghcr.io — catalog discovery is not supported)</span>
+                                        : <span style={{ color: "var(--color-text-muted)" }}>(one per line; bypasses catalog discovery — required for ghcr.io, quay.io)</span>
+                                    }
                                 </label>
                                 <textarea
                                     value={form().repositories}
                                     onInput={(e) => setForm(f => ({ ...f, repositories: e.currentTarget.value }))}
-                                    placeholder={"buildah/buildah\nbuildah/buildah-testing"}
+                                    placeholder={form().type === "ghcr" ? "my-org/my-image\nmy-org/other-image" : "buildah/buildah\nbuildah/buildah-testing"}
                                     rows={3}
                                     style={{ width: "100%", "font-family": "monospace", "font-size": "0.85rem" }}
                                 />

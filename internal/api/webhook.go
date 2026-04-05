@@ -54,12 +54,21 @@ func (h *Handler) HandleRegistryWebhook(ctx context.Context, in *RegistryWebhook
 		return nil, huma.Error503ServiceUnavailable("scanner not enabled")
 	}
 
+	var authUsername, authToken string
+	if reg.AuthUsername != nil {
+		authUsername = *reg.AuthUsername
+	}
+	if reg.AuthToken != nil {
+		authToken = *reg.AuthToken
+	}
 	h.scanSubmitter.Submit(scanner.ScanRequest{
-		RegistryURL: reg.URL,
-		Insecure:    reg.Insecure,
-		Repository:  in.Body.Name,
-		Digest:      in.Body.Digest,
-		Tag:         in.Body.Reference,
+		RegistryURL:  reg.URL,
+		Insecure:     reg.Insecure,
+		Repository:   in.Body.Name,
+		Digest:       in.Body.Digest,
+		Tag:          in.Body.Reference,
+		AuthUsername: authUsername,
+		AuthToken:    authToken,
 	})
 
 	return nil, nil

@@ -471,6 +471,14 @@
             "readOnly": true,
             "type": "string"
           },
+          "auth_token": {
+            "description": "Token or PAT for registry authentication; omit for anonymous access",
+            "type": "string"
+          },
+          "auth_username": {
+            "description": "Username for registry authentication; omit for anonymous access",
+            "type": "string"
+          },
           "insecure": {
             "description": "Allow HTTP (non-TLS) connections",
             "type": "boolean"
@@ -532,7 +540,8 @@
               "zot",
               "harbor",
               "docker",
-              "generic"
+              "generic",
+              "ghcr"
             ],
             "type": "string"
           },
@@ -1540,6 +1549,9 @@
           "enabled": {
             "type": "boolean"
           },
+          "has_auth": {
+            "type": "boolean"
+          },
           "has_secret": {
             "type": "boolean"
           },
@@ -1612,6 +1624,7 @@
           "url",
           "insecure",
           "has_secret",
+          "has_auth",
           "enabled",
           "webhook_url",
           "repositories",
@@ -1963,6 +1976,14 @@
             "readOnly": true,
             "type": "string"
           },
+          "auth_token": {
+            "description": "Token or PAT for registry authentication",
+            "type": "string"
+          },
+          "auth_username": {
+            "description": "Username for registry authentication",
+            "type": "string"
+          },
           "insecure": {
             "description": "Use HTTP instead of HTTPS",
             "type": "boolean"
@@ -2016,6 +2037,12 @@
             ],
             "format": "uri",
             "readOnly": true,
+            "type": "string"
+          },
+          "auth_token": {
+            "type": "string"
+          },
+          "auth_username": {
             "type": "string"
           },
           "enabled": {
@@ -2076,7 +2103,8 @@
               "zot",
               "harbor",
               "docker",
-              "generic"
+              "generic",
+              "ghcr"
             ],
             "type": "string"
           },

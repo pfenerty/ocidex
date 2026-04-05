@@ -86,7 +86,9 @@ func (d *Dispatcher) process(ctx context.Context, req ScanRequest) {
 			scheme = "http"
 		}
 		baseURL := scheme + "://" + req.RegistryURL
-		client := &http.Client{}
+		client := &http.Client{
+			Transport: newOCITokenTransport(req.AuthUsername, req.AuthToken),
+		}
 		meta := ociGetImageMetadata(ctx, client, baseURL, req.Repository, req.Digest)
 		if req.Architecture == "" {
 			req.Architecture = meta.architecture
