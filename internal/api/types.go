@@ -551,6 +551,7 @@ type RegistryResponse struct {
 	URL                 string   `json:"url"`
 	Insecure            bool     `json:"insecure"`
 	HasSecret           bool     `json:"has_secret"`
+	HasAuth             bool     `json:"has_auth"`
 	Enabled             bool     `json:"enabled"`
 	WebhookURL          string   `json:"webhook_url"`
 	Repositories        []string `json:"repositories" doc:"Explicit repositories to walk; overrides catalog discovery when non-empty"`
@@ -584,10 +585,12 @@ type GetRegistryOutput struct {
 type CreateRegistryInput struct {
 	Body struct {
 		Name                string   `json:"name" minLength:"1" maxLength:"100" doc:"Human-readable registry name"`
-		Type                string   `json:"type" enum:"zot,harbor,docker,generic" doc:"Registry type"`
+		Type                string   `json:"type" enum:"zot,harbor,docker,generic,ghcr" doc:"Registry type"`
 		URL                 string   `json:"url" minLength:"1" doc:"Registry address (e.g. zot:5000)"`
 		Insecure            bool     `json:"insecure" doc:"Allow HTTP (non-TLS) connections"`
 		WebhookSecret       *string  `json:"webhook_secret,omitempty" doc:"Bearer token required on incoming webhooks; omit to disable auth"`
+		AuthUsername        *string  `json:"auth_username,omitempty" doc:"Username for registry authentication; omit for anonymous access"`
+		AuthToken           *string  `json:"auth_token,omitempty" doc:"Token or PAT for registry authentication; omit for anonymous access"`
 		Repositories        []string `json:"repositories,omitempty" doc:"Explicit repositories to walk; bypasses /v2/_catalog discovery when non-empty"`
 		RepositoryPatterns  []string `json:"repository_patterns,omitempty" doc:"Glob patterns for repositories to ingest; empty = all"`
 		TagPatterns         []string `json:"tag_patterns,omitempty" doc:"Glob patterns or 'semver' for tags to ingest; empty = all"`
@@ -606,10 +609,12 @@ type UpdateRegistryInput struct {
 	ID   string `path:"id" doc:"Registry UUID" format:"uuid"`
 	Body struct {
 		Name                string   `json:"name" minLength:"1" maxLength:"100"`
-		Type                string   `json:"type" enum:"zot,harbor,docker,generic"`
+		Type                string   `json:"type" enum:"zot,harbor,docker,generic,ghcr"`
 		URL                 string   `json:"url" minLength:"1"`
 		Insecure            bool     `json:"insecure"`
 		WebhookSecret       *string  `json:"webhook_secret,omitempty"`
+		AuthUsername        *string  `json:"auth_username,omitempty"`
+		AuthToken           *string  `json:"auth_token,omitempty"`
 		Enabled             bool     `json:"enabled"`
 		Repositories        []string `json:"repositories,omitempty"`
 		RepositoryPatterns  []string `json:"repository_patterns,omitempty"`
@@ -644,8 +649,10 @@ type DeleteRegistryInput struct {
 // TestRegistryConnectionInput is the request for POST /api/v1/registries/test-connection.
 type TestRegistryConnectionInput struct {
 	Body struct {
-		URL      string `json:"url" minLength:"1" doc:"Registry address (e.g. zot:5000)"`
-		Insecure bool   `json:"insecure" doc:"Use HTTP instead of HTTPS"`
+		URL          string  `json:"url" minLength:"1" doc:"Registry address (e.g. zot:5000)"`
+		Insecure     bool    `json:"insecure" doc:"Use HTTP instead of HTTPS"`
+		AuthUsername *string `json:"auth_username,omitempty" doc:"Username for registry authentication"`
+		AuthToken    *string `json:"auth_token,omitempty" doc:"Token or PAT for registry authentication"`
 	}
 }
 

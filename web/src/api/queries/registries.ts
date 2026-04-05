@@ -13,10 +13,12 @@ export function useCreateRegistry() {
     return createMutation(() => ({
         mutationFn: (body: {
             name: string;
-            type: "zot" | "harbor" | "docker" | "generic";
+            type: "zot" | "harbor" | "docker" | "generic" | "ghcr";
             url: string;
             insecure: boolean;
             webhook_secret?: string;
+            auth_username?: string;
+            auth_token?: string;
             repositories?: string[];
             repository_patterns?: string[];
             tag_patterns?: string[];
@@ -36,10 +38,12 @@ export function useUpdateRegistry() {
         }: {
             id: string;
             name: string;
-            type: "zot" | "harbor" | "docker" | "generic";
+            type: "zot" | "harbor" | "docker" | "generic" | "ghcr";
             url: string;
             insecure: boolean;
             webhook_secret?: string;
+            auth_username?: string;
+            auth_token?: string;
             enabled: boolean;
             repositories?: string[];
             repository_patterns?: string[];
@@ -59,8 +63,8 @@ export function useUpdateRegistry() {
 
 export function useTestRegistryConnection() {
     return createMutation(() => ({
-        mutationFn: ({ url, insecure }: { url: string; insecure: boolean }) =>
-            unwrap(client.POST("/api/v1/registries/test-connection", { body: { url, insecure } })),
+        mutationFn: ({ url, insecure, auth_username, auth_token }: { url: string; insecure: boolean; auth_username?: string; auth_token?: string }) =>
+            unwrap(client.POST("/api/v1/registries/test-connection", { body: { url, insecure, auth_username, auth_token } })),
     }));
 }
 

@@ -29,6 +29,8 @@ type ScanRequest struct {
 	Architecture string // e.g. "amd64"; resolved from index entry during catalog walk
 	BuildDate    string // org.opencontainers.image.created from manifest annotations
 	ImageVersion string // org.opencontainers.image.version from manifest annotations or config labels
+	AuthUsername string // registry auth username; empty = anonymous
+	AuthToken    string // registry auth token/PAT; empty = no auth
 }
 
 // NewScanner creates a stateless Scanner.
@@ -42,6 +44,17 @@ func (s *Scanner) Scan(ctx context.Context, req ScanRequest) ([]byte, error) {
 	s.logger.Info("scanning image", "ref", ref, "tag", req.Tag)
 
 	regOpts := &image.RegistryOptions{InsecureUseHTTP: req.Insecure}
+	if req.AuthToken != "" {
+		username := req.AuthUsername
+		if username == "" {
+			username = "ocidex"
+		}
+		regOpts.Credentials = []image.RegistryCredentials{{
+			Authority: req.RegistryURL,
+			Username:  username,
+			Password:  req.AuthToken,
+		}}
+	}
 	srcCfg := syft.DefaultGetSourceConfig().
 		WithSources("oci-registry").
 		WithRegistryOptions(regOpts)

@@ -17,7 +17,7 @@ export default function Artifacts() {
         type: typeFilter(),
         limit,
         offset: offset(),
-        sufficient: showAll() ? undefined : true,
+        sufficient: showAll() ? false : true,
     }));
 
     const handleSearch = (e: Event) => {

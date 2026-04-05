@@ -727,6 +727,10 @@ export interface components {
              * @example https://example.com/schemas/CreateRegistryInputBody.json
              */
             readonly $schema?: string;
+            /** @description Token or PAT for registry authentication; omit for anonymous access */
+            auth_token?: string;
+            /** @description Username for registry authentication; omit for anonymous access */
+            auth_username?: string;
             /** @description Allow HTTP (non-TLS) connections */
             insecure: boolean;
             /** @description Human-readable registry name */
@@ -751,7 +755,7 @@ export interface components {
              * @description Registry type
              * @enum {string}
              */
-            type: "zot" | "harbor" | "docker" | "generic";
+            type: "zot" | "harbor" | "docker" | "generic" | "ghcr";
             /** @description Registry address (e.g. zot:5000) */
             url: string;
             /** @description Bearer token required on incoming webhooks; omit to disable auth */
@@ -1116,6 +1120,7 @@ export interface components {
             readonly $schema?: string;
             created_at: string;
             enabled: boolean;
+            has_auth: boolean;
             has_secret: boolean;
             id: string;
             insecure: boolean;
@@ -1260,6 +1265,10 @@ export interface components {
              * @example https://example.com/schemas/TestRegistryConnectionInputBody.json
              */
             readonly $schema?: string;
+            /** @description Token or PAT for registry authentication */
+            auth_token?: string;
+            /** @description Username for registry authentication */
+            auth_username?: string;
             /** @description Use HTTP instead of HTTPS */
             insecure: boolean;
             /** @description Registry address (e.g. zot:5000) */
@@ -1284,6 +1293,8 @@ export interface components {
              * @example https://example.com/schemas/UpdateRegistryInputBody.json
              */
             readonly $schema?: string;
+            auth_token?: string;
+            auth_username?: string;
             enabled: boolean;
             insecure: boolean;
             name: string;
@@ -1301,7 +1312,7 @@ export interface components {
             scan_mode?: "webhook" | "poll" | "both";
             tag_patterns?: string[] | null;
             /** @enum {string} */
-            type: "zot" | "harbor" | "docker" | "generic";
+            type: "zot" | "harbor" | "docker" | "generic" | "ghcr";
             url: string;
             webhook_secret?: string;
         };

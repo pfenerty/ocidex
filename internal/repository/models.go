@@ -118,6 +118,8 @@ type Registry struct {
 	PollIntervalMinutes int32              `json:"poll_interval_minutes"`
 	LastPolledAt        pgtype.Timestamptz `json:"last_polled_at"`
 	Repositories        []string           `json:"repositories"`
+	AuthUsername        pgtype.Text        `json:"auth_username"`
+	AuthToken           pgtype.Text        `json:"auth_token"`
 }
 
 type Sbom struct {

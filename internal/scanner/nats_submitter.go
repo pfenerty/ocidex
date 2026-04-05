@@ -35,12 +35,14 @@ type scanRequestWire struct {
 	Architecture string `json:"architecture,omitempty"`
 	BuildDate    string `json:"build_date,omitempty"`
 	ImageVersion string `json:"image_version,omitempty"`
+	AuthUsername string `json:"auth_username,omitempty"`
+	AuthToken    string `json:"auth_token,omitempty"`
 }
 
 // Submit publishes a scan request to "ocidex.scan.requested".
 // Best-effort: failures are logged but do not block the caller.
 func (s *NATSSubmitter) Submit(req ScanRequest) {
-	payload, err := json.Marshal(scanRequestWire(req))
+	payload, err := json.Marshal(scanRequestWire(req)) //nolint:gosec // G117: auth credentials must travel with scan requests through NATS
 	if err != nil {
 		s.logger.Error("nats submitter: marshal payload", "err", err)
 		return

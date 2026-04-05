@@ -1,6 +1,6 @@
 -- name: CreateRegistry :one
-INSERT INTO registry (name, type, url, insecure, webhook_secret, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, repositories)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+INSERT INTO registry (name, type, url, insecure, webhook_secret, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, repositories, auth_username, auth_token)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING *;
 
 -- name: GetRegistry :one
@@ -22,6 +22,8 @@ SET name                 = $2,
     scan_mode            = $10,
     poll_interval_minutes = $11,
     repositories         = $12,
+    auth_username        = $13,
+    auth_token           = $14,
     updated_at           = now()
 WHERE id = $1
 RETURNING *;

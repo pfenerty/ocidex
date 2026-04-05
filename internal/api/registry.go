@@ -67,7 +67,7 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 	if pollInterval == 0 {
 		pollInterval = 60
 	}
-	reg, err := h.registryService.Create(ctx, in.Body.Name, in.Body.Type, in.Body.URL, in.Body.Insecure, in.Body.WebhookSecret, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval)
+	reg, err := h.registryService.Create(ctx, in.Body.Name, in.Body.Type, in.Body.URL, in.Body.Insecure, in.Body.WebhookSecret, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval, in.Body.AuthUsername, in.Body.AuthToken)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("creating registry: %v", err))
 	}
@@ -91,7 +91,7 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 	if pollInterval == 0 {
 		pollInterval = 60
 	}
-	reg, err := h.registryService.Update(ctx, in.ID, in.Body.Name, in.Body.Type, in.Body.URL, in.Body.Insecure, in.Body.WebhookSecret, in.Body.Enabled, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval)
+	reg, err := h.registryService.Update(ctx, in.ID, in.Body.Name, in.Body.Type, in.Body.URL, in.Body.Insecure, in.Body.WebhookSecret, in.Body.Enabled, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval, in.Body.AuthUsername, in.Body.AuthToken)
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}
@@ -136,6 +136,13 @@ func (h *Handler) TestRegistryConnection(ctx context.Context, in *TestRegistryCo
 		out.Body.Reachable = false
 		out.Body.Message = fmt.Sprintf("invalid URL: %v", err)
 		return out, nil
+	}
+	if in.Body.AuthToken != nil && *in.Body.AuthToken != "" {
+		username := "ocidex"
+		if in.Body.AuthUsername != nil && *in.Body.AuthUsername != "" {
+			username = *in.Body.AuthUsername
+		}
+		req.SetBasicAuth(username, *in.Body.AuthToken)
 	}
 
 	resp, err := c.Do(req) //nolint:gosec
@@ -193,6 +200,7 @@ func toRegistryResponse(r service.Registry, apiBaseURL string) RegistryResponse 
 		URL:                 r.URL,
 		Insecure:            r.Insecure,
 		HasSecret:           r.WebhookSecret != nil && *r.WebhookSecret != "",
+		HasAuth:             r.HasAuth(),
 		Enabled:             r.Enabled,
 		WebhookURL:          apiBaseURL + "/api/v1/registries/" + r.ID + "/webhook",
 		Repositories:        r.Repositories,
