@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -15,9 +16,10 @@ import (
 const maxSBOMBodyBytes int64 = 10 << 20 // 10 MB
 
 // NewRouter creates and configures the chi router with huma API registration.
-// corsOrigins is a comma-separated list of allowed origins (e.g. "*" or "http://localhost:3000,https://app.example.com").
+// corsOrigins is a comma-separated list of allowed origins (e.g. "http://localhost:3000,https://app.example.com").
+// frontendURL is used as the default when corsOrigins is empty.
 // apiBaseURL, when non-empty, is added to the OpenAPI servers block so clients know where to reach the API.
-func NewRouter(h *Handler, corsOrigins, apiBaseURL string) chi.Router {
+func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Router {
 	r := chi.NewRouter()
 
 	// Middleware stack
@@ -26,7 +28,7 @@ func NewRouter(h *Handler, corsOrigins, apiBaseURL string) chi.Router {
 	r.Use(SlogLogger)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   parseCORSOrigins(corsOrigins),
+		AllowedOrigins:   parseCORSOrigins(corsOrigins, frontendURL),
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 		ExposedHeaders:   []string{"X-Request-Id"},
@@ -427,7 +429,8 @@ func registerStatsOps(api huma.API, h *Handler) {
 // ---------------------------------------------------------------------------
 
 // parseCORSOrigins splits a comma-separated origins string into a slice.
-func parseCORSOrigins(raw string) []string {
+// When raw is empty, frontendURL is used as the default allowed origin.
+func parseCORSOrigins(raw, frontendURL string) []string {
 	parts := strings.Split(raw, ",")
 	origins := make([]string, 0, len(parts))
 	for _, p := range parts {
@@ -435,8 +438,14 @@ func parseCORSOrigins(raw string) []string {
 			origins = append(origins, s)
 		}
 	}
-	if len(origins) == 0 {
-		return []string{"*"}
+	if len(origins) == 0 && frontendURL != "" {
+		return []string{frontendURL}
+	}
+	for _, o := range origins {
+		if o == "*" {
+			slog.Warn("CORS: wildcard origin '*' used with AllowCredentials — this is insecure in production")
+			break
+		}
 	}
 	return origins
 }

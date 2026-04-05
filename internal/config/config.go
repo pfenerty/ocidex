@@ -14,7 +14,7 @@ type Config struct {
 	LogLevel           string `env:"LOG_LEVEL"       envDefault:"info"`
 	Environment        string `env:"ENVIRONMENT"     envDefault:"development"`
 	DatabaseURL        string `env:"DATABASE_URL,required"`
-	CORSAllowedOrigins string `env:"CORS_ALLOWED_ORIGINS" envDefault:"*"`
+	CORSAllowedOrigins string `env:"CORS_ALLOWED_ORIGINS" envDefault:""`
 
 	// Enrichment pipeline settings.
 	EnrichmentEnabled   bool `env:"ENRICHMENT_ENABLED"   envDefault:"true"`

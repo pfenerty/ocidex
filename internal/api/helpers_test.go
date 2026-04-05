@@ -57,7 +57,7 @@ func (f *failSBOMService) DeleteArtifact(_ context.Context, _ pgtype.UUID) error
 // healthy fakePinger. Auth middleware is disabled (nil authSvc).
 func newTestRouter(sbomSvc service.SBOMService, searchSvc service.SearchService) http.Handler {
 	h := api.NewHandler(sbomSvc, searchSvc, nil, nil, &fakePinger{}, nil, nil)
-	return api.NewRouter(h, "*", "")
+	return api.NewRouter(h, "*", "", "")
 }
 
 // newTestHandlerWithPinger creates a Handler with a custom DBPinger (e.g. for
@@ -68,5 +68,5 @@ func newTestHandlerWithPinger(sbomSvc service.SBOMService, searchSvc service.Sea
 
 // newTestRouterFromHandler builds a full huma router from an existing Handler.
 func newTestRouterFromHandler(h *api.Handler) http.Handler {
-	return api.NewRouter(h, "*", "")
+	return api.NewRouter(h, "*", "", "")
 }
