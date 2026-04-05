@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix openapi openapi-check tekton-synth tekton-check help
+.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check tekton-synth tekton-check help
 
 all: check build ## Run all checks and build
 
@@ -35,7 +35,7 @@ test-coverage: ## Run tests with HTML coverage report
 test-integration: ## Run integration tests
 	go test -v -race ./tests/...
 
-check: fmt lint test openapi-check ## Run fmt, lint, test, and openapi staleness check
+check: fmt lint test openapi-check frontend-lint frontend-typecheck frontend-test ## Run fmt, lint, test, and openapi staleness check
 
 init: ## Download dependencies and install tools
 	go mod download
@@ -80,6 +80,12 @@ frontend-lint: ## Run ESLint on the frontend
 
 frontend-lint-fix: ## Run ESLint with auto-fix on the frontend
 	cd web && npm run lint:fix
+
+frontend-typecheck: frontend-init ## Type-check the frontend with tsc
+	cd web && npx tsc --noEmit
+
+frontend-test: frontend-init ## Run frontend unit tests
+	cd web && npm test
 
 tekton-synth: ## Synthesize Tekton pipeline YAML from TypeScript
 	cd .tektonic && npm ci && npx ts-node pipeline.ts
