@@ -8,12 +8,7 @@ SELECT
 
 -- name: GetLicenseCategoryCounts :many
 SELECT
-    CASE
-        WHEN l.spdx_id IS NOT NULL AND l.spdx_id ~* 'GPL|AGPL|EUPL|CDDL|OSL|CC-BY-SA' THEN 'copyleft'
-        WHEN l.spdx_id IS NOT NULL AND l.spdx_id ~* 'LGPL|MPL|EPL|CPAL|APSL'          THEN 'weak-copyleft'
-        WHEN l.spdx_id IS NOT NULL                                                      THEN 'permissive'
-        ELSE 'uncategorized'
-    END AS category,
+    license_category(l.spdx_id) AS category,
     COUNT(DISTINCT cl.component_id)::bigint AS component_count
 FROM license l
 JOIN component_license cl ON cl.license_id = l.id

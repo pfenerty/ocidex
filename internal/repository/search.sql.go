@@ -488,23 +488,7 @@ LEFT JOIN component_license cl ON cl.license_id = l.id
 LEFT JOIN component c ON c.id = cl.component_id
 WHERE ($1::text IS NULL OR l.spdx_id = $1)
   AND ($2::text IS NULL OR l.name ILIKE $2)
-  AND ($3::text IS NULL OR
-    CASE
-      WHEN l.spdx_id IS NULL THEN 'uncategorized'
-      WHEN l.spdx_id IN (
-        'GPL-2.0','GPL-2.0-only','GPL-2.0-or-later',
-        'GPL-3.0','GPL-3.0-only','GPL-3.0-or-later',
-        'AGPL-3.0','AGPL-3.0-only','AGPL-3.0-or-later',
-        'SSPL-1.0','EUPL-1.2'
-      ) THEN 'copyleft'
-      WHEN l.spdx_id IN (
-        'LGPL-2.0','LGPL-2.0-only','LGPL-2.0-or-later',
-        'LGPL-2.1','LGPL-2.1-only','LGPL-2.1-or-later',
-        'LGPL-3.0','LGPL-3.0-only','LGPL-3.0-or-later',
-        'MPL-2.0','EPL-1.0','EPL-2.0','CDDL-1.0','CDDL-1.1'
-      ) THEN 'weak-copyleft'
-      ELSE 'permissive'
-    END = $3::text)
+  AND ($3::text IS NULL OR license_category(l.spdx_id) = $3::text)
 GROUP BY l.id, l.spdx_id, l.name, l.url
 ORDER BY component_count DESC, l.name
 LIMIT $5 OFFSET $4

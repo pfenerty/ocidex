@@ -71,23 +71,7 @@ LEFT JOIN component_license cl ON cl.license_id = l.id
 LEFT JOIN component c ON c.id = cl.component_id
 WHERE (sqlc.narg('spdx_id')::text IS NULL OR l.spdx_id = sqlc.narg('spdx_id'))
   AND (sqlc.narg('name')::text IS NULL OR l.name ILIKE sqlc.narg('name'))
-  AND (sqlc.narg('category')::text IS NULL OR
-    CASE
-      WHEN l.spdx_id IS NULL THEN 'uncategorized'
-      WHEN l.spdx_id IN (
-        'GPL-2.0','GPL-2.0-only','GPL-2.0-or-later',
-        'GPL-3.0','GPL-3.0-only','GPL-3.0-or-later',
-        'AGPL-3.0','AGPL-3.0-only','AGPL-3.0-or-later',
-        'SSPL-1.0','EUPL-1.2'
-      ) THEN 'copyleft'
-      WHEN l.spdx_id IN (
-        'LGPL-2.0','LGPL-2.0-only','LGPL-2.0-or-later',
-        'LGPL-2.1','LGPL-2.1-only','LGPL-2.1-or-later',
-        'LGPL-3.0','LGPL-3.0-only','LGPL-3.0-or-later',
-        'MPL-2.0','EPL-1.0','EPL-2.0','CDDL-1.0','CDDL-1.1'
-      ) THEN 'weak-copyleft'
-      ELSE 'permissive'
-    END = sqlc.narg('category')::text)
+  AND (sqlc.narg('category')::text IS NULL OR license_category(l.spdx_id) = sqlc.narg('category')::text)
 GROUP BY l.id, l.spdx_id, l.name, l.url
 ORDER BY component_count DESC, l.name
 LIMIT @row_limit OFFSET @row_offset;
