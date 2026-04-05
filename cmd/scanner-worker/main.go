@@ -79,13 +79,13 @@ func run() error {
 	registry := extension.NewRegistry(bus, logger)
 
 	// Relay SBOM events to NATS so enrichment workers can pick them up.
-	registry.Register(natspkg.NewRelayExtension(natsClient, logger))
+	registry.Register(natspkg.NewRelayExtension(natsClient, cfg.NATSStreamName, logger))
 
 	// Wire scanner worker: stateless scanner + nil OCI validator (webhook confirms image exists).
 	scannerSbomSvc := service.NewSBOMService(pool, bus, nil)
 	sc := scanner.NewScanner(logger)
 	dispatcher := scanner.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerWorkers, cfg.ScannerQueueSize, logger)
-	registry.Register(scanner.NewNATSExtension(natsClient, dispatcher, logger))
+	registry.Register(scanner.NewNATSExtension(natsClient, dispatcher, cfg.NATSStreamName, logger))
 
 	if err := registry.InitAll(); err != nil {
 		return fmt.Errorf("initializing extensions: %w", err)

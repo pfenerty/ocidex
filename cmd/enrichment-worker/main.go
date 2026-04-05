@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -82,23 +81,7 @@ func run() error {
 	reg := extension.NewRegistry(bus, logger)
 
 	registrySvc := service.NewRegistryService(pool)
-	insecureResolver := func(host string) bool {
-		regs, err := registrySvc.List(context.Background())
-		if err != nil {
-			return false
-		}
-		for _, r := range regs {
-			regHost := r.URL
-			if i := strings.Index(regHost, "://"); i != -1 {
-				regHost = regHost[i+3:]
-			}
-			regHost = strings.TrimSuffix(regHost, "/")
-			if regHost == host && r.Insecure {
-				return true
-			}
-		}
-		return false
-	}
+	insecureResolver := service.BuildInsecureResolver(registrySvc)
 
 	enrichStore := repository.New(pool)
 	ociEnricher := oci.NewEnricher(oci.WithInsecureResolver(insecureResolver))
@@ -108,7 +91,7 @@ func run() error {
 		enrichment.WithWorkers(cfg.EnrichmentWorkers),
 		enrichment.WithQueueSize(cfg.EnrichmentQueueSize),
 	)
-	reg.Register(enrichment.NewNATSExtension(natsClient, dispatcher, logger))
+	reg.Register(enrichment.NewNATSExtension(natsClient, dispatcher, cfg.NATSStreamName, logger))
 
 	if err := reg.InitAll(); err != nil {
 		return fmt.Errorf("initializing extensions: %w", err)

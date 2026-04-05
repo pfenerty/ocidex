@@ -35,17 +35,7 @@ type NATSExtension struct {
 }
 
 // NewNATSExtension creates a NATSExtension backed by the given client and dispatcher.
-func NewNATSExtension(client *natspkg.Client, dispatcher *Dispatcher, logger *slog.Logger) *NATSExtension {
-	return &NATSExtension{
-		client:     client,
-		dispatcher: dispatcher,
-		streamName: "ocidex",
-		logger:     logger,
-	}
-}
-
-// NewNATSExtensionWithStream creates a NATSExtension with an explicit stream name.
-func NewNATSExtensionWithStream(client *natspkg.Client, dispatcher DispatchRunner, streamName string, logger *slog.Logger) *NATSExtension {
+func NewNATSExtension(client *natspkg.Client, dispatcher DispatchRunner, streamName string, logger *slog.Logger) *NATSExtension {
 	return &NATSExtension{
 		client:     client,
 		dispatcher: dispatcher,
@@ -65,6 +55,8 @@ func (e *NATSExtension) Start(ctx context.Context) error {
 	provCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
+	// Enrichment fetches OCI metadata — faster than scanning but can still be slow
+	// for large registries. Higher MaxDeliver because transient failures are common.
 	consumer, err := e.client.JS.CreateOrUpdateConsumer(provCtx, e.streamName, jetstream.ConsumerConfig{
 		Durable:       "enrichment",
 		FilterSubject: e.streamName + ".sbom.ingested",
@@ -79,7 +71,7 @@ func (e *NATSExtension) Start(ctx context.Context) error {
 	}
 
 	fetchCtx, fetchCancel := context.WithCancel(ctx)
-	dispCtx, dispCancel := context.WithCancel(context.Background())
+	dispCtx, dispCancel := context.WithCancel(ctx)
 
 	e.fetchCancel = fetchCancel
 	e.fetchDone = make(chan struct{})
@@ -101,11 +93,11 @@ func (e *NATSExtension) Start(ctx context.Context) error {
 
 // Stop performs two-phase shutdown: stop fetching first, then drain the dispatcher.
 func (e *NATSExtension) Stop() error {
-	if e.fetchCancel != nil {
+	if e.fetchCancel != nil && e.fetchDone != nil {
 		e.fetchCancel()
 		<-e.fetchDone
 	}
-	if e.dispCancel != nil {
+	if e.dispCancel != nil && e.dispDone != nil {
 		e.dispCancel()
 		<-e.dispDone
 	}

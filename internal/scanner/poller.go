@@ -3,6 +3,7 @@ package scanner
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/pfenerty/ocidex/internal/service"
@@ -13,6 +14,7 @@ type Poller struct {
 	registrySvc service.RegistryService
 	submitter   Submitter
 	logger      *slog.Logger
+	wg          sync.WaitGroup
 }
 
 // NewPoller constructs a Poller.
@@ -25,7 +27,7 @@ func NewPoller(registrySvc service.RegistryService, submitter Submitter, logger 
 }
 
 // Run ticks every minute and triggers catalog walks for due registries.
-// Blocks until ctx is cancelled.
+// Blocks until ctx is cancelled, then waits for in-flight walks to finish.
 func (p *Poller) Run(ctx context.Context) {
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
@@ -34,6 +36,7 @@ func (p *Poller) Run(ctx context.Context) {
 		case <-ticker.C:
 			p.poll(ctx)
 		case <-ctx.Done():
+			p.wg.Wait()
 			return
 		}
 	}
@@ -55,8 +58,10 @@ func (p *Poller) poll(ctx context.Context) {
 			p.logger.Error("poller: marking registry polled", "registry", reg.Name, "err", err)
 			continue
 		}
+		p.wg.Add(1)
 		go func(r service.Registry) { //nolint:gosec
-			walkCtx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+			defer p.wg.Done()
+			walkCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 			defer cancel()
 			queued, err := WalkRegistry(walkCtx, r, p.submitter, p.logger)
 			if err != nil {
