@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -79,7 +78,7 @@ func run() error {
 	reg := extension.NewRegistry(bus, logger)
 
 	registrySvc := service.NewRegistryService(pool)
-	insecureResolver := buildInsecureResolver(registrySvc)
+	insecureResolver := service.BuildInsecureResolver(registrySvc)
 
 	setupEnrichmentExt(cfg, reg, pool, insecureResolver, natsClient, logger)
 	setupOptionalExts(cfg, reg, natsClient, logger)
@@ -96,7 +95,7 @@ func run() error {
 	}
 
 	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, pool, scanSubmitter, cfg)
-	router := api.NewRouter(handler, cfg.CORSAllowedOrigins, cfg.APIBaseURL)
+	router := api.NewRouter(handler, cfg.CORSAllowedOrigins, cfg.FrontendURL, cfg.APIBaseURL)
 
 	extCtx, extCancel := context.WithCancel(context.Background())
 	defer extCancel()
@@ -180,26 +179,6 @@ func setupNATSClient(cfg *config.Config) (*natspkg.Client, error) {
 	return client, nil
 }
 
-func buildInsecureResolver(registrySvc service.RegistryService) func(string) bool {
-	return func(host string) bool {
-		regs, err := registrySvc.List(context.Background())
-		if err != nil {
-			return false
-		}
-		for _, r := range regs {
-			regHost := r.URL
-			if i := strings.Index(regHost, "://"); i != -1 {
-				regHost = regHost[i+3:]
-			}
-			regHost = strings.TrimSuffix(regHost, "/")
-			if regHost == host && r.Insecure {
-				return true
-			}
-		}
-		return false
-	}
-}
-
 func validateOAuthConfig(cfg *config.Config) error {
 	if cfg.GitHubClientID == "" || cfg.GitHubClientSecret == "" || cfg.SessionSecret == "" {
 		return fmt.Errorf("GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and SESSION_SECRET are required")
@@ -212,7 +191,7 @@ func setupOptionalExts(cfg *config.Config, reg *extension.Registry, natsClient *
 		reg.Register(audit.NewExtension(logger))
 	}
 	if cfg.NATSEnabled {
-		reg.Register(natspkg.NewRelayExtension(natsClient, logger))
+		reg.Register(natspkg.NewRelayExtension(natsClient, cfg.NATSStreamName, logger))
 	}
 }
 
@@ -232,7 +211,7 @@ func setupEnrichmentExt(cfg *config.Config, reg *extension.Registry, pool *pgxpo
 		enrichment.WithQueueSize(cfg.EnrichmentQueueSize),
 	)
 	if cfg.NATSEnabled {
-		reg.Register(enrichment.NewNATSExtension(natsClient, dispatcher, logger))
+		reg.Register(enrichment.NewNATSExtension(natsClient, dispatcher, cfg.NATSStreamName, logger))
 	} else {
 		reg.Register(enrichment.NewExtension(dispatcher))
 	}
@@ -247,7 +226,7 @@ func setupScannerExt(cfg *config.Config, pool *pgxpool.Pool, bus *event.Bus, reg
 	sc := scanner.NewScanner(logger)
 	if cfg.NATSEnabled && cfg.ScannerNATSMode {
 		// External workers consume from NATS — main process only publishes.
-		return scanner.NewNATSSubmitter(natsClient, logger)
+		return scanner.NewNATSSubmitter(natsClient, cfg.NATSStreamName, logger)
 	}
 	// In-process mode.
 	scanDispatcher := scanner.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerWorkers, cfg.ScannerQueueSize, logger)

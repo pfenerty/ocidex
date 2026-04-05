@@ -91,13 +91,17 @@ func UserFromContext(ctx context.Context) (service.AuthUser, bool) {
 func writeUnauthorized(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(http.StatusUnauthorized)
-	_ = json.NewEncoder(w).Encode(map[string]any{"status": 401, "title": "Unauthorized"})
+	if err := json.NewEncoder(w).Encode(map[string]any{"status": 401, "title": "Unauthorized"}); err != nil {
+		slog.Error("encoding error response", "err", err)
+	}
 }
 
 func writeForbidden(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(http.StatusForbidden)
-	_ = json.NewEncoder(w).Encode(map[string]any{"status": 403, "title": "Forbidden"})
+	if err := json.NewEncoder(w).Encode(map[string]any{"status": 403, "title": "Forbidden"}); err != nil {
+		slog.Error("encoding error response", "err", err)
+	}
 }
 
 // SlogLogger returns middleware that logs each request using slog.

@@ -96,7 +96,8 @@ func (s *authService) ExchangeCodeForUser(ctx context.Context, code string) (Aut
 	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	resp, err := http.DefaultClient.Do(req) //nolint:gosec
+	c := &http.Client{Timeout: 10 * time.Second}
+	resp, err := c.Do(req)
 	if err != nil {
 		return AuthUser{}, fmt.Errorf("fetching github user: %w", err)
 	}
