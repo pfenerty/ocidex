@@ -108,8 +108,12 @@ const goBuild = new Task({
             name: "build",
             image: goImage,
             computeResources: {
-                limits: { cpu: "2", memory: "2Gi" },
-                requests: { cpu: "500m", memory: "256Mi" },
+                limits: { cpu: "2", memory: "2Gi", "ephemeral-storage": "4Gi" },
+                requests: {
+                    cpu: "1",
+                    memory: "1Gi",
+                    "ephemeral-storage": "2Gi",
+                },
             },
             script:
                 nuHeader +

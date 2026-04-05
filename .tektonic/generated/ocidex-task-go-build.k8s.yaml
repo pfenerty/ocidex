@@ -77,9 +77,11 @@ spec:
     - computeResources:
         limits:
           cpu: "2"
+          ephemeral-storage: 4Gi
           memory: 2Gi
         requests:
           cpu: 500m
+          ephemeral-storage: 2Gi
           memory: 256Mi
       image: ghcr.io/pfenerty/apko-cicd/golang:1.25
       name: build
