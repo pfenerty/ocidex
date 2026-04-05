@@ -16,9 +16,17 @@ spec:
       containers:
         - name: ocidex
           image: ocidex:latest
+          imagePullPolicy: Always
           args: ["/ocidex"]
           ports:
             - containerPort: 8080
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
           env:
             - name: PORT
               value: "8080"

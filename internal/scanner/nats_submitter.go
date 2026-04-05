@@ -17,10 +17,10 @@ type NATSSubmitter struct {
 }
 
 // NewNATSSubmitter creates a NATSSubmitter backed by the given client.
-func NewNATSSubmitter(client *natspkg.Client, logger *slog.Logger) *NATSSubmitter {
+func NewNATSSubmitter(client *natspkg.Client, streamName string, logger *slog.Logger) *NATSSubmitter {
 	return &NATSSubmitter{
 		client:     client,
-		streamName: "ocidex",
+		streamName: streamName,
 		logger:     logger,
 	}
 }

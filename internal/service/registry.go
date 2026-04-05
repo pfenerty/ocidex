@@ -101,6 +101,29 @@ func matchGlob(pattern, s string) bool {
 	return ok
 }
 
+// BuildInsecureResolver returns a function that checks whether a host belongs
+// to a registry marked as insecure. Useful for OCI clients that need to know
+// when to use HTTP instead of HTTPS.
+func BuildInsecureResolver(svc RegistryService) func(string) bool {
+	return func(host string) bool {
+		regs, err := svc.List(context.Background())
+		if err != nil {
+			return false
+		}
+		for _, r := range regs {
+			regHost := r.URL
+			if i := strings.Index(regHost, "://"); i != -1 {
+				regHost = regHost[i+3:]
+			}
+			regHost = strings.TrimSuffix(regHost, "/")
+			if regHost == host && r.Insecure {
+				return true
+			}
+		}
+		return false
+	}
+}
+
 // RegistryService manages registry configuration.
 type RegistryService interface {
 	Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string) (Registry, error)

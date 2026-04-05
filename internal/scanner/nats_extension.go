@@ -28,11 +28,11 @@ type NATSExtension struct {
 }
 
 // NewNATSExtension creates a NATSExtension backed by the given client and dispatcher.
-func NewNATSExtension(client *natspkg.Client, dispatcher *Dispatcher, logger *slog.Logger) *NATSExtension {
+func NewNATSExtension(client *natspkg.Client, dispatcher *Dispatcher, streamName string, logger *slog.Logger) *NATSExtension {
 	return &NATSExtension{
 		client:     client,
 		dispatcher: dispatcher,
-		streamName: "ocidex",
+		streamName: streamName,
 		logger:     logger,
 	}
 }
@@ -48,6 +48,8 @@ func (e *NATSExtension) Start(ctx context.Context) error {
 	provCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
+	// Scanning involves pulling and analyzing OCI images, which is slow.
+	// AckWait must exceed the worst-case scan duration.
 	consumer, err := e.client.JS.CreateOrUpdateConsumer(provCtx, e.streamName, jetstream.ConsumerConfig{
 		Durable:       "scanner",
 		FilterSubject: e.streamName + ".scan.requested",
@@ -62,7 +64,7 @@ func (e *NATSExtension) Start(ctx context.Context) error {
 	}
 
 	fetchCtx, fetchCancel := context.WithCancel(ctx)
-	dispCtx, dispCancel := context.WithCancel(context.Background())
+	dispCtx, dispCancel := context.WithCancel(ctx)
 
 	e.fetchCancel = fetchCancel
 	e.fetchDone = make(chan struct{})
@@ -84,11 +86,11 @@ func (e *NATSExtension) Start(ctx context.Context) error {
 
 // Stop performs two-phase shutdown: stop fetching first, then drain the dispatcher.
 func (e *NATSExtension) Stop() error {
-	if e.fetchCancel != nil {
+	if e.fetchCancel != nil && e.fetchDone != nil {
 		e.fetchCancel()
 		<-e.fetchDone
 	}
-	if e.dispCancel != nil {
+	if e.dispCancel != nil && e.dispDone != nil {
 		e.dispCancel()
 		<-e.dispDone
 	}

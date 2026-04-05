@@ -101,7 +101,7 @@ func TestNATS_EnrichmentConsumer(t *testing.T) {
 	// Wire up NATSExtension with fake dispatcher.
 	fake := &fakeDispatchRunner{}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	ext := enrichment.NewNATSExtensionWithStream(client, fake, streamName, logger)
+	ext := enrichment.NewNATSExtension(client, fake, streamName, logger)
 
 	extCtx, extCancel := context.WithCancel(ctx)
 	if err := ext.Start(extCtx); err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strconv"
 	"strings"
@@ -274,7 +275,8 @@ func buildEnrichmentMetaMap(ctx context.Context, q *repository.Queries, artifact
 			continue
 		}
 		var raw rawMeta
-		if json.Unmarshal(row.Data, &raw) != nil {
+		if err := json.Unmarshal(row.Data, &raw); err != nil {
+			slog.Warn("changelog: skipping malformed enrichment data", "enricher", row.EnricherName, "err", err)
 			continue
 		}
 		entry := enrichmentMeta{buildDate: raw.Created, architecture: raw.Architecture}

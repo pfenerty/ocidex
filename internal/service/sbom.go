@@ -236,7 +236,10 @@ func writeUserEnrichment(ctx context.Context, q *repository.Queries, sbomID pgty
 	if info.subjectVersion.Valid {
 		data["imageVersion"] = info.subjectVersion.String
 	}
-	dataJSON, _ := json.Marshal(data)
+	dataJSON, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("marshaling user enrichment data: %w", err)
+	}
 	if err := q.UpsertEnrichment(ctx, repository.UpsertEnrichmentParams{
 		SbomID:       sbomID,
 		EnricherName: "user",

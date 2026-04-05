@@ -53,13 +53,7 @@ type RelayExtension struct {
 }
 
 // NewRelayExtension creates a relay extension backed by the given Client.
-// Uses "ocidex" as the stream name prefix.
-func NewRelayExtension(client *Client, logger *slog.Logger) *RelayExtension {
-	return &RelayExtension{client: client, streamName: "ocidex", logger: logger}
-}
-
-// NewRelayExtensionWithStream creates a relay extension with an explicit stream name prefix.
-func NewRelayExtensionWithStream(client *Client, streamName string, logger *slog.Logger) *RelayExtension {
+func NewRelayExtension(client *Client, streamName string, logger *slog.Logger) *RelayExtension {
 	return &RelayExtension{client: client, streamName: streamName, logger: logger}
 }
 
