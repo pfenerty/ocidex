@@ -14,11 +14,11 @@ interface ToastContextValue {
 
 const ToastContext = createContext<ToastContextValue>();
 
-let nextId = 0;
 const DURATION_MS = 3000;
 
 export function ToastProvider(props: ParentProps) {
     const [toasts, setToasts] = createSignal<Toast[]>([]);
+    let nextId = 0;
 
     function toast(message: string, type: ToastType = "info") {
         const id = nextId++;
