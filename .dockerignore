@@ -4,8 +4,32 @@
 
 # Dev tools
 .claude/
+.claudeignore
 .flox/
+.beads/
+.doltcfg/
 .DS_Store
+
+# Documentation
+docs/
+*.md
+LICENSE
+
+# Config not needed in builds
+.env.example
+.golangci.yml
+renovate.json
+sqlc.yaml
+docker-compose.yml
+config.yaml
+
+# Deployment manifests
+k8s/
+.tekton/
+
+# Scripts and tests
+scripts/
+tests/
 
 # Build artifacts
 bin/

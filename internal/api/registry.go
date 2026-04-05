@@ -29,7 +29,7 @@ func (h *Handler) ListRegistries(ctx context.Context, _ *struct{}) (*ListRegistr
 	out := &ListRegistriesOutput{}
 	out.Body.Registries = make([]RegistryResponse, len(regs))
 	for i, r := range regs {
-		out.Body.Registries[i] = toRegistryResponse(r)
+		out.Body.Registries[i] = toRegistryResponse(r, h.cfg.APIBaseURL)
 	}
 	return out, nil
 }
@@ -47,7 +47,7 @@ func (h *Handler) GetRegistry(ctx context.Context, in *GetRegistryInput) (*GetRe
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}
-	return &GetRegistryOutput{Body: toRegistryResponse(reg)}, nil
+	return &GetRegistryOutput{Body: toRegistryResponse(reg, h.cfg.APIBaseURL)}, nil
 }
 
 // CreateRegistry creates a new registry (admin only).
@@ -71,7 +71,7 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("creating registry: %v", err))
 	}
-	return &CreateRegistryOutput{Body: toRegistryResponse(reg)}, nil
+	return &CreateRegistryOutput{Body: toRegistryResponse(reg, h.cfg.APIBaseURL)}, nil
 }
 
 // UpdateRegistry updates a registry (admin only).
@@ -95,7 +95,7 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}
-	return &UpdateRegistryOutput{Body: toRegistryResponse(reg)}, nil
+	return &UpdateRegistryOutput{Body: toRegistryResponse(reg, h.cfg.APIBaseURL)}, nil
 }
 
 // DeleteRegistry deletes a registry (admin only).
@@ -185,7 +185,7 @@ func (h *Handler) ScanRegistry(ctx context.Context, in *ScanRegistryInput) (*Sca
 	return out, nil
 }
 
-func toRegistryResponse(r service.Registry) RegistryResponse {
+func toRegistryResponse(r service.Registry, apiBaseURL string) RegistryResponse {
 	rr := RegistryResponse{
 		ID:                  r.ID,
 		Name:                r.Name,
@@ -194,7 +194,7 @@ func toRegistryResponse(r service.Registry) RegistryResponse {
 		Insecure:            r.Insecure,
 		HasSecret:           r.WebhookSecret != nil && *r.WebhookSecret != "",
 		Enabled:             r.Enabled,
-		WebhookPath:         "/api/v1/webhooks/" + r.ID,
+		WebhookURL:          apiBaseURL + "/api/v1/registries/" + r.ID + "/webhook",
 		Repositories:        r.Repositories,
 		RepositoryPatterns:  r.RepositoryPatterns,
 		TagPatterns:         r.TagPatterns,

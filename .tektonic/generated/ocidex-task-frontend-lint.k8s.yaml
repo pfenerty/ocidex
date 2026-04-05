@@ -1,0 +1,203 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-frontend-lint
+  namespace: ocidex-ci
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+    - name: revision
+      type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    env:
+      - name: HOME
+        value: $(workspaces.workspace.path)
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    workingDir: $(workspaces.workspace.path)
+  steps:
+    - env:
+        - name: CLOUDSDK_CONFIG
+          value: /tekton/home/.config/gcloud
+      image: ghcr.io/pfenerty/apko-cicd/gcloud:563.0.0
+      name: restore-node-modules-cache
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] {
+          print $"[(date now | format date '%H:%M:%S')] restore-node-modules-cache: ($msg)"
+        }
+
+        let hash = (
+          ["package-lock.json"]
+          | each { |f| if ($f | path exists) { open --raw $f } else { "" } }
+          | str join | hash sha256 | str substring 0..15
+        )
+        $hash | save -f /tekton/home/.cache-node-modules-hash
+
+        let object = $"node/($hash).tar.zst"
+        let gcs_url = $"gs://ocidex-ci-cache/($object)"
+        log $"checking ($gcs_url)"
+
+        let exists = ((^gcloud storage ls $gcs_url | complete).exit_code == 0)
+        if $exists {
+          let size = (
+            ^gcloud storage ls -l $gcs_url
+            | lines | first | str trim | split words | first | into int
+          )
+          log $"hit ($hash) size=(($size / 1_000_000) | math round --precision 1)MB"
+          let cache_paths = ["node_modules"]
+          for p in $cache_paths {
+            if ($p | path exists) { ^chmod -R u+w $p; rm -rf $p }
+          }
+          log "downloading ..."
+          let t0 = (date now)
+          ^gcloud --verbosity=error storage cp $gcs_url - | ^zstd -d -T0 -c | ^tar xf - -o --no-same-permissions
+          let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+          let speed = (if $elapsed > 0 { ($size / 1_000_000) / $elapsed | math round --precision 1 } else { 0 })
+          log $"restored in ($elapsed)s ($speed) MB/s"
+        } else {
+          log $"miss ($hash) — object not found in bucket"
+        }
+      workingDir: $(workspaces.workspace.path)/web
+    - computeResources:
+        limits:
+          cpu: "2"
+          memory: 3Gi
+        requests:
+          cpu: "1"
+          memory: 2Gi
+      image: ghcr.io/pfenerty/apko-cicd/nodejs:22
+      name: lint
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def run_and_save [prev_ec: int, ...args: string] {
+            try { run-external ...$args } catch { null }
+            let ec = $env.LAST_EXIT_CODE
+            let worst = if $prev_ec != 0 { $prev_ec } else { $ec }
+            $"($worst)" | save -f /tekton/home/.exit-code
+            $worst
+        }
+
+        log $"pwd=(pwd) uid=(id -u) node=(node --version) npm=(npm --version)"
+        log $"node_modules exists=('node_modules' | path exists) package.json exists=('package.json' | path exists)"
+        log "Installing dependencies"
+        let install_ec = run_and_save 0 "npm" "ci"
+        log $"npm ci exit: ($install_ec)"
+        log $"node_modules exists after install=('node_modules' | path exists)"
+        if ('node_modules/.bin/eslint' | path exists) { log "eslint binary found" } else { log "WARNING: eslint binary NOT found" }
+        log "Running ESLint"
+        let ec = run_and_save $install_ec "npm" "run" "lint"
+        log (if $ec == 0 { "OK: no lint errors" } else { "FAIL: lint errors found" })
+        exit $ec
+      workingDir: $(workspaces.workspace.path)/web
+    - env:
+        - name: CLOUDSDK_CONFIG
+          value: /tekton/home/.config/gcloud
+      image: ghcr.io/pfenerty/apko-cicd/gcloud:563.0.0
+      name: save-node-modules-cache
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] {
+          print $"[(date now | format date '%H:%M:%S')] save-node-modules-cache: ($msg)"
+        }
+
+        let hash = (try { open --raw /tekton/home/.cache-node-modules-hash | str trim } catch { "" })
+        if ($hash | is-empty) { log "no hash, skipping"; exit 0 }
+
+        let object = $"node/($hash).tar.zst"
+        let gcs_url = $"gs://ocidex-ci-cache/($object)"
+        let already_exists = ((^gcloud storage ls $gcs_url | complete).exit_code == 0)
+        if $already_exists { log $"($hash) exists, skipping"; exit 0 }
+
+        let paths = ["node_modules"] | where { |p| ($p | path exists) }
+        if ($paths | is-empty) { log "no paths to cache"; exit 0 }
+
+        for p in $paths { ^chmod -R u+w $p }
+
+        let max = 3
+        if $max > 0 {
+          let entries = (try {
+            ^gcloud storage ls -l $"gs://ocidex-ci-cache/node/*.tar.zst"
+            | lines
+            | where { |l| $l | str ends-with ".tar.zst" }
+            | each { |l|
+                let parts = ($l | str trim | split row -r '\s+')
+                { url: ($parts | last), created: ($parts | get 1) }
+              }
+            | sort-by created | reverse | skip $max
+          } catch { [] })
+          for e in $entries {
+            ^gcloud storage rm $e.url | complete | ignore
+            log $"evicted ($e.url)"
+          }
+        }
+
+        let uncompressed = ($paths | each { |p| try { du $p | get apparent.0 | into int } catch { 0 } } | math sum)
+        log $"compressing (($uncompressed / 1_000_000) | math round --precision 1)MB ..."
+        let tmp = $"$(workspaces.workspace.path)/web/cache-($hash).tar.zst"
+        let t0 = (date now)
+        ^tar cf - ...$paths | ^zstd -3 -T0 -o $tmp
+        let compress_elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+        let compressed = (ls $tmp | get size.0 | into int)
+        let ratio = (if $compressed > 0 { $uncompressed / $compressed | math round --precision 1 } else { 0 })
+        log $"compressed to (($compressed / 1_000_000) | math round --precision 1)MB ratio=($ratio)x in ($compress_elapsed)s"
+
+        log "uploading ..."
+        let t1 = (date now)
+        ^gcloud storage cp $tmp $gcs_url
+        rm $tmp
+        let upload_elapsed = (((date now) - $t1) | into int) / 1_000_000_000
+        let speed = (if $upload_elapsed > 0 { ($compressed / 1_000_000) / $upload_elapsed | math round --precision 1 } else { 0 })
+        log $"uploaded ($gcs_url) in ($upload_elapsed)s ($speed) MB/s"
+      workingDir: $(workspaces.workspace.path)/web
+    - env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: report-status
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] {
+          print $"[(date now | format date '%H:%M:%S')] report-status [frontend-lint]: ($msg)"
+        }
+
+        let exit_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        let state = if $exit_code == 0 { "success" } else { "failure" }
+        let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
+
+        log $"exit-code=($exit_code) state=($state)"
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "frontend-lint", description: $desc }
+
+        log $"POST ($url)"
+        log $"body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "done"
+        } catch { |e|
+          log $"error: ($e.msg)"
+        }
+  workspaces:
+    - name: workspace

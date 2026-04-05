@@ -1,0 +1,97 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-go-lint
+  namespace: ocidex-ci
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+    - name: revision
+      type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    env:
+      - name: GOMODCACHE
+        value: $(workspaces.workspace.path)/.go-mod
+      - name: GOCACHE
+        value: $(workspaces.workspace.path)/.go-build
+      - name: GIT_CONFIG_GLOBAL
+        value: $(workspaces.workspace.path)/.gitconfig
+      - name: GOLANGCI_LINT_CACHE
+        value: $(workspaces.workspace.path)/.golangci-cache
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    workingDir: $(workspaces.workspace.path)
+  steps:
+    - computeResources:
+        limits:
+          cpu: "3"
+          memory: 3Gi
+        requests:
+          cpu: "1"
+          memory: 2Gi
+      image: ghcr.io/pfenerty/apko-cicd/golangci-lint:2.11.4-go1.25
+      name: lint
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def run_and_save [prev_ec: int, ...args: string] {
+            try { run-external ...$args } catch { null }
+            let ec = $env.LAST_EXIT_CODE
+            let worst = if $prev_ec != 0 { $prev_ec } else { $ec }
+            $"($worst)" | save -f /tekton/home/.exit-code
+            $worst
+        }
+
+        log "Running golangci-lint"
+        let ec = run_and_save 0 "golangci-lint" "-v" "run" "./..."
+        log $"Exit code: ($ec)"
+        exit $ec
+    - env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: report-status
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] {
+          print $"[(date now | format date '%H:%M:%S')] report-status [go-lint]: ($msg)"
+        }
+
+        let exit_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        let state = if $exit_code == 0 { "success" } else { "failure" }
+        let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
+
+        log $"exit-code=($exit_code) state=($state)"
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "go-lint", description: $desc }
+
+        log $"POST ($url)"
+        log $"body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "done"
+        } catch { |e|
+          log $"error: ($e.msg)"
+        }
+  workspaces:
+    - name: workspace
