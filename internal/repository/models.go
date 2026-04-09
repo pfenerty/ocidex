@@ -28,6 +28,12 @@ type Artifact struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type ArtifactRegistry struct {
+	ArtifactID pgtype.UUID        `json:"artifact_id"`
+	RegistryID pgtype.UUID        `json:"registry_id"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
 type Component struct {
 	ID           pgtype.UUID `json:"id"`
 	SbomID       pgtype.UUID `json:"sbom_id"`
@@ -120,6 +126,9 @@ type Registry struct {
 	Repositories        []string           `json:"repositories"`
 	AuthUsername        pgtype.Text        `json:"auth_username"`
 	AuthToken           pgtype.Text        `json:"auth_token"`
+	OwnerID             pgtype.UUID        `json:"owner_id"`
+	Visibility          string             `json:"visibility"`
+	IncludeUntagged     bool               `json:"include_untagged"`
 }
 
 type Sbom struct {
@@ -133,6 +142,7 @@ type Sbom struct {
 	SubjectVersion       pgtype.Text        `json:"subject_version"`
 	Digest               pgtype.Text        `json:"digest"`
 	EnrichmentSufficient bool               `json:"enrichment_sufficient"`
+	RegistryID           pgtype.UUID        `json:"registry_id"`
 }
 
 type Session struct {

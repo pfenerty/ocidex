@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
@@ -45,10 +46,11 @@ type Metadata struct {
 
 // Enricher fetches OCI image metadata from container registries.
 type Enricher struct {
-	timeout          time.Duration
-	options          []remote.Option
-	insecure         bool
-	insecureResolver func(host string) bool
+	timeout             time.Duration
+	options             []remote.Option
+	insecure            bool
+	insecureResolver    func(host string) bool
+	credentialResolver  func(host string) (username, token string)
 }
 
 // Option configures the OCI Enricher.
@@ -73,6 +75,12 @@ func WithInsecure() Option {
 // HTTP should be used. Takes precedence over WithInsecure for resolved hosts.
 func WithInsecureResolver(fn func(host string) bool) Option {
 	return func(e *Enricher) { e.insecureResolver = fn }
+}
+
+// WithCredentialResolver sets a function that resolves registry credentials by
+// hostname. Called at enrichment time; takes precedence over anonymous access.
+func WithCredentialResolver(fn func(host string) (username, token string)) Option {
+	return func(e *Enricher) { e.credentialResolver = fn }
 }
 
 // insecureFor returns true if the given host should be contacted over plain HTTP.
@@ -126,9 +134,17 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 		return nil, fmt.Errorf("parsing image ref %q: %w", imageRef, err)
 	}
 
-	opts := make([]remote.Option, 0, len(e.options)+1)
+	opts := make([]remote.Option, 0, len(e.options)+2)
 	opts = append(opts, remote.WithContext(ctx))
 	opts = append(opts, e.options...)
+	if e.credentialResolver != nil {
+		if u, t := e.credentialResolver(host); u != "" || t != "" {
+			opts = append(opts, remote.WithAuth(authn.FromConfig(authn.AuthConfig{
+				Username: u,
+				Password: t,
+			})))
+		}
+	}
 
 	desc, err := remote.Get(parsedRef, opts...)
 	if err != nil {

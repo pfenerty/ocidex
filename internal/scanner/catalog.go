@@ -18,9 +18,29 @@ type Submitter interface {
 	Submit(req ScanRequest)
 }
 
+// DigestLister returns known SBOM digests for a registry, used to skip re-scanning.
+type DigestLister interface {
+	ListDigestsByRegistry(ctx context.Context, registryID string) (map[string]bool, error)
+}
+
+// FetchKnownDigests loads existing SBOM digests for a registry using a DigestLister.
+// Returns nil (not an empty map) if the lister is nil or the registry has no ID.
+func FetchKnownDigests(ctx context.Context, dl DigestLister, registryID string) map[string]bool {
+	if dl == nil || registryID == "" {
+		return nil
+	}
+	digests, err := dl.ListDigestsByRegistry(ctx, registryID)
+	if err != nil {
+		return nil
+	}
+	return digests
+}
+
 // WalkRegistry enumerates a registry catalog, applies filter patterns, and submits
 // a ScanRequest for each matching image. Returns the count queued.
-func WalkRegistry(ctx context.Context, reg service.Registry, sub Submitter, logger *slog.Logger) (int, error) {
+// knownDigests contains digests already ingested for this registry; these are
+// skipped to avoid re-scanning. Pass nil when unknown.
+func WalkRegistry(ctx context.Context, reg service.Registry, sub Submitter, knownDigests map[string]bool, logger *slog.Logger) (int, error) {
 	scheme, host := registrySchemeHost(reg)
 	baseURL := scheme + "://" + host
 	client := &http.Client{
@@ -47,69 +67,179 @@ func WalkRegistry(ctx context.Context, reg service.Registry, sub Submitter, logg
 		if !reg.MatchesRepository(repo) {
 			continue
 		}
-		tags, err := ociListTags(ctx, client, baseURL, repo)
-		if err != nil {
-			logger.Warn("listing tags for repo", "repo", repo, "err", err)
-			continue
-		}
-		for _, tag := range tags {
-			if !reg.MatchesTag(tag) {
-				continue
-			}
-			info, err := ociHeadManifest(ctx, client, baseURL, repo, tag)
-			if err != nil {
-				logger.Warn("manifest HEAD failed", "repo", repo, "tag", tag, "err", err)
-				continue
-			}
-			if info.digest == "" {
-				logger.Warn("manifest HEAD returned no digest", "repo", repo, "tag", tag)
-				continue
-			}
-			if isIndexMediaType(info.mediaType) {
-				platforms, err := ociExpandIndex(ctx, client, baseURL, repo, info.digest)
-				if err != nil {
-					logger.Warn("expanding image index", "repo", repo, "tag", tag, "err", err)
-					continue
-				}
-				for _, p := range platforms {
-					meta := ociGetImageMetadata(ctx, client, baseURL, repo, p.digest)
-					arch := p.arch
-					if arch == "" {
-						arch = meta.architecture
-					}
-					sub.Submit(ScanRequest{
-						RegistryURL:  reg.URL,
-						Insecure:     reg.Insecure,
-						Repository:   repo,
-						Digest:       p.digest,
-						Tag:          tag,
-						Architecture: arch,
-						BuildDate:    meta.buildDate,
-						ImageVersion: meta.imageVersion,
-						AuthUsername: derefStr(reg.AuthUsername),
-						AuthToken:    derefStr(reg.AuthToken),
-					})
-					queued++
-				}
-				continue
-			}
-			meta := ociGetImageMetadata(ctx, client, baseURL, repo, info.digest)
-			sub.Submit(ScanRequest{
-				RegistryURL:  reg.URL,
-				Insecure:     reg.Insecure,
-				Repository:   repo,
-				Digest:       info.digest,
-				Tag:          tag,
-				Architecture: meta.architecture,
-				BuildDate:    meta.buildDate,
-				ImageVersion: meta.imageVersion,
-				AuthUsername: derefStr(reg.AuthUsername),
-				AuthToken:    derefStr(reg.AuthToken),
-			})
-			queued++
-		}
+		queued += walkRepo(ctx, client, baseURL, repo, reg, sub, knownDigests, logger)
 	}
 	return queued, nil
+}
+
+// walkRepo scans a single repository: enumerates tagged manifests, then
+// optionally discovers untagged manifests via registry-specific APIs.
+func walkRepo(ctx context.Context, client *http.Client, baseURL, repo string, reg service.Registry, sub Submitter, knownDigests map[string]bool, logger *slog.Logger) int {
+	scannedDigests := make(map[string]bool)
+	for d := range knownDigests {
+		scannedDigests[d] = true
+	}
+	queued := 0
+	tags, err := ociListTags(ctx, client, baseURL, repo)
+	if err != nil {
+		logger.Warn("listing tags for repo", "repo", repo, "err", err)
+		return 0
+	}
+	for _, tag := range tags {
+		if !reg.MatchesTag(tag) {
+			continue
+		}
+		queued += scanTag(ctx, client, baseURL, repo, tag, reg, sub, scannedDigests, logger)
+	}
+	if reg.IncludeUntagged {
+		queued += discoverUntagged(ctx, client, baseURL, repo, reg, sub, scannedDigests, logger)
+	}
+	return queued
+}
+
+// scanTag resolves a single tag to one or more scan requests.
+func scanTag(ctx context.Context, client *http.Client, baseURL, repo, tag string, reg service.Registry, sub Submitter, scannedDigests map[string]bool, logger *slog.Logger) int {
+	info, err := ociHeadManifest(ctx, client, baseURL, repo, tag)
+	if err != nil {
+		logger.Warn("manifest HEAD failed", "repo", repo, "tag", tag, "err", err)
+		return 0
+	}
+	if info.digest == "" {
+		logger.Warn("manifest HEAD returned no digest", "repo", repo, "tag", tag)
+		return 0
+	}
+	scannedDigests[info.digest] = true
+	if isIndexMediaType(info.mediaType) {
+		return scanIndex(ctx, client, baseURL, repo, tag, info.digest, reg, sub, scannedDigests, logger)
+	}
+	meta := ociGetImageMetadata(ctx, client, baseURL, repo, info.digest)
+	sub.Submit(ScanRequest{
+		RegistryURL:  reg.URL,
+		Insecure:     reg.Insecure,
+		Repository:   repo,
+		Digest:       info.digest,
+		Tag:          tag,
+		Architecture: meta.architecture,
+		BuildDate:    meta.buildDate,
+		ImageVersion: meta.imageVersion,
+		AuthUsername: derefStr(reg.AuthUsername),
+		AuthToken:    derefStr(reg.AuthToken),
+		RegistryID:   reg.ID,
+	})
+	return 1
+}
+
+// scanIndex expands a multi-arch image index and submits one request per platform.
+func scanIndex(ctx context.Context, client *http.Client, baseURL, repo, tag, indexDigest string, reg service.Registry, sub Submitter, scannedDigests map[string]bool, logger *slog.Logger) int {
+	platforms, err := ociExpandIndex(ctx, client, baseURL, repo, indexDigest)
+	if err != nil {
+		logger.Warn("expanding image index", "repo", repo, "tag", tag, "err", err)
+		return 0
+	}
+	queued := 0
+	for _, p := range platforms {
+		scannedDigests[p.digest] = true
+		meta := ociGetImageMetadata(ctx, client, baseURL, repo, p.digest)
+		arch := p.arch
+		if arch == "" {
+			arch = meta.architecture
+		}
+		sub.Submit(ScanRequest{
+			RegistryURL:  reg.URL,
+			Insecure:     reg.Insecure,
+			Repository:   repo,
+			Digest:       p.digest,
+			Tag:          tag,
+			Architecture: arch,
+			BuildDate:    meta.buildDate,
+			ImageVersion: meta.imageVersion,
+			AuthUsername: derefStr(reg.AuthUsername),
+			AuthToken:    derefStr(reg.AuthToken),
+			RegistryID:   reg.ID,
+		})
+		queued++
+	}
+	return queued
+}
+
+// discoverUntagged uses a registry-type-specific discoverer to find and submit
+// manifests not already covered by tag-based scanning.
+func discoverUntagged(ctx context.Context, client *http.Client, baseURL, repo string, reg service.Registry, sub Submitter, scannedDigests map[string]bool, logger *slog.Logger) int {
+	disc := discovererForType(reg)
+	if disc == nil {
+		logger.Warn("include_untagged enabled but registry type has no manifest discovery support",
+			"registry", reg.Name, "type", reg.Type)
+		return 0
+	}
+	manifests, err := disc.DiscoverManifests(ctx, client, baseURL, repo)
+	if err != nil {
+		logger.Warn("discovering untagged manifests", "repo", repo, "err", err)
+		return 0
+	}
+
+	queued := 0
+	for _, m := range manifests {
+		if scannedDigests[m.Digest] {
+			continue
+		}
+		if !isImageManifestType(m.MediaType) {
+			continue
+		}
+		scannedDigests[m.Digest] = true
+
+		if isIndexMediaType(m.MediaType) {
+			platforms, err := ociExpandIndex(ctx, client, baseURL, repo, m.Digest)
+			if err != nil {
+				logger.Warn("expanding untagged index", "repo", repo, "digest", m.Digest, "err", err)
+				continue
+			}
+			for _, p := range platforms {
+				if scannedDigests[p.digest] {
+					continue
+				}
+				scannedDigests[p.digest] = true
+				meta := ociGetImageMetadata(ctx, client, baseURL, repo, p.digest)
+				arch := p.arch
+				if arch == "" {
+					arch = meta.architecture
+				}
+				sub.Submit(ScanRequest{
+					RegistryURL:  reg.URL,
+					Insecure:     reg.Insecure,
+					Repository:   repo,
+					Digest:       p.digest,
+					Architecture: arch,
+					BuildDate:    meta.buildDate,
+					ImageVersion: meta.imageVersion,
+					AuthUsername: derefStr(reg.AuthUsername),
+					AuthToken:    derefStr(reg.AuthToken),
+					RegistryID:   reg.ID,
+				})
+				queued++
+			}
+			continue
+		}
+
+		meta := ociGetImageMetadata(ctx, client, baseURL, repo, m.Digest)
+		arch := m.Arch
+		if arch == "" {
+			arch = meta.architecture
+		}
+		sub.Submit(ScanRequest{
+			RegistryURL:  reg.URL,
+			Insecure:     reg.Insecure,
+			Repository:   repo,
+			Digest:       m.Digest,
+			Architecture: arch,
+			BuildDate:    meta.buildDate,
+			ImageVersion: meta.imageVersion,
+			AuthUsername: derefStr(reg.AuthUsername),
+			AuthToken:    derefStr(reg.AuthToken),
+			RegistryID:   reg.ID,
+		})
+		queued++
+	}
+	return queued
 }
 
 // registrySchemeHost returns the scheme and host extracted from reg.URL,
@@ -331,15 +461,15 @@ func isIndexMediaType(mt string) bool {
 }
 
 // ociTokenTransport implements OCI Distribution Spec token authentication.
-// On 401, it parses the Www-Authenticate challenge, exchanges credentials
-// (or requests an anonymous token) at the realm, caches the bearer token,
-// and retries the original request.
+// On 401, it parses the Www-Authenticate challenge. For Bearer challenges it
+// exchanges credentials for a scoped token (cached by "host|scope") and retries.
+// For Basic challenges it retries with HTTP Basic auth credentials.
 type ociTokenTransport struct {
 	base     http.RoundTripper
 	username string // empty = anonymous
 	password string // PAT or password
 	mu       sync.Mutex
-	tokens   map[string]string // scope -> bearer token
+	tokens   map[string]string // "host|scope" -> bearer token
 }
 
 func newOCITokenTransport(username, password string) *ociTokenTransport {
@@ -352,44 +482,60 @@ func newOCITokenTransport(username, password string) *ociTokenTransport {
 }
 
 func (t *ociTokenTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Try with a cached token if we have one for this host.
-	t.mu.Lock()
-	cachedToken := t.tokens[req.URL.Host]
-	t.mu.Unlock()
-	if cachedToken != "" {
-		req = req.Clone(req.Context())
-		req.Header.Set("Authorization", "Bearer "+cachedToken)
-	}
-
 	resp, err := t.base.RoundTrip(req)
 	if err != nil || resp.StatusCode != http.StatusUnauthorized {
 		return resp, err
 	}
 
-	// Parse the Www-Authenticate challenge.
 	challenge := resp.Header.Get("Www-Authenticate")
+
+	// Handle Basic auth challenge.
+	if strings.HasPrefix(challenge, "Basic ") {
+		if t.username == "" || t.password == "" {
+			return resp, nil
+		}
+		resp.Body.Close()
+		retry := req.Clone(req.Context())
+		if req.GetBody != nil {
+			retry.Body, _ = req.GetBody()
+		}
+		retry.SetBasicAuth(t.username, t.password)
+		return t.base.RoundTrip(retry)
+	}
+
+	// Handle Bearer token challenge.
 	realm, svc, scope := parseWWWAuthenticate(challenge)
 	if realm == "" {
-		return resp, nil // not a bearer challenge, return as-is
+		return resp, nil // not a recognized challenge, return as-is
 	}
 
-	// Exchange credentials for a bearer token.
-	token, err := t.fetchToken(req.Context(), realm, svc, scope)
-	if err != nil {
-		// Token exchange failed (e.g. ghcr.io returns 403 for unsupported scopes
-		// like catalog). Return the original 401 so the caller can handle it
-		// rather than surfacing a transport-level error.
-		return resp, nil //nolint:nilerr // intentional: fall back to original 401 response
-	}
-	resp.Body.Close()
-
+	// Check cache for a token matching this host+scope.
+	cacheKey := req.URL.Host + "|" + scope
 	t.mu.Lock()
-	t.tokens[req.URL.Host] = token
+	cachedToken := t.tokens[cacheKey]
 	t.mu.Unlock()
 
-	// Retry the original request with the bearer token.
+	if cachedToken == "" {
+		var fetchErr error
+		cachedToken, fetchErr = t.fetchToken(req.Context(), realm, svc, scope)
+		if fetchErr != nil {
+			// Token exchange failed (e.g. ghcr.io returns 403 for unsupported scopes
+			// like catalog). Return the original 401 so the caller can handle it
+			// rather than surfacing a transport-level error.
+			slog.Debug("OCI token exchange failed", "host", req.URL.Host, "scope", scope, "err", fetchErr)
+			return resp, nil //nolint:nilerr // intentional: fall back to original 401 response
+		}
+		t.mu.Lock()
+		t.tokens[cacheKey] = cachedToken
+		t.mu.Unlock()
+	}
+
+	resp.Body.Close()
 	retry := req.Clone(req.Context())
-	retry.Header.Set("Authorization", "Bearer "+token)
+	if req.GetBody != nil {
+		retry.Body, _ = req.GetBody()
+	}
+	retry.Header.Set("Authorization", "Bearer "+cachedToken)
 	return t.base.RoundTrip(retry)
 }
 

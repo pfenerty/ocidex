@@ -11,8 +11,21 @@ import (
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
-func (s *searchService) GetArtifact(ctx context.Context, id pgtype.UUID) (ArtifactDetail, error) {
+func (s *searchService) GetArtifact(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ArtifactDetail, error) {
 	q := repository.New(s.pool)
+
+	// Access check.
+	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
+		AID:     id,
+		UserID:  vis.UserID,
+		IsAdmin: visAdminBool(vis),
+	})
+	if err != nil {
+		return ArtifactDetail{}, fmt.Errorf("checking artifact visibility: %w", err)
+	}
+	if !visible {
+		return ArtifactDetail{}, ErrNotFound
+	}
 
 	row, err := q.GetArtifact(ctx, id)
 	if err != nil {
@@ -22,12 +35,13 @@ func (s *searchService) GetArtifact(ctx context.Context, id pgtype.UUID) (Artifa
 		return ArtifactDetail{}, fmt.Errorf("getting artifact: %w", err)
 	}
 
-	// Get SBOM count via ListArtifacts with a filter matching this artifact.
-	// More efficient: just count directly.
+	// Get SBOM count via ListSBOMsByArtifact (only visible SBOMs).
 	sbomRows, err := q.ListSBOMsByArtifact(ctx, repository.ListSBOMsByArtifactParams{
 		ArtifactID:     id,
-		SubjectVersion: pgtype.Text{}, // no filter — count all SBOMs
+		SubjectVersion: pgtype.Text{},
 		ImageVersion:   pgtype.Text{},
+		UserID:         vis.UserID,
+		IsAdmin:        visAdminBool(vis),
 		RowLimit:       1,
 		RowOffset:      0,
 	})
@@ -61,6 +75,8 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 		Type:              textOrNull(filter.Type),
 		Name:              textOrNull(filter.Name),
 		RequireSufficient: boolOrNull(filter.RequireSufficient),
+		IsAdmin:           visAdminBool(filter.Visibility),
+		UserID:            filter.Visibility.UserID,
 		RowLimit:          filter.Limit,
 		RowOffset:         filter.Offset,
 	})
@@ -91,8 +107,21 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 }
 
 // GetArtifactLicenseSummary returns aggregated license counts for an artifact's latest SBOM.
-func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactID pgtype.UUID) ([]LicenseCount, error) {
+func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]LicenseCount, error) {
 	q := repository.New(s.pool)
+
+	// Access check.
+	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
+		AID:     artifactID,
+		UserID:  vis.UserID,
+		IsAdmin: visAdminBool(vis),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("checking artifact visibility: %w", err)
+	}
+	if !visible {
+		return nil, ErrNotFound
+	}
 
 	rows, err := q.LicenseSummaryByArtifact(ctx, artifactID)
 	if err != nil {

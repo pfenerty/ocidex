@@ -17,6 +17,8 @@ func (s *searchService) ListLicenses(ctx context.Context, filter LicenseFilter) 
 		SpdxID:    textOrNull(filter.SpdxID),
 		Name:      textOrNull(filter.Name),
 		Category:  textOrNull(filter.Category),
+		UserID:    filter.Visibility.UserID,
+		IsAdmin:   visAdminBool(filter.Visibility),
 		RowLimit:  filter.Limit,
 		RowOffset: filter.Offset,
 	})
@@ -47,11 +49,13 @@ func (s *searchService) ListLicenses(ctx context.Context, filter LicenseFilter) 
 	}, nil
 }
 
-func (s *searchService) ListComponentsByLicense(ctx context.Context, licenseID pgtype.UUID, limit, offset int32) (PagedResult[ComponentSummary], error) {
+func (s *searchService) ListComponentsByLicense(ctx context.Context, licenseID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ComponentSummary], error) {
 	q := repository.New(s.pool)
 
 	rows, err := q.ListComponentsByLicense(ctx, repository.ListComponentsByLicenseParams{
 		LicenseID: licenseID,
+		UserID:    vis.UserID,
+		IsAdmin:   visAdminBool(vis),
 		RowLimit:  limit,
 		RowOffset: offset,
 	})

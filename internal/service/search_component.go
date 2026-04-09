@@ -20,6 +20,8 @@ func (s *searchService) SearchComponents(ctx context.Context, filter ComponentFi
 		Name:      filter.Name,
 		GroupName: textOrNull(filter.Group),
 		Version:   textOrNull(filter.Version),
+		UserID:    filter.Visibility.UserID,
+		IsAdmin:   visAdminBool(filter.Visibility),
 		RowLimit:  filter.Limit,
 		RowOffset: filter.Offset,
 	})
@@ -67,6 +69,8 @@ func (s *searchService) SearchDistinctComponents(ctx context.Context, filter Com
 		GroupName: textOrNull(filter.Group),
 		Type:      textOrNull(filter.Type),
 		PurlType:  textOrNull(filter.PurlType),
+		UserID:    filter.Visibility.UserID,
+		IsAdmin:   visAdminBool(filter.Visibility),
 		SortBy:    sortBy,
 		SortDir:   sortDir,
 		RowLimit:  filter.Limit,
@@ -102,7 +106,7 @@ func (s *searchService) SearchDistinctComponents(ctx context.Context, filter Com
 	}, nil
 }
 
-func (s *searchService) GetComponentVersions(ctx context.Context, name, group, version, compType string) ([]ComponentVersionEntry, error) {
+func (s *searchService) GetComponentVersions(ctx context.Context, name, group, version, compType string, vis VisibilityFilter) ([]ComponentVersionEntry, error) {
 	q := repository.New(s.pool)
 
 	rows, err := q.GetComponentVersions(ctx, repository.GetComponentVersionsParams{
@@ -110,6 +114,8 @@ func (s *searchService) GetComponentVersions(ctx context.Context, name, group, v
 		GroupName: textOrNull(group),
 		Version:   textOrNull(version),
 		Type:      textOrNull(compType),
+		UserID:    vis.UserID,
+		IsAdmin:   visAdminBool(vis),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("getting component versions: %w", err)
@@ -140,7 +146,7 @@ func (s *searchService) GetComponentVersions(ctx context.Context, name, group, v
 	return items, nil
 }
 
-func (s *searchService) GetComponent(ctx context.Context, id pgtype.UUID) (ComponentDetail, error) {
+func (s *searchService) GetComponent(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ComponentDetail, error) {
 	q := repository.New(s.pool)
 
 	row, err := q.GetComponent(ctx, id)
@@ -149,6 +155,19 @@ func (s *searchService) GetComponent(ctx context.Context, id pgtype.UUID) (Compo
 			return ComponentDetail{}, ErrNotFound
 		}
 		return ComponentDetail{}, fmt.Errorf("getting component: %w", err)
+	}
+
+	// Access check: verify the SBOM this component belongs to is visible.
+	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
+		ID:      row.SbomID,
+		UserID:  vis.UserID,
+		IsAdmin: visAdminBool(vis),
+	})
+	if err != nil {
+		return ComponentDetail{}, fmt.Errorf("checking component visibility: %w", err)
+	}
+	if !visible {
+		return ComponentDetail{}, ErrNotFound
 	}
 
 	hashes, err := q.ListComponentHashes(ctx, id)
@@ -199,8 +218,11 @@ func (s *searchService) GetComponent(ctx context.Context, id pgtype.UUID) (Compo
 	}, nil
 }
 
-// ListComponentPurlTypes returns distinct PURL types across all components.
-func (s *searchService) ListComponentPurlTypes(ctx context.Context) ([]string, error) {
+// ListComponentPurlTypes returns distinct PURL types across all visible components.
+func (s *searchService) ListComponentPurlTypes(ctx context.Context, vis VisibilityFilter) ([]string, error) {
 	q := repository.New(s.pool)
-	return q.ListComponentPurlTypes(ctx)
+	return q.ListComponentPurlTypes(ctx, repository.ListComponentPurlTypesParams{
+		UserID:  vis.UserID,
+		IsAdmin: visAdminBool(vis),
+	})
 }

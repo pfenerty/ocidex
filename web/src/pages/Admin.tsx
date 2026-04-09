@@ -17,6 +17,7 @@ import {
     useDeleteRegistry,
     useTestRegistryConnection,
     useScanRegistry,
+    useRegenerateWebhookSecret,
 } from "~/api/queries";
 
 // ---------------------------------------------------------------------------
@@ -257,12 +258,13 @@ function StatusTab() {
 type RegType = "zot" | "harbor" | "docker" | "generic" | "ghcr";
 type ScanMode = "webhook" | "poll" | "both";
 
+type Visibility = "public" | "private";
+
 interface RegistryFormState {
     name: string;
     type: RegType;
     url: string;
     insecure: boolean;
-    webhookSecret: string;
     authUsername: string;
     authToken: string;
     repositories: string;       // newline-separated explicit repos
@@ -270,6 +272,8 @@ interface RegistryFormState {
     tagPatterns: string;        // newline-separated
     scanMode: ScanMode;
     pollIntervalMinutes: number;
+    visibility: Visibility;
+    includeUntagged: boolean;
 }
 
 const emptyForm = (): RegistryFormState => ({
@@ -277,7 +281,6 @@ const emptyForm = (): RegistryFormState => ({
     type: "generic",
     url: "",
     insecure: false,
-    webhookSecret: "",
     authUsername: "",
     authToken: "",
     repositories: "",
@@ -285,6 +288,8 @@ const emptyForm = (): RegistryFormState => ({
     tagPatterns: "",
     scanMode: "webhook",
     pollIntervalMinutes: 60,
+    visibility: "public",
+    includeUntagged: false,
 });
 
 function toPatternArray(s: string): string[] {
@@ -298,6 +303,7 @@ function RegistriesTab() {
     const deleteReg = useDeleteRegistry();
     const testConn = useTestRegistryConnection();
     const scanReg = useScanRegistry();
+    const regenSecret = useRegenerateWebhookSecret();
     const toast = useToast();
 
     const [form, setForm] = createSignal<RegistryFormState>(emptyForm());
@@ -305,6 +311,7 @@ function RegistriesTab() {
     const [editingID, setEditingID] = createSignal<string | null>(null);
     const [editEnabled, setEditEnabled] = createSignal(true);
     const [showForm, setShowForm] = createSignal(false);
+    const [revealedSecret, setRevealedSecret] = createSignal<string | null>(null);
 
     function resetForm() {
         setForm(emptyForm());
@@ -314,7 +321,7 @@ function RegistriesTab() {
         setTestResult(null);
     }
 
-    function startEdit(reg: { id: string; name: string; type: string; url: string; insecure: boolean; has_secret: boolean; has_auth: boolean; enabled: boolean; repositories?: string[] | null; repository_patterns?: string[] | null; tag_patterns?: string[] | null; scan_mode?: string; poll_interval_minutes?: number }) {
+    function startEdit(reg: { id: string; name: string; type: string; url: string; insecure: boolean; has_secret: boolean; has_auth: boolean; enabled: boolean; repositories?: string[] | null; repository_patterns?: string[] | null; tag_patterns?: string[] | null; scan_mode?: string; poll_interval_minutes?: number; visibility?: string; include_untagged?: boolean }) {
         setEditingID(reg.id);
         setEditEnabled(reg.enabled);
         setForm({
@@ -322,7 +329,6 @@ function RegistriesTab() {
             type: reg.type as RegType,
             url: reg.url,
             insecure: reg.insecure,
-            webhookSecret: "",
             authUsername: "",
             authToken: "",
             repositories: (reg.repositories ?? []).join("\n"),
@@ -330,6 +336,8 @@ function RegistriesTab() {
             tagPatterns: (reg.tag_patterns ?? []).join("\n"),
             scanMode: (reg.scan_mode ?? "webhook") as ScanMode,
             pollIntervalMinutes: reg.poll_interval_minutes ?? 60,
+            visibility: (reg.visibility ?? "public") as Visibility,
+            includeUntagged: reg.include_untagged ?? false,
         });
         setShowForm(true);
     }
@@ -337,7 +345,6 @@ function RegistriesTab() {
     function handleSubmit(e: Event) {
         e.preventDefault();
         const f = form();
-        const secret = f.webhookSecret.trim() || undefined;
         const authUsername = f.authUsername.trim() || undefined;
         const authToken = f.authToken.trim() || undefined;
 
@@ -348,7 +355,7 @@ function RegistriesTab() {
         const currentID = editingID();
         if (currentID !== null) {
             updateReg.mutate(
-                { id: currentID, name: f.name, type: f.type, url: f.url, insecure: f.insecure, webhook_secret: secret, auth_username: authUsername, auth_token: authToken, enabled: editEnabled(), repositories: repos, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes },
+                { id: currentID, name: f.name, type: f.type, url: f.url, insecure: f.insecure, auth_username: authUsername, auth_token: authToken, enabled: editEnabled(), repositories: repos, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes, visibility: f.visibility, include_untagged: f.includeUntagged },
                 {
                     onSuccess: () => { toast("Registry updated", "success"); resetForm(); },
                     onError: () => toast("Failed to update registry", "error"),
@@ -356,9 +363,15 @@ function RegistriesTab() {
             );
         } else {
             createReg.mutate(
-                { name: f.name, type: f.type, url: f.url, insecure: f.insecure, webhook_secret: secret, auth_username: authUsername, auth_token: authToken, repositories: repos, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes },
+                { name: f.name, type: f.type, url: f.url, insecure: f.insecure, auth_username: authUsername, auth_token: authToken, repositories: repos, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes, visibility: f.visibility, include_untagged: f.includeUntagged },
                 {
-                    onSuccess: () => { toast("Registry created", "success"); resetForm(); },
+                    onSuccess: (data) => {
+                        toast("Registry created", "success");
+                        resetForm();
+                        if (data.webhook_secret) {
+                            setRevealedSecret(data.webhook_secret);
+                        }
+                    },
                     onError: () => toast("Failed to create registry", "error"),
                 }
             );
@@ -373,6 +386,29 @@ function RegistriesTab() {
 
     return (
         <>
+            <Show when={revealedSecret()}>
+                <div class="card" style={{ "border-color": "var(--color-success)", "margin-bottom": "1rem" }}>
+                    <p style={{ "margin-bottom": "0.5rem" }}>
+                        <strong>Webhook secret.</strong> Copy it now — it will not be shown again.
+                    </p>
+                    <code style={{ "word-break": "break-all", display: "block", "margin-bottom": "0.5rem" }}>
+                        {revealedSecret()}
+                    </code>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <button class="btn btn-primary" onClick={() => {
+                            void copyText(revealedSecret() ?? "").then(() => {
+                                toast("Copied to clipboard", "success");
+                            });
+                        }}>
+                            Copy
+                        </button>
+                        <button class="btn" onClick={() => setRevealedSecret(null)}>
+                            Dismiss
+                        </button>
+                    </div>
+                </div>
+            </Show>
+
             <Show when={showForm()}>
                 <div class="card" style={{ "margin-bottom": "1rem" }}>
                     <div class="card-header">
@@ -450,18 +486,6 @@ function RegistriesTab() {
                             </div>
                             <div>
                                 <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>
-                                    Webhook Secret <span style={{ color: "var(--color-text-muted)" }}>(optional)</span>
-                                </label>
-                                <input
-                                    type="password"
-                                    value={form().webhookSecret}
-                                    onInput={(e) => setForm(f => ({ ...f, webhookSecret: e.currentTarget.value }))}
-                                    placeholder={editingID() !== null ? "Leave blank to keep existing" : "Leave blank to disable auth"}
-                                    style={{ width: "100%" }}
-                                />
-                            </div>
-                            <div>
-                                <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>
                                     Auth Username <span style={{ color: "var(--color-text-muted)" }}>(optional; for registries requiring credentials)</span>
                                 </label>
                                 <input
@@ -535,6 +559,17 @@ function RegistriesTab() {
                                     <option value="both">both</option>
                                 </select>
                             </div>
+                            <div>
+                                <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>Visibility</label>
+                                <select
+                                    value={form().visibility}
+                                    onChange={(e) => setForm(f => ({ ...f, visibility: e.currentTarget.value as Visibility }))}
+                                    style={{ width: "100%" }}
+                                >
+                                    <option value="public">Public</option>
+                                    <option value="private">Private</option>
+                                </select>
+                            </div>
                             <Show when={form().scanMode !== "webhook"}>
                                 <div>
                                     <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>Poll Interval (minutes)</label>
@@ -556,6 +591,14 @@ function RegistriesTab() {
                                     onChange={(e) => setForm(f => ({ ...f, insecure: e.currentTarget.checked }))}
                                 />
                                 Allow insecure (HTTP)
+                            </label>
+                            <label style={{ display: "flex", "align-items": "center", gap: "0.4rem", cursor: "pointer" }}>
+                                <input
+                                    type="checkbox"
+                                    checked={form().includeUntagged}
+                                    onChange={(e) => setForm(f => ({ ...f, includeUntagged: e.currentTarget.checked }))}
+                                />
+                                Include untagged manifests
                             </label>
                             <Show when={editingID() !== null}>
                                 <label style={{ display: "flex", "align-items": "center", gap: "0.4rem", cursor: "pointer" }}>
@@ -598,6 +641,7 @@ function RegistriesTab() {
                                         <th>Name</th>
                                         <th>Type</th>
                                         <th>URL</th>
+                                        <th>Visibility</th>
                                         <th>Status</th>
                                         <th>Scan Mode</th>
                                         <th>Webhook URL</th>
@@ -611,19 +655,32 @@ function RegistriesTab() {
                                                 <td>{reg.name}</td>
                                                 <td><code>{reg.type}</code></td>
                                                 <td><code>{reg.url}</code></td>
+                                                <td><span class="badge">{reg.visibility}</span></td>
                                                 <td>
                                                     <span style={{ color: reg.enabled ? "var(--color-success)" : "var(--color-text-muted)" }}>
                                                         {reg.enabled ? "Enabled" : "Disabled"}
                                                     </span>
                                                 </td>
                                                 <td><code>{reg.scan_mode}</code></td>
-                                                <td>
+                                                <td style={{ display: "flex", gap: "0.3rem" }}>
                                                     <button
                                                         class="btn"
                                                         style={{ "font-size": "0.75rem", padding: "0.2rem 0.5rem" }}
                                                         onClick={() => copyWebhookURL(reg.webhook_url)}
                                                     >
                                                         Copy URL
+                                                    </button>
+                                                    <button
+                                                        class="btn"
+                                                        style={{ "font-size": "0.75rem", padding: "0.2rem 0.5rem" }}
+                                                        title="Generate a new webhook secret (invalidates the old one)"
+                                                        disabled={regenSecret.isPending}
+                                                        onClick={() => regenSecret.mutate(reg.id, {
+                                                            onSuccess: (data) => setRevealedSecret(data.webhook_secret),
+                                                            onError: () => toast("Failed to regenerate secret", "error"),
+                                                        })}
+                                                    >
+                                                        Regen Secret
                                                     </button>
                                                 </td>
                                                 <td style={{ display: "flex", gap: "0.4rem" }}>
@@ -674,7 +731,6 @@ function RegistriesTab() {
 
 export default function Admin() {
     const location = useLocation();
-    const { user } = useAuth();
 
     const isUsersTab = () => location.pathname === "/admin";
     const isKeysTab = () => location.pathname === "/admin/keys";
@@ -717,20 +773,18 @@ export default function Admin() {
                 >
                     API Keys
                 </A>
-                <Show when={user()?.role === "admin"}>
-                    <A
-                        href="/admin/registries"
-                        style={{
-                            padding: "0.5rem 1rem",
-                            "border-bottom": isRegistriesTab() ? "2px solid var(--color-primary)" : "2px solid transparent",
-                            color: isRegistriesTab() ? "var(--color-primary)" : "inherit",
-                            "font-weight": isRegistriesTab() ? "600" : "400",
-                            "margin-bottom": "-1px",
-                        }}
-                    >
-                        Registries
-                    </A>
-                </Show>
+                <A
+                    href="/admin/registries"
+                    style={{
+                        padding: "0.5rem 1rem",
+                        "border-bottom": isRegistriesTab() ? "2px solid var(--color-primary)" : "2px solid transparent",
+                        color: isRegistriesTab() ? "var(--color-primary)" : "inherit",
+                        "font-weight": isRegistriesTab() ? "600" : "400",
+                        "margin-bottom": "-1px",
+                    }}
+                >
+                    Registries
+                </A>
                 <A
                     href="/admin/status"
                     style={{

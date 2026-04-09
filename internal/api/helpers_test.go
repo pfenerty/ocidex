@@ -34,6 +34,10 @@ func (f *fakeSBOMService) DeleteArtifact(_ context.Context, _ pgtype.UUID) error
 	return nil
 }
 
+func (f *fakeSBOMService) ListDigestsByRegistry(_ context.Context, _ string) (map[string]bool, error) {
+	return nil, nil
+}
+
 // failSBOMService is a stub that always returns an error.
 type failSBOMService struct{}
 
@@ -47,6 +51,10 @@ func (f *failSBOMService) DeleteSBOM(_ context.Context, _ pgtype.UUID) error {
 
 func (f *failSBOMService) DeleteArtifact(_ context.Context, _ pgtype.UUID) error {
 	return errors.New("database unavailable")
+}
+
+func (f *failSBOMService) ListDigestsByRegistry(_ context.Context, _ string) (map[string]bool, error) {
+	return nil, errors.New("database unavailable")
 }
 
 // ---------------------------------------------------------------------------

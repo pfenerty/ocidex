@@ -37,6 +37,7 @@ type scanRequestWire struct {
 	ImageVersion string `json:"image_version,omitempty"`
 	AuthUsername string `json:"auth_username,omitempty"`
 	AuthToken    string `json:"auth_token,omitempty"`
+	RegistryID   string `json:"registry_id,omitempty"`
 }
 
 // Submit publishes a scan request to "ocidex.scan.requested".

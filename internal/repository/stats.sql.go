@@ -17,17 +17,25 @@ SELECT
     COUNT(DISTINCT cl.component_id)::bigint AS component_count
 FROM license l
 JOIN component_license cl ON cl.license_id = l.id
+JOIN component c ON c.id = cl.component_id
+WHERE EXISTS (SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
+    AND sbom_visible(s.registry_id, $1::uuid, $2::boolean))
 GROUP BY 1
 ORDER BY component_count DESC
 `
+
+type GetLicenseCategoryCountsParams struct {
+	UserID  pgtype.UUID `json:"user_id"`
+	IsAdmin pgtype.Bool `json:"is_admin"`
+}
 
 type GetLicenseCategoryCountsRow struct {
 	Category       string `json:"category"`
 	ComponentCount int64  `json:"component_count"`
 }
 
-func (q *Queries) GetLicenseCategoryCounts(ctx context.Context) ([]GetLicenseCategoryCountsRow, error) {
-	rows, err := q.db.Query(ctx, getLicenseCategoryCounts)
+func (q *Queries) GetLicenseCategoryCounts(ctx context.Context, arg GetLicenseCategoryCountsParams) ([]GetLicenseCategoryCountsRow, error) {
+	rows, err := q.db.Query(ctx, getLicenseCategoryCounts, arg.UserID, arg.IsAdmin)
 	if err != nil {
 		return nil, err
 	}
@@ -51,6 +59,7 @@ WITH pkg_first_seen AS (
     SELECT DATE(MIN(s.created_at)) AS first_seen
     FROM component c
     JOIN sbom s ON s.id = c.sbom_id
+    WHERE sbom_visible(s.registry_id, $1::uuid, $2::boolean)
     GROUP BY c.name, COALESCE(c.group_name, ''), c.type
 ),
 daily_new AS (
@@ -66,14 +75,19 @@ FROM daily_new
 ORDER BY first_seen
 `
 
+type GetPackageGrowthTimelineParams struct {
+	UserID  pgtype.UUID `json:"user_id"`
+	IsAdmin pgtype.Bool `json:"is_admin"`
+}
+
 type GetPackageGrowthTimelineRow struct {
 	Day             string `json:"day"`
 	CumulativeCount int64  `json:"cumulative_count"`
 }
 
 // Cumulative distinct packages (name+group+type) by the day each first appeared.
-func (q *Queries) GetPackageGrowthTimeline(ctx context.Context) ([]GetPackageGrowthTimelineRow, error) {
-	rows, err := q.db.Query(ctx, getPackageGrowthTimeline)
+func (q *Queries) GetPackageGrowthTimeline(ctx context.Context, arg GetPackageGrowthTimelineParams) ([]GetPackageGrowthTimelineRow, error) {
+	rows, err := q.db.Query(ctx, getPackageGrowthTimeline, arg.UserID, arg.IsAdmin)
 	if err != nil {
 		return nil, err
 	}
@@ -94,22 +108,29 @@ func (q *Queries) GetPackageGrowthTimeline(ctx context.Context) ([]GetPackageGro
 
 const getSBOMIngestionTimeline = `-- name: GetSBOMIngestionTimeline :many
 SELECT
-    DATE(created_at)::text AS day,
-    COUNT(*)::bigint       AS count
-FROM sbom
-WHERE created_at >= CURRENT_DATE - $1::int
-  AND DATE(created_at) <= CURRENT_DATE
-GROUP BY DATE(created_at)::text
+    DATE(s.created_at)::text AS day,
+    COUNT(*)::bigint         AS count
+FROM sbom s
+WHERE s.created_at >= CURRENT_DATE - $1::int
+  AND DATE(s.created_at) <= CURRENT_DATE
+  AND sbom_visible(s.registry_id, $2::uuid, $3::boolean)
+GROUP BY DATE(s.created_at)::text
 ORDER BY day
 `
+
+type GetSBOMIngestionTimelineParams struct {
+	NumDays int32       `json:"num_days"`
+	UserID  pgtype.UUID `json:"user_id"`
+	IsAdmin pgtype.Bool `json:"is_admin"`
+}
 
 type GetSBOMIngestionTimelineRow struct {
 	Day   string `json:"day"`
 	Count int64  `json:"count"`
 }
 
-func (q *Queries) GetSBOMIngestionTimeline(ctx context.Context, numDays int32) ([]GetSBOMIngestionTimelineRow, error) {
-	rows, err := q.db.Query(ctx, getSBOMIngestionTimeline, numDays)
+func (q *Queries) GetSBOMIngestionTimeline(ctx context.Context, arg GetSBOMIngestionTimelineParams) ([]GetSBOMIngestionTimelineRow, error) {
+	rows, err := q.db.Query(ctx, getSBOMIngestionTimeline, arg.NumDays, arg.UserID, arg.IsAdmin)
 	if err != nil {
 		return nil, err
 	}
@@ -130,12 +151,31 @@ func (q *Queries) GetSBOMIngestionTimeline(ctx context.Context, numDays int32) (
 
 const getSummaryCounts = `-- name: GetSummaryCounts :one
 SELECT
-    (SELECT COUNT(*)::bigint FROM artifact)  AS artifact_count,
-    (SELECT COUNT(*)::bigint FROM sbom)      AS sbom_count,
-    (SELECT COUNT(*)::bigint FROM (SELECT DISTINCT name, COALESCE(group_name,'') AS g, type FROM component) t) AS package_count,
-    (SELECT COUNT(*)::bigint FROM (SELECT DISTINCT name, COALESCE(group_name,'') AS g, COALESCE(version,'') AS v, type FROM component) t) AS version_count,
-    (SELECT COUNT(*)::bigint FROM license)   AS license_count
+    (SELECT COUNT(*)::bigint FROM artifact a
+       WHERE artifact_visible(a.id, $1::uuid, $2::boolean)
+    ) AS artifact_count,
+    (SELECT COUNT(*)::bigint FROM sbom s
+       WHERE sbom_visible(s.registry_id, $1::uuid, $2::boolean)
+    ) AS sbom_count,
+    (SELECT COUNT(*)::bigint FROM (
+        SELECT DISTINCT c.name, COALESCE(c.group_name,'') AS g, c.type
+        FROM component c
+        WHERE EXISTS (SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
+            AND sbom_visible(s.registry_id, $1::uuid, $2::boolean))
+    ) t) AS package_count,
+    (SELECT COUNT(*)::bigint FROM (
+        SELECT DISTINCT c.name, COALESCE(c.group_name,'') AS g, COALESCE(c.version,'') AS v, c.type
+        FROM component c
+        WHERE EXISTS (SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
+            AND sbom_visible(s.registry_id, $1::uuid, $2::boolean))
+    ) t) AS version_count,
+    (SELECT COUNT(*)::bigint FROM license) AS license_count
 `
+
+type GetSummaryCountsParams struct {
+	UserID  pgtype.UUID `json:"user_id"`
+	IsAdmin pgtype.Bool `json:"is_admin"`
+}
 
 type GetSummaryCountsRow struct {
 	ArtifactCount int64 `json:"artifact_count"`
@@ -145,8 +185,8 @@ type GetSummaryCountsRow struct {
 	LicenseCount  int64 `json:"license_count"`
 }
 
-func (q *Queries) GetSummaryCounts(ctx context.Context) (GetSummaryCountsRow, error) {
-	row := q.db.QueryRow(ctx, getSummaryCounts)
+func (q *Queries) GetSummaryCounts(ctx context.Context, arg GetSummaryCountsParams) (GetSummaryCountsRow, error) {
+	row := q.db.QueryRow(ctx, getSummaryCounts, arg.UserID, arg.IsAdmin)
 	var i GetSummaryCountsRow
 	err := row.Scan(
 		&i.ArtifactCount,
@@ -160,16 +200,24 @@ func (q *Queries) GetSummaryCounts(ctx context.Context) (GetSummaryCountsRow, er
 
 const getTopPackagesByVersionCount = `-- name: GetTopPackagesByVersionCount :many
 SELECT
-    name,
-    group_name,
-    type,
-    COUNT(DISTINCT COALESCE(version, ''))::bigint AS version_count,
-    COUNT(DISTINCT sbom_id)::bigint               AS sbom_count
-FROM component
-GROUP BY name, group_name, type
+    c.name,
+    c.group_name,
+    c.type,
+    COUNT(DISTINCT COALESCE(c.version, ''))::bigint AS version_count,
+    COUNT(DISTINCT c.sbom_id)::bigint               AS sbom_count
+FROM component c
+WHERE EXISTS (SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
+    AND sbom_visible(s.registry_id, $1::uuid, $2::boolean))
+GROUP BY c.name, c.group_name, c.type
 ORDER BY version_count DESC
-LIMIT $1::int
+LIMIT $3::int
 `
+
+type GetTopPackagesByVersionCountParams struct {
+	UserID  pgtype.UUID `json:"user_id"`
+	IsAdmin pgtype.Bool `json:"is_admin"`
+	TopN    int32       `json:"top_n"`
+}
 
 type GetTopPackagesByVersionCountRow struct {
 	Name         string      `json:"name"`
@@ -179,8 +227,8 @@ type GetTopPackagesByVersionCountRow struct {
 	SbomCount    int64       `json:"sbom_count"`
 }
 
-func (q *Queries) GetTopPackagesByVersionCount(ctx context.Context, topN int32) ([]GetTopPackagesByVersionCountRow, error) {
-	rows, err := q.db.Query(ctx, getTopPackagesByVersionCount, topN)
+func (q *Queries) GetTopPackagesByVersionCount(ctx context.Context, arg GetTopPackagesByVersionCountParams) ([]GetTopPackagesByVersionCountRow, error) {
+	rows, err := q.db.Query(ctx, getTopPackagesByVersionCount, arg.UserID, arg.IsAdmin, arg.TopN)
 	if err != nil {
 		return nil, err
 	}
@@ -210,6 +258,7 @@ WITH ver_first_seen AS (
     SELECT DATE(MIN(s.created_at)) AS first_seen
     FROM component c
     JOIN sbom s ON s.id = c.sbom_id
+    WHERE sbom_visible(s.registry_id, $1::uuid, $2::boolean)
     GROUP BY c.name, COALESCE(c.group_name, ''), COALESCE(c.version, ''), c.type
 ),
 daily_new AS (
@@ -225,14 +274,19 @@ FROM daily_new
 ORDER BY first_seen
 `
 
+type GetVersionGrowthTimelineParams struct {
+	UserID  pgtype.UUID `json:"user_id"`
+	IsAdmin pgtype.Bool `json:"is_admin"`
+}
+
 type GetVersionGrowthTimelineRow struct {
 	Day             string `json:"day"`
 	CumulativeCount int64  `json:"cumulative_count"`
 }
 
 // Cumulative distinct package versions (name+group+version+type) by the day each first appeared.
-func (q *Queries) GetVersionGrowthTimeline(ctx context.Context) ([]GetVersionGrowthTimelineRow, error) {
-	rows, err := q.db.Query(ctx, getVersionGrowthTimeline)
+func (q *Queries) GetVersionGrowthTimeline(ctx context.Context, arg GetVersionGrowthTimelineParams) ([]GetVersionGrowthTimelineRow, error) {
+	rows, err := q.db.Query(ctx, getVersionGrowthTimeline, arg.UserID, arg.IsAdmin)
 	if err != nil {
 		return nil, err
 	}

@@ -57,8 +57,23 @@ type ComponentDiff struct {
 }
 
 // DiffSBOMs computes the diff between two arbitrary SBOMs.
-func (s *searchService) DiffSBOMs(ctx context.Context, fromID, toID pgtype.UUID) (ChangelogEntry, error) {
+func (s *searchService) DiffSBOMs(ctx context.Context, fromID, toID pgtype.UUID, vis VisibilityFilter) (ChangelogEntry, error) {
 	q := repository.New(s.pool)
+
+	// Access check for both SBOMs.
+	for _, id := range []pgtype.UUID{fromID, toID} {
+		visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
+			ID:      id,
+			UserID:  vis.UserID,
+			IsAdmin: visAdminBool(vis),
+		})
+		if err != nil {
+			return ChangelogEntry{}, fmt.Errorf("checking sbom visibility: %w", err)
+		}
+		if !visible {
+			return ChangelogEntry{}, ErrNotFound
+		}
+	}
 
 	// Load "from" SBOM metadata.
 	fromSBOM, err := q.GetSBOM(ctx, fromID)
@@ -110,12 +125,27 @@ type changelogCandidate struct {
 // GetArtifactChangelog generates a changelog by diffing consecutive SBOMs for an artifact.
 // SBOMs are grouped by architecture, deduplicated by (version, arch), then diffed within
 // the selected architecture's timeline.
-func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch string) (Changelog, error) {
+func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch string, vis VisibilityFilter) (Changelog, error) {
 	q := repository.New(s.pool)
+
+	// Access check.
+	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
+		AID:     artifactID,
+		UserID:  vis.UserID,
+		IsAdmin: visAdminBool(vis),
+	})
+	if err != nil {
+		return Changelog{}, fmt.Errorf("checking artifact visibility: %w", err)
+	}
+	if !visible {
+		return Changelog{}, ErrNotFound
+	}
 
 	sboms, err := q.ListSBOMsByArtifact(ctx, repository.ListSBOMsByArtifactParams{
 		ArtifactID:     artifactID,
 		SubjectVersion: textOrNull(subjectVersion),
+		UserID:         vis.UserID,
+		IsAdmin:        visAdminBool(vis),
 		RowLimit:       10000,
 		RowOffset:      0,
 	})

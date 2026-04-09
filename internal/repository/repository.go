@@ -20,12 +20,15 @@ type SBOMRepository interface {
 	InsertDependency(ctx context.Context, arg InsertDependencyParams) error
 	InsertExternalReference(ctx context.Context, arg InsertExternalReferenceParams) error
 	DeleteSBOM(ctx context.Context, id pgtype.UUID) (int64, error)
+	UpsertArtifactRegistry(ctx context.Context, arg UpsertArtifactRegistryParams) error
 }
 
 // SearchRepository defines read-only data access methods for search and retrieval.
 type SearchRepository interface {
 	GetSBOM(ctx context.Context, id pgtype.UUID) (GetSBOMRow, error)
 	GetSBOMRaw(ctx context.Context, id pgtype.UUID) ([]byte, error)
+	IsSBOMVisible(ctx context.Context, arg IsSBOMVisibleParams) (bool, error)
+	IsArtifactVisible(ctx context.Context, arg IsArtifactVisibleParams) (bool, error)
 	ListSBOMs(ctx context.Context, arg ListSBOMsParams) ([]ListSBOMsRow, error)
 	SearchComponents(ctx context.Context, arg SearchComponentsParams) ([]SearchComponentsRow, error)
 	GetComponent(ctx context.Context, id pgtype.UUID) (GetComponentRow, error)
@@ -39,12 +42,15 @@ type SearchRepository interface {
 	ListSBOMsByDigest(ctx context.Context, arg ListSBOMsByDigestParams) ([]ListSBOMsByDigestRow, error)
 	LicenseSummaryByArtifact(ctx context.Context, artifactID pgtype.UUID) ([]LicenseSummaryByArtifactRow, error)
 	ListDependenciesBySBOM(ctx context.Context, sbomID pgtype.UUID) ([]ListDependenciesBySBOMRow, error)
-	GetSummaryCounts(ctx context.Context) (GetSummaryCountsRow, error)
-	GetLicenseCategoryCounts(ctx context.Context) ([]GetLicenseCategoryCountsRow, error)
-	GetSBOMIngestionTimeline(ctx context.Context, numDays int32) ([]GetSBOMIngestionTimelineRow, error)
-	GetPackageGrowthTimeline(ctx context.Context) ([]GetPackageGrowthTimelineRow, error)
-	GetVersionGrowthTimeline(ctx context.Context) ([]GetVersionGrowthTimelineRow, error)
-	GetTopPackagesByVersionCount(ctx context.Context, topN int32) ([]GetTopPackagesByVersionCountRow, error)
+	ListComponentPurlTypes(ctx context.Context, arg ListComponentPurlTypesParams) ([]string, error)
+	SearchDistinctComponents(ctx context.Context, arg SearchDistinctComponentsParams) ([]SearchDistinctComponentsRow, error)
+	GetComponentVersions(ctx context.Context, arg GetComponentVersionsParams) ([]GetComponentVersionsRow, error)
+	GetSummaryCounts(ctx context.Context, arg GetSummaryCountsParams) (GetSummaryCountsRow, error)
+	GetLicenseCategoryCounts(ctx context.Context, arg GetLicenseCategoryCountsParams) ([]GetLicenseCategoryCountsRow, error)
+	GetSBOMIngestionTimeline(ctx context.Context, arg GetSBOMIngestionTimelineParams) ([]GetSBOMIngestionTimelineRow, error)
+	GetPackageGrowthTimeline(ctx context.Context, arg GetPackageGrowthTimelineParams) ([]GetPackageGrowthTimelineRow, error)
+	GetVersionGrowthTimeline(ctx context.Context, arg GetVersionGrowthTimelineParams) ([]GetVersionGrowthTimelineRow, error)
+	GetTopPackagesByVersionCount(ctx context.Context, arg GetTopPackagesByVersionCountParams) ([]GetTopPackagesByVersionCountRow, error)
 }
 
 // EnrichmentRepository defines data access methods for enrichment results.
@@ -68,7 +74,7 @@ type ArtifactRepository interface {
 type RegistryRepository interface {
 	CreateRegistry(ctx context.Context, arg CreateRegistryParams) (Registry, error)
 	GetRegistry(ctx context.Context, id pgtype.UUID) (Registry, error)
-	ListRegistries(ctx context.Context) ([]Registry, error)
+	ListRegistries(ctx context.Context, arg ListRegistriesParams) ([]Registry, error)
 	UpdateRegistry(ctx context.Context, arg UpdateRegistryParams) (Registry, error)
 	SetRegistryEnabled(ctx context.Context, arg SetRegistryEnabledParams) (Registry, error)
 	DeleteRegistry(ctx context.Context, id pgtype.UUID) (int64, error)

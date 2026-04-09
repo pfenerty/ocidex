@@ -12,8 +12,24 @@ import (
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
-func (s *searchService) GetSBOM(ctx context.Context, id pgtype.UUID, includeRaw bool) (SBOMDetail, error) {
+func (s *searchService) GetSBOM(ctx context.Context, id pgtype.UUID, includeRaw bool, vis VisibilityFilter) (SBOMDetail, error) {
 	q := repository.New(s.pool)
+
+	// Access check.
+	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
+		ID:      id,
+		UserID:  vis.UserID,
+		IsAdmin: visAdminBool(vis),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return SBOMDetail{}, ErrNotFound
+		}
+		return SBOMDetail{}, fmt.Errorf("checking sbom visibility: %w", err)
+	}
+	if !visible {
+		return SBOMDetail{}, ErrNotFound
+	}
 
 	row, err := q.GetSBOM(ctx, id)
 	if err != nil {
@@ -74,6 +90,8 @@ func (s *searchService) ListSBOMs(ctx context.Context, filter SBOMFilter) (Paged
 	rows, err := q.ListSBOMs(ctx, repository.ListSBOMsParams{
 		SerialNumber: textOrNull(filter.SerialNumber),
 		Digest:       textOrNull(filter.Digest),
+		UserID:       filter.Visibility.UserID,
+		IsAdmin:      visAdminBool(filter.Visibility),
 		RowLimit:     filter.Limit,
 		RowOffset:    filter.Offset,
 	})
@@ -105,13 +123,15 @@ func (s *searchService) ListSBOMs(ctx context.Context, filter SBOMFilter) (Paged
 	}, nil
 }
 
-func (s *searchService) ListSBOMsByArtifact(ctx context.Context, artifactID pgtype.UUID, subjectVersion, imageVersion string, limit, offset int32) (PagedResult[SBOMSummary], error) {
+func (s *searchService) ListSBOMsByArtifact(ctx context.Context, artifactID pgtype.UUID, subjectVersion, imageVersion string, limit, offset int32, vis VisibilityFilter) (PagedResult[SBOMSummary], error) {
 	q := repository.New(s.pool)
 
 	rows, err := q.ListSBOMsByArtifact(ctx, repository.ListSBOMsByArtifactParams{
 		ArtifactID:     artifactID,
 		SubjectVersion: textOrNull(subjectVersion),
 		ImageVersion:   textOrNull(imageVersion),
+		UserID:         vis.UserID,
+		IsAdmin:        visAdminBool(vis),
 		RowLimit:       limit,
 		RowOffset:      offset,
 	})
@@ -164,11 +184,13 @@ func (s *searchService) ListSBOMsByArtifact(ctx context.Context, artifactID pgty
 }
 
 // ListSBOMsByDigest returns SBOMs matching the given container image digest.
-func (s *searchService) ListSBOMsByDigest(ctx context.Context, digest string, limit, offset int32) (PagedResult[SBOMSummary], error) {
+func (s *searchService) ListSBOMsByDigest(ctx context.Context, digest string, limit, offset int32, vis VisibilityFilter) (PagedResult[SBOMSummary], error) {
 	q := repository.New(s.pool)
 
 	rows, err := q.ListSBOMsByDigest(ctx, repository.ListSBOMsByDigestParams{
 		Digest:    textOrNull(digest),
+		UserID:    vis.UserID,
+		IsAdmin:   visAdminBool(vis),
 		RowLimit:  limit,
 		RowOffset: offset,
 	})
@@ -201,8 +223,24 @@ func (s *searchService) ListSBOMsByDigest(ctx context.Context, digest string, li
 }
 
 // GetSBOMDependencies returns the dependency graph for an SBOM.
-func (s *searchService) GetSBOMDependencies(ctx context.Context, sbomID pgtype.UUID) (DependencyGraph, error) {
+func (s *searchService) GetSBOMDependencies(ctx context.Context, sbomID pgtype.UUID, vis VisibilityFilter) (DependencyGraph, error) {
 	q := repository.New(s.pool)
+
+	// Access check.
+	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
+		ID:      sbomID,
+		UserID:  vis.UserID,
+		IsAdmin: visAdminBool(vis),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return DependencyGraph{}, ErrNotFound
+		}
+		return DependencyGraph{}, fmt.Errorf("checking sbom visibility: %w", err)
+	}
+	if !visible {
+		return DependencyGraph{}, ErrNotFound
+	}
 
 	comps, err := q.ListSBOMComponents(ctx, sbomID)
 	if err != nil {
@@ -228,8 +266,24 @@ func (s *searchService) GetSBOMDependencies(ctx context.Context, sbomID pgtype.U
 }
 
 // ListSBOMComponents returns all components belonging to an SBOM.
-func (s *searchService) ListSBOMComponents(ctx context.Context, sbomID pgtype.UUID) ([]ComponentSummary, error) {
+func (s *searchService) ListSBOMComponents(ctx context.Context, sbomID pgtype.UUID, vis VisibilityFilter) ([]ComponentSummary, error) {
 	q := repository.New(s.pool)
+
+	// Access check.
+	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
+		ID:      sbomID,
+		UserID:  vis.UserID,
+		IsAdmin: visAdminBool(vis),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("checking sbom visibility: %w", err)
+	}
+	if !visible {
+		return nil, ErrNotFound
+	}
 
 	rows, err := q.ListSBOMComponents(ctx, sbomID)
 	if err != nil {

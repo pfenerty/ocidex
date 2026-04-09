@@ -2,7 +2,7 @@
 SELECT id FROM sbom WHERE digest = $1;
 
 -- name: GetSBOM :one
-SELECT id, serial_number, spec_version, version, artifact_id, subject_version, digest, created_at
+SELECT id, serial_number, spec_version, version, artifact_id, subject_version, digest, created_at, registry_id
 FROM sbom
 WHERE id = $1;
 
@@ -11,21 +11,30 @@ SELECT raw_bom
 FROM sbom
 WHERE id = $1;
 
+-- name: IsSBOMVisible :one
+SELECT sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean) AS visible
+FROM sbom s WHERE s.id = $1;
+
+-- name: IsArtifactVisible :one
+SELECT artifact_visible($1, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean) AS visible;
+
 -- name: ListSBOMs :many
-SELECT id, serial_number, spec_version, version, artifact_id, subject_version, digest, created_at,
+SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subject_version, s.digest, s.created_at,
        COUNT(*) OVER() AS total_count
-FROM sbom
-WHERE (sqlc.narg('serial_number')::text IS NULL OR serial_number = sqlc.narg('serial_number'))
-  AND (sqlc.narg('digest')::text IS NULL OR digest = sqlc.narg('digest'))
-ORDER BY created_at DESC
+FROM sbom s
+WHERE (sqlc.narg('serial_number')::text IS NULL OR s.serial_number = sqlc.narg('serial_number'))
+  AND (sqlc.narg('digest')::text IS NULL OR s.digest = sqlc.narg('digest'))
+  AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+ORDER BY s.created_at DESC
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: ListSBOMsByDigest :many
-SELECT id, serial_number, spec_version, version, artifact_id, subject_version, digest, created_at,
+SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subject_version, s.digest, s.created_at,
        COUNT(*) OVER() AS total_count
-FROM sbom
-WHERE digest = $1
-ORDER BY created_at DESC
+FROM sbom s
+WHERE s.digest = $1
+  AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+ORDER BY s.created_at DESC
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: SearchComponents :many
@@ -35,6 +44,10 @@ FROM component c
 WHERE c.name = @name
   AND (sqlc.narg('group_name')::text IS NULL OR c.group_name = sqlc.narg('group_name'))
   AND (sqlc.narg('version')::text IS NULL OR c.version = sqlc.narg('version'))
+  AND EXISTS (
+    SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
+      AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+  )
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST
@@ -72,6 +85,10 @@ LEFT JOIN component c ON c.id = cl.component_id
 WHERE (sqlc.narg('spdx_id')::text IS NULL OR l.spdx_id = sqlc.narg('spdx_id'))
   AND (sqlc.narg('name')::text IS NULL OR l.name ILIKE sqlc.narg('name'))
   AND (sqlc.narg('category')::text IS NULL OR license_category(l.spdx_id) = sqlc.narg('category')::text)
+  AND (c.id IS NULL OR EXISTS (
+    SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
+      AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+  ))
 GROUP BY l.id, l.spdx_id, l.name, l.url
 ORDER BY component_count DESC, l.name
 LIMIT @row_limit OFFSET @row_offset;
@@ -87,6 +104,10 @@ WITH ranked AS (
     FROM component c
     JOIN component_license cl ON cl.component_id = c.id
     WHERE cl.license_id = @license_id
+      AND EXISTS (
+        SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
+          AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+      )
 )
 SELECT id, sbom_id, type, name, group_name, version, purl,
        COUNT(*) OVER() AS total_count
@@ -130,6 +151,10 @@ ORDER BY name, group_name;
 SELECT DISTINCT split_part(replace(purl, 'pkg:', ''), '/', 1)::text AS purl_type
 FROM component
 WHERE purl IS NOT NULL
+  AND EXISTS (
+    SELECT 1 FROM sbom s WHERE s.id = component.sbom_id
+      AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+  )
 ORDER BY 1;
 
 -- name: SearchDistinctComponents :many
@@ -143,6 +168,10 @@ WHERE (sqlc.narg('name')::text IS NULL OR c.name ILIKE sqlc.narg('name'))
   AND (sqlc.narg('group_name')::text IS NULL OR c.group_name = sqlc.narg('group_name'))
   AND (sqlc.narg('type')::text IS NULL OR c.type = sqlc.narg('type'))
   AND (sqlc.narg('purl_type')::text IS NULL OR split_part(replace(c.purl, 'pkg:', ''), '/', 1) = sqlc.narg('purl_type'))
+  AND EXISTS (
+    SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
+      AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+  )
 GROUP BY c.name, c.group_name, c.type
 ORDER BY
   CASE @sort_by::text
@@ -167,6 +196,7 @@ WHERE c.name = @name
   AND (sqlc.narg('group_name')::text IS NULL OR c.group_name = sqlc.narg('group_name'))
   AND (sqlc.narg('version')::text IS NULL OR c.version = sqlc.narg('version'))
   AND (sqlc.narg('type')::text IS NULL OR c.type = sqlc.narg('type'))
+  AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST,

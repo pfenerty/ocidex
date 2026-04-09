@@ -83,6 +83,7 @@ WHERE c.name = $1
   AND ($2::text IS NULL OR c.group_name = $2)
   AND ($3::text IS NULL OR c.version = $3)
   AND ($4::text IS NULL OR c.type = $4)
+  AND sbom_visible(s.registry_id, $5::uuid, $6::boolean)
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST,
@@ -94,6 +95,8 @@ type GetComponentVersionsParams struct {
 	GroupName pgtype.Text `json:"group_name"`
 	Version   pgtype.Text `json:"version"`
 	Type      pgtype.Text `json:"type"`
+	UserID    pgtype.UUID `json:"user_id"`
+	IsAdmin   pgtype.Bool `json:"is_admin"`
 }
 
 type GetComponentVersionsRow struct {
@@ -118,6 +121,8 @@ func (q *Queries) GetComponentVersions(ctx context.Context, arg GetComponentVers
 		arg.GroupName,
 		arg.Version,
 		arg.Type,
+		arg.UserID,
+		arg.IsAdmin,
 	)
 	if err != nil {
 		return nil, err
@@ -152,7 +157,7 @@ func (q *Queries) GetComponentVersions(ctx context.Context, arg GetComponentVers
 }
 
 const getSBOM = `-- name: GetSBOM :one
-SELECT id, serial_number, spec_version, version, artifact_id, subject_version, digest, created_at
+SELECT id, serial_number, spec_version, version, artifact_id, subject_version, digest, created_at, registry_id
 FROM sbom
 WHERE id = $1
 `
@@ -166,6 +171,7 @@ type GetSBOMRow struct {
 	SubjectVersion pgtype.Text        `json:"subject_version"`
 	Digest         pgtype.Text        `json:"digest"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	RegistryID     pgtype.UUID        `json:"registry_id"`
 }
 
 func (q *Queries) GetSBOM(ctx context.Context, id pgtype.UUID) (GetSBOMRow, error) {
@@ -180,6 +186,7 @@ func (q *Queries) GetSBOM(ctx context.Context, id pgtype.UUID) (GetSBOMRow, erro
 		&i.SubjectVersion,
 		&i.Digest,
 		&i.CreatedAt,
+		&i.RegistryID,
 	)
 	return i, err
 }
@@ -206,6 +213,41 @@ func (q *Queries) GetSBOMRaw(ctx context.Context, id pgtype.UUID) ([]byte, error
 	var raw_bom []byte
 	err := row.Scan(&raw_bom)
 	return raw_bom, err
+}
+
+const isArtifactVisible = `-- name: IsArtifactVisible :one
+SELECT artifact_visible($1, $2::uuid, $3::boolean) AS visible
+`
+
+type IsArtifactVisibleParams struct {
+	AID     pgtype.UUID `json:"a_id"`
+	UserID  pgtype.UUID `json:"user_id"`
+	IsAdmin pgtype.Bool `json:"is_admin"`
+}
+
+func (q *Queries) IsArtifactVisible(ctx context.Context, arg IsArtifactVisibleParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isArtifactVisible, arg.AID, arg.UserID, arg.IsAdmin)
+	var visible bool
+	err := row.Scan(&visible)
+	return visible, err
+}
+
+const isSBOMVisible = `-- name: IsSBOMVisible :one
+SELECT sbom_visible(s.registry_id, $2::uuid, $3::boolean) AS visible
+FROM sbom s WHERE s.id = $1
+`
+
+type IsSBOMVisibleParams struct {
+	ID      pgtype.UUID `json:"id"`
+	UserID  pgtype.UUID `json:"user_id"`
+	IsAdmin pgtype.Bool `json:"is_admin"`
+}
+
+func (q *Queries) IsSBOMVisible(ctx context.Context, arg IsSBOMVisibleParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isSBOMVisible, arg.ID, arg.UserID, arg.IsAdmin)
+	var visible bool
+	err := row.Scan(&visible)
+	return visible, err
 }
 
 const licenseSummaryByArtifact = `-- name: LicenseSummaryByArtifact :many
@@ -355,11 +397,20 @@ const listComponentPurlTypes = `-- name: ListComponentPurlTypes :many
 SELECT DISTINCT split_part(replace(purl, 'pkg:', ''), '/', 1)::text AS purl_type
 FROM component
 WHERE purl IS NOT NULL
+  AND EXISTS (
+    SELECT 1 FROM sbom s WHERE s.id = component.sbom_id
+      AND sbom_visible(s.registry_id, $1::uuid, $2::boolean)
+  )
 ORDER BY 1
 `
 
-func (q *Queries) ListComponentPurlTypes(ctx context.Context) ([]string, error) {
-	rows, err := q.db.Query(ctx, listComponentPurlTypes)
+type ListComponentPurlTypesParams struct {
+	UserID  pgtype.UUID `json:"user_id"`
+	IsAdmin pgtype.Bool `json:"is_admin"`
+}
+
+func (q *Queries) ListComponentPurlTypes(ctx context.Context, arg ListComponentPurlTypesParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listComponentPurlTypes, arg.UserID, arg.IsAdmin)
 	if err != nil {
 		return nil, err
 	}
@@ -389,6 +440,10 @@ WITH ranked AS (
     FROM component c
     JOIN component_license cl ON cl.component_id = c.id
     WHERE cl.license_id = $3
+      AND EXISTS (
+        SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
+          AND sbom_visible(s.registry_id, $4::uuid, $5::boolean)
+      )
 )
 SELECT id, sbom_id, type, name, group_name, version, purl,
        COUNT(*) OVER() AS total_count
@@ -405,6 +460,8 @@ type ListComponentsByLicenseParams struct {
 	RowOffset int32       `json:"row_offset"`
 	RowLimit  int32       `json:"row_limit"`
 	LicenseID pgtype.UUID `json:"license_id"`
+	UserID    pgtype.UUID `json:"user_id"`
+	IsAdmin   pgtype.Bool `json:"is_admin"`
 }
 
 type ListComponentsByLicenseRow struct {
@@ -419,7 +476,13 @@ type ListComponentsByLicenseRow struct {
 }
 
 func (q *Queries) ListComponentsByLicense(ctx context.Context, arg ListComponentsByLicenseParams) ([]ListComponentsByLicenseRow, error) {
-	rows, err := q.db.Query(ctx, listComponentsByLicense, arg.RowOffset, arg.RowLimit, arg.LicenseID)
+	rows, err := q.db.Query(ctx, listComponentsByLicense,
+		arg.RowOffset,
+		arg.RowLimit,
+		arg.LicenseID,
+		arg.UserID,
+		arg.IsAdmin,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -489,15 +552,21 @@ LEFT JOIN component c ON c.id = cl.component_id
 WHERE ($1::text IS NULL OR l.spdx_id = $1)
   AND ($2::text IS NULL OR l.name ILIKE $2)
   AND ($3::text IS NULL OR license_category(l.spdx_id) = $3::text)
+  AND (c.id IS NULL OR EXISTS (
+    SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
+      AND sbom_visible(s.registry_id, $4::uuid, $5::boolean)
+  ))
 GROUP BY l.id, l.spdx_id, l.name, l.url
 ORDER BY component_count DESC, l.name
-LIMIT $5 OFFSET $4
+LIMIT $7 OFFSET $6
 `
 
 type ListLicensesParams struct {
 	SpdxID    pgtype.Text `json:"spdx_id"`
 	Name      pgtype.Text `json:"name"`
 	Category  pgtype.Text `json:"category"`
+	UserID    pgtype.UUID `json:"user_id"`
+	IsAdmin   pgtype.Bool `json:"is_admin"`
 	RowOffset int32       `json:"row_offset"`
 	RowLimit  int32       `json:"row_limit"`
 }
@@ -516,6 +585,8 @@ func (q *Queries) ListLicenses(ctx context.Context, arg ListLicensesParams) ([]L
 		arg.SpdxID,
 		arg.Name,
 		arg.Category,
+		arg.UserID,
+		arg.IsAdmin,
 		arg.RowOffset,
 		arg.RowLimit,
 	)
@@ -590,18 +661,21 @@ func (q *Queries) ListSBOMComponents(ctx context.Context, sbomID pgtype.UUID) ([
 }
 
 const listSBOMs = `-- name: ListSBOMs :many
-SELECT id, serial_number, spec_version, version, artifact_id, subject_version, digest, created_at,
+SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subject_version, s.digest, s.created_at,
        COUNT(*) OVER() AS total_count
-FROM sbom
-WHERE ($1::text IS NULL OR serial_number = $1)
-  AND ($2::text IS NULL OR digest = $2)
-ORDER BY created_at DESC
-LIMIT $4 OFFSET $3
+FROM sbom s
+WHERE ($1::text IS NULL OR s.serial_number = $1)
+  AND ($2::text IS NULL OR s.digest = $2)
+  AND sbom_visible(s.registry_id, $3::uuid, $4::boolean)
+ORDER BY s.created_at DESC
+LIMIT $6 OFFSET $5
 `
 
 type ListSBOMsParams struct {
 	SerialNumber pgtype.Text `json:"serial_number"`
 	Digest       pgtype.Text `json:"digest"`
+	UserID       pgtype.UUID `json:"user_id"`
+	IsAdmin      pgtype.Bool `json:"is_admin"`
 	RowOffset    int32       `json:"row_offset"`
 	RowLimit     int32       `json:"row_limit"`
 }
@@ -622,6 +696,8 @@ func (q *Queries) ListSBOMs(ctx context.Context, arg ListSBOMsParams) ([]ListSBO
 	rows, err := q.db.Query(ctx, listSBOMs,
 		arg.SerialNumber,
 		arg.Digest,
+		arg.UserID,
+		arg.IsAdmin,
 		arg.RowOffset,
 		arg.RowLimit,
 	)
@@ -654,16 +730,19 @@ func (q *Queries) ListSBOMs(ctx context.Context, arg ListSBOMsParams) ([]ListSBO
 }
 
 const listSBOMsByDigest = `-- name: ListSBOMsByDigest :many
-SELECT id, serial_number, spec_version, version, artifact_id, subject_version, digest, created_at,
+SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subject_version, s.digest, s.created_at,
        COUNT(*) OVER() AS total_count
-FROM sbom
-WHERE digest = $1
-ORDER BY created_at DESC
-LIMIT $3 OFFSET $2
+FROM sbom s
+WHERE s.digest = $1
+  AND sbom_visible(s.registry_id, $2::uuid, $3::boolean)
+ORDER BY s.created_at DESC
+LIMIT $5 OFFSET $4
 `
 
 type ListSBOMsByDigestParams struct {
 	Digest    pgtype.Text `json:"digest"`
+	UserID    pgtype.UUID `json:"user_id"`
+	IsAdmin   pgtype.Bool `json:"is_admin"`
 	RowOffset int32       `json:"row_offset"`
 	RowLimit  int32       `json:"row_limit"`
 }
@@ -681,7 +760,13 @@ type ListSBOMsByDigestRow struct {
 }
 
 func (q *Queries) ListSBOMsByDigest(ctx context.Context, arg ListSBOMsByDigestParams) ([]ListSBOMsByDigestRow, error) {
-	rows, err := q.db.Query(ctx, listSBOMsByDigest, arg.Digest, arg.RowOffset, arg.RowLimit)
+	rows, err := q.db.Query(ctx, listSBOMsByDigest,
+		arg.Digest,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -717,16 +802,22 @@ FROM component c
 WHERE c.name = $1
   AND ($2::text IS NULL OR c.group_name = $2)
   AND ($3::text IS NULL OR c.version = $3)
+  AND EXISTS (
+    SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
+      AND sbom_visible(s.registry_id, $4::uuid, $5::boolean)
+  )
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST
-LIMIT $5 OFFSET $4
+LIMIT $7 OFFSET $6
 `
 
 type SearchComponentsParams struct {
 	Name      string      `json:"name"`
 	GroupName pgtype.Text `json:"group_name"`
 	Version   pgtype.Text `json:"version"`
+	UserID    pgtype.UUID `json:"user_id"`
+	IsAdmin   pgtype.Bool `json:"is_admin"`
 	RowOffset int32       `json:"row_offset"`
 	RowLimit  int32       `json:"row_limit"`
 }
@@ -747,6 +838,8 @@ func (q *Queries) SearchComponents(ctx context.Context, arg SearchComponentsPara
 		arg.Name,
 		arg.GroupName,
 		arg.Version,
+		arg.UserID,
+		arg.IsAdmin,
 		arg.RowOffset,
 		arg.RowLimit,
 	)
@@ -788,14 +881,18 @@ WHERE ($1::text IS NULL OR c.name ILIKE $1)
   AND ($2::text IS NULL OR c.group_name = $2)
   AND ($3::text IS NULL OR c.type = $3)
   AND ($4::text IS NULL OR split_part(replace(c.purl, 'pkg:', ''), '/', 1) = $4)
+  AND EXISTS (
+    SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
+      AND sbom_visible(s.registry_id, $5::uuid, $6::boolean)
+  )
 GROUP BY c.name, c.group_name, c.type
 ORDER BY
-  CASE $5::text
+  CASE $7::text
     WHEN 'version_count' THEN COUNT(DISTINCT c.version) FILTER (WHERE c.version IS NOT NULL)
     WHEN 'sbom_count' THEN COUNT(DISTINCT c.sbom_id)
-  END * CASE $6::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
+  END * CASE $8::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
   c.name, c.group_name
-LIMIT $8 OFFSET $7
+LIMIT $10 OFFSET $9
 `
 
 type SearchDistinctComponentsParams struct {
@@ -803,6 +900,8 @@ type SearchDistinctComponentsParams struct {
 	GroupName pgtype.Text `json:"group_name"`
 	Type      pgtype.Text `json:"type"`
 	PurlType  pgtype.Text `json:"purl_type"`
+	UserID    pgtype.UUID `json:"user_id"`
+	IsAdmin   pgtype.Bool `json:"is_admin"`
 	SortBy    string      `json:"sort_by"`
 	SortDir   string      `json:"sort_dir"`
 	RowOffset int32       `json:"row_offset"`
@@ -825,6 +924,8 @@ func (q *Queries) SearchDistinctComponents(ctx context.Context, arg SearchDistin
 		arg.GroupName,
 		arg.Type,
 		arg.PurlType,
+		arg.UserID,
+		arg.IsAdmin,
 		arg.SortBy,
 		arg.SortDir,
 		arg.RowOffset,

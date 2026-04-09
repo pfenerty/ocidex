@@ -372,6 +372,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/registries/{id}/webhook-secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Regenerate webhook secret
+         * @description Generates a new webhook secret for the registry. The previous secret is immediately invalidated.
+         */
+        post: operations["regenerate-webhook-secret"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sboms": {
         parameters: {
             query?: never;
@@ -731,6 +751,8 @@ export interface components {
             auth_token?: string;
             /** @description Username for registry authentication; omit for anonymous access */
             auth_username?: string;
+            /** @description Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr) */
+            include_untagged?: boolean;
             /** @description Allow HTTP (non-TLS) connections */
             insecure: boolean;
             /** @description Human-readable registry name */
@@ -758,8 +780,51 @@ export interface components {
             type: "zot" | "harbor" | "docker" | "generic" | "ghcr";
             /** @description Registry address (e.g. zot:5000) */
             url: string;
+            /**
+             * @description Registry visibility
+             * @default public
+             * @enum {string}
+             */
+            visibility: "public" | "private";
             /** @description Bearer token required on incoming webhooks; omit to disable auth */
             webhook_secret?: string;
+        };
+        CreateRegistryResponseBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/CreateRegistryResponseBody.json
+             */
+            readonly $schema?: string;
+            created_at: string;
+            enabled: boolean;
+            has_auth: boolean;
+            has_secret: boolean;
+            id: string;
+            /** @description Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr) */
+            include_untagged: boolean;
+            insecure: boolean;
+            last_polled_at?: string;
+            name: string;
+            /** @description UUID of the registry owner */
+            owner_id?: string;
+            /** Format: int64 */
+            poll_interval_minutes: number;
+            /** @description Explicit repositories to walk; overrides catalog discovery when non-empty */
+            repositories: string[] | null;
+            /** @description Glob patterns for repositories to ingest; empty = all */
+            repository_patterns: string[] | null;
+            scan_mode: string;
+            /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
+            tag_patterns: string[] | null;
+            type: string;
+            updated_at: string;
+            url: string;
+            /** @description Registry visibility: public or private */
+            visibility: string;
+            /** @description Generated webhook secret — shown once only. Store it securely; it cannot be retrieved again. */
+            webhook_secret?: string;
+            webhook_url: string;
         };
         DailyCountEntry: {
             /** Format: int64 */
@@ -1111,6 +1176,16 @@ export interface components {
              */
             status: string;
         };
+        RegenerateWebhookSecretOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/RegenerateWebhookSecretOutputBody.json
+             */
+            readonly $schema?: string;
+            /** @description New webhook secret — shown once only. The previous secret is immediately invalidated. */
+            webhook_secret: string;
+        };
         RegistryResponse: {
             /**
              * Format: uri
@@ -1123,9 +1198,13 @@ export interface components {
             has_auth: boolean;
             has_secret: boolean;
             id: string;
+            /** @description Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr) */
+            include_untagged: boolean;
             insecure: boolean;
             last_polled_at?: string;
             name: string;
+            /** @description UUID of the registry owner */
+            owner_id?: string;
             /** Format: int64 */
             poll_interval_minutes: number;
             /** @description Explicit repositories to walk; overrides catalog discovery when non-empty */
@@ -1138,6 +1217,8 @@ export interface components {
             type: string;
             updated_at: string;
             url: string;
+            /** @description Registry visibility: public or private */
+            visibility: string;
             webhook_url: string;
         };
         RegistryWebhookInputBody: {
@@ -1296,6 +1377,8 @@ export interface components {
             auth_token?: string;
             auth_username?: string;
             enabled: boolean;
+            /** @description Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr) */
+            include_untagged?: boolean;
             insecure: boolean;
             name: string;
             /**
@@ -1314,7 +1397,11 @@ export interface components {
             /** @enum {string} */
             type: "zot" | "harbor" | "docker" | "generic" | "ghcr";
             url: string;
-            webhook_secret?: string;
+            /**
+             * @description Registry visibility
+             * @enum {string}
+             */
+            visibility?: "public" | "private";
         };
         UpdateUserRoleInputBody: {
             /**
@@ -2034,7 +2121,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RegistryResponse"];
+                    "application/json": components["schemas"]["CreateRegistryResponseBody"];
                 };
             };
             /** @description Error */
@@ -2235,6 +2322,38 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "regenerate-webhook-secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Registry UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegenerateWebhookSecretOutputBody"];
+                };
             };
             /** @description Error */
             default: {

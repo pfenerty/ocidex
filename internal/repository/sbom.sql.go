@@ -150,8 +150,8 @@ func (q *Queries) InsertExternalReference(ctx context.Context, arg InsertExterna
 }
 
 const insertSBOM = `-- name: InsertSBOM :one
-INSERT INTO sbom (serial_number, spec_version, version, raw_bom, artifact_id, subject_version, digest)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO sbom (serial_number, spec_version, version, raw_bom, artifact_id, subject_version, digest, registry_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING id, serial_number, spec_version, version, created_at
 `
 
@@ -163,6 +163,7 @@ type InsertSBOMParams struct {
 	ArtifactID     pgtype.UUID `json:"artifact_id"`
 	SubjectVersion pgtype.Text `json:"subject_version"`
 	Digest         pgtype.Text `json:"digest"`
+	RegistryID     pgtype.UUID `json:"registry_id"`
 }
 
 type InsertSBOMRow struct {
@@ -182,6 +183,7 @@ func (q *Queries) InsertSBOM(ctx context.Context, arg InsertSBOMParams) (InsertS
 		arg.ArtifactID,
 		arg.SubjectVersion,
 		arg.Digest,
+		arg.RegistryID,
 	)
 	var i InsertSBOMRow
 	err := row.Scan(
@@ -192,6 +194,31 @@ func (q *Queries) InsertSBOM(ctx context.Context, arg InsertSBOMParams) (InsertS
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const listDigestsByRegistry = `-- name: ListDigestsByRegistry :many
+SELECT DISTINCT digest FROM sbom
+WHERE registry_id = $1 AND digest IS NOT NULL
+`
+
+func (q *Queries) ListDigestsByRegistry(ctx context.Context, registryID pgtype.UUID) ([]pgtype.Text, error) {
+	rows, err := q.db.Query(ctx, listDigestsByRegistry, registryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.Text{}
+	for rows.Next() {
+		var digest pgtype.Text
+		if err := rows.Scan(&digest); err != nil {
+			return nil, err
+		}
+		items = append(items, digest)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateSBOMSubjectVersion = `-- name: UpdateSBOMSubjectVersion :exec
