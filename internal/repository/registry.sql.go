@@ -12,9 +12,9 @@ import (
 )
 
 const createRegistry = `-- name: CreateRegistry :one
-INSERT INTO registry (name, type, url, insecure, webhook_secret, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, repositories, auth_username, auth_token)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-RETURNING id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token
+INSERT INTO registry (name, type, url, insecure, webhook_secret, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, repositories, auth_username, auth_token, owner_id, visibility, include_untagged)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+RETURNING id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged
 `
 
 type CreateRegistryParams struct {
@@ -30,6 +30,9 @@ type CreateRegistryParams struct {
 	Repositories        []string    `json:"repositories"`
 	AuthUsername        pgtype.Text `json:"auth_username"`
 	AuthToken           pgtype.Text `json:"auth_token"`
+	OwnerID             pgtype.UUID `json:"owner_id"`
+	Visibility          string      `json:"visibility"`
+	IncludeUntagged     bool        `json:"include_untagged"`
 }
 
 func (q *Queries) CreateRegistry(ctx context.Context, arg CreateRegistryParams) (Registry, error) {
@@ -46,6 +49,9 @@ func (q *Queries) CreateRegistry(ctx context.Context, arg CreateRegistryParams) 
 		arg.Repositories,
 		arg.AuthUsername,
 		arg.AuthToken,
+		arg.OwnerID,
+		arg.Visibility,
+		arg.IncludeUntagged,
 	)
 	var i Registry
 	err := row.Scan(
@@ -66,6 +72,9 @@ func (q *Queries) CreateRegistry(ctx context.Context, arg CreateRegistryParams) 
 		&i.Repositories,
 		&i.AuthUsername,
 		&i.AuthToken,
+		&i.OwnerID,
+		&i.Visibility,
+		&i.IncludeUntagged,
 	)
 	return i, err
 }
@@ -83,7 +92,7 @@ func (q *Queries) DeleteRegistry(ctx context.Context, id pgtype.UUID) (int64, er
 }
 
 const getRegistry = `-- name: GetRegistry :one
-SELECT id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token FROM registry WHERE id = $1
+SELECT id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged FROM registry WHERE id = $1
 `
 
 func (q *Queries) GetRegistry(ctx context.Context, id pgtype.UUID) (Registry, error) {
@@ -107,12 +116,15 @@ func (q *Queries) GetRegistry(ctx context.Context, id pgtype.UUID) (Registry, er
 		&i.Repositories,
 		&i.AuthUsername,
 		&i.AuthToken,
+		&i.OwnerID,
+		&i.Visibility,
+		&i.IncludeUntagged,
 	)
 	return i, err
 }
 
 const listPollableRegistries = `-- name: ListPollableRegistries :many
-SELECT id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token FROM registry
+SELECT id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged FROM registry
 WHERE enabled = true AND scan_mode IN ('poll', 'both')
 ORDER BY created_at ASC
 `
@@ -144,6 +156,9 @@ func (q *Queries) ListPollableRegistries(ctx context.Context) ([]Registry, error
 			&i.Repositories,
 			&i.AuthUsername,
 			&i.AuthToken,
+			&i.OwnerID,
+			&i.Visibility,
+			&i.IncludeUntagged,
 		); err != nil {
 			return nil, err
 		}
@@ -156,11 +171,22 @@ func (q *Queries) ListPollableRegistries(ctx context.Context) ([]Registry, error
 }
 
 const listRegistries = `-- name: ListRegistries :many
-SELECT id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token FROM registry ORDER BY created_at ASC
+SELECT id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged FROM registry
+WHERE (
+    $1::boolean = true
+    OR visibility = 'public'
+    OR ($2::uuid IS NOT NULL AND owner_id = $2::uuid)
+)
+ORDER BY created_at ASC
 `
 
-func (q *Queries) ListRegistries(ctx context.Context) ([]Registry, error) {
-	rows, err := q.db.Query(ctx, listRegistries)
+type ListRegistriesParams struct {
+	IsAdmin pgtype.Bool `json:"is_admin"`
+	UserID  pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) ListRegistries(ctx context.Context, arg ListRegistriesParams) ([]Registry, error) {
+	rows, err := q.db.Query(ctx, listRegistries, arg.IsAdmin, arg.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -186,6 +212,9 @@ func (q *Queries) ListRegistries(ctx context.Context) ([]Registry, error) {
 			&i.Repositories,
 			&i.AuthUsername,
 			&i.AuthToken,
+			&i.OwnerID,
+			&i.Visibility,
+			&i.IncludeUntagged,
 		); err != nil {
 			return nil, err
 		}
@@ -202,7 +231,7 @@ UPDATE registry
 SET enabled    = $2,
     updated_at = now()
 WHERE id = $1
-RETURNING id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token
+RETURNING id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged
 `
 
 type SetRegistryEnabledParams struct {
@@ -231,6 +260,9 @@ func (q *Queries) SetRegistryEnabled(ctx context.Context, arg SetRegistryEnabled
 		&i.Repositories,
 		&i.AuthUsername,
 		&i.AuthToken,
+		&i.OwnerID,
+		&i.Visibility,
+		&i.IncludeUntagged,
 	)
 	return i, err
 }
@@ -250,9 +282,11 @@ SET name                 = $2,
     repositories         = $12,
     auth_username        = $13,
     auth_token           = $14,
+    visibility           = $15,
+    include_untagged     = $16,
     updated_at           = now()
 WHERE id = $1
-RETURNING id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token
+RETURNING id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged
 `
 
 type UpdateRegistryParams struct {
@@ -270,6 +304,8 @@ type UpdateRegistryParams struct {
 	Repositories        []string    `json:"repositories"`
 	AuthUsername        pgtype.Text `json:"auth_username"`
 	AuthToken           pgtype.Text `json:"auth_token"`
+	Visibility          string      `json:"visibility"`
+	IncludeUntagged     bool        `json:"include_untagged"`
 }
 
 func (q *Queries) UpdateRegistry(ctx context.Context, arg UpdateRegistryParams) (Registry, error) {
@@ -288,6 +324,8 @@ func (q *Queries) UpdateRegistry(ctx context.Context, arg UpdateRegistryParams) 
 		arg.Repositories,
 		arg.AuthUsername,
 		arg.AuthToken,
+		arg.Visibility,
+		arg.IncludeUntagged,
 	)
 	var i Registry
 	err := row.Scan(
@@ -308,6 +346,9 @@ func (q *Queries) UpdateRegistry(ctx context.Context, arg UpdateRegistryParams) 
 		&i.Repositories,
 		&i.AuthUsername,
 		&i.AuthToken,
+		&i.OwnerID,
+		&i.Visibility,
+		&i.IncludeUntagged,
 	)
 	return i, err
 }
@@ -316,7 +357,7 @@ const updateRegistryLastPolled = `-- name: UpdateRegistryLastPolled :one
 UPDATE registry
 SET last_polled_at = now(), updated_at = now()
 WHERE id = $1
-RETURNING id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token
+RETURNING id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged
 `
 
 func (q *Queries) UpdateRegistryLastPolled(ctx context.Context, id pgtype.UUID) (Registry, error) {
@@ -340,6 +381,9 @@ func (q *Queries) UpdateRegistryLastPolled(ctx context.Context, id pgtype.UUID) 
 		&i.Repositories,
 		&i.AuthUsername,
 		&i.AuthToken,
+		&i.OwnerID,
+		&i.Visibility,
+		&i.IncludeUntagged,
 	)
 	return i, err
 }

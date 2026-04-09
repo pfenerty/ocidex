@@ -16,7 +16,6 @@ export function useCreateRegistry() {
             type: "zot" | "harbor" | "docker" | "generic" | "ghcr";
             url: string;
             insecure: boolean;
-            webhook_secret?: string;
             auth_username?: string;
             auth_token?: string;
             repositories?: string[];
@@ -24,6 +23,8 @@ export function useCreateRegistry() {
             tag_patterns?: string[];
             scan_mode?: "webhook" | "poll" | "both";
             poll_interval_minutes?: number;
+            visibility: "public" | "private";
+            include_untagged?: boolean;
         }) => unwrap(client.POST("/api/v1/registries", { body })),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ["registries"] }),
     }));
@@ -41,7 +42,6 @@ export function useUpdateRegistry() {
             type: "zot" | "harbor" | "docker" | "generic" | "ghcr";
             url: string;
             insecure: boolean;
-            webhook_secret?: string;
             auth_username?: string;
             auth_token?: string;
             enabled: boolean;
@@ -50,6 +50,8 @@ export function useUpdateRegistry() {
             tag_patterns?: string[];
             scan_mode?: "webhook" | "poll" | "both";
             poll_interval_minutes?: number;
+            visibility?: "public" | "private";
+            include_untagged?: boolean;
         }) =>
             unwrap(
                 client.PUT("/api/v1/registries/{id}", {
@@ -81,5 +83,18 @@ export function useScanRegistry() {
     return createMutation(() => ({
         mutationFn: (id: string) =>
             unwrap(client.POST("/api/v1/registries/{id}/scan", { params: { path: { id } } })),
+    }));
+}
+
+export function useRegenerateWebhookSecret() {
+    return createMutation(() => ({
+        mutationFn: (id: string) =>
+            fetch(`/api/v1/registries/${id}/webhook-secret`, {
+                method: "POST",
+                credentials: "include",
+            }).then(async (res) => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json() as Promise<{ webhook_secret: string }>;
+            }),
     }));
 }

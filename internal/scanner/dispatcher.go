@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/service"
 )
@@ -118,10 +119,15 @@ func (d *Dispatcher) process(ctx context.Context, req ScanRequest) {
 	if req.ImageVersion != "" {
 		version = req.ImageVersion
 	}
+	var registryID pgtype.UUID
+	if req.RegistryID != "" {
+		_ = registryID.Scan(req.RegistryID) //nolint:errcheck // invalid UUID → zero-value, harmless
+	}
 	if _, err := d.sbomSvc.Ingest(ctx, bom, raw, service.IngestParams{
 		Version:      version,
 		Architecture: req.Architecture,
 		BuildDate:    req.BuildDate,
+		RegistryID:   registryID,
 	}); err != nil {
 		d.logger.Error("failed to ingest scanned SBOM", "repo", req.Repository, "digest", req.Digest, "err", err)
 		return

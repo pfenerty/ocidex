@@ -1,13 +1,19 @@
 -- name: CreateRegistry :one
-INSERT INTO registry (name, type, url, insecure, webhook_secret, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, repositories, auth_username, auth_token)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+INSERT INTO registry (name, type, url, insecure, webhook_secret, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, repositories, auth_username, auth_token, owner_id, visibility, include_untagged)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 RETURNING *;
 
 -- name: GetRegistry :one
 SELECT * FROM registry WHERE id = $1;
 
 -- name: ListRegistries :many
-SELECT * FROM registry ORDER BY created_at ASC;
+SELECT * FROM registry
+WHERE (
+    sqlc.narg('is_admin')::boolean = true
+    OR visibility = 'public'
+    OR (sqlc.narg('user_id')::uuid IS NOT NULL AND owner_id = sqlc.narg('user_id')::uuid)
+)
+ORDER BY created_at ASC;
 
 -- name: UpdateRegistry :one
 UPDATE registry
@@ -24,6 +30,8 @@ SET name                 = $2,
     repositories         = $12,
     auth_username        = $13,
     auth_token           = $14,
+    visibility           = $15,
+    include_untagged     = $16,
     updated_at           = now()
 WHERE id = $1
 RETURNING *;

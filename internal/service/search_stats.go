@@ -8,35 +8,45 @@ import (
 )
 
 // GetDashboardStats returns aggregated metrics for the home dashboard.
-func (s *searchService) GetDashboardStats(ctx context.Context) (*DashboardStats, error) {
+func (s *searchService) GetDashboardStats(ctx context.Context, vis VisibilityFilter) (*DashboardStats, error) {
 	q := repository.New(s.pool)
 
-	counts, err := q.GetSummaryCounts(ctx)
+	visParams := func() (repository.GetSummaryCountsParams, repository.GetLicenseCategoryCountsParams, repository.GetSBOMIngestionTimelineParams, repository.GetPackageGrowthTimelineParams, repository.GetVersionGrowthTimelineParams, repository.GetTopPackagesByVersionCountParams) {
+		return repository.GetSummaryCountsParams{UserID: vis.UserID, IsAdmin: visAdminBool(vis)},
+			repository.GetLicenseCategoryCountsParams{UserID: vis.UserID, IsAdmin: visAdminBool(vis)},
+			repository.GetSBOMIngestionTimelineParams{NumDays: 30, UserID: vis.UserID, IsAdmin: visAdminBool(vis)},
+			repository.GetPackageGrowthTimelineParams{UserID: vis.UserID, IsAdmin: visAdminBool(vis)},
+			repository.GetVersionGrowthTimelineParams{UserID: vis.UserID, IsAdmin: visAdminBool(vis)},
+			repository.GetTopPackagesByVersionCountParams{TopN: 10, UserID: vis.UserID, IsAdmin: visAdminBool(vis)}
+	}
+	summaryP, catP, timelineP, pkgP, verP, topP := visParams()
+
+	counts, err := q.GetSummaryCounts(ctx, summaryP)
 	if err != nil {
 		return nil, fmt.Errorf("getting counts: %w", err)
 	}
 
-	cats, err := q.GetLicenseCategoryCounts(ctx)
+	cats, err := q.GetLicenseCategoryCounts(ctx, catP)
 	if err != nil {
 		return nil, fmt.Errorf("getting license categories: %w", err)
 	}
 
-	timeline, err := q.GetSBOMIngestionTimeline(ctx, 30)
+	timeline, err := q.GetSBOMIngestionTimeline(ctx, timelineP)
 	if err != nil {
 		return nil, fmt.Errorf("getting ingestion timeline: %w", err)
 	}
 
-	pkgGrowth, err := q.GetPackageGrowthTimeline(ctx)
+	pkgGrowth, err := q.GetPackageGrowthTimeline(ctx, pkgP)
 	if err != nil {
 		return nil, fmt.Errorf("getting package growth timeline: %w", err)
 	}
 
-	verGrowth, err := q.GetVersionGrowthTimeline(ctx)
+	verGrowth, err := q.GetVersionGrowthTimeline(ctx, verP)
 	if err != nil {
 		return nil, fmt.Errorf("getting version growth timeline: %w", err)
 	}
 
-	topRows, err := q.GetTopPackagesByVersionCount(ctx, 10)
+	topRows, err := q.GetTopPackagesByVersionCount(ctx, topP)
 	if err != nil {
 		return nil, fmt.Errorf("getting top packages: %w", err)
 	}

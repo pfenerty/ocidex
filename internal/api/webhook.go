@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -29,11 +30,12 @@ func (h *Handler) HandleRegistryWebhook(ctx context.Context, in *RegistryWebhook
 		return nil, nil
 	}
 
-	if reg.WebhookSecret != nil && *reg.WebhookSecret != "" {
-		token := strings.TrimPrefix(in.Authorization, "Bearer ")
-		if token != *reg.WebhookSecret {
-			return nil, huma.Error401Unauthorized("invalid webhook secret")
-		}
+	if reg.WebhookSecret == nil || *reg.WebhookSecret == "" {
+		return nil, huma.Error401Unauthorized("webhook secret not configured")
+	}
+	token := strings.TrimPrefix(in.Authorization, "Bearer ")
+	if subtle.ConstantTimeCompare([]byte(token), []byte(*reg.WebhookSecret)) != 1 {
+		return nil, huma.Error401Unauthorized("invalid webhook secret")
 	}
 
 	// Only scan standard image manifests; skip indexes, attestations, and other artifact types.
@@ -69,6 +71,7 @@ func (h *Handler) HandleRegistryWebhook(ctx context.Context, in *RegistryWebhook
 		Tag:          in.Body.Reference,
 		AuthUsername: authUsername,
 		AuthToken:    authToken,
+		RegistryID:   reg.ID,
 	})
 
 	return nil, nil

@@ -31,6 +31,7 @@ type ScanRequest struct {
 	ImageVersion string // org.opencontainers.image.version from manifest annotations or config labels
 	AuthUsername string // registry auth username; empty = anonymous
 	AuthToken    string // registry auth token/PAT; empty = no auth
+	RegistryID   string // UUID of the source registry; empty = unknown
 }
 
 // NewScanner creates a stateless Scanner.

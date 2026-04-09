@@ -24,9 +24,15 @@ WHERE (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))
   AND (sqlc.narg('require_sufficient')::boolean IS NULL
        OR NOT sqlc.narg('require_sufficient')::boolean
        OR EXISTS (SELECT 1 FROM sbom s2 WHERE s2.artifact_id = a.id AND s2.enrichment_sufficient))
+  AND artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
 GROUP BY a.id
 ORDER BY a.name, a.type
 LIMIT @row_limit OFFSET @row_offset;
+
+-- name: UpsertArtifactRegistry :exec
+INSERT INTO artifact_registry (artifact_id, registry_id)
+VALUES ($1, $2)
+ON CONFLICT DO NOTHING;
 
 -- name: DeleteSBOMsByArtifact :execrows
 DELETE FROM sbom WHERE artifact_id = $1;
@@ -51,5 +57,6 @@ WHERE s.artifact_id = $1
   AND (sqlc.narg('subject_version')::text IS NULL OR s.subject_version = sqlc.narg('subject_version'))
   AND (sqlc.narg('image_version')::text IS NULL
        OR COALESCE(e.data->>'imageVersion', u.data->>'imageVersion') = sqlc.narg('image_version'))
+  AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
 ORDER BY s.created_at DESC
 LIMIT @row_limit OFFSET @row_offset;

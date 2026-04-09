@@ -562,6 +562,9 @@ type RegistryResponse struct {
 	LastPolledAt        *string  `json:"last_polled_at,omitempty"`
 	CreatedAt           string   `json:"created_at"`
 	UpdatedAt           string   `json:"updated_at"`
+	Visibility          string   `json:"visibility" doc:"Registry visibility: public or private"`
+	OwnerID             *string  `json:"owner_id,omitempty" doc:"UUID of the registry owner"`
+	IncludeUntagged     bool     `json:"include_untagged" doc:"Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)"`
 }
 
 // ListRegistriesOutput is the response for GET /api/v1/registries.
@@ -596,12 +599,33 @@ type CreateRegistryInput struct {
 		TagPatterns         []string `json:"tag_patterns,omitempty" doc:"Glob patterns or 'semver' for tags to ingest; empty = all"`
 		ScanMode            string   `json:"scan_mode,omitempty" enum:"webhook,poll,both" doc:"Scanning mode"`
 		PollIntervalMinutes int      `json:"poll_interval_minutes,omitempty" minimum:"1" doc:"Minutes between polls"`
+		Visibility          string   `json:"visibility,omitempty" enum:"public,private" default:"public" doc:"Registry visibility"`
+		IncludeUntagged     bool     `json:"include_untagged,omitempty" doc:"Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)"`
 	}
+}
+
+// CreateRegistryResponseBody extends RegistryResponse with the generated webhook secret,
+// which is returned once on creation and never again.
+type CreateRegistryResponseBody struct {
+	RegistryResponse
+	WebhookSecret string `json:"webhook_secret,omitempty" doc:"Generated webhook secret — shown once only. Store it securely; it cannot be retrieved again."`
 }
 
 // CreateRegistryOutput is the response for POST /api/v1/registries.
 type CreateRegistryOutput struct {
-	Body RegistryResponse
+	Body CreateRegistryResponseBody
+}
+
+// RegenerateWebhookSecretInput is the request for POST /api/v1/registries/{id}/webhook-secret.
+type RegenerateWebhookSecretInput struct {
+	ID string `path:"id" doc:"Registry UUID" format:"uuid"`
+}
+
+// RegenerateWebhookSecretOutput is the response for POST /api/v1/registries/{id}/webhook-secret.
+type RegenerateWebhookSecretOutput struct {
+	Body struct {
+		WebhookSecret string `json:"webhook_secret" doc:"New webhook secret — shown once only. The previous secret is immediately invalidated."`
+	}
 }
 
 // UpdateRegistryInput is the request for PUT /api/v1/registries/{id}.
@@ -612,7 +636,6 @@ type UpdateRegistryInput struct {
 		Type                string   `json:"type" enum:"zot,harbor,docker,generic,ghcr"`
 		URL                 string   `json:"url" minLength:"1"`
 		Insecure            bool     `json:"insecure"`
-		WebhookSecret       *string  `json:"webhook_secret,omitempty"`
 		AuthUsername        *string  `json:"auth_username,omitempty"`
 		AuthToken           *string  `json:"auth_token,omitempty"`
 		Enabled             bool     `json:"enabled"`
@@ -621,6 +644,8 @@ type UpdateRegistryInput struct {
 		TagPatterns         []string `json:"tag_patterns,omitempty"`
 		ScanMode            string   `json:"scan_mode,omitempty" enum:"webhook,poll,both" doc:"Scanning mode"`
 		PollIntervalMinutes int      `json:"poll_interval_minutes,omitempty" minimum:"1" doc:"Minutes between polls"`
+		Visibility          string   `json:"visibility,omitempty" enum:"public,private" doc:"Registry visibility"`
+		IncludeUntagged     bool     `json:"include_untagged,omitempty" doc:"Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)"`
 	}
 }
 

@@ -14,25 +14,25 @@ import (
 
 // SearchService defines read-only operations for SBOM search and retrieval.
 type SearchService interface {
-	GetSBOM(ctx context.Context, id pgtype.UUID, includeRaw bool) (SBOMDetail, error)
+	GetSBOM(ctx context.Context, id pgtype.UUID, includeRaw bool, vis VisibilityFilter) (SBOMDetail, error)
 	ListSBOMs(ctx context.Context, filter SBOMFilter) (PagedResult[SBOMSummary], error)
 	SearchComponents(ctx context.Context, filter ComponentFilter) (PagedResult[ComponentSummary], error)
 	SearchDistinctComponents(ctx context.Context, filter ComponentFilter) (PagedResult[DistinctComponentSummary], error)
-	GetComponentVersions(ctx context.Context, name, group, version, compType string) ([]ComponentVersionEntry, error)
-	GetComponent(ctx context.Context, id pgtype.UUID) (ComponentDetail, error)
+	GetComponentVersions(ctx context.Context, name, group, version, compType string, vis VisibilityFilter) ([]ComponentVersionEntry, error)
+	GetComponent(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ComponentDetail, error)
 	ListLicenses(ctx context.Context, filter LicenseFilter) (PagedResult[LicenseCount], error)
-	ListComponentsByLicense(ctx context.Context, licenseID pgtype.UUID, limit, offset int32) (PagedResult[ComponentSummary], error)
-	GetArtifact(ctx context.Context, id pgtype.UUID) (ArtifactDetail, error)
+	ListComponentsByLicense(ctx context.Context, licenseID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ComponentSummary], error)
+	GetArtifact(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ArtifactDetail, error)
 	ListArtifacts(ctx context.Context, filter ArtifactFilter) (PagedResult[ArtifactSummary], error)
-	ListSBOMsByArtifact(ctx context.Context, artifactID pgtype.UUID, subjectVersion, imageVersion string, limit, offset int32) (PagedResult[SBOMSummary], error)
-	GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch string) (Changelog, error)
-	DiffSBOMs(ctx context.Context, fromID, toID pgtype.UUID) (ChangelogEntry, error)
-	ListSBOMsByDigest(ctx context.Context, digest string, limit, offset int32) (PagedResult[SBOMSummary], error)
-	GetArtifactLicenseSummary(ctx context.Context, artifactID pgtype.UUID) ([]LicenseCount, error)
-	GetSBOMDependencies(ctx context.Context, sbomID pgtype.UUID) (DependencyGraph, error)
-	ListSBOMComponents(ctx context.Context, sbomID pgtype.UUID) ([]ComponentSummary, error)
-	ListComponentPurlTypes(ctx context.Context) ([]string, error)
-	GetDashboardStats(ctx context.Context) (*DashboardStats, error)
+	ListSBOMsByArtifact(ctx context.Context, artifactID pgtype.UUID, subjectVersion, imageVersion string, limit, offset int32, vis VisibilityFilter) (PagedResult[SBOMSummary], error)
+	GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch string, vis VisibilityFilter) (Changelog, error)
+	DiffSBOMs(ctx context.Context, fromID, toID pgtype.UUID, vis VisibilityFilter) (ChangelogEntry, error)
+	ListSBOMsByDigest(ctx context.Context, digest string, limit, offset int32, vis VisibilityFilter) (PagedResult[SBOMSummary], error)
+	GetArtifactLicenseSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]LicenseCount, error)
+	GetSBOMDependencies(ctx context.Context, sbomID pgtype.UUID, vis VisibilityFilter) (DependencyGraph, error)
+	ListSBOMComponents(ctx context.Context, sbomID pgtype.UUID, vis VisibilityFilter) ([]ComponentSummary, error)
+	ListComponentPurlTypes(ctx context.Context, vis VisibilityFilter) ([]string, error)
+	GetDashboardStats(ctx context.Context, vis VisibilityFilter) (*DashboardStats, error)
 }
 
 // DashboardStats holds aggregated metrics for the dashboard.
@@ -84,28 +84,31 @@ type SBOMFilter struct {
 	Digest       string
 	Limit        int32
 	Offset       int32
+	Visibility   VisibilityFilter
 }
 
 // ComponentFilter holds parameters for searching components.
 type ComponentFilter struct {
-	Name     string
-	Group    string
-	Version  string
-	Type     string
-	PurlType string
-	Sort     string
-	SortDir  string
-	Limit    int32
-	Offset   int32
+	Name       string
+	Group      string
+	Version    string
+	Type       string
+	PurlType   string
+	Sort       string
+	SortDir    string
+	Limit      int32
+	Offset     int32
+	Visibility VisibilityFilter
 }
 
 // LicenseFilter holds parameters for listing licenses.
 type LicenseFilter struct {
-	SpdxID   string
-	Name     string
-	Category string
-	Limit    int32
-	Offset   int32
+	SpdxID     string
+	Name       string
+	Category   string
+	Limit      int32
+	Offset     int32
+	Visibility VisibilityFilter
 }
 
 // ArtifactFilter holds parameters for listing artifacts.
@@ -115,6 +118,7 @@ type ArtifactFilter struct {
 	RequireSufficient bool
 	Limit             int32
 	Offset            int32
+	Visibility        VisibilityFilter
 }
 
 // ArtifactSummary is a lightweight artifact representation for list views.
@@ -304,6 +308,10 @@ func toComponentSummary(id, sbomID pgtype.UUID, bomRef pgtype.Text, typ, name st
 		Version: textToPtr(version),
 		Purl:    textToPtr(purl),
 	}
+}
+
+func visAdminBool(v VisibilityFilter) pgtype.Bool {
+	return pgtype.Bool{Bool: v.IsAdmin, Valid: true}
 }
 
 func toLicenseSummary(l repository.License) LicenseSummary {

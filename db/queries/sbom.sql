@@ -1,6 +1,6 @@
 -- name: InsertSBOM :one
-INSERT INTO sbom (serial_number, spec_version, version, raw_bom, artifact_id, subject_version, digest)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO sbom (serial_number, spec_version, version, raw_bom, artifact_id, subject_version, digest, registry_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING id, serial_number, spec_version, version, created_at;
 
 -- name: InsertComponent :one
@@ -48,6 +48,10 @@ VALUES ($1, $2, $3, $4);
 
 -- name: DeleteSBOM :execrows
 DELETE FROM sbom WHERE id = $1;
+
+-- name: ListDigestsByRegistry :many
+SELECT DISTINCT digest FROM sbom
+WHERE registry_id = $1 AND digest IS NOT NULL;
 
 -- name: UpdateSBOMSubjectVersion :exec
 UPDATE sbom SET subject_version = $2 WHERE id = $1;

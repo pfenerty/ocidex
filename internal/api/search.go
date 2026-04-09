@@ -10,17 +10,33 @@ func paginationMeta[T any](r service.PagedResult[T]) PaginationMeta {
 	return PaginationMeta{Total: r.Total, Limit: r.Limit, Offset: r.Offset}
 }
 
+// visibilityFilterFromContext builds a VisibilityFilter from the authenticated
+// user in ctx, if any. Unauthenticated callers get a filter that shows only
+// public data.
+func visibilityFilterFromContext(ctx context.Context) service.VisibilityFilter {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return service.VisibilityFilter{}
+	}
+	return service.VisibilityFilter{
+		IsAdmin: user.Role == roleAdmin,
+		UserID:  user.ID,
+	}
+}
+
 // SearchDistinctComponents handles GET /api/v1/components/distinct.
 func (h *Handler) SearchDistinctComponents(ctx context.Context, input *SearchDistinctComponentsInput) (*SearchDistinctComponentsOutput, error) {
+	vis := visibilityFilterFromContext(ctx)
 	filter := service.ComponentFilter{
-		Name:     input.Name,
-		Group:    input.Group,
-		Type:     input.Type,
-		PurlType: input.PurlType,
-		Sort:     input.Sort,
-		SortDir:  input.SortDir,
-		Limit:    input.Limit,
-		Offset:   input.Offset,
+		Name:       input.Name,
+		Group:      input.Group,
+		Type:       input.Type,
+		PurlType:   input.PurlType,
+		Sort:       input.Sort,
+		SortDir:    input.SortDir,
+		Limit:      input.Limit,
+		Offset:     input.Offset,
+		Visibility: vis,
 	}
 
 	result, err := h.searchService.SearchDistinctComponents(ctx, filter)
@@ -36,7 +52,8 @@ func (h *Handler) SearchDistinctComponents(ctx context.Context, input *SearchDis
 
 // GetComponentVersions handles GET /api/v1/components/versions.
 func (h *Handler) GetComponentVersions(ctx context.Context, input *GetComponentVersionsInput) (*GetComponentVersionsOutput, error) {
-	versions, err := h.searchService.GetComponentVersions(ctx, input.Name, input.Group, input.Version, input.Type)
+	vis := visibilityFilterFromContext(ctx)
+	versions, err := h.searchService.GetComponentVersions(ctx, input.Name, input.Group, input.Version, input.Type, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -48,7 +65,8 @@ func (h *Handler) GetComponentVersions(ctx context.Context, input *GetComponentV
 
 // ListComponentPurlTypes handles GET /api/v1/components/purl-types.
 func (h *Handler) ListComponentPurlTypes(ctx context.Context, _ *struct{}) (*ListComponentPurlTypesOutput, error) {
-	types, err := h.searchService.ListComponentPurlTypes(ctx)
+	vis := visibilityFilterFromContext(ctx)
+	types, err := h.searchService.ListComponentPurlTypes(ctx, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -65,7 +83,8 @@ func (h *Handler) ListSBOMComponents(ctx context.Context, input *ListSBOMCompone
 		return nil, err
 	}
 
-	components, err := h.searchService.ListSBOMComponents(ctx, id)
+	vis := visibilityFilterFromContext(ctx)
+	components, err := h.searchService.ListSBOMComponents(ctx, id, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -77,11 +96,13 @@ func (h *Handler) ListSBOMComponents(ctx context.Context, input *ListSBOMCompone
 
 // ListSBOMs handles GET /api/v1/sbom.
 func (h *Handler) ListSBOMs(ctx context.Context, input *ListSBOMsInput) (*ListSBOMsOutput, error) {
+	vis := visibilityFilterFromContext(ctx)
 	filter := service.SBOMFilter{
 		SerialNumber: input.SerialNumber,
 		Digest:       input.Digest,
 		Limit:        input.Limit,
 		Offset:       input.Offset,
+		Visibility:   vis,
 	}
 
 	result, err := h.searchService.ListSBOMs(ctx, filter)
@@ -102,7 +123,8 @@ func (h *Handler) GetSBOMDependencies(ctx context.Context, input *GetSBOMDepende
 		return nil, err
 	}
 
-	graph, err := h.searchService.GetSBOMDependencies(ctx, id)
+	vis := visibilityFilterFromContext(ctx)
+	graph, err := h.searchService.GetSBOMDependencies(ctx, id, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -120,8 +142,9 @@ func (h *Handler) GetSBOM(ctx context.Context, input *GetSBOMInput) (*GetSBOMOut
 	}
 
 	includeRaw := input.Include == "raw"
+	vis := visibilityFilterFromContext(ctx)
 
-	detail, err := h.searchService.GetSBOM(ctx, id, includeRaw)
+	detail, err := h.searchService.GetSBOM(ctx, id, includeRaw, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -133,12 +156,14 @@ func (h *Handler) GetSBOM(ctx context.Context, input *GetSBOMInput) (*GetSBOMOut
 
 // SearchComponents handles GET /api/v1/components.
 func (h *Handler) SearchComponents(ctx context.Context, input *SearchComponentsInput) (*SearchComponentsOutput, error) {
+	vis := visibilityFilterFromContext(ctx)
 	filter := service.ComponentFilter{
-		Name:    input.Name,
-		Group:   input.Group,
-		Version: input.Version,
-		Limit:   input.Limit,
-		Offset:  input.Offset,
+		Name:       input.Name,
+		Group:      input.Group,
+		Version:    input.Version,
+		Limit:      input.Limit,
+		Offset:     input.Offset,
+		Visibility: vis,
 	}
 
 	result, err := h.searchService.SearchComponents(ctx, filter)
@@ -159,7 +184,8 @@ func (h *Handler) GetComponent(ctx context.Context, input *GetComponentInput) (*
 		return nil, err
 	}
 
-	detail, err := h.searchService.GetComponent(ctx, id)
+	vis := visibilityFilterFromContext(ctx)
+	detail, err := h.searchService.GetComponent(ctx, id, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -171,12 +197,14 @@ func (h *Handler) GetComponent(ctx context.Context, input *GetComponentInput) (*
 
 // ListLicenses handles GET /api/v1/licenses.
 func (h *Handler) ListLicenses(ctx context.Context, input *ListLicensesInput) (*ListLicensesOutput, error) {
+	vis := visibilityFilterFromContext(ctx)
 	filter := service.LicenseFilter{
-		SpdxID:   input.SpdxID,
-		Name:     input.Name,
-		Category: input.Category,
-		Limit:    input.Limit,
-		Offset:   input.Offset,
+		SpdxID:     input.SpdxID,
+		Name:       input.Name,
+		Category:   input.Category,
+		Limit:      input.Limit,
+		Offset:     input.Offset,
+		Visibility: vis,
 	}
 
 	result, err := h.searchService.ListLicenses(ctx, filter)
@@ -197,7 +225,8 @@ func (h *Handler) ListComponentsByLicense(ctx context.Context, input *ListCompon
 		return nil, err
 	}
 
-	result, err := h.searchService.ListComponentsByLicense(ctx, id, input.Limit, input.Offset)
+	vis := visibilityFilterFromContext(ctx)
+	result, err := h.searchService.ListComponentsByLicense(ctx, id, input.Limit, input.Offset, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -218,6 +247,7 @@ func (h *Handler) ListArtifacts(ctx context.Context, input *ListArtifactsInput) 
 		RequireSufficient: requireSufficient,
 		Limit:             input.Limit,
 		Offset:            input.Offset,
+		Visibility:        visibilityFilterFromContext(ctx),
 	}
 
 	result, err := h.searchService.ListArtifacts(ctx, filter)
@@ -238,7 +268,8 @@ func (h *Handler) GetArtifact(ctx context.Context, input *GetArtifactInput) (*Ge
 		return nil, err
 	}
 
-	detail, err := h.searchService.GetArtifact(ctx, id)
+	vis := visibilityFilterFromContext(ctx)
+	detail, err := h.searchService.GetArtifact(ctx, id, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -255,7 +286,8 @@ func (h *Handler) ListArtifactSBOMs(ctx context.Context, input *ListArtifactSBOM
 		return nil, err
 	}
 
-	result, err := h.searchService.ListSBOMsByArtifact(ctx, id, input.SubjectVersion, input.ImageVersion, input.Limit, input.Offset)
+	vis := visibilityFilterFromContext(ctx)
+	result, err := h.searchService.ListSBOMsByArtifact(ctx, id, input.SubjectVersion, input.ImageVersion, input.Limit, input.Offset, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -278,7 +310,8 @@ func (h *Handler) DiffSBOMs(ctx context.Context, input *DiffSBOMsInput) (*DiffSB
 		return nil, err
 	}
 
-	entry, err := h.searchService.DiffSBOMs(ctx, fromID, toID)
+	vis := visibilityFilterFromContext(ctx)
+	entry, err := h.searchService.DiffSBOMs(ctx, fromID, toID, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -295,7 +328,8 @@ func (h *Handler) GetArtifactLicenseSummary(ctx context.Context, input *GetArtif
 		return nil, err
 	}
 
-	summary, err := h.searchService.GetArtifactLicenseSummary(ctx, id)
+	vis := visibilityFilterFromContext(ctx)
+	summary, err := h.searchService.GetArtifactLicenseSummary(ctx, id, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -307,7 +341,8 @@ func (h *Handler) GetArtifactLicenseSummary(ctx context.Context, input *GetArtif
 
 // GetDashboardStats handles GET /api/v1/stats/summary.
 func (h *Handler) GetDashboardStats(ctx context.Context, _ *struct{}) (*DashboardStatsOutput, error) {
-	stats, err := h.searchService.GetDashboardStats(ctx)
+	vis := visibilityFilterFromContext(ctx)
+	stats, err := h.searchService.GetDashboardStats(ctx, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -364,7 +399,8 @@ func (h *Handler) GetArtifactChangelog(ctx context.Context, input *GetArtifactCh
 		return nil, err
 	}
 
-	changelog, err := h.searchService.GetArtifactChangelog(ctx, id, input.SubjectVersion, input.Arch)
+	vis := visibilityFilterFromContext(ctx)
+	changelog, err := h.searchService.GetArtifactChangelog(ctx, id, input.SubjectVersion, input.Arch, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

@@ -64,6 +64,43 @@ func Authenticate(authSvc service.AuthService) func(http.Handler) http.Handler {
 
 var errUnauthorized = fmt.Errorf("unauthorized")
 
+// OptionalAuthenticate attaches the user to the context if a valid session or
+// API key is present, but allows unauthenticated requests through (user will
+// be absent from context). Use this for browse endpoints that should be
+// accessible to the public but can show more data to authenticated users.
+func OptionalAuthenticate(authSvc service.AuthService) func(http.Handler) http.Handler {
+	if authSvc == nil {
+		return func(next http.Handler) http.Handler { return next }
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var (
+				user service.AuthUser
+				err  error
+			)
+
+			if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+				token := strings.TrimPrefix(auth, "Bearer ")
+				user, err = authSvc.ValidateAPIKey(r.Context(), token)
+			} else if c, cerr := r.Cookie("ocidex_session"); cerr == nil {
+				user, err = authSvc.ValidateSession(r.Context(), c.Value)
+			} else {
+				// No credentials — continue without user context.
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			if err != nil {
+				// Invalid credentials — continue without user context.
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKeyUser{}, user)))
+		})
+	}
+}
+
 // RequireRole returns middleware that enforces one of the given roles.
 func RequireRole(roles ...string) func(http.Handler) http.Handler {
 	allowed := make(map[string]bool, len(roles))

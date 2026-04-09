@@ -21,9 +21,10 @@ import (
 // IngestParams carries supplemental metadata for SBOM ingestion.
 // Fields take precedence over BOM-extracted values when set.
 type IngestParams struct {
-	Version      string // image tag / subject version
-	Architecture string // e.g. "amd64"
-	BuildDate    string // RFC3339 or date string
+	Version      string      // image tag / subject version
+	Architecture string      // e.g. "amd64"
+	BuildDate    string      // RFC3339 or date string
+	RegistryID   pgtype.UUID // links SBOM to the registry it came from
 }
 
 // SBOMService defines the business logic for SBOM ingestion and management.
@@ -31,6 +32,7 @@ type SBOMService interface {
 	Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (pgtype.UUID, error)
 	DeleteSBOM(ctx context.Context, id pgtype.UUID) error
 	DeleteArtifact(ctx context.Context, id pgtype.UUID) error
+	ListDigestsByRegistry(ctx context.Context, registryID string) (map[string]bool, error)
 }
 
 // DigestValidator validates that a container image digest points to a single
@@ -156,6 +158,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		ArtifactID:     info.artifactID,
 		SubjectVersion: info.subjectVersion,
 		Digest:         info.digest,
+		RegistryID:     params.RegistryID,
 	})
 	if err != nil {
 		return pgtype.UUID{}, fmt.Errorf("inserting sbom: %w", err)
@@ -170,6 +173,10 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 	// Write "user" enrichment so metadata is immediately visible in queries,
 	// before the async OCI enricher runs.
 	if err := writeUserEnrichment(ctx, q, sbomRow.ID, arch, bd, info); err != nil {
+		return pgtype.UUID{}, err
+	}
+
+	if err := linkArtifactRegistry(ctx, q, info.artifactID, params.RegistryID); err != nil {
 		return pgtype.UUID{}, err
 	}
 
@@ -275,6 +282,20 @@ func (s *sbomService) insertBOMContent(ctx context.Context, q *repository.Querie
 	return nil
 }
 
+// linkArtifactRegistry records the artifact→registry relationship in the junction table.
+func linkArtifactRegistry(ctx context.Context, q *repository.Queries, artifactID, registryID pgtype.UUID) error {
+	if !artifactID.Valid || !registryID.Valid {
+		return nil
+	}
+	if err := q.UpsertArtifactRegistry(ctx, repository.UpsertArtifactRegistryParams{
+		ArtifactID: artifactID,
+		RegistryID: registryID,
+	}); err != nil {
+		return fmt.Errorf("linking artifact to registry: %w", err)
+	}
+	return nil
+}
+
 // DeleteSBOM removes an SBOM and all its associated data (components, hashes,
 // licenses, dependencies, external references) via ON DELETE CASCADE.
 func (s *sbomService) DeleteSBOM(ctx context.Context, id pgtype.UUID) error {
@@ -325,6 +346,26 @@ func (s *sbomService) DeleteArtifact(ctx context.Context, id pgtype.UUID) error 
 		s.publisher.Publish(ctx, event.ArtifactDeleted, event.ArtifactDeletedData{ArtifactID: id})
 	}
 	return nil
+}
+
+// ListDigestsByRegistry returns a set of known SBOM digests for a registry.
+func (s *sbomService) ListDigestsByRegistry(ctx context.Context, registryID string) (map[string]bool, error) {
+	var regUUID pgtype.UUID
+	if err := regUUID.Scan(registryID); err != nil {
+		return nil, fmt.Errorf("parsing registry ID: %w", err)
+	}
+	q := repository.New(s.pool)
+	rows, err := q.ListDigestsByRegistry(ctx, regUUID)
+	if err != nil {
+		return nil, fmt.Errorf("listing digests: %w", err)
+	}
+	out := make(map[string]bool, len(rows))
+	for _, d := range rows {
+		if d.Valid {
+			out[d.String] = true
+		}
+	}
+	return out, nil
 }
 
 func (s *sbomService) insertComponents(

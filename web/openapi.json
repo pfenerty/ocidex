@@ -479,6 +479,10 @@
             "description": "Username for registry authentication; omit for anonymous access",
             "type": "string"
           },
+          "include_untagged": {
+            "description": "Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)",
+            "type": "boolean"
+          },
           "insecure": {
             "description": "Allow HTTP (non-TLS) connections",
             "type": "boolean"
@@ -550,6 +554,15 @@
             "minLength": 1,
             "type": "string"
           },
+          "visibility": {
+            "default": "public",
+            "description": "Registry visibility",
+            "enum": [
+              "public",
+              "private"
+            ],
+            "type": "string"
+          },
           "webhook_secret": {
             "description": "Bearer token required on incoming webhooks; omit to disable auth",
             "type": "string"
@@ -560,6 +573,130 @@
           "type",
           "url",
           "insecure"
+        ],
+        "type": "object"
+      },
+      "CreateRegistryResponseBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/CreateRegistryResponseBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "has_auth": {
+            "type": "boolean"
+          },
+          "has_secret": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "include_untagged": {
+            "description": "Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)",
+            "type": "boolean"
+          },
+          "insecure": {
+            "type": "boolean"
+          },
+          "last_polled_at": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner_id": {
+            "description": "UUID of the registry owner",
+            "type": "string"
+          },
+          "poll_interval_minutes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "repositories": {
+            "description": "Explicit repositories to walk; overrides catalog discovery when non-empty",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "repository_patterns": {
+            "description": "Glob patterns for repositories to ingest; empty = all",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "scan_mode": {
+            "type": "string"
+          },
+          "tag_patterns": {
+            "description": "Glob patterns or 'semver' for tags to ingest; empty = all",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "type": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "visibility": {
+            "description": "Registry visibility: public or private",
+            "type": "string"
+          },
+          "webhook_secret": {
+            "description": "Generated webhook secret — shown once only. Store it securely; it cannot be retrieved again.",
+            "type": "string"
+          },
+          "webhook_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "url",
+          "insecure",
+          "has_secret",
+          "has_auth",
+          "enabled",
+          "webhook_url",
+          "repositories",
+          "repository_patterns",
+          "tag_patterns",
+          "scan_mode",
+          "poll_interval_minutes",
+          "created_at",
+          "updated_at",
+          "visibility",
+          "include_untagged"
         ],
         "type": "object"
       },
@@ -1531,6 +1668,28 @@
         ],
         "type": "object"
       },
+      "RegenerateWebhookSecretOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/RegenerateWebhookSecretOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "webhook_secret": {
+            "description": "New webhook secret — shown once only. The previous secret is immediately invalidated.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "webhook_secret"
+        ],
+        "type": "object"
+      },
       "RegistryResponse": {
         "additionalProperties": false,
         "properties": {
@@ -1558,6 +1717,10 @@
           "id": {
             "type": "string"
           },
+          "include_untagged": {
+            "description": "Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)",
+            "type": "boolean"
+          },
           "insecure": {
             "type": "boolean"
           },
@@ -1565,6 +1728,10 @@
             "type": "string"
           },
           "name": {
+            "type": "string"
+          },
+          "owner_id": {
+            "description": "UUID of the registry owner",
             "type": "string"
           },
           "poll_interval_minutes": {
@@ -1613,6 +1780,10 @@
           "url": {
             "type": "string"
           },
+          "visibility": {
+            "description": "Registry visibility: public or private",
+            "type": "string"
+          },
           "webhook_url": {
             "type": "string"
           }
@@ -1633,7 +1804,9 @@
           "scan_mode",
           "poll_interval_minutes",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "visibility",
+          "include_untagged"
         ],
         "type": "object"
       },
@@ -2048,6 +2221,10 @@
           "enabled": {
             "type": "boolean"
           },
+          "include_untagged": {
+            "description": "Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)",
+            "type": "boolean"
+          },
           "insecure": {
             "type": "boolean"
           },
@@ -2112,7 +2289,12 @@
             "minLength": 1,
             "type": "string"
           },
-          "webhook_secret": {
+          "visibility": {
+            "description": "Registry visibility",
+            "enum": [
+              "public",
+              "private"
+            ],
             "type": "string"
           }
         },
@@ -3335,7 +3517,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RegistryResponse"
+                  "$ref": "#/components/schemas/CreateRegistryResponseBody"
                 }
               }
             },
@@ -3626,6 +3808,51 @@
         },
         "security": [],
         "summary": "Receive registry push notifications",
+        "tags": [
+          "Registries"
+        ]
+      }
+    },
+    "/api/v1/registries/{id}/webhook-secret": {
+      "post": {
+        "description": "Generates a new webhook secret for the registry. The previous secret is immediately invalidated.",
+        "operationId": "regenerate-webhook-secret",
+        "parameters": [
+          {
+            "description": "Registry UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Registry UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegenerateWebhookSecretOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Regenerate webhook secret",
         "tags": [
           "Registries"
         ]

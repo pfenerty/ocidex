@@ -79,8 +79,9 @@ func run() error {
 
 	registrySvc := service.NewRegistryService(pool)
 	insecureResolver := service.BuildInsecureResolver(registrySvc)
+	credentialResolver := service.BuildCredentialResolver(registrySvc)
 
-	setupEnrichmentExt(cfg, reg, pool, insecureResolver, natsClient, logger)
+	setupEnrichmentExt(cfg, reg, pool, insecureResolver, credentialResolver, natsClient, logger)
 	setupOptionalExts(cfg, reg, natsClient, logger)
 
 	ociValidator := oci.NewValidator(oci.WithInsecureResolver(insecureResolver))
@@ -104,7 +105,7 @@ func run() error {
 	}
 
 	if cfg.ScannerEnabled && cfg.RegistryPollerEnabled && scanSubmitter != nil {
-		poller := scanner.NewPoller(registrySvc, scanSubmitter, logger)
+		poller := scanner.NewPoller(registrySvc, scanSubmitter, sbomSvc, logger)
 		go poller.Run(extCtx)
 		slog.Info("registry poller started")
 	}
@@ -195,7 +196,7 @@ func setupOptionalExts(cfg *config.Config, reg *extension.Registry, natsClient *
 	}
 }
 
-func setupEnrichmentExt(cfg *config.Config, reg *extension.Registry, pool *pgxpool.Pool, insecureResolver func(string) bool, natsClient *natspkg.Client, logger *slog.Logger) {
+func setupEnrichmentExt(cfg *config.Config, reg *extension.Registry, pool *pgxpool.Pool, insecureResolver func(string) bool, credentialResolver func(string) (string, string), natsClient *natspkg.Client, logger *slog.Logger) {
 	if cfg.NATSEnabled && cfg.EnrichmentNATSMode {
 		return
 	}
@@ -203,7 +204,10 @@ func setupEnrichmentExt(cfg *config.Config, reg *extension.Registry, pool *pgxpo
 		return
 	}
 	enrichStore := repository.New(pool)
-	ociEnricher := oci.NewEnricher(oci.WithInsecureResolver(insecureResolver))
+	ociEnricher := oci.NewEnricher(
+		oci.WithInsecureResolver(insecureResolver),
+		oci.WithCredentialResolver(credentialResolver),
+	)
 	dispatcher := enrichment.NewDispatcher(
 		enrichStore,
 		[]enrichment.Enricher{ociEnricher},

@@ -68,15 +68,18 @@ WHERE ($1::text IS NULL OR a.type = $1)
   AND ($3::boolean IS NULL
        OR NOT $3::boolean
        OR EXISTS (SELECT 1 FROM sbom s2 WHERE s2.artifact_id = a.id AND s2.enrichment_sufficient))
+  AND artifact_visible(a.id, $4::uuid, $5::boolean)
 GROUP BY a.id
 ORDER BY a.name, a.type
-LIMIT $5 OFFSET $4
+LIMIT $7 OFFSET $6
 `
 
 type ListArtifactsParams struct {
 	Type              pgtype.Text `json:"type"`
 	Name              pgtype.Text `json:"name"`
 	RequireSufficient pgtype.Bool `json:"require_sufficient"`
+	UserID            pgtype.UUID `json:"user_id"`
+	IsAdmin           pgtype.Bool `json:"is_admin"`
 	RowOffset         int32       `json:"row_offset"`
 	RowLimit          int32       `json:"row_limit"`
 }
@@ -99,6 +102,8 @@ func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([
 		arg.Type,
 		arg.Name,
 		arg.RequireSufficient,
+		arg.UserID,
+		arg.IsAdmin,
 		arg.RowOffset,
 		arg.RowLimit,
 	)
@@ -148,14 +153,17 @@ WHERE s.artifact_id = $1
   AND ($2::text IS NULL OR s.subject_version = $2)
   AND ($3::text IS NULL
        OR COALESCE(e.data->>'imageVersion', u.data->>'imageVersion') = $3)
+  AND sbom_visible(s.registry_id, $4::uuid, $5::boolean)
 ORDER BY s.created_at DESC
-LIMIT $5 OFFSET $4
+LIMIT $7 OFFSET $6
 `
 
 type ListSBOMsByArtifactParams struct {
 	ArtifactID     pgtype.UUID `json:"artifact_id"`
 	SubjectVersion pgtype.Text `json:"subject_version"`
 	ImageVersion   pgtype.Text `json:"image_version"`
+	UserID         pgtype.UUID `json:"user_id"`
+	IsAdmin        pgtype.Bool `json:"is_admin"`
 	RowOffset      int32       `json:"row_offset"`
 	RowLimit       int32       `json:"row_limit"`
 }
@@ -183,6 +191,8 @@ func (q *Queries) ListSBOMsByArtifact(ctx context.Context, arg ListSBOMsByArtifa
 		arg.ArtifactID,
 		arg.SubjectVersion,
 		arg.ImageVersion,
+		arg.UserID,
+		arg.IsAdmin,
 		arg.RowOffset,
 		arg.RowLimit,
 	)
@@ -249,4 +259,20 @@ func (q *Queries) UpsertArtifact(ctx context.Context, arg UpsertArtifactParams) 
 	var id pgtype.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const upsertArtifactRegistry = `-- name: UpsertArtifactRegistry :exec
+INSERT INTO artifact_registry (artifact_id, registry_id)
+VALUES ($1, $2)
+ON CONFLICT DO NOTHING
+`
+
+type UpsertArtifactRegistryParams struct {
+	ArtifactID pgtype.UUID `json:"artifact_id"`
+	RegistryID pgtype.UUID `json:"registry_id"`
+}
+
+func (q *Queries) UpsertArtifactRegistry(ctx context.Context, arg UpsertArtifactRegistryParams) error {
+	_, err := q.db.Exec(ctx, upsertArtifactRegistry, arg.ArtifactID, arg.RegistryID)
+	return err
 }

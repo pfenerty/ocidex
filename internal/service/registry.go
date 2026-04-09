@@ -33,6 +33,9 @@ type Registry struct {
 	LastPolledAt        *time.Time // nil if never polled
 	AuthUsername        *string    // nil = no auth
 	AuthToken           *string    // nil = no auth
+	OwnerID             *string    // nil = no owner (legacy)
+	Visibility          string     // "public" | "private"
+	IncludeUntagged     bool       // scan untagged manifests via registry-specific APIs
 }
 
 // HasAuth returns true if the registry has authentication credentials configured.
@@ -101,12 +104,39 @@ func matchGlob(pattern, s string) bool {
 	return ok
 }
 
+// BuildCredentialResolver returns a function that resolves registry credentials
+// (username, token) by hostname. Used by OCI clients at enrichment time to
+// authenticate against private registries without threading credentials through events.
+func BuildCredentialResolver(svc RegistryService) func(string) (string, string) {
+	return func(host string) (string, string) {
+		regs, err := svc.List(context.Background(), VisibilityFilter{IsAdmin: true})
+		if err != nil {
+			return "", ""
+		}
+		for _, r := range regs {
+			regHost := r.URL
+			if i := strings.Index(regHost, "://"); i != -1 {
+				regHost = regHost[i+3:]
+			}
+			regHost = strings.TrimSuffix(regHost, "/")
+			if regHost == host && r.AuthToken != nil && *r.AuthToken != "" {
+				username := ""
+				if r.AuthUsername != nil {
+					username = *r.AuthUsername
+				}
+				return username, *r.AuthToken
+			}
+		}
+		return "", ""
+	}
+}
+
 // BuildInsecureResolver returns a function that checks whether a host belongs
 // to a registry marked as insecure. Useful for OCI clients that need to know
 // when to use HTTP instead of HTTPS.
 func BuildInsecureResolver(svc RegistryService) func(string) bool {
 	return func(host string) bool {
-		regs, err := svc.List(context.Background())
+		regs, err := svc.List(context.Background(), VisibilityFilter{IsAdmin: true})
 		if err != nil {
 			return false
 		}
@@ -124,12 +154,18 @@ func BuildInsecureResolver(svc RegistryService) func(string) bool {
 	}
 }
 
+// VisibilityFilter controls which registries or artifacts are visible to the caller.
+type VisibilityFilter struct {
+	IsAdmin bool        // admin sees everything
+	UserID  pgtype.UUID // authenticated user's ID (zero-value if unauthenticated)
+}
+
 // RegistryService manages registry configuration.
 type RegistryService interface {
-	Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string) (Registry, error)
+	Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, ownerID pgtype.UUID, visibility string, includeUntagged bool) (Registry, error)
 	Get(ctx context.Context, id string) (Registry, error)
-	List(ctx context.Context) ([]Registry, error)
-	Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string) (Registry, error)
+	List(ctx context.Context, filter VisibilityFilter) ([]Registry, error)
+	Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, visibility string, includeUntagged bool) (Registry, error)
 	SetEnabled(ctx context.Context, id string, enabled bool) (Registry, error)
 	Delete(ctx context.Context, id string) error
 	ListPollable(ctx context.Context) ([]Registry, error)
@@ -149,7 +185,10 @@ func NewRegistryService(pool *pgxpool.Pool) RegistryService {
 	}
 }
 
-func (s *registryService) Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string) (Registry, error) {
+func (s *registryService) Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, ownerID pgtype.UUID, visibility string, includeUntagged bool) (Registry, error) {
+	if visibility == "" {
+		visibility = "public"
+	}
 	r, err := s.repo.CreateRegistry(ctx, repository.CreateRegistryParams{
 		Name:                name,
 		Type:                regType,
@@ -163,6 +202,9 @@ func (s *registryService) Create(ctx context.Context, name, regType, url string,
 		PollIntervalMinutes: int32(pollIntervalMinutes), //nolint:gosec // G115: poll interval is validated to fit int32
 		AuthUsername:        toNullText(authUsername),
 		AuthToken:           toNullText(authToken),
+		OwnerID:             ownerID,
+		Visibility:          visibility,
+		IncludeUntagged:     includeUntagged,
 	})
 	if err != nil {
 		return Registry{}, fmt.Errorf("creating registry: %w", err)
@@ -182,8 +224,11 @@ func (s *registryService) Get(ctx context.Context, id string) (Registry, error) 
 	return fromRepo(r), nil
 }
 
-func (s *registryService) List(ctx context.Context) ([]Registry, error) {
-	rows, err := s.repo.ListRegistries(ctx)
+func (s *registryService) List(ctx context.Context, filter VisibilityFilter) ([]Registry, error) {
+	rows, err := s.repo.ListRegistries(ctx, repository.ListRegistriesParams{
+		IsAdmin: pgtype.Bool{Bool: filter.IsAdmin, Valid: true},
+		UserID:  filter.UserID,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("listing registries: %w", err)
 	}
@@ -194,7 +239,10 @@ func (s *registryService) List(ctx context.Context) ([]Registry, error) {
 	return out, nil
 }
 
-func (s *registryService) Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string) (Registry, error) {
+func (s *registryService) Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, visibility string, includeUntagged bool) (Registry, error) {
+	if visibility == "" {
+		visibility = "public"
+	}
 	uid, err := parseRegistryUUID(id)
 	if err != nil {
 		return Registry{}, ErrNotFound
@@ -214,6 +262,8 @@ func (s *registryService) Update(ctx context.Context, id, name, regType, url str
 		PollIntervalMinutes: int32(pollIntervalMinutes), //nolint:gosec // G115: poll interval is validated to fit int32
 		AuthUsername:        toNullText(authUsername),
 		AuthToken:           toNullText(authToken),
+		Visibility:          visibility,
+		IncludeUntagged:     includeUntagged,
 	})
 	if err != nil {
 		return Registry{}, fmt.Errorf("updating registry: %w", err)
@@ -290,6 +340,8 @@ func fromRepo(r repository.Registry) Registry {
 		TagPatterns:         r.TagPatterns,
 		ScanMode:            r.ScanMode,
 		PollIntervalMinutes: int(r.PollIntervalMinutes),
+		Visibility:          r.Visibility,
+		IncludeUntagged:     r.IncludeUntagged,
 	}
 	if r.WebhookSecret.Valid {
 		s := r.WebhookSecret.String
@@ -306,6 +358,10 @@ func fromRepo(r repository.Registry) Registry {
 	if r.AuthToken.Valid {
 		s := r.AuthToken.String
 		out.AuthToken = &s
+	}
+	if r.OwnerID.Valid {
+		s := uuidToStr(r.OwnerID)
+		out.OwnerID = &s
 	}
 	return out
 }

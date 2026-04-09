@@ -35,7 +35,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
-	r.Use(Authenticate(h.authService))
+	r.Use(OptionalAuthenticate(h.authService))
 	r.Use(middleware.Timeout(30 * time.Second))
 
 	config := huma.DefaultConfig("OCIDex API", "1.0.0")
@@ -408,6 +408,15 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Tags:          []string{"Registries"},
 		DefaultStatus: http.StatusAccepted,
 	}, h.ScanRegistry)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "regenerate-webhook-secret",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/registries/{id}/webhook-secret",
+		Summary:     "Regenerate webhook secret",
+		Description: "Generates a new webhook secret for the registry. The previous secret is immediately invalidated.",
+		Tags:        []string{"Registries"},
+	}, h.RegenerateWebhookSecret)
 }
 
 // ---------------------------------------------------------------------------
