@@ -46,11 +46,11 @@ type Metadata struct {
 
 // Enricher fetches OCI image metadata from container registries.
 type Enricher struct {
-	timeout             time.Duration
-	options             []remote.Option
-	insecure            bool
-	insecureResolver    func(host string) bool
-	credentialResolver  func(host string) (username, token string)
+	timeout            time.Duration
+	options            []remote.Option
+	insecure           bool
+	insecureResolver   func(host string) bool
+	credentialResolver func(host string) (username, token string)
 }
 
 // Option configures the OCI Enricher.
