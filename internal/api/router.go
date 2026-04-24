@@ -347,6 +347,8 @@ func registerWebhookOps(api huma.API, h *Handler) {
 // ---------------------------------------------------------------------------
 
 func registerRegistryOps(api huma.API, h *Handler) {
+	ownerMW := RequireRegistryOwner(api, h.registryService)
+
 	huma.Register(api, huma.Operation{
 		OperationID:   "test-registry-connection",
 		Method:        http.MethodPost,
@@ -388,6 +390,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/registries/{id}",
 		Summary:     "Update a registry (partial)",
 		Tags:        []string{"Registries"},
+		Middlewares: huma.Middlewares{ownerMW},
 	}, h.UpdateRegistry)
 
 	huma.Register(api, huma.Operation{
@@ -397,6 +400,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Summary:       "Delete a registry",
 		Tags:          []string{"Registries"},
 		DefaultStatus: http.StatusNoContent,
+		Middlewares:   huma.Middlewares{ownerMW},
 	}, h.DeleteRegistry)
 
 	huma.Register(api, huma.Operation{
@@ -407,6 +411,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Description:   "Walks the registry catalog, filters by configured patterns, and queues scan requests for all matching images.",
 		Tags:          []string{"Registries"},
 		DefaultStatus: http.StatusAccepted,
+		Middlewares:   huma.Middlewares{ownerMW},
 	}, h.ScanRegistry)
 
 	huma.Register(api, huma.Operation{
@@ -416,6 +421,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Summary:     "Regenerate webhook secret",
 		Description: "Generates a new webhook secret for the registry. The previous secret is immediately invalidated.",
 		Tags:        []string{"Registries"},
+		Middlewares: huma.Middlewares{ownerMW},
 	}, h.RegenerateWebhookSecret)
 }
 

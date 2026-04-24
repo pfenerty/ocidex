@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/pfenerty/ocidex/internal/service"
@@ -123,6 +124,33 @@ func RequireRole(roles ...string) func(http.Handler) http.Handler {
 func UserFromContext(ctx context.Context) (service.AuthUser, bool) {
 	u, ok := ctx.Value(ctxKeyUser{}).(service.AuthUser)
 	return u, ok
+}
+
+// RequireRegistryOwner returns a huma middleware that loads the registry from
+// the {id} path param and rejects with 403 unless the caller is the owner or
+// an admin. Pass a nil svc to skip the check (useful in tests that don't wire
+// a registry service).
+func RequireRegistryOwner(api huma.API, svc service.RegistryService) func(huma.Context, func(huma.Context)) {
+	if svc == nil {
+		return func(ctx huma.Context, next func(huma.Context)) { next(ctx) }
+	}
+	return func(ctx huma.Context, next func(huma.Context)) {
+		user, ok := UserFromContext(ctx.Context())
+		if !ok {
+			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, "not authenticated")
+			return
+		}
+		reg, err := svc.Get(ctx.Context(), ctx.Param("id"))
+		if err != nil {
+			_ = huma.WriteErr(api, ctx, http.StatusNotFound, "registry not found")
+			return
+		}
+		if !canManageRegistry(user, reg) {
+			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
+			return
+		}
+		next(ctx)
+	}
 }
 
 func writeUnauthorized(w http.ResponseWriter) {
