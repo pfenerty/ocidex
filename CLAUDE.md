@@ -8,6 +8,34 @@
 - Challenge design decisions when necessary
 - After making frontend changes, run `make frontend-lint-fix` to auto-fix ESLint errors, then `make frontend-lint` to verify no remaining issues
 
+## Codebase Exploration with Repomix
+
+Repomix MCP tools are available and auto-allowed. Prefer them over spawning Explore subagents or doing many sequential Glob/Grep calls when you need broad codebase understanding.
+
+```
+# Pack the local codebase (call once per session for broad exploration)
+mcp__repomix__pack_codebase     → produces an output ID
+
+# Search within a packed output (fast, no re-packing)
+mcp__repomix__grep_repomix_output  → regex search across all files
+
+# Read sections of the packed output
+mcp__repomix__read_repomix_output  → read with offset/limit
+
+# Attach a previous pack by output ID (avoids re-packing)
+mcp__repomix__attach_packed_output
+```
+
+**When to use repomix:**
+- PR review or security review (pack once, grep many times)
+- "How does X work across the codebase?" questions
+- Finding all callsites/usages of an interface or function
+- Any exploration that would otherwise require 5+ Glob/Grep calls
+
+**When to use Glob/Grep directly:**
+- You already know the file or directory
+- Single targeted lookup (one file, one symbol)
+
 ## Project Overview
 
 OCIDex (Open Container Initiative Dex) is a Go HTTP service for maintaining metadata about software artifacts, particularly SBOMs. It receives CycloneDX JSON SBOMs via API, stores them in a database, maintains links between software artifacts for tracking over time, and provides search by artifact, package/version, and license.
