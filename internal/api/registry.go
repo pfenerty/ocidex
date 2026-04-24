@@ -147,11 +147,11 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 	}
 	scanMode := in.Body.ScanMode
 	if scanMode == "" {
-		scanMode = "webhook"
+		scanMode = existing.ScanMode
 	}
 	pollInterval := in.Body.PollIntervalMinutes
 	if pollInterval == 0 {
-		pollInterval = 60
+		pollInterval = existing.PollIntervalMinutes
 	}
 	visibility := in.Body.Visibility
 	if visibility == "" {

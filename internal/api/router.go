@@ -384,9 +384,9 @@ func registerRegistryOps(api huma.API, h *Handler) {
 
 	huma.Register(api, huma.Operation{
 		OperationID: "update-registry",
-		Method:      http.MethodPut,
+		Method:      http.MethodPatch,
 		Path:        "/api/v1/registries/{id}",
-		Summary:     "Update a registry",
+		Summary:     "Update a registry (partial)",
 		Tags:        []string{"Registries"},
 	}, h.UpdateRegistry)
 

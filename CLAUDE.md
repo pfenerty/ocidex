@@ -159,6 +159,43 @@ Environment variables (see `.env.example`):
 - Graceful shutdown with 30-second timeout
 - Prefer small, composable, idiomatic libraries over large batteries-included frameworks
 
+## Issue Tracking (Beads)
+
+This project uses [Beads](https://github.com/steveyegge/beads) (`bd`) for task tracking. **Do NOT use TodoWrite or TaskCreate** — use `bd` instead.
+
+The session-start hook auto-runs `bd prime` when `.beads/` is present. Run it manually after compaction or `/clear`.
+
+**Roadmap structure** (epics established for the path to 1.0):
+
+| Epic | Theme |
+|---|---|
+| `ocidex-6ce` | 1.0 — Solid Core (refactor + stabilize) |
+| `ocidex-ars` | 1.1 — Production K8s deployment |
+| `ocidex-utt` | 1.2 — CLI tool (`cmd/ocidex-cli`) |
+| `ocidex-m4x` | 1.3 — K8s operator + CRDs |
+| `ocidex-4o0` | 1.4 — Terraform provider |
+
+The 1.0 epic has 36 child tasks (`ocidex-6ce.1` through `.36`) organized into sections A–H. See the plan at `~/.claude/plans/this-app-started-as-validated-star.md`.
+
+**Workflow:**
+
+```bash
+bd ready                              # Find unblocked work
+bd ready --priority=1                 # Top-priority ready work
+bd show <id>                          # Inspect an issue
+bd update <id> --status=in_progress   # Claim it before coding
+bd close <id>                         # Close on completion
+bd close <id1> <id2> ...              # Close multiple at once
+```
+
+**Conventions:**
+- Create the issue *before* writing code; mark `in_progress` when starting.
+- Priority is `0`–`4` (or `P0`–`P4`), where `0` is critical. Don't use `high`/`medium`/`low`.
+- Hierarchical IDs (`<epic>.<n>`) come from the `--parent` flag at create time.
+- Cross-issue dependencies via `bd dep add <issue> <depends-on>`.
+- **Never** use `bd edit` — it opens `$EDITOR` and blocks. Use `bd update --title/--description/--notes` instead.
+- Beads auto-commits its database to Dolt; run `git push` at session end to push code changes.
+
 ## ADR Summary
 
 | # | Decision | Choice |
