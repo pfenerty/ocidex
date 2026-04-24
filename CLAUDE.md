@@ -183,6 +183,8 @@ The 1.0 epic has 36 child tasks (`ocidex-6ce.1` through `.36`) organized into se
 bd ready                              # Find unblocked work
 bd ready --priority=1                 # Top-priority ready work
 bd show <id>                          # Inspect an issue
+git checkout main && git pull         # Start from latest main
+git checkout -b <branch-name>         # New branch per issue
 bd update <id> --status=in_progress   # Claim it before coding
 bd close <id>                         # Close on completion
 bd close <id1> <id2> ...              # Close multiple at once
@@ -190,6 +192,7 @@ bd close <id1> <id2> ...              # Close multiple at once
 
 **Conventions:**
 - Create the issue *before* writing code; mark `in_progress` when starting.
+- Always branch from `main` before starting work on an issue (`git checkout main && git pull && git checkout -b <branch-name>`).
 - Priority is `0`–`4` (or `P0`–`P4`), where `0` is critical. Don't use `high`/`medium`/`low`.
 - Hierarchical IDs (`<epic>.<n>`) come from the `--parent` flag at create time.
 - Cross-issue dependencies via `bd dep add <issue> <depends-on>`.
