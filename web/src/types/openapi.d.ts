@@ -325,14 +325,14 @@ export interface paths {
         };
         /** Get a registry */
         get: operations["get-registry"];
-        /** Update a registry */
-        put: operations["update-registry"];
+        put?: never;
         post?: never;
         /** Delete a registry */
         delete: operations["delete-registry"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** Update a registry (partial) */
+        patch: operations["update-registry"];
         trace?: never;
     };
     "/api/v1/registries/{id}/scan": {
@@ -808,6 +808,8 @@ export interface components {
             name: string;
             /** @description UUID of the registry owner */
             owner_id?: string;
+            /** @description GitHub username of the registry owner */
+            owner_username?: string;
             /** Format: int64 */
             poll_interval_minutes: number;
             /** @description Explicit repositories to walk; overrides catalog discovery when non-empty */
@@ -1205,6 +1207,8 @@ export interface components {
             name: string;
             /** @description UUID of the registry owner */
             owner_id?: string;
+            /** @description GitHub username of the registry owner */
+            owner_username?: string;
             /** Format: int64 */
             poll_interval_minutes: number;
             /** @description Explicit repositories to walk; overrides catalog discovery when non-empty */
@@ -2200,6 +2204,36 @@ export interface operations {
             };
         };
     };
+    "delete-registry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Registry UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "update-registry": {
         parameters: {
             query?: never;
@@ -2224,36 +2258,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RegistryResponse"];
                 };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "delete-registry": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Registry UUID */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
             /** @description Error */
             default: {

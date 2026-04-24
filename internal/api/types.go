@@ -564,6 +564,7 @@ type RegistryResponse struct {
 	UpdatedAt           string   `json:"updated_at"`
 	Visibility          string   `json:"visibility" doc:"Registry visibility: public or private"`
 	OwnerID             *string  `json:"owner_id,omitempty" doc:"UUID of the registry owner"`
+	OwnerUsername       *string  `json:"owner_username,omitempty" doc:"GitHub username of the registry owner"`
 	IncludeUntagged     bool     `json:"include_untagged" doc:"Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)"`
 }
 
