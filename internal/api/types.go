@@ -628,7 +628,7 @@ type RegenerateWebhookSecretOutput struct {
 	}
 }
 
-// UpdateRegistryInput is the request for PUT /api/v1/registries/{id}.
+// UpdateRegistryInput is the request for PATCH /api/v1/registries/{id}.
 type UpdateRegistryInput struct {
 	ID   string `path:"id" doc:"Registry UUID" format:"uuid"`
 	Body struct {
