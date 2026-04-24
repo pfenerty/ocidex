@@ -108,16 +108,9 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 // RegenerateWebhookSecret generates a new webhook secret for a registry (owner or admin).
 // The previous secret is immediately invalidated.
 func (h *Handler) RegenerateWebhookSecret(ctx context.Context, in *RegenerateWebhookSecretInput) (*RegenerateWebhookSecretOutput, error) {
-	user, ok := UserFromContext(ctx)
-	if !ok {
-		return nil, huma.Error401Unauthorized("not authenticated")
-	}
 	existing, err := h.registryService.Get(ctx, in.ID)
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
-	}
-	if !canManageRegistry(user, existing) {
-		return nil, huma.Error403Forbidden("only the owner or an admin can update this registry")
 	}
 	secret, err := generateWebhookSecret()
 	if err != nil {
@@ -134,16 +127,9 @@ func (h *Handler) RegenerateWebhookSecret(ctx context.Context, in *RegenerateWeb
 
 // UpdateRegistry updates a registry (owner or admin).
 func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (*UpdateRegistryOutput, error) {
-	user, ok := UserFromContext(ctx)
-	if !ok {
-		return nil, huma.Error401Unauthorized("not authenticated")
-	}
 	existing, err := h.registryService.Get(ctx, in.ID)
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
-	}
-	if !canManageRegistry(user, existing) {
-		return nil, huma.Error403Forbidden("only the owner or an admin can update this registry")
 	}
 	scanMode := in.Body.ScanMode
 	if scanMode == "" {
@@ -166,17 +152,6 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 
 // DeleteRegistry deletes a registry (owner or admin).
 func (h *Handler) DeleteRegistry(ctx context.Context, in *DeleteRegistryInput) (*struct{}, error) {
-	user, ok := UserFromContext(ctx)
-	if !ok {
-		return nil, huma.Error401Unauthorized("not authenticated")
-	}
-	existing, err := h.registryService.Get(ctx, in.ID)
-	if err != nil {
-		return nil, huma.Error404NotFound("registry not found")
-	}
-	if !canManageRegistry(user, existing) {
-		return nil, huma.Error403Forbidden("only the owner or an admin can delete this registry")
-	}
 	if err := h.registryService.Delete(ctx, in.ID); err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}
@@ -232,16 +207,9 @@ func (h *Handler) TestRegistryConnection(ctx context.Context, in *TestRegistryCo
 
 // ScanRegistry triggers an ad-hoc catalog walk of a registry (owner or admin).
 func (h *Handler) ScanRegistry(ctx context.Context, in *ScanRegistryInput) (*ScanRegistryOutput, error) {
-	user, ok := UserFromContext(ctx)
-	if !ok {
-		return nil, huma.Error401Unauthorized("not authenticated")
-	}
 	reg, err := h.registryService.Get(ctx, in.ID)
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
-	}
-	if !canManageRegistry(user, reg) {
-		return nil, huma.Error403Forbidden("only the owner or an admin can scan this registry")
 	}
 	if h.scanSubmitter == nil {
 		return nil, huma.Error503ServiceUnavailable("scanner not enabled")
