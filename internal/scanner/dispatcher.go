@@ -15,30 +15,37 @@ import (
 
 // Dispatcher manages a worker pool that scans OCI images and ingests the resulting SBOMs.
 type Dispatcher struct {
-	queue   chan ScanRequest
-	scanner *Scanner
-	sbomSvc service.SBOMService
-	workers int
-	logger  *slog.Logger
+	queue    chan ScanRequest
+	stopping chan struct{} // closed by Run when shutdown begins
+	scanner  *Scanner
+	sbomSvc  service.SBOMService
+	workers  int
+	logger   *slog.Logger
 }
 
 // NewDispatcher creates a Dispatcher with the given scanner, SBOM service, and pool configuration.
 func NewDispatcher(sc *Scanner, sbomSvc service.SBOMService, workers, queueSize int, logger *slog.Logger) *Dispatcher {
 	return &Dispatcher{
-		queue:   make(chan ScanRequest, queueSize),
-		scanner: sc,
-		sbomSvc: sbomSvc,
-		workers: workers,
-		logger:  logger,
+		queue:    make(chan ScanRequest, queueSize),
+		stopping: make(chan struct{}),
+		scanner:  sc,
+		sbomSvc:  sbomSvc,
+		workers:  workers,
+		logger:   logger,
 	}
 }
 
-// Submit enqueues a scan request. Non-blocking; drops and warns if the queue is full.
+// Submit enqueues a scan request. Blocks until a slot is available or the dispatcher stops.
 func (d *Dispatcher) Submit(req ScanRequest) {
-	d.SubmitWithResult(req)
+	select {
+	case d.queue <- req:
+		d.logger.Debug("scan queued", "repo", req.Repository, "digest", req.Digest)
+	case <-d.stopping:
+		d.logger.Debug("scan request dropped: dispatcher stopping", "repo", req.Repository, "digest", req.Digest)
+	}
 }
 
-// SubmitWithResult enqueues a scan request and returns true if accepted, false if queue is full.
+// SubmitWithResult enqueues a scan request without blocking. Returns true if accepted, false if the queue is full.
 func (d *Dispatcher) SubmitWithResult(req ScanRequest) bool {
 	select {
 	case d.queue <- req:
@@ -65,7 +72,8 @@ func (d *Dispatcher) Run(ctx context.Context) {
 	}
 
 	<-ctx.Done()
-	close(d.queue)
+	close(d.stopping) // unblock any Submit calls waiting for a slot
+	close(d.queue)    // signal workers to drain and exit
 	wg.Wait()
 
 	d.logger.Info("scanner dispatcher stopped")

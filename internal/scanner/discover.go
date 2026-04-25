@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/pfenerty/ocidex/internal/service"
@@ -20,24 +21,32 @@ type ManifestDiscoverer interface {
 	DiscoverManifests(ctx context.Context, client *http.Client, baseURL, repo string) ([]DiscoveredManifest, error)
 }
 
-// discovererForType returns a ManifestDiscoverer for the given registry type,
-// or nil if the type does not support full manifest discovery.
+// discovererFactories maps registry type strings to constructor functions.
+// Populated via RegisterDiscoverer calls in each per-type file's init().
+var discovererFactories = map[string]func(service.Registry) ManifestDiscoverer{}
+
+// RegisterDiscoverer registers a factory for the given registry type name.
+func RegisterDiscoverer(typeName string, fn func(service.Registry) ManifestDiscoverer) {
+	discovererFactories[typeName] = fn
+}
+
+// discovererForType returns a ManifestDiscoverer for the registry type,
+// or an unknownDiscoverer that returns an explicit error for unregistered types.
 func discovererForType(reg service.Registry) ManifestDiscoverer {
-	switch reg.Type {
-	case "zot":
-		return &zotDiscoverer{}
-	case "harbor":
-		return &harborDiscoverer{
-			authUsername: derefStr(reg.AuthUsername),
-			authToken:    derefStr(reg.AuthToken),
-		}
-	case "ghcr":
-		return &ghcrDiscoverer{
-			authToken: derefStr(reg.AuthToken),
-		}
-	default:
-		return nil
+	fn, ok := discovererFactories[reg.Type]
+	if !ok {
+		return &unknownDiscoverer{typeName: reg.Type}
 	}
+	return fn(reg)
+}
+
+// unknownDiscoverer is returned for registry types with no registered factory.
+type unknownDiscoverer struct {
+	typeName string
+}
+
+func (u *unknownDiscoverer) DiscoverManifests(_ context.Context, _ *http.Client, _, _ string) ([]DiscoveredManifest, error) {
+	return nil, fmt.Errorf("unsupported registry type %q: no manifest discoverer registered", u.typeName)
 }
 
 // isImageManifestType returns true for OCI/Docker image manifest media types.

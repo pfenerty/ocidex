@@ -6,7 +6,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"github.com/pfenerty/ocidex/internal/service"
 )
+
+func init() {
+	RegisterDiscoverer("zot", func(_ service.Registry) ManifestDiscoverer {
+		return &zotDiscoverer{}
+	})
+}
 
 // zotDiscoverer uses Zot's GraphQL search extension to list all manifests.
 type zotDiscoverer struct{}
