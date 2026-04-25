@@ -28,6 +28,8 @@ type SBOMIngestedData struct {
 	ArtifactName   string
 	Digest         string
 	SubjectVersion string
+	Architecture   string
+	BuildDate      string
 }
 
 // SBOMDeletedData is published after an SBOM is deleted.
