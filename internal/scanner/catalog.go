@@ -517,8 +517,8 @@ func (t *ociTokenTransport) RoundTrip(req *http.Request) (*http.Response, error)
 			// Token exchange failed (e.g. ghcr.io returns 403 for unsupported scopes
 			// like catalog). Return the original 401 so the caller can handle it
 			// rather than surfacing a transport-level error.
-			slog.Debug("OCI token exchange failed", "host", req.URL.Host, "scope", scope, "err", fetchErr)
-			return resp, nil //nolint:nilerr // intentional: fall back to original 401 response
+			slog.Debug("OCI token exchange failed", "host", req.URL.Host, "scope", scope, "err", fetchErr) //nolint:gosec // G706: host and scope come from the registry's WWW-Authenticate header, not arbitrary user input
+			return resp, nil                                                                               //nolint:nilerr // intentional: fall back to original 401 response
 		}
 		t.mu.Lock()
 		t.tokens[cacheKey] = cachedToken

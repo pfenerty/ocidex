@@ -13,9 +13,14 @@ import (
 	_ "modernc.org/sqlite" // register "sqlite" driver for Syft RPM DB cataloging
 )
 
-// Scanner runs syft against an OCI registry to produce CycloneDX JSON SBOMs.
+// Scanner scans an OCI image and returns CycloneDX JSON.
+type Scanner interface {
+	Scan(ctx context.Context, req ScanRequest) ([]byte, error)
+}
+
+// SyftScanner runs syft against an OCI registry to produce CycloneDX JSON SBOMs.
 // It is stateless; registry address and insecure flag are provided per-request.
-type Scanner struct {
+type SyftScanner struct {
 	logger *slog.Logger
 }
 
@@ -34,13 +39,13 @@ type ScanRequest struct {
 	RegistryID   string // UUID of the source registry; empty = unknown
 }
 
-// NewScanner creates a stateless Scanner.
-func NewScanner(logger *slog.Logger) *Scanner {
-	return &Scanner{logger: logger}
+// NewSyftScanner creates a stateless SyftScanner.
+func NewSyftScanner(logger *slog.Logger) *SyftScanner {
+	return &SyftScanner{logger: logger}
 }
 
 // Scan runs syft against the image identified by req and returns CycloneDX JSON.
-func (s *Scanner) Scan(ctx context.Context, req ScanRequest) ([]byte, error) {
+func (s *SyftScanner) Scan(ctx context.Context, req ScanRequest) ([]byte, error) {
 	ref := fmt.Sprintf("%s/%s@%s", req.RegistryURL, req.Repository, req.Digest)
 	s.logger.Info("scanning image", "ref", ref, "tag", req.Tag)
 

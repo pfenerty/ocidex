@@ -83,7 +83,7 @@ func run() error {
 
 	// Wire scanner worker: stateless scanner + nil OCI validator (webhook confirms image exists).
 	scannerSbomSvc := service.NewSBOMService(pool, bus, nil)
-	sc := scanner.NewScanner(logger)
+	sc := scanner.NewSyftScanner(logger)
 	dispatcher := scanner.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerWorkers, cfg.ScannerQueueSize, logger)
 	registry.Register(scanner.NewNATSExtension(natsClient, dispatcher, cfg.NATSStreamName, logger))
 
