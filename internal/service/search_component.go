@@ -14,7 +14,7 @@ import (
 )
 
 func (s *searchService) SearchComponents(ctx context.Context, filter ComponentFilter) (PagedResult[ComponentSummary], error) {
-	q := repository.New(s.pool)
+	q := repository.New(s.db)
 
 	rows, err := q.SearchComponents(ctx, repository.SearchComponentsParams{
 		Name:      filter.Name,
@@ -45,7 +45,7 @@ func (s *searchService) SearchComponents(ctx context.Context, filter ComponentFi
 }
 
 func (s *searchService) SearchDistinctComponents(ctx context.Context, filter ComponentFilter) (PagedResult[DistinctComponentSummary], error) {
-	q := repository.New(s.pool)
+	q := repository.New(s.db)
 
 	var namePat pgtype.Text
 	if filter.Name != "" {
@@ -107,7 +107,7 @@ func (s *searchService) SearchDistinctComponents(ctx context.Context, filter Com
 }
 
 func (s *searchService) GetComponentVersions(ctx context.Context, name, group, version, compType string, vis VisibilityFilter) ([]ComponentVersionEntry, error) {
-	q := repository.New(s.pool)
+	q := repository.New(s.db)
 
 	rows, err := q.GetComponentVersions(ctx, repository.GetComponentVersionsParams{
 		Name:      name,
@@ -147,7 +147,7 @@ func (s *searchService) GetComponentVersions(ctx context.Context, name, group, v
 }
 
 func (s *searchService) GetComponent(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ComponentDetail, error) {
-	q := repository.New(s.pool)
+	q := repository.New(s.db)
 
 	row, err := q.GetComponent(ctx, id)
 	if err != nil {
@@ -220,7 +220,7 @@ func (s *searchService) GetComponent(ctx context.Context, id pgtype.UUID, vis Vi
 
 // ListComponentPurlTypes returns distinct PURL types across all visible components.
 func (s *searchService) ListComponentPurlTypes(ctx context.Context, vis VisibilityFilter) ([]string, error) {
-	q := repository.New(s.pool)
+	q := repository.New(s.db)
 	return q.ListComponentPurlTypes(ctx, repository.ListComponentPurlTypesParams{
 		UserID:  vis.UserID,
 		IsAdmin: visAdminBool(vis),
