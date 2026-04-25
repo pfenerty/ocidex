@@ -3,6 +3,7 @@ package scanner
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -36,12 +37,13 @@ func NewDispatcher(sc Scanner, sbomSvc service.SBOMService, workers, queueSize i
 }
 
 // Submit enqueues a scan request. Blocks until a slot is available or the dispatcher stops.
-func (d *Dispatcher) Submit(req ScanRequest) {
+func (d *Dispatcher) Submit(_ context.Context, req ScanRequest) error {
 	select {
 	case d.queue <- req:
 		d.logger.Debug("scan queued", "repo", req.Repository, "digest", req.Digest)
+		return nil
 	case <-d.stopping:
-		d.logger.Debug("scan request dropped: dispatcher stopping", "repo", req.Repository, "digest", req.Digest)
+		return fmt.Errorf("dispatcher stopping")
 	}
 }
 

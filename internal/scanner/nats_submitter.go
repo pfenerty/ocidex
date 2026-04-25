@@ -1,27 +1,27 @@
 package scanner
 
 import (
+	"context"
 	"encoding/json"
-	"log/slog"
 	"time"
 
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 )
+
+const natsPublishTimeout = 5 * time.Second
 
 // NATSSubmitter publishes scan requests to JetStream.
 // It satisfies the api.ScanSubmitter interface.
 type NATSSubmitter struct {
 	client     *natspkg.Client
 	streamName string
-	logger     *slog.Logger
 }
 
 // NewNATSSubmitter creates a NATSSubmitter backed by the given client.
-func NewNATSSubmitter(client *natspkg.Client, streamName string, logger *slog.Logger) *NATSSubmitter {
+func NewNATSSubmitter(client *natspkg.Client, streamName string) *NATSSubmitter {
 	return &NATSSubmitter{
 		client:     client,
 		streamName: streamName,
-		logger:     logger,
 	}
 }
 
@@ -40,13 +40,11 @@ type scanRequestWire struct {
 	RegistryID   string `json:"registry_id,omitempty"`
 }
 
-// Submit publishes a scan request to "ocidex.scan.requested".
-// Best-effort: failures are logged but do not block the caller.
-func (s *NATSSubmitter) Submit(req ScanRequest) {
+// Submit synchronously publishes a scan request to JetStream and returns any publish error.
+func (s *NATSSubmitter) Submit(ctx context.Context, req ScanRequest) error {
 	payload, err := json.Marshal(scanRequestWire(req)) //nolint:gosec // G117: auth credentials must travel with scan requests through NATS
 	if err != nil {
-		s.logger.Error("nats submitter: marshal payload", "err", err)
-		return
+		return err
 	}
 
 	env := natspkg.Envelope{
@@ -57,12 +55,13 @@ func (s *NATSSubmitter) Submit(req ScanRequest) {
 
 	data, err := json.Marshal(env)
 	if err != nil {
-		s.logger.Error("nats submitter: marshal envelope", "err", err)
-		return
+		return err
 	}
 
+	pubCtx, cancel := context.WithTimeout(ctx, natsPublishTimeout)
+	defer cancel()
+
 	subject := s.streamName + ".scan.requested"
-	if _, err := s.client.JS.PublishAsync(subject, data); err != nil {
-		s.logger.Error("nats submitter: publish", "subject", subject, "err", err)
-	}
+	_, err = s.client.JS.Publish(pubCtx, subject, data)
+	return err
 }

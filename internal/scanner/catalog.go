@@ -15,7 +15,7 @@ import (
 
 // Submitter accepts scan requests.
 type Submitter interface {
-	Submit(req ScanRequest)
+	Submit(ctx context.Context, req ScanRequest) error
 }
 
 // DigestLister returns known SBOM digests for a registry, used to skip re-scanning.
@@ -113,7 +113,7 @@ func scanTag(ctx context.Context, client *http.Client, baseURL, repo, tag string
 		return scanIndex(ctx, client, baseURL, repo, tag, info.digest, reg, sub, scannedDigests, logger)
 	}
 	meta := ociGetImageMetadata(ctx, client, baseURL, repo, info.digest)
-	sub.Submit(ScanRequest{
+	if err := sub.Submit(ctx, ScanRequest{
 		RegistryURL:  reg.URL,
 		Insecure:     reg.Insecure,
 		Repository:   repo,
@@ -125,7 +125,10 @@ func scanTag(ctx context.Context, client *http.Client, baseURL, repo, tag string
 		AuthUsername: derefStr(reg.AuthUsername),
 		AuthToken:    derefStr(reg.AuthToken),
 		RegistryID:   reg.ID,
-	})
+	}); err != nil {
+		logger.Warn("scan submit failed", "repo", repo, "digest", info.digest, "err", err)
+		return 0
+	}
 	return 1
 }
 
@@ -144,7 +147,7 @@ func scanIndex(ctx context.Context, client *http.Client, baseURL, repo, tag, ind
 		if arch == "" {
 			arch = meta.architecture
 		}
-		sub.Submit(ScanRequest{
+		if err := sub.Submit(ctx, ScanRequest{
 			RegistryURL:  reg.URL,
 			Insecure:     reg.Insecure,
 			Repository:   repo,
@@ -156,7 +159,10 @@ func scanIndex(ctx context.Context, client *http.Client, baseURL, repo, tag, ind
 			AuthUsername: derefStr(reg.AuthUsername),
 			AuthToken:    derefStr(reg.AuthToken),
 			RegistryID:   reg.ID,
-		})
+		}); err != nil {
+			logger.Warn("scan submit failed", "repo", repo, "digest", p.digest, "err", err)
+			continue
+		}
 		queued++
 	}
 	return queued
@@ -198,7 +204,7 @@ func discoverUntagged(ctx context.Context, client *http.Client, baseURL, repo st
 				if arch == "" {
 					arch = meta.architecture
 				}
-				sub.Submit(ScanRequest{
+				if err := sub.Submit(ctx, ScanRequest{
 					RegistryURL:  reg.URL,
 					Insecure:     reg.Insecure,
 					Repository:   repo,
@@ -209,7 +215,10 @@ func discoverUntagged(ctx context.Context, client *http.Client, baseURL, repo st
 					AuthUsername: derefStr(reg.AuthUsername),
 					AuthToken:    derefStr(reg.AuthToken),
 					RegistryID:   reg.ID,
-				})
+				}); err != nil {
+					logger.Warn("scan submit failed", "repo", repo, "digest", p.digest, "err", err)
+					continue
+				}
 				queued++
 			}
 			continue
@@ -220,7 +229,7 @@ func discoverUntagged(ctx context.Context, client *http.Client, baseURL, repo st
 		if arch == "" {
 			arch = meta.architecture
 		}
-		sub.Submit(ScanRequest{
+		if err := sub.Submit(ctx, ScanRequest{
 			RegistryURL:  reg.URL,
 			Insecure:     reg.Insecure,
 			Repository:   repo,
@@ -231,7 +240,10 @@ func discoverUntagged(ctx context.Context, client *http.Client, baseURL, repo st
 			AuthUsername: derefStr(reg.AuthUsername),
 			AuthToken:    derefStr(reg.AuthToken),
 			RegistryID:   reg.ID,
-		})
+		}); err != nil {
+			logger.Warn("scan submit failed", "repo", repo, "digest", m.Digest, "err", err)
+			continue
+		}
 		queued++
 	}
 	return queued

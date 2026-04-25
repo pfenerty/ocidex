@@ -63,7 +63,7 @@ func (h *Handler) HandleRegistryWebhook(ctx context.Context, in *RegistryWebhook
 	if reg.AuthToken != nil {
 		authToken = *reg.AuthToken
 	}
-	h.scanSubmitter.Submit(scanner.ScanRequest{
+	if err := h.scanSubmitter.Submit(ctx, scanner.ScanRequest{
 		RegistryURL:  reg.URL,
 		Insecure:     reg.Insecure,
 		Repository:   in.Body.Name,
@@ -72,7 +72,9 @@ func (h *Handler) HandleRegistryWebhook(ctx context.Context, in *RegistryWebhook
 		AuthUsername: authUsername,
 		AuthToken:    authToken,
 		RegistryID:   reg.ID,
-	})
+	}); err != nil {
+		return nil, huma.Error503ServiceUnavailable("scan submit failed")
+	}
 
 	return nil, nil
 }
