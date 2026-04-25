@@ -54,7 +54,7 @@ export function useUpdateRegistry() {
             include_untagged?: boolean;
         }) =>
             unwrap(
-                client.PUT("/api/v1/registries/{id}", {
+                client.PATCH("/api/v1/registries/{id}", {
                     params: { path: { id } },
                     body,
                 })
