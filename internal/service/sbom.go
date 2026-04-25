@@ -11,11 +11,16 @@ import (
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
+
+// dbPool is satisfied by *pgxpool.Pool. Extracted to allow unit-test injection.
+type dbPool interface {
+	repository.DBTX
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
 
 // IngestParams carries supplemental metadata for SBOM ingestion.
 // Fields take precedence over BOM-extracted values when set.
@@ -41,14 +46,14 @@ type DigestValidator interface {
 }
 
 type sbomService struct {
-	pool            *pgxpool.Pool
+	pool            dbPool
 	publisher       event.Publisher
 	digestValidator DigestValidator
 }
 
 // NewSBOMService creates a new SBOMService. The publisher and validator
 // are optional; if nil, the corresponding functionality is skipped.
-func NewSBOMService(pool *pgxpool.Pool, publisher event.Publisher, validator DigestValidator) SBOMService {
+func NewSBOMService(pool dbPool, publisher event.Publisher, validator DigestValidator) SBOMService {
 	return &sbomService{pool: pool, publisher: publisher, digestValidator: validator}
 }
 
