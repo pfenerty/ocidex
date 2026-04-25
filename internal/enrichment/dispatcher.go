@@ -48,8 +48,12 @@ func WithLogger(l *slog.Logger) Option {
 	}
 }
 
-// NewDispatcher creates a dispatcher with the given enrichers and store.
-func NewDispatcher(store Store, enrichers []Enricher, opts ...Option) *Dispatcher {
+// NewDispatcher creates a dispatcher backed by the given registry and store.
+func NewDispatcher(store Store, reg *Registry, opts ...Option) *Dispatcher {
+	var enrichers []Enricher
+	if reg != nil {
+		enrichers = reg.Enrichers()
+	}
 	d := &Dispatcher{
 		enrichers: enrichers,
 		store:     store,
@@ -162,9 +166,13 @@ func (d *Dispatcher) processSubject(ctx context.Context, ref SubjectRef) {
 			)
 		}
 
-		if err == nil && e.Name() == "oci-metadata" {
-			d.applyOCIVersion(ctx, ref.SBOMId, data)
-			d.applyEnrichmentSufficiency(ctx, ref.SBOMId, data)
+		if err == nil {
+			if e.Name() == "oci-metadata" {
+				d.applyOCIVersion(ctx, ref.SBOMId, data)
+			}
+			if e.Name() == "oci-metadata" || e.Name() == "user" {
+				d.applyEnrichmentSufficiency(ctx, ref.SBOMId, data)
+			}
 		}
 	}
 }

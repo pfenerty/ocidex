@@ -63,5 +63,7 @@ func (e *Extension) handleSBOMIngested(_ context.Context, ev event.Event) {
 		ArtifactName:   data.ArtifactName,
 		Digest:         data.Digest,
 		SubjectVersion: data.SubjectVersion,
+		Architecture:   data.Architecture,
+		BuildDate:      data.BuildDate,
 	})
 }

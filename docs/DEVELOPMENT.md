@@ -245,6 +245,63 @@ func TestInsertArtifact_Integration(t *testing.T) {
 }
 ```
 
+## Adding a New Enricher
+
+Enrichers run asynchronously after SBOM ingestion. Each enricher fetches or derives metadata for a given subject and persists the result to the `enrichment` table.
+
+**1. Create `internal/enrichment/<name>/<name>.go`** and implement `enrichment.Enricher`:
+
+```go
+package myenricher
+
+import (
+    "context"
+    "encoding/json"
+    "github.com/pfenerty/ocidex/internal/enrichment"
+)
+
+type Enricher struct{}
+
+func NewEnricher() *Enricher { return &Enricher{} }
+
+// Name returns the unique enricher identifier stored in enrichment.enricher_name.
+func (e *Enricher) Name() string { return "my-enricher" }
+
+// CanEnrich returns true when this enricher applies to the subject.
+func (e *Enricher) CanEnrich(ref enrichment.SubjectRef) bool {
+    return ref.ArtifactType == "container"
+}
+
+// Enrich fetches or derives metadata and returns it as JSON bytes.
+func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byte, error) {
+    result := map[string]string{"example": ref.ArtifactName}
+    return json.Marshal(result)
+}
+```
+
+**2. Register in both entrypoints** — the in-process server and the NATS worker both build the registry at startup:
+
+- `cmd/ocidex/main.go` → `setupEnrichmentExt()`
+- `cmd/enrichment-worker/main.go` → `run()`
+
+```go
+enrichReg.Register(myenricher.NewEnricher())
+```
+
+**3. Available data in `SubjectRef`:**
+
+| Field | Description |
+|---|---|
+| `SBOMId` | The SBOM being enriched |
+| `ArtifactType` | e.g. `"container"`, `"library"` |
+| `ArtifactName` | e.g. `"docker.io/myapp"` |
+| `Digest` | `sha256:...` digest (containers) |
+| `SubjectVersion` | Tag hint for index lookup |
+| `Architecture` | Caller-supplied at ingest (may be empty) |
+| `BuildDate` | Caller-supplied at ingest (may be empty) |
+
+**4. Post-processing hooks** — the dispatcher automatically calls sufficiency promotion (marks the SBOM as fully enriched when both `imageVersion` and `architecture` are present) for `"oci-metadata"` and `"user"` enrichers. If your enricher also determines sufficiency, add its name to the check in `dispatcher.go:processSubject`.
+
 ### Fakes Over Mocks
 
 Interfaces are small. Write manual fakes:

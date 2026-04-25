@@ -3,7 +3,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -170,12 +169,6 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		"artifact_id", info.artifactID,
 	)
 
-	// Write "user" enrichment so metadata is immediately visible in queries,
-	// before the async OCI enricher runs.
-	if err := writeUserEnrichment(ctx, q, sbomRow.ID, arch, bd, info); err != nil {
-		return pgtype.UUID{}, err
-	}
-
 	if err := linkArtifactRegistry(ctx, q, info.artifactID, params.RegistryID); err != nil {
 		return pgtype.UUID{}, err
 	}
@@ -196,6 +189,8 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 			ArtifactName:   bom.Metadata.Component.Name,
 			Digest:         info.digest.String,
 			SubjectVersion: info.subjectVersion.String,
+			Architecture:   arch,
+			BuildDate:      bd,
 		})
 	}
 
@@ -222,46 +217,6 @@ func validateContainerRequired(bom *cdx.BOM, info artifactInfo, arch, bd string)
 	if len(missing) > 0 {
 		return &ValidationError{
 			Message: fmt.Sprintf("container SBOM missing required metadata: %s", strings.Join(missing, ", ")),
-		}
-	}
-	return nil
-}
-
-// writeUserEnrichment persists caller-supplied metadata as a "user" enrichment record
-// so it is immediately queryable before the async OCI enricher runs.
-func writeUserEnrichment(ctx context.Context, q *repository.Queries, sbomID pgtype.UUID, arch, bd string, info artifactInfo) error {
-	if arch == "" && bd == "" && !info.subjectVersion.Valid {
-		return nil
-	}
-	data := map[string]string{}
-	if arch != "" {
-		data["architecture"] = arch
-	}
-	if bd != "" {
-		data["created"] = bd
-	}
-	if info.subjectVersion.Valid {
-		data["imageVersion"] = info.subjectVersion.String
-	}
-	dataJSON, err := json.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("marshaling user enrichment data: %w", err)
-	}
-	if err := q.UpsertEnrichment(ctx, repository.UpsertEnrichmentParams{
-		SbomID:       sbomID,
-		EnricherName: "user",
-		Status:       "success",
-		Data:         dataJSON,
-	}); err != nil {
-		return fmt.Errorf("writing user enrichment: %w", err)
-	}
-	// Mark as sufficiently enriched when both version and architecture are present.
-	if arch != "" && info.subjectVersion.Valid {
-		if err := q.UpdateSBOMEnrichmentSufficient(ctx, repository.UpdateSBOMEnrichmentSufficientParams{
-			ID:                   sbomID,
-			EnrichmentSufficient: true,
-		}); err != nil {
-			return fmt.Errorf("updating enrichment sufficiency: %w", err)
 		}
 	}
 	return nil

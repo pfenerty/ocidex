@@ -18,6 +18,8 @@ type SubjectRef struct {
 	ArtifactName   string
 	Digest         string
 	SubjectVersion string // tag hint for parent index lookup
+	Architecture   string // caller-supplied at ingest time
+	BuildDate      string // caller-supplied at ingest time (RFC3339 or date string)
 }
 
 // Enricher is implemented by each enrichment source (OCI metadata, vuln scan, etc.).
