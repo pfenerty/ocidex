@@ -17,14 +17,14 @@ import (
 type Dispatcher struct {
 	queue    chan ScanRequest
 	stopping chan struct{} // closed by Run when shutdown begins
-	scanner  *Scanner
+	scanner  Scanner
 	sbomSvc  service.SBOMService
 	workers  int
 	logger   *slog.Logger
 }
 
 // NewDispatcher creates a Dispatcher with the given scanner, SBOM service, and pool configuration.
-func NewDispatcher(sc *Scanner, sbomSvc service.SBOMService, workers, queueSize int, logger *slog.Logger) *Dispatcher {
+func NewDispatcher(sc Scanner, sbomSvc service.SBOMService, workers, queueSize int, logger *slog.Logger) *Dispatcher {
 	return &Dispatcher{
 		queue:    make(chan ScanRequest, queueSize),
 		stopping: make(chan struct{}),

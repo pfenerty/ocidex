@@ -230,7 +230,7 @@ func setupScannerExt(cfg *config.Config, pool *pgxpool.Pool, bus *event.Bus, reg
 	}
 	// Use nil validator: webhook confirms image exists at a known digest.
 	scannerSbomSvc := service.NewSBOMService(pool, bus, nil)
-	sc := scanner.NewScanner(logger)
+	sc := scanner.NewSyftScanner(logger)
 	if cfg.NATSEnabled && cfg.ScannerNATSMode {
 		// External workers consume from NATS — main process only publishes.
 		return scanner.NewNATSSubmitter(natsClient, cfg.NATSStreamName, logger)
