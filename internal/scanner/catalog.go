@@ -166,11 +166,6 @@ func scanIndex(ctx context.Context, client *http.Client, baseURL, repo, tag, ind
 // manifests not already covered by tag-based scanning.
 func discoverUntagged(ctx context.Context, client *http.Client, baseURL, repo string, reg service.Registry, sub Submitter, scannedDigests map[string]bool, logger *slog.Logger) int {
 	disc := discovererForType(reg)
-	if disc == nil {
-		logger.Warn("include_untagged enabled but registry type has no manifest discovery support",
-			"registry", reg.Name, "type", reg.Type)
-		return 0
-	}
 	manifests, err := disc.DiscoverManifests(ctx, client, baseURL, repo)
 	if err != nil {
 		logger.Warn("discovering untagged manifests", "repo", repo, "err", err)

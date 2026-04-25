@@ -7,7 +7,18 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/pfenerty/ocidex/internal/service"
 )
+
+func init() {
+	RegisterDiscoverer("harbor", func(reg service.Registry) ManifestDiscoverer {
+		return &harborDiscoverer{
+			authUsername: derefStr(reg.AuthUsername),
+			authToken:    derefStr(reg.AuthToken),
+		}
+	})
+}
 
 // harborDiscoverer uses Harbor's REST API to list all artifacts including untagged.
 type harborDiscoverer struct {

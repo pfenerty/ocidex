@@ -7,7 +7,17 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+
+	"github.com/pfenerty/ocidex/internal/service"
 )
+
+func init() {
+	RegisterDiscoverer("ghcr", func(reg service.Registry) ManifestDiscoverer {
+		return &ghcrDiscoverer{
+			authToken: derefStr(reg.AuthToken),
+		}
+	})
+}
 
 // ghcrDiscoverer uses the GitHub Packages API to list all container versions.
 type ghcrDiscoverer struct {
