@@ -267,3 +267,71 @@ func TestIntOrNull(t *testing.T) {
 		})
 	}
 }
+
+func TestBoolOrNull(t *testing.T) {
+	tests := []struct {
+		name  string
+		input bool
+		want  pgtype.Bool
+	}{
+		{"true", true, pgtype.Bool{Bool: true, Valid: true}},
+		{"false", false, pgtype.Bool{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			is.Equal(boolOrNull(tt.input), tt.want)
+		})
+	}
+}
+
+func TestResolveBuildDate(t *testing.T) {
+	prop := func(name, value string) cdx.Property { return cdx.Property{Name: name, Value: value} }
+	props := func(ps ...cdx.Property) *[]cdx.Property { return &ps }
+
+	tests := []struct {
+		name   string
+		bom    *cdx.BOM
+		params IngestParams
+		want   string
+	}{
+		{
+			name:   "params wins",
+			bom:    &cdx.BOM{Metadata: &cdx.Metadata{Component: &cdx.Component{}}},
+			params: IngestParams{BuildDate: "2024-01-01"},
+			want:   "2024-01-01",
+		},
+		{
+			name: "oci created label resolves",
+			bom: &cdx.BOM{Metadata: &cdx.Metadata{Component: &cdx.Component{
+				Properties: props(prop("syft:image:labels:org.opencontainers.image.created", "2024-06-15")),
+			}}},
+			want: "2024-06-15",
+		},
+		{
+			name: "legacy label-schema.build-date resolves",
+			bom: &cdx.BOM{Metadata: &cdx.Metadata{Component: &cdx.Component{
+				Properties: props(prop("syft:image:labels:org.label-schema.build-date", "2023-12-31")),
+			}}},
+			want: "2023-12-31",
+		},
+		{
+			name: "absent property returns empty",
+			bom:  &cdx.BOM{Metadata: &cdx.Metadata{Component: &cdx.Component{}}},
+			want: "",
+		},
+		{
+			name: "nil metadata returns empty",
+			bom:  &cdx.BOM{},
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			is.Equal(resolveBuildDate(tt.bom, tt.params), tt.want)
+		})
+	}
+}
