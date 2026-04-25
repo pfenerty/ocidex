@@ -58,7 +58,7 @@ type ComponentDiff struct {
 
 // DiffSBOMs computes the diff between two arbitrary SBOMs.
 func (s *searchService) DiffSBOMs(ctx context.Context, fromID, toID pgtype.UUID, vis VisibilityFilter) (ChangelogEntry, error) {
-	q := repository.New(s.pool)
+	q := repository.New(s.db)
 
 	// Access check for both SBOMs.
 	for _, id := range []pgtype.UUID{fromID, toID} {
@@ -126,7 +126,7 @@ type changelogCandidate struct {
 // SBOMs are grouped by architecture, deduplicated by (version, arch), then diffed within
 // the selected architecture's timeline.
 func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch string, vis VisibilityFilter) (Changelog, error) {
-	q := repository.New(s.pool)
+	q := repository.New(s.db)
 
 	// Access check.
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{

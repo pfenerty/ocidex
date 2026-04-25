@@ -12,7 +12,7 @@ import (
 )
 
 func (s *searchService) GetArtifact(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ArtifactDetail, error) {
-	q := repository.New(s.pool)
+	q := repository.New(s.db)
 
 	// Access check.
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
@@ -69,7 +69,7 @@ func (s *searchService) GetArtifact(ctx context.Context, id pgtype.UUID, vis Vis
 }
 
 func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter) (PagedResult[ArtifactSummary], error) {
-	q := repository.New(s.pool)
+	q := repository.New(s.db)
 
 	rows, err := q.ListArtifacts(ctx, repository.ListArtifactsParams{
 		Type:              textOrNull(filter.Type),
@@ -108,7 +108,7 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 
 // GetArtifactLicenseSummary returns aggregated license counts for an artifact's latest SBOM.
 func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]LicenseCount, error) {
-	q := repository.New(s.pool)
+	q := repository.New(s.db)
 
 	// Access check.
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{

@@ -11,7 +11,7 @@ import (
 )
 
 func (s *searchService) ListLicenses(ctx context.Context, filter LicenseFilter) (PagedResult[LicenseCount], error) {
-	q := repository.New(s.pool)
+	q := repository.New(s.db)
 
 	rows, err := q.ListLicenses(ctx, repository.ListLicensesParams{
 		SpdxID:    textOrNull(filter.SpdxID),
@@ -50,7 +50,7 @@ func (s *searchService) ListLicenses(ctx context.Context, filter LicenseFilter) 
 }
 
 func (s *searchService) ListComponentsByLicense(ctx context.Context, licenseID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ComponentSummary], error) {
-	q := repository.New(s.pool)
+	q := repository.New(s.db)
 
 	rows, err := q.ListComponentsByLicense(ctx, repository.ListComponentsByLicenseParams{
 		LicenseID: licenseID,
