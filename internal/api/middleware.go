@@ -153,6 +153,112 @@ func RequireRegistryOwner(api huma.API, svc service.RegistryService) func(huma.C
 	}
 }
 
+// RequireMember returns a huma middleware that 401s unauthenticated callers and
+// 403s callers without member or admin role.
+func RequireMember(api huma.API) func(huma.Context, func(huma.Context)) {
+	return func(ctx huma.Context, next func(huma.Context)) {
+		user, ok := UserFromContext(ctx.Context())
+		if !ok {
+			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, "not authenticated")
+			return
+		}
+		if user.Role != roleAdmin && user.Role != roleMember {
+			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
+			return
+		}
+		next(ctx)
+	}
+}
+
+// RequireSBOMOwner returns a huma middleware that requires auth + ownership of
+// the SBOM's linked registry OR admin role. If the SBOM has no registry
+// association, any authenticated member|admin is allowed. When sbomSvc or
+// regSvc is nil the ownership check is skipped but auth is still enforced.
+func RequireSBOMOwner(api huma.API, sbomSvc service.SBOMService, regSvc service.RegistryService) func(huma.Context, func(huma.Context)) {
+	return func(ctx huma.Context, next func(huma.Context)) {
+		user, ok := UserFromContext(ctx.Context())
+		if !ok {
+			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, "not authenticated")
+			return
+		}
+		if user.Role != roleAdmin && user.Role != roleMember {
+			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
+			return
+		}
+		if sbomSvc == nil || regSvc == nil {
+			next(ctx)
+			return
+		}
+		id, err := parseUUID(ctx.Param("id"))
+		if err != nil {
+			_ = huma.WriteErr(api, ctx, http.StatusNotFound, "sbom not found")
+			return
+		}
+		registryID, err := sbomSvc.GetSBOMRegistryID(ctx.Context(), id)
+		if err != nil {
+			_ = huma.WriteErr(api, ctx, http.StatusNotFound, "sbom not found")
+			return
+		}
+		if !registryID.Valid {
+			// No registry association — any member|admin may delete.
+			next(ctx)
+			return
+		}
+		reg, err := regSvc.Get(ctx.Context(), uuidToStr(registryID))
+		if err != nil || !canManageRegistry(user, reg) {
+			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
+			return
+		}
+		next(ctx)
+	}
+}
+
+// RequireArtifactOwner returns a huma middleware that requires auth + ownership
+// of any registry linked to the artifact OR admin role. If the artifact has no
+// registry association, any authenticated member|admin is allowed. When sbomSvc
+// or regSvc is nil the ownership check is skipped but auth is still enforced.
+func RequireArtifactOwner(api huma.API, sbomSvc service.SBOMService, regSvc service.RegistryService) func(huma.Context, func(huma.Context)) {
+	return func(ctx huma.Context, next func(huma.Context)) {
+		user, ok := UserFromContext(ctx.Context())
+		if !ok {
+			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, "not authenticated")
+			return
+		}
+		if user.Role != roleAdmin && user.Role != roleMember {
+			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
+			return
+		}
+		if sbomSvc == nil || regSvc == nil {
+			next(ctx)
+			return
+		}
+		id, err := parseUUID(ctx.Param("id"))
+		if err != nil {
+			_ = huma.WriteErr(api, ctx, http.StatusNotFound, "artifact not found")
+			return
+		}
+		ownerID, err := sbomSvc.GetArtifactOwnerID(ctx.Context(), id)
+		if err != nil {
+			_ = huma.WriteErr(api, ctx, http.StatusNotFound, "artifact not found")
+			return
+		}
+		if !ownerID.Valid {
+			// No registry owner linked — any member|admin may delete.
+			next(ctx)
+			return
+		}
+		if user.Role == roleAdmin {
+			next(ctx)
+			return
+		}
+		if !user.ID.Valid || uuidToStr(ownerID) != uuidToStr(user.ID) {
+			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
+			return
+		}
+		next(ctx)
+	}
+}
+
 func writeUnauthorized(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(http.StatusUnauthorized)

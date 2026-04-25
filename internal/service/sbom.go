@@ -3,6 +3,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -37,6 +38,14 @@ type SBOMService interface {
 	DeleteSBOM(ctx context.Context, id pgtype.UUID) error
 	DeleteArtifact(ctx context.Context, id pgtype.UUID) error
 	ListDigestsByRegistry(ctx context.Context, registryID string) (map[string]bool, error)
+	// GetSBOMRegistryID returns the registry_id for the given SBOM.
+	// Returns a zero UUID (with Valid=false) when the SBOM has no registry association.
+	// Returns ErrNotFound if no SBOM with that ID exists.
+	GetSBOMRegistryID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
+	// GetArtifactOwnerID returns the owner_id of any registry linked to the artifact.
+	// Returns a zero UUID (with Valid=false) when no registry with an owner is linked.
+	// Returns ErrNotFound if no artifact with that ID exists.
+	GetArtifactOwnerID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
 }
 
 // DigestValidator validates that a container image digest points to a single
@@ -326,6 +335,32 @@ func (s *sbomService) ListDigestsByRegistry(ctx context.Context, registryID stri
 		}
 	}
 	return out, nil
+}
+
+func (s *sbomService) GetSBOMRegistryID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
+	q := repository.New(s.pool)
+	row, err := q.GetSBOM(ctx, id)
+	if err != nil {
+		return pgtype.UUID{}, ErrNotFound
+	}
+	return row.RegistryID, nil
+}
+
+func (s *sbomService) GetArtifactOwnerID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
+	// Verify artifact exists first.
+	q := repository.New(s.pool)
+	if _, err := q.GetArtifact(ctx, id); err != nil {
+		return pgtype.UUID{}, ErrNotFound
+	}
+	ownerID, err := q.GetArtifactOwnerID(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// No registry with owner linked — return zero UUID.
+		return pgtype.UUID{}, nil
+	}
+	if err != nil {
+		return pgtype.UUID{}, fmt.Errorf("looking up artifact owner: %w", err)
+	}
+	return ownerID, nil
 }
 
 func (s *sbomService) insertComponents(

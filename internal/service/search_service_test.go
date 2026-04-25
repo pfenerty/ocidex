@@ -18,14 +18,14 @@ type scanFnRows struct {
 	idx int
 }
 
-func (r *scanFnRows) Next() bool                                { return r.idx < len(r.fns) }
-func (r *scanFnRows) Err() error                                { return nil }
-func (r *scanFnRows) Close()                                    {}
-func (r *scanFnRows) CommandTag() pgconn.CommandTag             { return pgconn.CommandTag{} }
+func (r *scanFnRows) Next() bool                                   { return r.idx < len(r.fns) }
+func (r *scanFnRows) Err() error                                   { return nil }
+func (r *scanFnRows) Close()                                       {}
+func (r *scanFnRows) CommandTag() pgconn.CommandTag                { return pgconn.CommandTag{} }
 func (r *scanFnRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
-func (r *scanFnRows) Values() ([]any, error)                    { return nil, nil }
-func (r *scanFnRows) RawValues() [][]byte                       { return nil }
-func (r *scanFnRows) Conn() *pgx.Conn                           { return nil }
+func (r *scanFnRows) Values() ([]any, error)                       { return nil, nil }
+func (r *scanFnRows) RawValues() [][]byte                          { return nil }
+func (r *scanFnRows) Conn() *pgx.Conn                              { return nil }
 func (r *scanFnRows) Scan(dest ...any) error {
 	fn := r.fns[r.idx]
 	r.idx++
@@ -116,13 +116,13 @@ func TestSearchDistinctComponents_Pagination(t *testing.T) {
 	is := is.New(t)
 
 	row := func(dest ...any) error {
-		*(dest[0].(*string)) = "openssl"   // Name
+		*(dest[0].(*string)) = "openssl" // Name
 		// dest[1] GroupName (pgtype.Text)  — zero
-		*(dest[2].(*string)) = "library"   // Type
+		*(dest[2].(*string)) = "library" // Type
 		// dest[3] PurlTypes (interface{})  — zero
-		*(dest[4].(*int64)) = 3            // VersionCount
-		*(dest[5].(*int64)) = 5            // SbomCount
-		*(dest[6].(*int64)) = 42           // TotalCount
+		*(dest[4].(*int64)) = 3  // VersionCount
+		*(dest[5].(*int64)) = 5  // SbomCount
+		*(dest[6].(*int64)) = 42 // TotalCount
 		return nil
 	}
 

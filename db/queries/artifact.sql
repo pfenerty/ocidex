@@ -29,6 +29,13 @@ GROUP BY a.id
 ORDER BY a.name, a.type
 LIMIT @row_limit OFFSET @row_offset;
 
+-- name: GetArtifactOwnerID :one
+SELECT r.owner_id
+FROM artifact_registry ar
+JOIN registry r ON r.id = ar.registry_id
+WHERE ar.artifact_id = $1 AND r.owner_id IS NOT NULL
+LIMIT 1;
+
 -- name: UpsertArtifactRegistry :exec
 INSERT INTO artifact_registry (artifact_id, registry_id)
 VALUES ($1, $2)

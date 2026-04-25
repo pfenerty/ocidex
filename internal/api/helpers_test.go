@@ -38,6 +38,14 @@ func (f *fakeSBOMService) ListDigestsByRegistry(_ context.Context, _ string) (ma
 	return nil, nil
 }
 
+func (f *fakeSBOMService) GetSBOMRegistryID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
+	return pgtype.UUID{}, nil
+}
+
+func (f *fakeSBOMService) GetArtifactOwnerID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
+	return pgtype.UUID{}, nil
+}
+
 // failSBOMService is a stub that always returns an error.
 type failSBOMService struct{}
 
@@ -57,6 +65,14 @@ func (f *failSBOMService) ListDigestsByRegistry(_ context.Context, _ string) (ma
 	return nil, errors.New("database unavailable")
 }
 
+func (f *failSBOMService) GetSBOMRegistryID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
+	return pgtype.UUID{}, errors.New("database unavailable")
+}
+
+func (f *failSBOMService) GetArtifactOwnerID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
+	return pgtype.UUID{}, errors.New("database unavailable")
+}
+
 // ---------------------------------------------------------------------------
 // Router / handler builders
 // ---------------------------------------------------------------------------
@@ -65,6 +81,13 @@ func (f *failSBOMService) ListDigestsByRegistry(_ context.Context, _ string) (ma
 // healthy fakePinger. Auth middleware is disabled (nil authSvc).
 func newTestRouter(sbomSvc service.SBOMService, searchSvc service.SearchService) http.Handler {
 	h := api.NewHandler(sbomSvc, searchSvc, nil, nil, &fakePinger{}, nil, nil)
+	return api.NewRouter(h, "*", "", "")
+}
+
+// newTestRouterWithAuth builds a router with an auth service wired (so
+// OptionalAuthenticate and huma auth-gate middlewares function properly).
+func newTestRouterWithAuth(sbomSvc service.SBOMService, searchSvc service.SearchService, authSvc service.AuthService) http.Handler {
+	h := api.NewHandler(sbomSvc, searchSvc, authSvc, nil, &fakePinger{}, nil, nil)
 	return api.NewRouter(h, "*", "", "")
 }
 

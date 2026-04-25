@@ -8,6 +8,7 @@ import (
 
 	"github.com/matryer/is"
 	"github.com/pfenerty/ocidex/internal/api"
+	"github.com/pfenerty/ocidex/internal/service"
 )
 
 func TestMapServiceError_NotFound(t *testing.T) {
@@ -23,7 +24,12 @@ func TestMapServiceError_NotFound(t *testing.T) {
 
 func TestMapServiceError_InternalError(t *testing.T) {
 	is := is.New(t)
-	router := newTestRouter(&failSBOMService{}, &fakeSearchService{})
+	authSvc := &fakeAuthService{
+		users: map[string]service.AuthUser{
+			"member-token": {ID: ownerUUID, Role: "member"},
+		},
+	}
+	router := newTestRouterWithAuth(&failSBOMService{}, &fakeSearchService{}, authSvc)
 
 	body := `{
 		"bomFormat": "CycloneDX",
@@ -34,6 +40,7 @@ func TestMapServiceError_InternalError(t *testing.T) {
 	}`
 	r := httptest.NewRequest(http.MethodPost, "/api/v1/sboms", strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("Authorization", "Bearer member-token")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, r)
 
