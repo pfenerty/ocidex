@@ -22,6 +22,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/enrichment"
 	"github.com/pfenerty/ocidex/internal/enrichment/oci"
+	"github.com/pfenerty/ocidex/internal/enrichment/user"
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/extension"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
@@ -204,13 +205,15 @@ func setupEnrichmentExt(cfg *config.Config, reg *extension.Registry, pool *pgxpo
 		return
 	}
 	enrichStore := repository.New(pool)
-	ociEnricher := oci.NewEnricher(
+	enrichReg := enrichment.NewRegistry()
+	enrichReg.Register(user.NewEnricher())
+	enrichReg.Register(oci.NewEnricher(
 		oci.WithInsecureResolver(insecureResolver),
 		oci.WithCredentialResolver(credentialResolver),
-	)
+	))
 	dispatcher := enrichment.NewDispatcher(
 		enrichStore,
-		[]enrichment.Enricher{ociEnricher},
+		enrichReg,
 		enrichment.WithWorkers(cfg.EnrichmentWorkers),
 		enrichment.WithQueueSize(cfg.EnrichmentQueueSize),
 	)

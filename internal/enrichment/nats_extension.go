@@ -151,6 +151,8 @@ func (e *NATSExtension) handleMsg(msg natsMsg) {
 		ArtifactName   string `json:"artifact_name"`
 		Digest         string `json:"digest"`
 		SubjectVersion string `json:"subject_version"`
+		Architecture   string `json:"architecture"`
+		BuildDate      string `json:"build_date"`
 	}
 	if err := json.Unmarshal(env.Payload, &wire); err != nil {
 		e.logger.Error("nats enrichment: unmarshal payload", "err", err)
@@ -171,6 +173,8 @@ func (e *NATSExtension) handleMsg(msg natsMsg) {
 		ArtifactName:   wire.ArtifactName,
 		Digest:         wire.Digest,
 		SubjectVersion: wire.SubjectVersion,
+		Architecture:   wire.Architecture,
+		BuildDate:      wire.BuildDate,
 	}
 
 	if !e.dispatcher.SubmitWithResult(ref) {

@@ -17,6 +17,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/enrichment"
 	"github.com/pfenerty/ocidex/internal/enrichment/oci"
+	"github.com/pfenerty/ocidex/internal/enrichment/user"
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/extension"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
@@ -84,10 +85,12 @@ func run() error {
 	insecureResolver := service.BuildInsecureResolver(registrySvc)
 
 	enrichStore := repository.New(pool)
-	ociEnricher := oci.NewEnricher(oci.WithInsecureResolver(insecureResolver))
+	enrichReg := enrichment.NewRegistry()
+	enrichReg.Register(user.NewEnricher())
+	enrichReg.Register(oci.NewEnricher(oci.WithInsecureResolver(insecureResolver)))
 	dispatcher := enrichment.NewDispatcher(
 		enrichStore,
-		[]enrichment.Enricher{ociEnricher},
+		enrichReg,
 		enrichment.WithWorkers(cfg.EnrichmentWorkers),
 		enrichment.WithQueueSize(cfg.EnrichmentQueueSize),
 	)

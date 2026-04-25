@@ -27,6 +27,8 @@ type sbomIngestedWire struct {
 	ArtifactName   string `json:"artifact_name"`
 	Digest         string `json:"digest"`
 	SubjectVersion string `json:"subject_version"`
+	Architecture   string `json:"architecture,omitempty"`
+	BuildDate      string `json:"build_date,omitempty"`
 }
 
 type sbomDeletedWire struct {
@@ -114,6 +116,8 @@ func marshalPayload(ev event.Event) (json.RawMessage, error) {
 			ArtifactName:   d.ArtifactName,
 			Digest:         d.Digest,
 			SubjectVersion: d.SubjectVersion,
+			Architecture:   d.Architecture,
+			BuildDate:      d.BuildDate,
 		})
 	case event.SBOMDeletedData:
 		return json.Marshal(sbomDeletedWire{

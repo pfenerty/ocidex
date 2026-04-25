@@ -61,7 +61,7 @@ func TestNATSExtension_Init_IsNoOp(t *testing.T) {
 func TestHandleMsg_MalformedEnvelope(t *testing.T) {
 	is := is.New(t)
 	store := &fakeStore{}
-	d := NewDispatcher(store, nil, WithWorkers(1), WithQueueSize(10))
+	d := NewDispatcher(store, NewRegistry(), WithWorkers(1), WithQueueSize(10))
 	ext := &NATSExtension{dispatcher: d, streamName: "ocidex", logger: noopLogger()}
 
 	msg := &recordingMsg{data: []byte("not json")}
@@ -74,7 +74,7 @@ func TestHandleMsg_MalformedEnvelope(t *testing.T) {
 func TestHandleMsg_MalformedPayload(t *testing.T) {
 	is := is.New(t)
 	store := &fakeStore{}
-	d := NewDispatcher(store, nil, WithWorkers(1), WithQueueSize(10))
+	d := NewDispatcher(store, NewRegistry(), WithWorkers(1), WithQueueSize(10))
 	ext := &NATSExtension{dispatcher: d, streamName: "ocidex", logger: noopLogger()}
 
 	env := natspkg.Envelope{
@@ -91,7 +91,7 @@ func TestHandleMsg_MalformedPayload(t *testing.T) {
 func TestHandleMsg_QueueFull(t *testing.T) {
 	is := is.New(t)
 	store := &fakeStore{}
-	d := NewDispatcher(store, nil, WithWorkers(1), WithQueueSize(1))
+	d := NewDispatcher(store, NewRegistry(), WithWorkers(1), WithQueueSize(1))
 
 	// Fill the queue so SubmitWithResult returns false.
 	d.Submit(SubjectRef{SBOMId: pgtype.UUID{Bytes: [16]byte{1}, Valid: true}})
@@ -108,7 +108,7 @@ func TestHandleMsg_QueueFull(t *testing.T) {
 func TestHandleMsg_Success(t *testing.T) {
 	is := is.New(t)
 	store := &fakeStore{}
-	d := NewDispatcher(store, nil, WithWorkers(1), WithQueueSize(10))
+	d := NewDispatcher(store, NewRegistry(), WithWorkers(1), WithQueueSize(10))
 	ext := &NATSExtension{dispatcher: d, streamName: "ocidex", logger: noopLogger()}
 
 	msg := &recordingMsg{data: makeIngestedEnvelope("01234567-89ab-cdef-0123-456789abcdef")}
