@@ -9,7 +9,7 @@ import (
 
 // GetDashboardStats returns aggregated metrics for the home dashboard.
 func (s *searchService) GetDashboardStats(ctx context.Context, vis VisibilityFilter) (*DashboardStats, error) {
-	q := repository.New(s.pool)
+	q := repository.New(s.db)
 
 	visParams := func() (repository.GetSummaryCountsParams, repository.GetLicenseCategoryCountsParams, repository.GetSBOMIngestionTimelineParams, repository.GetPackageGrowthTimelineParams, repository.GetVersionGrowthTimelineParams, repository.GetTopPackagesByVersionCountParams) {
 		return repository.GetSummaryCountsParams{UserID: vis.UserID, IsAdmin: visAdminBool(vis)},
