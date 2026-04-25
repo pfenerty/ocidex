@@ -7,8 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
@@ -262,12 +260,12 @@ type DependencyEdge struct {
 }
 
 type searchService struct {
-	pool *pgxpool.Pool
+	db repository.DBTX
 }
 
 // NewSearchService creates a new SearchService.
-func NewSearchService(pool *pgxpool.Pool) SearchService {
-	return &searchService{pool: pool}
+func NewSearchService(db repository.DBTX) SearchService {
+	return &searchService{db: db}
 }
 
 // Ensure *Queries satisfies SearchRepository.
