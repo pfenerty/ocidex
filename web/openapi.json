@@ -620,6 +620,10 @@
             "description": "UUID of the registry owner",
             "type": "string"
           },
+          "owner_username": {
+            "description": "GitHub username of the registry owner",
+            "type": "string"
+          },
           "poll_interval_minutes": {
             "format": "int64",
             "type": "integer"
@@ -1732,6 +1736,10 @@
           },
           "owner_id": {
             "description": "UUID of the registry owner",
+            "type": "string"
+          },
+          "owner_username": {
+            "description": "GitHub username of the registry owner",
             "type": "string"
           },
           "poll_interval_minutes": {
@@ -3660,7 +3668,7 @@
           "Registries"
         ]
       },
-      "put": {
+      "patch": {
         "operationId": "update-registry",
         "parameters": [
           {
@@ -3707,7 +3715,7 @@
             "description": "Error"
           }
         },
-        "summary": "Update a registry",
+        "summary": "Update a registry (partial)",
         "tags": [
           "Registries"
         ]

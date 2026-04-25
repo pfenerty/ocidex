@@ -39,10 +39,24 @@ func (h *Handler) ListRegistries(ctx context.Context, _ *struct{}) (*ListRegistr
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing registries: %v", err))
 	}
+	users, err := h.authService.ListUsers(ctx)
+	if err != nil {
+		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing users: %v", err))
+	}
+	ownerNames := make(map[string]string, len(users))
+	for _, u := range users {
+		ownerNames[uuidToStr(u.ID)] = u.GitHubUsername
+	}
 	out := &ListRegistriesOutput{}
 	out.Body.Registries = make([]RegistryResponse, len(regs))
 	for i, r := range regs {
-		out.Body.Registries[i] = toRegistryResponse(r, h.cfg.APIBaseURL)
+		var ownerUsername *string
+		if r.OwnerID != nil {
+			if name, ok := ownerNames[*r.OwnerID]; ok {
+				ownerUsername = &name
+			}
+		}
+		out.Body.Registries[i] = toRegistryResponse(r, h.cfg.APIBaseURL, ownerUsername)
 	}
 	return out, nil
 }
@@ -60,7 +74,7 @@ func (h *Handler) GetRegistry(ctx context.Context, in *GetRegistryInput) (*GetRe
 	if !canManageRegistry(user, reg) && reg.Visibility == "private" {
 		return nil, huma.Error404NotFound("registry not found")
 	}
-	return &GetRegistryOutput{Body: toRegistryResponse(reg, h.cfg.APIBaseURL)}, nil
+	return &GetRegistryOutput{Body: toRegistryResponse(reg, h.cfg.APIBaseURL, nil)}, nil
 }
 
 // CreateRegistry creates a new registry. Any authenticated user can create.
@@ -100,7 +114,7 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("creating registry: %v", err))
 	}
 	return &CreateRegistryOutput{Body: CreateRegistryResponseBody{
-		RegistryResponse: toRegistryResponse(reg, h.cfg.APIBaseURL),
+		RegistryResponse: toRegistryResponse(reg, h.cfg.APIBaseURL, nil),
 		WebhookSecret:    generatedSecret,
 	}}, nil
 }
@@ -147,7 +161,7 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}
-	return &UpdateRegistryOutput{Body: toRegistryResponse(reg, h.cfg.APIBaseURL)}, nil
+	return &UpdateRegistryOutput{Body: toRegistryResponse(reg, h.cfg.APIBaseURL, nil)}, nil
 }
 
 // DeleteRegistry deletes a registry (owner or admin).
@@ -250,7 +264,7 @@ func uuidToStr(u pgtype.UUID) string {
 		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
-func toRegistryResponse(r service.Registry, apiBaseURL string) RegistryResponse {
+func toRegistryResponse(r service.Registry, apiBaseURL string, ownerUsername *string) RegistryResponse {
 	rr := RegistryResponse{
 		ID:                  r.ID,
 		Name:                r.Name,
@@ -270,6 +284,7 @@ func toRegistryResponse(r service.Registry, apiBaseURL string) RegistryResponse 
 		UpdatedAt:           r.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 		Visibility:          r.Visibility,
 		OwnerID:             r.OwnerID,
+		OwnerUsername:       ownerUsername,
 		IncludeUntagged:     r.IncludeUntagged,
 	}
 	if r.LastPolledAt != nil {

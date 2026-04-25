@@ -642,6 +642,7 @@ function RegistriesTab() {
                                         <th>Type</th>
                                         <th>URL</th>
                                         <th>Visibility</th>
+                                        <th>Owner</th>
                                         <th>Status</th>
                                         <th>Scan Mode</th>
                                         <th>Webhook URL</th>
@@ -656,6 +657,11 @@ function RegistriesTab() {
                                                 <td><code>{reg.type}</code></td>
                                                 <td><code>{reg.url}</code></td>
                                                 <td><span class="badge">{reg.visibility}</span></td>
+                                                <td>
+                                                    <span style={{ color: "var(--color-text-muted)", "font-size": "0.85rem" }}>
+                                                        {reg.owner_username ?? "—"}
+                                                    </span>
+                                                </td>
                                                 <td>
                                                     <span style={{ color: reg.enabled ? "var(--color-success)" : "var(--color-text-muted)" }}>
                                                         {reg.enabled ? "Enabled" : "Disabled"}
