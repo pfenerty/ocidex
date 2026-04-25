@@ -93,6 +93,7 @@ make check             # Run fmt + lint + test
 make init              # Download deps and install tools
 make clean             # Clean build artifacts
 make generate          # Run sqlc code generation
+make openapi           # Regenerate OpenAPI spec + frontend TypeScript types
 make migrate-up        # Run database migrations up
 make migrate-down      # Roll back last database migration
 make seed              # Seed database with real SBOMs
@@ -141,6 +142,14 @@ docs/DEVELOPMENT.md    # Coding patterns and examples
 1. Edit the SQL in `db/queries/*.sql`
 2. Run `make generate` (or `sqlc generate`)
 3. The `internal/repository/` files will be regenerated
+
+`web/openapi.json` and `web/src/types/openapi.d.ts` are **generated from the Go API types**. Whenever you add, remove, or change fields on any type in `internal/api/types.go` (or change routes/methods in `internal/api/router.go`), run:
+
+```bash
+flox activate -- make openapi
+```
+
+This regenerates `web/openapi.json` (via `cmd/specgen`) and `web/src/types/openapi.d.ts` (via `openapi-typescript`). The frontend TypeScript compiler enforces the generated types, so stale types cause Docker build failures.
 
 ## Database Workflow
 
