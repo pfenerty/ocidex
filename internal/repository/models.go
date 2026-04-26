@@ -145,6 +145,22 @@ type Sbom struct {
 	RegistryID           pgtype.UUID        `json:"registry_id"`
 }
 
+type ScanJob struct {
+	ID         pgtype.UUID        `json:"id"`
+	RegistryID pgtype.UUID        `json:"registry_id"`
+	Repository string             `json:"repository"`
+	Digest     string             `json:"digest"`
+	Tag        pgtype.Text        `json:"tag"`
+	State      string             `json:"state"`
+	Attempts   int32              `json:"attempts"`
+	LastError  pgtype.Text        `json:"last_error"`
+	NatsMsgID  pgtype.Text        `json:"nats_msg_id"`
+	SbomID     pgtype.UUID        `json:"sbom_id"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	StartedAt  pgtype.Timestamptz `json:"started_at"`
+	FinishedAt pgtype.Timestamptz `json:"finished_at"`
+}
+
 type Session struct {
 	ID        pgtype.UUID        `json:"id"`
 	UserID    pgtype.UUID        `json:"user_id"`

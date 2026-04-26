@@ -702,3 +702,48 @@ type RegistryWebhookInput struct {
 		Manifest  string `json:"manifest"`
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Scan Jobs
+// ---------------------------------------------------------------------------
+
+// ScanJobResponse is the public representation of a scan pipeline job.
+type ScanJobResponse struct {
+	ID         string  `json:"id" doc:"Job UUID"`
+	RegistryID *string `json:"registry_id,omitempty" doc:"Source registry UUID"`
+	Repository string  `json:"repository"`
+	Digest     string  `json:"digest"`
+	Tag        *string `json:"tag,omitempty"`
+	State      string  `json:"state" enum:"queued,running,succeeded,failed"`
+	Attempts   int32   `json:"attempts"`
+	LastError  *string `json:"last_error,omitempty"`
+	NATSMsgID  *string `json:"nats_msg_id,omitempty" doc:"NATS deduplication message ID"`
+	SbomID     *string `json:"sbom_id,omitempty" doc:"Resulting SBOM UUID on success"`
+	CreatedAt  string  `json:"created_at"`
+	StartedAt  *string `json:"started_at,omitempty"`
+	FinishedAt *string `json:"finished_at,omitempty"`
+}
+
+// ListScanJobsInput is the request for GET /api/v1/jobs.
+type ListScanJobsInput struct {
+	PaginationParams
+	State string `query:"state" enum:"queued,running,succeeded,failed" doc:"Filter by job state"`
+}
+
+// ListScanJobsOutput is the response for GET /api/v1/jobs.
+type ListScanJobsOutput struct {
+	Body struct {
+		Data       []ScanJobResponse `json:"data"`
+		Pagination PaginationMeta    `json:"pagination"`
+	}
+}
+
+// GetScanJobInput is the request for GET /api/v1/jobs/{id}.
+type GetScanJobInput struct {
+	ID string `path:"id" doc:"Job UUID"`
+}
+
+// GetScanJobOutput is the response for GET /api/v1/jobs/{id}.
+type GetScanJobOutput struct {
+	Body ScanJobResponse
+}

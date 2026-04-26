@@ -32,7 +32,7 @@ func setupServerWithAuth(t *testing.T, pool *pgxpool.Pool) (*httptest.Server, se
 	sbomSvc := service.NewSBOMService(pool, nil, nil)
 	searchSvc := service.NewSearchService(pool)
 	registrySvc := service.NewRegistryService(pool)
-	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, pool, nil, cfg)
+	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, nil, pool, nil, cfg)
 	router := api.NewRouter(handler, "*", "", "")
 	return httptest.NewServer(router), authSvc
 }

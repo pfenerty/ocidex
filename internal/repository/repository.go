@@ -82,6 +82,17 @@ type RegistryRepository interface {
 	UpdateRegistryLastPolled(ctx context.Context, id pgtype.UUID) (Registry, error)
 }
 
+// JobRepository defines data access methods for scan job lifecycle.
+type JobRepository interface {
+	InsertScanJob(ctx context.Context, arg InsertScanJobParams) (ScanJob, error)
+	StartScanJob(ctx context.Context, natsMsgID pgtype.Text) error
+	FinishScanJob(ctx context.Context, arg FinishScanJobParams) error
+	FailScanJob(ctx context.Context, arg FailScanJobParams) error
+	ListScanJobs(ctx context.Context, arg ListScanJobsParams) ([]ScanJob, error)
+	CountScanJobs(ctx context.Context, state pgtype.Text) (int64, error)
+	GetScanJob(ctx context.Context, id pgtype.UUID) (ScanJob, error)
+}
+
 // AuthRepository defines data access methods for authentication and authorization.
 type AuthRepository interface {
 	UpsertUser(ctx context.Context, arg UpsertUserParams) (OcidexUser, error)

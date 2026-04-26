@@ -90,13 +90,14 @@ func run() error {
 	searchSvc := service.NewSearchService(pool)
 	authSvc := service.NewAuthService(pool, cfg)
 
-	scanSubmitter := setupScannerExt(cfg, pool, bus, reg, natsClient, logger)
+	jobSvc := service.NewJobService(pool)
+	scanSubmitter := setupScannerExt(cfg, pool, bus, reg, natsClient, logger, jobSvc)
 
 	if err := reg.InitAll(); err != nil {
 		return fmt.Errorf("initializing extensions: %w", err)
 	}
 
-	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, pool, scanSubmitter, cfg)
+	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, jobSvc, pool, scanSubmitter, cfg)
 	router := api.NewRouter(handler, cfg.CORSAllowedOrigins, cfg.FrontendURL, cfg.APIBaseURL)
 
 	extCtx, extCancel := context.WithCancel(context.Background())
@@ -224,7 +225,7 @@ func setupEnrichmentExt(cfg *config.Config, reg *extension.Registry, pool *pgxpo
 	}
 }
 
-func setupScannerExt(cfg *config.Config, pool *pgxpool.Pool, bus *event.Bus, reg *extension.Registry, natsClient *natspkg.Client, logger *slog.Logger) api.ScanSubmitter {
+func setupScannerExt(cfg *config.Config, pool *pgxpool.Pool, bus *event.Bus, reg *extension.Registry, natsClient *natspkg.Client, logger *slog.Logger, jobSvc service.JobService) api.ScanSubmitter {
 	if !cfg.ScannerEnabled {
 		return nil
 	}
@@ -233,10 +234,10 @@ func setupScannerExt(cfg *config.Config, pool *pgxpool.Pool, bus *event.Bus, reg
 	sc := scanner.NewSyftScanner(logger)
 	if cfg.NATSEnabled && cfg.ScannerNATSMode {
 		// External workers consume from NATS — main process only publishes.
-		return scanner.NewNATSSubmitter(natsClient, cfg.NATSStreamName)
+		return scanner.NewNATSSubmitter(natsClient, cfg.NATSStreamName, jobSvc)
 	}
-	// In-process mode.
-	scanDispatcher := scanner.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerWorkers, cfg.ScannerQueueSize, logger)
+	// In-process mode: no NATS, no job tracking.
+	scanDispatcher := scanner.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerWorkers, cfg.ScannerQueueSize, logger, nil)
 	reg.Register(scanner.NewExtension(scanDispatcher))
 	return scanDispatcher
 }

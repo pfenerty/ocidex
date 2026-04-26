@@ -37,6 +37,7 @@ type ScanRequest struct {
 	AuthUsername string // registry auth username; empty = anonymous
 	AuthToken    string // registry auth token/PAT; empty = no auth
 	RegistryID   string // UUID of the source registry; empty = unknown
+	MsgID        string // NATS deduplication ID (Nats-Msg-Id header); not serialized to NATS payload
 }
 
 // NewSyftScanner creates a stateless SyftScanner.

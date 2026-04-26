@@ -3,10 +3,12 @@ package scanner
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"time"
 
 	"github.com/nats-io/nats.go"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
+	"github.com/pfenerty/ocidex/internal/service"
 )
 
 const natsPublishTimeout = 5 * time.Second
@@ -16,13 +18,15 @@ const natsPublishTimeout = 5 * time.Second
 type NATSSubmitter struct {
 	client     *natspkg.Client
 	streamName string
+	jobSvc     service.JobService // optional; nil disables job tracking
 }
 
 // NewNATSSubmitter creates a NATSSubmitter backed by the given client.
-func NewNATSSubmitter(client *natspkg.Client, streamName string) *NATSSubmitter {
+func NewNATSSubmitter(client *natspkg.Client, streamName string, jobSvc service.JobService) *NATSSubmitter {
 	return &NATSSubmitter{
 		client:     client,
 		streamName: streamName,
+		jobSvc:     jobSvc,
 	}
 }
 
@@ -43,7 +47,27 @@ type scanRequestWire struct {
 
 // Submit synchronously publishes a scan request to JetStream and returns any publish error.
 func (s *NATSSubmitter) Submit(ctx context.Context, req ScanRequest) error {
-	payload, err := json.Marshal(scanRequestWire(req)) //nolint:gosec // G117: auth credentials must travel with scan requests through NATS
+	msgID := req.RegistryID + "@" + req.Digest
+
+	if s.jobSvc != nil {
+		if _, err := s.jobSvc.Enqueue(ctx, req.RegistryID, req.Repository, req.Digest, req.Tag, msgID); err != nil {
+			slog.Warn("scan_jobs: failed to enqueue job", "msg_id", msgID, "err", err)
+		}
+	}
+
+	payload, err := json.Marshal(scanRequestWire{ //nolint:gosec // G117: auth credentials must travel with scan requests through NATS
+		RegistryURL:  req.RegistryURL,
+		Insecure:     req.Insecure,
+		Repository:   req.Repository,
+		Digest:       req.Digest,
+		Tag:          req.Tag,
+		Architecture: req.Architecture,
+		BuildDate:    req.BuildDate,
+		ImageVersion: req.ImageVersion,
+		AuthUsername: req.AuthUsername,
+		AuthToken:    req.AuthToken,
+		RegistryID:   req.RegistryID,
+	})
 	if err != nil {
 		return err
 	}
@@ -64,7 +88,7 @@ func (s *NATSSubmitter) Submit(ctx context.Context, req ScanRequest) error {
 
 	subject := s.streamName + ".scan.requested"
 	msg := nats.NewMsg(subject)
-	msg.Header.Set("Nats-Msg-Id", req.RegistryID+"@"+req.Digest)
+	msg.Header.Set("Nats-Msg-Id", msgID)
 	msg.Data = data
 	_, err = s.client.JS.PublishMsg(pubCtx, msg)
 	return err

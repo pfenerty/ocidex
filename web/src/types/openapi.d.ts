@@ -244,6 +244,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List scan jobs
+         * @description Returns a paginated list of scan pipeline jobs, optionally filtered by state.
+         */
+        get: operations["list-scan-jobs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a scan job */
+        get: operations["get-scan-job"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/licenses": {
         parameters: {
             query?: never;
@@ -1110,6 +1147,16 @@ export interface components {
             data: components["schemas"]["SBOMSummary"][] | null;
             pagination: components["schemas"]["PaginationMeta"];
         };
+        ListScanJobsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListScanJobsOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["ScanJobResponse"][] | null;
+            pagination: components["schemas"]["PaginationMeta"];
+        };
         ListUsersOutputBody: {
             /**
              * Format: uri
@@ -1298,6 +1345,33 @@ export interface components {
             sufficient: boolean;
             /** Format: int32 */
             version: number;
+        };
+        ScanJobResponse: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ScanJobResponse.json
+             */
+            readonly $schema?: string;
+            /** Format: int32 */
+            attempts: number;
+            created_at: string;
+            digest: string;
+            finished_at?: string;
+            /** @description Job UUID */
+            id: string;
+            last_error?: string;
+            /** @description NATS deduplication message ID */
+            nats_msg_id?: string;
+            /** @description Source registry UUID */
+            registry_id?: string;
+            repository: string;
+            /** @description Resulting SBOM UUID on success */
+            sbom_id?: string;
+            started_at?: string;
+            /** @enum {string} */
+            state: "queued" | "running" | "succeeded" | "failed";
+            tag?: string;
         };
         ScanRegistryOutputBody: {
             /**
@@ -1987,6 +2061,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ComponentDetail"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-scan-jobs": {
+        parameters: {
+            query?: {
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Number of results to skip */
+                offset?: number;
+                /** @description Filter by job state */
+                state?: "queued" | "running" | "succeeded" | "failed";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListScanJobsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-scan-job": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Job UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanJobResponse"];
                 };
             };
             /** @description Error */
