@@ -1458,7 +1458,7 @@
             "readOnly": true,
             "type": "string"
           },
-          "registries": {
+          "data": {
             "items": {
               "$ref": "#/components/schemas/RegistryResponse"
             },
@@ -1466,10 +1466,14 @@
               "array",
               "null"
             ]
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
           }
         },
         "required": [
-          "registries"
+          "data",
+          "pagination"
         ],
         "type": "object"
       },
@@ -3723,6 +3727,35 @@
     "/api/v1/registries": {
       "get": {
         "operationId": "list-registries",
+        "parameters": [
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of results to skip",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Number of results to skip",
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {

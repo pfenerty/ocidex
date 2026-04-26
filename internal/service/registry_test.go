@@ -19,6 +19,7 @@ type fakeRegistryRepo struct {
 	createFn     func(ctx context.Context, arg repository.CreateRegistryParams) (repository.Registry, error)
 	getFn        func(ctx context.Context, id pgtype.UUID) (repository.Registry, error)
 	listFn       func(ctx context.Context, arg repository.ListRegistriesParams) ([]repository.Registry, error)
+	listPagedFn  func(ctx context.Context, arg repository.ListRegistriesPagedParams) ([]repository.ListRegistriesPagedRow, error)
 	updateFn     func(ctx context.Context, arg repository.UpdateRegistryParams) (repository.Registry, error)
 	setEnabledFn func(ctx context.Context, arg repository.SetRegistryEnabledParams) (repository.Registry, error)
 	deleteFn     func(ctx context.Context, id pgtype.UUID) (int64, error)
@@ -43,6 +44,13 @@ func (f *fakeRegistryRepo) GetRegistry(ctx context.Context, id pgtype.UUID) (rep
 func (f *fakeRegistryRepo) ListRegistries(ctx context.Context, arg repository.ListRegistriesParams) ([]repository.Registry, error) {
 	if f.listFn != nil {
 		return f.listFn(ctx, arg)
+	}
+	return nil, nil
+}
+
+func (f *fakeRegistryRepo) ListRegistriesPaged(ctx context.Context, arg repository.ListRegistriesPagedParams) ([]repository.ListRegistriesPagedRow, error) {
+	if f.listPagedFn != nil {
+		return f.listPagedFn(ctx, arg)
 	}
 	return nil, nil
 }
@@ -280,6 +288,10 @@ type fakeListRegistryService struct {
 
 func (f *fakeListRegistryService) List(_ context.Context, _ VisibilityFilter) ([]Registry, error) {
 	return f.registries, nil
+}
+
+func (f *fakeListRegistryService) ListPaged(_ context.Context, _ VisibilityFilter, _, _ int32) (PagedResult[Registry], error) {
+	return PagedResult[Registry]{Data: f.registries, Total: int64(len(f.registries))}, nil
 }
 
 func (f *fakeListRegistryService) Create(_ context.Context, _, _, _ string, _ bool, _ *string, _, _, _ []string, _ string, _ int, _, _ *string, _ pgtype.UUID, _ string, _ bool) (Registry, error) {

@@ -15,6 +15,16 @@ WHERE (
 )
 ORDER BY created_at ASC;
 
+-- name: ListRegistriesPaged :many
+SELECT *, COUNT(*) OVER() AS total_count FROM registry
+WHERE (
+    sqlc.narg('is_admin')::boolean = true
+    OR visibility = 'public'
+    OR (sqlc.narg('user_id')::uuid IS NOT NULL AND owner_id = sqlc.narg('user_id')::uuid)
+)
+ORDER BY created_at ASC
+LIMIT @row_limit OFFSET @row_offset;
+
 -- name: UpdateRegistry :one
 UPDATE registry
 SET name                 = $2,

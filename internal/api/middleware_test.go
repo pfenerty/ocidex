@@ -74,6 +74,10 @@ func (f *fakeRegistryService) List(_ context.Context, _ service.VisibilityFilter
 	return nil, nil
 }
 
+func (f *fakeRegistryService) ListPaged(_ context.Context, _ service.VisibilityFilter, _, _ int32) (service.PagedResult[service.Registry], error) {
+	return service.PagedResult[service.Registry]{}, nil
+}
+
 func (f *fakeRegistryService) Update(_ context.Context, _, _, _, _ string, _ bool, _ *string, _ bool, _, _, _ []string, _ string, _ int, _, _ *string, _ string, _ bool) (service.Registry, error) {
 	return service.Registry{}, nil
 }

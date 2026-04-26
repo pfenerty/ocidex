@@ -570,10 +570,16 @@ type RegistryResponse struct {
 	IncludeUntagged     bool     `json:"include_untagged" doc:"Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)"`
 }
 
+// ListRegistriesInput is the request for GET /api/v1/registries.
+type ListRegistriesInput struct {
+	PaginationParams
+}
+
 // ListRegistriesOutput is the response for GET /api/v1/registries.
 type ListRegistriesOutput struct {
 	Body struct {
-		Registries []RegistryResponse `json:"registries"`
+		Data       []RegistryResponse `json:"data"`
+		Pagination PaginationMeta     `json:"pagination"`
 	}
 }
 
