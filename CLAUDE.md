@@ -225,8 +225,10 @@ bd show <id>                          # Inspect an issue
 git checkout main && git pull         # Start from latest main
 git checkout -b <branch-name>         # New branch per issue
 bd update <id> --status=in_progress   # Claim it before coding
+bd update <id> --notes "Files: ...\nApproach: ..."  # Document implementation before closing
 bd close <id>                         # Close on completion
 bd close <id1> <id2> ...              # Close multiple at once
+bd close <id> --reason "..."          # Close with a brief one-liner (simple changes only)
 ```
 
 **Conventions:**
@@ -236,6 +238,7 @@ bd close <id1> <id2> ...              # Close multiple at once
 - Hierarchical IDs (`<epic>.<n>`) come from the `--parent` flag at create time.
 - Cross-issue dependencies via `bd dep add <issue> <depends-on>`.
 - **Never** use `bd edit` — it opens `$EDITOR` and blocks. Use `bd update --title/--description/--notes` instead.
+- Before closing an issue, always record how it was resolved: `bd update <id> --notes "Files: <key files>\nApproach: <what was done and why>"`. For trivial changes, `bd close <id> --reason "..."` is sufficient. Never close without recording something.
 - Beads auto-commits its database to Dolt; run `git push` at session end to push code changes.
 
 ## ADR Summary
