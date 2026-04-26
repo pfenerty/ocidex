@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"hash/fnv"
 	"log/slog"
 	"net/http"
 	"os"
@@ -108,8 +109,11 @@ func run() error {
 
 	if cfg.ScannerEnabled && cfg.RegistryPollerEnabled && scanSubmitter != nil {
 		poller := scanner.NewPoller(registrySvc, scanSubmitter, sbomSvc, logger)
-		go poller.Run(extCtx)
-		slog.Info("registry poller started")
+		h := fnv.New64a()
+		h.Write([]byte("ocidex-poller"))
+		pollerKey := int64(h.Sum64()) //nolint:gosec
+		go service.LeaderElect(extCtx, pool, pollerKey, poller.Run)
+		slog.Info("registry poller election started", "lock_key", pollerKey)
 	}
 
 	go runSessionCleaner(extCtx, authSvc)
