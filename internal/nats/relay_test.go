@@ -116,3 +116,48 @@ func TestMarshalPayload_UnknownType(t *testing.T) {
 	is.NoErr(err)
 	is.True(len(raw) > 0)
 }
+
+func TestMsgIDForEvent(t *testing.T) {
+	uuid1 := makeUUID([16]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10})
+	uuid1str := uuidToString(uuid1)
+
+	tests := []struct {
+		name    string
+		ev      event.Event
+		wantID  string
+		wantLen int
+	}{
+		{
+			name:   "sbom.ingested returns sbom_id",
+			ev:     event.Event{Type: event.SBOMIngested, Data: event.SBOMIngestedData{SBOMID: uuid1}},
+			wantID: uuid1str,
+		},
+		{
+			name:   "sbom.deleted returns deleted-<sbom_id>",
+			ev:     event.Event{Type: event.SBOMDeleted, Data: event.SBOMDeletedData{SBOMID: uuid1}},
+			wantID: "deleted-" + uuid1str,
+		},
+		{
+			name:   "artifact.deleted returns artifact_id",
+			ev:     event.Event{Type: event.ArtifactDeleted, Data: event.ArtifactDeletedData{ArtifactID: uuid1}},
+			wantID: uuid1str,
+		},
+		{
+			name:   "artifact.created with no typed data returns empty",
+			ev:     event.Event{Type: event.ArtifactCreated, Data: nil},
+			wantID: "",
+		},
+		{
+			name:   "unknown type returns empty",
+			ev:     event.Event{Type: "unknown", Data: map[string]string{"x": "y"}},
+			wantID: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			is.Equal(msgIDForEvent(tt.ev), tt.wantID)
+		})
+	}
+}
