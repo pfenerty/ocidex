@@ -123,17 +123,18 @@ func (d *Dispatcher) worker(ctx context.Context, id int) {
 	d.logger.Debug("enrichment worker started", "worker_id", id)
 
 	for ref := range d.queue {
-		d.processSubject(ctx, ref)
+		_ = d.processSubject(ctx, ref)
 	}
 }
 
-// ProcessOne runs all enrichers synchronously for a single ref. Enricher errors are
-// logged internally; this method always returns so the caller can decide exit behavior.
-func (d *Dispatcher) ProcessOne(ctx context.Context, ref SubjectRef) {
-	d.processSubject(ctx, ref)
+// ProcessOne runs all enrichers synchronously for a single ref and returns the first
+// store error. Enricher.Enrich() errors are stored as error results and not returned;
+// only UpsertEnrichment failures propagate so the caller can Nak for redelivery.
+func (d *Dispatcher) ProcessOne(ctx context.Context, ref SubjectRef) error {
+	return d.processSubject(ctx, ref)
 }
 
-func (d *Dispatcher) processSubject(ctx context.Context, ref SubjectRef) {
+func (d *Dispatcher) processSubject(ctx context.Context, ref SubjectRef) error {
 	for _, e := range d.enrichers {
 		if !e.CanEnrich(ref) {
 			continue
@@ -170,6 +171,7 @@ func (d *Dispatcher) processSubject(ctx context.Context, ref SubjectRef) {
 				"artifact_name", ref.ArtifactName,
 				"err", storeErr,
 			)
+			return storeErr
 		}
 
 		if err == nil {
@@ -181,6 +183,7 @@ func (d *Dispatcher) processSubject(ctx context.Context, ref SubjectRef) {
 			}
 		}
 	}
+	return nil
 }
 
 // applyEnrichmentSufficiency reads imageVersion and architecture from OCI enrichment

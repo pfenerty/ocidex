@@ -16,21 +16,17 @@ import (
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 )
 
-// fakeDispatchRunner records SubmitWithResult calls.
+// fakeDispatchRunner records ProcessOne calls.
 type fakeDispatchRunner struct {
 	mu   sync.Mutex
 	refs []enrichment.SubjectRef
 }
 
-func (f *fakeDispatchRunner) SubmitWithResult(ref enrichment.SubjectRef) bool {
+func (f *fakeDispatchRunner) ProcessOne(_ context.Context, ref enrichment.SubjectRef) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.refs = append(f.refs, ref)
-	return true
-}
-
-func (f *fakeDispatchRunner) Run(_ context.Context) {
-	// no-op for testing
+	return nil
 }
 
 func (f *fakeDispatchRunner) results() []enrichment.SubjectRef {
