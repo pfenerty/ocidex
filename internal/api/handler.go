@@ -17,7 +17,7 @@ type DBPinger interface {
 
 // ScanSubmitter is implemented by *scanner.Dispatcher and *scanner.NATSSubmitter.
 type ScanSubmitter interface {
-	Submit(req scanner.ScanRequest)
+	Submit(ctx context.Context, req scanner.ScanRequest) error
 }
 
 // Handler holds dependencies for HTTP handlers.
