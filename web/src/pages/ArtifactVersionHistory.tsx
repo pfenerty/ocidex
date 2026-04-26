@@ -1,9 +1,8 @@
 import { For, Show, createSignal } from "solid-js";
 import { A, useParams } from "@solidjs/router";
-import { useArtifact, useArtifactSBOMs } from "~/api/queries";
-import type { SBOMSummary } from "~/api/client";
+import { useArtifact, useArtifactSBOMs, useDiff } from "~/api/queries";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
-import { relativeDate, plural, formatDateTime } from "~/utils/format";
+import DiffEntry from "~/components/DiffEntry";
 
 export default function ArtifactVersionHistory() {
     const params = useParams<{ id: string; version: string }>();
@@ -18,40 +17,26 @@ export default function ArtifactVersionHistory() {
 
     const [selectedArch, setSelectedArch] = createSignal<string | undefined>("amd64");
 
-    // Group SBOMs by exact build timestamp, preserving DESC order from API.
-    const groups = () => {
-        const sboms = sbomsQuery.data?.data ?? [];
-        const order: string[] = [];
-        const map = new Map<string, SBOMSummary[]>();
-        for (const sbom of sboms) {
-            const key = sbom.buildDate !== undefined
-                ? new Date(sbom.buildDate).toISOString()
-                : new Date(sbom.createdAt).toISOString();
-            if (!map.has(key)) {
-                order.push(key);
-                map.set(key, []);
-            }
-            map.get(key)?.push(sbom);
-        }
-        return { order, map };
-    };
-
     const allArchs = () => {
+        const sboms = sbomsQuery.data?.data ?? [];
         const archs = new Set<string>();
-        for (const sboms of groups().map.values()) {
-            for (const s of sboms) {
-                if (s.architecture !== undefined) archs.add(s.architecture);
-            }
+        for (const s of sboms) {
+            if (s.architecture !== undefined) archs.add(s.architecture);
         }
         return [...archs].sort();
     };
 
-    const filteredOrder = () => {
+    // API returns created_at DESC — filter to selected arch (or all), keep order.
+    const builds = () => {
+        const sboms = sbomsQuery.data?.data ?? [];
         const arch = selectedArch();
-        if (arch === undefined) return groups().order;
-        return groups().order.filter((key) =>
-            (groups().map.get(key) ?? []).some((s) => s.architecture === arch),
-        );
+        return arch !== undefined ? sboms.filter((s) => s.architecture === arch) : sboms;
+    };
+
+    // Consecutive pairs: newer = builds[i], older = builds[i+1]
+    const pairs = () => {
+        const b = builds();
+        return b.slice(0, -1).map((newer, i) => ({ newer, older: b[i + 1] }));
     };
 
     return (
@@ -70,7 +55,7 @@ export default function ArtifactVersionHistory() {
                 <div class="page-header-row">
                     <div>
                         <h2>{version()}</h2>
-                        <p class="text-muted">Build history for this version</p>
+                        <p class="text-muted">Build changelog</p>
                     </div>
                 </div>
             </div>
@@ -80,8 +65,27 @@ export default function ArtifactVersionHistory() {
                     when={!sbomsQuery.isError}
                     fallback={<ErrorBox error={sbomsQuery.error} />}
                 >
+                    <Show when={allArchs().length > 1}>
+                        <div class="tab-bar mb-md">
+                            <For each={allArchs()}>
+                                {(arch) => (
+                                    <button
+                                        class={selectedArch() === arch ? "active" : ""}
+                                        onClick={() =>
+                                            setSelectedArch((a) =>
+                                                a === arch ? undefined : arch,
+                                            )
+                                        }
+                                    >
+                                        {arch}
+                                    </button>
+                                )}
+                            </For>
+                        </div>
+                    </Show>
+
                     <Show
-                        when={groups().order.length > 0}
+                        when={builds().length > 0}
                         fallback={
                             <EmptyState
                                 title="No builds found"
@@ -89,34 +93,24 @@ export default function ArtifactVersionHistory() {
                             />
                         }
                     >
-                        <Show when={allArchs().length > 1}>
-                            <div class="tab-bar mb-md">
-                                <For each={allArchs()}>
-                                    {(arch) => (
-                                        <button
-                                            class={selectedArch() === arch ? "active" : ""}
-                                            onClick={() =>
-                                                setSelectedArch((a) =>
-                                                    a === arch ? undefined : arch,
-                                                )
-                                            }
-                                        >
-                                            {arch}
-                                        </button>
-                                    )}
-                                </For>
-                            </div>
-                        </Show>
-
-                        <For each={filteredOrder()}>
-                            {(dateKey) => (
-                                <BuildEntry
-                                    dateKey={dateKey}
-                                    sboms={groups().map.get(dateKey) ?? []}
-                                    selectedArch={selectedArch()}
+                        <Show
+                            when={pairs().length > 0}
+                            fallback={
+                                <EmptyState
+                                    title="Only one build"
+                                    message="No previous build to compare against for this version."
                                 />
-                            )}
-                        </For>
+                            }
+                        >
+                            <For each={pairs()}>
+                                {(pair) => (
+                                    <BuildDiffEntry
+                                        fromId={pair.older.id}
+                                        toId={pair.newer.id}
+                                    />
+                                )}
+                            </For>
+                        </Show>
                     </Show>
                 </Show>
             </Show>
@@ -124,106 +118,32 @@ export default function ArtifactVersionHistory() {
     );
 }
 
-function BuildEntry(props: {
-    dateKey: string;
-    sboms: SBOMSummary[];
-    selectedArch: string | undefined;
-}) {
-    const [open, setOpen] = createSignal(false);
-
-    const visibleSboms = () =>
-        props.selectedArch !== undefined
-            ? props.sboms.filter((s) => s.architecture === props.selectedArch)
-            : props.sboms;
-
-    const total = () =>
-        visibleSboms().reduce((n, s) => n + (s.componentCount ?? 0), 0);
+function BuildDiffEntry(props: { fromId: string; toId: string }) {
+    const [typeFilter, setTypeFilter] = createSignal<string | null>(null);
+    const [nameFilter] = createSignal("");
+    const diff = useDiff(() => ({ from: props.fromId, to: props.toId }));
 
     return (
-        <div class="changelog-entry">
-            <div
-                class="changelog-entry-header"
-                style={{ cursor: "pointer", "user-select": "none" }}
-                onClick={() => setOpen((o) => !o)}
-            >
-                <div
-                    class="text-sm"
-                    style={{ display: "flex", "align-items": "center", gap: "0.5rem" }}
-                >
-                    <span
-                        style={{
-                            display: "inline-block",
-                            "font-size": "0.6rem",
-                            transition: "transform 0.15s",
-                            transform: open() ? "rotate(90deg)" : "rotate(0deg)",
-                            color: "var(--color-text-dim)",
-                        }}
-                    >
-                        ▶
-                    </span>
-                    <span class="text-muted" title={formatDateTime(props.dateKey)}>
-                        {relativeDate(props.dateKey)}
-                    </span>
-                </div>
-                <div class="changelog-summary">
-                    <For each={visibleSboms()}>
-                        {(s) => (
-                            <span class="badge badge-primary">
-                                {s.architecture ?? "unknown"}
-                            </span>
-                        )}
-                    </For>
-                    <Show when={total() > 0}>
-                        <span class="text-muted text-sm">
-                            {plural(total(), "component")}
-                        </span>
-                    </Show>
-                </div>
-            </div>
-            <Show when={open()}>
-                <div class="table-wrapper">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Architecture</th>
-                                <th>Components</th>
-                                <th>SBOM</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <For each={visibleSboms()}>
-                                {(s) => (
-                                    <tr>
-                                        <td>
-                                            <span class="badge badge-primary">
-                                                {s.architecture ?? "unknown"}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <Show
-                                                when={(s.componentCount ?? 0) > 0}
-                                                fallback={
-                                                    <span class="text-muted">—</span>
-                                                }
-                                            >
-                                                {plural(s.componentCount ?? 0, "component")}
-                                            </Show>
-                                        </td>
-                                        <td>
-                                            <A
-                                                href={`/sboms/${s.id}`}
-                                                class="mono text-sm"
-                                            >
-                                                {s.id}
-                                            </A>
-                                        </td>
-                                    </tr>
-                                )}
-                            </For>
-                        </tbody>
-                    </table>
-                </div>
+        <>
+            <Show when={diff.isLoading}>
+                <Loading />
             </Show>
-        </div>
+            <Show when={diff.isError}>
+                <ErrorBox error={diff.error} />
+            </Show>
+            <Show when={diff.data}>
+                {(data) => (
+                    <DiffEntry
+                        entry={data()}
+                        packagesOnly={false}
+                        typeFilter={typeFilter()}
+                        nameFilter={nameFilter()}
+                        onTypeFilterToggle={(k) =>
+                            setTypeFilter((f) => (f === k ? null : k))
+                        }
+                    />
+                )}
+            </Show>
+        </>
     );
 }

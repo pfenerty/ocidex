@@ -13,8 +13,8 @@ export default function Components() {
     const [nameFilter, setNameFilter] = createSignal("");
     const [groupFilter, setGroupFilter] = createSignal("");
     const [purlTypeFilter, setPurlTypeFilter] = createSignal("");
-    const [sortBy, setSortBy] = createSignal<SortColumn>("name");
-    const [sortDir, setSortDir] = createSignal<SortDir>("asc");
+    const [sortBy, setSortBy] = createSignal<SortColumn>("sbom_count");
+    const [sortDir, setSortDir] = createSignal<SortDir>("desc");
     const limit = 50;
 
     const purlTypesQuery = useComponentPurlTypes();
