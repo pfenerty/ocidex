@@ -430,6 +430,15 @@
             "maxLength": 100,
             "minLength": 1,
             "type": "string"
+          },
+          "scope": {
+            "default": "read-write",
+            "description": "Key scope: read (GET only) or read-write (full access)",
+            "enum": [
+              "read",
+              "read-write"
+            ],
+            "type": "string"
           }
         },
         "required": [
@@ -1187,12 +1196,21 @@
           "prefix": {
             "description": "First 8 characters of the key",
             "type": "string"
+          },
+          "scope": {
+            "description": "Key scope",
+            "enum": [
+              "read",
+              "read-write"
+            ],
+            "type": "string"
           }
         },
         "required": [
           "id",
           "name",
           "prefix",
+          "scope",
           "created_at"
         ],
         "type": "object"

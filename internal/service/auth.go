@@ -27,6 +27,9 @@ type AuthUser struct {
 	GitHubID       int64
 	GitHubUsername string
 	Role           string
+	// APIKeyScope is the scope of the API key used to authenticate this request.
+	// Empty for session (cookie) authentication; "read" or "read-write" for API key auth.
+	APIKeyScope string
 }
 
 // APIKeyMeta is the display-safe representation of an API key (no hash).
@@ -34,6 +37,7 @@ type APIKeyMeta struct {
 	ID         pgtype.UUID
 	Name       string
 	Prefix     string
+	Scope      string
 	CreatedAt  time.Time
 	LastUsedAt *time.Time
 }
@@ -45,7 +49,7 @@ type AuthService interface {
 	CreateSession(ctx context.Context, userID pgtype.UUID) (plaintext string, err error)
 	ValidateSession(ctx context.Context, token string) (AuthUser, error)
 	DeleteSession(ctx context.Context, token string) error
-	CreateAPIKey(ctx context.Context, userID pgtype.UUID, name string) (plaintext string, err error)
+	CreateAPIKey(ctx context.Context, userID pgtype.UUID, name, scope string) (plaintext string, err error)
 	ValidateAPIKey(ctx context.Context, rawKey string) (AuthUser, error)
 	ListAPIKeys(ctx context.Context, userID pgtype.UUID) ([]APIKeyMeta, error)
 	DeleteAPIKey(ctx context.Context, userID pgtype.UUID, keyID pgtype.UUID) error
@@ -168,7 +172,10 @@ func (s *authService) DeleteSession(ctx context.Context, token string) error {
 	return s.repo.DeleteSession(ctx, sha256hex(token))
 }
 
-func (s *authService) CreateAPIKey(ctx context.Context, userID pgtype.UUID, name string) (string, error) {
+func (s *authService) CreateAPIKey(ctx context.Context, userID pgtype.UUID, name, scope string) (string, error) {
+	if scope != "read" && scope != "read-write" {
+		scope = "read-write"
+	}
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return "", fmt.Errorf("generating api key: %w", err)
@@ -185,6 +192,7 @@ func (s *authService) CreateAPIKey(ctx context.Context, userID pgtype.UUID, name
 		Name:    name,
 		KeyHash: hash,
 		Prefix:  prefix,
+		Scope:   scope,
 	})
 	if err != nil {
 		return "", fmt.Errorf("creating api key: %w", err)
@@ -207,6 +215,7 @@ func (s *authService) ValidateAPIKey(ctx context.Context, rawKey string) (AuthUs
 		GitHubID:       row.GithubID,
 		GitHubUsername: row.GithubUsername,
 		Role:           row.Role,
+		APIKeyScope:    row.Scope,
 	}, nil
 }
 
@@ -221,6 +230,7 @@ func (s *authService) ListAPIKeys(ctx context.Context, userID pgtype.UUID) ([]AP
 			ID:        r.ID,
 			Name:      r.Name,
 			Prefix:    r.Prefix,
+			Scope:     r.Scope,
 			CreatedAt: r.CreatedAt.Time,
 		}
 		if r.LastUsedAt.Valid {

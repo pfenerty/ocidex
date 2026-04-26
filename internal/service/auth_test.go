@@ -240,7 +240,7 @@ func TestCreateAPIKey_PrefixAndFormat(t *testing.T) {
 	}
 	svc := newTestAuthService(repo)
 
-	key, err := svc.CreateAPIKey(context.Background(), pgtype.UUID{Valid: true}, "ci")
+	key, err := svc.CreateAPIKey(context.Background(), pgtype.UUID{Valid: true}, "ci", "read-write")
 
 	is.NoErr(err)
 	is.True(strings.HasPrefix(key, "ocidex_")) // plaintext starts with prefix
@@ -258,7 +258,7 @@ func TestCreateAPIKey_RepoError(t *testing.T) {
 	}
 	svc := newTestAuthService(repo)
 
-	_, err := svc.CreateAPIKey(context.Background(), pgtype.UUID{Valid: true}, "ci")
+	_, err := svc.CreateAPIKey(context.Background(), pgtype.UUID{Valid: true}, "ci", "read-write")
 	is.True(err != nil)
 }
 

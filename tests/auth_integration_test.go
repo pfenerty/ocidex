@@ -89,11 +89,11 @@ func TestAuthBoundaries(t *testing.T) {
 	memberID := seedUser(t, pool, 1002, "test-member", "member")
 	viewerID := seedUser(t, pool, 1003, "test-viewer", "viewer")
 
-	adminKey, err := authSvc.CreateAPIKey(ctx, adminID, "test")
+	adminKey, err := authSvc.CreateAPIKey(ctx, adminID, "test", "read-write")
 	is.NoErr(err)
-	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "test")
+	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "test", "read-write")
 	is.NoErr(err)
-	viewerKey, err := authSvc.CreateAPIKey(ctx, viewerID, "test")
+	viewerKey, err := authSvc.CreateAPIKey(ctx, viewerID, "test", "read-write")
 	is.NoErr(err)
 
 	// Create a registry owned by member; used for owner-middleware cases.

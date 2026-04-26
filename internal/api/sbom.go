@@ -13,6 +13,9 @@ import (
 
 // IngestSBOM accepts a CycloneDX JSON SBOM, validates it, and persists it.
 func (h *Handler) IngestSBOM(ctx context.Context, input *IngestSBOMInput) (*IngestSBOMOutput, error) {
+	if user, ok := UserFromContext(ctx); ok && !isWriteAllowed(user) {
+		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
+	}
 	bom := new(cdx.BOM)
 	decoder := cdx.NewBOMDecoder(bytes.NewReader(input.RawBody), cdx.BOMFileFormatJSON)
 	if err := decoder.Decode(bom); err != nil {
@@ -48,6 +51,9 @@ func (h *Handler) IngestSBOM(ctx context.Context, input *IngestSBOMInput) (*Inge
 
 // DeleteSBOM removes an SBOM by ID.
 func (h *Handler) DeleteSBOM(ctx context.Context, input *DeleteSBOMInput) (*struct{}, error) {
+	if user, ok := UserFromContext(ctx); ok && !isWriteAllowed(user) {
+		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
+	}
 	id, err := parseUUID(input.ID)
 	if err != nil {
 		return nil, err
@@ -62,6 +68,9 @@ func (h *Handler) DeleteSBOM(ctx context.Context, input *DeleteSBOMInput) (*stru
 
 // DeleteArtifact removes an artifact and all its SBOMs by ID.
 func (h *Handler) DeleteArtifact(ctx context.Context, input *DeleteArtifactInput) (*struct{}, error) {
+	if user, ok := UserFromContext(ctx); ok && !isWriteAllowed(user) {
+		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
+	}
 	id, err := parseUUID(input.ID)
 	if err != nil {
 		return nil, err

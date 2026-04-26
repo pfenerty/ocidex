@@ -119,7 +119,7 @@ func (f *fakeAuthService) DeleteSession(_ context.Context, _ string) error {
 	return errors.New("not implemented")
 }
 
-func (f *fakeAuthService) CreateAPIKey(_ context.Context, _ pgtype.UUID, _ string) (string, error) {
+func (f *fakeAuthService) CreateAPIKey(_ context.Context, _ pgtype.UUID, _, _ string) (string, error) {
 	return "", errors.New("not implemented")
 }
 

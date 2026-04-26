@@ -15,6 +15,17 @@ import (
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
+const (
+	scopeRead      = "read"
+	scopeReadWrite = "read-write"
+)
+
+// isWriteAllowed reports whether the user may perform state-mutating operations.
+// Session-authenticated users (empty APIKeyScope) always have write access.
+func isWriteAllowed(user service.AuthUser) bool {
+	return user.APIKeyScope == "" || user.APIKeyScope == scopeReadWrite
+}
+
 // publicPaths bypass Authenticate.
 var publicPaths = map[string]bool{
 	"/health":        true,

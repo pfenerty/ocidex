@@ -445,7 +445,8 @@ type MeOutput struct {
 // CreateAPIKeyInput is the request for POST /api/v1/auth/keys.
 type CreateAPIKeyInput struct {
 	Body struct {
-		Name string `json:"name" minLength:"1" maxLength:"100" doc:"Human-readable label for this key"`
+		Name  string `json:"name" minLength:"1" maxLength:"100" doc:"Human-readable label for this key"`
+		Scope string `json:"scope,omitempty" enum:"read,read-write" default:"read-write" doc:"Key scope: read (GET only) or read-write (full access)"`
 	}
 }
 
@@ -461,6 +462,7 @@ type KeyMetaResponse struct {
 	ID         string     `json:"id" doc:"Key UUID"`
 	Name       string     `json:"name"`
 	Prefix     string     `json:"prefix" doc:"First 8 characters of the key"`
+	Scope      string     `json:"scope" enum:"read,read-write" doc:"Key scope"`
 	CreatedAt  time.Time  `json:"created_at"`
 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
 }

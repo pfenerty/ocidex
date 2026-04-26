@@ -12,9 +12,9 @@ import (
 )
 
 const createAPIKey = `-- name: CreateAPIKey :one
-INSERT INTO api_key (user_id, name, key_hash, prefix)
-VALUES ($1, $2, $3, $4)
-RETURNING id, user_id, name, key_hash, prefix, created_at, last_used_at
+INSERT INTO api_key (user_id, name, key_hash, prefix, scope)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, user_id, name, key_hash, prefix, created_at, last_used_at, scope
 `
 
 type CreateAPIKeyParams struct {
@@ -22,6 +22,7 @@ type CreateAPIKeyParams struct {
 	Name    string      `json:"name"`
 	KeyHash string      `json:"key_hash"`
 	Prefix  string      `json:"prefix"`
+	Scope   string      `json:"scope"`
 }
 
 func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error) {
@@ -30,6 +31,7 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 		arg.Name,
 		arg.KeyHash,
 		arg.Prefix,
+		arg.Scope,
 	)
 	var i ApiKey
 	err := row.Scan(
@@ -40,6 +42,7 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 		&i.Prefix,
 		&i.CreatedAt,
 		&i.LastUsedAt,
+		&i.Scope,
 	)
 	return i, err
 }
@@ -105,7 +108,8 @@ func (q *Queries) DeleteSession(ctx context.Context, tokenHash string) error {
 }
 
 const getAPIKeyByHash = `-- name: GetAPIKeyByHash :one
-SELECT k.id, k.user_id, k.name, k.key_hash, k.prefix, k.created_at, k.last_used_at, u.github_id, u.github_username, u.role
+SELECT k.id, k.user_id, k.name, k.key_hash, k.prefix, k.scope, k.created_at, k.last_used_at,
+       u.github_id, u.github_username, u.role
 FROM api_key k
 JOIN ocidex_user u ON u.id = k.user_id
 WHERE k.key_hash = $1
@@ -117,6 +121,7 @@ type GetAPIKeyByHashRow struct {
 	Name           string             `json:"name"`
 	KeyHash        string             `json:"key_hash"`
 	Prefix         string             `json:"prefix"`
+	Scope          string             `json:"scope"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	LastUsedAt     pgtype.Timestamptz `json:"last_used_at"`
 	GithubID       int64              `json:"github_id"`
@@ -133,6 +138,7 @@ func (q *Queries) GetAPIKeyByHash(ctx context.Context, keyHash string) (GetAPIKe
 		&i.Name,
 		&i.KeyHash,
 		&i.Prefix,
+		&i.Scope,
 		&i.CreatedAt,
 		&i.LastUsedAt,
 		&i.GithubID,
@@ -196,7 +202,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (OcidexUser, 
 }
 
 const listAPIKeysByUser = `-- name: ListAPIKeysByUser :many
-SELECT id, name, prefix, created_at, last_used_at
+SELECT id, name, prefix, scope, created_at, last_used_at
 FROM api_key
 WHERE user_id = $1
 ORDER BY created_at ASC
@@ -206,6 +212,7 @@ type ListAPIKeysByUserRow struct {
 	ID         pgtype.UUID        `json:"id"`
 	Name       string             `json:"name"`
 	Prefix     string             `json:"prefix"`
+	Scope      string             `json:"scope"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
 }
@@ -223,6 +230,7 @@ func (q *Queries) ListAPIKeysByUser(ctx context.Context, userID pgtype.UUID) ([]
 			&i.ID,
 			&i.Name,
 			&i.Prefix,
+			&i.Scope,
 			&i.CreatedAt,
 			&i.LastUsedAt,
 		); err != nil {

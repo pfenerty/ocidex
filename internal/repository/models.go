@@ -16,6 +16,7 @@ type ApiKey struct {
 	Prefix     string             `json:"prefix"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
+	Scope      string             `json:"scope"`
 }
 
 type Artifact struct {
