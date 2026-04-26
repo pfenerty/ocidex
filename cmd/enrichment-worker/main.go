@@ -2,16 +2,21 @@
 // It consumes SBOMIngested events from NATS JetStream, runs the enrichment
 // pipeline, and persists results. Designed to run as a standalone process
 // alongside the main ocidex server when ENRICHMENT_NATS_MODE=true.
+//
+// Pass --once to enrich a single SBOM and exit (K8s Job mode). Set ENRICH_SBOM_ID
+// to the UUID of the SBOM to enrich.
 package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pfenerty/ocidex/internal/config"
@@ -33,6 +38,9 @@ func main() {
 }
 
 func run() error {
+	once := flag.Bool("once", false, "Enrich a single SBOM and exit (K8s Job mode)")
+	flag.Parse()
+
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
@@ -44,6 +52,7 @@ func run() error {
 	slog.Info("starting enrichment-worker",
 		"environment", cfg.Environment,
 		"log_level", cfg.LogLevel,
+		"once", *once,
 	)
 
 	ctx := context.Background()
@@ -64,6 +73,10 @@ func run() error {
 		return fmt.Errorf("pinging database: %w", err)
 	}
 	slog.Info("database connected")
+
+	if *once {
+		return runEnrichOnce(ctx, pool)
+	}
 
 	natsClient, err := natspkg.Connect(natspkg.Config{
 		URL:           cfg.NATSURL,
@@ -118,5 +131,51 @@ func run() error {
 	}
 
 	slog.Info("enrichment-worker stopped")
+	return nil
+}
+
+// runEnrichOnce enriches a single SBOM (from ENRICH_SBOM_ID env var) and exits.
+func runEnrichOnce(ctx context.Context, pool *pgxpool.Pool) error {
+	sbomIDStr := os.Getenv("ENRICH_SBOM_ID")
+	if sbomIDStr == "" {
+		return fmt.Errorf("ENRICH_SBOM_ID is required in --once mode")
+	}
+
+	var sbomID pgtype.UUID
+	if err := sbomID.Scan(sbomIDStr); err != nil {
+		return fmt.Errorf("parsing ENRICH_SBOM_ID %q: %w", sbomIDStr, err)
+	}
+
+	store := repository.New(pool)
+
+	sbomRow, err := store.GetSBOM(ctx, sbomID)
+	if err != nil {
+		return fmt.Errorf("getting SBOM %s: %w", sbomIDStr, err)
+	}
+
+	artifact, err := store.GetArtifact(ctx, sbomRow.ArtifactID)
+	if err != nil {
+		return fmt.Errorf("getting artifact for SBOM %s: %w", sbomIDStr, err)
+	}
+
+	ref := enrichment.SubjectRef{
+		SBOMId:         sbomID,
+		ArtifactType:   artifact.Type,
+		ArtifactName:   artifact.Name,
+		Digest:         sbomRow.Digest.String,
+		SubjectVersion: sbomRow.SubjectVersion.String,
+	}
+
+	registrySvc := service.NewRegistryService(pool)
+	insecureResolver := service.BuildInsecureResolver(registrySvc)
+
+	enrichReg := enrichment.NewRegistry()
+	enrichReg.Register(user.NewEnricher())
+	enrichReg.Register(oci.NewEnricher(oci.WithInsecureResolver(insecureResolver)))
+	dispatcher := enrichment.NewDispatcher(store, enrichReg)
+
+	dispatcher.ProcessOne(ctx, ref)
+
+	slog.Info("enrichment complete", "sbom_id", sbomIDStr) //nolint:gosec // G706: sbomIDStr is a trusted env var, not arbitrary user input
 	return nil
 }

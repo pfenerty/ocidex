@@ -2,16 +2,24 @@
 // It consumes scan requests from NATS JetStream, runs Syft, and ingests
 // the resulting SBOMs. Designed to run as a standalone process alongside
 // the main ocidex server when SCANNER_NATS_MODE=true.
+//
+// Pass --once to scan a single image and exit (K8s Job mode). Set SCAN_IMAGE
+// and optionally SCAN_REGISTRY_ID, SCAN_INSECURE, SCAN_AUTH_USERNAME, SCAN_AUTH_TOKEN.
 package main
 
 import (
+	"bytes"
 	"context"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
+	cdx "github.com/CycloneDX/cyclonedx-go"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pfenerty/ocidex/internal/config"
@@ -30,6 +38,9 @@ func main() {
 }
 
 func run() error {
+	once := flag.Bool("once", false, "Scan a single image and exit (K8s Job mode)")
+	flag.Parse()
+
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
@@ -41,6 +52,7 @@ func run() error {
 	slog.Info("starting scanner-worker",
 		"environment", cfg.Environment,
 		"log_level", cfg.LogLevel,
+		"once", *once,
 	)
 
 	ctx := context.Background()
@@ -61,6 +73,10 @@ func run() error {
 		return fmt.Errorf("pinging database: %w", err)
 	}
 	slog.Info("database connected")
+
+	if *once {
+		return runOnce(ctx, pool)
+	}
 
 	natsClient, err := natspkg.Connect(natspkg.Config{
 		URL:           cfg.NATSURL,
@@ -111,4 +127,91 @@ func run() error {
 
 	slog.Info("scanner-worker stopped")
 	return nil
+}
+
+// runOnce scans a single image (from env vars) and ingests the resulting SBOM.
+// Env vars: SCAN_IMAGE (required), SCAN_REGISTRY_ID, SCAN_INSECURE, SCAN_AUTH_USERNAME, SCAN_AUTH_TOKEN.
+func runOnce(ctx context.Context, pool *pgxpool.Pool) error {
+	imageRef := os.Getenv("SCAN_IMAGE")
+	if imageRef == "" {
+		return fmt.Errorf("SCAN_IMAGE is required in --once mode")
+	}
+	registryIDStr := os.Getenv("SCAN_REGISTRY_ID")
+	insecure := os.Getenv("SCAN_INSECURE") == "true"
+	authUser := os.Getenv("SCAN_AUTH_USERNAME")
+	authToken := os.Getenv("SCAN_AUTH_TOKEN")
+
+	registryURL, repo, digest, tag, err := parseImageRef(imageRef)
+	if err != nil {
+		return fmt.Errorf("parsing SCAN_IMAGE: %w", err)
+	}
+
+	logger := slog.Default()
+	bus := event.NewBus(logger)
+	sbomSvc := service.NewSBOMService(pool, bus, nil)
+	sc := scanner.NewSyftScanner(logger)
+
+	req := scanner.ScanRequest{
+		RegistryURL:  registryURL,
+		Repository:   repo,
+		Digest:       digest,
+		Tag:          tag,
+		Insecure:     insecure,
+		AuthUsername: authUser,
+		AuthToken:    authToken,
+		RegistryID:   registryIDStr,
+	}
+
+	raw, err := sc.Scan(ctx, req)
+	if err != nil {
+		return fmt.Errorf("scanning image: %w", err)
+	}
+
+	bom := new(cdx.BOM)
+	if err := cdx.NewBOMDecoder(bytes.NewReader(raw), cdx.BOMFileFormatJSON).Decode(bom); err != nil {
+		return fmt.Errorf("decoding SBOM: %w", err)
+	}
+
+	var registryID pgtype.UUID
+	if registryIDStr != "" {
+		_ = registryID.Scan(registryIDStr)
+	}
+
+	if _, err := sbomSvc.Ingest(ctx, bom, raw, service.IngestParams{
+		Version:    tag,
+		RegistryID: registryID,
+	}); err != nil {
+		return fmt.Errorf("ingesting SBOM: %w", err)
+	}
+
+	slog.Info("scan complete", "image", imageRef) //nolint:gosec // G706: imageRef is a trusted env var, not arbitrary user input
+	return nil
+}
+
+// parseImageRef parses an OCI image reference into its components.
+// Accepts "registry/repo@digest" or "registry/repo:tag@digest".
+func parseImageRef(ref string) (registryURL, repo, digest, tag string, err error) {
+	atIdx := strings.LastIndex(ref, "@")
+	if atIdx < 0 {
+		return "", "", "", "", fmt.Errorf("missing digest separator (@) in %q", ref)
+	}
+	digest = ref[atIdx+1:]
+	nameTag := ref[:atIdx]
+
+	slashIdx := strings.Index(nameTag, "/")
+	if slashIdx < 0 {
+		return "", "", "", "", fmt.Errorf("missing repository path in %q", ref)
+	}
+	registryURL = nameTag[:slashIdx]
+	repoTag := nameTag[slashIdx+1:]
+
+	colonIdx := strings.LastIndex(repoTag, ":")
+	if colonIdx >= 0 {
+		repo = repoTag[:colonIdx]
+		tag = repoTag[colonIdx+1:]
+	} else {
+		repo = repoTag
+	}
+
+	return registryURL, repo, digest, tag, nil
 }

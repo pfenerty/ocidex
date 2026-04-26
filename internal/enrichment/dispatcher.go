@@ -127,6 +127,12 @@ func (d *Dispatcher) worker(ctx context.Context, id int) {
 	}
 }
 
+// ProcessOne runs all enrichers synchronously for a single ref. Enricher errors are
+// logged internally; this method always returns so the caller can decide exit behavior.
+func (d *Dispatcher) ProcessOne(ctx context.Context, ref SubjectRef) {
+	d.processSubject(ctx, ref)
+}
+
 func (d *Dispatcher) processSubject(ctx context.Context, ref SubjectRef) {
 	for _, e := range d.enrichers {
 		if !e.CanEnrich(ref) {
