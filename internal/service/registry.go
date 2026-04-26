@@ -165,6 +165,7 @@ type RegistryService interface {
 	Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, ownerID pgtype.UUID, visibility string, includeUntagged bool) (Registry, error)
 	Get(ctx context.Context, id string) (Registry, error)
 	List(ctx context.Context, filter VisibilityFilter) ([]Registry, error)
+	ListPaged(ctx context.Context, filter VisibilityFilter, limit, offset int32) (PagedResult[Registry], error)
 	Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, visibility string, includeUntagged bool) (Registry, error)
 	SetEnabled(ctx context.Context, id string, enabled bool) (Registry, error)
 	Delete(ctx context.Context, id string) error
@@ -237,6 +238,48 @@ func (s *registryService) List(ctx context.Context, filter VisibilityFilter) ([]
 		out[i] = fromRepo(r)
 	}
 	return out, nil
+}
+
+func (s *registryService) ListPaged(ctx context.Context, filter VisibilityFilter, limit, offset int32) (PagedResult[Registry], error) {
+	rows, err := s.repo.ListRegistriesPaged(ctx, repository.ListRegistriesPagedParams{
+		IsAdmin:   pgtype.Bool{Bool: filter.IsAdmin, Valid: true},
+		UserID:    filter.UserID,
+		RowLimit:  limit,
+		RowOffset: offset,
+	})
+	if err != nil {
+		return PagedResult[Registry]{}, fmt.Errorf("listing registries: %w", err)
+	}
+	var total int64
+	if len(rows) > 0 {
+		total = rows[0].TotalCount
+	}
+	out := make([]Registry, len(rows))
+	for i, r := range rows {
+		out[i] = fromRepo(repository.Registry{
+			ID:                  r.ID,
+			Name:                r.Name,
+			Type:                r.Type,
+			Url:                 r.Url,
+			Insecure:            r.Insecure,
+			WebhookSecret:       r.WebhookSecret,
+			Enabled:             r.Enabled,
+			CreatedAt:           r.CreatedAt,
+			UpdatedAt:           r.UpdatedAt,
+			RepositoryPatterns:  r.RepositoryPatterns,
+			TagPatterns:         r.TagPatterns,
+			ScanMode:            r.ScanMode,
+			PollIntervalMinutes: r.PollIntervalMinutes,
+			LastPolledAt:        r.LastPolledAt,
+			Repositories:        r.Repositories,
+			AuthUsername:        r.AuthUsername,
+			AuthToken:           r.AuthToken,
+			OwnerID:             r.OwnerID,
+			Visibility:          r.Visibility,
+			IncludeUntagged:     r.IncludeUntagged,
+		})
+	}
+	return PagedResult[Registry]{Data: out, Total: total, Limit: limit, Offset: offset}, nil
 }
 
 func (s *registryService) Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, visibility string, includeUntagged bool) (Registry, error) {

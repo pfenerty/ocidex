@@ -167,7 +167,7 @@ func RequireRegistryOwner(api huma.API, svc service.RegistryService) func(huma.C
 func writeUnauthorized(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(http.StatusUnauthorized)
-	if err := json.NewEncoder(w).Encode(map[string]any{"type": "about:blank", "status": 401, "title": "Unauthorized"}); err != nil {
+	if err := json.NewEncoder(w).Encode(map[string]any{"title": "Unauthorized", "status": 401, "detail": "not authenticated"}); err != nil {
 		slog.Error("encoding error response", "err", err)
 	}
 }
@@ -175,7 +175,7 @@ func writeUnauthorized(w http.ResponseWriter) {
 func writeForbidden(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(http.StatusForbidden)
-	if err := json.NewEncoder(w).Encode(map[string]any{"type": "about:blank", "status": 403, "title": "Forbidden"}); err != nil {
+	if err := json.NewEncoder(w).Encode(map[string]any{"title": "Forbidden", "status": 403, "detail": "insufficient permissions"}); err != nil {
 		slog.Error("encoding error response", "err", err)
 	}
 }

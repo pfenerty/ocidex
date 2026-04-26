@@ -26,7 +26,7 @@ func generateWebhookSecret() (string, error) {
 }
 
 // ListRegistries returns registries visible to the current user.
-func (h *Handler) ListRegistries(ctx context.Context, _ *struct{}) (*ListRegistriesOutput, error) {
+func (h *Handler) ListRegistries(ctx context.Context, input *ListRegistriesInput) (*ListRegistriesOutput, error) {
 	user, ok := UserFromContext(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
@@ -35,7 +35,7 @@ func (h *Handler) ListRegistries(ctx context.Context, _ *struct{}) (*ListRegistr
 		IsAdmin: user.Role == roleAdmin,
 		UserID:  user.ID,
 	}
-	regs, err := h.registryService.List(ctx, filter)
+	result, err := h.registryService.ListPaged(ctx, filter, input.Limit, input.Offset)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing registries: %v", err))
 	}
@@ -48,16 +48,17 @@ func (h *Handler) ListRegistries(ctx context.Context, _ *struct{}) (*ListRegistr
 		ownerNames[uuidToStr(u.ID)] = u.GitHubUsername
 	}
 	out := &ListRegistriesOutput{}
-	out.Body.Registries = make([]RegistryResponse, len(regs))
-	for i, r := range regs {
+	out.Body.Data = make([]RegistryResponse, len(result.Data))
+	for i, r := range result.Data {
 		var ownerUsername *string
 		if r.OwnerID != nil {
 			if name, ok := ownerNames[*r.OwnerID]; ok {
 				ownerUsername = &name
 			}
 		}
-		out.Body.Registries[i] = toRegistryResponse(r, h.cfg.APIBaseURL, ownerUsername)
+		out.Body.Data[i] = toRegistryResponse(r, h.cfg.APIBaseURL, ownerUsername)
 	}
+	out.Body.Pagination = paginationMeta(result)
 	return out, nil
 }
 

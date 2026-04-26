@@ -226,6 +226,95 @@ func (q *Queries) ListRegistries(ctx context.Context, arg ListRegistriesParams) 
 	return items, nil
 }
 
+const listRegistriesPaged = `-- name: ListRegistriesPaged :many
+SELECT id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged, COUNT(*) OVER() AS total_count FROM registry
+WHERE (
+    $1::boolean = true
+    OR visibility = 'public'
+    OR ($2::uuid IS NOT NULL AND owner_id = $2::uuid)
+)
+ORDER BY created_at ASC
+LIMIT $4 OFFSET $3
+`
+
+type ListRegistriesPagedParams struct {
+	IsAdmin   pgtype.Bool `json:"is_admin"`
+	UserID    pgtype.UUID `json:"user_id"`
+	RowOffset int32       `json:"row_offset"`
+	RowLimit  int32       `json:"row_limit"`
+}
+
+type ListRegistriesPagedRow struct {
+	ID                  pgtype.UUID        `json:"id"`
+	Name                string             `json:"name"`
+	Type                string             `json:"type"`
+	Url                 string             `json:"url"`
+	Insecure            bool               `json:"insecure"`
+	WebhookSecret       pgtype.Text        `json:"webhook_secret"`
+	Enabled             bool               `json:"enabled"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	RepositoryPatterns  []string           `json:"repository_patterns"`
+	TagPatterns         []string           `json:"tag_patterns"`
+	ScanMode            string             `json:"scan_mode"`
+	PollIntervalMinutes int32              `json:"poll_interval_minutes"`
+	LastPolledAt        pgtype.Timestamptz `json:"last_polled_at"`
+	Repositories        []string           `json:"repositories"`
+	AuthUsername        pgtype.Text        `json:"auth_username"`
+	AuthToken           pgtype.Text        `json:"auth_token"`
+	OwnerID             pgtype.UUID        `json:"owner_id"`
+	Visibility          string             `json:"visibility"`
+	IncludeUntagged     bool               `json:"include_untagged"`
+	TotalCount          int64              `json:"total_count"`
+}
+
+func (q *Queries) ListRegistriesPaged(ctx context.Context, arg ListRegistriesPagedParams) ([]ListRegistriesPagedRow, error) {
+	rows, err := q.db.Query(ctx, listRegistriesPaged,
+		arg.IsAdmin,
+		arg.UserID,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRegistriesPagedRow{}
+	for rows.Next() {
+		var i ListRegistriesPagedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Type,
+			&i.Url,
+			&i.Insecure,
+			&i.WebhookSecret,
+			&i.Enabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.RepositoryPatterns,
+			&i.TagPatterns,
+			&i.ScanMode,
+			&i.PollIntervalMinutes,
+			&i.LastPolledAt,
+			&i.Repositories,
+			&i.AuthUsername,
+			&i.AuthToken,
+			&i.OwnerID,
+			&i.Visibility,
+			&i.IncludeUntagged,
+			&i.TotalCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setRegistryEnabled = `-- name: SetRegistryEnabled :one
 UPDATE registry
 SET enabled    = $2,

@@ -665,7 +665,7 @@ function RegistriesTab() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <For each={query.data?.registries ?? []}>
+                                    <For each={query.data?.data ?? []}>
                                         {(reg) => (
                                             <tr>
                                                 <td>{reg.name}</td>

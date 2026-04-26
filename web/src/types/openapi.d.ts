@@ -1137,7 +1137,8 @@ export interface components {
              * @example https://example.com/schemas/ListRegistriesOutputBody.json
              */
             readonly $schema?: string;
-            registries: components["schemas"]["RegistryResponse"][] | null;
+            data: components["schemas"]["RegistryResponse"][] | null;
+            pagination: components["schemas"]["PaginationMeta"];
         };
         ListSBOMComponentsOutputBody: {
             /**
@@ -2232,7 +2233,12 @@ export interface operations {
     };
     "list-registries": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Number of results to skip */
+                offset?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
