@@ -174,7 +174,9 @@ func runEnrichOnce(ctx context.Context, pool *pgxpool.Pool) error {
 	enrichReg.Register(oci.NewEnricher(oci.WithInsecureResolver(insecureResolver)))
 	dispatcher := enrichment.NewDispatcher(store, enrichReg)
 
-	dispatcher.ProcessOne(ctx, ref)
+	if err := dispatcher.ProcessOne(ctx, ref); err != nil {
+		return fmt.Errorf("enriching SBOM: %w", err)
+	}
 
 	slog.Info("enrichment complete", "sbom_id", sbomIDStr) //nolint:gosec // G706: sbomIDStr is a trusted env var, not arbitrary user input
 	return nil

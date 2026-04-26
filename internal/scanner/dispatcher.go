@@ -86,11 +86,17 @@ func (d *Dispatcher) Run(ctx context.Context) {
 func (d *Dispatcher) worker(ctx context.Context, id int) {
 	d.logger.Debug("scanner worker started", "worker_id", id)
 	for req := range d.queue {
-		d.process(ctx, req)
+		_ = d.process(ctx, req)
 	}
 }
 
-func (d *Dispatcher) process(ctx context.Context, req ScanRequest) {
+// ProcessOne processes a single scan request synchronously and returns any error.
+// Used by NATSExtension to defer Ack/Nak to after processing completes.
+func (d *Dispatcher) ProcessOne(ctx context.Context, req ScanRequest) error {
+	return d.process(ctx, req)
+}
+
+func (d *Dispatcher) process(ctx context.Context, req ScanRequest) error {
 	// Fill in missing metadata from the registry manifest/config before scanning.
 	// Webhook-triggered requests don't pre-fetch this; the catalog walker does.
 	if req.Architecture == "" || req.BuildDate == "" || req.ImageVersion == "" {
@@ -101,14 +107,14 @@ func (d *Dispatcher) process(ctx context.Context, req ScanRequest) {
 	if err != nil {
 		d.logger.Error("scan failed", "repo", req.Repository, "digest", req.Digest, "err", err)
 		d.failJob(ctx, req.MsgID, err.Error())
-		return
+		return err
 	}
 
 	bom := new(cdx.BOM)
 	if err := cdx.NewBOMDecoder(bytes.NewReader(raw), cdx.BOMFileFormatJSON).Decode(bom); err != nil {
 		d.logger.Error("failed to decode SBOM from syft output", "repo", req.Repository, "err", err)
 		d.failJob(ctx, req.MsgID, err.Error())
-		return
+		return err
 	}
 
 	version := req.Tag
@@ -128,11 +134,12 @@ func (d *Dispatcher) process(ctx context.Context, req ScanRequest) {
 	if err != nil {
 		d.logger.Error("failed to ingest scanned SBOM", "repo", req.Repository, "digest", req.Digest, "err", err)
 		d.failJob(ctx, req.MsgID, err.Error())
-		return
+		return err
 	}
 
 	d.logger.Info("SBOM ingested from scan", "repo", req.Repository, "digest", req.Digest)
 	d.finishJob(ctx, req.MsgID, sbomID)
+	return nil
 }
 
 func (d *Dispatcher) fillMetadata(ctx context.Context, req ScanRequest) ScanRequest {

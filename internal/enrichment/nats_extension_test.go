@@ -1,13 +1,15 @@
 package enrichment
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"sync"
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
 
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
@@ -29,6 +31,20 @@ func (m *recordingMsg) Data() []byte { return m.data }
 func (m *recordingMsg) Ack() error   { m.acked = true; return nil }
 func (m *recordingMsg) Nak() error   { m.nacked = true; return nil }
 func (m *recordingMsg) Term() error  { m.termed = true; return nil }
+
+// fakeProcessor records ProcessOne calls and returns a configurable error.
+type fakeProcessor struct {
+	err  error
+	mu   sync.Mutex
+	refs []SubjectRef
+}
+
+func (f *fakeProcessor) ProcessOne(_ context.Context, ref SubjectRef) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.refs = append(f.refs, ref)
+	return f.err
+}
 
 func TestParseUUID(t *testing.T) {
 	is := is.New(t)
@@ -60,12 +76,12 @@ func TestNATSExtension_Init_IsNoOp(t *testing.T) {
 
 func TestHandleMsg_MalformedEnvelope(t *testing.T) {
 	is := is.New(t)
-	store := &fakeStore{}
-	d := NewDispatcher(store, NewRegistry(), WithWorkers(1), WithQueueSize(10))
-	ext := &NATSExtension{dispatcher: d, streamName: "ocidex", logger: noopLogger()}
+	proc := &fakeProcessor{}
+	ext := &NATSExtension{dispatcher: proc, streamName: "ocidex", logger: noopLogger(),
+		sem: make(chan struct{}, enrichmentMaxConcurrency)}
 
 	msg := &recordingMsg{data: []byte("not json")}
-	ext.handleMsg(msg)
+	ext.handleMsg(context.Background(), msg)
 
 	is.True(msg.termed)
 	is.True(!msg.acked)
@@ -73,9 +89,9 @@ func TestHandleMsg_MalformedEnvelope(t *testing.T) {
 
 func TestHandleMsg_MalformedPayload(t *testing.T) {
 	is := is.New(t)
-	store := &fakeStore{}
-	d := NewDispatcher(store, NewRegistry(), WithWorkers(1), WithQueueSize(10))
-	ext := &NATSExtension{dispatcher: d, streamName: "ocidex", logger: noopLogger()}
+	proc := &fakeProcessor{}
+	ext := &NATSExtension{dispatcher: proc, streamName: "ocidex", logger: noopLogger(),
+		sem: make(chan struct{}, enrichmentMaxConcurrency)}
 
 	env := natspkg.Envelope{
 		EventType: "sbom.ingested",
@@ -83,39 +99,37 @@ func TestHandleMsg_MalformedPayload(t *testing.T) {
 	}
 	data, _ := json.Marshal(env)
 	msg := &recordingMsg{data: data}
-	ext.handleMsg(msg)
+	ext.handleMsg(context.Background(), msg)
 
 	is.True(msg.termed)
 }
 
-func TestHandleMsg_QueueFull(t *testing.T) {
-	is := is.New(t)
-	store := &fakeStore{}
-	d := NewDispatcher(store, NewRegistry(), WithWorkers(1), WithQueueSize(1))
-
-	// Fill the queue so SubmitWithResult returns false.
-	d.Submit(SubjectRef{SBOMId: pgtype.UUID{Bytes: [16]byte{1}, Valid: true}})
-
-	ext := &NATSExtension{dispatcher: d, streamName: "ocidex", logger: noopLogger()}
-
-	msg := &recordingMsg{data: makeIngestedEnvelope("01234567-89ab-cdef-0123-456789abcdef")}
-	ext.handleMsg(msg)
-
-	is.True(msg.nacked)
-	is.True(!msg.acked)
-}
-
 func TestHandleMsg_Success(t *testing.T) {
 	is := is.New(t)
-	store := &fakeStore{}
-	d := NewDispatcher(store, NewRegistry(), WithWorkers(1), WithQueueSize(10))
-	ext := &NATSExtension{dispatcher: d, streamName: "ocidex", logger: noopLogger()}
+	proc := &fakeProcessor{}
+	ext := &NATSExtension{dispatcher: proc, streamName: "ocidex", logger: noopLogger(),
+		sem: make(chan struct{}, enrichmentMaxConcurrency)}
 
 	msg := &recordingMsg{data: makeIngestedEnvelope("01234567-89ab-cdef-0123-456789abcdef")}
-	ext.handleMsg(msg)
+	ext.handleMsg(context.Background(), msg)
+	ext.wg.Wait()
 
 	is.True(msg.acked)
 	is.True(!msg.nacked)
+}
+
+func TestHandleMsg_ProcessingError(t *testing.T) {
+	is := is.New(t)
+	proc := &fakeProcessor{err: errors.New("db failure")}
+	ext := &NATSExtension{dispatcher: proc, streamName: "ocidex", logger: noopLogger(),
+		sem: make(chan struct{}, enrichmentMaxConcurrency)}
+
+	msg := &recordingMsg{data: makeIngestedEnvelope("01234567-89ab-cdef-0123-456789abcdef")}
+	ext.handleMsg(context.Background(), msg)
+	ext.wg.Wait()
+
+	is.True(msg.nacked)
+	is.True(!msg.acked)
 }
 
 func makeIngestedEnvelope(sbomID string) []byte {

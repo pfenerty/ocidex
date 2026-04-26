@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -15,26 +16,36 @@ import (
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
+// scannerMaxConcurrency mirrors the MaxAckPending consumer config — limits how many
+// scan goroutines run concurrently, which keeps unacknowledged message count bounded.
+const scannerMaxConcurrency = 10
+
+// ScanProcessor processes a single scan request synchronously.
+// Implemented by *Dispatcher; allows substitution in tests.
+type ScanProcessor interface {
+	ProcessOne(ctx context.Context, req ScanRequest) error
+}
+
 // NATSExtension replaces the in-process scanner extension when NATS mode is active.
 // It consumes from a durable JetStream pull consumer, providing durability and
 // multi-instance coordination. The in-process Extension is not used alongside this.
 type NATSExtension struct {
 	client      *natspkg.Client
-	dispatcher  *Dispatcher
+	processor   ScanProcessor
 	streamName  string
 	logger      *slog.Logger
 	jobSvc      service.JobService // optional; nil disables job tracking
 	fetchCancel context.CancelFunc
 	fetchDone   chan struct{}
-	dispCancel  context.CancelFunc
-	dispDone    chan struct{}
+	sem         chan struct{} // bounds concurrent goroutines to MaxAckPending
+	wg          sync.WaitGroup
 }
 
-// NewNATSExtension creates a NATSExtension backed by the given client and dispatcher.
-func NewNATSExtension(client *natspkg.Client, dispatcher *Dispatcher, streamName string, logger *slog.Logger, jobSvc service.JobService) *NATSExtension {
+// NewNATSExtension creates a NATSExtension backed by the given client and processor.
+func NewNATSExtension(client *natspkg.Client, processor ScanProcessor, streamName string, logger *slog.Logger, jobSvc service.JobService) *NATSExtension {
 	return &NATSExtension{
 		client:     client,
-		dispatcher: dispatcher,
+		processor:  processor,
 		streamName: streamName,
 		logger:     logger,
 		jobSvc:     jobSvc,
@@ -47,7 +58,7 @@ func (e *NATSExtension) Name() string { return "scanner-nats" }
 // Init is a no-op; NATSExtension consumes from JetStream, not the in-process bus.
 func (e *NATSExtension) Init(_ *event.Bus) error { return nil }
 
-// Start provisions the durable consumer and starts the fetch loop and dispatcher workers.
+// Start provisions the durable consumer and starts the fetch loop.
 func (e *NATSExtension) Start(ctx context.Context) error {
 	provCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -61,24 +72,17 @@ func (e *NATSExtension) Start(ctx context.Context) error {
 		AckWait:       10 * time.Minute,
 		MaxDeliver:    3,
 		DeliverPolicy: jetstream.DeliverAllPolicy,
-		MaxAckPending: 10,
+		MaxAckPending: scannerMaxConcurrency,
 	})
 	if err != nil {
 		return fmt.Errorf("nats scanner consumer: %w", err)
 	}
 
-	fetchCtx, fetchCancel := context.WithCancel(ctx)
-	dispCtx, dispCancel := context.WithCancel(ctx)
+	e.sem = make(chan struct{}, scannerMaxConcurrency)
 
+	fetchCtx, fetchCancel := context.WithCancel(ctx)
 	e.fetchCancel = fetchCancel
 	e.fetchDone = make(chan struct{})
-	e.dispCancel = dispCancel
-	e.dispDone = make(chan struct{})
-
-	go func() {
-		defer close(e.dispDone)
-		e.dispatcher.Run(dispCtx)
-	}()
 
 	go func() {
 		defer close(e.fetchDone)
@@ -88,22 +92,19 @@ func (e *NATSExtension) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop performs two-phase shutdown: stop fetching first, then drain the dispatcher.
+// Stop cancels the fetch loop then waits for all in-flight processing goroutines.
 func (e *NATSExtension) Stop() error {
 	if e.fetchCancel != nil && e.fetchDone != nil {
 		e.fetchCancel()
 		<-e.fetchDone
 	}
-	if e.dispCancel != nil && e.dispDone != nil {
-		e.dispCancel()
-		<-e.dispDone
-	}
+	e.wg.Wait()
 	return nil
 }
 
 func (e *NATSExtension) fetchLoop(ctx context.Context, consumer jetstream.Consumer) {
 	for {
-		msgs, err := consumer.Fetch(10, jetstream.FetchMaxWait(2*time.Second))
+		msgs, err := consumer.Fetch(scannerMaxConcurrency, jetstream.FetchMaxWait(2*time.Second))
 		if err != nil {
 			if ctx.Err() != nil {
 				return
@@ -117,7 +118,7 @@ func (e *NATSExtension) fetchLoop(ctx context.Context, consumer jetstream.Consum
 				_ = msg.Nak()
 				continue
 			}
-			e.handleMsg(msg)
+			e.handleMsg(ctx, msg)
 		}
 
 		if ctx.Err() != nil {
@@ -135,7 +136,7 @@ type natsMsg interface {
 	Term() error
 }
 
-func (e *NATSExtension) handleMsg(msg natsMsg) {
+func (e *NATSExtension) handleMsg(fetchCtx context.Context, msg natsMsg) {
 	msgID := ""
 	if h := msg.Headers(); h != nil {
 		msgID = h.Get("Nats-Msg-Id")
@@ -176,10 +177,27 @@ func (e *NATSExtension) handleMsg(msg natsMsg) {
 		}
 	}
 
-	if !e.dispatcher.SubmitWithResult(req) {
+	// Acquire semaphore slot — blocks when scannerMaxConcurrency goroutines are running.
+	// This bounds unacknowledged message count to MaxAckPending. If the fetch loop is
+	// cancelled while waiting, Nak so JetStream redelivers.
+	select {
+	case e.sem <- struct{}{}:
+	case <-fetchCtx.Done():
 		_ = msg.Nak()
 		return
 	}
 
-	_ = msg.Ack()
+	e.wg.Add(1)
+	go func() { //nolint:gosec // G118: intentional — scan must complete even after fetchCtx cancel
+		defer e.wg.Done()
+		defer func() { <-e.sem }()
+
+		if err := e.processor.ProcessOne(context.Background(), req); err != nil { //nolint:gosec // G118: see above
+			e.logger.Error("nats scanner: processing failed, nacking",
+				"repo", req.Repository, "digest", req.Digest, "err", err)
+			_ = msg.Nak()
+			return
+		}
+		_ = msg.Ack()
+	}()
 }
