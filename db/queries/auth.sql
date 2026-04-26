@@ -38,12 +38,13 @@ DELETE FROM session WHERE token_hash = $1;
 DELETE FROM session WHERE expires_at <= now();
 
 -- name: CreateAPIKey :one
-INSERT INTO api_key (user_id, name, key_hash, prefix)
-VALUES ($1, $2, $3, $4)
+INSERT INTO api_key (user_id, name, key_hash, prefix, scope)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: GetAPIKeyByHash :one
-SELECT k.*, u.github_id, u.github_username, u.role
+SELECT k.id, k.user_id, k.name, k.key_hash, k.prefix, k.scope, k.created_at, k.last_used_at,
+       u.github_id, u.github_username, u.role
 FROM api_key k
 JOIN ocidex_user u ON u.id = k.user_id
 WHERE k.key_hash = $1;
@@ -52,7 +53,7 @@ WHERE k.key_hash = $1;
 UPDATE api_key SET last_used_at = now() WHERE id = $1;
 
 -- name: ListAPIKeysByUser :many
-SELECT id, name, prefix, created_at, last_used_at
+SELECT id, name, prefix, scope, created_at, last_used_at
 FROM api_key
 WHERE user_id = $1
 ORDER BY created_at ASC;

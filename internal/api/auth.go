@@ -254,7 +254,14 @@ func (h *Handler) CreateAPIKey(ctx context.Context, in *CreateAPIKeyInput) (*Cre
 	if user.Role != roleAdmin && user.Role != roleMember {
 		return nil, huma.Error403Forbidden("insufficient role")
 	}
-	plaintext, err := h.authService.CreateAPIKey(ctx, user.ID, in.Body.Name)
+	if !isWriteAllowed(user) {
+		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
+	}
+	scope := in.Body.Scope
+	if scope == "" {
+		scope = scopeReadWrite
+	}
+	plaintext, err := h.authService.CreateAPIKey(ctx, user.ID, in.Body.Name, scope)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("creating key: %v", err))
 	}
@@ -282,6 +289,7 @@ func (h *Handler) ListAPIKeys(ctx context.Context, _ *struct{}) (*ListAPIKeysOut
 			ID:         uuid.UUID(k.ID.Bytes).String(),
 			Name:       k.Name,
 			Prefix:     k.Prefix,
+			Scope:      k.Scope,
 			CreatedAt:  k.CreatedAt,
 			LastUsedAt: k.LastUsedAt,
 		}
@@ -296,6 +304,9 @@ func (h *Handler) DeleteAPIKey(ctx context.Context, in *DeleteAPIKeyInput) (*str
 	}
 	if user.Role != roleAdmin && user.Role != roleMember {
 		return nil, huma.Error403Forbidden("insufficient role")
+	}
+	if !isWriteAllowed(user) {
+		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
 	}
 	keyID, err := parseUUID(in.ID)
 	if err != nil {
@@ -338,6 +349,9 @@ func (h *Handler) UpdateUserRole(ctx context.Context, in *UpdateUserRoleInput) (
 	}
 	if caller.Role != roleAdmin {
 		return nil, huma.Error403Forbidden("admin only")
+	}
+	if !isWriteAllowed(caller) {
+		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
 	}
 	targetID, err := parseUUID(in.ID)
 	if err != nil {

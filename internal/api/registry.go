@@ -84,6 +84,9 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
+	if !isWriteAllowed(user) {
+		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
+	}
 	scanMode := in.Body.ScanMode
 	if scanMode == "" {
 		scanMode = "webhook"
@@ -122,6 +125,9 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 // RegenerateWebhookSecret generates a new webhook secret for a registry (owner or admin).
 // The previous secret is immediately invalidated.
 func (h *Handler) RegenerateWebhookSecret(ctx context.Context, in *RegenerateWebhookSecretInput) (*RegenerateWebhookSecretOutput, error) {
+	if user, ok := UserFromContext(ctx); ok && !isWriteAllowed(user) {
+		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
+	}
 	existing, err := h.registryService.Get(ctx, in.ID)
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
@@ -141,6 +147,9 @@ func (h *Handler) RegenerateWebhookSecret(ctx context.Context, in *RegenerateWeb
 
 // UpdateRegistry updates a registry (owner or admin).
 func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (*UpdateRegistryOutput, error) {
+	if user, ok := UserFromContext(ctx); ok && !isWriteAllowed(user) {
+		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
+	}
 	existing, err := h.registryService.Get(ctx, in.ID)
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
@@ -166,6 +175,9 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 
 // DeleteRegistry deletes a registry (owner or admin).
 func (h *Handler) DeleteRegistry(ctx context.Context, in *DeleteRegistryInput) (*struct{}, error) {
+	if user, ok := UserFromContext(ctx); ok && !isWriteAllowed(user) {
+		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
+	}
 	if err := h.registryService.Delete(ctx, in.ID); err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}
@@ -180,6 +192,9 @@ func (h *Handler) TestRegistryConnection(ctx context.Context, in *TestRegistryCo
 	}
 	if user.Role != roleAdmin {
 		return nil, huma.Error403Forbidden("admin only")
+	}
+	if !isWriteAllowed(user) {
+		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
 	}
 
 	scheme := "https"
@@ -221,6 +236,9 @@ func (h *Handler) TestRegistryConnection(ctx context.Context, in *TestRegistryCo
 
 // ScanRegistry triggers an ad-hoc catalog walk of a registry (owner or admin).
 func (h *Handler) ScanRegistry(ctx context.Context, in *ScanRegistryInput) (*ScanRegistryOutput, error) {
+	if user, ok := UserFromContext(ctx); ok && !isWriteAllowed(user) {
+		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
+	}
 	reg, err := h.registryService.Get(ctx, in.ID)
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")

@@ -11,8 +11,8 @@ export function useListAPIKeys() {
 export function useCreateAPIKey() {
     const queryClient = useQueryClient();
     return createMutation(() => ({
-        mutationFn: (name: string) =>
-            unwrap(client.POST("/api/v1/auth/keys", { body: { name } })),
+        mutationFn: ({ name, scope }: { name: string; scope: "read" | "read-write" }) =>
+            unwrap(client.POST("/api/v1/auth/keys", { body: { name, scope } })),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ["auth", "keys"] }),
     }));
 }

@@ -766,6 +766,12 @@ export interface components {
             readonly $schema?: string;
             /** @description Human-readable label for this key */
             name: string;
+            /**
+             * @description Key scope: read (GET only) or read-write (full access)
+             * @default read-write
+             * @enum {string}
+             */
+            scope: "read" | "read-write";
         };
         CreateAPIKeyOutputBody: {
             /**
@@ -1045,6 +1051,11 @@ export interface components {
             name: string;
             /** @description First 8 characters of the key */
             prefix: string;
+            /**
+             * @description Key scope
+             * @enum {string}
+             */
+            scope: "read" | "read-write";
         };
         LicenseCount: {
             category: string;

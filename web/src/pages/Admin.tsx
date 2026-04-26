@@ -95,15 +95,17 @@ function APIKeysTab() {
     const deleteKey = useDeleteAPIKey();
     const toast = useToast();
     const [newKeyName, setNewKeyName] = createSignal("");
+    const [newKeyScope, setNewKeyScope] = createSignal<"read" | "read-write">("read-write");
     const [revealedKey, setRevealedKey] = createSignal<string | null>(null);
 
     function handleCreate(e: Event) {
         e.preventDefault();
         const name = newKeyName().trim();
         if (!name) return;
-        createKey.mutate(name, {
+        createKey.mutate({ name, scope: newKeyScope() }, {
             onSuccess: (data) => {
                 setNewKeyName("");
+                setNewKeyScope("read-write");
                 setRevealedKey(data.key);
             },
             onError: () => toast("Failed to create API key", "error"),
@@ -139,14 +141,21 @@ function APIKeysTab() {
                 <div class="card-header">
                     <h3>Create Bot Token</h3>
                 </div>
-                <form onSubmit={handleCreate} style={{ display: "flex", gap: "0.5rem", "align-items": "center" }}>
+                <form onSubmit={handleCreate} style={{ display: "flex", gap: "0.5rem", "align-items": "center", "flex-wrap": "wrap" }}>
                     <input
                         type="text"
                         placeholder="Token name"
                         value={newKeyName()}
                         onInput={(e) => setNewKeyName(e.currentTarget.value)}
-                        style={{ flex: "1" }}
+                        style={{ flex: "1", "min-width": "12rem" }}
                     />
+                    <select
+                        value={newKeyScope()}
+                        onChange={(e) => setNewKeyScope(e.currentTarget.value as "read" | "read-write")}
+                    >
+                        <option value="read-write">Read-write</option>
+                        <option value="read">Read-only</option>
+                    </select>
                     <button class="btn btn-primary" type="submit" disabled={createKey.isPending || !newKeyName().trim()}>
                         Create
                     </button>
@@ -162,6 +171,7 @@ function APIKeysTab() {
                                     <tr>
                                         <th>Name</th>
                                         <th>Prefix</th>
+                                        <th>Scope</th>
                                         <th>Created</th>
                                         <th>Last Used</th>
                                         <th />
@@ -174,6 +184,11 @@ function APIKeysTab() {
                                                 <td>{k.name}</td>
                                                 <td>
                                                     <code>{k.prefix}…</code>
+                                                </td>
+                                                <td>
+                                                    <span class={`badge ${k.scope === "read" ? "" : "badge-success"}`}>
+                                                        {k.scope}
+                                                    </span>
                                                 </td>
                                                 <td>{new Date(k.created_at).toLocaleDateString()}</td>
                                                 <td>
