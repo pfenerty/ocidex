@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/nats-io/nats.go"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 )
 
@@ -62,6 +63,9 @@ func (s *NATSSubmitter) Submit(ctx context.Context, req ScanRequest) error {
 	defer cancel()
 
 	subject := s.streamName + ".scan.requested"
-	_, err = s.client.JS.Publish(pubCtx, subject, data)
+	msg := nats.NewMsg(subject)
+	msg.Header.Set("Nats-Msg-Id", req.RegistryID+"@"+req.Digest)
+	msg.Data = data
+	_, err = s.client.JS.PublishMsg(pubCtx, msg)
 	return err
 }

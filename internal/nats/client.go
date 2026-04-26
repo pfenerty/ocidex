@@ -47,12 +47,13 @@ func Connect(cfg Config) (*Client, error) {
 		replicas = 1
 	}
 	_, err = js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
-		Name:      cfg.StreamName,
-		Subjects:  []string{cfg.StreamName + ".>"},
-		Storage:   jetstream.FileStorage,
-		Retention: jetstream.LimitsPolicy,
-		MaxAge:    time.Duration(cfg.EventTTLHours) * time.Hour,
-		Replicas:  replicas,
+		Name:       cfg.StreamName,
+		Subjects:   []string{cfg.StreamName + ".>"},
+		Storage:    jetstream.FileStorage,
+		Retention:  jetstream.LimitsPolicy,
+		MaxAge:     time.Duration(cfg.EventTTLHours) * time.Hour,
+		Replicas:   replicas,
+		Duplicates: 5 * time.Minute,
 	})
 	if err != nil {
 		nc.Close()

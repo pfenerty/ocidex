@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/nats-io/nats.go"
 
 	"github.com/pfenerty/ocidex/internal/event"
 )
@@ -102,7 +103,12 @@ func (r *RelayExtension) handleEvent(_ context.Context, ev event.Event) {
 	}
 
 	subject := r.streamName + "." + subjectSuffix
-	if _, err := r.client.JS.PublishAsync(subject, data); err != nil {
+	msg := nats.NewMsg(subject)
+	msg.Data = data
+	if id := msgIDForEvent(ev); id != "" {
+		msg.Header.Set("Nats-Msg-Id", id)
+	}
+	if _, err := r.client.JS.PublishMsgAsync(msg); err != nil {
 		r.logger.Error("nats relay: publish", "subject", subject, "err", err)
 	}
 }
@@ -130,6 +136,19 @@ func marshalPayload(ev event.Event) (json.RawMessage, error) {
 	default:
 		// ArtifactCreated or unknown — marshal as-is (nil becomes null).
 		return json.Marshal(d)
+	}
+}
+
+func msgIDForEvent(ev event.Event) string {
+	switch d := ev.Data.(type) {
+	case event.SBOMIngestedData:
+		return uuidToString(d.SBOMID)
+	case event.SBOMDeletedData:
+		return "deleted-" + uuidToString(d.SBOMID)
+	case event.ArtifactDeletedData:
+		return uuidToString(d.ArtifactID)
+	default:
+		return ""
 	}
 }
 
