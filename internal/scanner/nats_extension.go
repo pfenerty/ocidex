@@ -7,10 +7,12 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 
 	"github.com/pfenerty/ocidex/internal/event"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
+	"github.com/pfenerty/ocidex/internal/service"
 )
 
 // NATSExtension replaces the in-process scanner extension when NATS mode is active.
@@ -21,6 +23,7 @@ type NATSExtension struct {
 	dispatcher  *Dispatcher
 	streamName  string
 	logger      *slog.Logger
+	jobSvc      service.JobService // optional; nil disables job tracking
 	fetchCancel context.CancelFunc
 	fetchDone   chan struct{}
 	dispCancel  context.CancelFunc
@@ -28,12 +31,13 @@ type NATSExtension struct {
 }
 
 // NewNATSExtension creates a NATSExtension backed by the given client and dispatcher.
-func NewNATSExtension(client *natspkg.Client, dispatcher *Dispatcher, streamName string, logger *slog.Logger) *NATSExtension {
+func NewNATSExtension(client *natspkg.Client, dispatcher *Dispatcher, streamName string, logger *slog.Logger, jobSvc service.JobService) *NATSExtension {
 	return &NATSExtension{
 		client:     client,
 		dispatcher: dispatcher,
 		streamName: streamName,
 		logger:     logger,
+		jobSvc:     jobSvc,
 	}
 }
 
@@ -125,12 +129,18 @@ func (e *NATSExtension) fetchLoop(ctx context.Context, consumer jetstream.Consum
 // natsMsg is the subset of jetstream.Msg used by handleMsg.
 type natsMsg interface {
 	Data() []byte
+	Headers() nats.Header
 	Ack() error
 	Nak() error
 	Term() error
 }
 
 func (e *NATSExtension) handleMsg(msg natsMsg) {
+	msgID := ""
+	if h := msg.Headers(); h != nil {
+		msgID = h.Get("Nats-Msg-Id")
+	}
+
 	var env natspkg.Envelope
 	if err := json.Unmarshal(msg.Data(), &env); err != nil {
 		e.logger.Error("nats scanner: unmarshal envelope", "err", err)
@@ -145,14 +155,31 @@ func (e *NATSExtension) handleMsg(msg natsMsg) {
 		return
 	}
 
-	req := ScanRequest(wire)
+	req := ScanRequest{
+		RegistryURL:  wire.RegistryURL,
+		Insecure:     wire.Insecure,
+		Repository:   wire.Repository,
+		Digest:       wire.Digest,
+		Tag:          wire.Tag,
+		Architecture: wire.Architecture,
+		BuildDate:    wire.BuildDate,
+		ImageVersion: wire.ImageVersion,
+		AuthUsername: wire.AuthUsername,
+		AuthToken:    wire.AuthToken,
+		RegistryID:   wire.RegistryID,
+		MsgID:        msgID,
+	}
+
+	if e.jobSvc != nil && msgID != "" {
+		if err := e.jobSvc.Start(context.Background(), msgID); err != nil {
+			e.logger.Warn("scan_jobs: failed to start job", "msg_id", msgID, "err", err)
+		}
+	}
 
 	if !e.dispatcher.SubmitWithResult(req) {
-		// Queue full — nack so JetStream redelivers after AckWait.
 		_ = msg.Nak()
 		return
 	}
 
-	// Ack on successful submit.
 	_ = msg.Ack()
 }

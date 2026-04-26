@@ -20,17 +20,19 @@ type Dispatcher struct {
 	stopping chan struct{} // closed by Run when shutdown begins
 	scanner  Scanner
 	sbomSvc  service.SBOMService
+	jobSvc   service.JobService // optional; nil disables job tracking
 	workers  int
 	logger   *slog.Logger
 }
 
 // NewDispatcher creates a Dispatcher with the given scanner, SBOM service, and pool configuration.
-func NewDispatcher(sc Scanner, sbomSvc service.SBOMService, workers, queueSize int, logger *slog.Logger) *Dispatcher {
+func NewDispatcher(sc Scanner, sbomSvc service.SBOMService, workers, queueSize int, logger *slog.Logger, jobSvc service.JobService) *Dispatcher {
 	return &Dispatcher{
 		queue:    make(chan ScanRequest, queueSize),
 		stopping: make(chan struct{}),
 		scanner:  sc,
 		sbomSvc:  sbomSvc,
+		jobSvc:   jobSvc,
 		workers:  workers,
 		logger:   logger,
 	}
@@ -92,36 +94,20 @@ func (d *Dispatcher) process(ctx context.Context, req ScanRequest) {
 	// Fill in missing metadata from the registry manifest/config before scanning.
 	// Webhook-triggered requests don't pre-fetch this; the catalog walker does.
 	if req.Architecture == "" || req.BuildDate == "" || req.ImageVersion == "" {
-		scheme := "https"
-		if req.Insecure {
-			scheme = "http"
-		}
-		baseURL := scheme + "://" + req.RegistryURL
-		client := &http.Client{
-			Transport: newOCITokenTransport(req.AuthUsername, req.AuthToken),
-		}
-		meta := ociGetImageMetadata(ctx, client, baseURL, req.Repository, req.Digest)
-		if req.Architecture == "" {
-			req.Architecture = meta.architecture
-		}
-		if req.BuildDate == "" {
-			req.BuildDate = meta.buildDate
-		}
-		if req.ImageVersion == "" {
-			req.ImageVersion = meta.imageVersion
-		}
+		req = d.fillMetadata(ctx, req)
 	}
 
 	raw, err := d.scanner.Scan(ctx, req)
 	if err != nil {
 		d.logger.Error("scan failed", "repo", req.Repository, "digest", req.Digest, "err", err)
+		d.failJob(ctx, req.MsgID, err.Error())
 		return
 	}
 
 	bom := new(cdx.BOM)
-	decoder := cdx.NewBOMDecoder(bytes.NewReader(raw), cdx.BOMFileFormatJSON)
-	if err := decoder.Decode(bom); err != nil {
+	if err := cdx.NewBOMDecoder(bytes.NewReader(raw), cdx.BOMFileFormatJSON).Decode(bom); err != nil {
 		d.logger.Error("failed to decode SBOM from syft output", "repo", req.Repository, "err", err)
+		d.failJob(ctx, req.MsgID, err.Error())
 		return
 	}
 
@@ -133,15 +119,56 @@ func (d *Dispatcher) process(ctx context.Context, req ScanRequest) {
 	if req.RegistryID != "" {
 		_ = registryID.Scan(req.RegistryID) //nolint:errcheck // invalid UUID → zero-value, harmless
 	}
-	if _, err := d.sbomSvc.Ingest(ctx, bom, raw, service.IngestParams{
+	sbomID, err := d.sbomSvc.Ingest(ctx, bom, raw, service.IngestParams{
 		Version:      version,
 		Architecture: req.Architecture,
 		BuildDate:    req.BuildDate,
 		RegistryID:   registryID,
-	}); err != nil {
+	})
+	if err != nil {
 		d.logger.Error("failed to ingest scanned SBOM", "repo", req.Repository, "digest", req.Digest, "err", err)
+		d.failJob(ctx, req.MsgID, err.Error())
 		return
 	}
 
 	d.logger.Info("SBOM ingested from scan", "repo", req.Repository, "digest", req.Digest)
+	d.finishJob(ctx, req.MsgID, sbomID)
+}
+
+func (d *Dispatcher) fillMetadata(ctx context.Context, req ScanRequest) ScanRequest {
+	scheme := "https"
+	if req.Insecure {
+		scheme = "http"
+	}
+	baseURL := scheme + "://" + req.RegistryURL
+	client := &http.Client{Transport: newOCITokenTransport(req.AuthUsername, req.AuthToken)}
+	meta := ociGetImageMetadata(ctx, client, baseURL, req.Repository, req.Digest)
+	if req.Architecture == "" {
+		req.Architecture = meta.architecture
+	}
+	if req.BuildDate == "" {
+		req.BuildDate = meta.buildDate
+	}
+	if req.ImageVersion == "" {
+		req.ImageVersion = meta.imageVersion
+	}
+	return req
+}
+
+func (d *Dispatcher) failJob(ctx context.Context, msgID, errMsg string) {
+	if d.jobSvc == nil || msgID == "" {
+		return
+	}
+	if err := d.jobSvc.Fail(ctx, msgID, errMsg); err != nil {
+		d.logger.Warn("scan_jobs: failed to mark job failed", "msg_id", msgID, "err", err)
+	}
+}
+
+func (d *Dispatcher) finishJob(ctx context.Context, msgID string, sbomID pgtype.UUID) {
+	if d.jobSvc == nil || msgID == "" {
+		return
+	}
+	if err := d.jobSvc.Finish(ctx, msgID, sbomID); err != nil {
+		d.logger.Warn("scan_jobs: failed to mark job succeeded", "msg_id", msgID, "err", err)
+	}
 }

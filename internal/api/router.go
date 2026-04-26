@@ -83,6 +83,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	registerWebhookOps(api, h)
 	registerRegistryOps(api, h)
 	registerStatsOps(api, h)
+	registerJobOps(api, h)
 	registerAuthOps(r, api, h)
 
 	return r
@@ -437,6 +438,29 @@ func registerStatsOps(api huma.API, h *Handler) {
 		Summary:     "Get dashboard summary statistics",
 		Tags:        []string{"Stats"},
 	}, h.GetDashboardStats)
+}
+
+// ---------------------------------------------------------------------------
+// Scan Jobs
+// ---------------------------------------------------------------------------
+
+func registerJobOps(api huma.API, h *Handler) {
+	huma.Register(api, huma.Operation{
+		OperationID: "list-scan-jobs",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/jobs",
+		Summary:     "List scan jobs",
+		Description: "Returns a paginated list of scan pipeline jobs, optionally filtered by state.",
+		Tags:        []string{"Jobs"},
+	}, h.ListScanJobs)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-scan-job",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/jobs/{id}",
+		Summary:     "Get a scan job",
+		Tags:        []string{"Jobs"},
+	}, h.GetScanJob)
 }
 
 // ---------------------------------------------------------------------------
