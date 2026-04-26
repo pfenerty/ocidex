@@ -132,12 +132,13 @@ export function SBOMsTab(props: {
                                         0,
                                     );
                                     const revision = newest.revision;
+                                    const defaultSbom =
+                                        archMap.get("amd64") ??
+                                        [...archMap.values()][0];
                                     return (
                                         <tr>
                                             <td>
-                                                <A
-                                                    href={`/artifacts/${props.artifactId}/versions/${encodeURIComponent(vKey)}`}
-                                                >
+                                                <A href={`/sboms/${defaultSbom.id}`}>
                                                     {vKey}
                                                 </A>
                                             </td>
