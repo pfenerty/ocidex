@@ -240,8 +240,7 @@ func setupScannerExt(cfg *config.Config, pool *pgxpool.Pool, bus *event.Bus, reg
 		// External workers consume from NATS — main process only publishes.
 		return scanner.NewNATSSubmitter(natsClient, cfg.NATSStreamName, jobSvc)
 	}
-	// In-process mode: no NATS, no job tracking.
-	scanDispatcher := scanner.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerWorkers, cfg.ScannerQueueSize, logger, nil)
+	scanDispatcher := scanner.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerWorkers, cfg.ScannerQueueSize, logger, jobSvc)
 	reg.Register(scanner.NewExtension(scanDispatcher))
 	return scanDispatcher
 }

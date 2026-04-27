@@ -39,7 +39,15 @@ func NewDispatcher(sc Scanner, sbomSvc service.SBOMService, workers, queueSize i
 }
 
 // Submit enqueues a scan request. Blocks until a slot is available or the dispatcher stops.
-func (d *Dispatcher) Submit(_ context.Context, req ScanRequest) error {
+func (d *Dispatcher) Submit(ctx context.Context, req ScanRequest) error {
+	if d.jobSvc != nil {
+		if req.MsgID == "" {
+			req.MsgID = req.RegistryID + "@" + req.Digest
+		}
+		if _, err := d.jobSvc.Enqueue(ctx, req.RegistryID, req.Repository, req.Digest, req.Tag, req.MsgID); err != nil {
+			d.logger.Warn("scan_jobs: failed to enqueue job", "msg_id", req.MsgID, "err", err)
+		}
+	}
 	select {
 	case d.queue <- req:
 		d.logger.Debug("scan queued", "repo", req.Repository, "digest", req.Digest)
@@ -97,6 +105,7 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req ScanRequest) error {
 }
 
 func (d *Dispatcher) process(ctx context.Context, req ScanRequest) error {
+	d.startJob(ctx, req.MsgID)
 	// Fill in missing metadata from the registry manifest/config before scanning.
 	// Webhook-triggered requests don't pre-fetch this; the catalog walker does.
 	if req.Architecture == "" || req.BuildDate == "" || req.ImageVersion == "" {
@@ -160,6 +169,15 @@ func (d *Dispatcher) fillMetadata(ctx context.Context, req ScanRequest) ScanRequ
 		req.ImageVersion = meta.imageVersion
 	}
 	return req
+}
+
+func (d *Dispatcher) startJob(ctx context.Context, msgID string) {
+	if d.jobSvc == nil || msgID == "" {
+		return
+	}
+	if err := d.jobSvc.Start(ctx, msgID); err != nil {
+		d.logger.Warn("scan_jobs: failed to mark job running", "msg_id", msgID, "err", err)
+	}
 }
 
 func (d *Dispatcher) failJob(ctx context.Context, msgID, errMsg string) {
