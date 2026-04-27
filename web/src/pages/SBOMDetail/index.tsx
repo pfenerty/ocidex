@@ -110,6 +110,14 @@ export default function SBOMDetail() {
                                                     View Artifact
                                                 </A>
                                             </Show>
+                                            <Show when={s.artifactId !== undefined && s.subjectVersion !== undefined}>
+                                                <A
+                                                    href={`/artifacts/${s.artifactId}/versions/${encodeURIComponent(s.subjectVersion ?? "")}`}
+                                                    class="btn btn-sm"
+                                                >
+                                                    View build history
+                                                </A>
+                                            </Show>
                                             <A
                                                 href={`/diff?from=${s.id}&to=${s.id}`}
                                                 class="btn btn-sm"
