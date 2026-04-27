@@ -18,6 +18,7 @@
         "@tanstack/solid-query": "^5.90.24",
         "@unovis/solid": "^1.6.4",
         "@unovis/ts": "^1.6.4",
+        "lucide-solid": "^1.11.0",
         "openapi-fetch": "^0.17.0",
         "solid-js": "^1.9.5",
         "tailwindcss": "^4.1.18"
