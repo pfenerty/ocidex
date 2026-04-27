@@ -329,15 +329,19 @@ function RegistriesTab() {
     const [testResult, setTestResult] = createSignal<{ reachable: boolean; message: string } | null>(null);
     const [editingID, setEditingID] = createSignal<string | null>(null);
     const [editEnabled, setEditEnabled] = createSignal(true);
-    const [showForm, setShowForm] = createSignal(false);
     const [revealedSecret, setRevealedSecret] = createSignal<string | null>(null);
+    let dialogRef: HTMLDialogElement | undefined;
 
-    function resetForm() {
+    function closeDialog() {
         setForm(emptyForm());
         setEditingID(null);
         setEditEnabled(true);
-        setShowForm(false);
         setTestResult(null);
+    }
+
+    function openAdd() {
+        closeDialog();
+        dialogRef?.showModal();
     }
 
     function startEdit(reg: { id: string; name: string; type: string; url: string; insecure: boolean; has_secret: boolean; has_auth: boolean; enabled: boolean; repositories?: string[] | null; repository_patterns?: string[] | null; tag_patterns?: string[] | null; scan_mode?: string; poll_interval_minutes?: number; visibility?: string; include_untagged?: boolean }) {
@@ -358,7 +362,7 @@ function RegistriesTab() {
             visibility: (reg.visibility ?? "public") as Visibility,
             includeUntagged: reg.include_untagged ?? false,
         });
-        setShowForm(true);
+        dialogRef?.showModal();
     }
 
     function handleSubmit(e: Event) {
@@ -376,7 +380,7 @@ function RegistriesTab() {
             updateReg.mutate(
                 { id: currentID, name: f.name, type: f.type, url: f.url, insecure: f.insecure, auth_username: authUsername, auth_token: authToken, enabled: editEnabled(), repositories: repos, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes, visibility: f.visibility, include_untagged: f.includeUntagged },
                 {
-                    onSuccess: () => { toast("Registry updated", "success"); resetForm(); },
+                    onSuccess: () => { toast("Registry updated", "success"); dialogRef?.close(); },
                     onError: () => toast("Failed to update registry", "error"),
                 }
             );
@@ -386,8 +390,8 @@ function RegistriesTab() {
                 {
                     onSuccess: (data) => {
                         toast("Registry created", "success");
-                        resetForm();
-                        if (data.webhook_secret) {
+                        dialogRef?.close();
+                        if (data.webhook_secret !== undefined) {
                             setRevealedSecret(data.webhook_secret);
                         }
                     },
@@ -428,11 +432,15 @@ function RegistriesTab() {
                 </div>
             </Show>
 
-            <Show when={showForm()}>
-                <div class="card" style={{ "margin-bottom": "1rem" }}>
-                    <div class="card-header">
-                        <h3>{editingID() !== null ? "Edit Registry" : "Add Registry"}</h3>
-                    </div>
+            <div style={{ "margin-bottom": "1rem" }}>
+                <button class="btn btn-primary" onClick={openAdd}>Add Registry</button>
+            </div>
+
+            <dialog ref={dialogRef} onClose={closeDialog}>
+                <div style={{ padding: "1.5rem" }}>
+                <div class="card-header">
+                    <h3>{editingID() !== null ? "Edit Registry" : "Add Registry"}</h3>
+                </div>
                     <form onSubmit={handleSubmit}>
                         <div style={{ display: "grid", "grid-template-columns": "1fr 1fr", gap: "0.75rem", "margin-bottom": "0.75rem" }}>
                             <div>
@@ -634,21 +642,13 @@ function RegistriesTab() {
                             <button class="btn btn-primary" type="submit" disabled={createReg.isPending || updateReg.isPending}>
                                 {editingID() !== null ? "Save" : "Create"}
                             </button>
-                            <button class="btn" type="button" onClick={resetForm}>
+                            <button class="btn" type="button" onClick={() => dialogRef?.close()}>
                                 Cancel
                             </button>
                         </div>
                     </form>
                 </div>
-            </Show>
-
-            <Show when={!showForm()}>
-                <div style={{ "margin-bottom": "1rem" }}>
-                    <button class="btn btn-primary" onClick={() => setShowForm(true)}>
-                        Add Registry
-                    </button>
-                </div>
-            </Show>
+            </dialog>
 
             <Show when={!query.isLoading} fallback={<Loading />}>
                 <Show when={!query.isError} fallback={<ErrorBox error={query.error} />}>

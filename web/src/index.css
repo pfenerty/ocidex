@@ -234,6 +234,24 @@
         background: var(--color-surface-hover);
     }
 
+    /* Modal dialog */
+    dialog {
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-xl);
+        background: var(--color-surface);
+        color: var(--color-text);
+        padding: 0;
+        width: min(90vw, 740px);
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+        margin: auto;
+    }
+
+    dialog::backdrop {
+        background: rgba(0, 0, 0, 0.55);
+    }
+
     /* JSON viewer */
     .json-viewer {
         background: var(--color-bg);
@@ -649,7 +667,9 @@
 
     /* Inputs */
     input[type="text"],
+    input[type="password"],
     input[type="search"],
+    input[type="number"],
     select,
     textarea {
         padding: 0.5rem 0.75rem;
@@ -674,7 +694,9 @@
     }
 
     input[type="text"]:focus,
+    input[type="password"]:focus,
     input[type="search"]:focus,
+    input[type="number"]:focus,
     select:focus,
     textarea:focus {
         border-color: var(--color-secondary);
