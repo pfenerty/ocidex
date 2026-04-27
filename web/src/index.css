@@ -245,6 +245,7 @@
         max-height: 90vh;
         overflow-y: auto;
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+        margin: auto;
     }
 
     dialog::backdrop {
@@ -666,7 +667,9 @@
 
     /* Inputs */
     input[type="text"],
+    input[type="password"],
     input[type="search"],
+    input[type="number"],
     select,
     textarea {
         padding: 0.5rem 0.75rem;
@@ -691,7 +694,9 @@
     }
 
     input[type="text"]:focus,
+    input[type="password"]:focus,
     input[type="search"]:focus,
+    input[type="number"]:focus,
     select:focus,
     textarea:focus {
         border-color: var(--color-secondary);
