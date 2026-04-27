@@ -1,10 +1,11 @@
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createSignal, createMemo } from "solid-js";
 import { useLocation, A } from "@solidjs/router";
 import { VisXYContainer, VisLine, VisGroupedBar, VisAxis } from "@unovis/solid";
 import { copyText } from "~/utils/clipboard";
 import { useAuth } from "~/context/auth";
 import { useToast } from "~/context/toast";
 import { Loading, ErrorBox } from "~/components/Feedback";
+import { formatDateTime } from "~/utils/format";
 import type { CategoryCountEntry, DailyCountEntry } from "~/api/client";
 import { CATEGORY_COLORS } from "~/utils/licenseUtils";
 import {
@@ -22,6 +23,7 @@ import {
     useScanRegistry,
     useRegenerateWebhookSecret,
     useDashboardStats,
+    useListScanJobs,
 } from "~/api/queries";
 
 // ---------------------------------------------------------------------------
@@ -324,6 +326,16 @@ function RegistriesTab() {
     const scanReg = useScanRegistry();
     const regenSecret = useRegenerateWebhookSecret();
     const toast = useToast();
+    const activeJobs = useListScanJobs(() => ({ limit: 100 }));
+    const activeByRegistry = createMemo(() => {
+        const counts = new Map<string, number>();
+        for (const job of activeJobs.data?.data ?? []) {
+            if ((job.state === "running" || job.state === "queued") && job.registry_id !== undefined) {
+                counts.set(job.registry_id, (counts.get(job.registry_id) ?? 0) + 1);
+            }
+        }
+        return counts;
+    });
 
     const [form, setForm] = createSignal<RegistryFormState>(emptyForm());
     const [testResult, setTestResult] = createSignal<{ reachable: boolean; message: string } | null>(null);
@@ -726,6 +738,11 @@ function RegistriesTab() {
                                                     >
                                                         Scan
                                                     </button>
+                                                    <Show when={(activeByRegistry().get(reg.id) ?? 0) > 0}>
+                                                        <span class="badge" style={{ background: "var(--color-primary)", color: "#fff", "font-size": "0.75rem" }}>
+                                                            {activeByRegistry().get(reg.id)} active
+                                                        </span>
+                                                    </Show>
                                                     <button
                                                         class="btn"
                                                         onClick={() => deleteReg.mutate(reg.id, {
@@ -747,6 +764,92 @@ function RegistriesTab() {
                 </Show>
             </Show>
         </>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Jobs Tab
+// ---------------------------------------------------------------------------
+
+const JOB_STATE_COLORS: Record<string, string> = {
+    queued: "var(--color-text-muted)",
+    running: "var(--color-primary)",
+    succeeded: "var(--color-success)",
+    failed: "var(--color-error, #e53e3e)",
+};
+
+const PAGE_SIZE = 20;
+
+function JobsTab() {
+    const [page, setPage] = createSignal(0);
+    const query = useListScanJobs(() => ({ limit: PAGE_SIZE, offset: page() * PAGE_SIZE }));
+
+    const total = () => query.data?.pagination.total ?? 0;
+    const pageCount = () => Math.max(1, Math.ceil(total() / PAGE_SIZE));
+
+    return (
+        <Show when={!query.isLoading} fallback={<Loading />}>
+            <Show when={!query.isError} fallback={<ErrorBox error={query.error} />}>
+                <div class="card">
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>State</th>
+                                    <th>Repository</th>
+                                    <th>Attempts</th>
+                                    <th>Created</th>
+                                    <th>Last Error</th>
+                                    <th>SBOM</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <For each={query.data?.data ?? []}>
+                                    {(job) => (
+                                        <tr>
+                                            <td>
+                                                <span class="badge" style={{ color: JOB_STATE_COLORS[job.state] ?? "inherit" }}>
+                                                    {job.state}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <code>{job.tag !== undefined ? `${job.repository}:${job.tag}` : job.repository}</code>
+                                            </td>
+                                            <td>{job.attempts}</td>
+                                            <td style={{ "white-space": "nowrap" }}>{formatDateTime(job.created_at)}</td>
+                                            <td>
+                                                <Show when={job.last_error}>
+                                                    <details>
+                                                        <summary style={{ cursor: "pointer", "font-size": "0.85rem" }}>View error</summary>
+                                                        <code style={{ "font-size": "0.8rem", "word-break": "break-all", display: "block", "margin-top": "0.25rem" }}>
+                                                            {job.last_error}
+                                                        </code>
+                                                    </details>
+                                                </Show>
+                                            </td>
+                                            <td>
+                                                <Show when={job.sbom_id}>
+                                                    <A href={`/sboms/${job.sbom_id}`} style={{ "font-size": "0.85rem" }}>
+                                                        View SBOM
+                                                    </A>
+                                                </Show>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </For>
+                            </tbody>
+                        </table>
+                    </div>
+                    <Show when={pageCount() > 1}>
+                        <div style={{ display: "flex", gap: "0.5rem", "align-items": "center", "margin-top": "1rem", "justify-content": "flex-end" }}>
+                            <button class="btn" disabled={page() === 0} onClick={() => setPage(p => p - 1)}>Prev</button>
+                            <span style={{ "font-size": "0.85rem" }}>Page {page() + 1} of {pageCount()}</span>
+                            <button class="btn" disabled={page() + 1 >= pageCount()} onClick={() => setPage(p => p + 1)}>Next</button>
+                        </div>
+                    </Show>
+                </div>
+            </Show>
+        </Show>
     );
 }
 
@@ -939,6 +1042,7 @@ export default function Admin() {
     const isStatusTab = () => location.pathname === "/admin/status";
     const isRegistriesTab = () => location.pathname === "/admin/registries";
     const isMetricsTab = () => location.pathname === "/admin/metrics";
+    const isJobsTab = () => location.pathname === "/admin/jobs";
 
     return (
         <>
@@ -1012,6 +1116,18 @@ export default function Admin() {
                 >
                     Metrics
                 </A>
+                <A
+                    href="/admin/jobs"
+                    style={{
+                        padding: "0.5rem 1rem",
+                        "border-bottom": isJobsTab() ? "2px solid var(--color-primary)" : "2px solid transparent",
+                        color: isJobsTab() ? "var(--color-primary)" : "inherit",
+                        "font-weight": isJobsTab() ? "600" : "400",
+                        "margin-bottom": "-1px",
+                    }}
+                >
+                    Jobs
+                </A>
             </nav>
 
             <Show when={isUsersTab()}>
@@ -1028,6 +1144,9 @@ export default function Admin() {
             </Show>
             <Show when={isMetricsTab()}>
                 <MetricsTab />
+            </Show>
+            <Show when={isJobsTab()}>
+                <JobsTab />
             </Show>
         </>
     );
