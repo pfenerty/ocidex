@@ -94,6 +94,9 @@ func (d *Dispatcher) Run(ctx context.Context) {
 func (d *Dispatcher) worker(ctx context.Context, id int) {
 	d.logger.Debug("scanner worker started", "worker_id", id)
 	for req := range d.queue {
+		if err := d.startJob(ctx, req.MsgID); err != nil {
+			d.logger.Warn("scan_jobs: failed to mark job running", "msg_id", req.MsgID, "err", err)
+		}
 		_ = d.process(ctx, req)
 	}
 }
@@ -105,7 +108,6 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req ScanRequest) error {
 }
 
 func (d *Dispatcher) process(ctx context.Context, req ScanRequest) error {
-	d.startJob(ctx, req.MsgID)
 	// Fill in missing metadata from the registry manifest/config before scanning.
 	// Webhook-triggered requests don't pre-fetch this; the catalog walker does.
 	if req.Architecture == "" || req.BuildDate == "" || req.ImageVersion == "" {
@@ -115,14 +117,18 @@ func (d *Dispatcher) process(ctx context.Context, req ScanRequest) error {
 	raw, err := d.scanner.Scan(ctx, req)
 	if err != nil {
 		d.logger.Error("scan failed", "repo", req.Repository, "digest", req.Digest, "err", err)
-		d.failJob(ctx, req.MsgID, err.Error())
+		if ferr := d.failJob(ctx, req.MsgID, err.Error()); ferr != nil {
+			d.logger.Warn("scan_jobs: failed to mark job failed", "msg_id", req.MsgID, "err", ferr)
+		}
 		return err
 	}
 
 	bom := new(cdx.BOM)
 	if err := cdx.NewBOMDecoder(bytes.NewReader(raw), cdx.BOMFileFormatJSON).Decode(bom); err != nil {
 		d.logger.Error("failed to decode SBOM from syft output", "repo", req.Repository, "err", err)
-		d.failJob(ctx, req.MsgID, err.Error())
+		if ferr := d.failJob(ctx, req.MsgID, err.Error()); ferr != nil {
+			d.logger.Warn("scan_jobs: failed to mark job failed", "msg_id", req.MsgID, "err", ferr)
+		}
 		return err
 	}
 
@@ -142,12 +148,17 @@ func (d *Dispatcher) process(ctx context.Context, req ScanRequest) error {
 	})
 	if err != nil {
 		d.logger.Error("failed to ingest scanned SBOM", "repo", req.Repository, "digest", req.Digest, "err", err)
-		d.failJob(ctx, req.MsgID, err.Error())
+		if ferr := d.failJob(ctx, req.MsgID, err.Error()); ferr != nil {
+			d.logger.Warn("scan_jobs: failed to mark job failed", "msg_id", req.MsgID, "err", ferr)
+		}
 		return err
 	}
 
 	d.logger.Info("SBOM ingested from scan", "repo", req.Repository, "digest", req.Digest)
-	d.finishJob(ctx, req.MsgID, sbomID)
+	if err := d.finishJob(ctx, req.MsgID, sbomID); err != nil {
+		d.logger.Error("scan_jobs: failed to mark job succeeded", "msg_id", req.MsgID, "err", err)
+		return err
+	}
 	return nil
 }
 
@@ -171,29 +182,23 @@ func (d *Dispatcher) fillMetadata(ctx context.Context, req ScanRequest) ScanRequ
 	return req
 }
 
-func (d *Dispatcher) startJob(ctx context.Context, msgID string) {
+func (d *Dispatcher) startJob(ctx context.Context, msgID string) error {
 	if d.jobSvc == nil || msgID == "" {
-		return
+		return nil
 	}
-	if err := d.jobSvc.Start(ctx, msgID); err != nil {
-		d.logger.Warn("scan_jobs: failed to mark job running", "msg_id", msgID, "err", err)
-	}
+	return d.jobSvc.Start(ctx, msgID)
 }
 
-func (d *Dispatcher) failJob(ctx context.Context, msgID, errMsg string) {
+func (d *Dispatcher) failJob(ctx context.Context, msgID, errMsg string) error {
 	if d.jobSvc == nil || msgID == "" {
-		return
+		return nil
 	}
-	if err := d.jobSvc.Fail(ctx, msgID, errMsg); err != nil {
-		d.logger.Warn("scan_jobs: failed to mark job failed", "msg_id", msgID, "err", err)
-	}
+	return d.jobSvc.Fail(ctx, msgID, errMsg)
 }
 
-func (d *Dispatcher) finishJob(ctx context.Context, msgID string, sbomID pgtype.UUID) {
+func (d *Dispatcher) finishJob(ctx context.Context, msgID string, sbomID pgtype.UUID) error {
 	if d.jobSvc == nil || msgID == "" {
-		return
+		return nil
 	}
-	if err := d.jobSvc.Finish(ctx, msgID, sbomID); err != nil {
-		d.logger.Warn("scan_jobs: failed to mark job succeeded", "msg_id", msgID, "err", err)
-	}
+	return d.jobSvc.Finish(ctx, msgID, sbomID)
 }
