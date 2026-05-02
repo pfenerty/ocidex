@@ -114,6 +114,8 @@ func run() error {
 		pollerKey := int64(h.Sum64()) //nolint:gosec
 		go service.LeaderElect(extCtx, pool, pollerKey, poller.Run)
 		slog.Info("registry poller election started", "lock_key", pollerKey)
+	} else {
+		warnUnpolledRegistries(ctx, registrySvc)
 	}
 
 	go runSessionCleaner(extCtx, authSvc)
@@ -191,6 +193,15 @@ func validateOAuthConfig(cfg *config.Config) error {
 		return fmt.Errorf("GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and SESSION_SECRET are required")
 	}
 	return nil
+}
+
+func warnUnpolledRegistries(ctx context.Context, registrySvc service.RegistryService) {
+	pollable, err := registrySvc.ListPollable(ctx)
+	if err == nil && len(pollable) > 0 {
+		slog.Warn("poll-mode registries exist but registry poller will not run",
+			"count", len(pollable),
+			"hint", "set SCANNER_ENABLED=true and REGISTRY_POLLER_ENABLED=true")
+	}
 }
 
 func setupOptionalExts(cfg *config.Config, reg *extension.Registry, natsClient *natspkg.Client, logger *slog.Logger) {

@@ -42,7 +42,7 @@ func (q *Queries) CountScanJobsSince(ctx context.Context, arg CountScanJobsSince
 
 const failScanJob = `-- name: FailScanJob :exec
 UPDATE scan_jobs
-SET state = 'failed', last_error = $1
+SET state = 'failed', finished_at = now(), last_error = $1
 WHERE nats_msg_id = $2
 `
 

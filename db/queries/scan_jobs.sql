@@ -15,7 +15,7 @@ WHERE nats_msg_id = @nats_msg_id;
 
 -- name: FailScanJob :exec
 UPDATE scan_jobs
-SET state = 'failed', last_error = sqlc.narg('last_error')
+SET state = 'failed', finished_at = now(), last_error = sqlc.narg('last_error')
 WHERE nats_msg_id = @nats_msg_id;
 
 -- name: ListScanJobs :many
