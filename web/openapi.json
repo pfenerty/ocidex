@@ -2218,10 +2218,14 @@
         "properties": {
           "enabled": {
             "type": "boolean"
+          },
+          "poller_enabled": {
+            "type": "boolean"
           }
         },
         "required": [
-          "enabled"
+          "enabled",
+          "poller_enabled"
         ],
         "type": "object"
       },

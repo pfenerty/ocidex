@@ -234,6 +234,10 @@ function APIKeysTab() {
 function StatusTab() {
     const query = useGetSystemStatus();
     const registries = useListRegistries();
+    const polledRegistries = () =>
+        (registries.data?.data ?? []).filter(
+            (r) => r.scan_mode === "poll" || r.scan_mode === "both"
+        );
 
     return (
         <Show when={!query.isLoading} fallback={<Loading />}>
@@ -258,6 +262,12 @@ function StatusTab() {
                                 <div class="stat-label">Scanner</div>
                                 <div class="stat-value" style={{ color: query.data?.scanner.enabled === true ? "var(--color-success)" : "var(--color-text-muted)" }}>
                                     {query.data?.scanner.enabled === true ? "Enabled" : "Disabled"}
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-label">Poller</div>
+                                <div class="stat-value" style={{ color: query.data?.scanner.poller_enabled === true ? "var(--color-success)" : "var(--color-text-muted)" }}>
+                                    {query.data?.scanner.poller_enabled === true ? "Enabled" : "Disabled"}
                                 </div>
                             </div>
                             <div class="stat-card">
@@ -317,7 +327,7 @@ function StatusTab() {
                         </div>
                     </div>
 
-                    <Show when={(registries.data?.data?.length ?? 0) > 0}>
+                    <Show when={polledRegistries().length > 0}>
                         <div>
                             <div class="section-title" style={{ "margin-bottom": "0.75rem" }}>Registry Polling</div>
                             <div class="card">
@@ -331,7 +341,7 @@ function StatusTab() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <For each={registries.data?.data ?? []}>
+                                            <For each={polledRegistries()}>
                                                 {(reg) => (
                                                     <tr>
                                                         <td>{reg.name}</td>

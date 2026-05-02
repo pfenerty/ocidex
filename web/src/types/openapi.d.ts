@@ -1412,6 +1412,7 @@ export interface components {
         };
         ScannerStatus: {
             enabled: boolean;
+            poller_enabled: boolean;
         };
         SearchComponentsOutputBody: {
             /**

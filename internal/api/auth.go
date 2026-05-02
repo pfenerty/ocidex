@@ -383,7 +383,8 @@ func (h *Handler) GetSystemStatus(ctx context.Context, _ *struct{}) (*SystemStat
 		QueueSize: h.cfg.EnrichmentQueueSize,
 	}
 	out.Body.Scanner = ScannerStatus{
-		Enabled: h.cfg.ScannerEnabled,
+		Enabled:       h.cfg.ScannerEnabled,
+		PollerEnabled: h.cfg.RegistryPollerEnabled,
 	}
 	out.Body.NATS = NATSStatus{
 		Enabled: h.cfg.NATSEnabled,

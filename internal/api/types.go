@@ -534,7 +534,8 @@ type EnrichmentStatus struct {
 
 // ScannerStatus describes the scanner configuration.
 type ScannerStatus struct {
-	Enabled bool `json:"enabled"`
+	Enabled       bool `json:"enabled"`
+	PollerEnabled bool `json:"poller_enabled"`
 }
 
 // NATSStatus describes the NATS JetStream configuration.
