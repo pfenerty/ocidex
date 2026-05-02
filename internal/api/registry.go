@@ -22,6 +22,45 @@ const (
 	scanModeBoth    = "both"
 )
 
+// typeFixedURL maps registry types that always use a canonical URL.
+// If a type is present here, the submitted URL is ignored and replaced.
+var typeFixedURL = map[string]string{
+	"docker": "registry-1.docker.io",
+	"ghcr":   "ghcr.io",
+}
+
+// typeSupportsWebhook indicates whether a registry type can receive inbound
+// push notifications from the registry. Types that don't support webhooks
+// must use poll mode, which requires REGISTRY_POLLER_ENABLED=true.
+var typeSupportsWebhook = map[string]bool{
+	"docker":  false,
+	"ghcr":    false,
+	"zot":     true,
+	"harbor":  true,
+	"generic": true,
+}
+
+// resolveRegistryType validates that scanMode is compatible with regType and returns
+// the effective scan mode (defaulting to poll for types that don't support webhooks).
+// Returns an error if the combination is invalid or if polling is required but disabled.
+func (h *Handler) resolveRegistryType(regType, scanMode string) (string, error) {
+	if !typeSupportsWebhook[regType] {
+		if scanMode == scanModeWebhook || scanMode == scanModeBoth {
+			return "", huma.Error422UnprocessableEntity(fmt.Sprintf("registry type %q does not support webhook scan mode; use 'poll'", regType))
+		}
+		if !h.cfg.RegistryPollerEnabled {
+			return "", huma.Error422UnprocessableEntity(fmt.Sprintf("registry type %q requires polling, but REGISTRY_POLLER_ENABLED is not set", regType))
+		}
+		if scanMode == "" {
+			scanMode = scanModePoll
+		}
+	}
+	if (scanMode == scanModePoll || scanMode == scanModeBoth) && !h.cfg.RegistryPollerEnabled {
+		return "", huma.Error422UnprocessableEntity("scan_mode 'poll' and 'both' require REGISTRY_POLLER_ENABLED=true")
+	}
+	return scanMode, nil
+}
+
 // generateWebhookSecret returns a cryptographically random 32-byte hex-encoded secret.
 func generateWebhookSecret() (string, error) {
 	b := make([]byte, 32)
@@ -94,7 +133,18 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 	if !isWriteAllowed(user) {
 		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
 	}
+	regType := in.Body.Type
+	regURL := in.Body.URL
+	if fixedURL, ok := typeFixedURL[regType]; ok {
+		regURL = fixedURL
+	}
+
 	scanMode := in.Body.ScanMode
+	var err error
+	scanMode, err = h.resolveRegistryType(regType, scanMode)
+	if err != nil {
+		return nil, err
+	}
 	if scanMode == "" {
 		scanMode = scanModeWebhook
 	}
@@ -105,9 +155,6 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 	visibility := in.Body.Visibility
 	if visibility == "" {
 		visibility = "public"
-	}
-	if (scanMode == scanModePoll || scanMode == scanModeBoth) && !h.cfg.RegistryPollerEnabled {
-		return nil, huma.Error422UnprocessableEntity("scan_mode 'poll' and 'both' require REGISTRY_POLLER_ENABLED=true")
 	}
 
 	// Auto-generate a webhook secret for webhook-capable registries when not provided.
@@ -122,7 +169,7 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 		webhookSecret = &generatedSecret
 	}
 
-	reg, err := h.registryService.Create(ctx, in.Body.Name, in.Body.Type, in.Body.URL, in.Body.Insecure, webhookSecret, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval, in.Body.AuthUsername, in.Body.AuthToken, user.ID, visibility, in.Body.IncludeUntagged)
+	reg, err := h.registryService.Create(ctx, in.Body.Name, regType, regURL, in.Body.Insecure, webhookSecret, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval, in.Body.AuthUsername, in.Body.AuthToken, user.ID, visibility, in.Body.IncludeUntagged)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("creating registry: %v", err))
 	}
@@ -164,7 +211,17 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}
+	regType := in.Body.Type
+	regURL := in.Body.URL
+	if fixedURL, ok := typeFixedURL[regType]; ok {
+		regURL = fixedURL
+	}
+
 	scanMode := in.Body.ScanMode
+	scanMode, err = h.resolveRegistryType(regType, scanMode)
+	if err != nil {
+		return nil, err
+	}
 	if scanMode == "" {
 		scanMode = existing.ScanMode
 	}
@@ -176,10 +233,8 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 	if visibility == "" {
 		visibility = existing.Visibility
 	}
-	if (scanMode == scanModePoll || scanMode == scanModeBoth) && !h.cfg.RegistryPollerEnabled {
-		return nil, huma.Error422UnprocessableEntity("scan_mode 'poll' and 'both' require REGISTRY_POLLER_ENABLED=true")
-	}
-	reg, err := h.registryService.Update(ctx, in.ID, in.Body.Name, in.Body.Type, in.Body.URL, in.Body.Insecure, existing.WebhookSecret, in.Body.Enabled, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval, in.Body.AuthUsername, in.Body.AuthToken, visibility, in.Body.IncludeUntagged)
+	var reg service.Registry
+	reg, err = h.registryService.Update(ctx, in.ID, in.Body.Name, regType, regURL, in.Body.Insecure, existing.WebhookSecret, in.Body.Enabled, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval, in.Body.AuthUsername, in.Body.AuthToken, visibility, in.Body.IncludeUntagged)
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}

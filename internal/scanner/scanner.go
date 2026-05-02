@@ -47,7 +47,8 @@ func NewSyftScanner(logger *slog.Logger) *SyftScanner {
 
 // Scan runs syft against the image identified by req and returns CycloneDX JSON.
 func (s *SyftScanner) Scan(ctx context.Context, req ScanRequest) ([]byte, error) {
-	ref := fmt.Sprintf("%s/%s@%s", req.RegistryURL, req.Repository, req.Digest)
+	registryHost := normalizeRegistryHost(req.RegistryURL)
+	ref := fmt.Sprintf("%s/%s@%s", registryHost, req.Repository, req.Digest)
 	s.logger.Info("scanning image", "ref", ref, "tag", req.Tag)
 
 	regOpts := &image.RegistryOptions{InsecureUseHTTP: req.Insecure}
@@ -57,7 +58,7 @@ func (s *SyftScanner) Scan(ctx context.Context, req ScanRequest) ([]byte, error)
 			username = "ocidex"
 		}
 		regOpts.Credentials = []image.RegistryCredentials{{
-			Authority: req.RegistryURL,
+			Authority: registryHost,
 			Username:  username,
 			Password:  req.AuthToken,
 		}}

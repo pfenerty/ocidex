@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -249,14 +250,42 @@ func discoverUntagged(ctx context.Context, client *http.Client, baseURL, repo st
 	return queued
 }
 
+// normalizeRegistryHost maps known Docker Hub alias hostnames to the canonical
+// OCI registry API endpoint. docker.io, index.docker.io, and hub.docker.com all
+// redirect to the web frontend; registry-1.docker.io is the actual API.
+func normalizeRegistryHost(host string) string {
+	switch host {
+	case "docker.io", "index.docker.io", "hub.docker.com":
+		return "registry-1.docker.io"
+	}
+	return host
+}
+
+// decodeJSONBody reads the response body and JSON-decodes it into v.
+// If Content-Type is HTML (a sign the URL hit a web frontend instead of the
+// registry API), returns a diagnostic error with a body preview without
+// attempting to decode. All other content types attempt JSON decode; failures
+// include a body preview.
+func decodeJSONBody(resp *http.Response, v any) error {
+	body, _ := io.ReadAll(resp.Body)
+	ct := resp.Header.Get("Content-Type")
+	if strings.Contains(ct, "html") {
+		return fmt.Errorf("registry returned HTML (content-type: %q) — verify the registry URL points to the OCI API endpoint; body: %.200s", ct, body)
+	}
+	if err := json.Unmarshal(body, v); err != nil {
+		return fmt.Errorf("%w; body: %.200s", err, body)
+	}
+	return nil
+}
+
 // registrySchemeHost returns the scheme and host extracted from reg.URL,
 // defaulting to http for insecure registries when no scheme is present.
 func registrySchemeHost(reg service.Registry) (scheme, host string) {
 	raw := reg.URL
 	if i := strings.Index(raw, "://"); i != -1 {
-		return raw[:i], strings.TrimSuffix(raw[i+3:], "/")
+		return raw[:i], normalizeRegistryHost(strings.TrimSuffix(raw[i+3:], "/"))
 	}
-	host = strings.TrimSuffix(raw, "/")
+	host = normalizeRegistryHost(strings.TrimSuffix(raw, "/"))
 	if reg.Insecure {
 		return "http", host
 	}
@@ -281,7 +310,7 @@ func ociListCatalog(ctx context.Context, c *http.Client, baseURL string) ([]stri
 	var result struct {
 		Repositories []string `json:"repositories"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := decodeJSONBody(resp, &result); err != nil {
 		return nil, err
 	}
 	return result.Repositories, nil
@@ -300,7 +329,7 @@ func ociListTags(ctx context.Context, c *http.Client, baseURL, repo string) ([]s
 	var result struct {
 		Tags []string `json:"tags"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := decodeJSONBody(resp, &result); err != nil {
 		return nil, err
 	}
 	return result.Tags, nil

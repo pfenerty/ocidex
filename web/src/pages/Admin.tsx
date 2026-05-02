@@ -370,6 +370,16 @@ function StatusTab() {
 // ---------------------------------------------------------------------------
 
 type RegType = "zot" | "harbor" | "docker" | "generic" | "ghcr";
+
+const TYPE_CAPS: Record<RegType, { label: string; fixedUrl: string | null; webhook: boolean; untagged: boolean }> = {
+    docker:  { label: "Docker Hub",                        fixedUrl: "registry-1.docker.io", webhook: false, untagged: false },
+    ghcr:    { label: "GitHub Container Registry (GHCR)", fixedUrl: "ghcr.io",               webhook: false, untagged: true  },
+    zot:     { label: "Zot",                               fixedUrl: null,                    webhook: true,  untagged: true  },
+    harbor:  { label: "Harbor",                            fixedUrl: null,                    webhook: true,  untagged: true  },
+    generic: { label: "Generic OCI Registry",              fixedUrl: null,                    webhook: true,  untagged: false },
+};
+
+const regTypeLabel = (t: string) => (t in TYPE_CAPS ? TYPE_CAPS[t as RegType].label : t);
 type ScanMode = "webhook" | "poll" | "both";
 
 type Visibility = "public" | "private";
@@ -571,19 +581,21 @@ function RegistriesTab() {
                                     value={form().type}
                                     onChange={(e) => {
                                         const newType = e.currentTarget.value as RegType;
+                                        const caps = TYPE_CAPS[newType];
                                         setForm(f => ({
                                             ...f,
                                             type: newType,
-                                            ...(newType === "ghcr" && !f.url ? { url: "ghcr.io" } : {}),
+                                            url: caps.fixedUrl ?? (newType === f.type ? f.url : ""),
+                                            scanMode: !caps.webhook ? "poll" : f.scanMode,
+                                            includeUntagged: caps.untagged ? f.includeUntagged : false,
                                         }));
                                     }}
                                     style={{ width: "100%" }}
                                 >
-                                    <option value="generic">generic</option>
-                                    <option value="ghcr">ghcr</option>
-                                    <option value="zot">zot</option>
-                                    <option value="harbor">harbor</option>
-                                    <option value="docker">docker</option>
+                                    <For each={Object.entries(TYPE_CAPS) as [RegType, typeof TYPE_CAPS[RegType]][]}>{([type, caps]) => {
+                                        const viable = caps.webhook || showPollOptions();
+                                        return viable ? <option value={type}>{caps.label}</option> : null;
+                                    }}</For>
                                 </select>
                             </div>
                             <div>
@@ -594,7 +606,8 @@ function RegistriesTab() {
                                         value={form().url}
                                         onInput={(e) => { setForm(f => ({ ...f, url: e.currentTarget.value })); setTestResult(null); }}
                                         placeholder="registry:5000"
-                                        style={{ flex: "1" }}
+                                        style={{ flex: "1", ...(TYPE_CAPS[form().type].fixedUrl !== null ? { background: "var(--color-surface-2, #f0f0f0)", cursor: "not-allowed" } : {}) }}
+                                        readOnly={TYPE_CAPS[form().type].fixedUrl !== null}
                                         required
                                     />
                                     <button
@@ -692,10 +705,14 @@ function RegistriesTab() {
                                     onChange={(e) => setForm(f => ({ ...f, scanMode: e.currentTarget.value as ScanMode }))}
                                     style={{ width: "100%" }}
                                 >
-                                    <option value="webhook">webhook</option>
+                                    <Show when={TYPE_CAPS[form().type].webhook}>
+                                        <option value="webhook">Webhook</option>
+                                    </Show>
                                     <Show when={showPollOptions()}>
-                                        <option value="poll">poll</option>
-                                        <option value="both">both</option>
+                                        <option value="poll">Poll</option>
+                                    </Show>
+                                    <Show when={TYPE_CAPS[form().type].webhook && showPollOptions()}>
+                                        <option value="both">Both</option>
                                     </Show>
                                 </select>
                             </div>
@@ -732,10 +749,11 @@ function RegistriesTab() {
                                 />
                                 Allow insecure (HTTP)
                             </label>
-                            <label style={{ display: "flex", "align-items": "center", gap: "0.4rem", cursor: "pointer" }}>
+                            <label style={{ display: "flex", "align-items": "center", gap: "0.4rem", cursor: TYPE_CAPS[form().type].untagged ? "pointer" : "not-allowed", opacity: TYPE_CAPS[form().type].untagged ? 1 : 0.4 }}>
                                 <input
                                     type="checkbox"
                                     checked={form().includeUntagged}
+                                    disabled={!TYPE_CAPS[form().type].untagged}
                                     onChange={(e) => setForm(f => ({ ...f, includeUntagged: e.currentTarget.checked }))}
                                 />
                                 Include untagged manifests
@@ -786,7 +804,7 @@ function RegistriesTab() {
                                         {(reg) => (
                                             <tr>
                                                 <td>{reg.name}</td>
-                                                <td><code>{reg.type}</code></td>
+                                                <td><code>{regTypeLabel(reg.type)}</code></td>
                                                 <td><code>{reg.url}</code></td>
                                                 <td><span class="badge">{reg.visibility}</span></td>
                                                 <td>

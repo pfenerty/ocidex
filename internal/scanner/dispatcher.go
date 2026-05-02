@@ -167,7 +167,7 @@ func (d *Dispatcher) fillMetadata(ctx context.Context, req ScanRequest) ScanRequ
 	if req.Insecure {
 		scheme = "http"
 	}
-	baseURL := scheme + "://" + req.RegistryURL
+	baseURL := scheme + "://" + normalizeRegistryHost(req.RegistryURL)
 	client := &http.Client{Transport: newOCITokenTransport(req.AuthUsername, req.AuthToken)}
 	meta := ociGetImageMetadata(ctx, client, baseURL, req.Repository, req.Digest)
 	if req.Architecture == "" {
