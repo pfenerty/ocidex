@@ -84,10 +84,16 @@ func (f *fakeSBOMSvc) Ingest(_ context.Context, _ *cdx.BOM, _ []byte, _ service.
 	return pgtype.UUID{Bytes: [16]byte{1}, Valid: true}, nil
 }
 
-func (f *fakeSBOMSvc) DeleteSBOM(_ context.Context, _ pgtype.UUID) error        { return nil }
-func (f *fakeSBOMSvc) DeleteArtifact(_ context.Context, _ pgtype.UUID) error    { return nil }
+func (f *fakeSBOMSvc) DeleteSBOM(_ context.Context, _ pgtype.UUID) error     { return nil }
+func (f *fakeSBOMSvc) DeleteArtifact(_ context.Context, _ pgtype.UUID) error { return nil }
 func (f *fakeSBOMSvc) ListDigestsByRegistry(_ context.Context, _ string) (map[string]bool, error) {
 	return nil, nil
+}
+func (f *fakeSBOMSvc) GetSBOMRegistryID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
+	return pgtype.UUID{}, nil
+}
+func (f *fakeSBOMSvc) GetArtifactOwnerID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
+	return pgtype.UUID{}, nil
 }
 
 func TestDispatcher_JobTracking(t *testing.T) {

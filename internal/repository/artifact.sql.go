@@ -56,6 +56,21 @@ func (q *Queries) GetArtifact(ctx context.Context, id pgtype.UUID) (Artifact, er
 	return i, err
 }
 
+const getArtifactOwnerID = `-- name: GetArtifactOwnerID :one
+SELECT r.owner_id
+FROM artifact_registry ar
+JOIN registry r ON r.id = ar.registry_id
+WHERE ar.artifact_id = $1 AND r.owner_id IS NOT NULL
+LIMIT 1
+`
+
+func (q *Queries) GetArtifactOwnerID(ctx context.Context, artifactID pgtype.UUID) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, getArtifactOwnerID, artifactID)
+	var owner_id pgtype.UUID
+	err := row.Scan(&owner_id)
+	return owner_id, err
+}
+
 const listArtifacts = `-- name: ListArtifacts :many
 SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
        COUNT(s.id) AS sbom_count,

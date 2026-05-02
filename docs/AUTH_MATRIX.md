@@ -44,13 +44,13 @@ Every endpoint registered in `internal/api/router.go` as of 2026-04-24.
 
 | Method | Path | Auth Required | Required Role | Ownership Check | Visibility Filter | Notes |
 |--------|------|---------------|---------------|-----------------|-------------------|-------|
-| POST | `/api/v1/sboms` | **None** ⚠️ | — | — | — | **GAP: no auth check; anyone can ingest** |
+| POST | `/api/v1/sboms` | Middleware 401 | member \| admin | — | — | RequireMember huma middleware |
 | GET | `/api/v1/sboms` | None | — | — | SQL (service layer) | Unauthenticated sees public only |
 | GET | `/api/v1/sboms/diff` | None | — | — | SQL (service layer) | |
 | GET | `/api/v1/sboms/{id}` | None | — | — | SQL (service layer) | |
 | GET | `/api/v1/sboms/{id}/dependencies` | None | — | — | SQL (service layer) | |
 | GET | `/api/v1/sboms/{id}/components` | None | — | — | SQL (service layer) | |
-| DELETE | `/api/v1/sboms/{id}` | **None** ⚠️ | — | — | — | **GAP: no auth or ownership check** |
+| DELETE | `/api/v1/sboms/{id}` | Middleware 401 | member \| admin | Registry owner or admin (via registry_id) | — | RequireSBOMOwner huma middleware |
 
 ---
 
@@ -84,7 +84,7 @@ Every endpoint registered in `internal/api/router.go` as of 2026-04-24.
 | GET | `/api/v1/artifacts/{id}/sboms` | None | — | — | SQL (service layer) | |
 | GET | `/api/v1/artifacts/{id}/changelog` | None | — | — | SQL (service layer) | |
 | GET | `/api/v1/artifacts/{id}/license-summary` | None | — | — | SQL (service layer) | |
-| DELETE | `/api/v1/artifacts/{id}` | **None** ⚠️ | — | — | — | **GAP: no auth or ownership check** |
+| DELETE | `/api/v1/artifacts/{id}` | Middleware 401 | member \| admin | Registry owner or admin (via artifact_registry) | — | RequireArtifactOwner huma middleware |
 
 ---
 
@@ -112,19 +112,7 @@ Every endpoint registered in `internal/api/router.go` as of 2026-04-24.
 
 ---
 
-## Gaps Requiring Handler-Level Enforcement
-
-The following endpoints need handler-level auth added. They currently have no gate and rely entirely on the service/SQL layer (or nothing at all).
-
-### Critical — unauthenticated mutation
-
-| # | Endpoint | Issue | Recommended Fix |
-|---|----------|-------|-----------------|
-| 1 | `POST /api/v1/sboms` | Anyone (unauthenticated) can ingest SBOMs | Require auth; require `member` or `admin` role |
-| 2 | `DELETE /api/v1/sboms/{id}` | Anyone can delete any SBOM | Require auth; require ownership of the parent artifact or `admin` role |
-| 3 | `DELETE /api/v1/artifacts/{id}` | Anyone can delete any artifact | Require auth; require ownership or `admin` role |
-
-### Design decisions to document
+## Design Decisions to Document
 
 | # | Endpoint | Observation |
 |---|----------|-------------|

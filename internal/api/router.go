@@ -134,6 +134,9 @@ func registerVersionOps(api huma.API, h *Handler) {
 // ---------------------------------------------------------------------------
 
 func registerSBOMOps(api huma.API, h *Handler) {
+	memberMW := RequireMember(api)
+	sbomOwnerMW := RequireSBOMOwner(api, h.sbomService, h.registryService)
+
 	huma.Register(api, huma.Operation{
 		OperationID:   "ingest-sbom",
 		Method:        http.MethodPost,
@@ -143,6 +146,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 		Tags:          []string{"SBOMs"},
 		MaxBodyBytes:  maxSBOMBodyBytes,
 		DefaultStatus: http.StatusCreated,
+		Middlewares:   huma.Middlewares{memberMW},
 	}, h.IngestSBOM)
 
 	huma.Register(api, huma.Operation{
@@ -185,6 +189,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 		Summary:       "Delete an SBOM",
 		Tags:          []string{"SBOMs"},
 		DefaultStatus: http.StatusNoContent,
+		Middlewares:   huma.Middlewares{sbomOwnerMW},
 	}, h.DeleteSBOM)
 }
 
@@ -261,6 +266,8 @@ func registerLicenseOps(api huma.API, h *Handler) {
 // ---------------------------------------------------------------------------
 
 func registerArtifactOps(api huma.API, h *Handler) {
+	artifactOwnerMW := RequireArtifactOwner(api, h.sbomService, h.registryService)
+
 	huma.Register(api, huma.Operation{
 		OperationID: "list-artifacts",
 		Method:      http.MethodGet,
@@ -284,6 +291,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Summary:       "Delete an artifact",
 		Tags:          []string{"Artifacts"},
 		DefaultStatus: http.StatusNoContent,
+		Middlewares:   huma.Middlewares{artifactOwnerMW},
 	}, h.DeleteArtifact)
 
 	huma.Register(api, huma.Operation{

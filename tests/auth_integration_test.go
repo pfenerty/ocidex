@@ -122,8 +122,8 @@ func TestAuthBoundaries(t *testing.T) {
 		{"list artifacts", http.MethodGet, "/api/v1/artifacts", "", 200, 200, 200, 200},
 		{"search components", http.MethodGet, "/api/v1/components?name=bash", "", 200, 200, 200, 200},
 		{"stats", http.MethodGet, "/api/v1/stats", "", 200, 200, 200, 200},
-		// SBOM ingest — no auth protection (intentional; any caller may push SBOMs).
-		{"ingest sbom", http.MethodPost, "/api/v1/sboms", minimalSBOM, 201, 201, 201, 201},
+		// SBOM ingest — requires member or admin role.
+		{"ingest sbom", http.MethodPost, "/api/v1/sboms", minimalSBOM, 401, 403, 201, 201},
 		// Any authenticated user.
 		{"list registries", http.MethodGet, "/api/v1/registries", "", 401, 200, 200, 200},
 		{"get me", http.MethodGet, "/api/v1/users/me", "", 401, 200, 200, 200},
