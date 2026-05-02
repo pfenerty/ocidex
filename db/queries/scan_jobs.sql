@@ -6,7 +6,8 @@ RETURNING *;
 -- name: StartScanJob :exec
 UPDATE scan_jobs
 SET state = 'running', started_at = now(), attempts = attempts + 1
-WHERE nats_msg_id = @nats_msg_id;
+WHERE nats_msg_id = @nats_msg_id
+  AND state NOT IN ('succeeded', 'failed');
 
 -- name: FinishScanJob :exec
 UPDATE scan_jobs
@@ -34,3 +35,10 @@ WHERE state = @state::text AND finished_at >= @since::timestamptz;
 
 -- name: GetScanJob :one
 SELECT * FROM scan_jobs WHERE id = @id;
+
+-- name: TimeoutScanJobs :exec
+UPDATE scan_jobs
+SET state = 'failed', finished_at = now(),
+    last_error = 'timed out: job was still running after timeout threshold'
+WHERE state = 'running'
+  AND started_at < @started_before::timestamptz;

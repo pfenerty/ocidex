@@ -58,6 +58,8 @@ func (f *fakeJobSvc) CountByState(_ context.Context) (int64, int64, int64, int64
 	return 0, 0, 0, 0, nil
 }
 
+func (f *fakeJobSvc) TimeoutJobs(_ context.Context, _ time.Duration) error { return nil }
+
 func (f *fakeJobSvc) getStartCalls() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()

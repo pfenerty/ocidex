@@ -17,6 +17,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -114,6 +115,29 @@ func run() error {
 	if err := registry.StartAll(extCtx); err != nil {
 		return fmt.Errorf("starting extensions: %w", err)
 	}
+
+	// Sweep jobs stuck in 'running' at startup, then every 5 minutes.
+	// Covers the case where a prior worker crashed before completing a job.
+	const jobTimeout = 30 * time.Minute
+	if err := jobSvc.TimeoutJobs(ctx, jobTimeout); err != nil {
+		slog.Warn("startup timeout sweep failed", "err", err)
+	}
+	reaperCtx, reaperCancel := context.WithCancel(context.Background())
+	defer reaperCancel()
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if err := jobSvc.TimeoutJobs(reaperCtx, jobTimeout); err != nil && reaperCtx.Err() == nil {
+					slog.Warn("timeout sweep failed", "err", err)
+				}
+			case <-reaperCtx.Done():
+				return
+			}
+		}
+	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

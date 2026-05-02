@@ -93,6 +93,7 @@ type JobRepository interface {
 	CountScanJobs(ctx context.Context, state pgtype.Text) (int64, error)
 	CountScanJobsSince(ctx context.Context, arg CountScanJobsSinceParams) (int64, error)
 	GetScanJob(ctx context.Context, id pgtype.UUID) (ScanJob, error)
+	TimeoutScanJobs(ctx context.Context, startedBefore pgtype.Timestamptz) error
 }
 
 // AuthRepository defines data access methods for authentication and authorization.

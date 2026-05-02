@@ -189,9 +189,23 @@ const startScanJob = `-- name: StartScanJob :exec
 UPDATE scan_jobs
 SET state = 'running', started_at = now(), attempts = attempts + 1
 WHERE nats_msg_id = $1
+  AND state NOT IN ('succeeded', 'failed')
 `
 
 func (q *Queries) StartScanJob(ctx context.Context, natsMsgID pgtype.Text) error {
 	_, err := q.db.Exec(ctx, startScanJob, natsMsgID)
+	return err
+}
+
+const timeoutScanJobs = `-- name: TimeoutScanJobs :exec
+UPDATE scan_jobs
+SET state = 'failed', finished_at = now(),
+    last_error = 'timed out: job was still running after timeout threshold'
+WHERE state = 'running'
+  AND started_at < $1::timestamptz
+`
+
+func (q *Queries) TimeoutScanJobs(ctx context.Context, startedBefore pgtype.Timestamptz) error {
+	_, err := q.db.Exec(ctx, timeoutScanJobs, startedBefore)
 	return err
 }

@@ -47,6 +47,7 @@ type JobService interface {
 	List(ctx context.Context, state string, limit, offset int32) ([]ScanJob, int64, error)
 	Get(ctx context.Context, id string) (ScanJob, error)
 	CountByState(ctx context.Context) (queued, running, succeeded24h, failed24h int64, err error)
+	TimeoutJobs(ctx context.Context, olderThan time.Duration) error
 }
 
 type jobService struct{ repo repository.JobRepository }
@@ -160,6 +161,12 @@ func fromJobRow(r repository.ScanJob) ScanJob {
 		j.FinishedAt = &t
 	}
 	return j
+}
+
+func (s *jobService) TimeoutJobs(ctx context.Context, olderThan time.Duration) error {
+	cutoff := pgtype.Timestamptz{}
+	_ = cutoff.Scan(time.Now().Add(-olderThan))
+	return s.repo.TimeoutScanJobs(ctx, cutoff)
 }
 
 func (s *jobService) CountByState(ctx context.Context) (int64, int64, int64, int64, error) {
