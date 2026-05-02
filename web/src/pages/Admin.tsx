@@ -592,10 +592,9 @@ function RegistriesTab() {
                                     }}
                                     style={{ width: "100%" }}
                                 >
-                                    <For each={Object.entries(TYPE_CAPS) as [RegType, typeof TYPE_CAPS[RegType]][]}>{([type, caps]) => {
-                                        const viable = caps.webhook || showPollOptions();
-                                        return viable ? <option value={type}>{caps.label}</option> : null;
-                                    }}</For>
+                                    <For each={Object.entries(TYPE_CAPS) as [RegType, typeof TYPE_CAPS[RegType]][]}>{([type, caps]) => (
+                                        <option value={type}>{caps.label}</option>
+                                    )}</For>
                                 </select>
                             </div>
                             <div>
@@ -704,17 +703,21 @@ function RegistriesTab() {
                                     value={form().scanMode}
                                     onChange={(e) => setForm(f => ({ ...f, scanMode: e.currentTarget.value as ScanMode }))}
                                     style={{ width: "100%" }}
+                                    disabled={!TYPE_CAPS[form().type].webhook}
                                 >
                                     <Show when={TYPE_CAPS[form().type].webhook}>
                                         <option value="webhook">Webhook</option>
                                     </Show>
-                                    <Show when={showPollOptions()}>
-                                        <option value="poll">Poll</option>
-                                    </Show>
-                                    <Show when={TYPE_CAPS[form().type].webhook && showPollOptions()}>
+                                    <option value="poll">Poll</option>
+                                    <Show when={TYPE_CAPS[form().type].webhook}>
                                         <option value="both">Both</option>
                                     </Show>
                                 </select>
+                                <Show when={!TYPE_CAPS[form().type].webhook && !showPollOptions()}>
+                                    <div style={{ "margin-top": "0.3rem", "font-size": "0.8rem", color: "var(--color-error, #e53e3e)" }}>
+                                        Requires REGISTRY_POLLER_ENABLED=true — this registry type only supports polling.
+                                    </div>
+                                </Show>
                             </div>
                             <div>
                                 <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>Visibility</label>
