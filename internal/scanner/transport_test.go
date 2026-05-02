@@ -19,8 +19,8 @@ func registryForURL(url string, insecure bool) service.Registry {
 
 func TestParseWWWAuthenticate(t *testing.T) {
 	cases := []struct {
-		name          string
-		header        string
+		name              string
+		header            string
 		realm, svc, scope string
 	}{
 		{
@@ -65,41 +65,41 @@ func TestParseWWWAuthenticate(t *testing.T) {
 
 func TestRegistrySchemeHost(t *testing.T) {
 	cases := []struct {
-		name           string
-		url            string
-		insecure       bool
-		wantScheme     string
-		wantHost       string
+		name       string
+		url        string
+		insecure   bool
+		wantScheme string
+		wantHost   string
 	}{
 		{
-			name: "explicit https",
-			url:  "https://registry.example.com",
+			name:       "explicit https",
+			url:        "https://registry.example.com",
 			wantScheme: "https",
 			wantHost:   "registry.example.com",
 		},
 		{
-			name: "explicit http",
-			url:  "http://registry.example.com",
+			name:       "explicit http",
+			url:        "http://registry.example.com",
 			wantScheme: "http",
 			wantHost:   "registry.example.com",
 		},
 		{
-			name:     "no scheme insecure",
-			url:      "registry.example.com",
-			insecure: true,
+			name:       "no scheme insecure",
+			url:        "registry.example.com",
+			insecure:   true,
 			wantScheme: "http",
 			wantHost:   "registry.example.com",
 		},
 		{
-			name:     "no scheme secure",
-			url:      "registry.example.com",
-			insecure: false,
+			name:       "no scheme secure",
+			url:        "registry.example.com",
+			insecure:   false,
 			wantScheme: "https",
 			wantHost:   "registry.example.com",
 		},
 		{
-			name: "trailing slash stripped",
-			url:  "https://registry.example.com/",
+			name:       "trailing slash stripped",
+			url:        "https://registry.example.com/",
 			wantScheme: "https",
 			wantHost:   "registry.example.com",
 		},

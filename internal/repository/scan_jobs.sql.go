@@ -23,6 +23,23 @@ func (q *Queries) CountScanJobs(ctx context.Context, state pgtype.Text) (int64, 
 	return count, err
 }
 
+const countScanJobsSince = `-- name: CountScanJobsSince :one
+SELECT COUNT(*) FROM scan_jobs
+WHERE state = $1::text AND finished_at >= $2::timestamptz
+`
+
+type CountScanJobsSinceParams struct {
+	State string             `json:"state"`
+	Since pgtype.Timestamptz `json:"since"`
+}
+
+func (q *Queries) CountScanJobsSince(ctx context.Context, arg CountScanJobsSinceParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countScanJobsSince, arg.State, arg.Since)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const failScanJob = `-- name: FailScanJob :exec
 UPDATE scan_jobs
 SET state = 'failed', last_error = $1

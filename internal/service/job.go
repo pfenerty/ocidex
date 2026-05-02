@@ -46,6 +46,7 @@ type JobService interface {
 	Fail(ctx context.Context, msgID, lastError string) error
 	List(ctx context.Context, state string, limit, offset int32) ([]ScanJob, int64, error)
 	Get(ctx context.Context, id string) (ScanJob, error)
+	CountByState(ctx context.Context) (queued, running, succeeded24h, failed24h int64, err error)
 }
 
 type jobService struct{ repo repository.JobRepository }
@@ -159,6 +160,29 @@ func fromJobRow(r repository.ScanJob) ScanJob {
 		j.FinishedAt = &t
 	}
 	return j
+}
+
+func (s *jobService) CountByState(ctx context.Context) (int64, int64, int64, int64, error) {
+	since := pgtype.Timestamptz{}
+	_ = since.Scan(time.Now().Add(-24 * time.Hour))
+
+	queued, err := s.repo.CountScanJobs(ctx, pgtype.Text{String: "queued", Valid: true})
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	running, err := s.repo.CountScanJobs(ctx, pgtype.Text{String: "running", Valid: true})
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	succ, err := s.repo.CountScanJobsSince(ctx, repository.CountScanJobsSinceParams{State: "succeeded", Since: since})
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	fail, err := s.repo.CountScanJobsSince(ctx, repository.CountScanJobsSinceParams{State: "failed", Since: since})
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	return queued, running, succ, fail, nil
 }
 
 func nullStr(s string) *string {

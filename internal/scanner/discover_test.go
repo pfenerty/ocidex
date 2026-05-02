@@ -25,9 +25,9 @@ func TestHarborDiscoverer(t *testing.T) {
 					},
 				},
 				{
-					"digest":     "sha256:bbb",
-					"media_type": "application/vnd.oci.image.manifest.v1+json",
-					"tags":       []map[string]any{},
+					"digest":      "sha256:bbb",
+					"media_type":  "application/vnd.oci.image.manifest.v1+json",
+					"tags":        []map[string]any{},
 					"extra_attrs": map[string]any{},
 				},
 			}
@@ -245,9 +245,9 @@ func TestZotDiscoverer(t *testing.T) {
 
 func TestSplitHarborRepo(t *testing.T) {
 	cases := []struct {
-		input           string
-		project, repo   string
-		ok              bool
+		input         string
+		project, repo string
+		ok            bool
 	}{
 		{"myproject/myrepo", "myproject", "myrepo", true},
 		{"myproject/nested/path", "myproject", "nested/path", true},
@@ -266,9 +266,9 @@ func TestSplitHarborRepo(t *testing.T) {
 
 func TestSplitGHCRRepo(t *testing.T) {
 	cases := []struct {
-		input         string
-		owner, name   string
-		ok            bool
+		input       string
+		owner, name string
+		ok          bool
 	}{
 		{"owner/name", "owner", "name", true},
 		{"owner/nested/name", "owner", "nested/name", true},

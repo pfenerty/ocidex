@@ -64,7 +64,7 @@ func resolveAMD64Digest(t *testing.T) (digest, architecture, buildDate string) {
 		found := false
 		for _, m := range manifest.Manifests {
 			if m.Platform != nil && m.Platform.Architecture == "amd64" && m.Platform.OS == "linux" {
-				imageDigest, err = gcname.NewDigest(testRegistryURL+"/"+testRepository+"@"+m.Digest.String())
+				imageDigest, err = gcname.NewDigest(testRegistryURL + "/" + testRepository + "@" + m.Digest.String())
 				if err != nil {
 					t.Fatalf("parse digest ref: %v", err)
 				}

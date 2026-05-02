@@ -871,6 +871,11 @@ export interface components {
             webhook_secret?: string;
             webhook_url: string;
         };
+        DBStatus: {
+            /** Format: int64 */
+            latency_ms: number;
+            ok: boolean;
+        };
         DailyCountEntry: {
             /** Format: int64 */
             count: number;
@@ -1385,6 +1390,16 @@ export interface components {
             state: "queued" | "running" | "succeeded" | "failed";
             tag?: string;
         };
+        ScanJobsStatus: {
+            /** Format: int64 */
+            failed_24h: number;
+            /** Format: int64 */
+            queued: number;
+            /** Format: int64 */
+            running: number;
+            /** Format: int64 */
+            succeeded_24h: number;
+        };
         ScanRegistryOutputBody: {
             /**
              * Format: uri
@@ -1425,8 +1440,10 @@ export interface components {
              * @example https://example.com/schemas/SystemStatusOutputBody.json
              */
             readonly $schema?: string;
+            db: components["schemas"]["DBStatus"];
             enrichment: components["schemas"]["EnrichmentStatus"];
             nats: components["schemas"]["NATSStatus"];
+            scan_jobs: components["schemas"]["ScanJobsStatus"];
             scanner: components["schemas"]["ScannerStatus"];
         };
         TestRegistryConnectionInputBody: {

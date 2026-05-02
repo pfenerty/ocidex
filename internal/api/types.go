@@ -520,6 +520,8 @@ type SystemStatusOutput struct {
 		Enrichment EnrichmentStatus `json:"enrichment"`
 		Scanner    ScannerStatus    `json:"scanner"`
 		NATS       NATSStatus       `json:"nats"`
+		ScanJobs   ScanJobsStatus   `json:"scan_jobs"`
+		DB         DBStatus         `json:"db"`
 	}
 }
 
@@ -539,6 +541,20 @@ type ScannerStatus struct {
 type NATSStatus struct {
 	Enabled bool   `json:"enabled"`
 	URL     string `json:"url"`
+}
+
+// ScanJobsStatus summarizes scan pipeline job counts.
+type ScanJobsStatus struct {
+	Queued       int64 `json:"queued"`
+	Running      int64 `json:"running"`
+	Succeeded24h int64 `json:"succeeded_24h"`
+	Failed24h    int64 `json:"failed_24h"`
+}
+
+// DBStatus reports database connectivity and latency.
+type DBStatus struct {
+	OK        bool  `json:"ok"`
+	LatencyMs int64 `json:"latency_ms"`
 }
 
 // ---------------------------------------------------------------------------

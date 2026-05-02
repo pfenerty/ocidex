@@ -389,5 +389,23 @@ func (h *Handler) GetSystemStatus(ctx context.Context, _ *struct{}) (*SystemStat
 		Enabled: h.cfg.NATSEnabled,
 		URL:     h.cfg.NATSURL,
 	}
+
+	pingStart := time.Now()
+	pingErr := h.db.Ping(ctx)
+	out.Body.DB = DBStatus{
+		OK:        pingErr == nil,
+		LatencyMs: time.Since(pingStart).Milliseconds(),
+	}
+
+	if h.jobService != nil {
+		queued, running, succ24h, fail24h, _ := h.jobService.CountByState(ctx)
+		out.Body.ScanJobs = ScanJobsStatus{
+			Queued:       queued,
+			Running:      running,
+			Succeeded24h: succ24h,
+			Failed24h:    fail24h,
+		}
+	}
+
 	return out, nil
 }

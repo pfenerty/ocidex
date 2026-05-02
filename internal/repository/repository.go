@@ -91,6 +91,7 @@ type JobRepository interface {
 	FailScanJob(ctx context.Context, arg FailScanJobParams) error
 	ListScanJobs(ctx context.Context, arg ListScanJobsParams) ([]ScanJob, error)
 	CountScanJobs(ctx context.Context, state pgtype.Text) (int64, error)
+	CountScanJobsSince(ctx context.Context, arg CountScanJobsSinceParams) (int64, error)
 	GetScanJob(ctx context.Context, id pgtype.UUID) (ScanJob, error)
 }
 

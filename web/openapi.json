@@ -713,6 +713,23 @@
         ],
         "type": "object"
       },
+      "DBStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "latency_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "latency_ms"
+        ],
+        "type": "object"
+      },
       "DailyCountEntry": {
         "additionalProperties": false,
         "properties": {
@@ -2146,6 +2163,34 @@
         ],
         "type": "object"
       },
+      "ScanJobsStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "failed_24h": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "queued": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "running": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "succeeded_24h": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "queued",
+          "running",
+          "succeeded_24h",
+          "failed_24h"
+        ],
+        "type": "object"
+      },
       "ScanRegistryOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -2254,11 +2299,17 @@
             "readOnly": true,
             "type": "string"
           },
+          "db": {
+            "$ref": "#/components/schemas/DBStatus"
+          },
           "enrichment": {
             "$ref": "#/components/schemas/EnrichmentStatus"
           },
           "nats": {
             "$ref": "#/components/schemas/NATSStatus"
+          },
+          "scan_jobs": {
+            "$ref": "#/components/schemas/ScanJobsStatus"
           },
           "scanner": {
             "$ref": "#/components/schemas/ScannerStatus"
@@ -2267,7 +2318,9 @@
         "required": [
           "enrichment",
           "scanner",
-          "nats"
+          "nats",
+          "scan_jobs",
+          "db"
         ],
         "type": "object"
       },

@@ -28,5 +28,9 @@ LIMIT sqlc.arg('limit_') OFFSET sqlc.arg('offset_');
 SELECT COUNT(*) FROM scan_jobs
 WHERE (sqlc.narg('state')::text IS NULL OR state = sqlc.narg('state')::text);
 
+-- name: CountScanJobsSince :one
+SELECT COUNT(*) FROM scan_jobs
+WHERE state = @state::text AND finished_at >= @since::timestamptz;
+
 -- name: GetScanJob :one
 SELECT * FROM scan_jobs WHERE id = @id;

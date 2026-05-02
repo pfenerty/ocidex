@@ -18,8 +18,8 @@ import (
 )
 
 type fakeSubmitter struct {
-	mu       sync.Mutex
-	requests []ScanRequest
+	mu        sync.Mutex
+	requests  []ScanRequest
 	submitErr error // if set, returned by Submit
 }
 
