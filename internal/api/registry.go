@@ -16,6 +16,12 @@ import (
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
+const (
+	scanModeWebhook = "webhook"
+	scanModePoll    = "poll"
+	scanModeBoth    = "both"
+)
+
 // generateWebhookSecret returns a cryptographically random 32-byte hex-encoded secret.
 func generateWebhookSecret() (string, error) {
 	b := make([]byte, 32)
@@ -90,7 +96,7 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 	}
 	scanMode := in.Body.ScanMode
 	if scanMode == "" {
-		scanMode = "webhook"
+		scanMode = scanModeWebhook
 	}
 	pollInterval := in.Body.PollIntervalMinutes
 	if pollInterval == 0 {
@@ -100,11 +106,14 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 	if visibility == "" {
 		visibility = "public"
 	}
+	if (scanMode == scanModePoll || scanMode == scanModeBoth) && !h.cfg.RegistryPollerEnabled {
+		return nil, huma.Error422UnprocessableEntity("scan_mode 'poll' and 'both' require REGISTRY_POLLER_ENABLED=true")
+	}
 
 	// Auto-generate a webhook secret for webhook-capable registries when not provided.
 	webhookSecret := in.Body.WebhookSecret
 	var generatedSecret string
-	if (scanMode == "webhook" || scanMode == "both") && (webhookSecret == nil || *webhookSecret == "") {
+	if (scanMode == scanModeWebhook || scanMode == scanModeBoth) && (webhookSecret == nil || *webhookSecret == "") {
 		s, err := generateWebhookSecret()
 		if err != nil {
 			return nil, huma.Error500InternalServerError("generating webhook secret")
@@ -166,6 +175,9 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 	visibility := in.Body.Visibility
 	if visibility == "" {
 		visibility = existing.Visibility
+	}
+	if (scanMode == scanModePoll || scanMode == scanModeBoth) && !h.cfg.RegistryPollerEnabled {
+		return nil, huma.Error422UnprocessableEntity("scan_mode 'poll' and 'both' require REGISTRY_POLLER_ENABLED=true")
 	}
 	reg, err := h.registryService.Update(ctx, in.ID, in.Body.Name, in.Body.Type, in.Body.URL, in.Body.Insecure, existing.WebhookSecret, in.Body.Enabled, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval, in.Body.AuthUsername, in.Body.AuthToken, visibility, in.Body.IncludeUntagged)
 	if err != nil {
