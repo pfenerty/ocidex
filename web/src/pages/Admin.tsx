@@ -430,11 +430,17 @@ function RegistriesTab() {
         return counts;
     });
 
+    const statusQuery = useGetSystemStatus();
+
     const [form, setForm] = createSignal<RegistryFormState>(emptyForm());
     const [testResult, setTestResult] = createSignal<{ reachable: boolean; message: string } | null>(null);
     const [editingID, setEditingID] = createSignal<string | null>(null);
     const [editEnabled, setEditEnabled] = createSignal(true);
     const [revealedSecret, setRevealedSecret] = createSignal<string | null>(null);
+
+    const showPollOptions = () =>
+        statusQuery.data?.scanner.poller_enabled === true ||
+        (editingID() !== null && (form().scanMode === "poll" || form().scanMode === "both"));
     let dialogRef: HTMLDialogElement | undefined;
 
     function closeDialog() {
@@ -687,8 +693,10 @@ function RegistriesTab() {
                                     style={{ width: "100%" }}
                                 >
                                     <option value="webhook">webhook</option>
-                                    <option value="poll">poll</option>
-                                    <option value="both">both</option>
+                                    <Show when={showPollOptions()}>
+                                        <option value="poll">poll</option>
+                                        <option value="both">both</option>
+                                    </Show>
                                 </select>
                             </div>
                             <div>
