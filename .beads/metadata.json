@@ -1,7 +1,7 @@
 {
   "database": "dolt",
   "backend": "dolt",
-  "dolt_mode": "server",
+  "dolt_mode": "embedded",
   "dolt_database": "beads_ocidex",
   "project_id": "b9165178-aa67-4c82-9c5b-8bfba1caae94"
 }
