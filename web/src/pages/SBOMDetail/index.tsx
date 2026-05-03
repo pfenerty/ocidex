@@ -1,9 +1,9 @@
-import { createSignal, Show, For } from "solid-js";
+import { Show, For } from "solid-js";
 import { A, useParams, useNavigate } from "@solidjs/router";
 import { useSBOM, useSBOMComponents, useSBOMDependencies, useArtifactSBOMs } from "~/api/queries";
 import { useArtifactNames } from "~/api/queries";
 import type { OCIMetadata } from "~/api/client";
-import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
+import { Loading, ErrorBox } from "~/components/Feedback";
 import CopyDigest from "~/components/CopyDigest";
 import ImageMetadataCard from "~/components/ImageMetadataCard";
 import {
@@ -11,12 +11,10 @@ import {
     formatDateTime,
     plural,
 } from "~/utils/format";
-import { PackagesTab, DependencyTreeView } from "./PackagesTab";
+import { PackagesTab } from "./PackagesTab";
 
 export default function SBOMDetail() {
     const params = useParams<{ id: string }>();
-    const [tab, setTab] = createSignal<"packages" | "dependencies">("packages");
-
     const artifactLookup = useArtifactNames();
     const artifactLabel = (id: string | undefined) => {
         const a = artifactLookup(id);
@@ -27,9 +25,7 @@ export default function SBOMDetail() {
 
     const componentsQuery = useSBOMComponents(() => params.id);
 
-    const depsQuery = useSBOMDependencies(() => params.id, {
-        enabled: () => tab() === "dependencies",
-    });
+    const depsQuery = useSBOMDependencies(() => params.id);
 
     const navigate = useNavigate();
 
@@ -289,92 +285,29 @@ export default function SBOMDetail() {
                                     </div>
                                 </Show>
 
-                                {/* --- Tab bar --- */}
-                                <div class="tab-bar">
-                                    <button
-                                        class={
-                                            tab() === "packages" ? "active" : ""
-                                        }
-                                        onClick={() => setTab("packages")}
-                                    >
-                                        Packages
-                                        <Show when={s.componentCount !== undefined}>
-                                            {" "}
-                                            ({s.componentCount})
-                                        </Show>
-                                    </button>
-                                    <button
-                                        class={
-                                            tab() === "dependencies"
-                                                ? "active"
-                                                : ""
-                                        }
-                                        onClick={() => setTab("dependencies")}
-                                    >
-                                        Dependency Tree
-                                    </button>
-                                </div>
-
-                                <Show when={tab() === "packages"}>
+                                <Show
+                                    when={!componentsQuery.isLoading}
+                                    fallback={<Loading />}
+                                >
                                     <Show
-                                        when={!componentsQuery.isLoading}
-                                        fallback={<Loading />}
+                                        when={!componentsQuery.isError && componentsQuery.data !== undefined ? componentsQuery.data : undefined}
+                                        keyed
+                                        fallback={
+                                            <ErrorBox
+                                                error={componentsQuery.error}
+                                            />
+                                        }
                                     >
-                                        <Show
-                                            when={!componentsQuery.isError && componentsQuery.data !== undefined ? componentsQuery.data : undefined}
-                                            keyed
-                                            fallback={
-                                                <ErrorBox
-                                                    error={
-                                                        componentsQuery.error
-                                                    }
-                                                />
-                                            }
-                                        >
-                                            {(data) => (
-                                                <PackagesTab
-                                                    components={data.components}
-                                                />
-                                            )}
-                                        </Show>
-                                    </Show>
-                                </Show>
-
-                                <Show when={tab() === "dependencies"}>
-                                    <Show
-                                        when={!depsQuery.isLoading}
-                                        fallback={<Loading />}
-                                    >
-                                        <Show
-                                            when={!depsQuery.isError}
-                                            fallback={
-                                                <ErrorBox
-                                                    error={depsQuery.error}
-                                                />
-                                            }
-                                        >
-                                            <Show
-                                                when={
-                                                    depsQuery.data !== undefined &&
-                                                    depsQuery.data.edges.length > 0
+                                        {(data) => (
+                                            <PackagesTab
+                                                components={data.components}
+                                                depsGraph={
+                                                    (depsQuery.data?.edges.length ?? 0) > 0
                                                         ? depsQuery.data
                                                         : undefined
                                                 }
-                                                keyed
-                                                fallback={
-                                                    <EmptyState
-                                                        title="No dependency relationships"
-                                                        message="This SBOM does not contain dependency relationship data."
-                                                    />
-                                                }
-                                            >
-                                                {(graph) => (
-                                                    <DependencyTreeView
-                                                        graph={graph}
-                                                    />
-                                                )}
-                                            </Show>
-                                        </Show>
+                                            />
+                                        )}
                                     </Show>
                                 </Show>
                             </>
