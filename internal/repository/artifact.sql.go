@@ -11,6 +11,32 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countArtifactVersions = `-- name: CountArtifactVersions :one
+SELECT COUNT(DISTINCT
+    COALESCE(s.subject_version,
+        COALESCE(e.data->>'imageVersion', u.data->>'imageVersion'),
+        s.id::text)
+)::bigint AS version_count
+FROM sbom s
+LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
+LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user'         AND u.status = 'success'
+WHERE s.artifact_id = $1
+  AND sbom_visible(s.registry_id, $2::uuid, $3::boolean)
+`
+
+type CountArtifactVersionsParams struct {
+	ArtifactID pgtype.UUID `json:"artifact_id"`
+	UserID     pgtype.UUID `json:"user_id"`
+	IsAdmin    pgtype.Bool `json:"is_admin"`
+}
+
+func (q *Queries) CountArtifactVersions(ctx context.Context, arg CountArtifactVersionsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countArtifactVersions, arg.ArtifactID, arg.UserID, arg.IsAdmin)
+	var version_count int64
+	err := row.Scan(&version_count)
+	return version_count, err
+}
+
 const deleteArtifact = `-- name: DeleteArtifact :execrows
 DELETE FROM artifact WHERE id = $1
 `
@@ -69,6 +95,114 @@ func (q *Queries) GetArtifactOwnerID(ctx context.Context, artifactID pgtype.UUID
 	var owner_id pgtype.UUID
 	err := row.Scan(&owner_id)
 	return owner_id, err
+}
+
+const listArtifactVersions = `-- name: ListArtifactVersions :many
+WITH sboms_meta AS (
+    SELECT
+        s.id,
+        s.created_at,
+        s.enrichment_sufficient,
+        COALESCE(s.subject_version,
+            COALESCE(e.data->>'imageVersion', u.data->>'imageVersion'),
+            s.id::text)                                                  AS version_key,
+        COALESCE(e.data->>'architecture', u.data->>'architecture')       AS architecture,
+        COALESCE(e.data->>'imageVersion',  u.data->>'imageVersion')      AS image_version,
+        COALESCE(e.data->>'revision',      u.data->>'revision')          AS revision,
+        COALESCE(e.data->>'sourceUrl',     u.data->>'sourceUrl')         AS source_url,
+        (COALESCE(e.data->>'created',      u.data->>'created'))::timestamptz AS build_date
+    FROM sbom s
+    LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
+    LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user'         AND u.status = 'success'
+    WHERE s.artifact_id = $1
+      AND sbom_visible(s.registry_id, $4::uuid, $5::boolean)
+),
+newest_per_version AS (
+    SELECT DISTINCT ON (version_key)
+        id, version_key, created_at, enrichment_sufficient, image_version, revision, source_url, build_date
+    FROM sboms_meta
+    ORDER BY version_key, created_at DESC
+),
+architectures_per_version AS (
+    SELECT
+        version_key,
+        array_agg(DISTINCT architecture) FILTER (WHERE architecture IS NOT NULL) AS architectures
+    FROM sboms_meta
+    GROUP BY version_key
+)
+SELECT
+    n.version_key,
+    n.id           AS newest_sbom_id,
+    n.created_at,
+    n.enrichment_sufficient,
+    n.image_version,
+    n.revision,
+    n.source_url,
+    n.build_date,
+    a.architectures,
+    COUNT(*) OVER() AS total_count
+FROM newest_per_version n
+JOIN architectures_per_version a ON a.version_key = n.version_key
+ORDER BY n.created_at DESC
+LIMIT $3 OFFSET $2
+`
+
+type ListArtifactVersionsParams struct {
+	ArtifactID pgtype.UUID `json:"artifact_id"`
+	RowOffset  int32       `json:"row_offset"`
+	RowLimit   int32       `json:"row_limit"`
+	UserID     pgtype.UUID `json:"user_id"`
+	IsAdmin    pgtype.Bool `json:"is_admin"`
+}
+
+type ListArtifactVersionsRow struct {
+	VersionKey           pgtype.Text        `json:"version_key"`
+	NewestSbomID         pgtype.UUID        `json:"newest_sbom_id"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	EnrichmentSufficient bool               `json:"enrichment_sufficient"`
+	ImageVersion         interface{}        `json:"image_version"`
+	Revision             interface{}        `json:"revision"`
+	SourceUrl            interface{}        `json:"source_url"`
+	BuildDate            pgtype.Timestamptz `json:"build_date"`
+	Architectures        interface{}        `json:"architectures"`
+	TotalCount           int64              `json:"total_count"`
+}
+
+func (q *Queries) ListArtifactVersions(ctx context.Context, arg ListArtifactVersionsParams) ([]ListArtifactVersionsRow, error) {
+	rows, err := q.db.Query(ctx, listArtifactVersions,
+		arg.ArtifactID,
+		arg.RowOffset,
+		arg.RowLimit,
+		arg.UserID,
+		arg.IsAdmin,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListArtifactVersionsRow{}
+	for rows.Next() {
+		var i ListArtifactVersionsRow
+		if err := rows.Scan(
+			&i.VersionKey,
+			&i.NewestSbomID,
+			&i.CreatedAt,
+			&i.EnrichmentSufficient,
+			&i.ImageVersion,
+			&i.Revision,
+			&i.SourceUrl,
+			&i.BuildDate,
+			&i.Architectures,
+			&i.TotalCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listArtifacts = `-- name: ListArtifacts :many

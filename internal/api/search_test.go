@@ -166,6 +166,15 @@ func (f *fakeSearchService) GetDashboardStats(_ context.Context, _ service.Visib
 	return &service.DashboardStats{}, nil
 }
 
+func (f *fakeSearchService) ListVersionsByArtifact(_ context.Context, _ pgtype.UUID, limit, offset int32, _ service.VisibilityFilter) (service.PagedResult[service.ArtifactVersion], error) {
+	return service.PagedResult[service.ArtifactVersion]{
+		Data:   []service.ArtifactVersion{{VersionKey: "v1.0.0", SbomID: "sbom1", Architectures: []string{"amd64"}}},
+		Total:  1,
+		Limit:  limit,
+		Offset: offset,
+	}, nil
+}
+
 // notFoundSearchService returns ErrNotFound for single-item lookups.
 type notFoundSearchService struct{ fakeSearchService }
 

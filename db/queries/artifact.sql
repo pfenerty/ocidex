@@ -67,3 +67,64 @@ WHERE s.artifact_id = $1
   AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
 ORDER BY s.created_at DESC
 LIMIT @row_limit OFFSET @row_offset;
+
+-- name: ListArtifactVersions :many
+WITH sboms_meta AS (
+    SELECT
+        s.id,
+        s.created_at,
+        s.enrichment_sufficient,
+        COALESCE(s.subject_version,
+            COALESCE(e.data->>'imageVersion', u.data->>'imageVersion'),
+            s.id::text)                                                  AS version_key,
+        COALESCE(e.data->>'architecture', u.data->>'architecture')       AS architecture,
+        COALESCE(e.data->>'imageVersion',  u.data->>'imageVersion')      AS image_version,
+        COALESCE(e.data->>'revision',      u.data->>'revision')          AS revision,
+        COALESCE(e.data->>'sourceUrl',     u.data->>'sourceUrl')         AS source_url,
+        (COALESCE(e.data->>'created',      u.data->>'created'))::timestamptz AS build_date
+    FROM sbom s
+    LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
+    LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user'         AND u.status = 'success'
+    WHERE s.artifact_id = $1
+      AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+),
+newest_per_version AS (
+    SELECT DISTINCT ON (version_key)
+        id, version_key, created_at, enrichment_sufficient, image_version, revision, source_url, build_date
+    FROM sboms_meta
+    ORDER BY version_key, created_at DESC
+),
+architectures_per_version AS (
+    SELECT
+        version_key,
+        array_agg(DISTINCT architecture) FILTER (WHERE architecture IS NOT NULL) AS architectures
+    FROM sboms_meta
+    GROUP BY version_key
+)
+SELECT
+    n.version_key,
+    n.id           AS newest_sbom_id,
+    n.created_at,
+    n.enrichment_sufficient,
+    n.image_version,
+    n.revision,
+    n.source_url,
+    n.build_date,
+    a.architectures,
+    COUNT(*) OVER() AS total_count
+FROM newest_per_version n
+JOIN architectures_per_version a ON a.version_key = n.version_key
+ORDER BY n.created_at DESC
+LIMIT @row_limit OFFSET @row_offset;
+
+-- name: CountArtifactVersions :one
+SELECT COUNT(DISTINCT
+    COALESCE(s.subject_version,
+        COALESCE(e.data->>'imageVersion', u.data->>'imageVersion'),
+        s.id::text)
+)::bigint AS version_count
+FROM sbom s
+LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
+LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user'         AND u.status = 'success'
+WHERE s.artifact_id = $1
+  AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);

@@ -298,6 +298,40 @@ func (h *Handler) ListArtifactSBOMs(ctx context.Context, input *ListArtifactSBOM
 	return out, nil
 }
 
+// ListArtifactVersions handles GET /api/v1/artifacts/{id}/versions.
+func (h *Handler) ListArtifactVersions(ctx context.Context, input *ListArtifactVersionsInput) (*ListArtifactVersionsOutput, error) {
+	id, err := parseUUID(input.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	vis := visibilityFilterFromContext(ctx)
+	result, err := h.searchService.ListVersionsByArtifact(ctx, id, input.Limit, input.Offset, vis)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	items := make([]ArtifactVersionSummary, 0, len(result.Data))
+	for _, v := range result.Data {
+		items = append(items, ArtifactVersionSummary{
+			VersionKey:    v.VersionKey,
+			SbomID:        v.SbomID,
+			Architectures: v.Architectures,
+			ImageVersion:  v.ImageVersion,
+			Revision:      v.Revision,
+			SourceURL:     v.SourceURL,
+			BuildDate:     v.BuildDate,
+			CreatedAt:     v.CreatedAt,
+			Sufficient:    v.Sufficient,
+		})
+	}
+
+	out := &ListArtifactVersionsOutput{}
+	out.Body.Data = items
+	out.Body.Pagination = paginationMeta(result)
+	return out, nil
+}
+
 // DiffSBOMs handles GET /api/v1/sboms/diff?from={id}&to={id}.
 func (h *Handler) DiffSBOMs(ctx context.Context, input *DiffSBOMsInput) (*DiffSBOMsOutput, error) {
 	fromID, err := parseUUID(input.From)

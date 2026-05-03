@@ -2,7 +2,7 @@ import { createSignal, Show } from "solid-js";
 import { A, useParams } from "@solidjs/router";
 import {
     useArtifact,
-    useArtifactSBOMs,
+    useArtifactVersions,
     useArtifactChangelog,
     useArtifactLicenseSummary,
 } from "~/api/queries";
@@ -16,26 +16,26 @@ import {
     plural,
 } from "~/utils/format";
 import { containerRegistryUrl, detectRegistry } from "~/utils/oci";
-import { SBOMsTab } from "./SBOMsTab";
+import { VersionsTab } from "./VersionsTab";
 import { LicensesTab } from "./LicensesTab";
 import { ChangelogTab } from "./ChangelogTab";
 
 export default function ArtifactDetail() {
     const params = useParams<{ id: string }>();
-    const [sbomOffset, setSbomOffset] = createSignal(0);
-    const [tab, setTab] = createSignal<"sboms" | "changelog" | "licenses">(
-        "sboms",
+    const [versionOffset, setVersionOffset] = createSignal(0);
+    const [tab, setTab] = createSignal<"versions" | "changelog" | "licenses">(
+        "versions",
     );
     const [selectedArch, setSelectedArch] = createSignal<string | undefined>(
         undefined,
     );
-    const sbomLimit = 25;
+    const versionLimit = 25;
 
     const artifactQuery = useArtifact(() => params.id);
 
-    const sbomsQuery = useArtifactSBOMs(
+    const versionsQuery = useArtifactVersions(
         () => params.id,
-        () => ({ limit: sbomLimit, offset: sbomOffset() }),
+        () => ({ limit: versionLimit, offset: versionOffset() }),
     );
 
     const changelogQuery = useArtifactChangelog(() => params.id, {
@@ -226,11 +226,11 @@ export default function ArtifactDetail() {
                                 <div class="tab-bar">
                                     <button
                                         class={
-                                            tab() === "sboms" ? "active" : ""
+                                            tab() === "versions" ? "active" : ""
                                         }
-                                        onClick={() => setTab("sboms")}
+                                        onClick={() => setTab("versions")}
                                     >
-                                        SBOMs ({a().sbomCount})
+                                        Versions ({a().versionCount})
                                     </button>
                                     <button
                                         class={
@@ -252,45 +252,42 @@ export default function ArtifactDetail() {
                                     </button>
                                 </div>
 
-                                <Show when={tab() === "sboms"}>
+                                <Show when={tab() === "versions"}>
                                     <Show
-                                        when={!sbomsQuery.isLoading}
+                                        when={!versionsQuery.isLoading}
                                         fallback={<Loading />}
                                     >
                                         <Show
-                                            when={!sbomsQuery.isError}
+                                            when={!versionsQuery.isError}
                                             fallback={
                                                 <ErrorBox
-                                                    error={sbomsQuery.error}
+                                                    error={versionsQuery.error}
                                                 />
                                             }
                                         >
                                             <Show
                                                 when={
-                                                    sbomsQuery.data &&
-                                                    sbomsQuery.data.data
+                                                    versionsQuery.data &&
+                                                    versionsQuery.data.data
                                                         .length > 0
-                                                        ? sbomsQuery.data
+                                                        ? versionsQuery.data
                                                         : undefined
                                                 }
                                                 fallback={
                                                     <EmptyState
-                                                        title="No SBOMs yet"
+                                                        title="No versions yet"
                                                         message="Ingest a CycloneDX SBOM for this artifact to see it here."
                                                     />
                                                 }
                                             >
                                                 {(d) => (
-                                                    <SBOMsTab
-                                                        sboms={d().data}
+                                                    <VersionsTab
+                                                        versions={d().data}
                                                         pagination={
                                                             d().pagination
                                                         }
-                                                        artifactId={params.id}
-                                                        artifactName={a().name}
-                                                        artifactType={a().type}
                                                         onPageChange={
-                                                            setSbomOffset
+                                                            setVersionOffset
                                                         }
                                                     />
                                                 )}

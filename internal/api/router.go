@@ -303,6 +303,14 @@ func registerArtifactOps(api huma.API, h *Handler) {
 	}, h.ListArtifactSBOMs)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "list-artifact-versions",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/artifacts/{id}/versions",
+		Summary:     "List versions for an artifact",
+		Tags:        []string{"Artifacts"},
+	}, h.ListArtifactVersions)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "get-artifact-changelog",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/artifacts/{id}/changelog",

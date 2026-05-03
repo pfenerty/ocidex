@@ -106,6 +106,40 @@ export function useArtifactSBOMs(
 }
 
 // ---------------------------------------------------------------------------
+// useArtifactVersions — GET /api/v1/artifacts/{id}/versions
+// ---------------------------------------------------------------------------
+
+export interface UseArtifactVersionsParams {
+    limit?: number;
+    offset?: number;
+}
+
+export function useArtifactVersions(
+    id: Accessor<string>,
+    params: Accessor<UseArtifactVersionsParams>,
+    options?: { enabled?: Accessor<boolean> },
+) {
+    return createQuery(() => {
+        const p = params();
+        return {
+            queryKey: ["artifact", id(), "versions", p.limit, p.offset] as const,
+            queryFn: () =>
+                unwrap(
+                    client.GET("/api/v1/artifacts/{id}/versions", {
+                        params: {
+                            path: { id: id() },
+                            query: { limit: p.limit, offset: p.offset },
+                        },
+                    }),
+                ),
+            keepPreviousData: true,
+            enabled: options?.enabled?.() ?? true,
+            select: (resp) => ({ ...resp, data: resp.data ?? [] }),
+        };
+    });
+}
+
+// ---------------------------------------------------------------------------
 // useArtifactChangelog — GET /api/v1/artifacts/{id}/changelog
 // ---------------------------------------------------------------------------
 

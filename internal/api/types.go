@@ -353,6 +353,37 @@ type ListArtifactSBOMsOutput struct {
 }
 
 // ---------------------------------------------------------------------------
+// Artifacts — Versions
+// ---------------------------------------------------------------------------
+
+// ListArtifactVersionsInput is the request for GET /api/v1/artifacts/{id}/versions.
+type ListArtifactVersionsInput struct {
+	PaginationParams
+	ID string `path:"id" doc:"Artifact UUID" format:"uuid"`
+}
+
+// ArtifactVersionSummary is a single version row returned by the versions endpoint.
+type ArtifactVersionSummary struct {
+	VersionKey    string     `json:"versionKey"`
+	SbomID        string     `json:"sbomId"`
+	Architectures []string   `json:"architectures"`
+	ImageVersion  *string    `json:"imageVersion,omitempty"`
+	Revision      *string    `json:"revision,omitempty"`
+	SourceURL     *string    `json:"sourceUrl,omitempty"`
+	BuildDate     *time.Time `json:"buildDate,omitempty"`
+	CreatedAt     time.Time  `json:"createdAt"`
+	Sufficient    bool       `json:"sufficient"`
+}
+
+// ListArtifactVersionsOutput is the response for GET /api/v1/artifacts/{id}/versions.
+type ListArtifactVersionsOutput struct {
+	Body struct {
+		Data       []ArtifactVersionSummary `json:"data"`
+		Pagination PaginationMeta           `json:"pagination"`
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Artifacts — Changelog
 // ---------------------------------------------------------------------------
 

@@ -23,6 +23,7 @@ type SearchService interface {
 	GetArtifact(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ArtifactDetail, error)
 	ListArtifacts(ctx context.Context, filter ArtifactFilter) (PagedResult[ArtifactSummary], error)
 	ListSBOMsByArtifact(ctx context.Context, artifactID pgtype.UUID, subjectVersion, imageVersion string, limit, offset int32, vis VisibilityFilter) (PagedResult[SBOMSummary], error)
+	ListVersionsByArtifact(ctx context.Context, artifactID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ArtifactVersion], error)
 	GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch string, vis VisibilityFilter) (Changelog, error)
 	DiffSBOMs(ctx context.Context, fromID, toID pgtype.UUID, vis VisibilityFilter) (ChangelogEntry, error)
 	ListSBOMsByDigest(ctx context.Context, digest string, limit, offset int32, vis VisibilityFilter) (PagedResult[SBOMSummary], error)
@@ -132,9 +133,23 @@ type ArtifactSummary struct {
 // ArtifactDetail extends ArtifactSummary with full metadata.
 type ArtifactDetail struct {
 	ArtifactSummary
-	Purl      *string   `json:"purl,omitempty"`
-	Cpe       *string   `json:"cpe,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
+	Purl         *string   `json:"purl,omitempty"`
+	Cpe          *string   `json:"cpe,omitempty"`
+	CreatedAt    time.Time `json:"createdAt"`
+	VersionCount int64     `json:"versionCount"`
+}
+
+// ArtifactVersion is a grouped version entry for an artifact.
+type ArtifactVersion struct {
+	VersionKey    string     `json:"versionKey"`
+	SbomID        string     `json:"sbomId"`
+	Architectures []string   `json:"architectures"`
+	ImageVersion  *string    `json:"imageVersion,omitempty"`
+	Revision      *string    `json:"revision,omitempty"`
+	SourceURL     *string    `json:"sourceUrl,omitempty"`
+	BuildDate     *time.Time `json:"buildDate,omitempty"`
+	CreatedAt     time.Time  `json:"createdAt"`
+	Sufficient    bool       `json:"sufficient"`
 }
 
 // SBOMSummary is a lightweight SBOM representation for list views.

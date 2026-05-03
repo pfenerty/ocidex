@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -54,6 +55,15 @@ func (s *searchService) GetArtifact(ctx context.Context, id pgtype.UUID, vis Vis
 		sbomCount = sbomRows[0].TotalCount
 	}
 
+	versionCount, err := q.CountArtifactVersions(ctx, repository.CountArtifactVersionsParams{
+		ArtifactID: id,
+		UserID:     vis.UserID,
+		IsAdmin:    visAdminBool(vis),
+	})
+	if err != nil {
+		return ArtifactDetail{}, fmt.Errorf("counting versions: %w", err)
+	}
+
 	return ArtifactDetail{
 		ArtifactSummary: ArtifactSummary{
 			ID:        uuidToString(row.ID),
@@ -62,9 +72,68 @@ func (s *searchService) GetArtifact(ctx context.Context, id pgtype.UUID, vis Vis
 			Group:     textToPtr(row.GroupName),
 			SbomCount: sbomCount,
 		},
-		Purl:      textToPtr(row.Purl),
-		Cpe:       textToPtr(row.Cpe),
-		CreatedAt: row.CreatedAt.Time,
+		Purl:         textToPtr(row.Purl),
+		Cpe:          textToPtr(row.Cpe),
+		CreatedAt:    row.CreatedAt.Time,
+		VersionCount: versionCount,
+	}, nil
+}
+
+func (s *searchService) ListVersionsByArtifact(ctx context.Context, artifactID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ArtifactVersion], error) {
+	q := repository.New(s.db)
+
+	rows, err := q.ListArtifactVersions(ctx, repository.ListArtifactVersionsParams{
+		ArtifactID: artifactID,
+		UserID:     vis.UserID,
+		IsAdmin:    visAdminBool(vis),
+		RowLimit:   limit,
+		RowOffset:  offset,
+	})
+	if err != nil {
+		return PagedResult[ArtifactVersion]{}, fmt.Errorf("listing artifact versions: %w", err)
+	}
+
+	var total int64
+	items := make([]ArtifactVersion, 0, len(rows))
+	for _, row := range rows {
+		total = row.TotalCount
+		v := ArtifactVersion{
+			VersionKey: row.VersionKey.String,
+			SbomID:     uuidToString(row.NewestSbomID),
+			Sufficient: row.EnrichmentSufficient,
+			CreatedAt:  row.CreatedAt.Time,
+		}
+		if row.BuildDate.Valid {
+			t := row.BuildDate.Time
+			v.BuildDate = &t
+		}
+		if s, ok := row.ImageVersion.(string); ok && s != "" {
+			v.ImageVersion = &s
+		}
+		if s, ok := row.Revision.(string); ok && s != "" {
+			v.Revision = &s
+		}
+		if s, ok := row.SourceUrl.(string); ok && s != "" {
+			v.SourceURL = &s
+		}
+		if arches, ok := row.Architectures.([]interface{}); ok {
+			strs := make([]string, 0, len(arches))
+			for _, a := range arches {
+				if arch, ok := a.(string); ok && arch != "" {
+					strs = append(strs, arch)
+				}
+			}
+			sort.Strings(strs)
+			v.Architectures = strs
+		}
+		items = append(items, v)
+	}
+
+	return PagedResult[ArtifactVersion]{
+		Data:   items,
+		Total:  total,
+		Limit:  limit,
+		Offset: offset,
 	}, nil
 }
 

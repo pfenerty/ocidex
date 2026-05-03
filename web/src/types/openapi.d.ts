@@ -124,6 +124,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/artifacts/{id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List versions for an artifact */
+        get: operations["list-artifact-versions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/keys": {
         parameters: {
             query?: never;
@@ -653,6 +670,8 @@ export interface components {
             /** Format: int64 */
             sufficientSbomCount: number;
             type: string;
+            /** Format: int64 */
+            versionCount: number;
         };
         ArtifactSummary: {
             group?: string;
@@ -663,6 +682,19 @@ export interface components {
             /** Format: int64 */
             sufficientSbomCount: number;
             type: string;
+        };
+        ArtifactVersionSummary: {
+            architectures: string[] | null;
+            /** Format: date-time */
+            buildDate?: string;
+            /** Format: date-time */
+            createdAt: string;
+            imageVersion?: string;
+            revision?: string;
+            sbomId: string;
+            sourceUrl?: string;
+            sufficient: boolean;
+            versionKey: string;
         };
         CategoryCountEntry: {
             category: string;
@@ -1094,6 +1126,16 @@ export interface components {
              */
             readonly $schema?: string;
             data: components["schemas"]["SBOMSummary"][] | null;
+            pagination: components["schemas"]["PaginationMeta"];
+        };
+        ListArtifactVersionsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListArtifactVersionsOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["ArtifactVersionSummary"][] | null;
             pagination: components["schemas"]["PaginationMeta"];
         };
         ListArtifactsOutputBody: {
@@ -1814,6 +1856,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListArtifactSBOMsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-artifact-versions": {
+        parameters: {
+            query?: {
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Number of results to skip */
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Artifact UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListArtifactVersionsOutputBody"];
                 };
             };
             /** @description Error */

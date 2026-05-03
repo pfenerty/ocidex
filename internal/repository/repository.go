@@ -67,6 +67,8 @@ type ArtifactRepository interface {
 	GetArtifact(ctx context.Context, id pgtype.UUID) (Artifact, error)
 	ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([]ListArtifactsRow, error)
 	ListSBOMsByArtifact(ctx context.Context, arg ListSBOMsByArtifactParams) ([]ListSBOMsByArtifactRow, error)
+	ListArtifactVersions(ctx context.Context, arg ListArtifactVersionsParams) ([]ListArtifactVersionsRow, error)
+	CountArtifactVersions(ctx context.Context, arg CountArtifactVersionsParams) (int64, error)
 	DeleteArtifact(ctx context.Context, id pgtype.UUID) (int64, error)
 }
 
