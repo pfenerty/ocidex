@@ -164,7 +164,7 @@ OCIDex is configured via environment variables:
 | `ENRICHMENT_ENABLED` | `false` | Enable post-ingestion enrichment pipeline |
 | `ENRICHMENT_WORKERS` | `2` | Number of enrichment worker goroutines |
 | `ENRICHMENT_QUEUE_SIZE` | `100` | Enrichment request queue capacity |
-| `NATS_ENABLED` | `false` | Enable NATS JetStream event relay |
+| `OCIDEX_MODE` | `embedded` | Deployment mode: `embedded` (in-process) or `distributed` (NATS workers) |
 | `NATS_URL` | `nats://localhost:4222` | NATS server URL |
 | `NATS_STREAM_NAME` | `ocidex` | JetStream stream name |
 | `NATS_EVENT_TTL_HOURS` | `24` | Event retention period (hours) |

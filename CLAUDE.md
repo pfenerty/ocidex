@@ -178,11 +178,14 @@ This regenerates `web/openapi.json` (via `cmd/specgen`) and `web/src/types/opena
 
 ## Configuration
 
-Environment variables (see `.env.example`):
+Environment variables (see `.env.example` and `docs/CONFIGURATION.md`):
 - `PORT` (default: 8080)
 - `LOG_LEVEL` (default: info)
 - `ENVIRONMENT` (development/staging/production)
 - `DATABASE_URL` (PostgreSQL connection string)
+- `OCIDEX_MODE` (default: `embedded`) — deployment mode:
+  - `embedded`: in-process enrichment and scanning; no NATS required. Used for `make run` and Docker Compose.
+  - `distributed`: NATS required; API publishes, `scanner-worker`/`enrichment-worker` consume from JetStream. Used for K8s.
 
 ## Health Endpoints
 

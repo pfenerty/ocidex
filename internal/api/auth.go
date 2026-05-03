@@ -387,7 +387,7 @@ func (h *Handler) GetSystemStatus(ctx context.Context, _ *struct{}) (*SystemStat
 		PollerEnabled: h.cfg.RegistryPollerEnabled,
 	}
 	out.Body.NATS = NATSStatus{
-		Enabled: h.cfg.NATSEnabled,
+		Enabled: h.cfg.IsDistributed(),
 		URL:     h.cfg.NATSURL,
 	}
 

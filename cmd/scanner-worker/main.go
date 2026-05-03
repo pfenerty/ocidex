@@ -1,7 +1,6 @@
 // Package main is the entry point for the OCIDex scanner worker.
 // It consumes scan requests from NATS JetStream, runs Syft, and ingests
-// the resulting SBOMs. Designed to run as a standalone process alongside
-// the main ocidex server when SCANNER_NATS_MODE=true.
+// the resulting SBOMs. Requires OCIDEX_MODE=distributed.
 //
 // Pass --once to scan a single image and exit (K8s Job mode). Set SCAN_IMAGE
 // and optionally SCAN_REGISTRY_ID, SCAN_INSECURE, SCAN_AUTH_USERNAME, SCAN_AUTH_TOKEN.
@@ -45,6 +44,10 @@ func run() error {
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
+	}
+
+	if !cfg.IsDistributed() {
+		return fmt.Errorf("scanner-worker requires OCIDEX_MODE=distributed")
 	}
 
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
@@ -124,20 +127,7 @@ func run() error {
 	}
 	reaperCtx, reaperCancel := context.WithCancel(context.Background())
 	defer reaperCancel()
-	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				if err := jobSvc.TimeoutJobs(reaperCtx, jobTimeout); err != nil && reaperCtx.Err() == nil {
-					slog.Warn("timeout sweep failed", "err", err)
-				}
-			case <-reaperCtx.Done():
-				return
-			}
-		}
-	}()
+	go runJobReaper(reaperCtx, jobSvc, jobTimeout)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -238,4 +228,19 @@ func parseImageRef(ref string) (registryURL, repo, digest, tag string, err error
 	}
 
 	return registryURL, repo, digest, tag, nil
+}
+
+func runJobReaper(ctx context.Context, jobSvc service.JobService, timeout time.Duration) {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if err := jobSvc.TimeoutJobs(ctx, timeout); err != nil && ctx.Err() == nil {
+				slog.Warn("timeout sweep failed", "err", err)
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }

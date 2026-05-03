@@ -24,12 +24,16 @@ type Config struct {
 	// Audit logging.
 	AuditLogEnabled bool `env:"AUDIT_LOG_ENABLED" envDefault:"true"`
 
-	// NATS JetStream (optional outbound layer).
-	NATSEnabled        bool   `env:"NATS_ENABLED"          envDefault:"false"`
-	NATSURL            string `env:"NATS_URL"              envDefault:"nats://localhost:4222"`
-	NATSStreamName     string `env:"NATS_STREAM_NAME"      envDefault:"ocidex"`
-	NATSEventTTL       int    `env:"NATS_EVENT_TTL_HOURS"  envDefault:"24"`
-	NATSStreamReplicas int    `env:"NATS_STREAM_REPLICAS"  envDefault:"1"`
+	// Mode controls how the API server and workers operate.
+	// 'embedded' (default): in-process event bus and dispatchers; no NATS required.
+	// 'distributed': NATS required; API publishes, workers consume from JetStream.
+	Mode string `env:"OCIDEX_MODE" envDefault:"embedded"`
+
+	// NATS JetStream (distributed mode only).
+	NATSURL            string `env:"NATS_URL"             envDefault:"nats://localhost:4222"`
+	NATSStreamName     string `env:"NATS_STREAM_NAME"     envDefault:"ocidex"`
+	NATSEventTTL       int    `env:"NATS_EVENT_TTL_HOURS" envDefault:"24"`
+	NATSStreamReplicas int    `env:"NATS_STREAM_REPLICAS" envDefault:"1"`
 
 	// Database pool.
 	DatabaseMaxConns int `env:"DATABASE_MAX_CONNECTIONS" envDefault:"10"`
@@ -51,13 +55,6 @@ type Config struct {
 	ScannerEnabled   bool `env:"SCANNER_ENABLED"    envDefault:"false"`
 	ScannerWorkers   int  `env:"SCANNER_WORKERS"    envDefault:"2"`
 	ScannerQueueSize int  `env:"SCANNER_QUEUE_SIZE" envDefault:"50"`
-	// ScannerNATSMode routes scan submissions to NATS instead of in-process workers.
-	// Requires NATS_ENABLED=true. Run cmd/scanner-worker separately when true.
-	ScannerNATSMode bool `env:"SCANNER_NATS_MODE" envDefault:"false"`
-
-	// EnrichmentNATSMode offloads enrichment to standalone enrichment-worker processes.
-	// Requires NATS_ENABLED=true. The API only publishes; enrichment-worker consumes.
-	EnrichmentNATSMode bool `env:"ENRICHMENT_NATS_MODE" envDefault:"false"`
 
 	// RegistryPollerEnabled starts the background poller for poll-mode registries.
 	RegistryPollerEnabled bool `env:"REGISTRY_POLLER_ENABLED" envDefault:"false"`
@@ -69,8 +66,24 @@ func Load() (*Config, error) {
 	if err := env.Parse(cfg); err != nil {
 		return nil, fmt.Errorf("parsing config: %w", err)
 	}
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
 	return cfg, nil
 }
+
+func (c *Config) validate() error {
+	if c.Mode != "embedded" && c.Mode != "distributed" {
+		return fmt.Errorf("OCIDEX_MODE must be 'embedded' or 'distributed', got %q", c.Mode)
+	}
+	if c.IsDistributed() && c.NATSURL == "" {
+		return fmt.Errorf("NATS_URL is required when OCIDEX_MODE=distributed")
+	}
+	return nil
+}
+
+// IsDistributed reports whether the server is operating in distributed mode.
+func (c *Config) IsDistributed() bool { return c.Mode == "distributed" }
 
 // LogLevel returns the slog.Level corresponding to the configured log level string.
 func (c *Config) SlogLevel() slog.Level {

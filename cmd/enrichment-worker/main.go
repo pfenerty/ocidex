@@ -1,7 +1,6 @@
 // Package main is the entry point for the OCIDex enrichment worker.
 // It consumes SBOMIngested events from NATS JetStream, runs the enrichment
-// pipeline, and persists results. Designed to run as a standalone process
-// alongside the main ocidex server when ENRICHMENT_NATS_MODE=true.
+// pipeline, and persists results. Requires OCIDEX_MODE=distributed.
 //
 // Pass --once to enrich a single SBOM and exit (K8s Job mode). Set ENRICH_SBOM_ID
 // to the UUID of the SBOM to enrich.
@@ -44,6 +43,10 @@ func run() error {
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
+	}
+
+	if !cfg.IsDistributed() {
+		return fmt.Errorf("enrichment-worker requires OCIDEX_MODE=distributed")
 	}
 
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{

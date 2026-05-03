@@ -4,37 +4,37 @@ OCIDex is configured entirely via environment variables. The API server, scanner
 
 ## Deployment Modes
 
-OCIDex supports two deployment topologies:
+OCIDex supports two deployment topologies, controlled by a single `OCIDEX_MODE` variable:
 
-### In-Process (Docker Compose / Single Server)
+### Embedded (default — Docker Compose / single server)
 
 All subsystems run inside the single `ocidex` process. No NATS or separate workers needed.
 
 ```
-┌─────────────────────────────────────────────────────┐
-│  ocidex API process                                   │
-│  ├── HTTP server                                      │
-│  ├── Enrichment workers  (ENRICHMENT_ENABLED=true)   │
-│  ├── Scanner workers     (SCANNER_ENABLED=true)       │
-│  └── Registry poller     (REGISTRY_POLLER_ENABLED=true) │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│  ocidex API process                                       │
+│  ├── HTTP server                                          │
+│  ├── Enrichment workers  (ENRICHMENT_ENABLED=true)       │
+│  ├── Scanner workers     (SCANNER_ENABLED=true)           │
+│  └── Registry poller     (REGISTRY_POLLER_ENABLED=true)  │
+└─────────────────────────────────────────────────────────┘
 ```
 
-Key settings: `SCANNER_NATS_MODE=false`, `ENRICHMENT_NATS_MODE=false`
+Key setting: `OCIDEX_MODE=embedded` (or unset — this is the default)
 
-### NATS Scale-Out (Kubernetes / Production)
+### Distributed (Kubernetes / production)
 
 The API process publishes work to NATS JetStream; separate worker processes consume it. Run `scanner-worker` and `enrichment-worker` as independent deployments.
 
 ```
-┌──────────────────┐     ┌─────────┐     ┌─────────────────┐
+┌──────────────────┐     ┌─────────┐     ┌──────────────────┐
 │  ocidex API      │────▶│  NATS   │────▶│  scanner-worker  │
 │  (publishes jobs)│     │JetStream│     │  enrichment-     │
 │  + registry poll │     └─────────┘     │  worker          │
-└──────────────────┘                     └─────────────────┘
+└──────────────────┘                     └──────────────────┘
 ```
 
-Key settings: `SCANNER_NATS_MODE=true`, `ENRICHMENT_NATS_MODE=true`, `NATS_ENABLED=true`
+Key setting: `OCIDEX_MODE=distributed` (requires `NATS_URL`)
 
 ---
 
@@ -48,6 +48,7 @@ Key settings: `SCANNER_NATS_MODE=true`, `ENRICHMENT_NATS_MODE=true`, `NATS_ENABL
 | `PORT` | `8080` | no | HTTP listen port. |
 | `LOG_LEVEL` | `info` | no | Log verbosity: `debug`, `info`, `warn`, `error`. |
 | `ENVIRONMENT` | `development` | no | Runtime environment label: `development`, `staging`, `production`. |
+| `OCIDEX_MODE` | `embedded` | no | Deployment mode. `embedded`: in-process enrichment and scanning, no NATS required. `distributed`: NATS required; API publishes, workers consume from JetStream. |
 
 ### Authentication (GitHub OAuth)
 
@@ -81,10 +82,9 @@ Controls how SBOMs are enriched after ingestion (OCI label extraction, user meta
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ENRICHMENT_ENABLED` | `true` | Enable in-process enrichment workers. Set `false` when using `ENRICHMENT_NATS_MODE=true`. |
+| `ENRICHMENT_ENABLED` | `true` | Enable in-process enrichment workers. Only applies in `embedded` mode; ignored in `distributed` mode (enrichment-worker handles it). |
 | `ENRICHMENT_WORKERS` | `2` | Number of concurrent in-process enrichment goroutines. |
 | `ENRICHMENT_QUEUE_SIZE` | `100` | In-process enrichment work queue depth before back-pressure. |
-| `ENRICHMENT_NATS_MODE` | `false` | Offload enrichment to standalone `enrichment-worker` processes via NATS. Requires `NATS_ENABLED=true`. When `true`, set `ENRICHMENT_ENABLED=false` on the API process. |
 
 ### OCI Registry Scanner
 
@@ -93,9 +93,8 @@ Controls webhook-triggered and poll-triggered OCI image scanning (runs Syft).
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SCANNER_ENABLED` | `false` | Enable the scanner subsystem. Required for both webhook and poll scan modes. |
-| `SCANNER_WORKERS` | `2` | Number of concurrent in-process scan goroutines. Ignored when `SCANNER_NATS_MODE=true`. |
-| `SCANNER_QUEUE_SIZE` | `50` | In-process scan work queue depth. Ignored when `SCANNER_NATS_MODE=true`. |
-| `SCANNER_NATS_MODE` | `false` | Route scan jobs to standalone `scanner-worker` processes via NATS instead of running in-process. Requires `NATS_ENABLED=true`. |
+| `SCANNER_WORKERS` | `2` | Number of concurrent in-process scan goroutines. Only used in `embedded` mode. |
+| `SCANNER_QUEUE_SIZE` | `50` | In-process scan work queue depth. Only used in `embedded` mode. |
 | `REGISTRY_POLLER_ENABLED` | `false` | Enable the background poller for registries with `scan_mode=poll` or `scan_mode=both`. Requires `SCANNER_ENABLED=true`. Uses leader election so multiple API replicas are safe. |
 
 **Scan mode summary:**
@@ -108,11 +107,10 @@ Controls webhook-triggered and poll-triggered OCI image scanning (runs Syft).
 
 ### NATS JetStream
 
-Used for the event relay (external subscribers) and optional scale-out mode (NATS workers).
+Required when `OCIDEX_MODE=distributed`. Ignored in `embedded` mode.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `NATS_ENABLED` | `false` | Connect to NATS and start the event relay. Required for NATS worker modes. |
 | `NATS_URL` | `nats://localhost:4222` | NATS server connection URL. |
 | `NATS_STREAM_NAME` | `ocidex` | JetStream stream name. |
 | `NATS_EVENT_TTL_HOURS` | `24` | How long events are retained in the stream. |
@@ -128,14 +126,17 @@ Used for the event relay (external subscribers) and optional scale-out mode (NAT
 
 ## Worker Binaries
 
+Both worker binaries require `OCIDEX_MODE=distributed` and will exit non-zero immediately if it is not set.
+
 ### `scanner-worker`
 
-Runs as a long-lived daemon consuming scan jobs from NATS. Used when `SCANNER_NATS_MODE=true`.
+Runs as a long-lived daemon consuming scan jobs from NATS.
 
 Shares the same config vars as the API process. Relevant subset:
 
 - `DATABASE_URL` (required)
-- `NATS_ENABLED=true`, `NATS_URL`, `NATS_STREAM_NAME`
+- `OCIDEX_MODE=distributed`
+- `NATS_URL`, `NATS_STREAM_NAME`
 - `SCANNER_WORKERS`, `SCANNER_QUEUE_SIZE`
 - `DATABASE_MAX_CONNECTIONS` (set low, e.g. `3`)
 
@@ -151,12 +152,13 @@ Shares the same config vars as the API process. Relevant subset:
 
 ### `enrichment-worker`
 
-Runs as a long-lived daemon consuming enrichment jobs from NATS. Used when `ENRICHMENT_NATS_MODE=true`.
+Runs as a long-lived daemon consuming enrichment jobs from NATS.
 
 Relevant config vars:
 
 - `DATABASE_URL` (required)
-- `NATS_ENABLED=true`, `NATS_URL`, `NATS_STREAM_NAME`
+- `OCIDEX_MODE=distributed`
+- `NATS_URL`, `NATS_STREAM_NAME`
 - `ENRICHMENT_WORKERS`, `ENRICHMENT_QUEUE_SIZE`
 - `DATABASE_MAX_CONNECTIONS` (set low, e.g. `3`)
 
@@ -191,16 +193,13 @@ GITHUB_CLIENT_SECRET=...
 SESSION_SECRET=...
 ```
 
-### Kubernetes (NATS scale-out)
+### Kubernetes (distributed mode)
 
 API process:
 ```env
 DATABASE_URL=...
+OCIDEX_MODE=distributed
 SCANNER_ENABLED=true
-SCANNER_NATS_MODE=true
-ENRICHMENT_ENABLED=false
-ENRICHMENT_NATS_MODE=true
-NATS_ENABLED=true
 NATS_URL=nats://nats:4222
 NATS_STREAM_REPLICAS=3
 REGISTRY_POLLER_ENABLED=true
@@ -209,7 +208,7 @@ REGISTRY_POLLER_ENABLED=true
 `scanner-worker` and `enrichment-worker` processes:
 ```env
 DATABASE_URL=...
-NATS_ENABLED=true
+OCIDEX_MODE=distributed
 NATS_URL=nats://nats:4222
 NATS_STREAM_REPLICAS=3
 DATABASE_MAX_CONNECTIONS=3

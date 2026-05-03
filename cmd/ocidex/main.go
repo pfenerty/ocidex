@@ -83,7 +83,7 @@ func run() error {
 	insecureResolver := service.BuildInsecureResolver(registrySvc)
 	credentialResolver := service.BuildCredentialResolver(registrySvc)
 
-	setupEnrichmentExt(cfg, reg, pool, insecureResolver, credentialResolver, natsClient, logger)
+	setupEnrichmentExt(cfg, reg, pool, insecureResolver, credentialResolver)
 	setupOptionalExts(cfg, reg, natsClient, logger)
 
 	ociValidator := oci.NewValidator(oci.WithInsecureResolver(insecureResolver))
@@ -172,7 +172,7 @@ func setupDatabase(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, erro
 }
 
 func setupNATSClient(cfg *config.Config) (*natspkg.Client, error) {
-	if !cfg.NATSEnabled {
+	if !cfg.IsDistributed() {
 		return nil, nil
 	}
 	client, err := natspkg.Connect(natspkg.Config{
@@ -208,13 +208,13 @@ func setupOptionalExts(cfg *config.Config, reg *extension.Registry, natsClient *
 	if cfg.AuditLogEnabled {
 		reg.Register(audit.NewExtension(logger))
 	}
-	if cfg.NATSEnabled {
+	if cfg.IsDistributed() {
 		reg.Register(natspkg.NewRelayExtension(natsClient, cfg.NATSStreamName, logger))
 	}
 }
 
-func setupEnrichmentExt(cfg *config.Config, reg *extension.Registry, pool *pgxpool.Pool, insecureResolver func(string) bool, credentialResolver func(string) (string, string), natsClient *natspkg.Client, logger *slog.Logger) {
-	if cfg.NATSEnabled && cfg.EnrichmentNATSMode {
+func setupEnrichmentExt(cfg *config.Config, reg *extension.Registry, pool *pgxpool.Pool, insecureResolver func(string) bool, credentialResolver func(string) (string, string)) {
+	if cfg.IsDistributed() {
 		return
 	}
 	if !cfg.EnrichmentEnabled {
@@ -233,11 +233,7 @@ func setupEnrichmentExt(cfg *config.Config, reg *extension.Registry, pool *pgxpo
 		enrichment.WithWorkers(cfg.EnrichmentWorkers),
 		enrichment.WithQueueSize(cfg.EnrichmentQueueSize),
 	)
-	if cfg.NATSEnabled {
-		reg.Register(enrichment.NewNATSExtension(natsClient, dispatcher, cfg.NATSStreamName, logger))
-	} else {
-		reg.Register(enrichment.NewExtension(dispatcher))
-	}
+	reg.Register(enrichment.NewExtension(dispatcher))
 }
 
 func setupScannerExt(cfg *config.Config, pool *pgxpool.Pool, bus *event.Bus, reg *extension.Registry, natsClient *natspkg.Client, logger *slog.Logger, jobSvc service.JobService) api.ScanSubmitter {
@@ -247,8 +243,7 @@ func setupScannerExt(cfg *config.Config, pool *pgxpool.Pool, bus *event.Bus, reg
 	// Use nil validator: webhook confirms image exists at a known digest.
 	scannerSbomSvc := service.NewSBOMService(pool, bus, nil)
 	sc := scanner.NewSyftScanner(logger)
-	if cfg.NATSEnabled && cfg.ScannerNATSMode {
-		// External workers consume from NATS — main process only publishes.
+	if cfg.IsDistributed() {
 		return scanner.NewNATSSubmitter(natsClient, cfg.NATSStreamName, jobSvc)
 	}
 	scanDispatcher := scanner.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerWorkers, cfg.ScannerQueueSize, logger, jobSvc)

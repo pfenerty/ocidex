@@ -19,8 +19,8 @@ spec:
           image: ocidex:latest
           args: ["/scanner-worker"]
           env:
-            - name: NATS_ENABLED
-              value: "true"
+            - name: OCIDEX_MODE
+              value: "distributed"
             - name: NATS_STREAM_REPLICAS
               value: "3"
             - name: DATABASE_MAX_CONNECTIONS

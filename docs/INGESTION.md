@@ -109,7 +109,7 @@ Flow:
 **Publish:** `internal/scanner/nats_submitter.go`
 **Consume:** `internal/scanner/nats_extension.go`
 
-The NATS path replaces the in-process dispatcher for distributed deployments (`SCANNER_NATS_MODE=true`).
+The NATS path replaces the in-process dispatcher for distributed deployments (`OCIDEX_MODE=distributed`).
 
 - Submitter marshals `ScanRequest` to `scanRequestWire` JSON (all fields, `omitempty`), publishes to subject `ocidex.scan.requested`.
 - Consumer: durable consumer named `"scanner"`, `AckWait=10min`, `MaxDeliver=3`. Deserializes back to `ScanRequest` with all fields intact.

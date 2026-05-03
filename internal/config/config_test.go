@@ -33,7 +33,8 @@ func TestLoad(t *testing.T) {
 				is.Equal(cfg.DatabaseURL, "postgres://localhost/test")
 				is.Equal(cfg.DatabaseMaxConns, 10)
 				is.Equal(cfg.NATSStreamReplicas, 1)
-				is.Equal(cfg.EnrichmentNATSMode, false)
+				is.Equal(cfg.Mode, "embedded")
+				is.True(!cfg.IsDistributed())
 			},
 		},
 		{
@@ -45,7 +46,7 @@ func TestLoad(t *testing.T) {
 				"DATABASE_URL":             "postgres://prod/ocidex",
 				"DATABASE_MAX_CONNECTIONS": "3",
 				"NATS_STREAM_REPLICAS":     "3",
-				"ENRICHMENT_NATS_MODE":     "true",
+				"OCIDEX_MODE":              "distributed",
 			},
 			check: func(is *is.I, cfg *config.Config) {
 				is.Equal(cfg.Port, 9090)
@@ -53,8 +54,17 @@ func TestLoad(t *testing.T) {
 				is.Equal(cfg.Environment, "production")
 				is.Equal(cfg.DatabaseMaxConns, 3)
 				is.Equal(cfg.NATSStreamReplicas, 3)
-				is.Equal(cfg.EnrichmentNATSMode, true)
+				is.Equal(cfg.Mode, "distributed")
+				is.True(cfg.IsDistributed())
 			},
+		},
+		{
+			name: "invalid mode",
+			env: map[string]string{
+				"DATABASE_URL": "postgres://localhost/test",
+				"OCIDEX_MODE":  "invalid",
+			},
+			wantErr: true,
 		},
 	}
 
