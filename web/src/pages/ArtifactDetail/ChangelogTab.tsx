@@ -11,6 +11,7 @@ export function ChangelogTab(props: {
     const effectiveArch = () =>
         props.selectedArch ?? props.availableArchitectures[0];
     const [packagesOnly, setPackagesOnly] = createSignal(true);
+    const [showPlanFiles, setShowPlanFiles] = createSignal(false);
     const [typeFilter, setTypeFilter] = createSignal<string | null>(null);
     const [nameFilter, setNameFilter] = createSignal("");
     const toggleTypeFilter = (kind: string) =>
@@ -57,6 +58,22 @@ export function ChangelogTab(props: {
                     />
                     Packages only
                 </label>
+                <label
+                    style={{
+                        display: "flex",
+                        "align-items": "center",
+                        gap: "6px",
+                        cursor: "pointer",
+                        "font-size": "0.875rem",
+                    }}
+                >
+                    <input
+                        type="checkbox"
+                        checked={showPlanFiles()}
+                        onChange={(e) => setShowPlanFiles(e.target.checked)}
+                    />
+                    Show plan files
+                </label>
                 <input
                     type="text"
                     placeholder="Filter by package…"
@@ -74,6 +91,7 @@ export function ChangelogTab(props: {
                     <DiffEntry
                         entry={entry}
                         packagesOnly={packagesOnly()}
+                        showPlanFiles={showPlanFiles()}
                         typeFilter={typeFilter()}
                         nameFilter={nameFilter()}
                         onTypeFilterToggle={toggleTypeFilter}
