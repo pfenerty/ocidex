@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,6 +15,10 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/repository"
 )
+
+// versionSuffixRe matches a trailing version suffix in a package name,
+// e.g. "-1.25" in "go-1.25" or "-3.12" in "python-3.12".
+var versionSuffixRe = regexp.MustCompile(`-[0-9][0-9.]*$`)
 
 // Changelog represents the full changelog for an artifact.
 type Changelog struct {
@@ -550,7 +555,7 @@ func diffComponents(from, to SBOMRef, oldMap, newMap map[string]componentIdentit
 		Changes: []ComponentDiff{},
 	}
 
-	// Find added and modified.
+	// First pass: exact key matching.
 	for key, curr := range newMap {
 		prev, exists := oldMap[key]
 		if !exists {
@@ -561,7 +566,6 @@ func diffComponents(from, to SBOMRef, oldMap, newMap map[string]componentIdentit
 				Version: curr.version,
 				Purl:    curr.purl,
 			})
-			entry.Summary.Added++
 		} else if !versionsEqual(prev.version, curr.version) {
 			entry.Changes = append(entry.Changes, ComponentDiff{
 				Type:            "modified",
@@ -571,11 +575,8 @@ func diffComponents(from, to SBOMRef, oldMap, newMap map[string]componentIdentit
 				Purl:            curr.purl,
 				PreviousVersion: prev.version,
 			})
-			entry.Summary.Modified++
 		}
 	}
-
-	// Find removed.
 	for key, prev := range oldMap {
 		if _, exists := newMap[key]; !exists {
 			entry.Changes = append(entry.Changes, ComponentDiff{
@@ -585,11 +586,26 @@ func diffComponents(from, to SBOMRef, oldMap, newMap map[string]componentIdentit
 				Version: prev.version,
 				Purl:    prev.purl,
 			})
-			entry.Summary.Removed++
 		}
 	}
 
-	// Sort changes for deterministic output: removed, modified, added, then by name.
+	// Second pass: reconcile version-named package replacements.
+	// e.g. "go-1.24 removed + go-1.25 added" → "go-1.25 upgraded from 1.24.x".
+	entry.Changes = reconcileVersionedPackages(entry.Changes)
+
+	// Compute summary from final change list.
+	for _, c := range entry.Changes {
+		switch c.Type {
+		case "added":
+			entry.Summary.Added++
+		case "removed":
+			entry.Summary.Removed++
+		case "modified":
+			entry.Summary.Modified++
+		}
+	}
+
+	// Sort: removed, modified, added, then by name.
 	sort.Slice(entry.Changes, func(i, j int) bool {
 		order := map[string]int{"removed": 0, "modified": 1, "added": 2}
 		if order[entry.Changes[i].Type] != order[entry.Changes[j].Type] {
@@ -599,6 +615,90 @@ func diffComponents(from, to SBOMRef, oldMap, newMap map[string]componentIdentit
 	})
 
 	return entry
+}
+
+// reconcileVersionedPackages re-matches removed+added pairs whose package names
+// share a base but differ only by a trailing version suffix (e.g. go-1.24 / go-1.25).
+// Matched pairs are collapsed into a single "modified" entry so classifyChange
+// can determine upgraded vs downgraded from the version numbers.
+func reconcileVersionedPackages(changes []ComponentDiff) []ComponentDiff {
+	type candidate struct {
+		idx  int
+		diff ComponentDiff
+	}
+
+	removedByNorm := map[string]candidate{}
+	addedByNorm := map[string]candidate{}
+
+	normKey := func(c ComponentDiff) string {
+		if c.Purl != nil {
+			stripped := stripPurlVersion(*c.Purl)
+			idx := strings.LastIndex(stripped, "/")
+			if idx < 0 {
+				return ""
+			}
+			name := stripped[idx+1:]
+			normalized := versionSuffixRe.ReplaceAllString(name, "")
+			if normalized == name {
+				return "" // no suffix to strip
+			}
+			return stripped[:idx+1] + normalized
+		}
+		normalized := versionSuffixRe.ReplaceAllString(c.Name, "")
+		if normalized == c.Name {
+			return ""
+		}
+		return normalized
+	}
+
+	for i, c := range changes {
+		nk := normKey(c)
+		if nk == "" {
+			continue
+		}
+		switch c.Type {
+		case "removed":
+			if _, exists := removedByNorm[nk]; !exists {
+				removedByNorm[nk] = candidate{i, c}
+			}
+		case "added":
+			if _, exists := addedByNorm[nk]; !exists {
+				addedByNorm[nk] = candidate{i, c}
+			}
+		}
+	}
+
+	toRemove := map[int]bool{}
+	var extra []ComponentDiff
+
+	for nk, added := range addedByNorm {
+		removed, ok := removedByNorm[nk]
+		if !ok || added.diff.Name == removed.diff.Name {
+			continue
+		}
+		extra = append(extra, ComponentDiff{
+			Type:            "modified",
+			Name:            added.diff.Name,
+			Group:           added.diff.Group,
+			Version:         added.diff.Version,
+			Purl:            added.diff.Purl,
+			PreviousVersion: removed.diff.Version,
+		})
+		toRemove[added.idx] = true
+		toRemove[removed.idx] = true
+	}
+
+	if len(extra) == 0 {
+		return changes
+	}
+
+	result := make([]ComponentDiff, 0, len(changes)-len(toRemove)+len(extra))
+	for i, c := range changes {
+		if !toRemove[i] {
+			result = append(result, c)
+		}
+	}
+	return append(result, extra...)
 }
 
 func sbomToRef(row repository.ListSBOMsByArtifactRow) SBOMRef {
