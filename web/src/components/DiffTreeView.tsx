@@ -2,8 +2,7 @@ import { createMemo, createSignal, untrack, Show, For } from "solid-js";
 import { A } from "@solidjs/router";
 import { relativeDate } from "~/utils/format";
 import { classifyChange, changelogRefLabel } from "~/utils/diff";
-import type { ChangelogEntryData } from "~/utils/diff";
-import type { ComponentSummary, DependencyEdge } from "~/api/client";
+import type { DiffTree } from "~/api/client";
 import { parsePurl } from "~/utils/purl";
 
 interface TreeNode {
@@ -25,17 +24,14 @@ function purlBase(purl: string): string {
     return atIdx > 0 ? purl.slice(0, atIdx) : purl.split("?")[0];
 }
 
-export function DiffTreeView(props: {
-    entry: ChangelogEntryData;
-    graph: { edges: DependencyEdge[]; nodes: ComponentSummary[] };
-}) {
-    const tree = createMemo(() => {
-        // Step 1: nameMap from non-file nodes
+export function DiffTreeView(props: { tree: DiffTree }) {
+    const treeData = createMemo(() => {
+        // Step 1: nameMap from non-file nodes (backend already filtered, but guard anyway)
         const nameMap = new Map<
             string,
             { name: string; version?: string; id?: string; purl?: string }
         >();
-        for (const node of props.graph.nodes) {
+        for (const node of props.tree.nodes ?? []) {
             const type = parsePurl(node.purl ?? "")?.type ?? node.type;
             if (type === "file") continue;
             const name =
@@ -63,7 +59,8 @@ export function DiffTreeView(props: {
             previousVersion?: string;
         }
         const changeMap = new Map<string, ChangeInfo>();
-        const filteredChanges = (props.entry.changes).filter(
+        // Backend already filtered file-type; changes here are package-only.
+        const filteredChanges = (props.tree.changes ?? []).filter(
             (c) => c.purl !== undefined && parsePurl(c.purl)?.type !== "file",
         );
         for (const c of filteredChanges) {
@@ -86,7 +83,7 @@ export function DiffTreeView(props: {
         // Step 3: adjacency from edges (non-file only)
         const adj = new Map<string, string[]>();
         const allTargets = new Set<string>();
-        for (const edge of props.graph.edges) {
+        for (const edge of props.tree.edges ?? []) {
             if (!nameMap.has(edge.from) || !nameMap.has(edge.to)) continue;
             if (!adj.has(edge.from)) adj.set(edge.from, []);
             adj.get(edge.from)?.push(edge.to);
@@ -170,16 +167,16 @@ export function DiffTreeView(props: {
         <div class="changelog-entry">
             <div class="changelog-entry-header">
                 <div class="text-sm">
-                    <A href={`/sboms/${props.entry.from.id}`} class="mono">
-                        {changelogRefLabel(props.entry.from)}
+                    <A href={`/sboms/${props.tree.from.id}`} class="mono">
+                        {changelogRefLabel(props.tree.from)}
                     </A>
                     {" → "}
-                    <A href={`/sboms/${props.entry.to.id}`} class="mono">
-                        {changelogRefLabel(props.entry.to)}
+                    <A href={`/sboms/${props.tree.to.id}`} class="mono">
+                        {changelogRefLabel(props.tree.to)}
                     </A>
                     <span class="text-muted">
                         {" "}
-                        ({relativeDate(props.entry.to.buildDate ?? props.entry.to.createdAt)})
+                        ({relativeDate(props.tree.to.buildDate ?? props.tree.to.createdAt)})
                     </span>
                 </div>
             </div>
@@ -193,21 +190,21 @@ export function DiffTreeView(props: {
                         </tr>
                     </thead>
                     <tbody>
-                        <For each={tree().roots}>
+                        <For each={treeData().roots}>
                             {(rootRef) => {
-                                const node = tree().nodes.get(rootRef);
+                                const node = treeData().nodes.get(rootRef);
                                 return node !== undefined ? (
                                     <DiffTreeNodeRow
                                         node={node}
-                                        allNodes={tree().nodes}
+                                        allNodes={treeData().nodes}
                                         depth={0}
                                         visited={new Set()}
                                     />
                                 ) : null;
                             }}
                         </For>
-                        <Show when={tree().removedOrphans.length > 0}>
-                            <For each={tree().removedOrphans}>
+                        <Show when={treeData().removedOrphans.length > 0}>
+                            <For each={treeData().removedOrphans}>
                                 {(c) => (
                                     <tr>
                                         <td>

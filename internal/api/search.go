@@ -355,6 +355,28 @@ func (h *Handler) DiffSBOMs(ctx context.Context, input *DiffSBOMsInput) (*DiffSB
 	return out, nil
 }
 
+// GetDiffTree handles GET /api/v1/sboms/diff-tree?from={id}&to={id}.
+func (h *Handler) GetDiffTree(ctx context.Context, input *DiffTreeInput) (*DiffTreeOutput, error) {
+	fromID, err := parseUUID(input.From)
+	if err != nil {
+		return nil, err
+	}
+	toID, err := parseUUID(input.To)
+	if err != nil {
+		return nil, err
+	}
+
+	vis := visibilityFilterFromContext(ctx)
+	tree, err := h.searchService.DiffSBOMsWithTree(ctx, fromID, toID, vis)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	out := &DiffTreeOutput{}
+	out.Body = tree
+	return out, nil
+}
+
 // GetArtifactLicenseSummary handles GET /api/v1/artifacts/{id}/license-summary.
 func (h *Handler) GetArtifactLicenseSummary(ctx context.Context, input *GetArtifactLicenseSummaryInput) (*GetArtifactLicenseSummaryOutput, error) {
 	id, err := parseUUID(input.ID)

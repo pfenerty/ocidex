@@ -26,6 +26,7 @@ type SearchService interface {
 	ListVersionsByArtifact(ctx context.Context, artifactID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ArtifactVersion], error)
 	GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch string, vis VisibilityFilter) (Changelog, error)
 	DiffSBOMs(ctx context.Context, fromID, toID pgtype.UUID, vis VisibilityFilter) (ChangelogEntry, error)
+	DiffSBOMsWithTree(ctx context.Context, fromID, toID pgtype.UUID, vis VisibilityFilter) (DiffTree, error)
 	ListSBOMsByDigest(ctx context.Context, digest string, limit, offset int32, vis VisibilityFilter) (PagedResult[SBOMSummary], error)
 	GetArtifactLicenseSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]LicenseCount, error)
 	GetSBOMDependencies(ctx context.Context, sbomID pgtype.UUID, vis VisibilityFilter) (DependencyGraph, error)
@@ -266,6 +267,18 @@ type ComponentVersionEntry struct {
 type DependencyGraph struct {
 	Nodes []ComponentSummary `json:"nodes"`
 	Edges []DependencyEdge   `json:"edges"`
+}
+
+// DiffTree combines a changelog entry with the filtered (non-file) dependency
+// graph of the "to" SBOM, allowing clients to render a tree-structured diff
+// in a single API call.
+type DiffTree struct {
+	From    SBOMRef          `json:"from"`
+	To      SBOMRef          `json:"to"`
+	Summary ChangeSummary    `json:"summary"`
+	Changes []ComponentDiff  `json:"changes"`
+	Nodes   []ComponentSummary `json:"nodes"`
+	Edges   []DependencyEdge `json:"edges"`
 }
 
 // DependencyEdge represents a directed dependency relationship.

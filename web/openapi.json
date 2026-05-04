@@ -945,6 +945,65 @@
         ],
         "type": "object"
       },
+      "DiffTree": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/DiffTree.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentDiff"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyEdge"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "from": {
+            "$ref": "#/components/schemas/SBOMRef"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentSummary"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ChangeSummary"
+          },
+          "to": {
+            "$ref": "#/components/schemas/SBOMRef"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "summary",
+          "changes",
+          "nodes",
+          "edges"
+        ],
+        "type": "object"
+      },
       "DistinctComponentSummary": {
         "additionalProperties": false,
         "properties": {
@@ -4561,6 +4620,64 @@
           }
         },
         "summary": "Diff two SBOMs",
+        "tags": [
+          "SBOMs"
+        ]
+      }
+    },
+    "/api/v1/sboms/diff-tree": {
+      "get": {
+        "description": "Returns the package-only diff between two SBOMs together with the filtered (non-file) dependency graph of the target SBOM for tree-structured rendering.",
+        "operationId": "diff-tree",
+        "parameters": [
+          {
+            "description": "UUID of the source SBOM",
+            "explode": false,
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "description": "UUID of the source SBOM",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "UUID of the target SBOM",
+            "explode": false,
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "description": "UUID of the target SBOM",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiffTree"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Diff two SBOMs with dependency tree",
         "tags": [
           "SBOMs"
         ]

@@ -112,6 +112,95 @@ func (s *searchService) DiffSBOMs(ctx context.Context, fromID, toID pgtype.UUID,
 	return diffComponents(fromRef, toRef, buildComponentMap(fromComps), buildComponentMap(toComps)), nil
 }
 
+// DiffSBOMsWithTree computes the diff between two SBOMs and returns it alongside
+// the non-file dependency graph of the "to" SBOM for tree-structured rendering.
+func (s *searchService) DiffSBOMsWithTree(ctx context.Context, fromID, toID pgtype.UUID, vis VisibilityFilter) (DiffTree, error) {
+	q := repository.New(s.db)
+
+	for _, id := range []pgtype.UUID{fromID, toID} {
+		visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
+			ID:      id,
+			UserID:  vis.UserID,
+			IsAdmin: visAdminBool(vis),
+		})
+		if err != nil {
+			return DiffTree{}, fmt.Errorf("checking sbom visibility: %w", err)
+		}
+		if !visible {
+			return DiffTree{}, ErrNotFound
+		}
+	}
+
+	fromSBOM, err := q.GetSBOM(ctx, fromID)
+	if err != nil {
+		return DiffTree{}, fmt.Errorf("getting from sbom: %w", err)
+	}
+	toSBOM, err := q.GetSBOM(ctx, toID)
+	if err != nil {
+		return DiffTree{}, fmt.Errorf("getting to sbom: %w", err)
+	}
+
+	// Use non-file packages for both sides so the diff only covers real packages.
+	fromPkgs, err := q.ListSBOMPackages(ctx, fromID)
+	if err != nil {
+		return DiffTree{}, fmt.Errorf("listing from packages: %w", err)
+	}
+	toPkgs, err := q.ListSBOMPackages(ctx, toID)
+	if err != nil {
+		return DiffTree{}, fmt.Errorf("listing to packages: %w", err)
+	}
+
+	deps, err := q.ListDependenciesBySBOM(ctx, toID)
+	if err != nil {
+		return DiffTree{}, fmt.Errorf("listing dependencies: %w", err)
+	}
+
+	fromRef := SBOMRef{
+		ID:             uuidToString(fromSBOM.ID),
+		SubjectVersion: textToPtr(fromSBOM.SubjectVersion),
+		CreatedAt:      fromSBOM.CreatedAt.Time,
+	}
+	toRef := SBOMRef{
+		ID:             uuidToString(toSBOM.ID),
+		SubjectVersion: textToPtr(toSBOM.SubjectVersion),
+		CreatedAt:      toSBOM.CreatedAt.Time,
+	}
+
+	entry := diffComponents(fromRef, toRef, buildPackageMap(fromPkgs), buildPackageMap(toPkgs))
+
+	nodes := make([]ComponentSummary, 0, len(toPkgs))
+	for _, p := range toPkgs {
+		nodes = append(nodes, toComponentSummary(p.ID, toID, p.BomRef, p.Type, p.Name, p.GroupName, p.Version, p.Purl))
+	}
+
+	edges := make([]DependencyEdge, 0, len(deps))
+	for _, d := range deps {
+		edges = append(edges, DependencyEdge{From: d.Ref, To: d.DependsOn})
+	}
+
+	return DiffTree{
+		From:    entry.From,
+		To:      entry.To,
+		Summary: entry.Summary,
+		Changes: entry.Changes,
+		Nodes:   nodes,
+		Edges:   edges,
+	}, nil
+}
+
+// buildPackageMap creates a component identity map from ListSBOMPackages rows.
+func buildPackageMap(rows []repository.ListSBOMPackagesRow) map[string]componentIdentity {
+	m := make(map[string]componentIdentity, len(rows))
+	for _, row := range rows {
+		key := componentKey(row.Type, row.Name, row.GroupName, row.Purl)
+		m[key] = componentIdentity{
+			version: textToPtr(row.Version),
+			purl:    textToPtr(row.Purl),
+		}
+	}
+	return m
+}
+
 // changelogGroupKey identifies a unique (version, arch) pair for deduplication.
 type changelogGroupKey struct{ version, arch string }
 

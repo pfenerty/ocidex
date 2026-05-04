@@ -490,6 +490,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sboms/diff-tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Diff two SBOMs with dependency tree
+         * @description Returns the package-only diff between two SBOMs together with the filtered (non-file) dependency graph of the target SBOM for tree-structured rendering.
+         */
+        get: operations["diff-tree"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sboms/{id}": {
         parameters: {
             query?: never;
@@ -949,6 +969,20 @@ export interface components {
             readonly $schema?: string;
             edges: components["schemas"]["DependencyEdge"][] | null;
             nodes: components["schemas"]["ComponentSummary"][] | null;
+        };
+        DiffTree: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/DiffTree.json
+             */
+            readonly $schema?: string;
+            changes: components["schemas"]["ComponentDiff"][] | null;
+            edges: components["schemas"]["DependencyEdge"][] | null;
+            from: components["schemas"]["SBOMRef"];
+            nodes: components["schemas"]["ComponentSummary"][] | null;
+            summary: components["schemas"]["ChangeSummary"];
+            to: components["schemas"]["SBOMRef"];
         };
         DistinctComponentSummary: {
             group?: string;
@@ -2725,6 +2759,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChangelogEntry"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "diff-tree": {
+        parameters: {
+            query: {
+                /** @description UUID of the source SBOM */
+                from: string;
+                /** @description UUID of the target SBOM */
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiffTree"];
                 };
             };
             /** @description Error */

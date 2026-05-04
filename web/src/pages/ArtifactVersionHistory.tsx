@@ -1,6 +1,6 @@
 import { For, Show, createSignal } from "solid-js";
 import { A, useParams } from "@solidjs/router";
-import { useArtifact, useArtifactSBOMs, useDiff, useSBOMDependencies } from "~/api/queries";
+import { useArtifact, useArtifactSBOMs, useDiff, useDiffTree } from "~/api/queries";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
 import DiffEntry from "~/components/DiffEntry";
 import { DiffTreeView } from "~/components/DiffTreeView";
@@ -142,44 +142,42 @@ function BuildDiffEntry(props: {
 }) {
     const [typeFilter, setTypeFilter] = createSignal<string | null>(null);
     const [nameFilter] = createSignal("");
-    const diff = useDiff(() => ({ from: props.fromId, to: props.toId }));
-    const depsQuery = useSBOMDependencies(
-        () => props.toId,
-        { enabled: () => props.viewMode === "tree" },
+
+    // Tree mode: one combined call (diff + filtered dep graph).
+    const treeQuery = useDiffTree(
+        () => props.viewMode === "tree" ? { from: props.fromId, to: props.toId } : {},
+    );
+
+    // List mode: plain diff.
+    const listQuery = useDiff(
+        () => props.viewMode === "list" ? { from: props.fromId, to: props.toId } : {},
     );
 
     return (
-        <>
-            <Show when={diff.isLoading || (props.viewMode === "tree" && depsQuery.isLoading)}>
-                <Loading />
+        <Show when={props.viewMode === "tree"} fallback={
+            <>
+                <Show when={listQuery.isLoading}><Loading /></Show>
+                <Show when={listQuery.isError}><ErrorBox error={listQuery.error} /></Show>
+                <Show when={listQuery.data} keyed>
+                    {(entry) => (
+                        <DiffEntry
+                            entry={entry}
+                            packagesOnly={true}
+                            typeFilter={typeFilter()}
+                            nameFilter={nameFilter()}
+                            onTypeFilterToggle={(k) =>
+                                setTypeFilter((f) => (f === k ? null : k))
+                            }
+                        />
+                    )}
+                </Show>
+            </>
+        }>
+            <Show when={treeQuery.isLoading}><Loading /></Show>
+            <Show when={treeQuery.isError}><ErrorBox error={treeQuery.error} /></Show>
+            <Show when={treeQuery.data} keyed>
+                {(tree) => <DiffTreeView tree={tree} />}
             </Show>
-            <Show when={diff.isError}>
-                <ErrorBox error={diff.error} />
-            </Show>
-            <Show when={depsQuery.isError}>
-                <ErrorBox error={depsQuery.error} />
-            </Show>
-            <Show when={diff.data} keyed>
-                {(entry) => (
-                    <Show
-                        when={props.viewMode === "tree" ? depsQuery.data : undefined}
-                        keyed
-                        fallback={
-                            <DiffEntry
-                                entry={entry}
-                                packagesOnly={true}
-                                typeFilter={typeFilter()}
-                                nameFilter={nameFilter()}
-                                onTypeFilterToggle={(k) =>
-                                    setTypeFilter((f) => (f === k ? null : k))
-                                }
-                            />
-                        }
-                    >
-                        {(graph) => <DiffTreeView entry={entry} graph={graph} />}
-                    </Show>
-                )}
-            </Show>
-        </>
+        </Show>
     );
 }

@@ -123,6 +123,17 @@ func (f *fakeSearchService) DiffSBOMs(_ context.Context, _, _ pgtype.UUID, _ ser
 	}, nil
 }
 
+func (f *fakeSearchService) DiffSBOMsWithTree(_ context.Context, _, _ pgtype.UUID, _ service.VisibilityFilter) (service.DiffTree, error) {
+	return service.DiffTree{
+		From:    service.SBOMRef{ID: "from1"},
+		To:      service.SBOMRef{ID: "to1"},
+		Summary: service.ChangeSummary{Added: 1},
+		Changes: []service.ComponentDiff{{Type: "added", Name: "new-pkg"}},
+		Nodes:   []service.ComponentSummary{},
+		Edges:   []service.DependencyEdge{},
+	}, nil
+}
+
 func (f *fakeSearchService) GetArtifactLicenseSummary(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) ([]service.LicenseCount, error) {
 	mit := "MIT"
 	return []service.LicenseCount{

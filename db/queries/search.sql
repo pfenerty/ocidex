@@ -147,6 +147,12 @@ FROM component
 WHERE sbom_id = $1
 ORDER BY name, group_name;
 
+-- name: ListSBOMPackages :many
+SELECT id, bom_ref, type, name, group_name, version, purl
+FROM component
+WHERE sbom_id = $1 AND type != 'file'
+ORDER BY name, group_name;
+
 -- name: ListComponentPurlTypes :many
 SELECT DISTINCT split_part(replace(purl, 'pkg:', ''), '/', 1)::text AS purl_type
 FROM component

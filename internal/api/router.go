@@ -340,6 +340,15 @@ func registerDiffOps(api huma.API, h *Handler) {
 		Description: "Computes the component diff between two SBOMs.",
 		Tags:        []string{"SBOMs"},
 	}, h.DiffSBOMs)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "diff-tree",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/sboms/diff-tree",
+		Summary:     "Diff two SBOMs with dependency tree",
+		Description: "Returns the package-only diff between two SBOMs together with the filtered (non-file) dependency graph of the target SBOM for tree-structured rendering.",
+		Tags:        []string{"SBOMs"},
+	}, h.GetDiffTree)
 }
 
 // ---------------------------------------------------------------------------

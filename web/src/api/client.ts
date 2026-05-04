@@ -56,6 +56,7 @@ export type LicenseCount = components["schemas"]["LicenseCount"];
 export type LicenseSummary = components["schemas"]["LicenseSummary"];
 export type DependencyGraph = components["schemas"]["DependencyGraph"];
 export type DependencyEdge = components["schemas"]["DependencyEdge"];
+export type DiffTree = components["schemas"]["DiffTree"];
 export type Changelog = components["schemas"]["Changelog"];
 export type ChangelogEntry = components["schemas"]["ChangelogEntry"];
 export type SBOMRef = components["schemas"]["SBOMRef"];

@@ -660,6 +660,51 @@ func (q *Queries) ListSBOMComponents(ctx context.Context, sbomID pgtype.UUID) ([
 	return items, nil
 }
 
+const listSBOMPackages = `-- name: ListSBOMPackages :many
+SELECT id, bom_ref, type, name, group_name, version, purl
+FROM component
+WHERE sbom_id = $1 AND type != 'file'
+ORDER BY name, group_name
+`
+
+type ListSBOMPackagesRow struct {
+	ID        pgtype.UUID `json:"id"`
+	BomRef    pgtype.Text `json:"bom_ref"`
+	Type      string      `json:"type"`
+	Name      string      `json:"name"`
+	GroupName pgtype.Text `json:"group_name"`
+	Version   pgtype.Text `json:"version"`
+	Purl      pgtype.Text `json:"purl"`
+}
+
+func (q *Queries) ListSBOMPackages(ctx context.Context, sbomID pgtype.UUID) ([]ListSBOMPackagesRow, error) {
+	rows, err := q.db.Query(ctx, listSBOMPackages, sbomID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSBOMPackagesRow{}
+	for rows.Next() {
+		var i ListSBOMPackagesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.BomRef,
+			&i.Type,
+			&i.Name,
+			&i.GroupName,
+			&i.Version,
+			&i.Purl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSBOMs = `-- name: ListSBOMs :many
 SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subject_version, s.digest, s.created_at,
        COUNT(*) OVER() AS total_count

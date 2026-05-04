@@ -164,6 +164,17 @@ type DiffSBOMsOutput struct {
 	Body service.ChangelogEntry
 }
 
+// DiffTreeInput is the request for GET /api/v1/sboms/diff-tree.
+type DiffTreeInput struct {
+	From string `query:"from" required:"true" doc:"UUID of the source SBOM" format:"uuid"`
+	To   string `query:"to" required:"true" doc:"UUID of the target SBOM" format:"uuid"`
+}
+
+// DiffTreeOutput is the response for GET /api/v1/sboms/diff-tree.
+type DiffTreeOutput struct {
+	Body service.DiffTree
+}
+
 // ---------------------------------------------------------------------------
 // Components — Search
 // ---------------------------------------------------------------------------
