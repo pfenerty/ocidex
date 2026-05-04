@@ -16,16 +16,20 @@ interface DiffEntryProps {
 }
 
 export default function DiffEntry(props: DiffEntryProps) {
-    const pkgChanges = () => {
-        let changes = props.packagesOnly
+    // Applies only the packagesOnly filter — used as the "show this entry at all" baseline.
+    const baseChanges = () =>
+        props.packagesOnly
             ? props.entry.changes.filter((c) => c.purl !== undefined)
             : props.entry.changes;
+
+    // Applies packagesOnly + showPlanFiles: removes entries with no purl or purl type "file".
+    const pkgChanges = () => {
         if (!props.showPlanFiles) {
-            changes = changes.filter(
-                (c) => parsePurl(c.purl ?? "")?.type !== "file",
+            return baseChanges().filter(
+                (c) => c.purl !== undefined && parsePurl(c.purl)?.type !== "file",
             );
         }
-        return changes;
+        return baseChanges();
     };
 
     const visibleChanges = () => {
@@ -47,8 +51,10 @@ export default function DiffEntry(props: DiffEntryProps) {
     const upgradedCount = () => pkgChanges().filter((c) => classifyChange(c) === "upgraded").length;
     const downgradedCount = () => pkgChanges().filter((c) => classifyChange(c) === "downgraded").length;
 
+    const hiddenByPlanFilter = () => !props.showPlanFiles && baseChanges().length > pkgChanges().length;
+
     return (
-        <Show when={visibleChanges().length > 0}>
+        <Show when={baseChanges().length > 0}>
             <div class="changelog-entry">
                 <div class="changelog-entry-header">
                     <div class="text-sm">
@@ -90,64 +96,75 @@ export default function DiffEntry(props: DiffEntryProps) {
                                     </button>
                                 ));
                         })()}
+                        <Show when={hiddenByPlanFilter()}>
+                            <span class="text-muted text-sm">
+                                {baseChanges().length - pkgChanges().length} plan file {baseChanges().length - pkgChanges().length === 1 ? "change" : "changes"} hidden
+                            </span>
+                        </Show>
                     </div>
                 </div>
-                <div class="table-wrapper">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Change</th>
-                                <th>Component</th>
-                                <th>Version</th>
-                                <th>Package</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <For each={visibleChanges()}>
-                                {(change) => (
-                                    <tr>
-                                        <td>
-                                            {(() => {
-                                                const kind = classifyChange(change);
-                                                const cls =
-                                                    kind === "added" || kind === "upgraded"
-                                                        ? "badge-success"
-                                                        : kind === "removed" || kind === "downgraded"
-                                                          ? "badge-danger"
-                                                          : "badge-warning";
-                                                return <span class={`badge ${cls}`}>{kind}</span>;
-                                            })()}
-                                        </td>
-                                        <td>
-                                            <A href={(() => {
-                                                const p = new URLSearchParams({ name: change.name });
-                                                if (change.group !== undefined) p.set("group", change.group);
-                                                return `/components/overview?${p.toString()}`;
-                                            })()}>
-                                                <Show when={change.group}>
-                                                    <span class="text-muted">{change.group}/</span>
+                <Show when={visibleChanges().length > 0} fallback={
+                    <p class="text-muted text-sm" style={{ padding: "0.5rem 0" }}>
+                        No changes match the current filter.
+                    </p>
+                }>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Change</th>
+                                    <th>Component</th>
+                                    <th>Version</th>
+                                    <th>Package</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <For each={visibleChanges()}>
+                                    {(change) => (
+                                        <tr>
+                                            <td>
+                                                {(() => {
+                                                    const kind = classifyChange(change);
+                                                    const cls =
+                                                        kind === "added" || kind === "upgraded"
+                                                            ? "badge-success"
+                                                            : kind === "removed" || kind === "downgraded"
+                                                              ? "badge-danger"
+                                                              : "badge-warning";
+                                                    return <span class={`badge ${cls}`}>{kind}</span>;
+                                                })()}
+                                            </td>
+                                            <td>
+                                                <A href={(() => {
+                                                    const p = new URLSearchParams({ name: change.name });
+                                                    if (change.group !== undefined) p.set("group", change.group);
+                                                    return `/components/overview?${p.toString()}`;
+                                                })()}>
+                                                    <Show when={change.group}>
+                                                        <span class="text-muted">{change.group}/</span>
+                                                    </Show>
+                                                    {change.name}
+                                                </A>
+                                            </td>
+                                            <td class="mono">
+                                                <Show when={change.previousVersion}>
+                                                    <span class="text-muted">{change.previousVersion}</span>
+                                                    {" → "}
                                                 </Show>
-                                                {change.name}
-                                            </A>
-                                        </td>
-                                        <td class="mono">
-                                            <Show when={change.previousVersion}>
-                                                <span class="text-muted">{change.previousVersion}</span>
-                                                {" → "}
-                                            </Show>
-                                            {change.version ?? "—"}
-                                        </td>
-                                        <td class="mono truncate text-muted">
-                                            <Show when={change.purl} fallback={"—"}>
-                                                {(purl) => <PurlLink purl={purl()} />}
-                                            </Show>
-                                        </td>
-                                    </tr>
-                                )}
-                            </For>
-                        </tbody>
-                    </table>
-                </div>
+                                                {change.version ?? "—"}
+                                            </td>
+                                            <td class="mono truncate text-muted">
+                                                <Show when={change.purl} fallback={"—"}>
+                                                    {(purl) => <PurlLink purl={purl()} />}
+                                                </Show>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </For>
+                            </tbody>
+                        </table>
+                    </div>
+                </Show>
             </div>
         </Show>
     );

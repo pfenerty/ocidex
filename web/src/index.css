@@ -778,7 +778,7 @@
         align-items: center;
     }
 
-    .search-bar input {
+    .search-bar input:not([type="checkbox"]) {
         min-width: 260px;
     }
 
@@ -1187,7 +1187,7 @@
         flex-wrap: wrap;
     }
 
-    .search-bar input {
+    .search-bar input:not([type="checkbox"]) {
         min-width: 0;
         flex: 1;
     }
