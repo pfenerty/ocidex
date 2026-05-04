@@ -336,6 +336,28 @@ func toComponentSummary(id, sbomID pgtype.UUID, bomRef pgtype.Text, typ, name st
 	}
 }
 
+func interfaceToStringPtr(v interface{}) *string {
+	if v == nil {
+		return nil
+	}
+	s, ok := v.(string)
+	if !ok || s == "" {
+		return nil
+	}
+	return &s
+}
+
+func interfaceToTimePtr(v interface{}) *time.Time {
+	if v == nil {
+		return nil
+	}
+	t, ok := v.(time.Time)
+	if !ok {
+		return nil
+	}
+	return &t
+}
+
 func visAdminBool(v VisibilityFilter) pgtype.Bool {
 	return pgtype.Bool{Bool: v.IsAdmin, Valid: true}
 }

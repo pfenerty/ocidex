@@ -26,6 +26,7 @@ type SBOMRepository interface {
 // SearchRepository defines read-only data access methods for search and retrieval.
 type SearchRepository interface {
 	GetSBOM(ctx context.Context, id pgtype.UUID) (GetSBOMRow, error)
+	GetSBOMRef(ctx context.Context, id pgtype.UUID) (GetSBOMRefRow, error)
 	GetSBOMRaw(ctx context.Context, id pgtype.UUID) ([]byte, error)
 	IsSBOMVisible(ctx context.Context, arg IsSBOMVisibleParams) (bool, error)
 	IsArtifactVisible(ctx context.Context, arg IsArtifactVisibleParams) (bool, error)
@@ -39,6 +40,7 @@ type SearchRepository interface {
 	ListComponentsByLicense(ctx context.Context, arg ListComponentsByLicenseParams) ([]ListComponentsByLicenseRow, error)
 	CountSBOMComponents(ctx context.Context, sbomID pgtype.UUID) (int64, error)
 	ListSBOMComponents(ctx context.Context, sbomID pgtype.UUID) ([]ListSBOMComponentsRow, error)
+	ListSBOMPackages(ctx context.Context, sbomID pgtype.UUID) ([]ListSBOMPackagesRow, error)
 	ListSBOMsByDigest(ctx context.Context, arg ListSBOMsByDigestParams) ([]ListSBOMsByDigestRow, error)
 	LicenseSummaryByArtifact(ctx context.Context, artifactID pgtype.UUID) ([]LicenseSummaryByArtifactRow, error)
 	ListDependenciesBySBOM(ctx context.Context, sbomID pgtype.UUID) ([]ListDependenciesBySBOMRow, error)

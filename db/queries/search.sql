@@ -6,6 +6,20 @@ SELECT id, serial_number, spec_version, version, artifact_id, subject_version, d
 FROM sbom
 WHERE id = $1;
 
+-- name: GetSBOMRef :one
+-- Lightweight SBOM lookup for building a SBOMRef: joins enrichments to get
+-- architecture and build_date without fetching the raw BOM.
+SELECT s.id, s.subject_version, s.created_at,
+       COALESCE(e.data->>'architecture', u.data->>'architecture') AS architecture,
+       COALESCE(
+           (e.data->>'created')::timestamptz,
+           (u.data->>'created')::timestamptz
+       ) AS build_date
+FROM sbom s
+LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
+LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user' AND u.status = 'success'
+WHERE s.id = $1;
+
 -- name: GetSBOMRaw :one
 SELECT raw_bom
 FROM sbom

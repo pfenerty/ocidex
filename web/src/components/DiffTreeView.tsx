@@ -160,6 +160,22 @@ export function DiffTreeView(props: { tree: DiffTree }) {
         };
     });
 
+    // Summary counts for the header badges.
+    const changes = () => (props.tree.changes ?? []).filter(
+        (c) => c.purl !== undefined && parsePurl(c.purl)?.type !== "file",
+    );
+    const addedCount   = () => changes().filter((c) => c.type === "added").length;
+    const removedCount = () => changes().filter((c) => c.type === "removed").length;
+    const upgradedCount   = () => changes().filter((c) => classifyChange(c) === "upgraded").length;
+    const downgradedCount = () => changes().filter((c) => classifyChange(c) === "downgraded").length;
+
+    const kindDefs = [
+        { count: addedCount,      cls: "badge-primary",  fmt: (n: number) => `+${n} added` },
+        { count: removedCount,    cls: "badge-warning",  fmt: (n: number) => `-${n} removed` },
+        { count: upgradedCount,   cls: "badge-primary",  fmt: (n: number) => `↑${n} upgraded` },
+        { count: downgradedCount, cls: "badge-warning",  fmt: (n: number) => `↓${n} downgraded` },
+    ];
+
     return (
         <div class="changelog-entry">
             <div class="changelog-entry-header">
@@ -175,6 +191,15 @@ export function DiffTreeView(props: { tree: DiffTree }) {
                         {" "}
                         ({relativeDate(props.tree.to.buildDate ?? props.tree.to.createdAt)})
                     </span>
+                </div>
+                <div class="changelog-summary">
+                    <For each={kindDefs}>
+                        {(k) => (
+                            <Show when={k.count() > 0}>
+                                <span class={`badge ${k.cls}`}>{k.fmt(k.count())}</span>
+                            </Show>
+                        )}
+                    </For>
                 </div>
             </div>
             <div class="table-wrapper">

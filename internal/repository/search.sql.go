@@ -215,6 +215,42 @@ func (q *Queries) GetSBOMRaw(ctx context.Context, id pgtype.UUID) ([]byte, error
 	return raw_bom, err
 }
 
+const getSBOMRef = `-- name: GetSBOMRef :one
+SELECT s.id, s.subject_version, s.created_at,
+       COALESCE(e.data->>'architecture', u.data->>'architecture') AS architecture,
+       COALESCE(
+           (e.data->>'created')::timestamptz,
+           (u.data->>'created')::timestamptz
+       ) AS build_date
+FROM sbom s
+LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
+LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user' AND u.status = 'success'
+WHERE s.id = $1
+`
+
+type GetSBOMRefRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	SubjectVersion pgtype.Text        `json:"subject_version"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	Architecture   interface{}        `json:"architecture"`
+	BuildDate      interface{}        `json:"build_date"`
+}
+
+// Lightweight SBOM lookup for building a SBOMRef: joins enrichments to get
+// architecture and build_date without fetching the raw BOM.
+func (q *Queries) GetSBOMRef(ctx context.Context, id pgtype.UUID) (GetSBOMRefRow, error) {
+	row := q.db.QueryRow(ctx, getSBOMRef, id)
+	var i GetSBOMRefRow
+	err := row.Scan(
+		&i.ID,
+		&i.SubjectVersion,
+		&i.CreatedAt,
+		&i.Architecture,
+		&i.BuildDate,
+	)
+	return i, err
+}
+
 const isArtifactVisible = `-- name: IsArtifactVisible :one
 SELECT artifact_visible($1, $2::uuid, $3::boolean) AS visible
 `

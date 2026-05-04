@@ -131,11 +131,11 @@ func (s *searchService) DiffSBOMsWithTree(ctx context.Context, fromID, toID pgty
 		}
 	}
 
-	fromSBOM, err := q.GetSBOM(ctx, fromID)
+	fromSBOM, err := q.GetSBOMRef(ctx, fromID)
 	if err != nil {
 		return DiffTree{}, fmt.Errorf("getting from sbom: %w", err)
 	}
-	toSBOM, err := q.GetSBOM(ctx, toID)
+	toSBOM, err := q.GetSBOMRef(ctx, toID)
 	if err != nil {
 		return DiffTree{}, fmt.Errorf("getting to sbom: %w", err)
 	}
@@ -159,11 +159,15 @@ func (s *searchService) DiffSBOMsWithTree(ctx context.Context, fromID, toID pgty
 		ID:             uuidToString(fromSBOM.ID),
 		SubjectVersion: textToPtr(fromSBOM.SubjectVersion),
 		CreatedAt:      fromSBOM.CreatedAt.Time,
+		BuildDate:      interfaceToTimePtr(fromSBOM.BuildDate),
+		Architecture:   interfaceToStringPtr(fromSBOM.Architecture),
 	}
 	toRef := SBOMRef{
 		ID:             uuidToString(toSBOM.ID),
 		SubjectVersion: textToPtr(toSBOM.SubjectVersion),
 		CreatedAt:      toSBOM.CreatedAt.Time,
+		BuildDate:      interfaceToTimePtr(toSBOM.BuildDate),
+		Architecture:   interfaceToStringPtr(toSBOM.Architecture),
 	}
 
 	entry := diffComponents(fromRef, toRef, buildPackageMap(fromPkgs), buildPackageMap(toPkgs))
