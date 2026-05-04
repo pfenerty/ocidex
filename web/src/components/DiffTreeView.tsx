@@ -220,7 +220,7 @@ export function DiffTreeView(props: { tree: DiffTree }) {
                                             </span>
                                         </td>
                                         <td>
-                                            <span class="badge badge-danger">
+                                            <span class="badge badge-warning">
                                                 removed
                                             </span>
                                         </td>
@@ -275,9 +275,9 @@ function DiffTreeNodeRow(props: {
 
     const changeCls = () => {
         const k = props.node.changeKind;
-        if (k === "added" || k === "upgraded") return "badge-success";
-        if (k === "removed" || k === "downgraded") return "badge-danger";
-        return "badge-warning";
+        if (k === "added" || k === "upgraded") return "badge-primary";   // blue
+        if (k === "removed" || k === "downgraded") return "badge-warning"; // amber
+        return "";  // neutral for modified
     };
 
     return (
