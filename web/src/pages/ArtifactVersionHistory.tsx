@@ -1,8 +1,9 @@
 import { For, Show, createSignal } from "solid-js";
 import { A, useParams } from "@solidjs/router";
-import { useArtifact, useArtifactSBOMs, useDiff } from "~/api/queries";
+import { useArtifact, useArtifactSBOMs, useDiff, useSBOMDependencies } from "~/api/queries";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
 import DiffEntry from "~/components/DiffEntry";
+import DiffTreeView from "~/components/DiffTreeView";
 
 export default function ArtifactVersionHistory() {
     const params = useParams<{ id: string; version: string }>();
@@ -16,6 +17,7 @@ export default function ArtifactVersionHistory() {
     );
 
     const [selectedArch, setSelectedArch] = createSignal<string | undefined>("amd64");
+    const [viewMode, setViewMode] = createSignal<"tree" | "list">("tree");
 
     const allArchs = () => {
         const sboms = sbomsQuery.data?.data ?? [];
@@ -56,6 +58,20 @@ export default function ArtifactVersionHistory() {
                     <div>
                         <h2>{version()}</h2>
                         <p class="text-muted">Build changelog</p>
+                    </div>
+                    <div class="btn-group">
+                        <button
+                            class={`btn btn-sm${viewMode() === "tree" ? " active" : ""}`}
+                            onClick={() => setViewMode("tree")}
+                        >
+                            Tree
+                        </button>
+                        <button
+                            class={`btn btn-sm${viewMode() === "list" ? " active" : ""}`}
+                            onClick={() => setViewMode("list")}
+                        >
+                            List
+                        </button>
                     </div>
                 </div>
             </div>
@@ -107,6 +123,7 @@ export default function ArtifactVersionHistory() {
                                     <BuildDiffEntry
                                         fromId={pair.older.id}
                                         toId={pair.newer.id}
+                                        viewMode={viewMode()}
                                     />
                                 )}
                             </For>
@@ -118,30 +135,49 @@ export default function ArtifactVersionHistory() {
     );
 }
 
-function BuildDiffEntry(props: { fromId: string; toId: string }) {
+function BuildDiffEntry(props: {
+    fromId: string;
+    toId: string;
+    viewMode: "tree" | "list";
+}) {
     const [typeFilter, setTypeFilter] = createSignal<string | null>(null);
     const [nameFilter] = createSignal("");
     const diff = useDiff(() => ({ from: props.fromId, to: props.toId }));
+    const depsQuery = useSBOMDependencies(
+        () => props.toId,
+        { enabled: () => props.viewMode === "tree" },
+    );
 
     return (
         <>
-            <Show when={diff.isLoading}>
+            <Show when={diff.isLoading || (props.viewMode === "tree" && depsQuery.isLoading)}>
                 <Loading />
             </Show>
             <Show when={diff.isError}>
                 <ErrorBox error={diff.error} />
             </Show>
-            <Show when={diff.data}>
-                {(data) => (
-                    <DiffEntry
-                        entry={data()}
-                        packagesOnly={true}
-                        typeFilter={typeFilter()}
-                        nameFilter={nameFilter()}
-                        onTypeFilterToggle={(k) =>
-                            setTypeFilter((f) => (f === k ? null : k))
+            <Show when={depsQuery.isError}>
+                <ErrorBox error={depsQuery.error} />
+            </Show>
+            <Show when={diff.data} keyed>
+                {(entry) => (
+                    <Show
+                        when={props.viewMode === "tree" ? depsQuery.data : undefined}
+                        keyed
+                        fallback={
+                            <DiffEntry
+                                entry={entry}
+                                packagesOnly={true}
+                                typeFilter={typeFilter()}
+                                nameFilter={nameFilter()}
+                                onTypeFilterToggle={(k) =>
+                                    setTypeFilter((f) => (f === k ? null : k))
+                                }
+                            />
                         }
-                    />
+                    >
+                        {(graph) => <DiffTreeView entry={entry} graph={graph} />}
+                    </Show>
                 )}
             </Show>
         </>
