@@ -502,9 +502,9 @@ function TreeNodeRow(props: {
                 </div>
             </div>
 
-            {/* Children — always mounted; CSS grid-template-rows animates open/close */}
-            <Show when={hasChildren() && !isCyclic()}>
-                <div class={`tree-children${expanded() ? " open" : ""}`}>
+            {/* Children — lazy mount; @keyframes animates entry on expand */}
+            <Show when={expanded() && !isCyclic()}>
+                <div class="tree-children">
                     <div>
                         <For each={childNodes()}>
                             {(child) => (

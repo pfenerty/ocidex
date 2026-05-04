@@ -276,19 +276,19 @@
         font-size: 0.8rem;
     }
 
+    @keyframes tree-expand {
+        from {
+            opacity: 0;
+            transform: translateY(-4px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
     .tree-children {
-        display: grid;
-        grid-template-rows: 0fr;
-        transition: grid-template-rows 0.22s ease;
-    }
-
-    .tree-children.open {
-        grid-template-rows: 1fr;
-    }
-
-    .tree-children > div {
-        overflow: hidden;
-        min-height: 0;
+        animation: tree-expand 0.18s ease-out;
     }
 
     /* Collapsible details */
