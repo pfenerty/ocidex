@@ -135,7 +135,7 @@ function BuildDiffEntry(props: { fromId: string; toId: string }) {
                 {(data) => (
                     <DiffEntry
                         entry={data()}
-                        packagesOnly={false}
+                        packagesOnly={true}
                         typeFilter={typeFilter()}
                         nameFilter={nameFilter()}
                         onTypeFilterToggle={(k) =>
