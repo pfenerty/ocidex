@@ -3,7 +3,7 @@ import { A, useParams } from "@solidjs/router";
 import { useArtifact, useArtifactSBOMs, useDiff, useSBOMDependencies } from "~/api/queries";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
 import DiffEntry from "~/components/DiffEntry";
-import DiffTreeView from "~/components/DiffTreeView";
+import { DiffTreeView } from "~/components/DiffTreeView";
 
 export default function ArtifactVersionHistory() {
     const params = useParams<{ id: string; version: string }>();
