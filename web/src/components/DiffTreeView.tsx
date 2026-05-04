@@ -1,4 +1,4 @@
-import { createMemo, createSignal, untrack, Show, For } from "solid-js";
+import { createMemo, createSignal, Show, For } from "solid-js";
 import { A } from "@solidjs/router";
 import { relativeDate } from "~/utils/format";
 import { classifyChange, changelogRefLabel } from "~/utils/diff";
@@ -258,16 +258,7 @@ function DiffTreeNodeRow(props: {
             return child !== undefined && (child.changeKind !== undefined || child.hasChangedDesc);
         });
 
-    const [expanded, setExpanded] = createSignal(
-        untrack(
-            () =>
-                props.depth === 0 ||
-                props.node.children.some((ref) => {
-                    const child = props.allNodes.get(ref);
-                    return child?.changeKind !== undefined;
-                }),
-        ),
-    );
+    const [expanded, setExpanded] = createSignal(false);
 
     const childNodes = createMemo(() => {
         if (!expanded() || isCyclic()) return [];
