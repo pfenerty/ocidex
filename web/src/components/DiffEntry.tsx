@@ -9,27 +9,18 @@ import { parsePurl } from "~/utils/purl";
 interface DiffEntryProps {
     entry: ChangelogEntryData;
     packagesOnly: boolean;
-    showPlanFiles: boolean;
     typeFilter: string | null;
     nameFilter: string;
     onTypeFilterToggle: (kind: string) => void;
 }
 
 export default function DiffEntry(props: DiffEntryProps) {
-    // Applies only the packagesOnly filter — used as the "show this entry at all" baseline.
-    const baseChanges = () =>
-        props.packagesOnly
+    // File-type entries (no purl, or purl type "file") are never shown.
+    const pkgChanges = () => {
+        const changes = props.packagesOnly
             ? props.entry.changes.filter((c) => c.purl !== undefined)
             : props.entry.changes;
-
-    // Applies packagesOnly + showPlanFiles: removes entries with no purl or purl type "file".
-    const pkgChanges = () => {
-        if (!props.showPlanFiles) {
-            return baseChanges().filter(
-                (c) => c.purl !== undefined && parsePurl(c.purl)?.type !== "file",
-            );
-        }
-        return baseChanges();
+        return changes.filter((c) => parsePurl(c.purl ?? "")?.type !== "file");
     };
 
     const visibleChanges = () => {
@@ -51,10 +42,8 @@ export default function DiffEntry(props: DiffEntryProps) {
     const upgradedCount = () => pkgChanges().filter((c) => classifyChange(c) === "upgraded").length;
     const downgradedCount = () => pkgChanges().filter((c) => classifyChange(c) === "downgraded").length;
 
-    const hiddenByPlanFilter = () => !props.showPlanFiles && baseChanges().length > pkgChanges().length;
-
     return (
-        <Show when={baseChanges().length > 0}>
+        <Show when={visibleChanges().length > 0}>
             <div class="changelog-entry">
                 <div class="changelog-entry-header">
                     <div class="text-sm">
@@ -96,19 +85,9 @@ export default function DiffEntry(props: DiffEntryProps) {
                                     </button>
                                 ));
                         })()}
-                        <Show when={hiddenByPlanFilter()}>
-                            <span class="text-muted text-sm">
-                                {baseChanges().length - pkgChanges().length} plan file {baseChanges().length - pkgChanges().length === 1 ? "change" : "changes"} hidden
-                            </span>
-                        </Show>
                     </div>
                 </div>
-                <Show when={visibleChanges().length > 0} fallback={
-                    <p class="text-muted text-sm" style={{ padding: "0.5rem 0" }}>
-                        No changes match the current filter.
-                    </p>
-                }>
-                    <div class="table-wrapper">
+                <div class="table-wrapper">
                         <table>
                             <thead>
                                 <tr>
@@ -164,7 +143,6 @@ export default function DiffEntry(props: DiffEntryProps) {
                             </tbody>
                         </table>
                     </div>
-                </Show>
             </div>
         </Show>
     );

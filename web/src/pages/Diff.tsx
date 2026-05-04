@@ -48,7 +48,6 @@ export default function Diff() {
     }
 
     const [packagesOnly, setPackagesOnly] = createSignal(true);
-    const [showPlanFiles, setShowPlanFiles] = createSignal(false);
     const [typeFilter, setTypeFilter] = createSignal<string | null>(null);
     const [nameFilter, setNameFilter] = createSignal("");
     const toggleTypeFilter = (kind: string) =>
@@ -170,14 +169,6 @@ export default function Diff() {
                                             />
                                             Packages only
                                         </label>
-                                        <label style={{ display: "flex", "align-items": "center", gap: "6px", cursor: "pointer", "font-size": "0.875rem" }}>
-                                            <input
-                                                type="checkbox"
-                                                checked={showPlanFiles()}
-                                                onChange={(e) => setShowPlanFiles(e.target.checked)}
-                                            />
-                                            Show plan files
-                                        </label>
                                         <input
                                             type="text"
                                             placeholder="Filter by package…"
@@ -189,7 +180,6 @@ export default function Diff() {
                                     <DiffEntry
                                         entry={entry()}
                                         packagesOnly={packagesOnly()}
-                                        showPlanFiles={showPlanFiles()}
                                         typeFilter={typeFilter()}
                                         nameFilter={nameFilter()}
                                         onTypeFilterToggle={toggleTypeFilter}

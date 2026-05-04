@@ -18,16 +18,13 @@ export function PackagesTab(props: {
     const [typeFilter, setTypeFilter] = createSignal("all");
     const [page, setPage] = createSignal(0);
     const [viewMode, setViewMode] = createSignal<"tree" | "list">("tree");
-    const [showPlanFiles, setShowPlanFiles] = createSignal(false);
     const pageSize = 50;
 
     const ecoType = (c: ComponentSummary) =>
         parsePurl(c.purl ?? "")?.type ?? c.type;
 
     const packages = createMemo(() =>
-        showPlanFiles()
-            ? props.components
-            : props.components.filter((c) => c.type !== "file"),
+        props.components.filter((c) => c.type !== "file"),
     );
 
     const types = createMemo(() => {
@@ -110,14 +107,6 @@ export function PackagesTab(props: {
                                 : `${filtered().length} of ${packages().length} packages`
                             : plural(packages().length, "package")}
                     </span>
-                    <label style={{ display: "flex", "align-items": "center", gap: "6px", cursor: "pointer", "font-size": "0.875rem" }}>
-                        <input
-                            type="checkbox"
-                            checked={showPlanFiles()}
-                            onChange={(e) => setShowPlanFiles(e.target.checked)}
-                        />
-                        Show plan files
-                    </label>
                     <Show when={hasTree()}>
                         <div class="btn-group" style={{ "margin-left": "auto" }}>
                             <button
@@ -222,7 +211,7 @@ export function PackagesTab(props: {
                         </>
                     }
                 >
-                    {(graph) => <DependencyTreeView graph={graph} showPlanFiles={showPlanFiles()} />}
+                    {(graph) => <DependencyTreeView graph={graph} />}
                 </Show>
             </div>
         </Show>
@@ -245,7 +234,6 @@ interface TreeNode {
 
 export function DependencyTreeView(props: {
     graph: { edges: DependencyEdge[]; nodes: ComponentSummary[] };
-    showPlanFiles?: boolean;
 }) {
     const treeData = createMemo(() => {
         const nameMap = new Map<
@@ -269,13 +257,11 @@ export function DependencyTreeView(props: {
             if (node.bomRef !== undefined) nameMap.set(node.bomRef, info);
         }
 
-        const edges = props.showPlanFiles === true
-            ? props.graph.edges
-            : props.graph.edges.filter(
-                (e) =>
-                    nameMap.get(e.from)?.type !== "file" &&
-                    nameMap.get(e.to)?.type !== "file",
-            );
+        const edges = props.graph.edges.filter(
+            (e) =>
+                nameMap.get(e.from)?.type !== "file" &&
+                nameMap.get(e.to)?.type !== "file",
+        );
 
         const adj = new Map<string, string[]>();
         const allTargets = new Set<string>();
