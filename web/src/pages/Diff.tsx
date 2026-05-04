@@ -1,9 +1,8 @@
 import { createSignal, Show, For } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
 import { useArtifacts, useArtifactSBOMs } from "~/api/queries";
-import { useDiff } from "~/api/queries";
-import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
-import DiffEntry from "~/components/DiffEntry";
+import { EmptyState } from "~/components/Feedback";
+import { DiffPairView, ViewToggle } from "~/components/DiffPairView";
 import { sbomLabel } from "~/utils/format";
 
 export default function Diff() {
@@ -12,34 +11,25 @@ export default function Diff() {
         to?: string;
     }>();
 
-    // Artifact selection for picker
     const [fromArtifactId, setFromArtifactId] = createSignal("");
     const [toArtifactId, setToArtifactId] = createSignal("");
     const [fromSbomId, setFromSbomId] = createSignal(searchParams.from ?? "");
     const [toSbomId, setToSbomId] = createSignal(searchParams.to ?? "");
+    const [viewMode, setViewMode] = createSignal<"tree" | "list">("tree");
 
-    // Load all artifacts for the pickers
     const artifactsQuery = useArtifacts(() => ({ limit: 200 }));
 
-    // Load SBOMs for the selected "from" artifact
     const fromSbomsQuery = useArtifactSBOMs(
         () => fromArtifactId(),
         () => ({ limit: 200 }),
         { enabled: () => fromArtifactId() !== "" },
     );
 
-    // Load SBOMs for the selected "to" artifact
     const toSbomsQuery = useArtifactSBOMs(
         () => toArtifactId(),
         () => ({ limit: 200 }),
         { enabled: () => toArtifactId() !== "" },
     );
-
-    // Run the diff when both SBOM IDs are set via URL params
-    const diffQuery = useDiff(() => ({
-        from: searchParams.from,
-        to: searchParams.to,
-    }));
 
     function handleCompare() {
         if (fromSbomId() !== "" && toSbomId() !== "") {
@@ -47,17 +37,18 @@ export default function Diff() {
         }
     }
 
-    const [packagesOnly, setPackagesOnly] = createSignal(true);
-    const [typeFilter, setTypeFilter] = createSignal<string | null>(null);
-    const [nameFilter, setNameFilter] = createSignal("");
-    const toggleTypeFilter = (kind: string) =>
-        setTypeFilter(prev => prev === kind ? null : kind);
-
     return (
         <>
             <div class="page-header">
-                <h2>Compare SBOMs</h2>
-                <p>Select two SBOMs to see what changed between them.</p>
+                <div class="page-header-row">
+                    <div>
+                        <h2>Compare SBOMs</h2>
+                        <p>Select two SBOMs to see what changed between them.</p>
+                    </div>
+                    <Show when={searchParams.from !== undefined && searchParams.to !== undefined}>
+                        <ViewToggle mode={viewMode()} onChange={setViewMode} />
+                    </Show>
+                </div>
             </div>
 
             <div class="card mb-lg">
@@ -142,53 +133,20 @@ export default function Diff() {
                 </div>
             </div>
 
-            {/* Diff results */}
-            <Show when={searchParams.from !== undefined && searchParams.to !== undefined}>
-                <Show when={!diffQuery.isLoading} fallback={<Loading />}>
-                    <Show
-                        when={!diffQuery.isError}
-                        fallback={<ErrorBox error={diffQuery.error} />}
-                    >
-                        <Show
-                            when={diffQuery.data}
-                            fallback={
-                                <EmptyState
-                                    title="No results"
-                                    message="Could not compute diff."
-                                />
-                            }
-                        >
-                            {(entry) => (
-                                <>
-                                    <div class="mb-md" style={{ display: "flex", "align-items": "center", gap: "8px", "flex-wrap": "wrap" }}>
-                                        <label style={{ display: "flex", "align-items": "center", gap: "6px", cursor: "pointer", "font-size": "0.875rem" }}>
-                                            <input
-                                                type="checkbox"
-                                                checked={packagesOnly()}
-                                                onChange={(e) => setPackagesOnly(e.target.checked)}
-                                            />
-                                            Packages only
-                                        </label>
-                                        <input
-                                            type="text"
-                                            placeholder="Filter by package…"
-                                            value={nameFilter()}
-                                            onInput={(e) => setNameFilter(e.currentTarget.value)}
-                                            style={{ flex: "1", "min-width": "160px", "font-size": "0.875rem" }}
-                                        />
-                                    </div>
-                                    <DiffEntry
-                                        entry={entry()}
-                                        packagesOnly={packagesOnly()}
-                                        typeFilter={typeFilter()}
-                                        nameFilter={nameFilter()}
-                                        onTypeFilterToggle={toggleTypeFilter}
-                                    />
-                                </>
-                            )}
-                        </Show>
-                    </Show>
-                </Show>
+            <Show
+                when={searchParams.from !== undefined && searchParams.to !== undefined}
+                fallback={
+                    <EmptyState
+                        title="Select two SBOMs"
+                        message="Choose a 'from' and 'to' SBOM above and click Compare."
+                    />
+                }
+            >
+                <DiffPairView
+                    fromId={searchParams.from ?? ""}
+                    toId={searchParams.to ?? ""}
+                    viewMode={viewMode()}
+                />
             </Show>
         </>
     );

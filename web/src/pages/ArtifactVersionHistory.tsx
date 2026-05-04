@@ -1,16 +1,14 @@
 import { For, Show, createSignal } from "solid-js";
 import { A, useParams } from "@solidjs/router";
-import { useArtifact, useArtifactSBOMs, useDiff, useDiffTree } from "~/api/queries";
+import { useArtifact, useArtifactSBOMs } from "~/api/queries";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
-import DiffEntry from "~/components/DiffEntry";
-import { DiffTreeView } from "~/components/DiffTreeView";
+import { DiffPairView, ViewToggle } from "~/components/DiffPairView";
 
 export default function ArtifactVersionHistory() {
     const params = useParams<{ id: string; version: string }>();
     const version = () => decodeURIComponent(params.version);
 
     const artifactQuery = useArtifact(() => params.id);
-
     const sbomsQuery = useArtifactSBOMs(
         () => params.id,
         () => ({ image_version: version(), limit: 200 }),
@@ -28,14 +26,12 @@ export default function ArtifactVersionHistory() {
         return [...archs].sort();
     };
 
-    // API returns created_at DESC — filter to selected arch (or all), keep order.
     const builds = () => {
         const sboms = sbomsQuery.data?.data ?? [];
         const arch = selectedArch();
         return arch !== undefined ? sboms.filter((s) => s.architecture === arch) : sboms;
     };
 
-    // Consecutive pairs: newer = builds[i], older = builds[i+1]
     const pairs = () => {
         const b = builds();
         return b.slice(0, -1).map((newer, i) => ({ newer, older: b[i + 1] }));
@@ -59,20 +55,7 @@ export default function ArtifactVersionHistory() {
                         <h2>{version()}</h2>
                         <p class="text-muted">Build changelog</p>
                     </div>
-                    <div class="btn-group">
-                        <button
-                            class={`btn btn-sm${viewMode() === "tree" ? " active" : ""}`}
-                            onClick={() => setViewMode("tree")}
-                        >
-                            Tree
-                        </button>
-                        <button
-                            class={`btn btn-sm${viewMode() === "list" ? " active" : ""}`}
-                            onClick={() => setViewMode("list")}
-                        >
-                            List
-                        </button>
-                    </div>
+                    <ViewToggle mode={viewMode()} onChange={setViewMode} />
                 </div>
             </div>
 
@@ -120,7 +103,7 @@ export default function ArtifactVersionHistory() {
                         >
                             <For each={pairs()}>
                                 {(pair) => (
-                                    <BuildDiffEntry
+                                    <DiffPairView
                                         fromId={pair.older.id}
                                         toId={pair.newer.id}
                                         viewMode={viewMode()}
@@ -132,52 +115,5 @@ export default function ArtifactVersionHistory() {
                 </Show>
             </Show>
         </>
-    );
-}
-
-function BuildDiffEntry(props: {
-    fromId: string;
-    toId: string;
-    viewMode: "tree" | "list";
-}) {
-    const [typeFilter, setTypeFilter] = createSignal<string | null>(null);
-    const [nameFilter] = createSignal("");
-
-    // Tree mode: one combined call (diff + filtered dep graph).
-    const treeQuery = useDiffTree(
-        () => props.viewMode === "tree" ? { from: props.fromId, to: props.toId } : {},
-    );
-
-    // List mode: plain diff.
-    const listQuery = useDiff(
-        () => props.viewMode === "list" ? { from: props.fromId, to: props.toId } : {},
-    );
-
-    return (
-        <Show when={props.viewMode === "tree"} fallback={
-            <>
-                <Show when={listQuery.isLoading}><Loading /></Show>
-                <Show when={listQuery.isError}><ErrorBox error={listQuery.error} /></Show>
-                <Show when={listQuery.data} keyed>
-                    {(entry) => (
-                        <DiffEntry
-                            entry={entry}
-                            packagesOnly={true}
-                            typeFilter={typeFilter()}
-                            nameFilter={nameFilter()}
-                            onTypeFilterToggle={(k) =>
-                                setTypeFilter((f) => (f === k ? null : k))
-                            }
-                        />
-                    )}
-                </Show>
-            </>
-        }>
-            <Show when={treeQuery.isLoading}><Loading /></Show>
-            <Show when={treeQuery.isError}><ErrorBox error={treeQuery.error} /></Show>
-            <Show when={treeQuery.data} keyed>
-                {(tree) => <DiffTreeView tree={tree} />}
-            </Show>
-        </Show>
     );
 }
