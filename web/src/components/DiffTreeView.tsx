@@ -17,16 +17,30 @@ interface TreeNode {
     hasChangedDesc: boolean;
 }
 
-// Strip version/qualifiers from a purl for loose matching:
-// pkg:cargo/cpufeatures@0.3.0?qualifiers → pkg:cargo/cpufeatures
 function purlBase(purl: string): string {
     const atIdx = purl.indexOf("@");
     return atIdx > 0 ? purl.slice(0, atIdx) : purl.split("?")[0];
 }
 
 export function DiffTreeView(props: { tree: DiffTree }) {
+    const [typeFilter, setTypeFilter] = createSignal<string | null>(null);
+    const toggleFilter = (kind: string) =>
+        setTypeFilter((f) => (f === kind ? null : kind));
+
+    // All package changes — used for badge counts regardless of active filter.
+    const allChanges = createMemo(() =>
+        (props.tree.changes ?? []).filter(
+            (c) => c.purl !== undefined && parsePurl(c.purl)?.type !== "file",
+        ),
+    );
+
+    const addedCount = () => allChanges().filter((c) => c.type === "added").length;
+    const removedCount = () => allChanges().filter((c) => c.type === "removed").length;
+    const upgradedCount = () => allChanges().filter((c) => classifyChange(c) === "upgraded").length;
+    const downgradedCount = () => allChanges().filter((c) => classifyChange(c) === "downgraded").length;
+
     const treeData = createMemo(() => {
-        // Step 1: nameMap from non-file nodes (backend already filtered, but guard anyway)
+        // Step 1: nameMap from non-file nodes
         const nameMap = new Map<
             string,
             { name: string; version?: string; id?: string; purl?: string }
@@ -52,18 +66,20 @@ export function DiffTreeView(props: { tree: DiffTree }) {
             if (node.bomRef !== undefined && node.bomRef !== "") nameMap.set(node.bomRef, info);
         }
 
-        // Step 2: change lookup from diff (skip file-type)
+        // Step 2: change lookup — respects active typeFilter so the tree prunes
+        // to only show paths relevant to the active filter.
         interface ChangeInfo {
             kind: ReturnType<typeof classifyChange>;
             version?: string;
             previousVersion?: string;
         }
+        const f = typeFilter();
+        const activeChanges = f !== null
+            ? allChanges().filter((c) => classifyChange(c) === f)
+            : allChanges();
+
         const changeMap = new Map<string, ChangeInfo>();
-        // Backend already filtered file-type; changes here are package-only.
-        const filteredChanges = (props.tree.changes ?? []).filter(
-            (c) => c.purl !== undefined && parsePurl(c.purl)?.type !== "file",
-        );
-        for (const c of filteredChanges) {
+        for (const c of activeChanges) {
             const info: ChangeInfo = {
                 kind: classifyChange(c),
                 version: c.version,
@@ -80,7 +96,7 @@ export function DiffTreeView(props: { tree: DiffTree }) {
             if (!changeMap.has(nameKey)) changeMap.set(nameKey, info);
         }
 
-        // Step 3: adjacency from edges (non-file only)
+        // Step 3: adjacency
         const adj = new Map<string, string[]>();
         const allTargets = new Set<string>();
         for (const edge of props.tree.edges ?? []) {
@@ -113,12 +129,12 @@ export function DiffTreeView(props: { tree: DiffTree }) {
             });
         }
 
-        // Step 5: find roots
+        // Step 5: roots
         const fromRefs = [...adj.keys()];
         let rootRefs = fromRefs.filter((r) => !allTargets.has(r));
         if (rootRefs.length === 0) rootRefs = fromRefs.slice(0, 10);
 
-        // Step 6: DFS to mark nodes with changed descendants
+        // Step 6: DFS to mark changed descendants
         const mark = (ref: string, visited: Set<string>): boolean => {
             if (visited.has(ref)) return false;
             visited.add(ref);
@@ -134,13 +150,13 @@ export function DiffTreeView(props: { tree: DiffTree }) {
         const markVisited = new Set<string>();
         for (const r of rootRefs) mark(r, markVisited);
 
-        // Step 7: filter roots to relevant (changed or has changed descendant)
+        // Step 7: filter roots to relevant
         const relevantRoots = rootRefs.filter((r) => {
             const n = nodes.get(r);
             return n !== undefined && (n.changeKind !== undefined || n.hasChangedDesc);
         });
 
-        // Step 8: removed packages not present in the new graph
+        // Step 8: removed orphans (not in new graph)
         const inGraphPurls = new Set<string>();
         for (const n of nodes.values()) {
             if (n.purl !== undefined) {
@@ -148,7 +164,7 @@ export function DiffTreeView(props: { tree: DiffTree }) {
                 inGraphPurls.add(purlBase(n.purl));
             }
         }
-        const removedOrphans = filteredChanges.filter((c) => {
+        const removedOrphans = activeChanges.filter((c) => {
             if (classifyChange(c) !== "removed") return false;
             return (
                 (c.purl === undefined || (!inGraphPurls.has(c.purl) && !inGraphPurls.has(purlBase(c.purl)))) &&
@@ -162,6 +178,13 @@ export function DiffTreeView(props: { tree: DiffTree }) {
             removedOrphans,
         };
     });
+
+    const kindDefs = [
+        { key: "added",      count: addedCount,      cls: "badge-success", label: (n: number) => `+${n} added` },
+        { key: "removed",    count: removedCount,    cls: "badge-danger",  label: (n: number) => `-${n} removed` },
+        { key: "upgraded",   count: upgradedCount,   cls: "badge-success", label: (n: number) => `↑${n} upgraded` },
+        { key: "downgraded", count: downgradedCount, cls: "badge-danger",  label: (n: number) => `↓${n} downgraded` },
+    ];
 
     return (
         <div class="changelog-entry">
@@ -178,6 +201,27 @@ export function DiffTreeView(props: { tree: DiffTree }) {
                         {" "}
                         ({relativeDate(props.tree.to.buildDate ?? props.tree.to.createdAt)})
                     </span>
+                </div>
+                <div class="changelog-summary">
+                    <For each={kindDefs}>
+                        {(k) => (
+                            <Show when={k.count() > 0}>
+                                <button
+                                    class={`badge ${k.cls}`}
+                                    style={{
+                                        cursor: "pointer",
+                                        border: "none",
+                                        opacity: typeFilter() !== null && typeFilter() !== k.key ? "0.45" : "1",
+                                        "font-weight": typeFilter() === k.key ? "700" : undefined,
+                                    }}
+                                    onClick={() => toggleFilter(k.key)}
+                                    title={typeFilter() === k.key ? "Click to clear filter" : `Show only ${k.key}`}
+                                >
+                                    {k.label(k.count())}
+                                </button>
+                            </Show>
+                        )}
+                    </For>
                 </div>
             </div>
             <div class="table-wrapper">
@@ -206,7 +250,11 @@ export function DiffTreeView(props: { tree: DiffTree }) {
                         <Show when={treeData().removedOrphans.length > 0}>
                             <For each={treeData().removedOrphans}>
                                 {(c) => (
-                                    <tr>
+                                    <tr
+                                        style={{
+                                            "border-left": "2px solid var(--color-danger)",
+                                        }}
+                                    >
                                         <td>
                                             <span
                                                 class="mono"
@@ -252,6 +300,9 @@ function DiffTreeNodeRow(props: {
     const isCyclic = () => props.visited.has(props.node.ref);
     const isChanged = () => props.node.changeKind !== undefined;
 
+    // Context nodes (no change, no purl) are structural/env entries — hide them.
+    const isVisible = () => isChanged() || props.node.purl !== undefined;
+
     const relevantChildren = () =>
         props.node.children.filter((ref) => {
             const child = props.allNodes.get(ref);
@@ -280,13 +331,24 @@ function DiffTreeNodeRow(props: {
         return "badge-warning";
     };
 
+    const rowBorderColor = () => {
+        const k = props.node.changeKind;
+        if (k === "added" || k === "upgraded") return "var(--color-success)";
+        if (k === "removed" || k === "downgraded") return "var(--color-danger)";
+        if (k !== undefined) return "var(--color-warning)";
+        return undefined;
+    };
+
     return (
-        <Show when={!isCyclic()}>
+        <Show when={!isCyclic() && isVisible()}>
             <>
                 <tr
                     style={{
                         cursor: relevantChildren().length > 0 ? "pointer" : "default",
                         opacity: isChanged() ? "1" : "0.55",
+                        "border-left": rowBorderColor() !== undefined
+                            ? `2px solid ${rowBorderColor()}`
+                            : undefined,
                     }}
                     onClick={() =>
                         relevantChildren().length > 0 && setExpanded(!expanded())
