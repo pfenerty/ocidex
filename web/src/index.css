@@ -219,17 +219,76 @@
         transition: width 0.3s ease;
     }
 
-    /* Dependency tree rows */
-    .dep-tree-row:hover {
+    /* Tree view (div-based, animated expand/collapse) */
+    .tree-view {
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        overflow: hidden;
+    }
+
+    .tree-header,
+    .tree-row {
+        display: grid;
+        grid-template-columns: 1fr 8rem 6.5rem minmax(0, 1fr);
+        align-items: center;
+    }
+
+    .tree-header {
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    .tree-hcell {
+        padding: 0.625rem 0.75rem;
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--color-text-muted);
+        white-space: nowrap;
+        user-select: none;
+    }
+
+    .tree-row {
+        border-bottom: 1px solid var(--color-border);
+        transition: background 0.1s;
+    }
+
+    .tree-row:last-child {
+        border-bottom: none;
+    }
+
+    .tree-row:hover {
         background: var(--color-surface-hover);
     }
 
-    .dep-tree-row a {
-        text-decoration: none;
+    .tree-cell {
+        padding: 0.5rem 0.75rem;
+        color: var(--color-text);
+        font-size: 0.875rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
     }
 
-    .dep-tree-row a:hover {
-        text-decoration: underline;
+    .tree-cell.mono {
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
+    }
+
+    .tree-children {
+        display: grid;
+        grid-template-rows: 0fr;
+        transition: grid-template-rows 0.22s ease;
+    }
+
+    .tree-children.open {
+        grid-template-rows: 1fr;
+    }
+
+    .tree-children > div {
+        overflow: hidden;
+        min-height: 0;
     }
 
     /* Collapsible details */
@@ -729,6 +788,17 @@
         display: flex;
         gap: 0.5rem;
         align-items: center;
+    }
+
+    .btn-group .btn.active {
+        background: var(--color-secondary);
+        border-color: var(--color-secondary);
+        color: var(--color-secondary-fg);
+    }
+
+    .btn-group .btn.active:hover {
+        background: var(--color-secondary-hover);
+        border-color: var(--color-secondary-hover);
     }
 
     /* Inputs */

@@ -1,4 +1,14 @@
-import { createSignal, createMemo, Show, For } from "solid-js";
+import {
+    createSignal,
+    createMemo,
+    createContext,
+    useContext,
+    createEffect,
+    on,
+    Show,
+    For,
+} from "solid-js";
+import type { Accessor } from "solid-js";
 import { A } from "@solidjs/router";
 import type { ComponentSummary, DependencyEdge } from "~/api/client";
 import { EmptyState } from "~/components/Feedback";
@@ -139,7 +149,6 @@ export function PackagesTab(props: {
                                             <th>Version</th>
                                             <th>Type</th>
                                             <th>Package URL</th>
-                                            <th />
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -182,14 +191,6 @@ export function PackagesTab(props: {
                                                             )}
                                                         </Show>
                                                     </td>
-                                                    <td>
-                                                        <A
-                                                            href={`/components/${c.id}`}
-                                                            class="text-sm"
-                                                        >
-                                                            Details →
-                                                        </A>
-                                                    </td>
                                                 </tr>
                                             )}
                                         </For>
@@ -229,7 +230,7 @@ export function PackagesTab(props: {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Dependency Tree View – table layout with rich columns             */
+/*  Dependency Tree View                                               */
 /* ------------------------------------------------------------------ */
 
 interface TreeNode {
@@ -242,9 +243,17 @@ interface TreeNode {
     children: string[];
 }
 
+const TreeCtx = createContext<{
+    collapse: Accessor<number>;
+    expand: Accessor<number>;
+}>();
+
 export function DependencyTreeView(props: {
     graph: { edges: DependencyEdge[]; nodes: ComponentSummary[] };
 }) {
+    const [collapseCount, setCollapseCount] = createSignal(0);
+    const [expandCount, setExpandCount] = createSignal(0);
+
     const treeData = createMemo(() => {
         const adj = new Map<string, string[]>();
         const allTargets = new Set<string>();
@@ -299,33 +308,53 @@ export function DependencyTreeView(props: {
     });
 
     return (
-        <div class="table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Version</th>
-                        <th>Type</th>
-                        <th>Deps</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <For each={treeData().roots}>
-                        {(rootRef) => {
-                            const node = treeData().nodes.get(rootRef);
-                            return node ? (
-                                <TreeNodeRow
-                                    node={node}
-                                    allNodes={treeData().nodes}
-                                    depth={0}
-                                    visited={new Set()}
-                                />
-                            ) : null;
-                        }}
-                    </For>
-                </tbody>
-            </table>
-        </div>
+        <TreeCtx.Provider
+            value={{ collapse: collapseCount, expand: expandCount }}
+        >
+            <div
+                style={{
+                    display: "flex",
+                    "justify-content": "flex-end",
+                    gap: "0.5rem",
+                    "margin-bottom": "0.5rem",
+                }}
+            >
+                <button
+                    class="btn btn-sm"
+                    onClick={() => setCollapseCount((c) => c + 1)}
+                >
+                    Collapse all
+                </button>
+                <button
+                    class="btn btn-sm"
+                    onClick={() => setExpandCount((c) => c + 1)}
+                >
+                    Expand all
+                </button>
+            </div>
+
+            <div class="tree-view">
+                <div class="tree-header">
+                    <div class="tree-hcell">Name</div>
+                    <div class="tree-hcell">Version</div>
+                    <div class="tree-hcell">Type</div>
+                    <div class="tree-hcell">Package URL</div>
+                </div>
+                <For each={treeData().roots}>
+                    {(rootRef) => {
+                        const node = treeData().nodes.get(rootRef);
+                        return node ? (
+                            <TreeNodeRow
+                                node={node}
+                                allNodes={treeData().nodes}
+                                depth={0}
+                                visited={new Set()}
+                            />
+                        ) : null;
+                    }}
+                </For>
+            </div>
+        </TreeCtx.Provider>
     );
 }
 
@@ -336,15 +365,19 @@ function TreeNodeRow(props: {
     visited: Set<string>;
 }) {
     const [expanded, setExpanded] = createSignal(false);
+    const ctx = useContext(TreeCtx);
     const hasChildren = () => props.node.children.length > 0;
     const isCyclic = () => props.visited.has(props.node.ref);
 
-    const childNodes = createMemo(() => {
-        if (!expanded() || isCyclic()) return [];
-        return props.node.children
-            .map((ref) => props.allNodes.get(ref))
-            .filter((n): n is TreeNode => !!n);
-    });
+    if (ctx) {
+        // Run on mount too (no defer) so nodes mounted after expand-all also expand
+        createEffect(on(ctx.collapse, (v) => {
+            if (v > 0) setExpanded(false);
+        }));
+        createEffect(on(ctx.expand, (v) => {
+            if (v > 0 && hasChildren() && !isCyclic()) setExpanded(true);
+        }));
+    }
 
     const nextVisited = createMemo(() => {
         const s = new Set(props.visited);
@@ -352,13 +385,27 @@ function TreeNodeRow(props: {
         return s;
     });
 
+    const childNodes = () =>
+        isCyclic()
+            ? []
+            : props.node.children
+                  .map((ref) => props.allNodes.get(ref))
+                  .filter((n): n is TreeNode => !!n);
+
     return (
-        <>
-            <tr
-                style={{ cursor: hasChildren() ? "pointer" : "default" }}
-                onClick={() => hasChildren() && setExpanded(!expanded())}
+        <div>
+            <div
+                class="tree-row"
+                style={{
+                    cursor:
+                        hasChildren() && !isCyclic() ? "pointer" : "default",
+                }}
+                onClick={() =>
+                    hasChildren() && !isCyclic() && setExpanded(!expanded())
+                }
             >
-                <td>
+                {/* Name */}
+                <div class="tree-cell">
                     <span
                         style={{
                             display: "flex",
@@ -374,37 +421,49 @@ function TreeNodeRow(props: {
                                 color: "var(--color-text-dim)",
                                 "font-size": "0.7rem",
                                 "flex-shrink": "0",
-                                transition: "transform 0.15s",
+                                transition: "transform 0.22s ease",
                                 transform:
-                                    hasChildren() && expanded()
+                                    hasChildren() &&
+                                    !isCyclic() &&
+                                    expanded()
                                         ? "rotate(90deg)"
                                         : "rotate(0deg)",
                             }}
                         >
-                            {hasChildren() ? "▸" : ""}
+                            {hasChildren() && !isCyclic() ? "▸" : ""}
                         </span>
                         <Show
                             when={props.node.id}
+                            keyed
                             fallback={
                                 <span
                                     class="mono"
                                     style={{
-                                        color: "var(--color-text-muted)",
                                         "font-size": "0.85rem",
+                                        color: "var(--color-text-muted)",
                                     }}
                                 >
                                     {props.node.name}
                                 </span>
                             }
                         >
-                            <A
-                                href={`/components/${props.node.id}`}
-                                class="mono"
-                                style={{ "font-size": "0.85rem" }}
-                                onClick={(e: MouseEvent) => e.stopPropagation()}
-                            >
-                                {props.node.name}
-                            </A>
+                            {(id) => (
+                                <A
+                                    href={`/components/${id}`}
+                                    class="mono"
+                                    style={{ "font-size": "0.85rem" }}
+                                    onClick={(e: MouseEvent) =>
+                                        e.stopPropagation()
+                                    }
+                                >
+                                    {props.node.name}
+                                </A>
+                            )}
+                        </Show>
+                        <Show when={hasChildren()}>
+                            <span class="badge badge-sm">
+                                {props.node.children.length}
+                            </span>
                         </Show>
                         <Show when={isCyclic()}>
                             <span
@@ -415,35 +474,51 @@ function TreeNodeRow(props: {
                             </span>
                         </Show>
                     </span>
-                </td>
-                <td class="mono" style={{ "font-size": "0.85rem" }}>
-                    {props.node.version ?? <span class="text-muted">—</span>}
-                </td>
-                <td>
+                </div>
+
+                {/* Version */}
+                <div class="tree-cell mono">
+                    {props.node.version ?? (
+                        <span class="text-muted">—</span>
+                    )}
+                </div>
+
+                {/* Type */}
+                <div class="tree-cell">
                     <Show when={props.node.type}>
                         <span class="badge badge-sm">{props.node.type}</span>
                     </Show>
-                </td>
-                <td>
-                    <Show when={hasChildren()}>
-                        <span class="badge badge-sm">
-                            {props.node.children.length}
-                        </span>
+                </div>
+
+                {/* Package URL */}
+                <div class="tree-cell">
+                    <Show
+                        when={props.node.purl}
+                        keyed
+                        fallback={<span class="text-muted">—</span>}
+                    >
+                        {(purl) => <PurlLink purl={purl} showBadge />}
                     </Show>
-                </td>
-            </tr>
-            <Show when={expanded() && !isCyclic()}>
-                <For each={childNodes()}>
-                    {(child) => (
-                        <TreeNodeRow
-                            node={child}
-                            allNodes={props.allNodes}
-                            depth={props.depth + 1}
-                            visited={nextVisited()}
-                        />
-                    )}
-                </For>
+                </div>
+            </div>
+
+            {/* Children — always mounted; CSS grid-template-rows animates open/close */}
+            <Show when={hasChildren() && !isCyclic()}>
+                <div class={`tree-children${expanded() ? " open" : ""}`}>
+                    <div>
+                        <For each={childNodes()}>
+                            {(child) => (
+                                <TreeNodeRow
+                                    node={child}
+                                    allNodes={props.allNodes}
+                                    depth={props.depth + 1}
+                                    visited={nextVisited()}
+                                />
+                            )}
+                        </For>
+                    </div>
+                </div>
             </Show>
-        </>
+        </div>
     );
 }
