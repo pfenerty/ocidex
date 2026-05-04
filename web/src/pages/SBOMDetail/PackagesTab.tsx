@@ -1,14 +1,4 @@
-import {
-    createSignal,
-    createMemo,
-    createContext,
-    useContext,
-    createEffect,
-    on,
-    Show,
-    For,
-} from "solid-js";
-import type { Accessor } from "solid-js";
+import { createSignal, createMemo, Show, For } from "solid-js";
 import { A } from "@solidjs/router";
 import type { ComponentSummary, DependencyEdge } from "~/api/client";
 import { EmptyState } from "~/components/Feedback";
@@ -230,7 +220,7 @@ export function PackagesTab(props: {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Dependency Tree View                                               */
+/*  Dependency Tree View – simple table, lazy-mount on expand         */
 /* ------------------------------------------------------------------ */
 
 interface TreeNode {
@@ -243,17 +233,9 @@ interface TreeNode {
     children: string[];
 }
 
-const TreeCtx = createContext<{
-    collapse: Accessor<number>;
-    expand: Accessor<number>;
-}>();
-
 export function DependencyTreeView(props: {
     graph: { edges: DependencyEdge[]; nodes: ComponentSummary[] };
 }) {
-    const [collapseCount, setCollapseCount] = createSignal(0);
-    const [expandCount, setExpandCount] = createSignal(0);
-
     const treeData = createMemo(() => {
         const adj = new Map<string, string[]>();
         const allTargets = new Set<string>();
@@ -308,53 +290,33 @@ export function DependencyTreeView(props: {
     });
 
     return (
-        <TreeCtx.Provider
-            value={{ collapse: collapseCount, expand: expandCount }}
-        >
-            <div
-                style={{
-                    display: "flex",
-                    "justify-content": "flex-end",
-                    gap: "0.5rem",
-                    "margin-bottom": "0.5rem",
-                }}
-            >
-                <button
-                    class="btn btn-sm"
-                    onClick={() => setCollapseCount((c) => c + 1)}
-                >
-                    Collapse all
-                </button>
-                <button
-                    class="btn btn-sm"
-                    onClick={() => setExpandCount((c) => c + 1)}
-                >
-                    Expand all
-                </button>
-            </div>
-
-            <div class="tree-view">
-                <div class="tree-header">
-                    <div class="tree-hcell">Name</div>
-                    <div class="tree-hcell">Version</div>
-                    <div class="tree-hcell">Type</div>
-                    <div class="tree-hcell">Package URL</div>
-                </div>
-                <For each={treeData().roots}>
-                    {(rootRef) => {
-                        const node = treeData().nodes.get(rootRef);
-                        return node ? (
-                            <TreeNodeRow
-                                node={node}
-                                allNodes={treeData().nodes}
-                                depth={0}
-                                visited={new Set()}
-                            />
-                        ) : null;
-                    }}
-                </For>
-            </div>
-        </TreeCtx.Provider>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Version</th>
+                        <th>Type</th>
+                        <th>Package URL</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <For each={treeData().roots}>
+                        {(rootRef) => {
+                            const node = treeData().nodes.get(rootRef);
+                            return node ? (
+                                <TreeNodeRow
+                                    node={node}
+                                    allNodes={treeData().nodes}
+                                    depth={0}
+                                    visited={new Set()}
+                                />
+                            ) : null;
+                        }}
+                    </For>
+                </tbody>
+            </table>
+        </div>
     );
 }
 
@@ -365,19 +327,15 @@ function TreeNodeRow(props: {
     visited: Set<string>;
 }) {
     const [expanded, setExpanded] = createSignal(false);
-    const ctx = useContext(TreeCtx);
     const hasChildren = () => props.node.children.length > 0;
     const isCyclic = () => props.visited.has(props.node.ref);
 
-    if (ctx) {
-        // Run on mount too (no defer) so nodes mounted after expand-all also expand
-        createEffect(on(ctx.collapse, (v) => {
-            if (v > 0) setExpanded(false);
-        }));
-        createEffect(on(ctx.expand, (v) => {
-            if (v > 0 && hasChildren() && !isCyclic()) setExpanded(true);
-        }));
-    }
+    const childNodes = createMemo(() => {
+        if (!expanded() || isCyclic()) return [];
+        return props.node.children
+            .map((ref) => props.allNodes.get(ref))
+            .filter((n): n is TreeNode => !!n);
+    });
 
     const nextVisited = createMemo(() => {
         const s = new Set(props.visited);
@@ -385,17 +343,9 @@ function TreeNodeRow(props: {
         return s;
     });
 
-    const childNodes = () =>
-        isCyclic()
-            ? []
-            : props.node.children
-                  .map((ref) => props.allNodes.get(ref))
-                  .filter((n): n is TreeNode => !!n);
-
     return (
-        <div>
-            <div
-                class="tree-row"
+        <>
+            <tr
                 style={{
                     cursor:
                         hasChildren() && !isCyclic() ? "pointer" : "default",
@@ -404,8 +354,7 @@ function TreeNodeRow(props: {
                     hasChildren() && !isCyclic() && setExpanded(!expanded())
                 }
             >
-                {/* Name */}
-                <div class="tree-cell">
+                <td>
                     <span
                         style={{
                             display: "flex",
@@ -421,7 +370,7 @@ function TreeNodeRow(props: {
                                 color: "var(--color-text-dim)",
                                 "font-size": "0.7rem",
                                 "flex-shrink": "0",
-                                transition: "transform 0.22s ease",
+                                transition: "transform 0.15s",
                                 transform:
                                     hasChildren() &&
                                     !isCyclic() &&
@@ -474,24 +423,16 @@ function TreeNodeRow(props: {
                             </span>
                         </Show>
                     </span>
-                </div>
-
-                {/* Version */}
-                <div class="tree-cell mono">
-                    {props.node.version ?? (
-                        <span class="text-muted">—</span>
-                    )}
-                </div>
-
-                {/* Type */}
-                <div class="tree-cell">
+                </td>
+                <td class="mono" style={{ "font-size": "0.85rem" }}>
+                    {props.node.version ?? <span class="text-muted">—</span>}
+                </td>
+                <td>
                     <Show when={props.node.type}>
                         <span class="badge badge-sm">{props.node.type}</span>
                     </Show>
-                </div>
-
-                {/* Package URL */}
-                <div class="tree-cell">
+                </td>
+                <td class="truncate">
                     <Show
                         when={props.node.purl}
                         keyed
@@ -499,26 +440,20 @@ function TreeNodeRow(props: {
                     >
                         {(purl) => <PurlLink purl={purl} showBadge />}
                     </Show>
-                </div>
-            </div>
-
-            {/* Children — lazy mount; @keyframes animates entry on expand */}
+                </td>
+            </tr>
             <Show when={expanded() && !isCyclic()}>
-                <div class="tree-children">
-                    <div>
-                        <For each={childNodes()}>
-                            {(child) => (
-                                <TreeNodeRow
-                                    node={child}
-                                    allNodes={props.allNodes}
-                                    depth={props.depth + 1}
-                                    visited={nextVisited()}
-                                />
-                            )}
-                        </For>
-                    </div>
-                </div>
+                <For each={childNodes()}>
+                    {(child) => (
+                        <TreeNodeRow
+                            node={child}
+                            allNodes={props.allNodes}
+                            depth={props.depth + 1}
+                            visited={nextVisited()}
+                        />
+                    )}
+                </For>
             </Show>
-        </div>
+        </>
     );
 }
