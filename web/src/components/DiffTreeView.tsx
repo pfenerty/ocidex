@@ -220,7 +220,7 @@ export function DiffTreeView(props: { tree: DiffTree }) {
                                             </span>
                                         </td>
                                         <td>
-                                            <span class="badge badge-sm badge-danger">
+                                            <span class="badge badge-danger">
                                                 removed
                                             </span>
                                         </td>
@@ -351,7 +351,7 @@ function DiffTreeNodeRow(props: {
                     </td>
                     <td>
                         <Show when={isChanged()}>
-                            <span class={`badge badge-sm ${changeCls()}`}>
+                            <span class={`badge ${changeCls()}`}>
                                 {props.node.changeKind}
                             </span>
                         </Show>
