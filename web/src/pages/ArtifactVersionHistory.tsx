@@ -16,6 +16,7 @@ export default function ArtifactVersionHistory() {
     );
 
     const [selectedArch, setSelectedArch] = createSignal<string | undefined>("amd64");
+    const [showPlanFiles, setShowPlanFiles] = createSignal(false);
 
     const allArchs = () => {
         const sboms = sbomsQuery.data?.data ?? [];
@@ -102,11 +103,22 @@ export default function ArtifactVersionHistory() {
                                 />
                             }
                         >
+                            <div class="mb-md" style={{ display: "flex", "align-items": "center", gap: "8px" }}>
+                                <label style={{ display: "flex", "align-items": "center", gap: "6px", cursor: "pointer", "font-size": "0.875rem" }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={showPlanFiles()}
+                                        onChange={(e) => setShowPlanFiles(e.target.checked)}
+                                    />
+                                    Show plan files
+                                </label>
+                            </div>
                             <For each={pairs()}>
                                 {(pair) => (
                                     <BuildDiffEntry
                                         fromId={pair.older.id}
                                         toId={pair.newer.id}
+                                        showPlanFiles={showPlanFiles()}
                                     />
                                 )}
                             </For>
@@ -118,7 +130,7 @@ export default function ArtifactVersionHistory() {
     );
 }
 
-function BuildDiffEntry(props: { fromId: string; toId: string }) {
+function BuildDiffEntry(props: { fromId: string; toId: string; showPlanFiles: boolean }) {
     const [typeFilter, setTypeFilter] = createSignal<string | null>(null);
     const [nameFilter] = createSignal("");
     const diff = useDiff(() => ({ from: props.fromId, to: props.toId }));
@@ -136,6 +148,7 @@ function BuildDiffEntry(props: { fromId: string; toId: string }) {
                     <DiffEntry
                         entry={data()}
                         packagesOnly={false}
+                        showPlanFiles={props.showPlanFiles}
                         typeFilter={typeFilter()}
                         nameFilter={nameFilter()}
                         onTypeFilterToggle={(k) =>

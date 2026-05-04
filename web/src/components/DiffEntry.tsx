@@ -4,20 +4,29 @@ import { relativeDate } from "~/utils/format";
 import { classifyChange, changelogRefLabel } from "~/utils/diff";
 import type { ChangelogEntryData } from "~/utils/diff";
 import PurlLink from "~/components/PurlLink";
+import { parsePurl } from "~/utils/purl";
 
 interface DiffEntryProps {
     entry: ChangelogEntryData;
     packagesOnly: boolean;
+    showPlanFiles: boolean;
     typeFilter: string | null;
     nameFilter: string;
     onTypeFilterToggle: (kind: string) => void;
 }
 
 export default function DiffEntry(props: DiffEntryProps) {
-    const pkgChanges = () =>
-        props.packagesOnly
+    const pkgChanges = () => {
+        let changes = props.packagesOnly
             ? props.entry.changes.filter((c) => c.purl !== undefined)
             : props.entry.changes;
+        if (!props.showPlanFiles) {
+            changes = changes.filter(
+                (c) => parsePurl(c.purl ?? "")?.type !== "file",
+            );
+        }
+        return changes;
+    };
 
     const visibleChanges = () => {
         const f = props.typeFilter;
