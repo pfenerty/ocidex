@@ -1,4 +1,5 @@
 import { createContext, useContext, createSignal, For, type ParentProps } from "solid-js";
+import "./toast.css";
 
 type ToastType = "success" | "error" | "info";
 

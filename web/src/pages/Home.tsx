@@ -2,6 +2,7 @@ import { A } from "@solidjs/router";
 import { Package, Layers, ShieldCheck, ArrowUpDown, ExternalLink } from "lucide-solid";
 import { Show } from "solid-js";
 import { useDashboardStats } from "~/api/queries";
+import "./Home.css";
 
 export default function Home() {
     const stats = useDashboardStats();

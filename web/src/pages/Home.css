@@ -1,0 +1,120 @@
+.landing {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+}
+
+.landing-hero {
+    padding: 3rem 2rem 2.5rem;
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    max-width: 680px;
+}
+
+.landing-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0;
+    line-height: 1.1;
+}
+
+.landing-title span { color: var(--color-primary); }
+
+.landing-tagline {
+    font-size: 1.125rem;
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.landing-pitch {
+    font-size: 0.9375rem;
+    line-height: 1.65;
+    color: var(--color-text-muted);
+    max-width: 580px;
+    margin: 0;
+}
+
+.landing-stats {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    font-family: var(--font-mono);
+    color: var(--color-text-muted);
+    padding: 0.5rem 0.75rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    width: fit-content;
+}
+
+.landing-stats-sep { color: var(--color-text-dim); }
+
+.landing-ctas {
+    display: flex;
+    gap: 0.625rem;
+    flex-wrap: wrap;
+}
+
+.landing-features {
+    padding: 2rem;
+    flex: 1;
+}
+
+.landing-features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 1rem;
+    max-width: 960px;
+}
+
+.landing-feature-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    text-decoration: none;
+    color: var(--color-text);
+    padding: 1.25rem;
+    overflow: hidden;
+}
+
+/* 2px red-to-transparent top edge per ADR-0023 entry-card spec */
+.landing-feature-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(to right, var(--color-entry-edge) 70%, transparent 100%);
+}
+
+.landing-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.landing-card-icon {
+    color: var(--color-text-muted);
+    margin-top: 0.25rem;
+}
+
+.landing-card-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--color-text);
+}
+
+.landing-card-desc {
+    font-size: 0.8125rem;
+    line-height: 1.55;
+    color: var(--color-text-muted);
+    margin: 0;
+    flex: 1;
+}
