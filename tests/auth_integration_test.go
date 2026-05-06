@@ -3,6 +3,7 @@ package tests
 import (
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/api"
 	"github.com/pfenerty/ocidex/internal/config"
+	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -28,7 +30,7 @@ func registryBody(name string) string {
 func setupServerWithAuth(t *testing.T, pool *pgxpool.Pool) (*httptest.Server, service.AuthService) {
 	t.Helper()
 	cfg := &config.Config{SessionSecret: testSessionSecret}
-	authSvc := service.NewAuthService(pool, cfg)
+	authSvc := service.NewAuthService(pool, cfg, event.NewBus(slog.Default()))
 	sbomSvc := service.NewSBOMService(pool, nil, nil)
 	searchSvc := service.NewSearchService(pool)
 	registrySvc := service.NewRegistryService(pool)

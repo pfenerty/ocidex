@@ -85,6 +85,26 @@ func TestExtension_EventHandlers(t *testing.T) {
 			wantResourceType: "artifact",
 			wantResourceID:   "02000000-0000-0000-0000-000000000000",
 		},
+		{
+			name:      "user logged in",
+			eventType: event.UserLoggedIn,
+			data: event.UserLoggedInData{
+				UserID: pgtype.UUID{Bytes: [16]byte{3}, Valid: true},
+			},
+			wantEventType:    "user.logged_in",
+			wantResourceType: "user",
+			wantResourceID:   "03000000-0000-0000-0000-000000000000",
+		},
+		{
+			name:      "user logged out",
+			eventType: event.UserLoggedOut,
+			data: event.UserLoggedOutData{
+				UserID: pgtype.UUID{Bytes: [16]byte{4}, Valid: true},
+			},
+			wantEventType:    "user.logged_out",
+			wantResourceType: "user",
+			wantResourceID:   "04000000-0000-0000-0000-000000000000",
+		},
 	}
 
 	for _, tt := range tests {

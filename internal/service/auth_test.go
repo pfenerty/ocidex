@@ -10,8 +10,13 @@ import (
 	"github.com/matryer/is"
 
 	"github.com/pfenerty/ocidex/internal/config"
+	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
+
+type noopPublisher struct{}
+
+func (noopPublisher) Publish(_ context.Context, _ event.Type, _ any) {}
 
 // ---------------------------------------------------------------------------
 // Fake AuthRepository
@@ -128,8 +133,9 @@ func (f *fakeAuthRepo) DeleteExpiredSessions(ctx context.Context) error {
 // minimal config (SessionMaxAgeDays=7).
 func newTestAuthService(repo repository.AuthRepository) *authService {
 	return &authService{
-		repo: repo,
-		cfg:  &config.Config{SessionMaxAgeDays: 7},
+		repo:      repo,
+		cfg:       &config.Config{SessionMaxAgeDays: 7},
+		publisher: noopPublisher{},
 	}
 }
 

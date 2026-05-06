@@ -13,6 +13,8 @@ const (
 	SBOMDeleted     Type = "sbom.deleted"
 	ArtifactCreated Type = "artifact.created"
 	ArtifactDeleted Type = "artifact.deleted"
+	UserLoggedIn    Type = "user.logged_in"
+	UserLoggedOut   Type = "user.logged_out"
 )
 
 // Event is the envelope passed to handlers.
@@ -40,4 +42,14 @@ type SBOMDeletedData struct {
 // ArtifactDeletedData is published after an artifact and its SBOMs are deleted.
 type ArtifactDeletedData struct {
 	ArtifactID pgtype.UUID
+}
+
+// UserLoggedInData is published after a session is successfully created.
+type UserLoggedInData struct {
+	UserID pgtype.UUID
+}
+
+// UserLoggedOutData is published after a session is deleted.
+type UserLoggedOutData struct {
+	UserID pgtype.UUID
 }

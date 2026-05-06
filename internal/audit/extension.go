@@ -31,6 +31,8 @@ func (e *Extension) Init(bus *event.Bus) error {
 	bus.Subscribe(event.SBOMDeleted, e.handleSBOMDeleted)
 	bus.Subscribe(event.ArtifactCreated, e.handleArtifactCreated)
 	bus.Subscribe(event.ArtifactDeleted, e.handleArtifactDeleted)
+	bus.Subscribe(event.UserLoggedIn, e.handleUserLoggedIn)
+	bus.Subscribe(event.UserLoggedOut, e.handleUserLoggedOut)
 	return nil
 }
 
@@ -71,6 +73,24 @@ func (e *Extension) handleArtifactDeleted(ctx context.Context, ev event.Event) {
 		return
 	}
 	e.record(ctx, string(event.ArtifactDeleted), "artifact", data.ArtifactID, data)
+}
+
+func (e *Extension) handleUserLoggedIn(ctx context.Context, ev event.Event) {
+	data, ok := ev.Data.(event.UserLoggedInData)
+	if !ok {
+		e.logger.Error("audit: unexpected data type for user.logged_in")
+		return
+	}
+	e.record(ctx, string(event.UserLoggedIn), "user", data.UserID, data)
+}
+
+func (e *Extension) handleUserLoggedOut(ctx context.Context, ev event.Event) {
+	data, ok := ev.Data.(event.UserLoggedOutData)
+	if !ok {
+		e.logger.Error("audit: unexpected data type for user.logged_out")
+		return
+	}
+	e.record(ctx, string(event.UserLoggedOut), "user", data.UserID, data)
 }
 
 func (e *Extension) record(ctx context.Context, eventType, resourceType string, resourceID pgtype.UUID, payload any) {

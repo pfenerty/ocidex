@@ -89,7 +89,7 @@ func run() error {
 	ociValidator := oci.NewValidator(oci.WithInsecureResolver(insecureResolver))
 	sbomSvc := service.NewSBOMService(pool, bus, ociValidator)
 	searchSvc := service.NewSearchService(pool)
-	authSvc := service.NewAuthService(pool, cfg)
+	authSvc := service.NewAuthService(pool, cfg, bus)
 
 	jobSvc := service.NewJobService(pool)
 	scanSubmitter := setupScannerExt(cfg, pool, bus, reg, natsClient, logger, jobSvc)

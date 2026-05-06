@@ -18,6 +18,7 @@ import (
 	"golang.org/x/oauth2/github"
 
 	"github.com/pfenerty/ocidex/internal/config"
+	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
@@ -60,14 +61,15 @@ type AuthService interface {
 }
 
 type authService struct {
-	pool   *pgxpool.Pool
-	repo   repository.AuthRepository
-	oauth2 *oauth2.Config
-	cfg    *config.Config
+	pool      *pgxpool.Pool
+	repo      repository.AuthRepository
+	oauth2    *oauth2.Config
+	cfg       *config.Config
+	publisher event.Publisher
 }
 
 // NewAuthService constructs an AuthService.
-func NewAuthService(pool *pgxpool.Pool, cfg *config.Config) AuthService {
+func NewAuthService(pool *pgxpool.Pool, cfg *config.Config, publisher event.Publisher) AuthService {
 	oc := &oauth2.Config{
 		ClientID:     cfg.GitHubClientID,
 		ClientSecret: cfg.GitHubClientSecret,
@@ -76,10 +78,11 @@ func NewAuthService(pool *pgxpool.Pool, cfg *config.Config) AuthService {
 		Endpoint:     github.Endpoint,
 	}
 	return &authService{
-		pool:   pool,
-		repo:   repository.New(pool),
-		oauth2: oc,
-		cfg:    cfg,
+		pool:      pool,
+		repo:      repository.New(pool),
+		oauth2:    oc,
+		cfg:       cfg,
+		publisher: publisher,
 	}
 }
 
@@ -152,6 +155,7 @@ func (s *authService) CreateSession(ctx context.Context, userID pgtype.UUID) (st
 	if err != nil {
 		return "", fmt.Errorf("creating session: %w", err)
 	}
+	s.publisher.Publish(ctx, event.UserLoggedIn, event.UserLoggedInData{UserID: userID})
 	return plaintext, nil
 }
 
@@ -169,7 +173,15 @@ func (s *authService) ValidateSession(ctx context.Context, token string) (AuthUs
 }
 
 func (s *authService) DeleteSession(ctx context.Context, token string) error {
-	return s.repo.DeleteSession(ctx, sha256hex(token))
+	// Look up user before deleting so we can attribute the logout event.
+	user, userErr := s.ValidateSession(ctx, token)
+	if err := s.repo.DeleteSession(ctx, sha256hex(token)); err != nil {
+		return err
+	}
+	if userErr == nil {
+		s.publisher.Publish(ctx, event.UserLoggedOut, event.UserLoggedOutData{UserID: user.ID})
+	}
+	return nil
 }
 
 func (s *authService) CreateAPIKey(ctx context.Context, userID pgtype.UUID, name, scope string) (string, error) {
