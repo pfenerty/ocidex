@@ -203,7 +203,7 @@ func TestScanToEnrichFlow(t *testing.T) {
 	extCtx, extCancel := context.WithCancel(ctx)
 	t.Cleanup(extCancel)
 
-	scanExt := scanner.NewNATSExtension(natsClient, scanDisp, streamName, logger, nil)
+	scanExt := scanner.NewNATSExtension(natsClient, scanDisp, streamName, logger, nil, 9*time.Minute)
 	if err := scanExt.Start(extCtx); err != nil {
 		t.Fatalf("scanner ext start: %v", err)
 	}
@@ -214,7 +214,7 @@ func TestScanToEnrichFlow(t *testing.T) {
 	reg := enrichment.NewRegistry()
 	reg.Register(ocienricher.NewEnricher())
 	enrichDisp := enrichment.NewDispatcher(repoQ, reg)
-	enrichExt := enrichment.NewNATSExtension(natsClient, enrichDisp, streamName, logger)
+	enrichExt := enrichment.NewNATSExtension(natsClient, enrichDisp, streamName, logger, 4*time.Minute)
 	if err := enrichExt.Start(extCtx); err != nil {
 		t.Fatalf("enrichment ext start: %v", err)
 	}

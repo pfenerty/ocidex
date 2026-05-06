@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -110,7 +111,10 @@ func run() error {
 		enrichment.WithWorkers(cfg.EnrichmentWorkers),
 		enrichment.WithQueueSize(cfg.EnrichmentQueueSize),
 	)
-	reg.Register(enrichment.NewNATSExtension(natsClient, dispatcher, cfg.NATSStreamName, logger))
+	// enrichMsgTimeout is set just under the consumer AckWait (5m) so a hung goroutine
+	// is cancelled and the semaphore slot released before JetStream redelivers.
+	const enrichMsgTimeout = 4 * time.Minute
+	reg.Register(enrichment.NewNATSExtension(natsClient, dispatcher, cfg.NATSStreamName, logger, enrichMsgTimeout))
 
 	if err := reg.InitAll(); err != nil {
 		return fmt.Errorf("initializing extensions: %w", err)
@@ -144,6 +148,9 @@ func runEnrichOnce(ctx context.Context, pool *pgxpool.Pool) error {
 		return fmt.Errorf("ENRICH_SBOM_ID is required in --once mode")
 	}
 
+	start := time.Now()
+	slog.Info("enrichment started", "sbom_id", sbomIDStr) //nolint:gosec // G706: sbomIDStr is a trusted env var
+
 	var sbomID pgtype.UUID
 	if err := sbomID.Scan(sbomIDStr); err != nil {
 		return fmt.Errorf("parsing ENRICH_SBOM_ID %q: %w", sbomIDStr, err)
@@ -160,6 +167,8 @@ func runEnrichOnce(ctx context.Context, pool *pgxpool.Pool) error {
 	if err != nil {
 		return fmt.Errorf("getting artifact for SBOM %s: %w", sbomIDStr, err)
 	}
+
+	slog.Info("enriching SBOM", "sbom_id", sbomIDStr, "artifact_name", artifact.Name) //nolint:gosec // G706: sbomIDStr is a trusted env var
 
 	ref := enrichment.SubjectRef{
 		SBOMId:         sbomID,
@@ -181,6 +190,6 @@ func runEnrichOnce(ctx context.Context, pool *pgxpool.Pool) error {
 		return fmt.Errorf("enriching SBOM: %w", err)
 	}
 
-	slog.Info("enrichment complete", "sbom_id", sbomIDStr) //nolint:gosec // G706: sbomIDStr is a trusted env var, not arbitrary user input
+	slog.Info("enrichment complete", "sbom_id", sbomIDStr, "duration_ms", time.Since(start).Milliseconds()) //nolint:gosec // G706: sbomIDStr is a trusted env var
 	return nil
 }

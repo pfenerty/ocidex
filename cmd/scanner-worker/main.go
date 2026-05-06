@@ -106,7 +106,10 @@ func run() error {
 	scannerSbomSvc := service.NewSBOMService(pool, bus, nil)
 	sc := scanner.NewSyftScanner(logger)
 	dispatcher := scanner.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerWorkers, cfg.ScannerQueueSize, logger, jobSvc)
-	registry.Register(scanner.NewNATSExtension(natsClient, dispatcher, cfg.NATSStreamName, logger, jobSvc))
+	// scanMsgTimeout is set just under the consumer AckWait (10m) so a hung goroutine
+	// is cancelled and the semaphore slot released before JetStream redelivers.
+	const scanMsgTimeout = 9 * time.Minute
+	registry.Register(scanner.NewNATSExtension(natsClient, dispatcher, cfg.NATSStreamName, logger, jobSvc, scanMsgTimeout))
 
 	if err := registry.InitAll(); err != nil {
 		return fmt.Errorf("initializing extensions: %w", err)
@@ -160,6 +163,9 @@ func runOnce(ctx context.Context, pool *pgxpool.Pool) error {
 		return fmt.Errorf("parsing SCAN_IMAGE: %w", err)
 	}
 
+	start := time.Now()
+	slog.Info("scan started", "image", imageRef, "repo", repo, "digest", digest, "tag", tag) //nolint:gosec // G706: imageRef is a trusted env var
+
 	logger := slog.Default()
 	bus := event.NewBus(logger)
 	sbomSvc := service.NewSBOMService(pool, bus, nil)
@@ -180,6 +186,7 @@ func runOnce(ctx context.Context, pool *pgxpool.Pool) error {
 	if err != nil {
 		return fmt.Errorf("scanning image: %w", err)
 	}
+	slog.Info("scan complete", "image", imageRef, "duration_ms", time.Since(start).Milliseconds()) //nolint:gosec // G706: imageRef is a trusted env var
 
 	bom := new(cdx.BOM)
 	if err := cdx.NewBOMDecoder(bytes.NewReader(raw), cdx.BOMFileFormatJSON).Decode(bom); err != nil {
@@ -198,7 +205,7 @@ func runOnce(ctx context.Context, pool *pgxpool.Pool) error {
 		return fmt.Errorf("ingesting SBOM: %w", err)
 	}
 
-	slog.Info("scan complete", "image", imageRef) //nolint:gosec // G706: imageRef is a trusted env var, not arbitrary user input
+	slog.Info("ingest complete", "image", imageRef, "total_duration_ms", time.Since(start).Milliseconds()) //nolint:gosec // G706: imageRef is a trusted env var
 	return nil
 }
 

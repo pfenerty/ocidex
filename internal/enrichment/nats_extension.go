@@ -32,6 +32,7 @@ type NATSExtension struct {
 	dispatcher  DispatchRunner
 	streamName  string
 	logger      *slog.Logger
+	msgTimeout  time.Duration // per-message processing deadline; should be < AckWait
 	fetchCancel context.CancelFunc
 	fetchDone   chan struct{}
 	sem         chan struct{} // bounds concurrent goroutines to MaxAckPending
@@ -39,12 +40,15 @@ type NATSExtension struct {
 }
 
 // NewNATSExtension creates a NATSExtension backed by the given client and dispatcher.
-func NewNATSExtension(client *natspkg.Client, dispatcher DispatchRunner, streamName string, logger *slog.Logger) *NATSExtension {
+// msgTimeout is the per-message processing deadline; set it slightly under the consumer
+// AckWait so a hung goroutine is cancelled before JetStream redelivers to another worker.
+func NewNATSExtension(client *natspkg.Client, dispatcher DispatchRunner, streamName string, logger *slog.Logger, msgTimeout time.Duration) *NATSExtension {
 	return &NATSExtension{
 		client:     client,
 		dispatcher: dispatcher,
 		streamName: streamName,
 		logger:     logger,
+		msgTimeout: msgTimeout,
 	}
 }
 
@@ -186,7 +190,10 @@ func (e *NATSExtension) handleMsg(fetchCtx context.Context, msg natsMsg) {
 		defer e.wg.Done()
 		defer func() { <-e.sem }()
 
-		if err := e.dispatcher.ProcessOne(context.Background(), ref); err != nil { //nolint:gosec // G118: see above
+		ctx, cancel := context.WithTimeout(context.Background(), e.msgTimeout) //nolint:gosec // G118: see above
+		defer cancel()
+
+		if err := e.dispatcher.ProcessOne(ctx, ref); err != nil {
 			e.logger.Error("nats enrichment: processing failed, nacking",
 				"artifact_name", ref.ArtifactName, "err", err)
 			_ = msg.Nak()
