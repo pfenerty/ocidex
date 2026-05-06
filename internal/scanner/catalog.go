@@ -253,7 +253,12 @@ func discoverUntagged(ctx context.Context, client *http.Client, baseURL, repo st
 // normalizeRegistryHost maps known Docker Hub alias hostnames to the canonical
 // OCI registry API endpoint. docker.io, index.docker.io, and hub.docker.com all
 // redirect to the web frontend; registry-1.docker.io is the actual API.
+// It also strips any scheme prefix (e.g. "https://quay.io" → "quay.io") so
+// callers that store full URLs in the registry config still work.
 func normalizeRegistryHost(host string) string {
+	if i := strings.Index(host, "://"); i != -1 {
+		host = strings.TrimSuffix(host[i+3:], "/")
+	}
 	switch host {
 	case "docker.io", "index.docker.io", "hub.docker.com":
 		return "registry-1.docker.io"
