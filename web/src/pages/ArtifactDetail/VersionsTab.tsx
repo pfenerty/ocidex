@@ -5,6 +5,7 @@ import Pagination from "~/components/Pagination";
 import { relativeDate } from "~/utils/format";
 
 export function VersionsTab(props: {
+    artifactId: string;
     versions: ArtifactVersionSummary[];
     pagination: PaginationMeta;
     onPageChange: (offset: number) => void;
@@ -19,6 +20,7 @@ export function VersionsTab(props: {
                             <th>Revision</th>
                             <th>Build Date</th>
                             <th>Architectures</th>
+                            <th />
                         </tr>
                     </thead>
                     <tbody>
@@ -92,6 +94,14 @@ export function VersionsTab(props: {
                                                 )}
                                             </For>
                                         </Show>
+                                    </td>
+                                    <td>
+                                        <A
+                                            href={`/artifacts/${props.artifactId}/versions/${encodeURIComponent(version.versionKey)}`}
+                                            class="btn btn-sm"
+                                        >
+                                            Changelog
+                                        </A>
                                     </td>
                                 </tr>
                             )}

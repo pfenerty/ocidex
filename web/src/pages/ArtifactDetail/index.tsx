@@ -27,7 +27,7 @@ export default function ArtifactDetail() {
         "versions",
     );
     const [selectedArch, setSelectedArch] = createSignal<string | undefined>(
-        undefined,
+        "amd64",
     );
     const versionLimit = 25;
 
@@ -282,6 +282,7 @@ export default function ArtifactDetail() {
                                             >
                                                 {(d) => (
                                                     <VersionsTab
+                                                        artifactId={params.id}
                                                         versions={d().data}
                                                         pagination={
                                                             d().pagination

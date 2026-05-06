@@ -5,6 +5,8 @@ import { plural } from "~/utils/format";
 import { CATEGORY_COLORS } from "~/utils/licenseUtils";
 
 export function LicensesTab(props: { licenses: LicenseCount[] }) {
+    const sorted = () =>
+        [...props.licenses].sort((a, b) => b.componentCount - a.componentCount);
     const total = () =>
         props.licenses.reduce(
             (acc: number, l: LicenseCount) => acc + l.componentCount,
@@ -76,7 +78,7 @@ export function LicensesTab(props: { licenses: LicenseCount[] }) {
                             </tr>
                         </thead>
                         <tbody>
-                            <For each={props.licenses}>
+                            <For each={sorted()}>
                                 {(lic) => (
                                     <tr>
                                         <td>
