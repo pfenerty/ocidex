@@ -22,6 +22,7 @@ import (
 type Metadata struct {
 	Architecture string            `json:"architecture,omitempty"`
 	OS           string            `json:"os,omitempty"`
+	OSVersion    string            `json:"osVersion,omitempty"`
 	Created      *time.Time        `json:"created,omitempty"`
 	Labels       map[string]string `json:"labels,omitempty"`
 	// Raw annotations from manifest and parent index.
@@ -350,11 +351,23 @@ func extractField(key string, manifestAnnotations, labels, indexAnnotations map[
 	return ""
 }
 
+// platformArchitecture returns the architecture string for a platform.
+// For Windows images, it returns a composite "windows/arch/osVersion" to
+// distinguish variants (e.g. Windows Server vs Windows 10) that share the
+// same architecture but differ by os.version.
+func platformArchitecture(os, arch, osVersion string) string {
+	if os == "windows" && arch != "" && osVersion != "" {
+		return "windows/" + arch + "/" + osVersion
+	}
+	return arch
+}
+
 // extractMetadata builds a Metadata struct from all available annotation sources.
 func extractMetadata(cfg *v1.ConfigFile, manifestAnnotations, indexAnnotations map[string]string) Metadata {
 	meta := Metadata{
-		Architecture:        cfg.Architecture,
+		Architecture:        platformArchitecture(cfg.OS, cfg.Architecture, cfg.OSVersion),
 		OS:                  cfg.OS,
+		OSVersion:           cfg.OSVersion,
 		ManifestAnnotations: manifestAnnotations,
 		IndexAnnotations:    indexAnnotations,
 	}

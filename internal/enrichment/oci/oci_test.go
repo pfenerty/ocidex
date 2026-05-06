@@ -505,6 +505,51 @@ func TestExtractMetadata_RefName_ManifestPriority(t *testing.T) {
 	}
 }
 
+func TestPlatformArchitecture(t *testing.T) {
+	tests := []struct {
+		name      string
+		os        string
+		arch      string
+		osVersion string
+		want      string
+	}{
+		{"linux amd64", "linux", "amd64", "", "amd64"},
+		{"linux arm64", "linux", "arm64", "", "arm64"},
+		{"windows amd64 with version", "windows", "amd64", "10.0.17763", "windows/amd64/10.0.17763"},
+		{"windows amd64 no version", "windows", "amd64", "", "amd64"},
+		{"windows empty arch", "windows", "", "10.0.17763", ""},
+		{"empty all", "", "", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := platformArchitecture(tt.os, tt.arch, tt.osVersion)
+			if got != tt.want {
+				t.Errorf("platformArchitecture(%q, %q, %q) = %q, want %q", tt.os, tt.arch, tt.osVersion, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExtractMetadata_WindowsVariant(t *testing.T) {
+	cfg := &v1.ConfigFile{
+		Architecture: "amd64",
+		OS:           "windows",
+		OSVersion:    "10.0.17763.2928",
+	}
+
+	meta := extractMetadata(cfg, nil, nil)
+
+	if meta.Architecture != "windows/amd64/10.0.17763.2928" {
+		t.Errorf("Architecture = %q, want %q", meta.Architecture, "windows/amd64/10.0.17763.2928")
+	}
+	if meta.OS != "windows" {
+		t.Errorf("OS = %q, want %q", meta.OS, "windows")
+	}
+	if meta.OSVersion != "10.0.17763.2928" {
+		t.Errorf("OSVersion = %q, want %q", meta.OSVersion, "10.0.17763.2928")
+	}
+}
+
 func TestName(t *testing.T) {
 	e := NewEnricher()
 	if e.Name() != "oci-metadata" {

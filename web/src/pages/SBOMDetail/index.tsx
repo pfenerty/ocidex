@@ -35,7 +35,15 @@ export default function SBOMDetail() {
         { enabled: () => sbomQuery.data?.artifactId !== undefined && sbomQuery.data.subjectVersion !== undefined },
     );
 
-    const archSiblings = () => (siblingsQuery.data?.data ?? []).filter(s => s.architecture !== undefined);
+    const archSiblings = () => {
+        const seen = new Set<string>();
+        return (siblingsQuery.data?.data ?? []).filter(s => {
+            if (s.architecture === undefined) return false;
+            if (seen.has(s.architecture)) return false;
+            seen.add(s.architecture);
+            return true;
+        });
+    };
 
     const title = () => {
         const s = sbomQuery.data;
