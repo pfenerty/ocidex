@@ -904,6 +904,14 @@ const PAGE_SIZE = 20;
 
 function JobsTab() {
     const [page, setPage] = createSignal(0);
+    const [expandedErrors, setExpandedErrors] = createSignal(new Set<string>());
+    const toggleError = (id: string) =>
+        setExpandedErrors(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
     const query = useListScanJobs(() => ({ limit: PAGE_SIZE, offset: page() * PAGE_SIZE }));
 
     const total = () => query.data?.pagination.total ?? 0;
@@ -941,12 +949,17 @@ function JobsTab() {
                                             <td style={{ "white-space": "nowrap" }}>{formatDateTime(job.created_at)}</td>
                                             <td>
                                                 <Show when={job.last_error}>
-                                                    <details>
-                                                        <summary style={{ cursor: "pointer", "font-size": "0.85rem" }}>View error</summary>
+                                                    <button
+                                                        style={{ cursor: "pointer", "font-size": "0.85rem", background: "none", border: "none", padding: 0, color: "var(--color-primary)" }}
+                                                        onClick={() => toggleError(job.id)}
+                                                    >
+                                                        {expandedErrors().has(job.id) ? "Hide error" : "View error"}
+                                                    </button>
+                                                    <Show when={expandedErrors().has(job.id)}>
                                                         <code style={{ "font-size": "0.8rem", "word-break": "break-all", display: "block", "margin-top": "0.25rem" }}>
                                                             {job.last_error}
                                                         </code>
-                                                    </details>
+                                                    </Show>
                                                 </Show>
                                             </td>
                                             <td>
