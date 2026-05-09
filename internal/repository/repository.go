@@ -44,6 +44,7 @@ type SearchRepository interface {
 	ListSBOMsByDigest(ctx context.Context, arg ListSBOMsByDigestParams) ([]ListSBOMsByDigestRow, error)
 	LicenseSummaryByArtifact(ctx context.Context, artifactID pgtype.UUID) ([]LicenseSummaryByArtifactRow, error)
 	ListDependenciesBySBOM(ctx context.Context, sbomID pgtype.UUID) ([]ListDependenciesBySBOMRow, error)
+	GetSBOMMetadataBomRef(ctx context.Context, id pgtype.UUID) (interface{}, error)
 	ListComponentPurlTypes(ctx context.Context, arg ListComponentPurlTypesParams) ([]string, error)
 	SearchDistinctComponents(ctx context.Context, arg SearchDistinctComponentsParams) ([]SearchDistinctComponentsRow, error)
 	GetComponentVersions(ctx context.Context, arg GetComponentVersionsParams) ([]GetComponentVersionsRow, error)

@@ -46,19 +46,32 @@ type SBOMRef struct {
 
 // ChangeSummary counts the number of changes by type.
 type ChangeSummary struct {
-	Added    int `json:"added"`
-	Removed  int `json:"removed"`
-	Modified int `json:"modified"`
+	Added      int `json:"added"`
+	Removed    int `json:"removed"`
+	Upgraded   int `json:"upgraded"`
+	Downgraded int `json:"downgraded"`
+	Modified   int `json:"modified"`
 }
+
+// Change direction constants — values for ComponentDiff.Direction.
+const (
+	dirAdded      = "added"
+	dirRemoved    = "removed"
+	dirUpgraded   = "upgraded"
+	dirDowngraded = "downgraded"
+	dirModified   = "modified"
+)
 
 // ComponentDiff represents a single component change between two SBOMs.
 type ComponentDiff struct {
-	Type            string  `json:"type"` // "added", "removed", "modified"
+	Type            string  `json:"type"`      // "added", "removed", "modified"
+	Direction       string  `json:"direction"` // "added", "removed", "upgraded", "downgraded", "modified"
 	Name            string  `json:"name"`
 	Group           *string `json:"group,omitempty"`
 	Version         *string `json:"version,omitempty"`
 	Purl            *string `json:"purl,omitempty"`
 	PreviousVersion *string `json:"previousVersion,omitempty"`
+	NodeRef         *string `json:"nodeRef,omitempty"` // ID of the matching ComponentSummary node
 }
 
 // DiffSBOMs computes the diff between two arbitrary SBOMs.
@@ -175,12 +188,28 @@ func (s *searchService) DiffSBOMsWithTree(ctx context.Context, fromID, toID pgty
 		Architecture:   interfaceToStringPtr(toSBOM.Architecture),
 	}
 
+	// Fetch the metadata.component.bom-ref for root + isDirect computation (B5, B6).
+	rawMetaBomRef, err := q.GetSBOMMetadataBomRef(ctx, toID)
+	if err != nil {
+		return DiffTree{}, fmt.Errorf("getting metadata bom-ref: %w", err)
+	}
+	var metaBomRef string
+	if rawMetaBomRef != nil {
+		if s, ok := rawMetaBomRef.(string); ok {
+			metaBomRef = s
+		}
+	}
+
 	entry := diffComponents(fromRef, toRef, buildPackageMap(fromPkgs), buildPackageMap(toPkgs))
 
-	nodes := make([]ComponentSummary, 0, len(toPkgs))
-	for _, p := range toPkgs {
-		nodes = append(nodes, toComponentSummary(p.ID, toID, p.BomRef, p.Type, p.Name, p.GroupName, p.Version, p.Purl))
-	}
+	inEdge, outEdges := buildDepEdgeMaps(deps)
+	roots, directSet := computeRootsAndDirect(outEdges, inEdge, metaBomRef, toPkgs)
+	nodeByPurl, nodeByNameGroup, bomRefToID := buildNodeLookups(toPkgs)
+	annotateNodeRefs(entry.Changes, nodeByPurl, nodeByNameGroup)
+	idToChildren := buildIDToChildren(outEdges, bomRefToID)
+	changesByNodeID := buildChangesByNodeID(entry.Changes)
+
+	nodes := buildNodes(toPkgs, toID, directSet, idToChildren, changesByNodeID)
 
 	edges := make([]DependencyEdge, 0, len(deps))
 	for _, d := range deps {
@@ -194,6 +223,7 @@ func (s *searchService) DiffSBOMsWithTree(ctx context.Context, fromID, toID pgty
 		Changes: entry.Changes,
 		Nodes:   nodes,
 		Edges:   edges,
+		Roots:   roots,
 	}, nil
 }
 
@@ -426,6 +456,160 @@ func buildEnrichmentMetaMap(ctx context.Context, q *repository.Queries, artifact
 	return m
 }
 
+// buildDepEdgeMaps constructs in-edge count and outgoing-edges adjacency from a dep list.
+func buildDepEdgeMaps(deps []repository.ListDependenciesBySBOMRow) (inEdge map[string]int, outEdges map[string][]string) {
+	inEdge = make(map[string]int, len(deps))
+	outEdges = make(map[string][]string, len(deps))
+	for _, d := range deps {
+		inEdge[d.DependsOn]++
+		outEdges[d.Ref] = append(outEdges[d.Ref], d.DependsOn)
+	}
+	return
+}
+
+// computeRootsAndDirect returns the ordered root bom-refs and the set of direct
+// (one-hop-from-synthetic-root) bom-refs, given the edge maps and metadata bom-ref.
+func computeRootsAndDirect(outEdges map[string][]string, inEdge map[string]int, metaBomRef string, toPkgs []repository.ListSBOMPackagesRow) (roots []string, directSet map[string]bool) {
+	directSet = make(map[string]bool)
+	if metaBomRef != "" && len(outEdges[metaBomRef]) > 0 {
+		roots = make([]string, len(outEdges[metaBomRef]))
+		copy(roots, outEdges[metaBomRef])
+		for _, child := range roots {
+			directSet[child] = true
+		}
+	} else {
+		for _, p := range toPkgs {
+			if p.BomRef.Valid && p.BomRef.String != metaBomRef && inEdge[p.BomRef.String] == 0 {
+				roots = append(roots, p.BomRef.String)
+			}
+		}
+	}
+	bomRefName := make(map[string]string, len(toPkgs))
+	for _, p := range toPkgs {
+		if p.BomRef.Valid {
+			bomRefName[p.BomRef.String] = p.Name
+		}
+	}
+	sort.Slice(roots, func(i, j int) bool {
+		ni, nj := bomRefName[roots[i]], bomRefName[roots[j]]
+		if ni != nj {
+			return ni < nj
+		}
+		return roots[i] < roots[j]
+	})
+	return
+}
+
+// buildNodeLookups returns lookup maps: purl→nodeID, (name+\x00+group)→nodeID, bomRef→nodeID.
+func buildNodeLookups(toPkgs []repository.ListSBOMPackagesRow) (nodeByPurl, nodeByNameGroup, bomRefToID map[string]string) {
+	nodeByPurl = make(map[string]string, len(toPkgs))
+	nodeByNameGroup = make(map[string]string, len(toPkgs))
+	bomRefToID = make(map[string]string, len(toPkgs))
+	for _, p := range toPkgs {
+		id := uuidToString(p.ID)
+		if p.Purl.Valid && p.Purl.String != "" {
+			nodeByPurl[p.Purl.String] = id
+		}
+		nodeByNameGroup[p.Name+"\x00"+p.GroupName.String] = id
+		if p.BomRef.Valid {
+			bomRefToID[p.BomRef.String] = id
+		}
+	}
+	return
+}
+
+// annotateNodeRefs sets NodeRef on each change by purl-first, name+group fallback.
+func annotateNodeRefs(changes []ComponentDiff, nodeByPurl, nodeByNameGroup map[string]string) {
+	for i := range changes {
+		c := &changes[i]
+		if c.Purl != nil && *c.Purl != "" {
+			if id, ok := nodeByPurl[*c.Purl]; ok {
+				idCopy := id
+				c.NodeRef = &idCopy
+				continue
+			}
+		}
+		ng := c.Name + "\x00"
+		if c.Group != nil {
+			ng = c.Name + "\x00" + *c.Group
+		}
+		if id, ok := nodeByNameGroup[ng]; ok {
+			idCopy := id
+			c.NodeRef = &idCopy
+		}
+	}
+}
+
+// buildIDToChildren converts the bom-ref adjacency into a node-ID adjacency.
+func buildIDToChildren(outEdges map[string][]string, bomRefToID map[string]string) map[string][]string {
+	idToChildren := make(map[string][]string, len(bomRefToID))
+	for bomRef, children := range outEdges {
+		parentID, ok := bomRefToID[bomRef]
+		if !ok {
+			continue
+		}
+		for _, childRef := range children {
+			if childID, ok2 := bomRefToID[childRef]; ok2 {
+				idToChildren[parentID] = append(idToChildren[parentID], childID)
+			}
+		}
+	}
+	return idToChildren
+}
+
+// buildChangesByNodeID returns a map of nodeID → []direction for all changes with a NodeRef.
+func buildChangesByNodeID(changes []ComponentDiff) map[string][]string {
+	m := make(map[string][]string, len(changes))
+	for _, c := range changes {
+		if c.NodeRef != nil {
+			m[*c.NodeRef] = append(m[*c.NodeRef], c.Direction)
+		}
+	}
+	return m
+}
+
+// buildNodes constructs the ComponentSummary slice with IsDirect and DescendantChanges set.
+func buildNodes(toPkgs []repository.ListSBOMPackagesRow, toID pgtype.UUID, directSet map[string]bool, idToChildren map[string][]string, changesByNodeID map[string][]string) []ComponentSummary {
+	nodes := make([]ComponentSummary, 0, len(toPkgs))
+	for _, p := range toPkgs {
+		node := toComponentSummary(p.ID, toID, p.BomRef, p.Type, p.Name, p.GroupName, p.Version, p.Purl)
+		if p.BomRef.Valid {
+			node.IsDirect = directSet[p.BomRef.String]
+		}
+		nodes = append(nodes, node)
+	}
+	for i, n := range nodes {
+		counts := dfsChangeCounts(n.ID, idToChildren, changesByNodeID, make(map[string]bool))
+		if counts != (ChangeCounts{}) {
+			nodes[i].DescendantChanges = &counts
+		}
+	}
+	return nodes
+}
+
+// dfsChangeCounts aggregates change direction counts for a node's transitive descendants.
+// Each DFS call uses its own visited set so a node is counted once per ancestor even
+// when reachable via multiple paths (cycle-safe).
+func dfsChangeCounts(nodeID string, idToChildren map[string][]string, changesByNodeID map[string][]string, visited map[string]bool) ChangeCounts {
+	var counts ChangeCounts
+	for _, childID := range idToChildren[nodeID] {
+		if visited[childID] {
+			continue
+		}
+		visited[childID] = true
+		for _, dir := range changesByNodeID[childID] {
+			addDirectionCount(&counts, dir)
+		}
+		sub := dfsChangeCounts(childID, idToChildren, changesByNodeID, visited)
+		counts.Added += sub.Added
+		counts.Removed += sub.Removed
+		counts.Upgraded += sub.Upgraded
+		counts.Downgraded += sub.Downgraded
+		counts.Modified += sub.Modified
+	}
+	return counts
+}
+
 // compareVersionStrings compares two version strings numerically.
 // Segments are split on "." and "-" and compared as integers when possible,
 // lexicographically otherwise. Returns -1, 0, or +1.
@@ -462,6 +646,164 @@ func compareVersionStrings(a, b string) int {
 		return 1
 	}
 	return 0
+}
+
+// debCharOrd returns the deb-policy ordering value for a byte (zero byte = end of string).
+// Tilde < end-of-string < letters < non-letters (per Debian policy manual §5.6.12).
+func debCharOrd(c byte) int {
+	switch {
+	case c == '~':
+		return -1
+	case c == 0:
+		return 0
+	case c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z':
+		return int(c)
+	default:
+		return int(c) + 256
+	}
+}
+
+// debReadAlpha consumes a non-digit prefix from s[i:] and returns the new index.
+func debReadAlpha(s string, i int) ([]byte, int) {
+	start := i
+	for i < len(s) && (s[i] < '0' || s[i] > '9') {
+		i++
+	}
+	return []byte(s[start:i]), i
+}
+
+// debReadDigit consumes a digit prefix from s[i:] and returns the integer value and new index.
+func debReadDigit(s string, i int) (int, int) {
+	start := i
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		i++
+	}
+	v, _ := strconv.Atoi(s[start:i])
+	return v, i
+}
+
+// debCmpStr compares two Debian upstream/revision string segments using deb ordering.
+func debCmpStr(a, b string) int {
+	ai, bi := 0, 0
+	for ai < len(a) || bi < len(b) {
+		// Non-digit runs: compare character-by-character with deb char ordering.
+		ra, ai2 := debReadAlpha(a, ai)
+		rb, bi2 := debReadAlpha(b, bi)
+		maxLen := len(ra)
+		if len(rb) > maxLen {
+			maxLen = len(rb)
+		}
+		for k := 0; k < maxLen; k++ {
+			var ca, cb byte
+			if k < len(ra) {
+				ca = ra[k]
+			}
+			if k < len(rb) {
+				cb = rb[k]
+			}
+			if oa, ob := debCharOrd(ca), debCharOrd(cb); oa != ob {
+				if oa < ob {
+					return -1
+				}
+				return 1
+			}
+		}
+		ai, bi = ai2, bi2
+		// Digit runs: compare numerically.
+		an, ai3 := debReadDigit(a, ai)
+		bn, bi3 := debReadDigit(b, bi)
+		ai, bi = ai3, bi3
+		if an != bn {
+			if an < bn {
+				return -1
+			}
+			return 1
+		}
+	}
+	return 0
+}
+
+// debVersionCompare compares two Debian-format version strings.
+// Handles epochs ("1:2.0" > "2.0"), tildes ("1.0~rc1" < "1.0"), and
+// mixed alpha/numeric segments per Debian policy manual §5.6.12.
+// Returns -1, 0, or +1.
+func debVersionCompare(a, b string) int {
+	parseDebVer := func(v string) (epoch int, ver, rev string) {
+		if ci := strings.Index(v, ":"); ci != -1 {
+			epoch, _ = strconv.Atoi(v[:ci])
+			v = v[ci+1:]
+		}
+		ver = v
+		if di := strings.LastIndex(v, "-"); di != -1 {
+			rev = v[di+1:]
+			ver = v[:di]
+		}
+		return
+	}
+	ea, va, ra := parseDebVer(a)
+	eb, vb, rb := parseDebVer(b)
+	if ea != eb {
+		if ea < eb {
+			return -1
+		}
+		return 1
+	}
+	if c := debCmpStr(va, vb); c != 0 {
+		return c
+	}
+	return debCmpStr(ra, rb)
+}
+
+// addDirectionCount increments the appropriate field of counts based on direction.
+func addDirectionCount(counts *ChangeCounts, dir string) {
+	switch dir {
+	case dirAdded:
+		counts.Added++
+	case dirRemoved:
+		counts.Removed++
+	case dirUpgraded:
+		counts.Upgraded++
+	case dirDowngraded:
+		counts.Downgraded++
+	default:
+		counts.Modified++
+	}
+}
+
+// addSummaryCount increments the appropriate field of summary based on direction.
+func addSummaryCount(s *ChangeSummary, dir string) {
+	switch dir {
+	case dirAdded:
+		s.Added++
+	case dirRemoved:
+		s.Removed++
+	case dirUpgraded:
+		s.Upgraded++
+	case dirDowngraded:
+		s.Downgraded++
+	default:
+		s.Modified++
+	}
+}
+
+// classifyDirection returns the direction of a ComponentDiff using deb-version-aware
+// comparison. Returns one of the dir* constants.
+func classifyDirection(d ComponentDiff) string {
+	if d.Type != dirModified {
+		return d.Type
+	}
+	if d.PreviousVersion == nil || d.Version == nil {
+		return dirModified
+	}
+	cmp := debVersionCompare(*d.Version, *d.PreviousVersion)
+	switch {
+	case cmp > 0:
+		return dirUpgraded
+	case cmp < 0:
+		return dirDowngraded
+	default:
+		return dirModified
+	}
 }
 
 // laterThan reports whether (bd1, t1) is chronologically after (bd2, t2).
@@ -560,7 +902,7 @@ func diffComponents(from, to SBOMRef, oldMap, newMap map[string]componentIdentit
 		prev, exists := oldMap[key]
 		if !exists {
 			entry.Changes = append(entry.Changes, ComponentDiff{
-				Type:    "added",
+				Type:    dirAdded,
 				Name:    nameFromKey(key),
 				Group:   groupFromKey(key),
 				Version: curr.version,
@@ -568,7 +910,7 @@ func diffComponents(from, to SBOMRef, oldMap, newMap map[string]componentIdentit
 			})
 		} else if !versionsEqual(prev.version, curr.version) {
 			entry.Changes = append(entry.Changes, ComponentDiff{
-				Type:            "modified",
+				Type:            dirModified,
 				Name:            nameFromKey(key),
 				Group:           groupFromKey(key),
 				Version:         curr.version,
@@ -580,7 +922,7 @@ func diffComponents(from, to SBOMRef, oldMap, newMap map[string]componentIdentit
 	for key, prev := range oldMap {
 		if _, exists := newMap[key]; !exists {
 			entry.Changes = append(entry.Changes, ComponentDiff{
-				Type:    "removed",
+				Type:    dirRemoved,
 				Name:    nameFromKey(key),
 				Group:   groupFromKey(key),
 				Version: prev.version,
@@ -593,28 +935,45 @@ func diffComponents(from, to SBOMRef, oldMap, newMap map[string]componentIdentit
 	// e.g. "go-1.24 removed + go-1.25 added" → "go-1.25 upgraded from 1.24.x".
 	entry.Changes = reconcileVersionedPackages(entry.Changes)
 
-	// Compute summary from final change list.
-	for _, c := range entry.Changes {
-		switch c.Type {
-		case "added":
-			entry.Summary.Added++
-		case "removed":
-			entry.Summary.Removed++
-		case "modified":
-			entry.Summary.Modified++
-		}
+	// Populate Direction and compute summary from final change list.
+	for i := range entry.Changes {
+		entry.Changes[i].Direction = classifyDirection(entry.Changes[i])
+		addSummaryCount(&entry.Summary, entry.Changes[i].Direction)
 	}
 
 	// Sort: removed, modified, added, then by name.
+	typeOrder := map[string]int{dirRemoved: 0, dirModified: 1, dirAdded: 2}
 	sort.Slice(entry.Changes, func(i, j int) bool {
-		order := map[string]int{"removed": 0, "modified": 1, "added": 2}
-		if order[entry.Changes[i].Type] != order[entry.Changes[j].Type] {
-			return order[entry.Changes[i].Type] < order[entry.Changes[j].Type]
+		if typeOrder[entry.Changes[i].Type] != typeOrder[entry.Changes[j].Type] {
+			return typeOrder[entry.Changes[i].Type] < typeOrder[entry.Changes[j].Type]
 		}
 		return entry.Changes[i].Name < entry.Changes[j].Name
 	})
 
 	return entry
+}
+
+// versionedNormKey returns a normalized key for a ComponentDiff to detect version-suffix replacements
+// (e.g. "go-1.24" and "go-1.25" share the key "go"). Returns "" when no suffix is present.
+func versionedNormKey(c ComponentDiff) string {
+	if c.Purl != nil {
+		stripped := stripPurlVersion(*c.Purl)
+		idx := strings.LastIndex(stripped, "/")
+		if idx < 0 {
+			return ""
+		}
+		name := stripped[idx+1:]
+		normalized := versionSuffixRe.ReplaceAllString(name, "")
+		if normalized == name {
+			return ""
+		}
+		return stripped[:idx+1] + normalized
+	}
+	normalized := versionSuffixRe.ReplaceAllString(c.Name, "")
+	if normalized == c.Name {
+		return ""
+	}
+	return normalized
 }
 
 // reconcileVersionedPackages re-matches removed+added pairs whose package names
@@ -630,38 +989,17 @@ func reconcileVersionedPackages(changes []ComponentDiff) []ComponentDiff {
 	removedByNorm := map[string]candidate{}
 	addedByNorm := map[string]candidate{}
 
-	normKey := func(c ComponentDiff) string {
-		if c.Purl != nil {
-			stripped := stripPurlVersion(*c.Purl)
-			idx := strings.LastIndex(stripped, "/")
-			if idx < 0 {
-				return ""
-			}
-			name := stripped[idx+1:]
-			normalized := versionSuffixRe.ReplaceAllString(name, "")
-			if normalized == name {
-				return "" // no suffix to strip
-			}
-			return stripped[:idx+1] + normalized
-		}
-		normalized := versionSuffixRe.ReplaceAllString(c.Name, "")
-		if normalized == c.Name {
-			return ""
-		}
-		return normalized
-	}
-
 	for i, c := range changes {
-		nk := normKey(c)
+		nk := versionedNormKey(c)
 		if nk == "" {
 			continue
 		}
 		switch c.Type {
-		case "removed":
+		case dirRemoved:
 			if _, exists := removedByNorm[nk]; !exists {
 				removedByNorm[nk] = candidate{i, c}
 			}
-		case "added":
+		case dirAdded:
 			if _, exists := addedByNorm[nk]; !exists {
 				addedByNorm[nk] = candidate{i, c}
 			}
@@ -677,7 +1015,7 @@ func reconcileVersionedPackages(changes []ComponentDiff) []ComponentDiff {
 			continue
 		}
 		extra = append(extra, ComponentDiff{
-			Type:            "modified",
+			Type:            dirModified,
 			Name:            added.diff.Name,
 			Group:           added.diff.Group,
 			Version:         added.diff.Version,

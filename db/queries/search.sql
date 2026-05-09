@@ -152,6 +152,12 @@ FROM dependency
 WHERE sbom_id = $1
 ORDER BY ref, depends_on;
 
+-- name: GetSBOMMetadataBomRef :one
+-- Returns metadata.component.bom-ref from the raw CycloneDX BOM, or NULL if absent.
+SELECT raw_bom->'metadata'->'component'->>'bom-ref' AS bom_ref
+FROM sbom
+WHERE id = $1;
+
 -- name: CountSBOMComponents :one
 SELECT COUNT(*) FROM component WHERE sbom_id = $1;
 

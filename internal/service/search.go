@@ -179,16 +179,27 @@ type SBOMDetail struct {
 	Enrichments map[string]json.RawMessage `json:"enrichments,omitempty"`
 }
 
+// ChangeCounts is a per-direction breakdown of component changes.
+type ChangeCounts struct {
+	Added      int `json:"added"`
+	Removed    int `json:"removed"`
+	Upgraded   int `json:"upgraded"`
+	Downgraded int `json:"downgraded"`
+	Modified   int `json:"modified"`
+}
+
 // ComponentSummary is a lightweight component representation.
 type ComponentSummary struct {
-	ID      string  `json:"id"`
-	SbomID  string  `json:"sbomId"`
-	BomRef  *string `json:"bomRef,omitempty"`
-	Type    string  `json:"type"`
-	Name    string  `json:"name"`
-	Group   *string `json:"group,omitempty"`
-	Version *string `json:"version,omitempty"`
-	Purl    *string `json:"purl,omitempty"`
+	ID                string        `json:"id"`
+	SbomID            string        `json:"sbomId"`
+	BomRef            *string       `json:"bomRef,omitempty"`
+	Type              string        `json:"type"`
+	Name              string        `json:"name"`
+	Group             *string       `json:"group,omitempty"`
+	Version           *string       `json:"version,omitempty"`
+	Purl              *string       `json:"purl,omitempty"`
+	IsDirect          bool          `json:"isDirect"`
+	DescendantChanges *ChangeCounts `json:"descendantChanges,omitempty"`
 }
 
 // ComponentDetail extends ComponentSummary with full metadata.
@@ -279,6 +290,7 @@ type DiffTree struct {
 	Changes []ComponentDiff    `json:"changes"`
 	Nodes   []ComponentSummary `json:"nodes"`
 	Edges   []DependencyEdge   `json:"edges"`
+	Roots   []string           `json:"roots"`
 }
 
 // DependencyEdge represents a directed dependency relationship.
