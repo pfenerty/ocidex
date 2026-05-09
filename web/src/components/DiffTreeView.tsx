@@ -15,6 +15,7 @@ interface TreeNode {
     changeKind?: string;
     children: string[];
     hasChangedDesc: boolean;
+    descendantChanges?: { added: number; removed: number; upgraded: number; downgraded: number; modified: number };
 }
 
 function purlBase(purl: string): string {
@@ -123,6 +124,7 @@ export function DiffTreeView(props: { tree: DiffTree }) {
                 changeKind: changeInfo?.kind,
                 children: adj.get(ref) ?? [],
                 hasChangedDesc,
+                descendantChanges: info.descendantChanges,
             });
         }
 
@@ -364,17 +366,31 @@ function DiffTreeNodeRow(props: {
                                     </A>
                                 )}
                             </Show>
-                            <Show when={!isChanged() && relevantChildren().length > 0}>
-                                <span class="badge badge-sm">
-                                    {relevantChildren().length}
-                                </span>
-                            </Show>
                         </span>
                     </td>
                     <td>
                         <Show when={isChanged()}>
                             <span class={`badge ${changeCls()}`}>
                                 {props.node.changeKind}
+                            </span>
+                        </Show>
+                        <Show when={!isChanged() && props.node.hasChangedDesc}>
+                            <span style={{ display: "flex", gap: "0.25rem", "flex-wrap": "wrap" }}>
+                                <Show when={(props.node.descendantChanges?.upgraded ?? 0) > 0}>
+                                    <span class="badge badge-primary badge-sm">↑{props.node.descendantChanges?.upgraded}</span>
+                                </Show>
+                                <Show when={(props.node.descendantChanges?.downgraded ?? 0) > 0}>
+                                    <span class="badge badge-warning badge-sm">↓{props.node.descendantChanges?.downgraded}</span>
+                                </Show>
+                                <Show when={(props.node.descendantChanges?.added ?? 0) > 0}>
+                                    <span class="badge badge-primary badge-sm">+{props.node.descendantChanges?.added}</span>
+                                </Show>
+                                <Show when={(props.node.descendantChanges?.removed ?? 0) > 0}>
+                                    <span class="badge badge-warning badge-sm">-{props.node.descendantChanges?.removed}</span>
+                                </Show>
+                                <Show when={(props.node.descendantChanges?.modified ?? 0) > 0}>
+                                    <span class="badge badge-sm">~{props.node.descendantChanges?.modified}</span>
+                                </Show>
                             </span>
                         </Show>
                     </td>
