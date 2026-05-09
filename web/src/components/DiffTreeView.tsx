@@ -1,7 +1,7 @@
 import { createMemo, createSignal, Show, For } from "solid-js";
 import { A } from "@solidjs/router";
 import { relativeDate } from "~/utils/format";
-import { classifyChange, changelogRefLabel } from "~/utils/diff";
+import { changelogRefLabel } from "~/utils/diff";
 import type { DiffTree } from "~/api/client";
 import { parsePurl } from "~/utils/purl";
 
@@ -12,7 +12,7 @@ interface TreeNode {
     previousVersion?: string;
     purl?: string;
     id?: string;
-    changeKind?: ReturnType<typeof classifyChange>;
+    changeKind?: string;
     children: string[];
     hasChangedDesc: boolean;
 }
@@ -24,10 +24,16 @@ function purlBase(purl: string): string {
 
 export function DiffTreeView(props: { tree: DiffTree }) {
     const treeData = createMemo(() => {
-        // Build nameMap from non-file nodes
+        // Build nameMap from non-file nodes (includes backend descendantChanges for hasChangedDesc)
         const nameMap = new Map<
             string,
-            { name: string; version?: string; id?: string; purl?: string }
+            {
+                name: string;
+                version?: string;
+                id?: string;
+                purl?: string;
+                descendantChanges?: { added: number; removed: number; upgraded: number; downgraded: number; modified: number };
+            }
         >();
         for (const node of props.tree.nodes ?? []) {
             const type = parsePurl(node.purl ?? "")?.type ?? node.type;
@@ -40,7 +46,13 @@ export function DiffTreeView(props: { tree: DiffTree }) {
                 node.version !== undefined && node.version !== ""
                     ? node.version
                     : undefined;
-            const info = { name, version, id: node.id, purl: node.purl !== "" ? node.purl : undefined };
+            const info = {
+                name,
+                version,
+                id: node.id,
+                purl: node.purl !== "" ? node.purl : undefined,
+                descendantChanges: node.descendantChanges ?? undefined,
+            };
             nameMap.set(node.id, info);
             nameMap.set(node.name, info);
             if (node.purl !== undefined && node.purl !== "") {
@@ -52,7 +64,7 @@ export function DiffTreeView(props: { tree: DiffTree }) {
 
         // Build change lookup from package-only changes
         interface ChangeInfo {
-            kind: ReturnType<typeof classifyChange>;
+            kind: string;
             version?: string;
             previousVersion?: string;
         }
@@ -62,7 +74,7 @@ export function DiffTreeView(props: { tree: DiffTree }) {
         );
         for (const c of filteredChanges) {
             const info: ChangeInfo = {
-                kind: classifyChange(c),
+                kind: c.direction,
                 version: c.version,
                 previousVersion: c.previousVersion,
             };
@@ -87,7 +99,7 @@ export function DiffTreeView(props: { tree: DiffTree }) {
             allTargets.add(edge.to);
         }
 
-        // Build annotated tree nodes
+        // Build annotated tree nodes; hasChangedDesc comes from backend descendantChanges
         const allRefs = new Set([...adj.keys(), ...allTargets]);
         const nodes = new Map<string, TreeNode>();
         for (const ref of allRefs) {
@@ -97,6 +109,10 @@ export function DiffTreeView(props: { tree: DiffTree }) {
                 (info.purl !== undefined ? changeMap.get(info.purl) : undefined) ??
                 (info.purl !== undefined ? changeMap.get(purlBase(info.purl)) : undefined) ??
                 changeMap.get(info.name);
+            const dc = info.descendantChanges;
+            const hasChangedDesc =
+                dc !== undefined &&
+                dc.added + dc.removed + dc.upgraded + dc.downgraded + dc.modified > 0;
             nodes.set(ref, {
                 ref,
                 name: info.name,
@@ -106,36 +122,12 @@ export function DiffTreeView(props: { tree: DiffTree }) {
                 id: info.id,
                 changeKind: changeInfo?.kind,
                 children: adj.get(ref) ?? [],
-                hasChangedDesc: false,
+                hasChangedDesc,
             });
         }
 
-        // Find roots
-        const fromRefs = [...adj.keys()];
-        let rootRefs = fromRefs.filter((r) => !allTargets.has(r));
-        if (rootRefs.length === 0) rootRefs = fromRefs.slice(0, 10);
-
-        // DFS to mark nodes with changed descendants
-        const mark = (ref: string, visited: Set<string>): boolean => {
-            if (visited.has(ref)) return false;
-            visited.add(ref);
-            const node = nodes.get(ref);
-            if (!node) return false;
-            let childChanged = false;
-            for (const childRef of node.children) {
-                if (mark(childRef, visited)) childChanged = true;
-            }
-            node.hasChangedDesc = childChanged;
-            return node.changeKind !== undefined || childChanged;
-        };
-        const markVisited = new Set<string>();
-        for (const r of rootRefs) mark(r, markVisited);
-
-        // Filter roots to those with changes or changed descendants
-        const relevantRoots = rootRefs.filter((r) => {
-            const n = nodes.get(r);
-            return n !== undefined && (n.changeKind !== undefined || n.hasChangedDesc);
-        });
+        // Use backend-computed roots (anchored on metadata.component.bom-ref per ADR-0021 B5)
+        const rootRefs = props.tree.roots ?? [];
 
         // Removed packages not present in the new graph
         const inGraphPurls = new Set<string>();
@@ -146,18 +138,14 @@ export function DiffTreeView(props: { tree: DiffTree }) {
             }
         }
         const removedOrphans = filteredChanges.filter((c) => {
-            if (classifyChange(c) !== "removed") return false;
+            if (c.direction !== "removed") return false;
             return (
                 (c.purl === undefined || (!inGraphPurls.has(c.purl) && !inGraphPurls.has(purlBase(c.purl)))) &&
                 !nodes.has(c.name)
             );
         });
 
-        return {
-            roots: relevantRoots.length > 0 ? relevantRoots : rootRefs,
-            nodes,
-            removedOrphans,
-        };
+        return { roots: rootRefs, nodes, removedOrphans };
     });
 
     // Summary counts for the header badges.
@@ -166,8 +154,8 @@ export function DiffTreeView(props: { tree: DiffTree }) {
     );
     const addedCount   = () => changes().filter((c) => c.type === "added").length;
     const removedCount = () => changes().filter((c) => c.type === "removed").length;
-    const upgradedCount   = () => changes().filter((c) => classifyChange(c) === "upgraded").length;
-    const downgradedCount = () => changes().filter((c) => classifyChange(c) === "downgraded").length;
+    const upgradedCount   = () => changes().filter((c) => c.direction === "upgraded").length;
+    const downgradedCount = () => changes().filter((c) => c.direction === "downgraded").length;
 
     const kindDefs = [
         { count: addedCount,      cls: "badge-primary",  fmt: (n: number) => `+${n} added` },
@@ -202,65 +190,74 @@ export function DiffTreeView(props: { tree: DiffTree }) {
                     </For>
                 </div>
             </div>
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Package</th>
-                            <th>Change</th>
-                            <th>Version</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <For each={treeData().roots}>
-                            {(rootRef) => {
-                                const node = treeData().nodes.get(rootRef);
-                                return node !== undefined ? (
-                                    <DiffTreeNodeRow
-                                        node={node}
-                                        allNodes={treeData().nodes}
-                                        depth={0}
-                                        visited={new Set()}
-                                    />
-                                ) : null;
-                            }}
-                        </For>
-                        <Show when={treeData().removedOrphans.length > 0}>
-                            <For each={treeData().removedOrphans}>
-                                {(c) => (
-                                    <tr>
-                                        <td>
-                                            <span
-                                                class="font-mono"
-                                                style={{
-                                                    "font-size": "0.85rem",
-                                                    "padding-left": "1.375rem",
-                                                    display: "block",
-                                                }}
-                                            >
-                                                {c.group !== undefined && c.group !== ""
-                                                    ? `${c.group}/`
-                                                    : ""}
-                                                {c.name}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span class="badge badge-warning">
-                                                removed
-                                            </span>
-                                        </td>
-                                        <td class="font-mono" style={{ "font-size": "0.85rem" }}>
-                                            <span class="text-muted">
-                                                {c.previousVersion ?? "—"}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                )}
+            <Show
+                when={treeData().roots.length > 0 || treeData().removedOrphans.length > 0}
+                fallback={
+                    <p class="text-muted text-sm" style={{ padding: "1rem 0" }}>
+                        No dependency tree available for this diff. Switch to list view to see all changes.
+                    </p>
+                }
+            >
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Package</th>
+                                <th>Change</th>
+                                <th>Version</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <For each={treeData().roots}>
+                                {(rootRef) => {
+                                    const node = treeData().nodes.get(rootRef);
+                                    return node !== undefined ? (
+                                        <DiffTreeNodeRow
+                                            node={node}
+                                            allNodes={treeData().nodes}
+                                            depth={0}
+                                            visited={new Set()}
+                                        />
+                                    ) : null;
+                                }}
                             </For>
-                        </Show>
-                    </tbody>
-                </table>
-            </div>
+                            <Show when={treeData().removedOrphans.length > 0}>
+                                <For each={treeData().removedOrphans}>
+                                    {(c) => (
+                                        <tr>
+                                            <td>
+                                                <span
+                                                    class="font-mono"
+                                                    style={{
+                                                        "font-size": "0.85rem",
+                                                        "padding-left": "1.375rem",
+                                                        display: "block",
+                                                    }}
+                                                >
+                                                    {c.group !== undefined && c.group !== ""
+                                                        ? `${c.group}/`
+                                                        : ""}
+                                                    {c.name}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="badge badge-warning">
+                                                    removed
+                                                </span>
+                                            </td>
+                                            <td class="font-mono" style={{ "font-size": "0.85rem" }}>
+                                                <span class="text-muted">
+                                                    {c.previousVersion ?? "—"}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </For>
+                            </Show>
+                        </tbody>
+                    </table>
+                </div>
+            </Show>
         </div>
     );
 }

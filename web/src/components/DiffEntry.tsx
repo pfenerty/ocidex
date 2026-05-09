@@ -1,7 +1,7 @@
 import { Show, For } from "solid-js";
 import { A } from "@solidjs/router";
 import { relativeDate } from "~/utils/format";
-import { classifyChange, changelogRefLabel } from "~/utils/diff";
+import { changelogRefLabel } from "~/utils/diff";
 import type { ChangelogEntryData } from "~/utils/diff";
 import PurlLink from "~/components/PurlLink";
 import { parsePurl } from "~/utils/purl";
@@ -26,7 +26,7 @@ export default function DiffEntry(props: DiffEntryProps) {
     const visibleChanges = () => {
         const f = props.typeFilter;
         const q = props.nameFilter.toLowerCase().trim();
-        let changes = f !== null ? pkgChanges().filter(c => classifyChange(c) === f) : pkgChanges();
+        let changes = f !== null ? pkgChanges().filter(c => c.direction === f) : pkgChanges();
         if (q) {
             changes = changes.filter(c =>
                 c.name.toLowerCase().includes(q) ||
@@ -39,8 +39,8 @@ export default function DiffEntry(props: DiffEntryProps) {
 
     const addedCount = () => pkgChanges().filter((c) => c.type === "added").length;
     const removedCount = () => pkgChanges().filter((c) => c.type === "removed").length;
-    const upgradedCount = () => pkgChanges().filter((c) => classifyChange(c) === "upgraded").length;
-    const downgradedCount = () => pkgChanges().filter((c) => classifyChange(c) === "downgraded").length;
+    const upgradedCount = () => pkgChanges().filter((c) => c.direction === "upgraded").length;
+    const downgradedCount = () => pkgChanges().filter((c) => c.direction === "downgraded").length;
 
     return (
         <Show when={visibleChanges().length > 0}>
@@ -103,7 +103,7 @@ export default function DiffEntry(props: DiffEntryProps) {
                                         <tr>
                                             <td>
                                                 {(() => {
-                                                    const kind = classifyChange(change);
+                                                    const kind = change.direction;
                                                     const cls =
                                                         kind === "added" || kind === "upgraded"
                                                             ? "badge-success"
