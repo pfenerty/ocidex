@@ -180,11 +180,11 @@ export function DiffTreeView(props: { tree: DiffTree }) {
         <div class="changelog-entry">
             <div class="changelog-entry-header">
                 <div class="text-sm">
-                    <A href={`/sboms/${props.tree.from.id}`} class="mono">
+                    <A href={`/sboms/${props.tree.from.id}`} class="font-mono">
                         {changelogRefLabel(props.tree.from)}
                     </A>
                     {" → "}
-                    <A href={`/sboms/${props.tree.to.id}`} class="mono">
+                    <A href={`/sboms/${props.tree.to.id}`} class="font-mono">
                         {changelogRefLabel(props.tree.to)}
                     </A>
                     <span class="text-muted">
@@ -231,7 +231,7 @@ export function DiffTreeView(props: { tree: DiffTree }) {
                                     <tr>
                                         <td>
                                             <span
-                                                class="mono"
+                                                class="font-mono"
                                                 style={{
                                                     "font-size": "0.85rem",
                                                     "padding-left": "1.375rem",
@@ -249,7 +249,7 @@ export function DiffTreeView(props: { tree: DiffTree }) {
                                                 removed
                                             </span>
                                         </td>
-                                        <td class="mono" style={{ "font-size": "0.85rem" }}>
+                                        <td class="font-mono" style={{ "font-size": "0.85rem" }}>
                                             <span class="text-muted">
                                                 {c.previousVersion ?? "—"}
                                             </span>
@@ -347,7 +347,7 @@ function DiffTreeNodeRow(props: {
                                 keyed
                                 fallback={
                                     <span
-                                        class="mono"
+                                        class="font-mono"
                                         style={{ "font-size": "0.85rem" }}
                                     >
                                         {props.node.name}
@@ -357,7 +357,7 @@ function DiffTreeNodeRow(props: {
                                 {(id) => (
                                     <A
                                         href={`/components/${id}`}
-                                        class="mono"
+                                        class="font-mono"
                                         style={{ "font-size": "0.85rem" }}
                                         onClick={(e: MouseEvent) =>
                                             e.stopPropagation()
@@ -381,7 +381,7 @@ function DiffTreeNodeRow(props: {
                             </span>
                         </Show>
                     </td>
-                    <td class="mono" style={{ "font-size": "0.85rem" }}>
+                    <td class="font-mono" style={{ "font-size": "0.85rem" }}>
                         <Show when={props.node.previousVersion}>
                             <span class="text-muted">{props.node.previousVersion}</span>
                             {" → "}

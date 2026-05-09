@@ -1,3 +1,4 @@
+import "./CopyDigest.css";
 import { useToast } from "~/context/toast";
 import { copyText } from "~/utils/clipboard";
 import { shortDigest } from "~/utils/format";
@@ -28,8 +29,8 @@ export default function CopyDigest(props: CopyDigestProps) {
 
     const classes = () =>
         props.class !== undefined
-            ? `copy-btn mono text-sm ${props.class}`
-            : "copy-btn mono text-sm";
+            ? `copy-btn font-mono text-sm ${props.class}`
+            : "copy-btn font-mono text-sm";
 
     return (
         <button

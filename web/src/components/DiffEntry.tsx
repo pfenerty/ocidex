@@ -47,11 +47,11 @@ export default function DiffEntry(props: DiffEntryProps) {
             <div class="changelog-entry">
                 <div class="changelog-entry-header">
                     <div class="text-sm">
-                        <A href={`/sboms/${props.entry.from.id}`} class="mono">
+                        <A href={`/sboms/${props.entry.from.id}`} class="font-mono">
                             {changelogRefLabel(props.entry.from)}
                         </A>
                         {" → "}
-                        <A href={`/sboms/${props.entry.to.id}`} class="mono">
+                        <A href={`/sboms/${props.entry.to.id}`} class="font-mono">
                             {changelogRefLabel(props.entry.to)}
                         </A>
                         <span class="text-muted">
@@ -125,7 +125,7 @@ export default function DiffEntry(props: DiffEntryProps) {
                                                     {change.name}
                                                 </A>
                                             </td>
-                                            <td class="mono">
+                                            <td class="font-mono text-sm">
                                                 <Show when={change.previousVersion}>
                                                     <span class="text-muted">{change.previousVersion}</span>
                                                     {" → "}

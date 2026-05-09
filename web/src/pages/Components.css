@@ -1,0 +1,13 @@
+th.th-sortable {
+    cursor: pointer;
+    transition: color 0.15s;
+}
+
+th.th-sortable:hover {
+    color: var(--color-text);
+}
+
+th.th-sortable .sort-arrow {
+    margin-left: 0.25rem;
+    font-size: 0.65rem;
+}

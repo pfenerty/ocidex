@@ -1,3 +1,4 @@
+import "./Admin.css";
 import { For, Show } from "solid-js";
 import { Loading, ErrorBox } from "~/components/Feedback";
 import { formatDateTime } from "~/utils/format";

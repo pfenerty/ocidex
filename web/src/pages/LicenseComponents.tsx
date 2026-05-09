@@ -99,7 +99,7 @@ export default function LicenseComponents() {
                                                             {component.type}
                                                         </span>
                                                     </td>
-                                                    <td class="mono">
+                                                    <td class="font-mono text-sm">
                                                         {component.version ??
                                                             "—"}
                                                     </td>

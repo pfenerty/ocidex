@@ -45,7 +45,7 @@ export default function Licenses() {
                 </div>
             </div>
 
-            <div class="tab-bar mb-md">
+            <div class="tab-bar mb-4">
                 <For each={categoryTabs}>
                     {(tab) => (
                         <button
@@ -61,7 +61,7 @@ export default function Licenses() {
                 </For>
             </div>
 
-            <form class="search-bar mb-md" onSubmit={handleSearch}>
+            <form class="search-bar mb-4" onSubmit={handleSearch}>
                 <input
                     type="text"
                     placeholder="Filter by name…"
@@ -132,7 +132,7 @@ export default function Licenses() {
                                                         {license.category}
                                                     </span>
                                                 </td>
-                                                <td class="text-right mono">
+                                                <td class="text-right font-mono text-sm">
                                                     {license.componentCount}
                                                 </td>
                                                 <td>

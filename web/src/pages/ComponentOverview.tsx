@@ -176,12 +176,12 @@ export default function ComponentOverview() {
                                                 return { order, map };
                                             };
                                             return (
-                                                <div class="card mb-md">
+                                                <div class="card mb-4">
                                                     <div class="card-header">
                                                         <h3>
                                                             <A
                                                                 href={`/components/${group.entries[0].id}`}
-                                                                class="mono"
+                                                                class="font-mono"
                                                             >
                                                                 {group.version}
                                                             </A>
@@ -301,7 +301,7 @@ export default function ComponentOverview() {
                                                                                         </Show>
                                                                                     </td>
                                                                                     <td
-                                                                                        class="nowrap text-muted"
+                                                                                        class="whitespace-nowrap text-muted"
                                                                                         title={new Date(
                                                                                             entry.sbomCreatedAt,
                                                                                         ).toLocaleString()}
@@ -428,7 +428,7 @@ export default function ComponentOverview() {
                                                                                             </For>
                                                                                         </td>
                                                                                         <td
-                                                                                            class="nowrap text-muted"
+                                                                                            class="whitespace-nowrap text-muted"
                                                                                             title={new Date(
                                                                                                 preferred.sbomCreatedAt,
                                                                                             ).toLocaleString()}

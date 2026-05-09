@@ -1,3 +1,81 @@
+/* Page header — used on every main content page */
+.page-header {
+    margin-bottom: 1.5rem;
+}
+
+.page-header h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+.page-header h2::after {
+    content: "";
+    display: block;
+    margin-top: 4px;
+    height: 2px;
+    width: 120px;
+    background: linear-gradient(to right, var(--color-primary), transparent);
+}
+
+.page-header p {
+    color: var(--color-text-muted);
+    margin-top: 0.25rem;
+}
+
+.page-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+/* Breadcrumb */
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8rem;
+    color: var(--color-text-dim);
+    margin-bottom: 1rem;
+}
+
+.breadcrumb a {
+    color: var(--color-text-muted);
+}
+
+.breadcrumb a:hover {
+    color: var(--color-secondary);
+}
+
+.breadcrumb .separator {
+    color: var(--color-text-dim);
+}
+
+/* Brand display font */
+.brand {
+    font-family: var(--font-display);
+}
+
+.entry-number {
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    letter-spacing: 0.02em;
+}
+
+/* Entry card hover lift */
+.entry-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.entry-card:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
 @keyframes brand-pulse {
     0%   { box-shadow: 0 0 0 0 rgba(255, 176, 32, 0.6); }
     70%  { box-shadow: 0 0 0 6px rgba(255, 176, 32, 0); }

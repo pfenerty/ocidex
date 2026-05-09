@@ -1,3 +1,4 @@
+import "~/components/DetailSection.css";
 import { createSignal, Show } from "solid-js";
 import { A, useParams } from "@solidjs/router";
 import {
@@ -140,7 +141,7 @@ export default function ArtifactDetail() {
                                     </div>
                                 </div>
 
-                                <div class="card mb-md">
+                                <div class="card mb-4">
                                     <div class="card-header">
                                         <h3>About this Artifact</h3>
                                     </div>
@@ -191,7 +192,7 @@ export default function ArtifactDetail() {
                                                 <span class="detail-label">
                                                     CPE
                                                 </span>
-                                                <span class="detail-value mono text-sm">
+                                                <span class="detail-value font-mono text-sm">
                                                     {a().cpe}
                                                 </span>
                                             </div>
@@ -205,7 +206,7 @@ export default function ArtifactDetail() {
                                             </span>
                                         </div>
                                     </div>
-                                    <details class="mt-md">
+                                    <details class="mt-4">
                                         <summary
                                             class="text-muted text-sm"
                                             style={{ cursor: "pointer" }}
@@ -213,7 +214,7 @@ export default function ArtifactDetail() {
                                             Internal ID
                                         </summary>
                                         <p
-                                            class="mono text-sm mt-sm"
+                                            class="font-mono text-sm mt-2"
                                             style={{
                                                 "word-break": "break-all",
                                             }}

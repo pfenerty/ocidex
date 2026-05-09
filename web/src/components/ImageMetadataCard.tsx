@@ -1,3 +1,4 @@
+import "~/components/DetailSection.css";
 import { Show } from "solid-js";
 import type { OCIMetadata } from "~/api/client";
 import { formatDateTime } from "~/utils/format";
@@ -50,7 +51,7 @@ export default function ImageMetadataCard(props: {
         m.baseName !== undefined ? containerRegistryUrl(m.baseName) : null;
 
     return (
-        <div class="card mb-md">
+        <div class="card mb-4">
             <div class="card-header">
                 <h3
                     style={{
@@ -130,7 +131,7 @@ export default function ImageMetadataCard(props: {
                     {(rev) => (
                         <div class="detail-field">
                             <span class="detail-label">Revision</span>
-                            <span class="detail-value mono text-sm">
+                            <span class="detail-value font-mono text-sm">
                                 <Show
                                     when={revisionUrl()}
                                     fallback={rev().substring(0, 12)}
@@ -190,7 +191,7 @@ export default function ImageMetadataCard(props: {
                     {(baseName) => (
                         <div class="detail-field">
                             <span class="detail-label">Base Image</span>
-                            <span class="detail-value mono text-sm">
+                            <span class="detail-value font-mono text-sm">
                                 <Show when={baseImageUrl()} fallback={baseName()}>
                                     {(bUrl) => (
                                         <a
@@ -215,7 +216,7 @@ export default function ImageMetadataCard(props: {
                     {(digest) => (
                         <div class="detail-field">
                             <span class="detail-label">Base Digest</span>
-                            <span class="detail-value mono text-sm">
+                            <span class="detail-value font-mono text-sm">
                                 {digest().substring(0, 19)}
                             </span>
                         </div>

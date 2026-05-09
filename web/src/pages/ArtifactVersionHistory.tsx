@@ -65,7 +65,7 @@ export default function ArtifactVersionHistory() {
                     fallback={<ErrorBox error={sbomsQuery.error} />}
                 >
                     <Show when={allArchs().length > 1}>
-                        <div class="tab-bar mb-md">
+                        <div class="tab-bar mb-4">
                             <For each={allArchs()}>
                                 {(arch) => (
                                     <button

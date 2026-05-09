@@ -1,0 +1,20 @@
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 0;
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+.pagination-controls button {
+    padding: 0.3rem 0.625rem;
+    font-size: 0.8rem;
+}
