@@ -1,3 +1,4 @@
+import "~/components/DetailSection.css";
 import { Show, For } from "solid-js";
 import { A, useParams } from "@solidjs/router";
 import { useComponent, useComponentVersions } from "~/api/queries";
@@ -125,7 +126,7 @@ export default function ComponentDetail() {
                                                 <span class="detail-label">
                                                     Version
                                                 </span>
-                                                <span class="detail-value mono">
+                                                <span class="detail-value font-mono text-sm">
                                                     {c.version}
                                                 </span>
                                             </div>
@@ -148,7 +149,7 @@ export default function ComponentDetail() {
                                                 <span class="detail-label">
                                                     CPE
                                                 </span>
-                                                <span class="detail-value mono">
+                                                <span class="detail-value font-mono text-sm">
                                                     {c.cpe}
                                                 </span>
                                             </div>
@@ -186,7 +187,7 @@ export default function ComponentDetail() {
                                     </div>
 
                                     <Show when={hasText(c.description)}>
-                                        <div class="card mb-md">
+                                        <div class="card mb-4">
                                             <div class="card-header">
                                                 <h3>Description</h3>
                                             </div>
@@ -196,7 +197,7 @@ export default function ComponentDetail() {
                                         </div>
                                     </Show>
 
-                                    <div class="card mb-md">
+                                    <div class="card mb-4">
                                         <div class="card-header">
                                             <h3>Found in SBOMs</h3>
                                             <Show
@@ -362,7 +363,7 @@ export default function ComponentDetail() {
                                                                                                         </span>
                                                                                                     }
                                                                                                 >
-                                                                                                    <span class="mono">
+                                                                                                    <span class="font-mono">
                                                                                                         {
                                                                                                             entry.subjectVersion
                                                                                                         }
@@ -394,7 +395,7 @@ export default function ComponentDetail() {
                                                                                                 </Show>
                                                                                             </td>
                                                                                             <td
-                                                                                                class="nowrap text-muted"
+                                                                                                class="whitespace-nowrap text-muted"
                                                                                                 title={new Date(
                                                                                                     entry.sbomCreatedAt,
                                                                                                 ).toLocaleString()}
@@ -489,7 +490,7 @@ export default function ComponentDetail() {
                                                                                                 <td>
                                                                                                     <A
                                                                                                         href={`/sboms/${preferred.sbomId}`}
-                                                                                                        class="mono"
+                                                                                                        class="font-mono"
                                                                                                     >
                                                                                                         {preferred.subjectVersion ??
                                                                                                             key}
@@ -519,7 +520,7 @@ export default function ComponentDetail() {
                                                                                                     </For>
                                                                                                 </td>
                                                                                                 <td
-                                                                                                    class="nowrap text-muted"
+                                                                                                    class="whitespace-nowrap text-muted"
                                                                                                     title={new Date(
                                                                                                         preferred.sbomCreatedAt,
                                                                                                     ).toLocaleString()}
@@ -602,7 +603,7 @@ export default function ComponentDetail() {
                                         </Show>
                                     </div>
 
-                                    <div class="card mb-md">
+                                    <div class="card mb-4">
                                         <div class="card-header">
                                             <h3>Licenses</h3>
                                             <span class="badge">
@@ -692,7 +693,7 @@ export default function ComponentDetail() {
                                         </Show>
                                     </div>
 
-                                    <div class="card mb-md">
+                                    <div class="card mb-4">
                                         <div class="card-header">
                                             <h3>Hashes</h3>
                                             <span class="badge">
@@ -727,7 +728,7 @@ export default function ComponentDetail() {
                                                                             }
                                                                         </span>
                                                                     </td>
-                                                                    <td class="mono">
+                                                                    <td class="font-mono text-sm">
                                                                         {
                                                                             hash.value
                                                                         }
@@ -786,7 +787,7 @@ export default function ComponentDetail() {
                                                                             }
                                                                             target="_blank"
                                                                             rel="noopener noreferrer"
-                                                                            class="mono text-sm"
+                                                                            class="font-mono text-sm"
                                                                         >
                                                                             {
                                                                                 ref.url

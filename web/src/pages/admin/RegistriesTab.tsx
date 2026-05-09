@@ -1,3 +1,4 @@
+import "./RegistriesTab.css";
 import { For, Show, createSignal, createMemo } from "solid-js";
 import { copyText } from "~/utils/clipboard";
 import { useToast } from "~/context/toast";

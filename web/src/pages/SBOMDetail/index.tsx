@@ -1,3 +1,4 @@
+import "~/components/DetailSection.css";
 import { Show, For } from "solid-js";
 import { A, useParams, useNavigate } from "@solidjs/router";
 import { useSBOM, useSBOMComponents, useSBOMDependencies, useArtifactSBOMs } from "~/api/queries";
@@ -133,7 +134,7 @@ export default function SBOMDetail() {
                                 </div>
 
                                 {/* --- About this SBOM --- */}
-                                <div class="card mb-md">
+                                <div class="card mb-4">
                                     <div class="card-header">
                                         <h3>About this SBOM</h3>
                                     </div>
@@ -207,7 +208,7 @@ export default function SBOMDetail() {
                                 </div>
 
                                 {/* --- CycloneDX Metadata (collapsed details) --- */}
-                                <details class="card mb-md">
+                                <details class="card mb-4">
                                     <summary class="card-header card-summary">
                                         <h3>CycloneDX Metadata</h3>
                                         <span class="badge">
@@ -236,7 +237,7 @@ export default function SBOMDetail() {
                                                 <span class="detail-label">
                                                     Serial Number
                                                 </span>
-                                                <span class="detail-value mono text-sm">
+                                                <span class="detail-value font-mono text-sm">
                                                     {s.serialNumber}
                                                 </span>
                                             </div>
@@ -245,7 +246,7 @@ export default function SBOMDetail() {
                                             <span class="detail-label">
                                                 Internal ID
                                             </span>
-                                            <span class="detail-value mono text-sm">
+                                            <span class="detail-value font-mono text-sm">
                                                 {s.id}
                                             </span>
                                         </div>

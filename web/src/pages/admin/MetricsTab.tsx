@@ -1,3 +1,4 @@
+import "./Admin.css";
 import { For, Show } from "solid-js";
 import { A } from "@solidjs/router";
 import { VisXYContainer, VisLine, VisGroupedBar, VisAxis } from "@unovis/solid";

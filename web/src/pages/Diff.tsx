@@ -1,3 +1,4 @@
+import "~/components/DetailSection.css";
 import { createSignal, Show, For } from "solid-js";
 import "./Diff.css";
 import { useSearchParams } from "@solidjs/router";
@@ -52,7 +53,7 @@ export default function Diff() {
                 </div>
             </div>
 
-            <div class="card mb-lg">
+            <div class="card mb-6">
                 <div class="diff-picker">
                     {/* FROM side */}
                     <div class="diff-picker-side">
@@ -123,7 +124,7 @@ export default function Diff() {
                     </div>
                 </div>
 
-                <div class="mt-md">
+                <div class="mt-4">
                     <button
                         class="btn-primary"
                         disabled={fromSbomId() === "" || toSbomId() === ""}

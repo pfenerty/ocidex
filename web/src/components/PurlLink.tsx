@@ -14,14 +14,14 @@ export default function PurlLink(props: { purl: string; showBadge?: boolean }) {
       </Show>
       <Show
         when={url()}
-        fallback={<span class="mono text-sm" title={props.purl}>{purlDisplayName(props.purl)}</span>}
+        fallback={<span class="font-mono text-sm" title={props.purl}>{purlDisplayName(props.purl)}</span>}
       >
         {(u) => (
         <a
           href={u()}
           target="_blank"
           rel="noopener noreferrer"
-          class="mono text-sm"
+          class="font-mono text-sm"
           title={props.purl}
         >
           {purlDisplayName(props.purl)}

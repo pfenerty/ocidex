@@ -1,3 +1,4 @@
+import "./Components.css";
 import { createSignal } from "solid-js";
 import { Show, For } from "solid-js";
 import { A } from "@solidjs/router";
@@ -87,7 +88,7 @@ export default function Components() {
                 </div>
             </div>
 
-            <div class="search-bar mb-md">
+            <div class="search-bar mb-4">
                 <input
                     type="text"
                     placeholder="Filter by name…"

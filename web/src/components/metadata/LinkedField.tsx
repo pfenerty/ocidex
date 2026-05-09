@@ -1,3 +1,4 @@
+import "~/components/DetailSection.css";
 import { Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { ExternalLinkIcon } from "./OciIcons";

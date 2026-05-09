@@ -64,7 +64,7 @@ export function VersionsTab(props: {
                                         </Show>
                                     </td>
                                     <td
-                                        class="nowrap text-muted"
+                                        class="whitespace-nowrap text-muted"
                                         title={new Date(
                                             version.buildDate ?? version.createdAt,
                                         ).toLocaleString()}

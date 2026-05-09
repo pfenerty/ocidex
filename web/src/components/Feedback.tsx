@@ -1,3 +1,4 @@
+import "./Feedback.css";
 import { Show } from "solid-js";
 import type { Accessor, JSX } from "solid-js";
 import { APIClientError } from "~/api/client";

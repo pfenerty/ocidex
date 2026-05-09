@@ -1,3 +1,4 @@
+import "~/components/Pagination.css";
 import { createSignal, createMemo, Show, For } from "solid-js";
 import { A } from "@solidjs/router";
 import type { ComponentSummary, DependencyEdge } from "~/api/client";
@@ -79,7 +80,7 @@ export function PackagesTab(props: {
             }
         >
             <div class="card">
-                <div class="search-bar mb-md" style={{ "flex-wrap": "wrap" }}>
+                <div class="search-bar mb-4" style={{ "flex-wrap": "wrap" }}>
                     <Show when={effectiveMode() === "list"}>
                         <input
                             type="text"
@@ -150,7 +151,7 @@ export function PackagesTab(props: {
                                                             {c.name}
                                                         </A>
                                                     </td>
-                                                    <td class="mono">
+                                                    <td class="font-mono text-sm">
                                                         {c.version ?? (
                                                             <span class="text-muted">
                                                                 —
@@ -391,7 +392,7 @@ function TreeNodeRow(props: {
                             keyed
                             fallback={
                                 <span
-                                    class="mono"
+                                    class="font-mono"
                                     style={{
                                         "font-size": "0.85rem",
                                         color: "var(--color-text-muted)",
@@ -404,7 +405,7 @@ function TreeNodeRow(props: {
                             {(id) => (
                                 <A
                                     href={`/components/${id}`}
-                                    class="mono"
+                                    class="font-mono"
                                     style={{ "font-size": "0.85rem" }}
                                     onClick={(e: MouseEvent) =>
                                         e.stopPropagation()
@@ -429,7 +430,7 @@ function TreeNodeRow(props: {
                         </Show>
                     </span>
                 </td>
-                <td class="mono" style={{ "font-size": "0.85rem" }}>
+                <td class="font-mono" style={{ "font-size": "0.85rem" }}>
                     {props.node.version ?? <span class="text-muted">—</span>}
                 </td>
                 <td>

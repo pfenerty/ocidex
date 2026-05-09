@@ -1,3 +1,4 @@
+import "./Pagination.css";
 import type { PaginationMeta } from "~/api/client";
 
 interface PaginationProps {

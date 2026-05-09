@@ -28,14 +28,14 @@ export function AnnotationsSection(props: {
 
     return (
         <Show when={entries().length > 0}>
-            <details class="mt-md">
+            <details class="mt-4">
                 <summary
                     class="text-muted text-sm"
                     style={{ cursor: "pointer" }}
                 >
                     {props.title} ({entries().length})
                 </summary>
-                <div class="table-wrapper mt-sm">
+                <div class="table-wrapper mt-2">
                     <table>
                         <thead>
                             <tr>
@@ -47,9 +47,9 @@ export function AnnotationsSection(props: {
                             <For each={entries()}>
                                 {([key, value]) => (
                                     <tr>
-                                        <td class="mono text-sm">{key}</td>
+                                        <td class="font-mono text-sm">{key}</td>
                                         <td
-                                            class="mono text-sm"
+                                            class="font-mono text-sm"
                                             style={{
                                                 "word-break": "break-all",
                                             }}

@@ -26,13 +26,13 @@ export function LicensesTab(props: { licenses: LicenseCount[] }) {
     return (
         <>
             <Show when={hasCopyleft()}>
-                <div class="alert alert-danger mb-md">
+                <div class="alert alert-danger mb-4">
                     <strong>Copyleft licenses detected.</strong> Review the
                     licenses below for compliance requirements.
                 </div>
             </Show>
 
-            <div class="license-bar mb-md">
+            <div class="license-bar mb-4">
                 <For each={Object.entries(byCat())}>
                     {([cat, count]) => (
                         <div
@@ -50,7 +50,7 @@ export function LicensesTab(props: { licenses: LicenseCount[] }) {
                 </For>
             </div>
 
-            <div class="license-legend mb-md">
+            <div class="license-legend mb-4">
                 <For each={Object.entries(byCat())}>
                     {([cat, count]) => (
                         <span class="license-legend-item">

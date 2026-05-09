@@ -1,0 +1,14 @@
+.copy-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+}
+
+.copy-btn:hover {
+    color: var(--color-primary);
+}
