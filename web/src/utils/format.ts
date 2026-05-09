@@ -21,6 +21,30 @@ export function sbomLabel(sbom: SBOMSummary): string {
 }
 
 /**
+ * Richer label for SBOM picker dropdowns, disambiguating multi-arch builds.
+ *
+ *  "24.04 · amd64 · built Jan 15, 2025, 3:42 PM"
+ *  "24.04 · amd64 · ingested Jan 15, 2025"
+ *  "24.04 · Jan 15, 2025"
+ *  "Jan 15, 2025, 3:42 PM · 342 components"
+ */
+export function sbomPickerLabel(sbom: SBOMSummary): string {
+    const version = sbom.subjectVersion ?? sbom.imageVersion;
+    const arch = sbom.architecture;
+    const ingested = formatDate(sbom.createdAt);
+
+    if (version !== undefined) {
+        if (arch === undefined || arch === "") return `${version} · ${ingested}`;
+        const built = sbom.buildDate !== undefined ? `built ${formatDateTime(sbom.buildDate)}` : `ingested ${ingested}`;
+        return [version, arch, built].join(" · ");
+    }
+
+    const dt = sbom.buildDate !== undefined ? formatDateTime(sbom.buildDate) : ingested;
+    const comps = sbom.componentCount !== undefined && sbom.componentCount > 0 ? `${sbom.componentCount} components` : undefined;
+    return [dt, comps].filter(Boolean).join(" · ");
+}
+
+/**
  * Shorter variant for space-constrained contexts (table cells, dropdowns).
  *
  *  "24.04"  or  "Jan 15, 2025"  or  "a1b2c3d4"

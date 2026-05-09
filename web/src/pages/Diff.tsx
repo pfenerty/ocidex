@@ -4,7 +4,7 @@ import { useSearchParams } from "@solidjs/router";
 import { useArtifacts, useArtifactSBOMs } from "~/api/queries";
 import { EmptyState } from "~/components/Feedback";
 import { DiffPairView, ViewToggle } from "~/components/DiffPairView";
-import { sbomLabel } from "~/utils/format";
+import { sbomPickerLabel } from "~/utils/format";
 
 export default function Diff() {
     const [searchParams, setSearchParams] = useSearchParams<{
@@ -82,7 +82,7 @@ export default function Diff() {
                             <option value="">Select SBOM...</option>
                             <For each={fromSbomsQuery.data?.data}>
                                 {(s) => (
-                                    <option value={s.id}>{sbomLabel(s)}</option>
+                                    <option value={s.id}>{sbomPickerLabel(s)}</option>
                                 )}
                             </For>
                         </select>
@@ -116,7 +116,7 @@ export default function Diff() {
                             <option value="">Select SBOM...</option>
                             <For each={toSbomsQuery.data?.data}>
                                 {(s) => (
-                                    <option value={s.id}>{sbomLabel(s)}</option>
+                                    <option value={s.id}>{sbomPickerLabel(s)}</option>
                                 )}
                             </For>
                         </select>
