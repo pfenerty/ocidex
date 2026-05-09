@@ -24,6 +24,31 @@ type DigestLister interface {
 	ListDigestsByRegistry(ctx context.Context, registryID string) (map[string]bool, error)
 }
 
+// RegistryWalker performs a catalog walk for a single registry.
+// DirectWalker executes the walk in-process; NATSCatalogPublisher delegates to the scanner-worker.
+type RegistryWalker interface {
+	Walk(ctx context.Context, reg service.Registry) (int, error)
+}
+
+// DirectWalker walks a registry catalog in-process and submits scan requests immediately.
+// Used in embedded mode where NATS is not available.
+type DirectWalker struct {
+	submitter    Submitter
+	digestLister DigestLister
+	logger       *slog.Logger
+}
+
+// NewDirectWalker constructs a DirectWalker.
+func NewDirectWalker(sub Submitter, dl DigestLister, logger *slog.Logger) *DirectWalker {
+	return &DirectWalker{submitter: sub, digestLister: dl, logger: logger}
+}
+
+// Walk fetches known digests then runs WalkRegistry in the calling goroutine.
+func (w *DirectWalker) Walk(ctx context.Context, reg service.Registry) (int, error) {
+	known := FetchKnownDigests(ctx, w.digestLister, reg.ID)
+	return WalkRegistry(ctx, reg, w.submitter, known, w.logger)
+}
+
 // FetchKnownDigests loads existing SBOM digests for a registry using a DigestLister.
 // Returns nil (not an empty map) if the lister is nil or the registry has no ID.
 func FetchKnownDigests(ctx context.Context, dl DigestLister, registryID string) map[string]bool {

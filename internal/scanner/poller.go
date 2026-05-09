@@ -11,21 +11,19 @@ import (
 
 // Poller periodically triggers catalog walks for poll-enabled registries.
 type Poller struct {
-	registrySvc  service.RegistryService
-	submitter    Submitter
-	digestLister DigestLister
-	logger       *slog.Logger
-	wg           sync.WaitGroup
+	registrySvc service.RegistryService
+	walker      RegistryWalker
+	logger      *slog.Logger
+	wg          sync.WaitGroup
 }
 
-// NewPoller constructs a Poller. The digestLister is used to skip re-scanning
-// known digests; pass nil to disable dedup.
-func NewPoller(registrySvc service.RegistryService, submitter Submitter, digestLister DigestLister, logger *slog.Logger) *Poller {
+// NewPoller constructs a Poller. walker determines how each registry is walked
+// (in-process via DirectWalker, or via NATS with NATSCatalogPublisher).
+func NewPoller(registrySvc service.RegistryService, walker RegistryWalker, logger *slog.Logger) *Poller {
 	return &Poller{
-		registrySvc:  registrySvc,
-		submitter:    submitter,
-		digestLister: digestLister,
-		logger:       logger,
+		registrySvc: registrySvc,
+		walker:      walker,
+		logger:      logger,
 	}
 }
 
@@ -66,8 +64,7 @@ func (p *Poller) poll(ctx context.Context) {
 			defer p.wg.Done()
 			walkCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 			defer cancel()
-			known := FetchKnownDigests(walkCtx, p.digestLister, r.ID)
-			queued, err := WalkRegistry(walkCtx, r, p.submitter, known, p.logger)
+			queued, err := p.walker.Walk(walkCtx, r)
 			if err != nil {
 				p.logger.Error("poller: catalog walk failed", "registry", r.Name, "err", err)
 				return

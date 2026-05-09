@@ -108,7 +108,8 @@ func run() error {
 	}
 
 	if cfg.ScannerEnabled && cfg.RegistryPollerEnabled && scanSubmitter != nil {
-		poller := scanner.NewPoller(registrySvc, scanSubmitter, sbomSvc, logger)
+		walker := setupRegistryWalker(cfg, natsClient, scanSubmitter, sbomSvc, logger)
+		poller := scanner.NewPoller(registrySvc, walker, logger)
 		h := fnv.New64a()
 		h.Write([]byte("ocidex-poller"))
 		pollerKey := int64(h.Sum64()) //nolint:gosec
@@ -234,6 +235,13 @@ func setupEnrichmentExt(cfg *config.Config, reg *extension.Registry, pool *pgxpo
 		enrichment.WithQueueSize(cfg.EnrichmentQueueSize),
 	)
 	reg.Register(enrichment.NewExtension(dispatcher))
+}
+
+func setupRegistryWalker(cfg *config.Config, natsClient *natspkg.Client, sub api.ScanSubmitter, dl scanner.DigestLister, logger *slog.Logger) scanner.RegistryWalker {
+	if cfg.IsDistributed() && natsClient != nil {
+		return scanner.NewNATSCatalogPublisher(natsClient, cfg.NATSStreamName)
+	}
+	return scanner.NewDirectWalker(sub, dl, logger)
 }
 
 func setupScannerExt(cfg *config.Config, pool *pgxpool.Pool, bus *event.Bus, reg *extension.Registry, natsClient *natspkg.Client, logger *slog.Logger, jobSvc service.JobService) api.ScanSubmitter {
