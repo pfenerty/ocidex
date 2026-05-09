@@ -1,0 +1,13 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ocidex-enrichment-worker
+spec:
+  template:
+    spec:
+      containers:
+        - name: enrichment-worker
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NATS_STREAM_REPLICAS
+              value: "1"

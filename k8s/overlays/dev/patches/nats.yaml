@@ -1,0 +1,13 @@
+- op: replace
+  path: /spec/replicas
+  value: 1
+- op: replace
+  path: /spec/template/spec/containers/0/args
+  value: ["-js"]
+- op: add
+  path: /spec/template/spec/volumes
+  value:
+    - name: data
+      emptyDir: {}
+- op: remove
+  path: /spec/volumeClaimTemplates
