@@ -207,17 +207,23 @@ This project uses [Beads](https://github.com/steveyegge/beads) (`bd`) for task t
 
 The session-start hook auto-runs `bd prime` when `.beads/` is present. Run it manually after compaction or `/clear`.
 
-**Roadmap structure** (epics established for the path to 1.0):
+**Roadmap structure** (epics for the path to 1.0 and beyond):
 
 | Epic | Theme |
 |---|---|
-| `ocidex-6ce` | 1.0 — Solid Core (refactor + stabilize) |
-| `ocidex-ars` | 1.1 — Production K8s deployment |
-| `ocidex-utt` | 1.2 — CLI tool (`cmd/ocidex-cli`) |
-| `ocidex-m4x` | 1.3 — K8s operator + CRDs |
-| `ocidex-4o0` | 1.4 — Terraform provider |
+| `ocidex-ujj` | 1.0 — Solid Core (refactor + stabilize) |
+| `ocidex-0my` | 1.1 — Production K8s deployment |
+| `ocidex-e3g` | 1.2 — CLI tool (`cmd/ocidex-cli`) |
+| `ocidex-01v` | 1.3 — K8s operator + CRDs |
+| `ocidex-dsy` | 1.4 — Terraform provider |
 
-The 1.0 epic has 36 child tasks (`ocidex-6ce.1` through `.36`) organized into sections A–H. See the plan at `~/.claude/plans/this-app-started-as-validated-star.md`.
+**Active cross-cutting epics:**
+
+| Epic | Theme | See also |
+|---|---|---|
+| `ocidex-bqh` | Diff & tree display: backend-computed, flavor-aware | ADRs 0019, 0020, 0021 |
+
+Verify epic IDs with `bd list --type=epic`; child IDs with `bd show <epic>`.
 
 **Workflow:**
 
@@ -265,6 +271,12 @@ bd close <id> --reason "..."          # Close with a brief one-liner (simple cha
 | 016 | Frontend Testing | Table-driven parity with backend |
 | 017 | Frontend Organization | Monorepo; single `make build` |
 | 018 | API Documentation | huma v2 (code-first, supersedes 011) |
+| 019 | Diff Identity Model | Layered: purl-base + identity-bearing qualifiers, tuple fallback, versioned-name post-pass with survivor guard |
+| 020 | Image Flavor Axis | Layered SBOM-content detection (OS metadata → purl fingerprint → tag suffix); persisted on `sbom.flavor` |
+| 021 | Backend-Computed Diff Tree | Enrich `DiffTree` response with `roots`, `isDirect`, `direction`, `nodeRef`, `descendantChanges`; frontend renders only |
+| 023 | Visual Identity | Field-guide / entry-card component conventions |
+
+**When working on diff, dependency-tree, or changelog code, read ADRs 0019–0021 first.** They are the normative contract; the implementation issues (`ocidex-bqh.*`) reference them by section.
 
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
