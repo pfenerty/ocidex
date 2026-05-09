@@ -1,4 +1,5 @@
 import { Show } from "solid-js";
+import "./PurlLink.css";
 import { purlToRegistryUrl, purlTypeLabel, purlDisplayName } from "~/utils/purl";
 
 /** Renders a PURL as an external link to the appropriate package registry. */

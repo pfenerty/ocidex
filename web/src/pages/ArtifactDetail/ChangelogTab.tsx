@@ -1,4 +1,5 @@
 import { createSignal, Show, For } from "solid-js";
+import "./ChangelogTab.css";
 import type { ChangelogEntryData } from "~/utils/diff";
 import { DiffPairView, ViewToggle } from "~/components/DiffPairView";
 

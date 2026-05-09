@@ -1,4 +1,5 @@
 import { Show, For } from "solid-js";
+import "./LicensesTab.css";
 import { A } from "@solidjs/router";
 import type { LicenseCount } from "~/api/client";
 import { plural } from "~/utils/format";

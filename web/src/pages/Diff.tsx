@@ -1,4 +1,5 @@
 import { createSignal, Show, For } from "solid-js";
+import "./Diff.css";
 import { useSearchParams } from "@solidjs/router";
 import { useArtifacts, useArtifactSBOMs } from "~/api/queries";
 import { EmptyState } from "~/components/Feedback";

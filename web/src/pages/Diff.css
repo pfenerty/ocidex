@@ -1,0 +1,26 @@
+.diff-picker {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
+.diff-picker-side {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.diff-picker select {
+    width: 100%;
+}
+
+.diff-picker select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+    .diff-picker {
+        grid-template-columns: 1fr;
+    }
+}
