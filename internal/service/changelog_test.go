@@ -273,14 +273,17 @@ func TestDiffComponents_AddedRemovedModified(t *testing.T) {
 
 	entry := diffComponents(from, to, oldMap, newMap)
 
-	is.Equal(entry.Summary.Modified, 1)
+	// "1.0"→"2.0" classifies as upgraded, not modified.
+	is.Equal(entry.Summary.Upgraded, 1)
+	is.Equal(entry.Summary.Modified, 0)
 	is.Equal(entry.Summary.Added, 1)
 	is.Equal(entry.Summary.Removed, 1)
 	is.Equal(len(entry.Changes), 3)
 
-	// Verify sort order: removed first, then modified, then added.
+	// Verify sort order: removed first, then modified/upgraded, then added.
 	is.Equal(entry.Changes[0].Type, "removed")
 	is.Equal(entry.Changes[1].Type, "modified")
+	is.Equal(entry.Changes[1].Direction, "upgraded")
 	is.Equal(entry.Changes[2].Type, "added")
 }
 

@@ -202,6 +202,20 @@ func (q *Queries) GetSBOMByDigest(ctx context.Context, digest pgtype.Text) (pgty
 	return id, err
 }
 
+const getSBOMMetadataBomRef = `-- name: GetSBOMMetadataBomRef :one
+SELECT raw_bom->'metadata'->'component'->>'bom-ref' AS bom_ref
+FROM sbom
+WHERE id = $1
+`
+
+// Returns metadata.component.bom-ref from the raw CycloneDX BOM, or NULL if absent.
+func (q *Queries) GetSBOMMetadataBomRef(ctx context.Context, id pgtype.UUID) (interface{}, error) {
+	row := q.db.QueryRow(ctx, getSBOMMetadataBomRef, id)
+	var bom_ref interface{}
+	err := row.Scan(&bom_ref)
+	return bom_ref, err
+}
+
 const getSBOMRaw = `-- name: GetSBOMRaw :one
 SELECT raw_bom
 FROM sbom
