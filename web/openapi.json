@@ -157,10 +157,14 @@
         ],
         "type": "object"
       },
-      "ChangeSummary": {
+      "ChangeCounts": {
         "additionalProperties": false,
         "properties": {
           "added": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "downgraded": {
             "format": "int64",
             "type": "integer"
           },
@@ -171,11 +175,50 @@
           "removed": {
             "format": "int64",
             "type": "integer"
+          },
+          "upgraded": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "required": [
           "added",
           "removed",
+          "upgraded",
+          "downgraded",
+          "modified"
+        ],
+        "type": "object"
+      },
+      "ChangeSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "added": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "downgraded": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "modified": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "removed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "upgraded": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "added",
+          "removed",
+          "upgraded",
+          "downgraded",
           "modified"
         ],
         "type": "object"
@@ -281,6 +324,9 @@
           "cpe": {
             "type": "string"
           },
+          "descendantChanges": {
+            "$ref": "#/components/schemas/ChangeCounts"
+          },
           "description": {
             "type": "string"
           },
@@ -307,6 +353,9 @@
           },
           "id": {
             "type": "string"
+          },
+          "isDirect": {
+            "type": "boolean"
           },
           "licenses": {
             "items": {
@@ -346,17 +395,24 @@
           "id",
           "sbomId",
           "type",
-          "name"
+          "name",
+          "isDirect"
         ],
         "type": "object"
       },
       "ComponentDiff": {
         "additionalProperties": false,
         "properties": {
+          "direction": {
+            "type": "string"
+          },
           "group": {
             "type": "string"
           },
           "name": {
+            "type": "string"
+          },
+          "nodeRef": {
             "type": "string"
           },
           "previousVersion": {
@@ -374,6 +430,7 @@
         },
         "required": [
           "type",
+          "direction",
           "name"
         ],
         "type": "object"
@@ -384,11 +441,17 @@
           "bomRef": {
             "type": "string"
           },
+          "descendantChanges": {
+            "$ref": "#/components/schemas/ChangeCounts"
+          },
           "group": {
             "type": "string"
           },
           "id": {
             "type": "string"
+          },
+          "isDirect": {
+            "type": "boolean"
           },
           "name": {
             "type": "string"
@@ -410,7 +473,8 @@
           "id",
           "sbomId",
           "type",
-          "name"
+          "name",
+          "isDirect"
         ],
         "type": "object"
       },
@@ -987,6 +1051,15 @@
               "null"
             ]
           },
+          "roots": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "summary": {
             "$ref": "#/components/schemas/ChangeSummary"
           },
@@ -1000,7 +1073,8 @@
           "summary",
           "changes",
           "nodes",
-          "edges"
+          "edges",
+          "roots"
         ],
         "type": "object"
       },
