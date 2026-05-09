@@ -199,8 +199,32 @@ func TestVersionsEqual(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// buildComponentMap
+// buildComponentMap / buildPackageMap
 // ---------------------------------------------------------------------------
+
+func TestBuildPackageMap(t *testing.T) {
+	is := is.New(t)
+	rows := []repository.ListSBOMPackagesRow{
+		{
+			Type:    "library",
+			Name:    "curl",
+			Version: pgtype.Text{String: "7.81.0", Valid: true},
+		},
+		{
+			Type:    "library",
+			Name:    "openssl",
+			Version: pgtype.Text{String: "3.0.0", Valid: true},
+			Purl:    pgtype.Text{String: "pkg:deb/ubuntu/openssl@3.0.0", Valid: true},
+		},
+	}
+
+	m := buildPackageMap(rows)
+
+	is.Equal(len(m), 2)
+	is.True(m["library\x00curl\x00"].version != nil)
+	is.Equal(*m["library\x00curl\x00"].version, "7.81.0")
+	is.True(m["pkg:deb/ubuntu/openssl"] != (componentIdentity{}))
+}
 
 func TestBuildComponentMap(t *testing.T) {
 	is := is.New(t)
