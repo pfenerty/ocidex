@@ -173,6 +173,9 @@ export function RegistriesTab() {
         });
     }
 
+    const hasWebhook = (reg: { scan_mode?: string; type: string }) =>
+        reg.scan_mode !== "poll" && TYPE_CAPS[reg.type as RegType].webhook;
+
     return (
         <>
             <Show when={revealedSecret()}>
@@ -467,25 +470,27 @@ export function RegistriesTab() {
                                                 </td>
                                                 <td><code>{reg.scan_mode}</code></td>
                                                 <td style={{ display: "flex", gap: "0.3rem" }}>
-                                                    <button
-                                                        class="btn"
-                                                        style={{ "font-size": "0.75rem", padding: "0.2rem 0.5rem" }}
-                                                        onClick={() => copyWebhookURL(reg.webhook_url)}
-                                                    >
-                                                        Copy URL
-                                                    </button>
-                                                    <button
-                                                        class="btn"
-                                                        style={{ "font-size": "0.75rem", padding: "0.2rem 0.5rem" }}
-                                                        title="Generate a new webhook secret (invalidates the old one)"
-                                                        disabled={regenSecret.isPending}
-                                                        onClick={() => regenSecret.mutate(reg.id, {
-                                                            onSuccess: (data) => setRevealedSecret(data.webhook_secret),
-                                                            onError: () => toast("Failed to regenerate secret", "error"),
-                                                        })}
-                                                    >
-                                                        Regen Secret
-                                                    </button>
+                                                    <Show when={hasWebhook(reg)} fallback={<span style={{ color: "var(--color-text-muted)" }}>—</span>}>
+                                                        <button
+                                                            class="btn"
+                                                            style={{ "font-size": "0.75rem", padding: "0.2rem 0.5rem" }}
+                                                            onClick={() => copyWebhookURL(reg.webhook_url)}
+                                                        >
+                                                            Copy URL
+                                                        </button>
+                                                        <button
+                                                            class="btn"
+                                                            style={{ "font-size": "0.75rem", padding: "0.2rem 0.5rem" }}
+                                                            title="Generate a new webhook secret (invalidates the old one)"
+                                                            disabled={regenSecret.isPending}
+                                                            onClick={() => regenSecret.mutate(reg.id, {
+                                                                onSuccess: (data) => setRevealedSecret(data.webhook_secret),
+                                                                onError: () => toast("Failed to regenerate secret", "error"),
+                                                            })}
+                                                        >
+                                                            Regen Secret
+                                                        </button>
+                                                    </Show>
                                                 </td>
                                                 <td style={{ display: "flex", gap: "0.4rem" }}>
                                                     <button
