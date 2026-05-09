@@ -721,13 +721,29 @@ export interface components {
             /** Format: int64 */
             component_count: number;
         };
-        ChangeSummary: {
+        ChangeCounts: {
             /** Format: int64 */
             added: number;
+            /** Format: int64 */
+            downgraded: number;
             /** Format: int64 */
             modified: number;
             /** Format: int64 */
             removed: number;
+            /** Format: int64 */
+            upgraded: number;
+        };
+        ChangeSummary: {
+            /** Format: int64 */
+            added: number;
+            /** Format: int64 */
+            downgraded: number;
+            /** Format: int64 */
+            modified: number;
+            /** Format: int64 */
+            removed: number;
+            /** Format: int64 */
+            upgraded: number;
         };
         Changelog: {
             /**
@@ -762,11 +778,13 @@ export interface components {
             bomRef?: string;
             copyright?: string;
             cpe?: string;
+            descendantChanges?: components["schemas"]["ChangeCounts"];
             description?: string;
             externalReferences: components["schemas"]["ExternalRefEntry"][] | null;
             group?: string;
             hashes: components["schemas"]["HashEntry"][] | null;
             id: string;
+            isDirect: boolean;
             licenses: components["schemas"]["LicenseSummary"][] | null;
             name: string;
             publisher?: string;
@@ -777,8 +795,10 @@ export interface components {
             version?: string;
         };
         ComponentDiff: {
+            direction: string;
             group?: string;
             name: string;
+            nodeRef?: string;
             previousVersion?: string;
             purl?: string;
             type: string;
@@ -786,8 +806,10 @@ export interface components {
         };
         ComponentSummary: {
             bomRef?: string;
+            descendantChanges?: components["schemas"]["ChangeCounts"];
             group?: string;
             id: string;
+            isDirect: boolean;
             name: string;
             purl?: string;
             sbomId: string;
@@ -981,6 +1003,7 @@ export interface components {
             edges: components["schemas"]["DependencyEdge"][] | null;
             from: components["schemas"]["SBOMRef"];
             nodes: components["schemas"]["ComponentSummary"][] | null;
+            roots: string[] | null;
             summary: components["schemas"]["ChangeSummary"];
             to: components["schemas"]["SBOMRef"];
         };
