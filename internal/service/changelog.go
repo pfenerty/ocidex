@@ -272,18 +272,18 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgt
 		return changelog, nil
 	}
 
-	prevComps, err := q.ListSBOMComponents(ctx, candidates[0].sbom.ID)
+	prevComps, err := q.ListSBOMPackages(ctx, candidates[0].sbom.ID)
 	if err != nil {
 		return Changelog{}, fmt.Errorf("listing components for sbom %s: %w", uuidToString(candidates[0].sbom.ID), err)
 	}
-	prevMap := buildComponentMap(prevComps)
+	prevMap := buildPackageMap(prevComps)
 
 	for i := 1; i < len(candidates); i++ {
-		currComps, err := q.ListSBOMComponents(ctx, candidates[i].sbom.ID)
+		currComps, err := q.ListSBOMPackages(ctx, candidates[i].sbom.ID)
 		if err != nil {
 			return Changelog{}, fmt.Errorf("listing components for sbom %s: %w", uuidToString(candidates[i].sbom.ID), err)
 		}
-		currMap := buildComponentMap(currComps)
+		currMap := buildPackageMap(currComps)
 
 		fromRef := sbomToRef(candidates[i-1].sbom)
 		fromRef.BuildDate = candidates[i-1].buildDate
