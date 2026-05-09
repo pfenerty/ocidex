@@ -111,6 +111,14 @@ func run() error {
 	const scanMsgTimeout = 9 * time.Minute
 	registry.Register(scanner.NewNATSExtension(natsClient, dispatcher, cfg.NATSStreamName, logger, jobSvc, scanMsgTimeout))
 
+	// Wire catalog walk consumer: receives catalog.walk.requested from the API server poller
+	// and performs the OCI catalog walk here in the scanner-worker.
+	registrySvc := service.NewRegistryService(pool)
+	natsSubmitter := scanner.NewNATSSubmitter(natsClient, cfg.NATSStreamName, jobSvc)
+	registry.Register(scanner.NewNATSCatalogExtension(
+		natsClient, registrySvc, scannerSbomSvc, natsSubmitter, cfg.NATSStreamName, logger,
+	))
+
 	if err := registry.InitAll(); err != nil {
 		return fmt.Errorf("initializing extensions: %w", err)
 	}
