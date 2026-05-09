@@ -1,8 +1,8 @@
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createEffect, createSignal } from "solid-js";
 import { A } from "@solidjs/router";
 import { Loading, ErrorBox } from "~/components/Feedback";
 import { formatDateTime } from "~/utils/format";
-import { useListScanJobs } from "~/api/queries";
+import { useListRegistries, useListScanJobs } from "~/api/queries";
 
 const JOB_STATE_COLORS: Record<string, string> = {
     queued: "var(--color-text-muted)",
@@ -13,9 +13,15 @@ const JOB_STATE_COLORS: Record<string, string> = {
 
 const PAGE_SIZE = 20;
 
+type StateFilter = "active" | "running" | "queued" | "succeeded" | "failed" | "";
+
 export function JobsTab() {
     const [page, setPage] = createSignal(0);
     const [expandedErrors, setExpandedErrors] = createSignal(new Set<string>());
+    const [stateFilter, setStateFilter] = createSignal<StateFilter>("active");
+    const [repoFilter, setRepoFilter] = createSignal("");
+    const [registryFilter, setRegistryFilter] = createSignal("");
+
     const toggleError = (id: string) =>
         setExpandedErrors(prev => {
             const next = new Set(prev);
@@ -23,14 +29,66 @@ export function JobsTab() {
             else next.add(id);
             return next;
         });
-    const query = useListScanJobs(() => ({ limit: PAGE_SIZE, offset: page() * PAGE_SIZE }));
 
-    const total = () => query.data?.pagination.total ?? 0;
+    createEffect(() => { stateFilter(); repoFilter(); registryFilter(); setPage(0); });
+
+    const isActive = () => stateFilter() === "active";
+
+    const qMain = useListScanJobs(() => {
+        const f = stateFilter();
+        return {
+            state: f === "active" ? "running" : (f || undefined),
+            limit: isActive() ? 50 : PAGE_SIZE,
+            offset: isActive() ? 0 : page() * PAGE_SIZE,
+        };
+    });
+    const qQueued = useListScanJobs(() => ({ state: "queued" as const, limit: 50, offset: 0 }));
+    const registries = useListRegistries();
+
+    const isLoading = () => qMain.isLoading || (isActive() && qQueued.isLoading);
+    const isError = () => qMain.isError || (isActive() && qQueued.isError);
+
+    const displayJobs = () => {
+        const jobs = isActive()
+            ? [...(qMain.data?.data ?? []), ...(qQueued.data?.data ?? [])]
+                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            : (qMain.data?.data ?? []);
+        const repo = repoFilter().toLowerCase();
+        const reg = registryFilter();
+        return jobs.filter(job =>
+            (!repo || job.repository.toLowerCase().includes(repo) || (job.tag ?? "").toLowerCase().includes(repo)) &&
+            (!reg || job.registry_id === reg)
+        );
+    };
+
+    const total = () => qMain.data?.pagination.total ?? 0;
     const pageCount = () => Math.max(1, Math.ceil(total() / PAGE_SIZE));
 
     return (
-        <Show when={!query.isLoading} fallback={<Loading />}>
-            <Show when={!query.isError} fallback={<ErrorBox error={query.error} />}>
+        <Show when={!isLoading()} fallback={<Loading />}>
+            <Show when={!isError()} fallback={<ErrorBox error={qMain.error} />}>
+                <div style={{ display: "flex", gap: "0.75rem", "align-items": "center", "margin-bottom": "1rem", "flex-wrap": "wrap" }}>
+                    <select value={stateFilter()} onInput={e => setStateFilter(e.currentTarget.value as StateFilter)}>
+                        <option value="active">Active (Running + Queued)</option>
+                        <option value="running">Running</option>
+                        <option value="queued">Queued</option>
+                        <option value="succeeded">Succeeded</option>
+                        <option value="failed">Failed</option>
+                        <option value="">All</option>
+                    </select>
+                    <input
+                        type="text"
+                        placeholder="Filter by repository…"
+                        value={repoFilter()}
+                        onInput={e => setRepoFilter(e.currentTarget.value)}
+                    />
+                    <select value={registryFilter()} onInput={e => setRegistryFilter(e.currentTarget.value)}>
+                        <option value="">All registries</option>
+                        <For each={registries.data?.data ?? []}>
+                            {(r) => <option value={r.id}>{r.name}</option>}
+                        </For>
+                    </select>
+                </div>
                 <div class="card">
                     <div class="table-wrapper">
                         <table>
@@ -45,7 +103,7 @@ export function JobsTab() {
                                 </tr>
                             </thead>
                             <tbody>
-                                <For each={query.data?.data ?? []}>
+                                <For each={displayJobs()}>
                                     {(job) => (
                                         <tr>
                                             <td>
@@ -86,7 +144,7 @@ export function JobsTab() {
                             </tbody>
                         </table>
                     </div>
-                    <Show when={pageCount() > 1}>
+                    <Show when={!isActive() && pageCount() > 1}>
                         <div style={{ display: "flex", gap: "0.5rem", "align-items": "center", "margin-top": "1rem", "justify-content": "flex-end" }}>
                             <button class="btn" disabled={page() === 0} onClick={() => setPage(p => p - 1)}>Prev</button>
                             <span style={{ "font-size": "0.85rem" }}>Page {page() + 1} of {pageCount()}</span>
