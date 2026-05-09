@@ -162,6 +162,15 @@ type ScanJob struct {
 	FinishedAt pgtype.Timestamptz `json:"finished_at"`
 }
 
+type ScanJobFailure struct {
+	ID            pgtype.UUID        `json:"id"`
+	NatsMsgID     pgtype.Text        `json:"nats_msg_id"`
+	Payload       []byte             `json:"payload"`
+	FailureReason string             `json:"failure_reason"`
+	DeliveryCount int32              `json:"delivery_count"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
 type Session struct {
 	ID        pgtype.UUID        `json:"id"`
 	UserID    pgtype.UUID        `json:"user_id"`

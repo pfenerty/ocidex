@@ -273,12 +273,12 @@ type DependencyGraph struct {
 // graph of the "to" SBOM, allowing clients to render a tree-structured diff
 // in a single API call.
 type DiffTree struct {
-	From    SBOMRef          `json:"from"`
-	To      SBOMRef          `json:"to"`
-	Summary ChangeSummary    `json:"summary"`
-	Changes []ComponentDiff  `json:"changes"`
+	From    SBOMRef            `json:"from"`
+	To      SBOMRef            `json:"to"`
+	Summary ChangeSummary      `json:"summary"`
+	Changes []ComponentDiff    `json:"changes"`
 	Nodes   []ComponentSummary `json:"nodes"`
-	Edges   []DependencyEdge `json:"edges"`
+	Edges   []DependencyEdge   `json:"edges"`
 }
 
 // DependencyEdge represents a directed dependency relationship.

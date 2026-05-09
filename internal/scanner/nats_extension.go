@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"sync"
 	"time"
 
@@ -19,6 +20,10 @@ import (
 // scannerMaxConcurrency mirrors the MaxAckPending consumer config — limits how many
 // scan goroutines run concurrently, which keeps unacknowledged message count bounded.
 const scannerMaxConcurrency = 10
+
+// scannerMaxDeliver mirrors the MaxDeliver consumer config. When a message reaches
+// this delivery count it is routed to the DLQ stream instead of being Nak-ed.
+const scannerMaxDeliver = 3
 
 // ScanProcessor processes a single scan request synchronously.
 // Implemented by *Dispatcher; allows substitution in tests.
@@ -74,7 +79,7 @@ func (e *NATSExtension) Start(ctx context.Context) error {
 		FilterSubject: e.streamName + ".scan.requested",
 		AckPolicy:     jetstream.AckExplicitPolicy,
 		AckWait:       10 * time.Minute,
-		MaxDeliver:    3,
+		MaxDeliver:    scannerMaxDeliver,
 		DeliverPolicy: jetstream.DeliverAllPolicy,
 		MaxAckPending: scannerMaxConcurrency,
 	})
@@ -104,6 +109,19 @@ func (e *NATSExtension) Stop() error {
 	}
 	e.wg.Wait()
 	return nil
+}
+
+func (e *NATSExtension) routeToDLQ(ctx context.Context, msg natsMsg, msgID string, deliveryCount int, reason string) {
+	dlqSubject := e.streamName + ".scan.dlq"
+	if _, err := e.client.JS.Publish(ctx, dlqSubject, msg.Data()); err != nil {
+		e.logger.Error("nats scanner: dlq publish failed", "msg_id", msgID, "err", err)
+	}
+	if e.jobSvc != nil {
+		if err := e.jobSvc.RecordFailure(ctx, msgID, msg.Data(), reason, deliveryCount); err != nil {
+			e.logger.Error("nats scanner: record job failure", "msg_id", msgID, "err", err)
+		}
+	}
+	_ = msg.Term()
 }
 
 func (e *NATSExtension) fetchLoop(ctx context.Context, consumer jetstream.Consumer) {
@@ -142,8 +160,10 @@ type natsMsg interface {
 
 func (e *NATSExtension) handleMsg(fetchCtx context.Context, msg natsMsg) {
 	msgID := ""
+	numDelivered := 0
 	if h := msg.Headers(); h != nil {
 		msgID = h.Get("Nats-Msg-Id")
+		numDelivered, _ = strconv.Atoi(h.Get("Nats-Num-Delivered"))
 	}
 
 	var env natspkg.Envelope
@@ -200,9 +220,14 @@ func (e *NATSExtension) handleMsg(fetchCtx context.Context, msg natsMsg) {
 		defer cancel()
 
 		if err := e.processor.ProcessOne(ctx, req); err != nil {
-			e.logger.Error("nats scanner: processing failed, nacking",
-				"repo", req.Repository, "digest", req.Digest, "err", err)
-			_ = msg.Nak()
+			e.logger.Error("nats scanner: processing failed",
+				"repo", req.Repository, "digest", req.Digest,
+				"delivery", numDelivered, "err", err)
+			if numDelivered >= scannerMaxDeliver {
+				e.routeToDLQ(context.Background(), msg, msgID, numDelivered, err.Error())
+			} else {
+				_ = msg.Nak()
+			}
 			return
 		}
 		_ = msg.Ack()

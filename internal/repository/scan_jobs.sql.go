@@ -138,6 +138,38 @@ func (q *Queries) InsertScanJob(ctx context.Context, arg InsertScanJobParams) (S
 	return i, err
 }
 
+const insertScanJobFailure = `-- name: InsertScanJobFailure :one
+INSERT INTO scan_job_failures (nats_msg_id, payload, failure_reason, delivery_count)
+VALUES ($1, $2, $3, $4)
+RETURNING id, nats_msg_id, payload, failure_reason, delivery_count, created_at
+`
+
+type InsertScanJobFailureParams struct {
+	NatsMsgID     pgtype.Text `json:"nats_msg_id"`
+	Payload       []byte      `json:"payload"`
+	FailureReason string      `json:"failure_reason"`
+	DeliveryCount int32       `json:"delivery_count"`
+}
+
+func (q *Queries) InsertScanJobFailure(ctx context.Context, arg InsertScanJobFailureParams) (ScanJobFailure, error) {
+	row := q.db.QueryRow(ctx, insertScanJobFailure,
+		arg.NatsMsgID,
+		arg.Payload,
+		arg.FailureReason,
+		arg.DeliveryCount,
+	)
+	var i ScanJobFailure
+	err := row.Scan(
+		&i.ID,
+		&i.NatsMsgID,
+		&i.Payload,
+		&i.FailureReason,
+		&i.DeliveryCount,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listScanJobs = `-- name: ListScanJobs :many
 SELECT id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at FROM scan_jobs
 WHERE ($1::text IS NULL OR state = $1::text)

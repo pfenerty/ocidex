@@ -48,6 +48,7 @@ type JobService interface {
 	Get(ctx context.Context, id string) (ScanJob, error)
 	CountByState(ctx context.Context) (queued, running, succeeded24h, failed24h int64, err error)
 	TimeoutJobs(ctx context.Context, olderThan time.Duration) error
+	RecordFailure(ctx context.Context, natsMsgID string, payload []byte, reason string, deliveryCount int) error
 }
 
 type jobService struct{ repo repository.JobRepository }
@@ -190,6 +191,16 @@ func (s *jobService) CountByState(ctx context.Context) (int64, int64, int64, int
 		return 0, 0, 0, 0, err
 	}
 	return queued, running, succ, fail, nil
+}
+
+func (s *jobService) RecordFailure(ctx context.Context, natsMsgID string, payload []byte, reason string, deliveryCount int) error {
+	_, err := s.repo.InsertScanJobFailure(ctx, repository.InsertScanJobFailureParams{
+		NatsMsgID:     pgtype.Text{String: natsMsgID, Valid: natsMsgID != ""},
+		Payload:       payload,
+		FailureReason: reason,
+		DeliveryCount: int32(deliveryCount), //nolint:gosec // G115: delivery count is always small
+	})
+	return err
 }
 
 func nullStr(s string) *string {

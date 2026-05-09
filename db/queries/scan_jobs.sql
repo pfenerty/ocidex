@@ -42,3 +42,8 @@ SET state = 'failed', finished_at = now(),
     last_error = 'timed out: job was still running after timeout threshold'
 WHERE state = 'running'
   AND started_at < @started_before::timestamptz;
+
+-- name: InsertScanJobFailure :one
+INSERT INTO scan_job_failures (nats_msg_id, payload, failure_reason, delivery_count)
+VALUES (sqlc.narg('nats_msg_id'), @payload, @failure_reason, @delivery_count)
+RETURNING *;
