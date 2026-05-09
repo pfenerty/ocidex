@@ -60,6 +60,13 @@ export default tseslint.config(
         },
     },
     {
+        files: ["**/*.test.{ts,tsx}"],
+        rules: {
+            "@typescript-eslint/unbound-method": "off",
+            "@typescript-eslint/no-unsafe-assignment": "off",
+        },
+    },
+    {
         ignores: ["dist/", "node_modules/", "*.config.js", "*.config.ts", "src/types/openapi.d.ts"],
     },
 );
