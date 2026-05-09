@@ -1,3 +1,4 @@
+import "./ThemeToggle.css";
 import { theme, setTheme, type Theme } from "~/utils/theme";
 
 const CYCLE: Theme[] = ["dark", "system", "light"];

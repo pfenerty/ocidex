@@ -160,22 +160,6 @@
         }
     }
 
-    /* Brand LED — amber dot in sidebar wordmark */
-    @keyframes brand-pulse {
-        0%   { box-shadow: 0 0 0 0 rgba(255, 176, 32, 0.6); }
-        70%  { box-shadow: 0 0 0 6px rgba(255, 176, 32, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(255, 176, 32, 0); }
-    }
-
-    .brand-led {
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: var(--color-accent-amber);
-        flex-shrink: 0;
-        animation: brand-pulse 1.2s ease-out 1;
-    }
-
     /* Display font — Space Grotesk for brand wordmark and entry-number badges */
     .brand {
         font-family: var(--font-display);
@@ -187,13 +171,6 @@
         font-weight: 500;
         color: var(--color-text-muted);
         letter-spacing: 0.02em;
-    }
-
-    /* Sidebar brand title row — holds LED + wordmark */
-    .sidebar-brand-title {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
     }
 
     /* Entry-card hover — 200ms scale + shadow lift */
@@ -246,38 +223,6 @@
         padding-top: 0.5rem;
     }
 
-    /* Theme toggle */
-    .theme-toggle {
-        display: flex;
-        align-items: center;
-        gap: 0.15rem;
-        padding: 0.2rem;
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-md);
-        background: var(--color-bg);
-        cursor: pointer;
-        width: 100%;
-        justify-content: center;
-    }
-
-    .theme-toggle:hover {
-        border-color: var(--color-border-hover);
-    }
-
-    .theme-icon {
-        padding: 0.25rem;
-        border-radius: var(--radius-sm);
-        color: var(--color-text-dim);
-        transition:
-            color 0.15s,
-            background 0.15s;
-    }
-
-    .theme-icon.active {
-        color: var(--color-primary);
-        background: var(--color-surface-hover);
-    }
-
     /* Modal dialog */
     dialog {
         border: 1px solid var(--color-border);
@@ -319,157 +264,6 @@
    ============================================ */
 
 @layer components {
-    /* Layout */
-    .layout {
-        display: flex;
-        width: 100%;
-        min-height: 100vh;
-    }
-
-    .sidebar {
-        width: 220px;
-        background: var(--color-surface);
-        border-right: 1px solid var(--color-border);
-        display: flex;
-        flex-direction: column;
-        flex-shrink: 0;
-        position: sticky;
-        top: 0;
-        height: 100vh;
-        overflow-y: auto;
-    }
-
-    .sidebar-brand {
-        padding: 1.25rem;
-        background: var(--color-primary);
-        margin-bottom: 0.75rem;
-        border-bottom: 1px solid var(--color-chrome-deep);
-    }
-
-    .sidebar-brand h1 {
-        font-size: 1.25rem;
-        font-weight: 700;
-        letter-spacing: -0.02em;
-        color: #ffffff;
-    }
-
-    .sidebar-brand span {
-        color: rgba(255, 255, 255, 0.8);
-    }
-
-    .sidebar-brand p {
-        font-size: 0.75rem;
-        color: rgba(255, 255, 255, 0.6);
-        margin-top: 0.125rem;
-    }
-
-    .sidebar-footer {
-        margin-top: auto;
-        padding: 0.75rem;
-        border-top: 1px solid var(--color-border);
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-
-    .sidebar-sign-in {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        padding: 0.45rem 0.75rem;
-        border-radius: var(--radius-md);
-        background: var(--color-surface-hover);
-        color: var(--color-text);
-        font-size: 0.8rem;
-        font-weight: 500;
-        text-decoration: none;
-        transition: background 0.15s, color 0.15s;
-    }
-
-    .sidebar-sign-in:hover {
-        background: var(--color-primary);
-        color: #fff;
-        text-decoration: none;
-    }
-
-    .sidebar-user {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.5rem;
-    }
-
-    .sidebar-user-info {
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-        min-width: 0;
-        font-size: 0.8rem;
-        color: var(--color-text-muted);
-    }
-
-    .sidebar-github-icon {
-        flex-shrink: 0;
-        color: var(--color-text-dim);
-    }
-
-    .sidebar-logout-btn {
-        flex-shrink: 0;
-        background: none;
-        border: none;
-        color: var(--color-text-dim);
-        cursor: pointer;
-        padding: 0.2rem;
-        border-radius: var(--radius-sm);
-        transition: color 0.15s, background 0.15s;
-    }
-
-    .sidebar-logout-btn:hover {
-        color: var(--color-text);
-        background: var(--color-surface-hover);
-    }
-
-    .sidebar nav {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        padding: 0 0.5rem;
-    }
-
-    .sidebar nav a {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.5rem 0.75rem;
-        border-radius: var(--radius-md);
-        color: var(--color-text-muted);
-        font-size: 0.875rem;
-        font-weight: 500;
-        transition:
-            background 0.15s,
-            color 0.15s;
-        text-decoration: none;
-    }
-
-    .sidebar nav a:hover {
-        background: var(--color-surface-hover);
-        color: var(--color-text);
-        text-decoration: none;
-    }
-
-    .sidebar nav a.active {
-        background: var(--color-surface-hover);
-        color: var(--color-primary);
-    }
-
-    .main-content {
-        flex: 1;
-        padding: 2rem;
-        overflow-x: auto;
-        min-width: 0;
-    }
-
     /* Page header */
     .page-header {
         margin-bottom: 1.5rem;
@@ -1122,43 +916,6 @@
    ============================================ */
 
 @media (max-width: 768px) {
-    .sidebar {
-        width: 56px;
-    }
-
-    .sidebar-brand {
-        padding: 0.75rem;
-        text-align: center;
-    }
-
-    .sidebar-brand h1 {
-        font-size: 0.75rem;
-    }
-
-    .sidebar-brand span,
-    .sidebar-brand p,
-    .sidebar nav a span {
-        display: none;
-    }
-
-    .sidebar nav a {
-        justify-content: center;
-        padding: 0.625rem;
-    }
-
-    .sidebar-footer {
-        padding: 0.5rem;
-    }
-
-    .theme-toggle {
-        padding: 0.2rem;
-        gap: 0.15rem;
-    }
-
-    .main-content {
-        padding: 1rem;
-    }
-
     .stats-grid {
         grid-template-columns: repeat(2, 1fr);
     }

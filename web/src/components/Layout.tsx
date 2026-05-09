@@ -1,3 +1,4 @@
+import "./Layout.css";
 import { A, useNavigate, useLocation } from "@solidjs/router";
 import { createEffect, Show, type ParentProps } from "solid-js";
 import { Home, Package, Layers, ShieldCheck, ArrowUpDown, Settings, LogOut } from "lucide-solid";
