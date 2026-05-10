@@ -31,7 +31,7 @@ function purlBase(purl: string): string {
     return atIdx > 0 ? purl.slice(0, atIdx) : purl.split("?")[0];
 }
 
-export function DiffTreeView(props: { tree: DiffTree }) {
+export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
     const treeData = createMemo(() => {
         // Filter to non-file changes once; we use this set for the orphan list and for
         // joining changes onto nodes via change.nodeRef (set by the backend per ADR-0021 §B3).
@@ -182,38 +182,44 @@ export function DiffTreeView(props: { tree: DiffTree }) {
 
     return (
         <div class="changelog-entry">
-            <div class="changelog-entry-header">
-                <div class="text-sm">
-                    <A href={`/sboms/${props.tree.from.id}`} class="font-mono">
-                        {changelogRefLabel(props.tree.from)}
-                    </A>
-                    {" → "}
-                    <A href={`/sboms/${props.tree.to.id}`} class="font-mono">
-                        {changelogRefLabel(props.tree.to)}
-                    </A>
-                    <span class="text-muted">
-                        {" "}
-                        ({relativeDate(props.tree.to.buildDate ?? props.tree.to.createdAt)})
-                    </span>
+            <Show when={props.hideHeader !== true}>
+                <div class="changelog-entry-header">
+                    <div class="text-sm">
+                        <A href={`/sboms/${props.tree.from.id}`} class="font-mono">
+                            {changelogRefLabel(props.tree.from)}
+                        </A>
+                        {" → "}
+                        <A href={`/sboms/${props.tree.to.id}`} class="font-mono">
+                            {changelogRefLabel(props.tree.to)}
+                        </A>
+                        <span class="text-muted">
+                            {" "}
+                            ({relativeDate(props.tree.to.buildDate ?? props.tree.to.createdAt)})
+                        </span>
+                    </div>
+                    <div class="changelog-summary">
+                        <For each={kindDefs}>
+                            {(k) => (
+                                <Show when={k.count() > 0}>
+                                    <span class={`badge ${k.cls}`}>{k.fmt(k.count())}</span>
+                                </Show>
+                            )}
+                        </For>
+                    </div>
                 </div>
-                <div class="changelog-summary">
-                    <For each={kindDefs}>
-                        {(k) => (
-                            <Show when={k.count() > 0}>
-                                <span class={`badge ${k.cls}`}>{k.fmt(k.count())}</span>
-                            </Show>
-                        )}
-                    </For>
-                </div>
-            </div>
+            </Show>
             <div style={{ display: "flex", gap: "0.75rem", "align-items": "center", padding: "0.5rem 0", "flex-wrap": "wrap" }}>
                 <button
                     class="btn btn-sm"
+                    title="Expand every branch that contains a changed package"
                     onClick={expandAllChanged}
                 >
                     Expand all changed
                 </button>
-                <label style={{ display: "flex", gap: "0.35rem", "align-items": "center", "font-size": "0.85rem", cursor: "pointer" }}>
+                <label
+                    title="Include unchanged ancestors of changed packages so you can see where each change lives in the tree. Off by default — only changed packages and their changed descendants are shown."
+                    style={{ display: "flex", gap: "0.35rem", "align-items": "center", "font-size": "0.85rem", cursor: "pointer" }}
+                >
                     <input
                         type="checkbox"
                         checked={showContext()}
@@ -221,7 +227,10 @@ export function DiffTreeView(props: { tree: DiffTree }) {
                     />
                     Show context
                 </label>
-                <label style={{ display: "flex", gap: "0.35rem", "align-items": "center", "font-size": "0.85rem", cursor: "pointer" }}>
+                <label
+                    title="Include indirect (transitive) dependencies. Off by default — only direct dependencies of the image's metadata.component are shown, with their changed descendants. Turn on to see deeper dependency chains."
+                    style={{ display: "flex", gap: "0.35rem", "align-items": "center", "font-size": "0.85rem", cursor: "pointer" }}
+                >
                     <input
                         type="checkbox"
                         checked={showTransitive()}

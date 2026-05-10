@@ -1,7 +1,8 @@
 import { createSignal, Show, For } from "solid-js";
 import "./ChangelogTab.css";
 import type { ChangelogEntryData } from "~/utils/diff";
-import { DiffPairView, ViewToggle } from "~/components/DiffPairView";
+import { ViewToggle } from "~/components/DiffPairView";
+import { DiffEntryCard } from "~/components/DiffEntryCard";
 
 export function ChangelogTab(props: {
     entries: ChangelogEntryData[];
@@ -23,50 +24,49 @@ export function ChangelogTab(props: {
             <div
                 style={{
                     display: "flex",
-                    "align-items": "center",
+                    "align-items": "flex-start",
                     gap: "0.75rem",
                     "margin-bottom": "1rem",
-                    "flex-wrap": "wrap",
                 }}
             >
-                <Show when={props.availableArchitectures.length > 1}>
-                    <div class="tab-bar" style={{ flex: "1" }}>
-                        <For each={props.availableArchitectures}>
-                            {(arch) => (
-                                <button
-                                    class={effectiveArch() === arch ? "active" : ""}
-                                    onClick={() => props.onArchChange(arch)}
-                                >
-                                    {arch}
-                                </button>
-                            )}
-                        </For>
-                    </div>
-                </Show>
-                <Show when={props.availableFlavors.length > 1}>
-                    <div class="tab-bar" style={{ flex: "1" }}>
-                        <For each={props.availableFlavors}>
-                            {(flavor) => (
-                                <button
-                                    class={effectiveFlavor() === flavor ? "active" : ""}
-                                    onClick={() => props.onFlavorChange(flavor)}
-                                >
-                                    {flavor}
-                                </button>
-                            )}
-                        </For>
-                    </div>
-                </Show>
-                <div style={{ "margin-left": "auto" }}>
-                    <ViewToggle mode={viewMode()} onChange={setViewMode} />
+                <div style={{ flex: "1", display: "flex", "flex-direction": "column", gap: "0.5rem", "min-width": "0" }}>
+                    <Show when={props.availableArchitectures.length > 1}>
+                        <div class="tab-bar">
+                            <For each={props.availableArchitectures}>
+                                {(arch) => (
+                                    <button
+                                        class={effectiveArch() === arch ? "active" : ""}
+                                        onClick={() => props.onArchChange(arch)}
+                                    >
+                                        {arch}
+                                    </button>
+                                )}
+                            </For>
+                        </div>
+                    </Show>
+                    <Show when={props.availableFlavors.length > 1}>
+                        <div class="tab-bar">
+                            <For each={props.availableFlavors}>
+                                {(flavor) => (
+                                    <button
+                                        class={effectiveFlavor() === flavor ? "active" : ""}
+                                        onClick={() => props.onFlavorChange(flavor)}
+                                    >
+                                        {flavor}
+                                    </button>
+                                )}
+                            </For>
+                        </div>
+                    </Show>
                 </div>
+                <ViewToggle mode={viewMode()} onChange={setViewMode} />
             </div>
             <For each={props.entries}>
                 {(entry) => (
-                    <DiffPairView
-                        fromId={entry.from.id}
-                        toId={entry.to.id}
+                    <DiffEntryCard
+                        entry={entry}
                         viewMode={viewMode()}
+                        defaultExpanded={false}
                     />
                 )}
             </For>

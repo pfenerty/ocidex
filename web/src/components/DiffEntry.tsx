@@ -12,6 +12,7 @@ interface DiffEntryProps {
     typeFilter: string | null;
     nameFilter: string;
     onTypeFilterToggle: (kind: string) => void;
+    hideHeader?: boolean;
 }
 
 export default function DiffEntry(props: DiffEntryProps) {
@@ -45,48 +46,50 @@ export default function DiffEntry(props: DiffEntryProps) {
     return (
         <Show when={visibleChanges().length > 0}>
             <div class="changelog-entry">
-                <div class="changelog-entry-header">
-                    <div class="text-sm">
-                        <A href={`/sboms/${props.entry.from.id}`} class="font-mono">
-                            {changelogRefLabel(props.entry.from)}
-                        </A>
-                        {" → "}
-                        <A href={`/sboms/${props.entry.to.id}`} class="font-mono">
-                            {changelogRefLabel(props.entry.to)}
-                        </A>
-                        <span class="text-muted">
-                            {" "}
-                            ({relativeDate(props.entry.to.buildDate ?? props.entry.to.createdAt)})
-                        </span>
+                <Show when={props.hideHeader !== true}>
+                    <div class="changelog-entry-header">
+                        <div class="text-sm">
+                            <A href={`/sboms/${props.entry.from.id}`} class="font-mono">
+                                {changelogRefLabel(props.entry.from)}
+                            </A>
+                            {" → "}
+                            <A href={`/sboms/${props.entry.to.id}`} class="font-mono">
+                                {changelogRefLabel(props.entry.to)}
+                            </A>
+                            <span class="text-muted">
+                                {" "}
+                                ({relativeDate(props.entry.to.buildDate ?? props.entry.to.createdAt)})
+                            </span>
+                        </div>
+                        <div class="changelog-summary">
+                            {(() => {
+                                const kinds = [
+                                    { key: "added",      count: addedCount(),      cls: "badge-primary", label: (n: number) => `+${n} added` },
+                                    { key: "removed",    count: removedCount(),    cls: "badge-warning", label: (n: number) => `-${n} removed` },
+                                    { key: "upgraded",   count: upgradedCount(),   cls: "badge-primary", label: (n: number) => `↑${n} upgraded` },
+                                    { key: "downgraded", count: downgradedCount(), cls: "badge-warning", label: (n: number) => `↓${n} downgraded` },
+                                ];
+                                return kinds
+                                    .filter(k => k.count > 0)
+                                    .map(k => (
+                                        <button
+                                            class={`badge ${k.cls}`}
+                                            style={{
+                                                cursor: "pointer",
+                                                border: "none",
+                                                opacity: props.typeFilter !== null && props.typeFilter !== k.key ? "0.45" : "1",
+                                                "font-weight": props.typeFilter === k.key ? "700" : undefined,
+                                            }}
+                                            onClick={() => props.onTypeFilterToggle(k.key)}
+                                            title={props.typeFilter === k.key ? "Click to clear filter" : `Click to show only ${k.key}`}
+                                        >
+                                            {k.label(k.count)}
+                                        </button>
+                                    ));
+                            })()}
+                        </div>
                     </div>
-                    <div class="changelog-summary">
-                        {(() => {
-                            const kinds = [
-                                { key: "added",      count: addedCount(),      cls: "badge-primary", label: (n: number) => `+${n} added` },
-                                { key: "removed",    count: removedCount(),    cls: "badge-warning", label: (n: number) => `-${n} removed` },
-                                { key: "upgraded",   count: upgradedCount(),   cls: "badge-primary", label: (n: number) => `↑${n} upgraded` },
-                                { key: "downgraded", count: downgradedCount(), cls: "badge-warning", label: (n: number) => `↓${n} downgraded` },
-                            ];
-                            return kinds
-                                .filter(k => k.count > 0)
-                                .map(k => (
-                                    <button
-                                        class={`badge ${k.cls}`}
-                                        style={{
-                                            cursor: "pointer",
-                                            border: "none",
-                                            opacity: props.typeFilter !== null && props.typeFilter !== k.key ? "0.45" : "1",
-                                            "font-weight": props.typeFilter === k.key ? "700" : undefined,
-                                        }}
-                                        onClick={() => props.onTypeFilterToggle(k.key)}
-                                        title={props.typeFilter === k.key ? "Click to clear filter" : `Click to show only ${k.key}`}
-                                    >
-                                        {k.label(k.count)}
-                                    </button>
-                                ));
-                        })()}
-                    </div>
-                </div>
+                </Show>
                 <div class="table-wrapper">
                         <table>
                             <thead>
