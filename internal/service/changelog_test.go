@@ -690,6 +690,106 @@ func TestDiffComponents_SurvivorGuard(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// E3: Diff identity edge cases (ADR 0019)
+// ---------------------------------------------------------------------------
+
+func TestDiffComponents_VersionedNameEdgeCases(t *testing.T) {
+	from := SBOMRef{ID: "aaa"}
+	to := SBOMRef{ID: "bbb"}
+	v := func(s string) *string { return &s }
+	p := func(s string) *string { return &s }
+
+	tests := []struct {
+		name                string
+		oldMap              map[string]componentIdentity
+		newMap              map[string]componentIdentity
+		wantUpgraded        int
+		wantAdded           int
+		wantRemoved         int
+		wantUpgradedName    string // if non-empty, verify a Modified entry has this name
+		wantPreviousVersion string // if non-empty, verify that entry's PreviousVersion
+	}{
+		{
+			// versionSuffixRe handles dots: "-1.24" matches `-[0-9][0-9.]*$`
+			name: "go dotted version suffix — collapses to upgraded",
+			oldMap: map[string]componentIdentity{
+				"library\x00go-1.24\x00": {version: v("1.24")},
+			},
+			newMap: map[string]componentIdentity{
+				"library\x00go-1.25\x00": {version: v("1.25")},
+			},
+			wantUpgraded:        1,
+			wantUpgradedName:    "go-1.25",
+			wantPreviousVersion: "1.24",
+		},
+		{
+			// gcc-12 persists unchanged → newNormCount["pkg:deb/ubuntu/gcc"]=2 → survivor guard fires
+			name: "gcc-11+gcc-12 → gcc-12+gcc-13 via purl — survivor guard prevents collapse",
+			oldMap: map[string]componentIdentity{
+				"pkg:deb/ubuntu/gcc-11?arch=amd64": {version: v("11"), purl: p("pkg:deb/ubuntu/gcc-11@11?arch=amd64")},
+				"pkg:deb/ubuntu/gcc-12?arch=amd64": {version: v("12"), purl: p("pkg:deb/ubuntu/gcc-12@12?arch=amd64")},
+			},
+			newMap: map[string]componentIdentity{
+				"pkg:deb/ubuntu/gcc-12?arch=amd64": {version: v("12"), purl: p("pkg:deb/ubuntu/gcc-12@12?arch=amd64")},
+				"pkg:deb/ubuntu/gcc-13?arch=amd64": {version: v("13"), purl: p("pkg:deb/ubuntu/gcc-13@13?arch=amd64")},
+			},
+			wantRemoved: 1,
+			wantAdded:   1,
+		},
+		{
+			// arch qualifier is in identityQualifiers → amd64 and arm64 are distinct identities
+			name: "curl amd64 and arm64 upgrade independently — arch qualifies identity",
+			oldMap: map[string]componentIdentity{
+				"pkg:deb/ubuntu/curl?arch=amd64": {version: v("7.81.0"), purl: p("pkg:deb/ubuntu/curl@7.81.0?arch=amd64")},
+				"pkg:deb/ubuntu/curl?arch=arm64": {version: v("7.81.0"), purl: p("pkg:deb/ubuntu/curl@7.81.0?arch=arm64")},
+			},
+			newMap: map[string]componentIdentity{
+				"pkg:deb/ubuntu/curl?arch=amd64": {version: v("7.82.0"), purl: p("pkg:deb/ubuntu/curl@7.82.0?arch=amd64")},
+				"pkg:deb/ubuntu/curl?arch=arm64": {version: v("7.82.0"), purl: p("pkg:deb/ubuntu/curl@7.82.0?arch=arm64")},
+			},
+			wantUpgraded: 2,
+		},
+		{
+			// distro qualifier is in identityQualifiers → alpine-3.17 and wolfi are distinct identities;
+			// busybox has no version suffix so versionedNormKey returns "" → no reconciliation
+			name: "busybox alpine-3.17 vs wolfi — distro qualifier separates identities",
+			oldMap: map[string]componentIdentity{
+				"pkg:apk/alpine/busybox?distro=alpine-3.17": {version: v("1.35.0"), purl: p("pkg:apk/alpine/busybox@1.35.0?distro=alpine-3.17")},
+			},
+			newMap: map[string]componentIdentity{
+				"pkg:apk/wolfi/busybox?distro=wolfi": {version: v("1.36.1"), purl: p("pkg:apk/wolfi/busybox@1.36.1?distro=wolfi")},
+			},
+			wantRemoved: 1,
+			wantAdded:   1,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			is := is.New(t)
+			entry := diffComponents(from, to, tc.oldMap, tc.newMap)
+			is.Equal(entry.Summary.Upgraded, tc.wantUpgraded)
+			is.Equal(entry.Summary.Added, tc.wantAdded)
+			is.Equal(entry.Summary.Removed, tc.wantRemoved)
+			if tc.wantUpgradedName != "" {
+				var found *ComponentDiff
+				for i := range entry.Changes {
+					if entry.Changes[i].Type == dirModified && entry.Changes[i].Name == tc.wantUpgradedName {
+						found = &entry.Changes[i]
+						break
+					}
+				}
+				is.True(found != nil)
+				if found != nil && tc.wantPreviousVersion != "" {
+					is.True(found.PreviousVersion != nil)
+					is.Equal(*found.PreviousVersion, tc.wantPreviousVersion)
+				}
+			}
+		})
+	}
+}
+
 func TestSbomToRef(t *testing.T) {
 	is := is.New(t)
 	id := pgtype.UUID{Bytes: [16]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}, Valid: true}
