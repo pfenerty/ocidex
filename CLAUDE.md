@@ -135,6 +135,7 @@ tests/                 # Integration tests (testcontainers)
 .tekton/               # Tekton CI pipeline (tektonic TypeScript → generated YAML)
 docs/adr/              # Architecture Decision Records (see summary below)
 docs/DEVELOPMENT.md    # Coding patterns and examples
+docs/SBOM_DIFF.md      # User guide: diff views, identity rules, flavor axis, troubleshooting
 ```
 
 ## Generated Files
@@ -216,12 +217,6 @@ The session-start hook auto-runs `bd prime` when `.beads/` is present. Run it ma
 | `ocidex-e3g` | 1.2 — CLI tool (`cmd/ocidex-cli`) |
 | `ocidex-01v` | 1.3 — K8s operator + CRDs |
 | `ocidex-dsy` | 1.4 — Terraform provider |
-
-**Active cross-cutting epics:**
-
-| Epic | Theme | See also |
-|---|---|---|
-| `ocidex-bqh` | Diff & tree display: backend-computed, flavor-aware | ADRs 0019, 0020, 0021 |
 
 Verify epic IDs with `bd list --type=epic`; child IDs with `bd show <epic>`.
 
