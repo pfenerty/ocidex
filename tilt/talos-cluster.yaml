@@ -1,0 +1,6 @@
+machine:
+  registries:
+    mirrors:
+      "localhost:5005":
+        endpoints:
+          - http://10.5.0.1:5005

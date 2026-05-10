@@ -105,7 +105,22 @@ make frontend-lint     # Run ESLint on the SolidJS frontend
 make frontend-lint-fix # Run ESLint with auto-fix on the SolidJS frontend
 make tekton-synth      # Synthesize Tekton pipeline YAML from TypeScript
 make tekton-check      # Verify generated Tekton YAML is up-to-date
+make dev-cluster-up    # Create local Talos dev cluster + registry (one-time per session)
+make dev-up            # Tilt: build, deploy, watch the stack on the local cluster
+make dev-down          # Stop Tilt
+make dev-cluster-down  # Destroy the local Talos cluster and registry
 ```
+
+## Local K8s dev loop (Talos + Tilt)
+
+`make dev-cluster-up` provisions a Docker-backed Talos cluster (`talosctl cluster create`) wired
+to a local Docker registry on `localhost:5005`. `make dev-up` runs Tilt, which builds the API/worker
+image, pushes to the local registry, and applies `k8s/overlays/dev`. The frontend is served by Vite
+locally (port 3000) for HMR; the API is port-forwarded from the cluster on 8080. Tilt UI: `:10350`.
+
+The Talos registry-mirror config (`tilt/talos-cluster.yaml`) makes pods inside the cluster pull
+`localhost:5005/...` from the host's bridge IP `10.5.0.1`. Tilt is not installed by default —
+install via the upstream script (https://docs.tilt.dev/install.html) or pin it in Flox.
 
 ## Project Structure
 

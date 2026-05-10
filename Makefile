@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check tekton-synth tekton-check help
+.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check tekton-synth tekton-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down help
 
 all: check build ## Run all checks and build
 
@@ -97,6 +97,30 @@ tekton-check: ## Verify generated Tekton YAML is up-to-date
 	printf 'apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\n\nresources:\n' > .tektonic/generated/kustomization.yaml
 	ls -1 .tektonic/generated/*.k8s.yaml | xargs -n1 basename | sed 's/^/  - /' >> .tektonic/generated/kustomization.yaml
 	cd .tektonic && git diff --exit-code generated/ || (echo "ERROR: .tektonic/generated/ is stale. Run 'make tekton-synth'." && exit 1)
+
+dev-registry: ## Start the local Docker registry used by the Talos dev cluster
+	@docker inspect ocidex-dev-registry >/dev/null 2>&1 || \
+	  docker run -d --restart=always -p 5005:5000 --name ocidex-dev-registry registry:2
+
+dev-cluster-up: dev-registry ## Create local Talos dev cluster wired to the local registry
+	talosctl cluster create \
+	  --name ocidex-dev \
+	  --workers 1 \
+	  --controlplanes 1 \
+	  --config-patch @tilt/talos-cluster.yaml \
+	  --wait
+	kubectl --context admin@ocidex-dev wait --for=condition=Ready nodes --all --timeout=120s
+
+dev-cluster-down: ## Destroy local Talos dev cluster and its registry
+	talosctl cluster destroy --name ocidex-dev || true
+	docker rm -f ocidex-dev-registry || true
+
+dev-up: ## Build, deploy, and watch ocidex on the local Talos cluster (Tilt)
+	@command -v tilt >/dev/null || { echo "install tilt: https://docs.tilt.dev/install.html"; exit 1; }
+	tilt up
+
+dev-down: ## Stop Tilt and remove deployed resources
+	tilt down
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
