@@ -1,5 +1,6 @@
 import "~/components/DetailSection.css";
 import { createSignal, Show, For } from "solid-js";
+import { createLocalStorageSignal } from "~/utils/prefs";
 import "./Diff.css";
 import { useSearchParams } from "@solidjs/router";
 import { useArtifacts, useArtifactSBOMs } from "~/api/queries";
@@ -17,7 +18,7 @@ export default function Diff() {
     const [toArtifactId, setToArtifactId] = createSignal("");
     const [fromSbomId, setFromSbomId] = createSignal(searchParams.from ?? "");
     const [toSbomId, setToSbomId] = createSignal(searchParams.to ?? "");
-    const [viewMode, setViewMode] = createSignal<"tree" | "list">("tree");
+    const [viewMode, setViewMode] = createLocalStorageSignal<"tree" | "list">("ocidex.diff.viewMode", "tree");
 
     const artifactsQuery = useArtifacts(() => ({ limit: 200 }));
 

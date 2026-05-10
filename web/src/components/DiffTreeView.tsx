@@ -1,4 +1,5 @@
 import { createMemo, createSignal, Show, For } from "solid-js";
+import { createLocalStorageSignal } from "~/utils/prefs";
 import { A } from "@solidjs/router";
 import { relativeDate } from "~/utils/format";
 import { changelogRefLabel } from "~/utils/diff";
@@ -165,8 +166,8 @@ export function DiffTreeView(props: { tree: DiffTree }) {
     });
 
     const [expandedRefs, setExpandedRefs] = createSignal(new Set<string>(), { equals: false });
-    const [showContext,    setShowContext]    = createSignal(false);
-    const [showTransitive, setShowTransitive] = createSignal(false);
+    const [showContext,    setShowContext]    = createLocalStorageSignal("ocidex.diff.showContext", false);
+    const [showTransitive, setShowTransitive] = createLocalStorageSignal("ocidex.diff.showTransitive", false);
 
     const toggleExpanded = (ref: string) => {
         setExpandedRefs(s => {
