@@ -223,6 +223,8 @@ func (s *searchService) ListSBOMsByDigest(ctx context.Context, digest string, li
 }
 
 // GetSBOMDependencies returns the dependency graph for an SBOM.
+//
+//nolint:gocyclo
 func (s *searchService) GetSBOMDependencies(ctx context.Context, sbomID pgtype.UUID, vis VisibilityFilter) (DependencyGraph, error) {
 	q := repository.New(s.db)
 

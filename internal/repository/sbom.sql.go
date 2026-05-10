@@ -223,6 +223,38 @@ func (q *Queries) ListDigestsByRegistry(ctx context.Context, registryID pgtype.U
 	return items, nil
 }
 
+const listSBOMsWithoutFlavor = `-- name: ListSBOMsWithoutFlavor :many
+SELECT id, subject_version, raw_bom
+FROM sbom
+WHERE flavor IS NULL OR flavor = ''
+`
+
+type ListSBOMsWithoutFlavorRow struct {
+	ID             pgtype.UUID `json:"id"`
+	SubjectVersion pgtype.Text `json:"subject_version"`
+	RawBom         []byte      `json:"raw_bom"`
+}
+
+func (q *Queries) ListSBOMsWithoutFlavor(ctx context.Context) ([]ListSBOMsWithoutFlavorRow, error) {
+	rows, err := q.db.Query(ctx, listSBOMsWithoutFlavor)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSBOMsWithoutFlavorRow{}
+	for rows.Next() {
+		var i ListSBOMsWithoutFlavorRow
+		if err := rows.Scan(&i.ID, &i.SubjectVersion, &i.RawBom); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateSBOMFlavor = `-- name: UpdateSBOMFlavor :exec
 UPDATE sbom SET flavor = $2 WHERE id = $1
 `

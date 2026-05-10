@@ -24,7 +24,7 @@ type SearchService interface {
 	ListArtifacts(ctx context.Context, filter ArtifactFilter) (PagedResult[ArtifactSummary], error)
 	ListSBOMsByArtifact(ctx context.Context, artifactID pgtype.UUID, subjectVersion, imageVersion string, limit, offset int32, vis VisibilityFilter) (PagedResult[SBOMSummary], error)
 	ListVersionsByArtifact(ctx context.Context, artifactID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ArtifactVersion], error)
-	GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch string, vis VisibilityFilter) (Changelog, error)
+	GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch, flavor string, vis VisibilityFilter) (Changelog, error)
 	DiffSBOMs(ctx context.Context, fromID, toID pgtype.UUID, vis VisibilityFilter) (ChangelogEntry, error)
 	DiffSBOMsWithTree(ctx context.Context, fromID, toID pgtype.UUID, vis VisibilityFilter) (DiffTree, error)
 	ListSBOMsByDigest(ctx context.Context, digest string, limit, offset int32, vis VisibilityFilter) (PagedResult[SBOMSummary], error)

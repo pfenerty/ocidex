@@ -247,6 +247,15 @@
               "null"
             ]
           },
+          "availableFlavors": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "entries": {
             "items": {
               "$ref": "#/components/schemas/ChangelogEntry"
@@ -260,6 +269,7 @@
         "required": [
           "artifactId",
           "availableArchitectures",
+          "availableFlavors",
           "entries"
         ],
         "type": "object"
@@ -2242,6 +2252,9 @@
             "format": "date-time",
             "type": "string"
           },
+          "flavor": {
+            "type": "string"
+          },
           "id": {
             "type": "string"
           },
@@ -3093,6 +3106,16 @@
             "name": "arch",
             "schema": {
               "description": "Architecture to show timeline for (e.g. amd64)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Flavor to show timeline for (e.g. standard, fips)",
+            "explode": false,
+            "in": "query",
+            "name": "flavor",
+            "schema": {
+              "description": "Flavor to show timeline for (e.g. standard, fips)",
               "type": "string"
             }
           }

@@ -754,6 +754,7 @@ export interface components {
             readonly $schema?: string;
             artifactId: string;
             availableArchitectures: string[] | null;
+            availableFlavors: string[] | null;
             entries: components["schemas"]["ChangelogEntry"][] | null;
         };
         ChangelogEntry: {
@@ -1439,6 +1440,7 @@ export interface components {
             buildDate?: string;
             /** Format: date-time */
             createdAt: string;
+            flavor?: string;
             id: string;
             subjectVersion?: string;
         };
@@ -1824,6 +1826,8 @@ export interface operations {
                 subject_version?: string;
                 /** @description Architecture to show timeline for (e.g. amd64) */
                 arch?: string;
+                /** @description Flavor to show timeline for (e.g. standard, fips) */
+                flavor?: string;
             };
             header?: never;
             path: {

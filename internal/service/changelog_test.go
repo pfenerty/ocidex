@@ -357,17 +357,19 @@ func TestSortCandidates_FallsBackToIngestionTime(t *testing.T) {
 // filterByArch
 // ---------------------------------------------------------------------------
 
-func TestFilterByArch(t *testing.T) {
+func TestFilterByArchAndFlavor(t *testing.T) {
 	is := is.New(t)
 	best := map[changelogGroupKey]changelogCandidate{
-		{"v1", "amd64"}: {arch: "amd64"},
-		{"v1", "arm64"}: {arch: "arm64"},
-		{"v2", "amd64"}: {arch: "amd64"},
+		{"v1", "amd64", "standard"}: {arch: "amd64", flavor: "standard"},
+		{"v1", "arm64", "standard"}: {arch: "arm64", flavor: "standard"},
+		{"v2", "amd64", "standard"}: {arch: "amd64", flavor: "standard"},
+		{"v1", "amd64", "fips"}:     {arch: "amd64", flavor: "fips"},
 	}
-	amd64 := filterByArch(best, "amd64")
-	is.Equal(len(amd64), 2)
-	for _, c := range amd64 {
+	amd64standard := filterByArchAndFlavor(best, "amd64", "standard")
+	is.Equal(len(amd64standard), 2)
+	for _, c := range amd64standard {
 		is.Equal(c.arch, "amd64")
+		is.Equal(c.flavor, "standard")
 	}
 }
 
@@ -392,9 +394,9 @@ func TestDeduplicateSBOMs_KeepsLatestPerGroup(t *testing.T) {
 		uid2: {architecture: "amd64"},
 	}
 
-	best, available := deduplicateSBOMs(sboms, meta)
+	best, available, _ := deduplicateSBOMs(sboms, meta)
 
-	// Both have same (version, arch) key — should keep only the later one.
+	// Both have same (version, arch, flavor) key — should keep only the later one.
 	is.Equal(len(best), 1)
 	is.True(available["amd64"])
 	for _, c := range best {
@@ -416,7 +418,7 @@ func TestDeduplicateSBOMs_SeparateGroups(t *testing.T) {
 		uid2: {architecture: "amd64"},
 	}
 
-	best, _ := deduplicateSBOMs(sboms, meta)
+	best, _, _ := deduplicateSBOMs(sboms, meta)
 	is.Equal(len(best), 2)
 }
 
@@ -463,7 +465,7 @@ func TestGetArtifactChangelog_NotVisible(t *testing.T) {
 	svc := NewSearchService(db)
 	uid := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
 
-	_, err := svc.GetArtifactChangelog(context.Background(), uid, "", "", VisibilityFilter{})
+	_, err := svc.GetArtifactChangelog(context.Background(), uid, "", "", "", VisibilityFilter{})
 	is.Equal(err, ErrNotFound)
 }
 
@@ -489,7 +491,7 @@ func TestGetArtifactChangelog_EmptyChangelog(t *testing.T) {
 	svc := NewSearchService(db)
 	uid := pgtype.UUID{Bytes: [16]byte{2}, Valid: true}
 
-	cl, err := svc.GetArtifactChangelog(context.Background(), uid, "", "", VisibilityFilter{IsAdmin: true})
+	cl, err := svc.GetArtifactChangelog(context.Background(), uid, "", "", "", VisibilityFilter{IsAdmin: true})
 	is.NoErr(err)
 	is.Equal(len(cl.Entries), 0)
 }

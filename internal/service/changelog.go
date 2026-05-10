@@ -33,6 +33,7 @@ var identityQualifiers = map[string]bool{
 type Changelog struct {
 	ArtifactID             string           `json:"artifactId"`
 	AvailableArchitectures []string         `json:"availableArchitectures"`
+	AvailableFlavors       []string         `json:"availableFlavors"`
 	Entries                []ChangelogEntry `json:"entries"`
 }
 
@@ -49,6 +50,7 @@ type SBOMRef struct {
 	ID             string     `json:"id"`
 	SubjectVersion *string    `json:"subjectVersion,omitempty"`
 	Architecture   *string    `json:"architecture,omitempty"`
+	Flavor         *string    `json:"flavor,omitempty"`
 	CreatedAt      time.Time  `json:"createdAt"`
 	BuildDate      *time.Time `json:"buildDate,omitempty"`
 }
@@ -249,20 +251,21 @@ func buildPackageMap(rows []repository.ListSBOMPackagesRow) map[string]component
 	return m
 }
 
-// changelogGroupKey identifies a unique (version, arch) pair for deduplication.
-type changelogGroupKey struct{ version, arch string }
+// changelogGroupKey identifies a unique (version, arch, flavor) triple for deduplication.
+type changelogGroupKey struct{ version, arch, flavor string }
 
 // changelogCandidate is a deduplicated SBOM representative for changelog diffing.
 type changelogCandidate struct {
 	sbom      repository.ListSBOMsByArtifactRow
 	buildDate *time.Time
 	arch      string
+	flavor    string
 }
 
 // GetArtifactChangelog generates a changelog by diffing consecutive SBOMs for an artifact.
-// SBOMs are grouped by architecture, deduplicated by (version, arch), then diffed within
-// the selected architecture's timeline.
-func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch string, vis VisibilityFilter) (Changelog, error) {
+// SBOMs are grouped by (architecture, flavor), deduplicated by (version, arch, flavor), then
+// diffed within the selected (arch, flavor) timeline.
+func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch, flavor string, vis VisibilityFilter) (Changelog, error) {
 	q := repository.New(s.db)
 
 	// Access check.
@@ -291,9 +294,10 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgt
 	}
 
 	meta := buildEnrichmentMetaMap(ctx, q, artifactID)
-	best, available := deduplicateSBOMs(sboms, meta)
+	best, available, availableFlavors := deduplicateSBOMs(sboms, meta)
 	selectedArch := selectArch(arch, available)
-	candidates := filterByArch(best, selectedArch)
+	selectedFlavor := selectFlavor(flavor, availableFlavors)
+	candidates := filterByArchAndFlavor(best, selectedArch, selectedFlavor)
 	sortCandidates(candidates)
 
 	arches := make([]string, 0, len(available))
@@ -301,9 +305,17 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgt
 		arches = append(arches, a)
 	}
 	sort.Strings(arches)
+
+	flavors := make([]string, 0, len(availableFlavors))
+	for f := range availableFlavors {
+		flavors = append(flavors, f)
+	}
+	sort.Strings(flavors)
+
 	changelog := Changelog{
 		ArtifactID:             uuidToString(artifactID),
 		AvailableArchitectures: arches,
+		AvailableFlavors:       flavors,
 		Entries:                []ChangelogEntry{},
 	}
 
@@ -327,9 +339,11 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgt
 		fromRef := sbomToRef(candidates[i-1].sbom)
 		fromRef.BuildDate = candidates[i-1].buildDate
 		fromRef.Architecture = nonEmptyStrPtr(candidates[i-1].arch)
+		fromRef.Flavor = nonEmptyStrPtr(candidates[i-1].flavor)
 		toRef := sbomToRef(candidates[i].sbom)
 		toRef.BuildDate = candidates[i].buildDate
 		toRef.Architecture = nonEmptyStrPtr(candidates[i].arch)
+		toRef.Flavor = nonEmptyStrPtr(candidates[i].flavor)
 
 		entry := diffComponents(fromRef, toRef, prevMap, currMap)
 		if len(entry.Changes) > 0 {
@@ -347,32 +361,35 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgt
 	return changelog, nil
 }
 
-// deduplicateSBOMs groups SBOMs by (version, arch) keeping the latest per group.
-// Returns the best-per-group map and the set of available architectures.
-func deduplicateSBOMs(sboms []repository.ListSBOMsByArtifactRow, meta map[pgtype.UUID]enrichmentMeta) (map[changelogGroupKey]changelogCandidate, map[string]bool) {
+// deduplicateSBOMs groups SBOMs by (version, arch, flavor) keeping the latest per group.
+// Returns the best-per-group map, available architectures, and available flavors.
+func deduplicateSBOMs(sboms []repository.ListSBOMsByArtifactRow, meta map[pgtype.UUID]enrichmentMeta) (map[changelogGroupKey]changelogCandidate, map[string]bool, map[string]bool) {
 	best := map[changelogGroupKey]changelogCandidate{}
 	available := map[string]bool{}
+	availableFlavors := map[string]bool{}
 	for _, sbom := range sboms {
 		m := meta[sbom.ID]
 		sv := sbom.SubjectVersion.String
 		if !sbom.SubjectVersion.Valid || sv == "" {
 			sv = uuidToString(sbom.ID)
 		}
-		key := changelogGroupKey{sv, m.architecture}
+		flavorStr := sbom.Flavor.String
+		key := changelogGroupKey{sv, m.architecture, flavorStr}
 		prev, exists := best[key]
 		if !exists || laterThan(m.buildDate, sbom.CreatedAt.Time, prev.buildDate, prev.sbom.CreatedAt.Time) {
-			best[key] = changelogCandidate{sbom: sbom, buildDate: m.buildDate, arch: m.architecture}
+			best[key] = changelogCandidate{sbom: sbom, buildDate: m.buildDate, arch: m.architecture, flavor: flavorStr}
 		}
 		available[m.architecture] = true
+		availableFlavors[flavorStr] = true
 	}
-	return best, available
+	return best, available, availableFlavors
 }
 
-// filterByArch returns candidates matching the given architecture.
-func filterByArch(best map[changelogGroupKey]changelogCandidate, arch string) []changelogCandidate {
+// filterByArchAndFlavor returns candidates matching the given architecture and flavor.
+func filterByArchAndFlavor(best map[changelogGroupKey]changelogCandidate, arch, flavor string) []changelogCandidate {
 	var out []changelogCandidate
 	for k, c := range best {
-		if k.arch == arch {
+		if k.arch == arch && k.flavor == flavor {
 			out = append(out, c)
 		}
 	}
@@ -845,6 +862,29 @@ func selectArch(requested string, available map[string]bool) string {
 	}
 	for a := range available {
 		return a
+	}
+	return ""
+}
+
+// selectFlavor picks the flavor to use for the changelog timeline.
+// If requested is non-empty and present, it wins. Otherwise the first alphabetically
+// (excluding flavorUnknown) is preferred; flavorUnknown is used as a last resort.
+func selectFlavor(requested string, available map[string]bool) string {
+	if requested != "" && available[requested] {
+		return requested
+	}
+	var keys []string
+	for f := range available {
+		if f != flavorUnknown {
+			keys = append(keys, f)
+		}
+	}
+	sort.Strings(keys)
+	if len(keys) > 0 {
+		return keys[0]
+	}
+	if available[flavorUnknown] {
+		return flavorUnknown
 	}
 	return ""
 }

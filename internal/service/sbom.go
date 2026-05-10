@@ -157,7 +157,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 
 	arch := resolveArchitecture(bom, params)
 	bd := resolveBuildDate(bom, params)
-	flavor := detectFlavor(bom, info.subjectVersion.String)
+	flavor := DetectFlavor(bom, info.subjectVersion.String)
 
 	// Mandatory validation for container SBOMs.
 	if err := validateContainerRequired(bom, info, arch, bd); err != nil {

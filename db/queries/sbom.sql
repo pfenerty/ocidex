@@ -49,6 +49,11 @@ VALUES ($1, $2, $3);
 INSERT INTO external_reference (component_id, type, url, comment)
 VALUES ($1, $2, $3, $4);
 
+-- name: ListSBOMsWithoutFlavor :many
+SELECT id, subject_version, raw_bom
+FROM sbom
+WHERE flavor IS NULL OR flavor = '';
+
 -- name: DeleteSBOM :execrows
 DELETE FROM sbom WHERE id = $1;
 

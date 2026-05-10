@@ -56,6 +56,7 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.subject_version, s.di
        COALESCE(e.data->>'revision', u.data->>'revision') AS revision,
        COALESCE(e.data->>'sourceUrl', u.data->>'sourceUrl') AS source_url,
        s.enrichment_sufficient,
+       s.flavor,
        COUNT(*) OVER() AS total_count
 FROM sbom s
 LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'

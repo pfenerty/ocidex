@@ -149,7 +149,7 @@ func TestDetectFlavor(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			is := is.New(t)
-			got := detectFlavor(tc.bom, tc.subjectVersion)
+			got := DetectFlavor(tc.bom, tc.subjectVersion)
 			is.Equal(got, tc.want)
 		})
 	}

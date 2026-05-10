@@ -6,9 +6,11 @@ import (
 	cdx "github.com/CycloneDX/cyclonedx-go"
 )
 
-// detectFlavor returns the image flavor for an SBOM using a 3-layer detector.
-// Never returns an empty string — falls back to "unknown".
-func detectFlavor(bom *cdx.BOM, subjectVersion string) string {
+const flavorUnknown = "unknown"
+
+// DetectFlavor returns the image flavor for an SBOM using a 3-layer detector.
+// Never returns an empty string — falls back to flavorUnknown.
+func DetectFlavor(bom *cdx.BOM, subjectVersion string) string {
 	if f := flavorFromOSMetadata(bom); f != "" {
 		return f
 	}
@@ -18,7 +20,7 @@ func detectFlavor(bom *cdx.BOM, subjectVersion string) string {
 	if f := flavorFromTagSuffix(subjectVersion); f != "" {
 		return f
 	}
-	return "unknown"
+	return flavorUnknown
 }
 
 // --- Layer 1: OS metadata properties ---

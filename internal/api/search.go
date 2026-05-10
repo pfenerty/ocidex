@@ -456,7 +456,7 @@ func (h *Handler) GetArtifactChangelog(ctx context.Context, input *GetArtifactCh
 	}
 
 	vis := visibilityFilterFromContext(ctx)
-	changelog, err := h.searchService.GetArtifactChangelog(ctx, id, input.SubjectVersion, input.Arch, vis)
+	changelog, err := h.searchService.GetArtifactChangelog(ctx, id, input.SubjectVersion, input.Arch, input.Flavor, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
