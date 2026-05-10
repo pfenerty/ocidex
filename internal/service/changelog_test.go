@@ -422,6 +422,116 @@ func TestDeduplicateSBOMs_SeparateGroups(t *testing.T) {
 	is.Equal(len(best), 2)
 }
 
+func TestDeduplicateSBOMs_SeparateFlavorsSameVersionArch(t *testing.T) {
+	is := is.New(t)
+	uid1 := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
+	uid2 := pgtype.UUID{Bytes: [16]byte{2}, Valid: true}
+
+	sboms := []repository.ListSBOMsByArtifactRow{
+		{ID: uid1, SubjectVersion: pgtype.Text{String: "v1", Valid: true}, Flavor: pgtype.Text{String: "alpine", Valid: true}, CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}},
+		{ID: uid2, SubjectVersion: pgtype.Text{String: "v1", Valid: true}, Flavor: pgtype.Text{String: "debian", Valid: true}, CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}},
+	}
+	meta := map[pgtype.UUID]enrichmentMeta{
+		uid1: {architecture: "amd64"},
+		uid2: {architecture: "amd64"},
+	}
+
+	best, _, availableFlavors := deduplicateSBOMs(sboms, meta)
+
+	is.Equal(len(best), 2)
+	is.True(availableFlavors["alpine"])
+	is.True(availableFlavors["debian"])
+}
+
+func TestDeduplicateSBOMs_SameFlavorTripleDeduplicates(t *testing.T) {
+	is := is.New(t)
+	t1 := time.Now().Add(-time.Hour)
+	t2 := time.Now()
+	uid1 := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
+	uid2 := pgtype.UUID{Bytes: [16]byte{2}, Valid: true}
+
+	sboms := []repository.ListSBOMsByArtifactRow{
+		{ID: uid1, SubjectVersion: pgtype.Text{String: "v1", Valid: true}, Flavor: pgtype.Text{String: "alpine", Valid: true}, CreatedAt: pgtype.Timestamptz{Time: t1, Valid: true}},
+		{ID: uid2, SubjectVersion: pgtype.Text{String: "v1", Valid: true}, Flavor: pgtype.Text{String: "alpine", Valid: true}, CreatedAt: pgtype.Timestamptz{Time: t2, Valid: true}},
+	}
+	meta := map[pgtype.UUID]enrichmentMeta{
+		uid1: {architecture: "amd64"},
+		uid2: {architecture: "amd64"},
+	}
+
+	best, _, _ := deduplicateSBOMs(sboms, meta)
+
+	is.Equal(len(best), 1)
+	for _, c := range best {
+		is.Equal(c.sbom.ID, uid2)
+	}
+}
+
+func TestDeduplicateSBOMs_ThreeWaySplit(t *testing.T) {
+	is := is.New(t)
+	uid1 := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
+	uid2 := pgtype.UUID{Bytes: [16]byte{2}, Valid: true}
+	uid3 := pgtype.UUID{Bytes: [16]byte{3}, Valid: true}
+
+	sboms := []repository.ListSBOMsByArtifactRow{
+		{ID: uid1, SubjectVersion: pgtype.Text{String: "v1", Valid: true}, Flavor: pgtype.Text{String: "alpine", Valid: true}, CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}},
+		{ID: uid2, SubjectVersion: pgtype.Text{String: "v1", Valid: true}, Flavor: pgtype.Text{String: "debian", Valid: true}, CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}},
+		{ID: uid3, SubjectVersion: pgtype.Text{String: "v1", Valid: true}, Flavor: pgtype.Text{String: "alpine", Valid: true}, CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}},
+	}
+	meta := map[pgtype.UUID]enrichmentMeta{
+		uid1: {architecture: "amd64"},
+		uid2: {architecture: "amd64"},
+		uid3: {architecture: "arm64"},
+	}
+
+	best, available, availableFlavors := deduplicateSBOMs(sboms, meta)
+
+	is.Equal(len(best), 3)
+	is.True(available["amd64"])
+	is.True(available["arm64"])
+	is.True(availableFlavors["alpine"])
+	is.True(availableFlavors["debian"])
+}
+
+// ---------------------------------------------------------------------------
+// selectFlavor
+// ---------------------------------------------------------------------------
+
+func TestSelectFlavor_RequestedPresent(t *testing.T) {
+	is := is.New(t)
+	available := map[string]bool{"alpine": true, "debian": true}
+	is.Equal(selectFlavor("debian", available), "debian")
+}
+
+func TestSelectFlavor_RequestedAbsent_FallsBackToAlphabetical(t *testing.T) {
+	is := is.New(t)
+	available := map[string]bool{"alpine": true, "debian": true}
+	is.Equal(selectFlavor("wolfi", available), "alpine") // wolfi missing; alpine < debian
+}
+
+func TestSelectFlavor_EmptyRequest_PicksAlphabetical(t *testing.T) {
+	is := is.New(t)
+	available := map[string]bool{"debian": true, "alpine": true}
+	is.Equal(selectFlavor("", available), "alpine")
+}
+
+func TestSelectFlavor_OnlyUnknownAvailable(t *testing.T) {
+	is := is.New(t)
+	available := map[string]bool{"unknown": true}
+	is.Equal(selectFlavor("", available), "unknown")
+}
+
+func TestSelectFlavor_EmptyAvailable(t *testing.T) {
+	is := is.New(t)
+	is.Equal(selectFlavor("", map[string]bool{}), "")
+}
+
+func TestSelectFlavor_SkipsUnknownForAlphabetical(t *testing.T) {
+	is := is.New(t)
+	available := map[string]bool{"unknown": true, "alpine": true, "debian": true}
+	is.Equal(selectFlavor("", available), "alpine") // unknown skipped; alpine < debian
+}
+
 func TestDiffComponents_Unchanged(t *testing.T) {
 	is := is.New(t)
 	v := "1.0"
