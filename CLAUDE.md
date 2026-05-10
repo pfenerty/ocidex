@@ -176,6 +176,8 @@ This regenerates `web/openapi.json` (via `cmd/specgen`) and `web/src/types/opena
 - Document all exported functions and types
 - Conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`
 - Cyclomatic complexity limit: 15
+- TDD: write failing test, then implement. For diff/tree code specifically,
+  see [docs/DEVELOPMENT.md § Testing diff/tree changes](docs/DEVELOPMENT.md#testing-difftree-changes) — codifies parity rule, ADR-contract testing, and the round-trip integration-test requirement.
 
 ## Configuration
 

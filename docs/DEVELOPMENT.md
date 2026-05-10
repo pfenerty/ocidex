@@ -245,6 +245,60 @@ func TestInsertArtifact_Integration(t *testing.T) {
 }
 ```
 
+### Testing diff/tree changes
+
+Diff and dependency-tree code (`internal/service/changelog.go`,
+`internal/service/search*.go`, `web/src/components/Diff*.tsx`,
+`web/src/pages/Diff*.tsx`) has bitten us before with subtle contract
+regressions that passed unit tests but broke real diffs. The rules
+below codify what we learned from the post-launch fixes (`ocidex-e5b`):
+
+1. **Every behavioral change starts with a failing test.** Write the
+   test, run it, see it fail, then implement. The acceptance criterion
+   on the beads issue should cite the test path.
+
+2. **ADRs document contracts; tests must guard them.** ADR-0019 (diff
+   identity), ADR-0020 (flavor axis), and ADR-0021 (backend-computed
+   diff tree) all carry normative contracts. Each one references the
+   beads issue that lands the implementing test (`bqh.27`, `bqh.36`,
+   etc.). When you add or change an ADR contract, the implementing
+   issue must add a test that fails before the implementation and
+   passes after — "manual visual parity" closures (the `bqh.16`
+   pattern) are not acceptable.
+
+3. **Frontend follows ADR-0016 strictly.** Any new component touching
+   API response shape gets a render test against a hand-crafted fixture
+   matching the OpenAPI types. `@solidjs/testing-library` + `vitest` is
+   set up; see `web/src/components/DiffTreeView.test.tsx` for the
+   pattern (mock `@solidjs/router` + `~/api/queries`, render against a
+   typed `DiffTree` fixture, assert the visible output).
+
+4. **Parity rule for identity & matching tests.** Any test of a
+   matching, grouping, or normalization function must include at least
+   one *pair*: two inputs that should match vs. two that should not.
+   Single-input tests prove syntax, not contract. The distro-version
+   bug (`ocidex-e5b.2`) slipped past `TestNormalizeComponentPurl`
+   because every fixture used a different opaque distro string at a
+   single version — there were no two `alpine-*` versions paired
+   against each other to prove they collapsed to the same identity.
+
+5. **Round-trip the wire response in an integration test.** Service
+   tests exercise pure Go; they don't catch bugs introduced by the
+   request → handler → service → repository → JSON path. The
+   `tests/diff_tree_test.go` integration test ingests two SBOMs via
+   the public API, calls `GET /api/v1/sboms/diff-tree`, and asserts
+   every field documented in ADR-0021. Add a similar round-trip test
+   when you add a new endpoint that has a contract worth defending.
+
+6. **Fixture-driven over hand-built where possible.** Backend diff
+   fixtures live in `internal/service/testdata/sbom_diff/` and
+   `internal/service/testdata/sbom_roots/`; tests load CycloneDX JSON
+   and feed it through the same path production uses
+   (`buildPackageMap`, `computeRootsAndDirect`). When you need to test
+   "the same package across SBOMs", reach for fixtures over inline
+   `componentIdentity` maps — the fixtures exercise more of the
+   pipeline.
+
 ## Adding a New Enricher
 
 Enrichers run asynchronously after SBOM ingestion. Each enricher fetches or derives metadata for a given subject and persists the result to the `enrichment` table.
