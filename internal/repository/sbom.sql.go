@@ -150,8 +150,8 @@ func (q *Queries) InsertExternalReference(ctx context.Context, arg InsertExterna
 }
 
 const insertSBOM = `-- name: InsertSBOM :one
-INSERT INTO sbom (serial_number, spec_version, version, raw_bom, artifact_id, subject_version, digest, registry_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO sbom (serial_number, spec_version, version, raw_bom, artifact_id, subject_version, digest, registry_id, flavor)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING id, serial_number, spec_version, version, created_at
 `
 
@@ -164,6 +164,7 @@ type InsertSBOMParams struct {
 	SubjectVersion pgtype.Text `json:"subject_version"`
 	Digest         pgtype.Text `json:"digest"`
 	RegistryID     pgtype.UUID `json:"registry_id"`
+	Flavor         pgtype.Text `json:"flavor"`
 }
 
 type InsertSBOMRow struct {
@@ -184,6 +185,7 @@ func (q *Queries) InsertSBOM(ctx context.Context, arg InsertSBOMParams) (InsertS
 		arg.SubjectVersion,
 		arg.Digest,
 		arg.RegistryID,
+		arg.Flavor,
 	)
 	var i InsertSBOMRow
 	err := row.Scan(
@@ -219,6 +221,20 @@ func (q *Queries) ListDigestsByRegistry(ctx context.Context, registryID pgtype.U
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateSBOMFlavor = `-- name: UpdateSBOMFlavor :exec
+UPDATE sbom SET flavor = $2 WHERE id = $1
+`
+
+type UpdateSBOMFlavorParams struct {
+	ID     pgtype.UUID `json:"id"`
+	Flavor pgtype.Text `json:"flavor"`
+}
+
+func (q *Queries) UpdateSBOMFlavor(ctx context.Context, arg UpdateSBOMFlavorParams) error {
+	_, err := q.db.Exec(ctx, updateSBOMFlavor, arg.ID, arg.Flavor)
+	return err
 }
 
 const updateSBOMSubjectVersion = `-- name: UpdateSBOMSubjectVersion :exec
