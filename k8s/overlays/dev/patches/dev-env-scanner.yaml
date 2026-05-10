@@ -11,18 +11,3 @@ spec:
           env:
             - name: NATS_STREAM_REPLICAS
               value: "1"
-            - name: GITHUB_CLIENT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: ocidex-secrets
-                  key: github-client-id
-            - name: GITHUB_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: ocidex-secrets
-                  key: github-client-secret
-            - name: SESSION_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: ocidex-secrets
-                  key: session-secret
