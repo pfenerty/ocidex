@@ -6,9 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"os/exec"
-	"strings"
 	"testing"
 	"time"
 
@@ -21,8 +19,6 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/pfenerty/ocidex/db"
-	"github.com/pfenerty/ocidex/internal/api"
-	"github.com/pfenerty/ocidex/internal/service"
 )
 
 // requireDocker skips the test if Docker is not available.
@@ -85,16 +81,6 @@ func setupTestDB(t *testing.T) (*pgxpool.Pool, func()) {
 	}
 
 	return pool, cleanup
-}
-
-// setupServer creates a fully-wired test HTTP server.
-func setupServer(t *testing.T, pool *pgxpool.Pool) *httptest.Server {
-	t.Helper()
-	sbomSvc := service.NewSBOMService(pool, nil, nil)
-	searchSvc := service.NewSearchService(pool)
-	handler := api.NewHandler(sbomSvc, searchSvc, nil, nil, nil, pool, nil, nil)
-	router := api.NewRouter(handler, "*", "", "")
-	return httptest.NewServer(router)
 }
 
 const minimalSBOM = `{
@@ -170,13 +156,18 @@ func TestFullLifecycle(t *testing.T) {
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	srv := setupServer(t, pool)
+	srv, authSvc := setupServerWithAuth(t, pool)
 	defer srv.Close()
 
 	is := is.New(t)
 
+	// SBOM ingest + delete require member/owner role; seed user + API key.
+	memberID := seedUser(t, pool, 7001, "lifecycle-member", "member")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "lifecycle-test", "read-write")
+	is.NoErr(err)
+
 	// --- Ingest first SBOM ---
-	resp, err := doPost(t, srv.URL+"/api/v1/sboms", strings.NewReader(minimalSBOM))
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", minimalSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 
@@ -188,7 +179,7 @@ func TestFullLifecycle(t *testing.T) {
 	is.Equal(ingestResp["componentCount"], float64(2))
 
 	// --- Verify artifact was created ---
-	resp, err = doGet(t, srv.URL+"/api/v1/artifacts")
+	resp, err = doGet(t, srv.URL+"/api/v1/artifacts?sufficient=false")
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusOK)
 
@@ -233,7 +224,7 @@ func TestFullLifecycle(t *testing.T) {
 	// Small delay so created_at differs for changelog ordering.
 	time.Sleep(100 * time.Millisecond)
 
-	resp, err = doPost(t, srv.URL+"/api/v1/sboms", strings.NewReader(secondSBOM))
+	resp, err = doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", secondSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 
@@ -263,14 +254,15 @@ func TestFullLifecycle(t *testing.T) {
 	is.Equal(len(entries), 1) // one diff between two SBOMs
 	entry := entries[0].(map[string]any)
 	summary := entry["summary"].(map[string]any)
-	// adduser was modified (version changed), apt was removed, curl was added
+	// adduser 3.118ubuntu2 → 3.118ubuntu5 = upgraded (direction-aware classification
+	// per ADR-0021 §B1), apt was removed, curl was added.
 	is.Equal(summary["added"], float64(1))    // curl
 	is.Equal(summary["removed"], float64(1))  // apt
-	is.Equal(summary["modified"], float64(1)) // adduser
+	is.Equal(summary["upgraded"], float64(1)) // adduser
+	is.Equal(summary["modified"], float64(0))
 
 	// --- Delete first SBOM ---
-	req, _ := http.NewRequestWithContext(t.Context(), http.MethodDelete, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomID1), nil)
-	resp, err = http.DefaultClient.Do(req)
+	resp, err = doWithAuth(t, http.MethodDelete, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomID1), "", memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusNoContent)
 	resp.Body.Close()
@@ -286,14 +278,13 @@ func TestFullLifecycle(t *testing.T) {
 	is.Equal(remaining[0].(map[string]any)["id"], sbomID2)
 
 	// --- Delete artifact (cascades to remaining SBOM) ---
-	req, _ = http.NewRequestWithContext(t.Context(), http.MethodDelete, fmt.Sprintf("%s/api/v1/artifacts/%s", srv.URL, artifactID), nil)
-	resp, err = http.DefaultClient.Do(req)
+	resp, err = doWithAuth(t, http.MethodDelete, fmt.Sprintf("%s/api/v1/artifacts/%s", srv.URL, artifactID), "", memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusNoContent)
 	resp.Body.Close()
 
 	// --- Verify artifact is gone ---
-	resp, err = doGet(t, srv.URL+"/api/v1/artifacts")
+	resp, err = doGet(t, srv.URL+"/api/v1/artifacts?sufficient=false")
 	is.NoErr(err)
 	var empty map[string]any
 	is.NoErr(json.NewDecoder(resp.Body).Decode(&empty))
@@ -310,10 +301,14 @@ func TestDigestNormalization(t *testing.T) {
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	srv := setupServer(t, pool)
+	srv, authSvc := setupServerWithAuth(t, pool)
 	defer srv.Close()
 
 	is := is.New(t)
+
+	memberID := seedUser(t, pool, 7002, "digest-norm-member", "member")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "digest-test", "read-write")
+	is.NoErr(err)
 
 	// Syft-style: name without digest, version is digest
 	syftSBOM := `{
@@ -359,18 +354,18 @@ func TestDigestNormalization(t *testing.T) {
 	}`
 
 	// Ingest both
-	resp, err := doPost(t, srv.URL+"/api/v1/sboms", strings.NewReader(syftSBOM))
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", syftSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	resp.Body.Close()
 
-	resp, err = doPost(t, srv.URL+"/api/v1/sboms", strings.NewReader(trivySBOM))
+	resp, err = doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", trivySBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	resp.Body.Close()
 
 	// Should be ONE artifact
-	resp, err = doGet(t, srv.URL+"/api/v1/artifacts")
+	resp, err = doGet(t, srv.URL+"/api/v1/artifacts?sufficient=false")
 	is.NoErr(err)
 	var result map[string]any
 	is.NoErr(json.NewDecoder(resp.Body).Decode(&result))
@@ -404,16 +399,5 @@ func doGet(t *testing.T, url string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return http.DefaultClient.Do(req)
-}
-
-// doPost performs an HTTP POST with the test context (always application/json).
-func doPost(t *testing.T, url string, body *strings.Reader) (*http.Response, error) {
-	t.Helper()
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, url, body)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
 	return http.DefaultClient.Do(req)
 }
