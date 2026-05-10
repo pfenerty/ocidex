@@ -16,6 +16,14 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    host: true,
+    allowedHosts: true,
+    proxy: {
+      "/api": "http://localhost:8080",
+      "/auth": "http://localhost:8080",
+      "/health": "http://localhost:8080",
+      "/ready": "http://localhost:8080",
+    },
   },
   test: {
     environment: "node",
