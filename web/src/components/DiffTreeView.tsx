@@ -1,4 +1,4 @@
-import { type Accessor, createMemo, createSignal, Show, For } from "solid-js";
+import { createMemo, createSignal, Show, For } from "solid-js";
 import { A } from "@solidjs/router";
 import { relativeDate } from "~/utils/format";
 import { changelogRefLabel } from "~/utils/diff";
@@ -16,6 +16,12 @@ interface TreeNode {
     children: string[];
     hasChangedDesc: boolean;
     descendantChanges?: { added: number; removed: number; upgraded: number; downgraded: number; modified: number };
+}
+
+interface Row {
+    node: TreeNode;
+    depth: number;
+    relevantChildCount: number;
 }
 
 function purlBase(purl: string): string {
@@ -160,6 +166,39 @@ export function DiffTreeView(props: { tree: DiffTree }) {
         });
     };
 
+    // DFS over roots → flat array of visible rows in traversal order.
+    // pathSet tracks ancestors on the current path for cycle detection (same semantics as the
+    // former nextVisited prop cascade — a node is cyclic only if it appears in its own ancestry).
+    const visibleRows = createMemo((): Row[] => {
+        const { roots, nodes } = treeData();
+        const expanded = expandedRefs();
+        const result: Row[] = [];
+        const pathSet = new Set<string>();
+
+        function visit(ref: string, depth: number) {
+            if (pathSet.has(ref)) return;
+            const node = nodes.get(ref);
+            if (!node) return;
+            if (node.changeKind === undefined && node.purl === undefined) return;
+
+            const relevantChildren = node.children.filter((childRef) => {
+                const child = nodes.get(childRef);
+                return child !== undefined && (child.changeKind !== undefined || child.hasChangedDesc);
+            });
+
+            result.push({ node, depth, relevantChildCount: relevantChildren.length });
+
+            if (expanded.has(ref)) {
+                pathSet.add(ref);
+                for (const childRef of relevantChildren) visit(childRef, depth + 1);
+                pathSet.delete(ref);
+            }
+        }
+
+        for (const rootRef of roots) visit(rootRef, 0);
+        return result;
+    });
+
     // Summary counts for the header badges.
     const changes = () => (props.tree.changes ?? []).filter(
         (c) => c.purl !== undefined && parsePurl(c.purl)?.type !== "file",
@@ -220,19 +259,113 @@ export function DiffTreeView(props: { tree: DiffTree }) {
                             </tr>
                         </thead>
                         <tbody>
-                            <For each={treeData().roots}>
-                                {(rootRef) => {
-                                    const node = treeData().nodes.get(rootRef);
-                                    return node !== undefined ? (
-                                        <DiffTreeNodeRow
-                                            node={node}
-                                            allNodes={treeData().nodes}
-                                            depth={0}
-                                            visited={new Set()}
-                                            expandedRefs={expandedRefs}
-                                            toggleExpanded={toggleExpanded}
-                                        />
-                                    ) : null;
+                            <For each={visibleRows()}>
+                                {(row) => {
+                                    const isExpanded = () => expandedRefs().has(row.node.ref);
+                                    const isChanged = () => row.node.changeKind !== undefined;
+                                    const changeCls = () => {
+                                        const k = row.node.changeKind;
+                                        if (k === "added" || k === "upgraded") return "badge-primary";
+                                        if (k === "removed" || k === "downgraded") return "badge-warning";
+                                        return "";
+                                    };
+                                    return (
+                                        <tr
+                                            style={{
+                                                cursor: row.relevantChildCount > 0 ? "pointer" : "default",
+                                                opacity: isChanged() ? "1" : "0.55",
+                                            }}
+                                            onClick={() => row.relevantChildCount > 0 && toggleExpanded(row.node.ref)}
+                                        >
+                                            <td>
+                                                <span
+                                                    style={{
+                                                        display: "flex",
+                                                        "align-items": "center",
+                                                        gap: "0.375rem",
+                                                        "padding-left": `${row.depth * 1.25}rem`,
+                                                    }}
+                                                >
+                                                    <span
+                                                        style={{
+                                                            width: "1rem",
+                                                            "text-align": "center",
+                                                            color: "var(--color-text-dim)",
+                                                            "font-size": "0.7rem",
+                                                            "flex-shrink": "0",
+                                                            transition: "transform 0.15s",
+                                                            transform:
+                                                                row.relevantChildCount > 0 && isExpanded()
+                                                                    ? "rotate(90deg)"
+                                                                    : "rotate(0deg)",
+                                                        }}
+                                                    >
+                                                        {row.relevantChildCount > 0 ? "▸" : ""}
+                                                    </span>
+                                                    <Show
+                                                        when={row.node.id}
+                                                        keyed
+                                                        fallback={
+                                                            <span
+                                                                class="font-mono"
+                                                                style={{ "font-size": "0.85rem" }}
+                                                            >
+                                                                {row.node.name}
+                                                            </span>
+                                                        }
+                                                    >
+                                                        {(id) => (
+                                                            <A
+                                                                href={`/components/${id}`}
+                                                                class="font-mono"
+                                                                style={{ "font-size": "0.85rem" }}
+                                                                onClick={(e: MouseEvent) =>
+                                                                    e.stopPropagation()
+                                                                }
+                                                            >
+                                                                {row.node.name}
+                                                            </A>
+                                                        )}
+                                                    </Show>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <Show when={isChanged()}>
+                                                    <span class={`badge ${changeCls()}`}>
+                                                        {row.node.changeKind}
+                                                    </span>
+                                                </Show>
+                                                <Show when={!isChanged() && row.node.hasChangedDesc}>
+                                                    <span style={{ display: "flex", gap: "0.25rem", "flex-wrap": "wrap" }}>
+                                                        <Show when={(row.node.descendantChanges?.upgraded ?? 0) > 0}>
+                                                            <span class="badge badge-primary badge-sm">↑{row.node.descendantChanges?.upgraded}</span>
+                                                        </Show>
+                                                        <Show when={(row.node.descendantChanges?.downgraded ?? 0) > 0}>
+                                                            <span class="badge badge-warning badge-sm">↓{row.node.descendantChanges?.downgraded}</span>
+                                                        </Show>
+                                                        <Show when={(row.node.descendantChanges?.added ?? 0) > 0}>
+                                                            <span class="badge badge-primary badge-sm">+{row.node.descendantChanges?.added}</span>
+                                                        </Show>
+                                                        <Show when={(row.node.descendantChanges?.removed ?? 0) > 0}>
+                                                            <span class="badge badge-warning badge-sm">-{row.node.descendantChanges?.removed}</span>
+                                                        </Show>
+                                                        <Show when={(row.node.descendantChanges?.modified ?? 0) > 0}>
+                                                            <span class="badge badge-sm">~{row.node.descendantChanges?.modified}</span>
+                                                        </Show>
+                                                    </span>
+                                                </Show>
+                                            </td>
+                                            <td class="font-mono" style={{ "font-size": "0.85rem" }}>
+                                                <Show when={row.node.previousVersion}>
+                                                    <span class="text-muted">{row.node.previousVersion}</span>
+                                                    {" → "}
+                                                </Show>
+                                                {row.node.version ?? (
+                                                    <span class="text-muted">—</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
                                 }}
                             </For>
                             <Show when={treeData().removedOrphans.length > 0}>
@@ -273,166 +406,5 @@ export function DiffTreeView(props: { tree: DiffTree }) {
                 </div>
             </Show>
         </div>
-    );
-}
-
-function DiffTreeNodeRow(props: {
-    node: TreeNode;
-    allNodes: Map<string, TreeNode>;
-    depth: number;
-    visited: Set<string>;
-    expandedRefs: Accessor<Set<string>>;
-    toggleExpanded: (ref: string) => void;
-}) {
-    const isCyclic = () => props.visited.has(props.node.ref);
-    const isChanged = () => props.node.changeKind !== undefined;
-
-    // Hide context (ancestor) nodes that have no purl — structural/env entries.
-    const isVisible = () => isChanged() || props.node.purl !== undefined;
-
-    const relevantChildren = () =>
-        props.node.children.filter((ref) => {
-            const child = props.allNodes.get(ref);
-            return child !== undefined && (child.changeKind !== undefined || child.hasChangedDesc);
-        });
-
-    const isExpanded = () => props.expandedRefs().has(props.node.ref);
-
-    const childNodes = createMemo(() => {
-        if (!isExpanded() || isCyclic()) return [];
-        return relevantChildren()
-            .map((ref) => props.allNodes.get(ref))
-            .filter((n): n is TreeNode => n !== undefined);
-    });
-
-    const nextVisited = createMemo(() => {
-        const s = new Set(props.visited);
-        s.add(props.node.ref);
-        return s;
-    });
-
-    const changeCls = () => {
-        const k = props.node.changeKind;
-        if (k === "added" || k === "upgraded") return "badge-primary";   // blue
-        if (k === "removed" || k === "downgraded") return "badge-warning"; // amber
-        return "";  // neutral for modified
-    };
-
-    return (
-        <Show when={!isCyclic() && isVisible()}>
-            <>
-                <tr
-                    style={{
-                        cursor: relevantChildren().length > 0 ? "pointer" : "default",
-                        opacity: isChanged() ? "1" : "0.55",
-                    }}
-                    onClick={() =>
-                        relevantChildren().length > 0 && props.toggleExpanded(props.node.ref)
-                    }
-                >
-                    <td>
-                        <span
-                            style={{
-                                display: "flex",
-                                "align-items": "center",
-                                gap: "0.375rem",
-                                "padding-left": `${props.depth * 1.25}rem`,
-                            }}
-                        >
-                            <span
-                                style={{
-                                    width: "1rem",
-                                    "text-align": "center",
-                                    color: "var(--color-text-dim)",
-                                    "font-size": "0.7rem",
-                                    "flex-shrink": "0",
-                                    transition: "transform 0.15s",
-                                    transform:
-                                        relevantChildren().length > 0 && isExpanded()
-                                            ? "rotate(90deg)"
-                                            : "rotate(0deg)",
-                                }}
-                            >
-                                {relevantChildren().length > 0 ? "▸" : ""}
-                            </span>
-                            <Show
-                                when={props.node.id}
-                                keyed
-                                fallback={
-                                    <span
-                                        class="font-mono"
-                                        style={{ "font-size": "0.85rem" }}
-                                    >
-                                        {props.node.name}
-                                    </span>
-                                }
-                            >
-                                {(id) => (
-                                    <A
-                                        href={`/components/${id}`}
-                                        class="font-mono"
-                                        style={{ "font-size": "0.85rem" }}
-                                        onClick={(e: MouseEvent) =>
-                                            e.stopPropagation()
-                                        }
-                                    >
-                                        {props.node.name}
-                                    </A>
-                                )}
-                            </Show>
-                        </span>
-                    </td>
-                    <td>
-                        <Show when={isChanged()}>
-                            <span class={`badge ${changeCls()}`}>
-                                {props.node.changeKind}
-                            </span>
-                        </Show>
-                        <Show when={!isChanged() && props.node.hasChangedDesc}>
-                            <span style={{ display: "flex", gap: "0.25rem", "flex-wrap": "wrap" }}>
-                                <Show when={(props.node.descendantChanges?.upgraded ?? 0) > 0}>
-                                    <span class="badge badge-primary badge-sm">↑{props.node.descendantChanges?.upgraded}</span>
-                                </Show>
-                                <Show when={(props.node.descendantChanges?.downgraded ?? 0) > 0}>
-                                    <span class="badge badge-warning badge-sm">↓{props.node.descendantChanges?.downgraded}</span>
-                                </Show>
-                                <Show when={(props.node.descendantChanges?.added ?? 0) > 0}>
-                                    <span class="badge badge-primary badge-sm">+{props.node.descendantChanges?.added}</span>
-                                </Show>
-                                <Show when={(props.node.descendantChanges?.removed ?? 0) > 0}>
-                                    <span class="badge badge-warning badge-sm">-{props.node.descendantChanges?.removed}</span>
-                                </Show>
-                                <Show when={(props.node.descendantChanges?.modified ?? 0) > 0}>
-                                    <span class="badge badge-sm">~{props.node.descendantChanges?.modified}</span>
-                                </Show>
-                            </span>
-                        </Show>
-                    </td>
-                    <td class="font-mono" style={{ "font-size": "0.85rem" }}>
-                        <Show when={props.node.previousVersion}>
-                            <span class="text-muted">{props.node.previousVersion}</span>
-                            {" → "}
-                        </Show>
-                        {props.node.version ?? (
-                            <span class="text-muted">—</span>
-                        )}
-                    </td>
-                </tr>
-                <Show when={isExpanded() && !isCyclic()}>
-                    <For each={childNodes()}>
-                        {(child) => (
-                            <DiffTreeNodeRow
-                                node={child}
-                                allNodes={props.allNodes}
-                                depth={props.depth + 1}
-                                visited={nextVisited()}
-                                expandedRefs={props.expandedRefs}
-                                toggleExpanded={props.toggleExpanded}
-                            />
-                        )}
-                    </For>
-                </Show>
-            </>
-        </Show>
     );
 }
