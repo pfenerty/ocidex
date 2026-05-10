@@ -5,11 +5,12 @@ export function changelogRefLabel(ref: {
     id: string;
     subjectVersion?: string;
     architecture?: string;
+    flavor?: string;
     createdAt: string;
     buildDate?: string;
 }): string {
-    const label = ref.subjectVersion ?? relativeDate(ref.buildDate ?? ref.createdAt);
-    return ref.architecture !== undefined ? `${label} (${ref.architecture})` : label;
+    const base = ref.subjectVersion ?? relativeDate(ref.buildDate ?? ref.createdAt);
+    return [base, ref.architecture, ref.flavor].filter(Boolean).join(" · ");
 }
 
 export interface ChangelogEntryData {

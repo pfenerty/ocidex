@@ -165,6 +165,9 @@ func (s *searchService) ListSBOMsByArtifact(ctx context.Context, artifactID pgty
 		if s, ok := row.Architecture.(string); ok && s != "" {
 			summary.Architecture = &s
 		}
+		if row.Flavor.Valid && row.Flavor.String != "" {
+			summary.Flavor = &row.Flavor.String
+		}
 		if s, ok := row.Revision.(string); ok && s != "" {
 			summary.Revision = &s
 		}

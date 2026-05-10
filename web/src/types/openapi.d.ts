@@ -1422,6 +1422,7 @@ export interface components {
             enrichments?: {
                 [key: string]: unknown;
             };
+            flavor?: string;
             id: string;
             imageVersion?: string;
             rawBom?: unknown;
@@ -1454,6 +1455,7 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             digest?: string;
+            flavor?: string;
             id: string;
             imageVersion?: string;
             revision?: string;

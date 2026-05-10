@@ -167,6 +167,7 @@ type SBOMSummary struct {
 	BuildDate      *time.Time `json:"buildDate,omitempty"`
 	ImageVersion   *string    `json:"imageVersion,omitempty"`
 	Architecture   *string    `json:"architecture,omitempty"`
+	Flavor         *string    `json:"flavor,omitempty"`
 	Revision       *string    `json:"revision,omitempty"`
 	SourceURL      *string    `json:"sourceUrl,omitempty"`
 	Sufficient     bool       `json:"sufficient"`

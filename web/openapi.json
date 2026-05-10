@@ -2199,6 +2199,9 @@
             "additionalProperties": {},
             "type": "object"
           },
+          "flavor": {
+            "type": "string"
+          },
           "id": {
             "type": "string"
           },
@@ -2290,6 +2293,9 @@
             "type": "string"
           },
           "digest": {
+            "type": "string"
+          },
+          "flavor": {
             "type": "string"
           },
           "id": {

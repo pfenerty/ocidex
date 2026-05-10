@@ -30,13 +30,11 @@ export function sbomLabel(sbom: SBOMSummary): string {
  */
 export function sbomPickerLabel(sbom: SBOMSummary): string {
     const version = sbom.subjectVersion ?? sbom.imageVersion;
-    const arch = sbom.architecture;
     const ingested = formatDate(sbom.createdAt);
 
     if (version !== undefined) {
-        if (arch === undefined || arch === "") return `${version} · ${ingested}`;
         const built = sbom.buildDate !== undefined ? `built ${formatDateTime(sbom.buildDate)}` : `ingested ${ingested}`;
-        return [version, arch, built].join(" · ");
+        return [version, sbom.architecture, sbom.flavor, built].filter(Boolean).join(" · ");
     }
 
     const dt = sbom.buildDate !== undefined ? formatDateTime(sbom.buildDate) : ingested;

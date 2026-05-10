@@ -148,17 +148,22 @@ export function useArtifactChangelog(
     options?: {
         enabled?: Accessor<boolean>;
         arch?: Accessor<string | undefined>;
+        flavor?: Accessor<string | undefined>;
     },
 ) {
     return createQuery(() => ({
-        queryKey: ["artifact", id(), "changelog", options?.arch?.()] as const,
+        queryKey: ["artifact", id(), "changelog", options?.arch?.(), options?.flavor?.()] as const,
         queryFn: () => {
             const arch = options?.arch?.();
+            const flavor = options?.flavor?.();
             return unwrap(
                 client.GET("/api/v1/artifacts/{id}/changelog", {
                     params: {
                         path: { id: id() },
-                        query: { arch: arch !== "" ? arch : undefined },
+                        query: {
+                            arch: arch !== "" ? arch : undefined,
+                            flavor: flavor !== "" ? flavor : undefined,
+                        },
                     },
                 }),
             );

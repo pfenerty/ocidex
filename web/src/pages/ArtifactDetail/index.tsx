@@ -30,6 +30,7 @@ export default function ArtifactDetail() {
     const [selectedArch, setSelectedArch] = createSignal<string | undefined>(
         "amd64",
     );
+    const [selectedFlavor, setSelectedFlavor] = createSignal<string | undefined>(undefined);
     const versionLimit = 25;
 
     const artifactQuery = useArtifact(() => params.id);
@@ -42,6 +43,7 @@ export default function ArtifactDetail() {
     const changelogQuery = useArtifactChangelog(() => params.id, {
         enabled: () => tab() === "changelog",
         arch: selectedArch,
+        flavor: selectedFlavor,
     });
 
     const licenseQuery = useArtifactLicenseSummary(() => params.id, {
@@ -337,6 +339,15 @@ export default function ArtifactDetail() {
                                                         selectedArch={selectedArch()}
                                                         onArchChange={
                                                             setSelectedArch
+                                                        }
+                                                        availableFlavors={
+                                                            d()
+                                                                .availableFlavors ??
+                                                            []
+                                                        }
+                                                        selectedFlavor={selectedFlavor()}
+                                                        onFlavorChange={
+                                                            setSelectedFlavor
                                                         }
                                                     />
                                                 )}

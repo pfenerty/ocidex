@@ -8,9 +8,14 @@ export function ChangelogTab(props: {
     availableArchitectures: string[];
     selectedArch: string | undefined;
     onArchChange: (arch: string) => void;
+    availableFlavors: string[];
+    selectedFlavor: string | undefined;
+    onFlavorChange: (flavor: string) => void;
 }) {
     const effectiveArch = () =>
         props.selectedArch ?? props.availableArchitectures[0];
+    const effectiveFlavor = () =>
+        props.selectedFlavor ?? props.availableFlavors[0];
     const [viewMode, setViewMode] = createSignal<"tree" | "list">("tree");
 
     return (
@@ -33,6 +38,20 @@ export function ChangelogTab(props: {
                                     onClick={() => props.onArchChange(arch)}
                                 >
                                     {arch}
+                                </button>
+                            )}
+                        </For>
+                    </div>
+                </Show>
+                <Show when={props.availableFlavors.length > 1}>
+                    <div class="tab-bar" style={{ flex: "1" }}>
+                        <For each={props.availableFlavors}>
+                            {(flavor) => (
+                                <button
+                                    class={effectiveFlavor() === flavor ? "active" : ""}
+                                    onClick={() => props.onFlavorChange(flavor)}
+                                >
+                                    {flavor}
                                 </button>
                             )}
                         </For>
