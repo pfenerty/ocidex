@@ -62,10 +62,10 @@ export default function DiffEntry(props: DiffEntryProps) {
                     <div class="changelog-summary">
                         {(() => {
                             const kinds = [
-                                { key: "added",      count: addedCount(),      cls: "badge-success", label: (n: number) => `+${n} added` },
-                                { key: "removed",    count: removedCount(),    cls: "badge-danger",  label: (n: number) => `-${n} removed` },
-                                { key: "upgraded",   count: upgradedCount(),   cls: "badge-success", label: (n: number) => `↑${n} upgraded` },
-                                { key: "downgraded", count: downgradedCount(), cls: "badge-danger",  label: (n: number) => `↓${n} downgraded` },
+                                { key: "added",      count: addedCount(),      cls: "badge-primary", label: (n: number) => `+${n} added` },
+                                { key: "removed",    count: removedCount(),    cls: "badge-warning", label: (n: number) => `-${n} removed` },
+                                { key: "upgraded",   count: upgradedCount(),   cls: "badge-primary", label: (n: number) => `↑${n} upgraded` },
+                                { key: "downgraded", count: downgradedCount(), cls: "badge-warning", label: (n: number) => `↓${n} downgraded` },
                             ];
                             return kinds
                                 .filter(k => k.count > 0)
@@ -106,10 +106,8 @@ export default function DiffEntry(props: DiffEntryProps) {
                                                     const kind = change.direction;
                                                     const cls =
                                                         kind === "added" || kind === "upgraded"
-                                                            ? "badge-success"
-                                                            : kind === "removed" || kind === "downgraded"
-                                                              ? "badge-danger"
-                                                              : "badge-warning";
+                                                            ? "badge-primary"
+                                                            : "badge-warning";
                                                     return <span class={`badge ${cls}`}>{kind}</span>;
                                                 })()}
                                             </td>

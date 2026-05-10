@@ -34,9 +34,13 @@ export function DiffPairView(props: {
             <Show when={query.isLoading}><Loading /></Show>
             <Show when={query.isError}><ErrorBox error={query.error} /></Show>
             <Show when={query.data} keyed>
-                {(tree) => (
+                {(tree) => {
+                    const hasTree = () =>
+                        (tree.roots?.length ?? 0) > 0 || tree.edges.length > 0;
+                    const effectiveMode = () => (hasTree() ? props.viewMode : "list");
+                    return (
                     <Show
-                        when={props.viewMode === "tree"}
+                        when={effectiveMode() === "tree"}
                         fallback={
                             <DiffEntry
                                 entry={asEntry(tree)}
@@ -51,7 +55,8 @@ export function DiffPairView(props: {
                     >
                         <DiffTreeView tree={tree} />
                     </Show>
-                )}
+                    );
+                }}
             </Show>
         </>
     );

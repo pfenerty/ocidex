@@ -234,7 +234,7 @@ interface TreeNode {
 }
 
 export function DependencyTreeView(props: {
-    graph: { edges: DependencyEdge[]; nodes: ComponentSummary[] };
+    graph: { edges: DependencyEdge[]; nodes: ComponentSummary[]; roots?: string[] | null };
 }) {
     const treeData = createMemo(() => {
         const nameMap = new Map<
@@ -273,9 +273,7 @@ export function DependencyTreeView(props: {
             allTargets.add(edge.to);
         }
 
-        const fromRefs = [...adj.keys()];
-        let rootRefs = fromRefs.filter((r) => !allTargets.has(r));
-        if (rootRefs.length === 0) rootRefs = fromRefs.slice(0, 10);
+        const rootRefs = props.graph.roots ?? [];
 
         const allRefs = new Set([...adj.keys(), ...allTargets]);
         const nodes = new Map<string, TreeNode>();
