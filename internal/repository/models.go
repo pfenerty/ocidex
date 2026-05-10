@@ -144,6 +144,7 @@ type Sbom struct {
 	Digest               pgtype.Text        `json:"digest"`
 	EnrichmentSufficient bool               `json:"enrichment_sufficient"`
 	RegistryID           pgtype.UUID        `json:"registry_id"`
+	Flavor               pgtype.Text        `json:"flavor"`
 }
 
 type ScanJob struct {
