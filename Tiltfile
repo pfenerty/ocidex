@@ -44,13 +44,17 @@ def _secret_yaml(name, data):
 k8s_yaml(blob(_secret_yaml('ocidex-secrets', env)))
 
 # --- App stack ------------------------------------------------------------
-docker_build(
-    'ocidex',
-    context='.',
-    dockerfile='docker/api/Dockerfile',
-    only=['cmd/', 'internal/', 'go.mod', 'go.sum', 'db/'],
-    ignore=['**/*_test.go', 'tests/'],
-)
+# Per-service images. The Dockerfile is multi-target with a shared builder
+# stage, so BuildKit reuses the Go compile output across all three.
+_build_ctx = {
+    'context': '.',
+    'dockerfile': 'docker/Dockerfile',
+    'only': ['cmd/', 'internal/', 'go.mod', 'go.sum', 'db/'],
+    'ignore': ['**/*_test.go', 'tests/'],
+}
+docker_build('ocidex-api',               target='api',               **_build_ctx)
+docker_build('ocidex-scanner-worker',    target='scanner-worker',    **_build_ctx)
+docker_build('ocidex-enrichment-worker', target='enrichment-worker', **_build_ctx)
 
 k8s_yaml(kustomize('k8s/overlays/dev'))
 

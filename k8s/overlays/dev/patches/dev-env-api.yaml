@@ -6,7 +6,7 @@ spec:
   template:
     spec:
       containers:
-        - name: ocidex
+        - name: ocidex-api
           imagePullPolicy: IfNotPresent
           env:
             - name: NATS_STREAM_REPLICAS

@@ -16,8 +16,7 @@ spec:
       terminationGracePeriodSeconds: 360
       containers:
         - name: enrichment-worker
-          image: ocidex:latest
-          args: ["/enrichment-worker"]
+          image: ocidex-enrichment-worker:latest
           envFrom:
             - secretRef:
                 name: ocidex-secrets

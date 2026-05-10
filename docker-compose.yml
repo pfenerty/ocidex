@@ -43,7 +43,8 @@ services:
     ocidex:
         build:
             context: .
-            dockerfile: docker/api/Dockerfile
+            dockerfile: docker/Dockerfile
+            target: api
         container_name: ocidex-app
         restart: unless-stopped
         depends_on:

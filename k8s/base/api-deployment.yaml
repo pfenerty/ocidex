@@ -14,10 +14,9 @@ spec:
     spec:
       terminationGracePeriodSeconds: 40
       containers:
-        - name: ocidex
-          image: ocidex:latest
+        - name: ocidex-api
+          image: ocidex-api:latest
           imagePullPolicy: Always
-          args: ["/ocidex"]
           ports:
             - containerPort: 8080
           resources:

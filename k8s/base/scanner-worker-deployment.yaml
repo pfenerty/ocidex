@@ -16,8 +16,7 @@ spec:
       terminationGracePeriodSeconds: 660
       containers:
         - name: scanner-worker
-          image: ocidex:latest
-          args: ["/scanner-worker"]
+          image: ocidex-scanner-worker:latest
           envFrom:
             - secretRef:
                 name: ocidex-secrets
