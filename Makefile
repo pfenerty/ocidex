@@ -103,11 +103,14 @@ dev-registry: ## Start the local Docker registry used by the Talos dev cluster
 	  docker run -d --restart=always -p 5005:5000 --name ocidex-dev-registry registry:2
 
 dev-cluster-up: dev-registry ## Create local Talos dev cluster wired to the local registry
+	@if [ "$$(id -u)" = "0" ]; then echo "ERROR: do not run as root — your user is in the docker group"; exit 1; fi
 	talosctl cluster create docker \
 	  --name ocidex-dev \
 	  --workers 1 \
-	  --config-patch @tilt/talos-cluster.yaml
-	kubectl --context admin@ocidex-dev wait --for=condition=Ready nodes --all --timeout=120s
+	  --config-patch @tilt/talos-cluster.yaml \
+	  || echo "talosctl exited non-zero (likely CoreDNS bootstrap timeout); checking cluster directly..."
+	kubectl --context admin@ocidex-dev wait --for=condition=Ready nodes --all --timeout=180s
+	kubectl --context admin@ocidex-dev wait --for=condition=Ready pods --all -n kube-system --timeout=180s
 
 dev-cluster-down: ## Destroy local Talos dev cluster and its registry
 	talosctl cluster destroy --name ocidex-dev || true
