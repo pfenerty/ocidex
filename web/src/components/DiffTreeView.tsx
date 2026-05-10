@@ -33,133 +33,72 @@ function purlBase(purl: string): string {
 
 export function DiffTreeView(props: { tree: DiffTree }) {
     const treeData = createMemo(() => {
-        // Build nameMap from non-file nodes (includes backend descendantChanges for hasChangedDesc)
-        const nameMap = new Map<
-            string,
-            {
-                name: string;
-                version?: string;
-                id?: string;
-                purl?: string;
-                descendantChanges?: { added: number; removed: number; upgraded: number; downgraded: number; modified: number };
-            }
-        >();
-        for (const node of props.tree.nodes ?? []) {
-            const type = parsePurl(node.purl ?? "")?.type ?? node.type;
-            if (type === "file") continue;
-            const name =
-                node.group !== undefined && node.group !== ""
-                    ? `${node.group}/${node.name}`
-                    : node.name;
-            const version =
-                node.version !== undefined && node.version !== ""
-                    ? node.version
-                    : undefined;
-            const info = {
-                name,
-                version,
-                id: node.id,
-                purl: node.purl !== "" ? node.purl : undefined,
-                descendantChanges: node.descendantChanges ?? undefined,
-            };
-            nameMap.set(node.id, info);
-            nameMap.set(node.name, info);
-            if (node.purl !== undefined && node.purl !== "") {
-                nameMap.set(node.purl, info);
-                nameMap.set(purlBase(node.purl), info);
-            }
-            if (node.bomRef !== undefined && node.bomRef !== "") nameMap.set(node.bomRef, info);
-        }
-
-        // Build change lookup from package-only changes
-        interface ChangeInfo {
-            kind: string;
-            version?: string;
-            previousVersion?: string;
-        }
-        const changeMap = new Map<string, ChangeInfo>();
+        // Filter to non-file changes once; we use this set for the orphan list and for
+        // joining changes onto nodes via change.nodeRef (set by the backend per ADR-0021 §B3).
         const filteredChanges = (props.tree.changes ?? []).filter(
             (c) => c.purl !== undefined && parsePurl(c.purl)?.type !== "file",
         );
+        const changeByNodeRef = new Map<string, typeof filteredChanges[number]>();
         for (const c of filteredChanges) {
-            const info: ChangeInfo = {
-                kind: c.direction,
-                version: c.version,
-                previousVersion: c.previousVersion,
-            };
-            if (c.purl !== undefined && c.purl !== "") {
-                changeMap.set(c.purl, info);
-                changeMap.set(purlBase(c.purl), info);
-            }
-            const nameKey =
-                c.group !== undefined && c.group !== ""
-                    ? `${c.group}/${c.name}`
-                    : c.name;
-            if (!changeMap.has(nameKey)) changeMap.set(nameKey, info);
+            if (c.nodeRef !== undefined && c.nodeRef !== "") changeByNodeRef.set(c.nodeRef, c);
         }
 
-        // Build direct-dep set from backend isDirect flag
-        const isDirectSet = new Set<string>();
-        for (const node of props.tree.nodes ?? []) {
-            if (node.isDirect && node.bomRef !== undefined && node.bomRef !== "") isDirectSet.add(node.bomRef);
-        }
-
-        // Build adjacency
+        // Build adjacency from edges. Membership in the tree comes from props.tree.nodes
+        // (server-authoritative per ADR-0021), not the edge set — disconnected roots
+        // (zero in-edges, zero out-edges) must still render.
         const adj = new Map<string, string[]>();
-        const allTargets = new Set<string>();
         for (const edge of props.tree.edges ?? []) {
-            if (!nameMap.has(edge.from) || !nameMap.has(edge.to)) continue;
             if (!adj.has(edge.from)) adj.set(edge.from, []);
             adj.get(edge.from)?.push(edge.to);
-            allTargets.add(edge.to);
         }
 
-        // Build annotated tree nodes; hasChangedDesc comes from backend descendantChanges
-        const allRefs = new Set([...adj.keys(), ...allTargets]);
+        // Build the TreeNode map keyed on bomRef directly from props.tree.nodes.
         const nodes = new Map<string, TreeNode>();
-        for (const ref of allRefs) {
-            const info = nameMap.get(ref);
-            if (!info) continue;
-            const changeInfo =
-                (info.purl !== undefined ? changeMap.get(info.purl) : undefined) ??
-                (info.purl !== undefined ? changeMap.get(purlBase(info.purl)) : undefined) ??
-                changeMap.get(info.name);
-            const dc = info.descendantChanges;
+        const inGraphPurls = new Set<string>();
+        for (const node of props.tree.nodes ?? []) {
+            const type = parsePurl(node.purl ?? "")?.type ?? node.type;
+            if (type === "file") continue;
+            if (node.bomRef === undefined || node.bomRef === "") continue;
+
+            const displayName =
+                node.group !== undefined && node.group !== ""
+                    ? `${node.group}/${node.name}`
+                    : node.name;
+            const change = changeByNodeRef.get(node.id);
+            const dc = node.descendantChanges;
             const hasChangedDesc =
                 dc !== undefined &&
                 dc.added + dc.removed + dc.upgraded + dc.downgraded + dc.modified > 0;
-            nodes.set(ref, {
-                ref,
-                name: info.name,
-                version: changeInfo?.version ?? info.version,
-                previousVersion: changeInfo?.previousVersion,
-                purl: info.purl,
-                id: info.id,
-                changeKind: changeInfo?.kind,
-                children: adj.get(ref) ?? [],
+
+            nodes.set(node.bomRef, {
+                ref: node.bomRef,
+                name: displayName,
+                version: change?.version ?? (node.version !== "" ? node.version : undefined),
+                previousVersion: change?.previousVersion,
+                purl: node.purl !== "" ? node.purl : undefined,
+                id: node.id,
+                changeKind: change?.direction,
+                children: adj.get(node.bomRef) ?? [],
                 hasChangedDesc,
-                isDirect: isDirectSet.has(ref),
-                descendantChanges: info.descendantChanges,
+                isDirect: node.isDirect,
+                descendantChanges: dc ?? undefined,
             });
-        }
 
-        // Use backend-computed roots (anchored on metadata.component.bom-ref per ADR-0021 B5)
-        const rootRefs = props.tree.roots ?? [];
-
-        // Removed packages not present in the new graph
-        const inGraphPurls = new Set<string>();
-        for (const n of nodes.values()) {
-            if (n.purl !== undefined) {
-                inGraphPurls.add(n.purl);
-                inGraphPurls.add(purlBase(n.purl));
+            if (node.purl !== undefined && node.purl !== "") {
+                inGraphPurls.add(node.purl);
+                inGraphPurls.add(purlBase(node.purl));
             }
         }
+
+        // Use backend-computed roots (anchored on metadata.component.bom-ref per ADR-0021 §B5).
+        const rootRefs = props.tree.roots ?? [];
+
+        // Removed packages with no node in the graph — surfaced separately so the user
+        // doesn't lose them, since by definition they have no tree position.
         const removedOrphans = filteredChanges.filter((c) => {
             if (c.direction !== "removed") return false;
-            return (
-                (c.purl === undefined || (!inGraphPurls.has(c.purl) && !inGraphPurls.has(purlBase(c.purl)))) &&
-                !nodes.has(c.name)
-            );
+            if (c.purl !== undefined && (inGraphPurls.has(c.purl) || inGraphPurls.has(purlBase(c.purl)))) return false;
+            return true;
         });
 
         return { roots: rootRefs, nodes, removedOrphans };
