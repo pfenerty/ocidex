@@ -18,6 +18,9 @@ spec:
         - name: scanner-worker
           image: ocidex:latest
           args: ["/scanner-worker"]
+          envFrom:
+            - secretRef:
+                name: ocidex-secrets
           env:
             - name: OCIDEX_MODE
               value: "distributed"
@@ -25,10 +28,5 @@ spec:
               value: "3"
             - name: DATABASE_MAX_CONNECTIONS
               value: "3"
-            - name: DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: ocidex-secrets
-                  key: database-url
             - name: NATS_URL
               value: "nats://nats:4222"
