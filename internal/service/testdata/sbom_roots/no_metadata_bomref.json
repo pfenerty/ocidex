@@ -1,0 +1,15 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "metadata": {},
+  "components": [
+    { "bom-ref": "comp-alpha",  "type": "library", "name": "alpha" },
+    { "bom-ref": "comp-beta",   "type": "library", "name": "beta" },
+    { "bom-ref": "comp-gamma",  "type": "library", "name": "gamma" }
+  ],
+  "dependencies": [
+    { "ref": "comp-alpha", "dependsOn": ["comp-beta", "comp-gamma"] },
+    { "ref": "comp-beta",  "dependsOn": ["comp-gamma"] },
+    { "ref": "comp-gamma", "dependsOn": [] }
+  ]
+}

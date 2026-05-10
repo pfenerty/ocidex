@@ -1,0 +1,19 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "metadata": {
+    "component": {
+      "bom-ref": "the-image-ref",
+      "type": "container",
+      "name": "myimage"
+    }
+  },
+  "components": [
+    { "bom-ref": "pkg-a", "type": "library", "name": "packageA" },
+    { "bom-ref": "pkg-b", "type": "library", "name": "packageB" }
+  ],
+  "dependencies": [
+    { "ref": "pkg-a", "dependsOn": ["pkg-b"] },
+    { "ref": "pkg-b", "dependsOn": [] }
+  ]
+}

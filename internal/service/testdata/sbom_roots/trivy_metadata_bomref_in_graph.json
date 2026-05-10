@@ -1,0 +1,22 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "metadata": {
+    "component": {
+      "bom-ref": "8d42b6b7-bbd5-4e40-8b33-f84e64716f3e",
+      "type": "container",
+      "name": "alpine:3.18"
+    }
+  },
+  "components": [
+    { "bom-ref": "pkg:apk/alpine/musl@1.2.4",   "type": "library", "name": "musl" },
+    { "bom-ref": "pkg:apk/alpine/busybox@1.36.1","type": "library", "name": "busybox" },
+    { "bom-ref": "pkg:apk/alpine/zlib@1.2.13",  "type": "library", "name": "zlib" }
+  ],
+  "dependencies": [
+    { "ref": "8d42b6b7-bbd5-4e40-8b33-f84e64716f3e", "dependsOn": ["pkg:apk/alpine/musl@1.2.4", "pkg:apk/alpine/busybox@1.36.1"] },
+    { "ref": "pkg:apk/alpine/musl@1.2.4",             "dependsOn": [] },
+    { "ref": "pkg:apk/alpine/busybox@1.36.1",         "dependsOn": ["pkg:apk/alpine/zlib@1.2.13"] },
+    { "ref": "pkg:apk/alpine/zlib@1.2.13",            "dependsOn": [] }
+  ]
+}
