@@ -116,7 +116,7 @@ dev-cluster-down: ## Destroy local Talos dev cluster and its registry
 	docker rm -f ocidex-dev-registry || true
 
 dev-up: ## Build, deploy, and watch ocidex on the local Talos cluster (Tilt)
-	@command -v tilt >/dev/null || { echo "install tilt: https://docs.tilt.dev/install.html"; exit 1; }
+	@command -v tilt >/dev/null || { echo "tilt not on PATH — run inside 'flox activate'"; exit 1; }
 	tilt up
 
 dev-down: ## Stop Tilt and remove deployed resources

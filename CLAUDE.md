@@ -119,8 +119,8 @@ image, pushes to the local registry, and applies `k8s/overlays/dev`. The fronten
 locally (port 3000) for HMR; the API is port-forwarded from the cluster on 8080. Tilt UI: `:10350`.
 
 The Talos registry-mirror config (`tilt/talos-cluster.yaml`) makes pods inside the cluster pull
-`localhost:5005/...` from the host's bridge IP `10.5.0.1`. Tilt is not installed by default —
-install via the upstream script (https://docs.tilt.dev/install.html) or pin it in Flox.
+`localhost:5005/...` from the host's bridge IP `10.5.0.1`. `tilt`, `talosctl`, and `kubectl`
+are pinned in Flox — run these commands inside `flox activate`. `docker` is a host requirement.
 
 ## Project Structure
 

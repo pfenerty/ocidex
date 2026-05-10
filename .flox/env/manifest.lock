@@ -17,9 +17,11 @@
       "golangci-lint": {
         "pkg-path": "golangci-lint"
       },
+      "kubectl": {
+        "pkg-path": "kubectl"
+      },
       "nodejs": {
-        "pkg-path": "nodejs",
-        "outputs": "all"
+        "pkg-path": "nodejs"
       },
       "nushell": {
         "pkg-path": "nushell"
@@ -29,6 +31,12 @@
       },
       "syft": {
         "pkg-path": "syft"
+      },
+      "talosctl": {
+        "pkg-path": "talosctl"
+      },
+      "tilt": {
+        "pkg-path": "tilt"
       }
     },
     "hook": {},
@@ -51,8 +59,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T04:39:52.469176Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "8.17.0",
@@ -86,8 +94,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:12:54.299111Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "8.17.0",
@@ -124,8 +132,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:45:37.490090Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "8.17.0",
@@ -159,8 +167,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T06:23:23.402714Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "8.17.0",
@@ -197,8 +205,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T04:39:53.260522Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "4.4.1",
@@ -237,8 +245,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:12:55.991495Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "4.4.1",
@@ -274,8 +282,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:45:38.315617Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "4.4.1",
@@ -308,8 +316,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T06:23:25.239208Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "4.4.1",
@@ -343,8 +351,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T04:39:53.269291Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "1.25.5",
@@ -374,8 +382,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:12:56.006200Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "1.25.5",
@@ -404,8 +412,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:45:38.324899Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "1.25.5",
@@ -434,8 +442,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T06:23:25.254913Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "1.25.5",
@@ -468,8 +476,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T04:39:53.332345Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "2.10.1",
@@ -498,8 +506,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:12:56.102620Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "2.10.1",
@@ -528,8 +536,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:45:38.385870Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "2.10.1",
@@ -558,8 +566,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T06:23:25.353931Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "2.10.1",
@@ -568,6 +576,138 @@
       ],
       "outputs": {
         "out": "/nix/store/vw87yalwqrq8k0rcmvnsrdklywgv29vw-golangci-lint-2.10.1"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "kubectl",
+      "broken": false,
+      "derivation": "/nix/store/qfsx4299as1kis07gfzgls4vvkmsajfj-kubectl-1.35.0.drv",
+      "description": "Kubernetes CLI",
+      "install_id": "kubectl",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "kubectl-1.35.0",
+      "pname": "kubectl",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T04:40:08.903150Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.35.0",
+      "outputs_to_install": [
+        "man",
+        "out"
+      ],
+      "outputs": {
+        "convert": "/nix/store/ml1x9ycfby94h8bahq0l76728v8535qd-kubectl-1.35.0-convert",
+        "man": "/nix/store/aryw5q5dm62jrcpaynl37d2qx34bmfw0-kubectl-1.35.0-man",
+        "out": "/nix/store/6zf21d0d0l252rly0plb2qg6y62wxfca-kubectl-1.35.0"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "kubectl",
+      "broken": false,
+      "derivation": "/nix/store/d0fi55m5sgfdvwbpv5gz9hdvv83n0bdv-kubectl-1.35.0.drv",
+      "description": "Kubernetes CLI",
+      "install_id": "kubectl",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "kubectl-1.35.0",
+      "pname": "kubectl",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T05:13:16.773359Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.35.0",
+      "outputs_to_install": [
+        "man",
+        "out"
+      ],
+      "outputs": {
+        "convert": "/nix/store/9a0ydkrx3913kc0lh8n66krqrfw0shic-kubectl-1.35.0-convert",
+        "man": "/nix/store/w3lwvsf2rrc96hwrdmddysh53jqbyrkw-kubectl-1.35.0-man",
+        "out": "/nix/store/slvg6v110rgl0rdxiwcx5z8h4ihwzk2n-kubectl-1.35.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "kubectl",
+      "broken": false,
+      "derivation": "/nix/store/gj4la7zbnrp5pwmb275iihy104fgvwzp-kubectl-1.35.0.drv",
+      "description": "Kubernetes CLI",
+      "install_id": "kubectl",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "kubectl-1.35.0",
+      "pname": "kubectl",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T05:45:54.347450Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.35.0",
+      "outputs_to_install": [
+        "man",
+        "out"
+      ],
+      "outputs": {
+        "convert": "/nix/store/0g5i26adcp489q9fgqh7vics4gx8jl47-kubectl-1.35.0-convert",
+        "man": "/nix/store/pc80ka91m6bsy78n46d7zif2akjczcjs-kubectl-1.35.0-man",
+        "out": "/nix/store/f7sjp6h0sg1dzvwmzb6d9vl43s2cqxr0-kubectl-1.35.0"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "kubectl",
+      "broken": false,
+      "derivation": "/nix/store/h74cp0ypq9znqijdw2qgz9rb3z0d4kv3-kubectl-1.35.0.drv",
+      "description": "Kubernetes CLI",
+      "install_id": "kubectl",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "kubectl-1.35.0",
+      "pname": "kubectl",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T06:23:46.940594Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.35.0",
+      "outputs_to_install": [
+        "man",
+        "out"
+      ],
+      "outputs": {
+        "convert": "/nix/store/2q064kbjqdx6qrgly8x9qrnhqd36hgh1-kubectl-1.35.0-convert",
+        "man": "/nix/store/7bj4hrglli66cnjnrqd9mgz3if4zy8wh-kubectl-1.35.0-man",
+        "out": "/nix/store/8lc27xwmca9pxv5v3p3y7yan5dlxwzvb-kubectl-1.35.0"
       },
       "system": "x86_64-linux",
       "group": "toplevel",
@@ -588,8 +728,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T04:40:16.349089Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "24.13.0",
@@ -622,8 +762,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:13:32.346309Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "24.13.0",
@@ -654,8 +794,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:46:02.015150Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "24.13.0",
@@ -686,8 +826,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T06:24:05.313886Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "24.13.0",
@@ -718,8 +858,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T04:40:16.612622Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "0.110.0",
@@ -748,8 +888,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:13:32.755900Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "0.110.0",
@@ -778,8 +918,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:46:02.289762Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "0.110.0",
@@ -808,8 +948,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T06:24:05.826781Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "0.110.0",
@@ -838,8 +978,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T04:40:21.581333Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "1.3.0",
@@ -868,8 +1008,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:13:39.707581Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "1.3.0",
@@ -898,8 +1038,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:46:07.498305Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "1.3.0",
@@ -928,8 +1068,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T06:24:13.497546Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "1.3.0",
@@ -958,8 +1098,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T04:41:44.363139Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "1.41.2",
@@ -988,8 +1128,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:15:23.759226Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "1.41.2",
@@ -1018,8 +1158,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:47:29.837534Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "1.41.2",
@@ -1048,8 +1188,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T06:26:05.152671Z",
       "stabilities": [
-        "unstable",
-        "staging"
+        "staging",
+        "unstable"
       ],
       "unfree": false,
       "version": "1.41.2",
@@ -1058,6 +1198,246 @@
       ],
       "outputs": {
         "out": "/nix/store/zgjgi52c4rg4pyxcwibspw6vvxhqzk32-syft-1.41.2"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "talosctl",
+      "broken": false,
+      "derivation": "/nix/store/3rqa7yb9hh0zz2dkqky4f0kk9zf7dngz-talosctl-1.12.3.drv",
+      "description": "CLI for out-of-band management of Kubernetes nodes created by Talos",
+      "install_id": "talosctl",
+      "license": "MPL-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "talosctl-1.12.3",
+      "pname": "talosctl",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T04:41:44.679369Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.12.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/lrlsam58v1hrjh131szk4f57lbs7sdpb-talosctl-1.12.3"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "talosctl",
+      "broken": false,
+      "derivation": "/nix/store/k9600ra1m22s6p59snbd77xb21qn0ghd-talosctl-1.12.3.drv",
+      "description": "CLI for out-of-band management of Kubernetes nodes created by Talos",
+      "install_id": "talosctl",
+      "license": "MPL-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "talosctl-1.12.3",
+      "pname": "talosctl",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T05:15:24.340150Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.12.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/dv16m4064v0rvhc91z90w1haps701n6z-talosctl-1.12.3"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "talosctl",
+      "broken": false,
+      "derivation": "/nix/store/abv70i1b8pzipg50271riscxyd572k1g-talosctl-1.12.3.drv",
+      "description": "CLI for out-of-band management of Kubernetes nodes created by Talos",
+      "install_id": "talosctl",
+      "license": "MPL-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "talosctl-1.12.3",
+      "pname": "talosctl",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T05:47:30.161588Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.12.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/nzxqz40vi35mhnzdckdc4k8q2rxpnprf-talosctl-1.12.3"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "talosctl",
+      "broken": false,
+      "derivation": "/nix/store/vfbia6gf9by2f8clpxmfzl0qf84p1nnl-talosctl-1.12.3.drv",
+      "description": "CLI for out-of-band management of Kubernetes nodes created by Talos",
+      "install_id": "talosctl",
+      "license": "MPL-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "talosctl-1.12.3",
+      "pname": "talosctl",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T06:26:05.810535Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.12.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/2ysspr3fhawvbpj11mmcg7jcmd91kqsf-talosctl-1.12.3"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "tilt",
+      "broken": false,
+      "derivation": "/nix/store/9zys3g7dlazd53sqfagwkzil0sb1czkj-tilt-0.36.3.drv",
+      "description": "Local development tool to manage your developer instance when your team deploys to Kubernetes in production",
+      "install_id": "tilt",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "tilt-0.36.3",
+      "pname": "tilt",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T04:42:05.181796Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.36.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/6c7rdc8z6iwgzc6jf0z0fyz6mwfw3dmz-tilt-0.36.3"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "tilt",
+      "broken": false,
+      "derivation": "/nix/store/q2n2p9gcsbijgsd8gsnhy80yrpqfizrf-tilt-0.36.3.drv",
+      "description": "Local development tool to manage your developer instance when your team deploys to Kubernetes in production",
+      "install_id": "tilt",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "tilt-0.36.3",
+      "pname": "tilt",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T05:15:52.858407Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.36.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/ga4an8xiywlp9wq8rfijfknpvq0sai1x-tilt-0.36.3"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "tilt",
+      "broken": false,
+      "derivation": "/nix/store/agwjcfggm3x35vm59dx4sydjrackmjzg-tilt-0.36.3.drv",
+      "description": "Local development tool to manage your developer instance when your team deploys to Kubernetes in production",
+      "install_id": "tilt",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "tilt-0.36.3",
+      "pname": "tilt",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T05:47:50.467638Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.36.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/14h59cn9n96mi2r3xf1knhldxm8wq0b4-tilt-0.36.3"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "tilt",
+      "broken": false,
+      "derivation": "/nix/store/8r2lfhi2biw227ifxh83y7d9ymkq4aq8-tilt-0.36.3.drv",
+      "description": "Local development tool to manage your developer instance when your team deploys to Kubernetes in production",
+      "install_id": "tilt",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "tilt-0.36.3",
+      "pname": "tilt",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T06:26:35.964046Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.36.3",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/iiln244ydcl65rhfzd0krqz6qq759jjc-tilt-0.36.3"
       },
       "system": "x86_64-linux",
       "group": "toplevel",
