@@ -19,10 +19,12 @@ export default defineConfig({
     host: true,
     allowedHosts: true,
     proxy: {
-      "/api": "http://localhost:8080",
-      "/auth": "http://localhost:8080",
-      "/health": "http://localhost:8080",
-      "/ready": "http://localhost:8080",
+      // changeOrigin:false so the API sees the original Host header
+      // (matters for OAuth's post-login redirect, which is derived from r.Host).
+      "/api":    { target: "http://localhost:8080", changeOrigin: false },
+      "/auth":   { target: "http://localhost:8080", changeOrigin: false },
+      "/health": { target: "http://localhost:8080", changeOrigin: false },
+      "/ready":  { target: "http://localhost:8080", changeOrigin: false },
     },
   },
   test: {
