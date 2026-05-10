@@ -252,17 +252,46 @@ func (s *searchService) GetSBOMDependencies(ctx context.Context, sbomID pgtype.U
 		return DependencyGraph{}, fmt.Errorf("listing dependencies: %w", err)
 	}
 
+	rawMeta, err := q.GetSBOMMetadataBomRef(ctx, sbomID)
+	if err != nil {
+		return DependencyGraph{}, fmt.Errorf("getting metadata bom-ref: %w", err)
+	}
+	var metaBomRef string
+	if rawMeta != nil {
+		if s, ok := rawMeta.(string); ok {
+			metaBomRef = s
+		}
+	}
+
 	nodes := make([]ComponentSummary, 0, len(comps))
 	for _, c := range comps {
 		nodes = append(nodes, toComponentSummary(c.ID, sbomID, c.BomRef, c.Type, c.Name, c.GroupName, c.Version, c.Purl))
 	}
 
 	edges := make([]DependencyEdge, 0, len(deps))
+	outEdges := make(map[string][]string, len(deps))
+	inEdge := make(map[string]int, len(deps))
 	for _, d := range deps {
 		edges = append(edges, DependencyEdge{From: d.Ref, To: d.DependsOn})
+		outEdges[d.Ref] = append(outEdges[d.Ref], d.DependsOn)
+		inEdge[d.DependsOn]++
 	}
 
-	return DependencyGraph{Nodes: nodes, Edges: edges}, nil
+	// Anchor on metadata.component.bom-ref; fall back to nodes with no incoming edges.
+	roots := outEdges[metaBomRef]
+	if len(roots) == 0 {
+		for _, n := range nodes {
+			ref := ""
+			if n.BomRef != nil {
+				ref = *n.BomRef
+			}
+			if ref != "" && inEdge[ref] == 0 && len(outEdges[ref]) > 0 {
+				roots = append(roots, ref)
+			}
+		}
+	}
+
+	return DependencyGraph{Nodes: nodes, Edges: edges, Roots: roots}, nil
 }
 
 // ListSBOMComponents returns all components belonging to an SBOM.

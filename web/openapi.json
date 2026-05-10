@@ -1001,11 +1001,21 @@
               "array",
               "null"
             ]
+          },
+          "roots": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
           }
         },
         "required": [
           "nodes",
-          "edges"
+          "edges",
+          "roots"
         ],
         "type": "object"
       },

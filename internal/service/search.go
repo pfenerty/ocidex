@@ -278,6 +278,7 @@ type ComponentVersionEntry struct {
 type DependencyGraph struct {
 	Nodes []ComponentSummary `json:"nodes"`
 	Edges []DependencyEdge   `json:"edges"`
+	Roots []string           `json:"roots"`
 }
 
 // DiffTree combines a changelog entry with the filtered (non-file) dependency

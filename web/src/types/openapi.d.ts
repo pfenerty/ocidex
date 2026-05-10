@@ -991,6 +991,7 @@ export interface components {
             readonly $schema?: string;
             edges: components["schemas"]["DependencyEdge"][] | null;
             nodes: components["schemas"]["ComponentSummary"][] | null;
+            roots: string[] | null;
         };
         DiffTree: {
             /**
