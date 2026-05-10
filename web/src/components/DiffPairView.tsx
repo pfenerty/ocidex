@@ -23,6 +23,7 @@ export function DiffPairView(props: {
     fromId: string;
     toId: string;
     viewMode: "tree" | "list";
+    hideHeader?: boolean;
 }) {
     const [typeFilter, setTypeFilter] = createSignal<string | null>(null);
     const [nameFilter] = createSignal("");
@@ -64,10 +65,11 @@ export function DiffPairView(props: {
                                 onTypeFilterToggle={(k) =>
                                     setTypeFilter((f) => (f === k ? null : k))
                                 }
+                                hideHeader={props.hideHeader}
                             />
                         }
                     >
-                        <DiffTreeView tree={tree} />
+                        <DiffTreeView tree={tree} hideHeader={props.hideHeader} />
                     </Show>
                     </>
                     );
