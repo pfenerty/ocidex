@@ -1,5 +1,5 @@
 import "~/components/DetailSection.css";
-import { createSignal, Show, For } from "solid-js";
+import { createSignal, createMemo, Show, For } from "solid-js";
 import { createLocalStorageSignal } from "~/utils/prefs";
 import "./Diff.css";
 import { useSearchParams } from "@solidjs/router";
@@ -19,6 +19,7 @@ export default function Diff() {
     const [fromSbomId, setFromSbomId] = createSignal(searchParams.from ?? "");
     const [toSbomId, setToSbomId] = createSignal(searchParams.to ?? "");
     const [viewMode, setViewMode] = createLocalStorageSignal<"tree" | "list">("ocidex.diff.viewMode", "tree");
+    const [showAllArchs, setShowAllArchs] = createSignal(false);
 
     const artifactsQuery = useArtifacts(() => ({ limit: 200 }));
 
@@ -33,6 +34,22 @@ export default function Diff() {
         () => ({ limit: 200 }),
         { enabled: () => toArtifactId() !== "" },
     );
+
+    // Architecture of the currently-selected From SBOM. Drives the To-side filter
+    // so users don't accidentally pick a cross-arch comparison (which produces a
+    // wall of phantom remove+add per ADR-0019 arch identity).
+    const fromSbomArch = createMemo(() => {
+        const sboms = fromSbomsQuery.data?.data ?? [];
+        const sel = sboms.find((s) => s.id === fromSbomId());
+        return sel?.architecture;
+    });
+
+    const toSbomOptions = createMemo(() => {
+        const sboms = toSbomsQuery.data?.data ?? [];
+        const arch = fromSbomArch();
+        if (showAllArchs() || arch === undefined || arch === "") return sboms;
+        return sboms.filter((s) => s.architecture === arch);
+    });
 
     function handleCompare() {
         if (fromSbomId() !== "" && toSbomId() !== "") {
@@ -116,7 +133,7 @@ export default function Diff() {
                             disabled={toArtifactId() === ""}
                         >
                             <option value="">Select SBOM...</option>
-                            <For each={toSbomsQuery.data?.data}>
+                            <For each={toSbomOptions()}>
                                 {(s) => (
                                     <option value={s.id}>{sbomPickerLabel(s)}</option>
                                 )}
@@ -124,6 +141,19 @@ export default function Diff() {
                         </select>
                     </div>
                 </div>
+
+                <Show when={fromSbomArch() !== undefined && fromSbomArch() !== ""}>
+                    <label
+                        style={{ display: "flex", gap: "0.4rem", "align-items": "center", "font-size": "0.85rem", cursor: "pointer", "margin-top": "0.75rem" }}
+                    >
+                        <input
+                            type="checkbox"
+                            checked={showAllArchs()}
+                            onChange={(e) => setShowAllArchs(e.currentTarget.checked)}
+                        />
+                        Show all architectures (default: match {fromSbomArch()})
+                    </label>
+                </Show>
 
                 <div class="mt-4">
                     <button
