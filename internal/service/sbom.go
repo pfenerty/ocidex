@@ -189,7 +189,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		return pgtype.UUID{}, err
 	}
 
-	if err := s.insertBOMContent(ctx, q, sbomRow.ID, bom); err != nil {
+	if err := s.insertBOMContent(ctx, q, sbomRow.ID, bom, info.subjectVersion.String); err != nil {
 		return pgtype.UUID{}, err
 	}
 
@@ -239,9 +239,10 @@ func validateContainerRequired(bom *cdx.BOM, info artifactInfo, arch, bd string)
 }
 
 // insertBOMContent inserts components and dependencies for an SBOM within a transaction.
-func (s *sbomService) insertBOMContent(ctx context.Context, q *repository.Queries, sbomID pgtype.UUID, bom *cdx.BOM) error {
+func (s *sbomService) insertBOMContent(ctx context.Context, q *repository.Queries, sbomID pgtype.UUID, bom *cdx.BOM, subjectVersion string) error {
+	mainModule := extractMainModulePath(bom)
 	if bom.Components != nil {
-		if err := s.insertComponents(ctx, q, sbomID, pgtype.UUID{}, *bom.Components); err != nil {
+		if err := s.insertComponents(ctx, q, sbomID, pgtype.UUID{}, *bom.Components, mainModule, subjectVersion); err != nil {
 			return err
 		}
 	}
@@ -369,10 +370,12 @@ func (s *sbomService) insertComponents(
 	sbomID pgtype.UUID,
 	parentID pgtype.UUID,
 	components []cdx.Component,
+	mainModule, subjectVersion string,
 ) error {
 	for i := range components {
 		comp := &components[i]
-		major, minor, patch := parseSemver(comp.Version)
+		version := effectiveComponentVersion(comp.Version, comp.Name, comp.PackageURL, mainModule, subjectVersion)
+		major, minor, patch := parseSemver(version)
 
 		compID, err := q.InsertComponent(ctx, repository.InsertComponentParams{
 			SbomID:       sbomID,
@@ -381,7 +384,7 @@ func (s *sbomService) insertComponents(
 			Type:         string(comp.Type),
 			Name:         comp.Name,
 			GroupName:    textOrNull(comp.Group),
-			Version:      textOrNull(comp.Version),
+			Version:      textOrNull(version),
 			VersionMajor: intOrNull(major),
 			VersionMinor: intOrNull(minor),
 			VersionPatch: intOrNull(patch),
@@ -410,7 +413,7 @@ func (s *sbomService) insertComponents(
 
 		// Recurse into nested components.
 		if comp.Components != nil {
-			if err := s.insertComponents(ctx, q, sbomID, compID, *comp.Components); err != nil {
+			if err := s.insertComponents(ctx, q, sbomID, compID, *comp.Components, mainModule, subjectVersion); err != nil {
 				return err
 			}
 		}
