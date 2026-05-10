@@ -197,13 +197,13 @@ export function DiffTreeView(props: { tree: DiffTree }) {
         const ctx = showContext();
         const transitive = showTransitive();
 
-        function visit(ref: string, depth: number) {
+        function visit(ref: string, depth: number, inChangedDirectSubtree: boolean) {
             if (pathSet.has(ref)) return;
             const node = nodes.get(ref);
             if (!node) return;
             if (node.changeKind === undefined && node.purl === undefined) return;
             if (!ctx && node.changeKind === undefined && !node.hasChangedDesc) return;
-            if (!transitive && !node.isDirect && node.changeKind === undefined) return;
+            if (!transitive && !node.isDirect && !inChangedDirectSubtree && node.changeKind === undefined) return;
 
             const relevantChildren = node.children.filter((childRef) => {
                 const child = nodes.get(childRef);
@@ -214,12 +214,13 @@ export function DiffTreeView(props: { tree: DiffTree }) {
 
             if (expanded.has(ref)) {
                 pathSet.add(ref);
-                for (const childRef of relevantChildren) visit(childRef, depth + 1);
+                const childInChangedDirect = inChangedDirectSubtree || (node.isDirect && node.changeKind !== undefined);
+                for (const childRef of relevantChildren) visit(childRef, depth + 1, childInChangedDirect);
                 pathSet.delete(ref);
             }
         }
 
-        for (const rootRef of roots) visit(rootRef, 0);
+        for (const rootRef of roots) visit(rootRef, 0, false);
         return result;
     });
 
