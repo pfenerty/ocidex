@@ -1,4 +1,4 @@
-import { createMemo, createSignal, Show, For } from "solid-js";
+import { type Accessor, createMemo, createSignal, Show, For } from "solid-js";
 import { A } from "@solidjs/router";
 import { relativeDate } from "~/utils/format";
 import { changelogRefLabel } from "~/utils/diff";
@@ -150,6 +150,16 @@ export function DiffTreeView(props: { tree: DiffTree }) {
         return { roots: rootRefs, nodes, removedOrphans };
     });
 
+    const [expandedRefs, setExpandedRefs] = createSignal(new Set<string>(), { equals: false });
+
+    const toggleExpanded = (ref: string) => {
+        setExpandedRefs(s => {
+            const next = new Set(s);
+            if (next.has(ref)) next.delete(ref); else next.add(ref);
+            return next;
+        });
+    };
+
     // Summary counts for the header badges.
     const changes = () => (props.tree.changes ?? []).filter(
         (c) => c.purl !== undefined && parsePurl(c.purl)?.type !== "file",
@@ -219,6 +229,8 @@ export function DiffTreeView(props: { tree: DiffTree }) {
                                             allNodes={treeData().nodes}
                                             depth={0}
                                             visited={new Set()}
+                                            expandedRefs={expandedRefs}
+                                            toggleExpanded={toggleExpanded}
                                         />
                                     ) : null;
                                 }}
@@ -269,6 +281,8 @@ function DiffTreeNodeRow(props: {
     allNodes: Map<string, TreeNode>;
     depth: number;
     visited: Set<string>;
+    expandedRefs: Accessor<Set<string>>;
+    toggleExpanded: (ref: string) => void;
 }) {
     const isCyclic = () => props.visited.has(props.node.ref);
     const isChanged = () => props.node.changeKind !== undefined;
@@ -282,10 +296,10 @@ function DiffTreeNodeRow(props: {
             return child !== undefined && (child.changeKind !== undefined || child.hasChangedDesc);
         });
 
-    const [expanded, setExpanded] = createSignal(false);
+    const isExpanded = () => props.expandedRefs().has(props.node.ref);
 
     const childNodes = createMemo(() => {
-        if (!expanded() || isCyclic()) return [];
+        if (!isExpanded() || isCyclic()) return [];
         return relevantChildren()
             .map((ref) => props.allNodes.get(ref))
             .filter((n): n is TreeNode => n !== undefined);
@@ -313,7 +327,7 @@ function DiffTreeNodeRow(props: {
                         opacity: isChanged() ? "1" : "0.55",
                     }}
                     onClick={() =>
-                        relevantChildren().length > 0 && setExpanded(!expanded())
+                        relevantChildren().length > 0 && props.toggleExpanded(props.node.ref)
                     }
                 >
                     <td>
@@ -334,7 +348,7 @@ function DiffTreeNodeRow(props: {
                                     "flex-shrink": "0",
                                     transition: "transform 0.15s",
                                     transform:
-                                        relevantChildren().length > 0 && expanded()
+                                        relevantChildren().length > 0 && isExpanded()
                                             ? "rotate(90deg)"
                                             : "rotate(0deg)",
                                 }}
@@ -404,7 +418,7 @@ function DiffTreeNodeRow(props: {
                         )}
                     </td>
                 </tr>
-                <Show when={expanded() && !isCyclic()}>
+                <Show when={isExpanded() && !isCyclic()}>
                     <For each={childNodes()}>
                         {(child) => (
                             <DiffTreeNodeRow
@@ -412,6 +426,8 @@ function DiffTreeNodeRow(props: {
                                 allNodes={props.allNodes}
                                 depth={props.depth + 1}
                                 visited={nextVisited()}
+                                expandedRefs={props.expandedRefs}
+                                toggleExpanded={props.toggleExpanded}
                             />
                         )}
                     </For>
