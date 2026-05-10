@@ -51,7 +51,7 @@ Drop the `@<version>` segment. Then partition the `?key=value&…` qualifier str
 
 | Qualifier | Identity? | Rationale |
 |---|---|---|
-| `distro` | **yes** | distro pinning is part of provenance (alpine vs wolfi vs chainguard) |
+| `distro` | **yes — family only** | Distro **family** is identity (alpine vs wolfi vs chainguard). The trailing version suffix (`-3.14.3`, `-22.04`, `-34`) is normalized away so the same package matches across distro releases. See "Distro normalization" below. |
 | `arch` | **yes** | `curl` for `amd64` is not the same artifact as `curl` for `arm64` |
 | `epoch` | **yes** | epoch is part of Debian package identity, not just version |
 | `repository_url` | **yes** | same name, different repo → different supply chain |
@@ -61,6 +61,28 @@ Drop the `@<version>` segment. Then partition the `?key=value&…` qualifier str
 
 The retained qualifiers are sorted alphabetically before being appended, so two purls that differ only in qualifier order produce identical keys.
 
+**Distro normalization.** The `distro=` qualifier value commonly carries
+both family and release (`alpine-3.14.3`, `fedora-34`, `debian-12`,
+`ubuntu-22.04`). Treating the whole value as identity-bearing causes a
+phantom remove+add for every package whenever the underlying distro
+release bumps — even though the identity (alpine) is unchanged. The
+qualifier value is normalized by stripping a trailing `-<version>`
+suffix matching `-[0-9][A-Za-z0-9.-]*$`. So:
+
+| Raw distro value | Identity-form |
+|---|---|
+| `alpine-3.14.3` | `alpine` |
+| `alpine-3.15.0` | `alpine` |
+| `fedora-34` | `fedora` |
+| `debian-12` | `debian` |
+| `ubuntu-22.04` | `ubuntu` |
+| `wolfi-os` | `wolfi-os` (no numeric suffix; unchanged) |
+| `chainguard` | `chainguard` (no suffix; unchanged) |
+
+Family separation is preserved by purl namespace
+(`pkg:apk/alpine/...` vs `pkg:apk/wolfi/...`), so the normalization
+does not collapse cross-family identities.
+
 **Examples.**
 
 | Old purl | New purl | Same identity? |
@@ -69,6 +91,8 @@ The retained qualifiers are sorted alphabetically before being appended, so two 
 | `pkg:apk/wolfi/curl@8.6.0` | `pkg:apk/alpine/curl@8.6.0` | **no** — different namespaces |
 | `pkg:apk/wolfi/curl@8.6.0?distro=wolfi-os` | `pkg:apk/wolfi/curl@8.7.0?distro=wolfi-os` | yes |
 | `pkg:apk/wolfi/curl?download_url=https://a.example` | `pkg:apk/wolfi/curl?download_url=https://b.example` | yes (download_url is not identity) |
+| `pkg:apk/alpine/curl?distro=alpine-3.14.3` | `pkg:apk/alpine/curl?distro=alpine-3.15.0` | yes — distro version stripped, both normalize to `distro=alpine` |
+| `pkg:apk/alpine/curl?distro=alpine-3.15.0` | `pkg:apk/wolfi/curl?distro=wolfi-os` | **no** — purl namespace differs (alpine vs wolfi) |
 
 ### Rule 2 — Fallback key: type + group + name
 

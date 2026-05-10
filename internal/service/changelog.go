@@ -20,6 +20,11 @@ import (
 // e.g. "-1.25" in "go-1.25" or "-3.12" in "python-3.12".
 var versionSuffixRe = regexp.MustCompile(`-[0-9][0-9.]*$`)
 
+// distroVersionSuffixRe matches a trailing version suffix on a distro
+// qualifier value, e.g. "-3.14.3" in "alpine-3.14.3" or "-34" in "fedora-34".
+// Used to normalize distro to family-only for identity (ADR-0019 Rule 1).
+var distroVersionSuffixRe = regexp.MustCompile(`-[0-9][A-Za-z0-9.-]*$`)
+
 // identityQualifiers are the only purl qualifiers that contribute to component identity.
 // Everything else is noise (download_url, checksum, tag, commit, vcs_url, …).
 var identityQualifiers = map[string]bool{
@@ -953,10 +958,16 @@ func normalizeComponentPurl(purl string) string {
 	}
 	var kept []string
 	for _, kv := range strings.Split(qs, "&") {
-		k, _, _ := strings.Cut(kv, "=")
-		if identityQualifiers[k] {
-			kept = append(kept, kv)
+		k, val, _ := strings.Cut(kv, "=")
+		if !identityQualifiers[k] {
+			continue
 		}
+		if k == "distro" {
+			val = distroVersionSuffixRe.ReplaceAllString(val, "")
+			kept = append(kept, k+"="+val)
+			continue
+		}
+		kept = append(kept, kv)
 	}
 	if len(kept) == 0 {
 		return path

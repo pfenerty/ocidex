@@ -674,14 +674,14 @@ func TestNormalizeComponentPurl(t *testing.T) {
 			want: "pkg:apk/wolfi/curl?distro=wolfi-os",
 		},
 		{
-			name: "sorts identity qualifiers alphabetically",
+			name: "sorts identity qualifiers alphabetically (distro version stripped)",
 			purl: "pkg:deb/ubuntu/curl@7.0?epoch=1&arch=amd64&distro=ubuntu-22.04",
-			want: "pkg:deb/ubuntu/curl?arch=amd64&distro=ubuntu-22.04&epoch=1",
+			want: "pkg:deb/ubuntu/curl?arch=amd64&distro=ubuntu&epoch=1",
 		},
 		{
-			name: "qualifier order normalization — same result",
+			name: "qualifier order normalization — same result (distro version stripped)",
 			purl: "pkg:deb/ubuntu/curl@7.0?distro=ubuntu-22.04&arch=amd64",
-			want: "pkg:deb/ubuntu/curl?arch=amd64&distro=ubuntu-22.04",
+			want: "pkg:deb/ubuntu/curl?arch=amd64&distro=ubuntu",
 		},
 		{
 			name: "unknown qualifier treated as noise",
@@ -702,6 +702,41 @@ func TestNormalizeComponentPurl(t *testing.T) {
 			name: "repository_url is identity",
 			purl: "pkg:deb/ubuntu/curl@1.0?repository_url=https://ppa.example",
 			want: "pkg:deb/ubuntu/curl?repository_url=https://ppa.example",
+		},
+		{
+			name: "distro family kept, version stripped (alpine 3.14.3)",
+			purl: "pkg:apk/alpine/curl@8.0?distro=alpine-3.14.3",
+			want: "pkg:apk/alpine/curl?distro=alpine",
+		},
+		{
+			name: "distro family kept, version stripped (alpine 3.15.0)",
+			purl: "pkg:apk/alpine/curl@8.0?distro=alpine-3.15.0",
+			want: "pkg:apk/alpine/curl?distro=alpine",
+		},
+		{
+			name: "distro family kept, version stripped (fedora 34)",
+			purl: "pkg:rpm/fedora/curl@8.0?distro=fedora-34",
+			want: "pkg:rpm/fedora/curl?distro=fedora",
+		},
+		{
+			name: "distro family kept, version stripped (debian 12)",
+			purl: "pkg:deb/debian/curl@8.0?distro=debian-12",
+			want: "pkg:deb/debian/curl?distro=debian",
+		},
+		{
+			name: "distro 'wolfi-os' has no numeric suffix — unchanged",
+			purl: "pkg:apk/wolfi/curl@8.0?distro=wolfi-os",
+			want: "pkg:apk/wolfi/curl?distro=wolfi-os",
+		},
+		{
+			name: "distro 'chainguard' bare — unchanged",
+			purl: "pkg:apk/chainguard/curl@8.0?distro=chainguard",
+			want: "pkg:apk/chainguard/curl?distro=chainguard",
+		},
+		{
+			name: "distro normalization preserves alphabetical qualifier sort",
+			purl: "pkg:apk/alpine/curl@8.0?distro=alpine-3.15.0&arch=aarch64",
+			want: "pkg:apk/alpine/curl?arch=aarch64&distro=alpine",
 		},
 	}
 	for _, tc := range tests {
@@ -898,6 +933,80 @@ func TestDiffComponents_VersionedNameEdgeCases(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestDiffComponents_DistroVersionDrift verifies that packages whose only
+// difference between two SBOMs is the distro qualifier version (alpine-3.14.3
+// → alpine-3.15.0) collapse to a single upgrade rather than reporting as
+// remove+add. Goes through buildPackageMap so the test exercises the full
+// production normalization path.
+func TestDiffComponents_DistroVersionDrift(t *testing.T) {
+	is := is.New(t)
+	tx := func(s string) pgtype.Text { return pgtype.Text{String: s, Valid: true} }
+
+	oldRows := []repository.ListSBOMPackagesRow{
+		{
+			Type:    "library",
+			Name:    "alpine-baselayout",
+			Version: tx("3.2.0-r16"),
+			Purl:    tx("pkg:apk/alpine/alpine-baselayout@3.2.0-r16?arch=aarch64&distro=alpine-3.14.3"),
+		},
+		{
+			Type:    "library",
+			Name:    "musl",
+			Version: tx("1.2.2-r3"),
+			Purl:    tx("pkg:apk/alpine/musl@1.2.2-r3?arch=aarch64&distro=alpine-3.14.3"),
+		},
+	}
+	newRows := []repository.ListSBOMPackagesRow{
+		{
+			Type:    "library",
+			Name:    "alpine-baselayout",
+			Version: tx("3.2.0-r18"),
+			Purl:    tx("pkg:apk/alpine/alpine-baselayout@3.2.0-r18?arch=aarch64&distro=alpine-3.15.0"),
+		},
+		{
+			Type:    "library",
+			Name:    "musl",
+			Version: tx("1.2.2-r7"),
+			Purl:    tx("pkg:apk/alpine/musl@1.2.2-r7?arch=aarch64&distro=alpine-3.15.0"),
+		},
+	}
+
+	entry := diffComponents(SBOMRef{ID: "a"}, SBOMRef{ID: "b"}, buildPackageMap(oldRows), buildPackageMap(newRows))
+	is.Equal(entry.Summary.Upgraded, 2)
+	is.Equal(entry.Summary.Added, 0)
+	is.Equal(entry.Summary.Removed, 0)
+}
+
+// TestDiffComponents_DistroFamiliesStayDistinct verifies that distro
+// normalization preserves the alpine vs wolfi vs chainguard distinction
+// (the original purpose of the qualifier-as-identity rule).
+func TestDiffComponents_DistroFamiliesStayDistinct(t *testing.T) {
+	is := is.New(t)
+	tx := func(s string) pgtype.Text { return pgtype.Text{String: s, Valid: true} }
+
+	oldRows := []repository.ListSBOMPackagesRow{
+		{
+			Type:    "library",
+			Name:    "curl",
+			Version: tx("8.0"),
+			Purl:    tx("pkg:apk/alpine/curl@8.0?distro=alpine-3.15.0"),
+		},
+	}
+	newRows := []repository.ListSBOMPackagesRow{
+		{
+			Type:    "library",
+			Name:    "curl",
+			Version: tx("8.0"),
+			Purl:    tx("pkg:apk/wolfi/curl@8.0?distro=wolfi-os"),
+		},
+	}
+
+	entry := diffComponents(SBOMRef{ID: "a"}, SBOMRef{ID: "b"}, buildPackageMap(oldRows), buildPackageMap(newRows))
+	is.Equal(entry.Summary.Removed, 1)
+	is.Equal(entry.Summary.Added, 1)
+	is.Equal(entry.Summary.Upgraded, 0)
 }
 
 func TestSbomToRef(t *testing.T) {
