@@ -15,6 +15,7 @@ interface TreeNode {
     changeKind?: string;
     children: string[];
     hasChangedDesc: boolean;
+    isDirect: boolean;
     descendantChanges?: { added: number; removed: number; upgraded: number; downgraded: number; modified: number };
 }
 
@@ -96,6 +97,12 @@ export function DiffTreeView(props: { tree: DiffTree }) {
             if (!changeMap.has(nameKey)) changeMap.set(nameKey, info);
         }
 
+        // Build direct-dep set from backend isDirect flag
+        const isDirectSet = new Set<string>();
+        for (const node of props.tree.nodes ?? []) {
+            if (node.isDirect && node.bomRef !== undefined && node.bomRef !== "") isDirectSet.add(node.bomRef);
+        }
+
         // Build adjacency
         const adj = new Map<string, string[]>();
         const allTargets = new Set<string>();
@@ -130,6 +137,7 @@ export function DiffTreeView(props: { tree: DiffTree }) {
                 changeKind: changeInfo?.kind,
                 children: adj.get(ref) ?? [],
                 hasChangedDesc,
+                isDirect: isDirectSet.has(ref),
                 descendantChanges: info.descendantChanges,
             });
         }
@@ -157,6 +165,8 @@ export function DiffTreeView(props: { tree: DiffTree }) {
     });
 
     const [expandedRefs, setExpandedRefs] = createSignal(new Set<string>(), { equals: false });
+    const [showContext,    setShowContext]    = createSignal(false);
+    const [showTransitive, setShowTransitive] = createSignal(false);
 
     const toggleExpanded = (ref: string) => {
         setExpandedRefs(s => {
@@ -164,6 +174,15 @@ export function DiffTreeView(props: { tree: DiffTree }) {
             if (next.has(ref)) next.delete(ref); else next.add(ref);
             return next;
         });
+    };
+
+    const expandAllChanged = () => {
+        const { nodes } = treeData();
+        const toExpand = new Set<string>();
+        for (const [ref, node] of nodes) {
+            if (node.hasChangedDesc) toExpand.add(ref);
+        }
+        setExpandedRefs(() => toExpand);
     };
 
     // DFS over roots → flat array of visible rows in traversal order.
@@ -175,11 +194,16 @@ export function DiffTreeView(props: { tree: DiffTree }) {
         const result: Row[] = [];
         const pathSet = new Set<string>();
 
+        const ctx = showContext();
+        const transitive = showTransitive();
+
         function visit(ref: string, depth: number) {
             if (pathSet.has(ref)) return;
             const node = nodes.get(ref);
             if (!node) return;
             if (node.changeKind === undefined && node.purl === undefined) return;
+            if (!ctx && node.changeKind === undefined && !node.hasChangedDesc) return;
+            if (!transitive && !node.isDirect && node.changeKind === undefined) return;
 
             const relevantChildren = node.children.filter((childRef) => {
                 const child = nodes.get(childRef);
@@ -240,6 +264,30 @@ export function DiffTreeView(props: { tree: DiffTree }) {
                         )}
                     </For>
                 </div>
+            </div>
+            <div style={{ display: "flex", gap: "0.75rem", "align-items": "center", padding: "0.5rem 0", "flex-wrap": "wrap" }}>
+                <button
+                    class="btn btn-sm"
+                    onClick={expandAllChanged}
+                >
+                    Expand all changed
+                </button>
+                <label style={{ display: "flex", gap: "0.35rem", "align-items": "center", "font-size": "0.85rem", cursor: "pointer" }}>
+                    <input
+                        type="checkbox"
+                        checked={showContext()}
+                        onChange={(e) => setShowContext(e.currentTarget.checked)}
+                    />
+                    Show context
+                </label>
+                <label style={{ display: "flex", gap: "0.35rem", "align-items": "center", "font-size": "0.85rem", cursor: "pointer" }}>
+                    <input
+                        type="checkbox"
+                        checked={showTransitive()}
+                        onChange={(e) => setShowTransitive(e.currentTarget.checked)}
+                    />
+                    Show transitive
+                </label>
             </div>
             <Show
                 when={treeData().roots.length > 0 || treeData().removedOrphans.length > 0}
