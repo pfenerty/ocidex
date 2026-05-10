@@ -13,11 +13,11 @@ docker_build(
 
 k8s_yaml(kustomize('k8s/overlays/dev'))
 
-k8s_resource('ocidex-api', port_forwards='8080:8080', labels=['app'])
+k8s_resource('ocidex-api', port_forwards=port_forward(8080, 8080, host='0.0.0.0'), labels=['app'])
 k8s_resource('ocidex-scanner-worker', labels=['workers'])
 k8s_resource('ocidex-enrichment-worker', labels=['workers'])
 k8s_resource('nats', labels=['infra'])
-k8s_resource('postgres', port_forwards='5432:5432', labels=['infra'])
+k8s_resource('postgres', port_forwards=port_forward(5432, 5432, host='0.0.0.0'), labels=['infra'])
 
 local_resource(
     'web',
