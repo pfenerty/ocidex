@@ -9,38 +9,50 @@
 -- The match is exact path: the component's purl path or name must equal
 -- the source URL stripped of scheme and ".git" suffix. Submodules are NOT
 -- backfilled (their UNKNOWN may have unrelated causes).
+--
+-- Performance note: an earlier draft of this migration evaluated
+-- regexp_replace on every component row and OOMed/hung on production-
+-- size tables (~1M components). This version drives from the small
+-- main_module CTE (~one row per SBOM with a source label, typically a
+-- few hundred), uses the idx_component_sbom_id index to fetch per-SBOM
+-- components, and matches by LIKE prefix instead of regex.
 
-WITH source_per_sbom AS (
-    SELECT
-        s.id AS sbom_id,
-        s.subject_version,
-        -- Try metadata.component.properties first, then top-level metadata.properties.
-        COALESCE(
-            (SELECT prop->>'value'
-             FROM jsonb_array_elements(COALESCE(s.raw_bom #> '{metadata,component,properties}', '[]'::jsonb)) AS prop
-             WHERE prop->>'name' IN (
-                 'syft:image:labels:org.opencontainers.image.source',
-                 'aquasecurity:trivy:Labels:org.opencontainers.image.source'
-             )
-             AND prop->>'value' <> ''
-             LIMIT 1),
-            (SELECT prop->>'value'
-             FROM jsonb_array_elements(COALESCE(s.raw_bom #> '{metadata,properties}', '[]'::jsonb)) AS prop
-             WHERE prop->>'name' IN (
-                 'syft:image:labels:org.opencontainers.image.source',
-                 'aquasecurity:trivy:Labels:org.opencontainers.image.source'
-             )
-             AND prop->>'value' <> ''
-             LIMIT 1)
-        ) AS raw_source
-    FROM sbom s
-    WHERE s.subject_version IS NOT NULL AND s.subject_version <> ''
-),
-main_module AS (
+-- +goose StatementBegin
+DO $$
+DECLARE
+    rec RECORD;
+BEGIN
+    -- Pre-build the (sbom_id, subject_version, module_path) tuples we care
+    -- about. Tiny relative to component (one row per SBOM with a source label).
+    CREATE TEMP TABLE _main_module ON COMMIT DROP AS
+    WITH source_per_sbom AS (
+        SELECT
+            s.id AS sbom_id,
+            s.subject_version,
+            COALESCE(
+                (SELECT prop->>'value'
+                 FROM jsonb_array_elements(COALESCE(s.raw_bom #> '{metadata,component,properties}', '[]'::jsonb)) AS prop
+                 WHERE prop->>'name' IN (
+                     'syft:image:labels:org.opencontainers.image.source',
+                     'aquasecurity:trivy:Labels:org.opencontainers.image.source'
+                 )
+                 AND prop->>'value' <> ''
+                 LIMIT 1),
+                (SELECT prop->>'value'
+                 FROM jsonb_array_elements(COALESCE(s.raw_bom #> '{metadata,properties}', '[]'::jsonb)) AS prop
+                 WHERE prop->>'name' IN (
+                     'syft:image:labels:org.opencontainers.image.source',
+                     'aquasecurity:trivy:Labels:org.opencontainers.image.source'
+                 )
+                 AND prop->>'value' <> ''
+                 LIMIT 1)
+            ) AS raw_source
+        FROM sbom s
+        WHERE s.subject_version IS NOT NULL AND s.subject_version <> ''
+    )
     SELECT
         sbom_id,
         subject_version,
-        -- Strip scheme, user@ credentials, trailing .git, trailing /.
         regexp_replace(
             regexp_replace(
                 regexp_replace(raw_source, '^[a-zA-Z+]+://', ''),
@@ -51,43 +63,41 @@ main_module AS (
             ''
         ) AS module_path
     FROM source_per_sbom
-    WHERE raw_source IS NOT NULL AND raw_source <> ''
-)
-UPDATE component c
-SET version = mm.subject_version
-FROM main_module mm
-WHERE c.sbom_id = mm.sbom_id
-  AND (c.version = 'UNKNOWN' OR c.version IS NULL OR c.version = '')
-  AND mm.module_path <> ''
-  AND (
-      -- Match by purl path: pkg:<type>/<path>[@version][?qualifiers]
-      regexp_replace(
-          regexp_replace(c.purl, '^pkg:[^/]+/', ''),
-          '[@?].*$',
-          ''
-      ) = mm.module_path
-      -- Or match by name when purl is absent.
-      OR (c.purl IS NULL AND c.name = mm.module_path)
-  );
+    WHERE raw_source IS NOT NULL AND raw_source <> '';
 
--- Recompute version_major/minor/patch for the rows we just touched. Use the
--- same parsing semantics as service.parseSemver: strip a leading 'v' if
--- present, then take the first three dot-separated integer segments.
-UPDATE component c
-SET
-    version_major = NULLIF(substring(c.version FROM '^v?(\d+)'), '')::int,
-    version_minor = NULLIF(substring(c.version FROM '^v?\d+\.(\d+)'), '')::int,
-    version_patch = NULLIF(substring(c.version FROM '^v?\d+\.\d+\.(\d+)'), '')::int
-FROM sbom s
-WHERE c.sbom_id = s.id
-  AND c.version = s.subject_version
-  AND s.subject_version IS NOT NULL
-  AND s.subject_version <> ''
-  AND c.version IS NOT NULL
-  AND c.version <> '';
+    DELETE FROM _main_module WHERE module_path = '';
+
+    -- For each main module, update at most a handful of matching components.
+    -- Driving the loop here means every UPDATE statement touches only rows
+    -- selected via idx_component_sbom_id — never a full sequential scan.
+    --
+    -- Filter on version IN ('UNKNOWN','') only — files legitimately have
+    -- NULL version and we don't want to touch them. Restrict to library/
+    -- application types for the same reason.
+    FOR rec IN SELECT sbom_id, subject_version, module_path FROM _main_module LOOP
+        UPDATE component c
+        SET
+            version       = rec.subject_version,
+            version_major = NULLIF(substring(rec.subject_version FROM '^v?(\d+)'), '')::int,
+            version_minor = NULLIF(substring(rec.subject_version FROM '^v?\d+\.(\d+)'), '')::int,
+            version_patch = NULLIF(substring(rec.subject_version FROM '^v?\d+\.\d+\.(\d+)'), '')::int
+        WHERE c.sbom_id = rec.sbom_id
+          AND (c.version = 'UNKNOWN' OR c.version = '')
+          AND c.type IN ('library', 'application')
+          AND (
+              -- purl form: 'pkg:<type>/<module_path>' optionally followed by @ or ?
+              c.purl =      'pkg:golang/' || rec.module_path
+              OR c.purl LIKE 'pkg:%/'      || rec.module_path
+              OR c.purl LIKE 'pkg:%/'      || rec.module_path || '@%'
+              OR c.purl LIKE 'pkg:%/'      || rec.module_path || '?%'
+              -- Fallback: match by name when purl is absent.
+              OR (c.purl IS NULL AND c.name = rec.module_path)
+          );
+    END LOOP;
+END $$;
+-- +goose StatementEnd
 
 -- +goose Down
--- Down: no inverse — we don't track which rows were backfilled. The forward
--- migration is idempotent (re-running it produces the same result), so a
--- down migration that resets to NULL would lose data added between Up and Down.
+-- No inverse: we don't track which rows were backfilled. The forward
+-- migration is idempotent (re-running produces the same result).
 SELECT 1;
