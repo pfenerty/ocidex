@@ -104,11 +104,17 @@ dev-registry: ## Start the local Docker registry used by the Talos dev cluster
 
 dev-cluster-up: dev-registry ## Create local Talos dev cluster wired to the local registry
 	@if [ "$$(id -u)" = "0" ]; then echo "ERROR: do not run as root — your user is in the docker group"; exit 1; fi
+	@if [ ! -f /proc/sys/net/bridge/bridge-nf-call-iptables ]; then \
+	  echo "ERROR: br_netfilter kernel module not loaded (required by flannel CNI)."; \
+	  echo "Run: sudo modprobe br_netfilter && echo br_netfilter | sudo tee /etc/modules-load.d/br_netfilter.conf"; \
+	  exit 1; \
+	fi
 	talosctl cluster create docker \
 	  --name ocidex-dev \
 	  --workers 1 \
 	  --config-patch @tilt/talos-cluster.yaml \
-	  || echo "talosctl exited non-zero (likely CoreDNS bootstrap timeout); checking cluster directly..."
+	  || echo "talosctl exited non-zero (likely CoreDNS bootstrap timeout); proceeding..."
+	talosctl --context ocidex-dev --nodes 10.5.0.2 kubeconfig --force --force-context-name admin@ocidex-dev
 	kubectl --context admin@ocidex-dev wait --for=condition=Ready nodes --all --timeout=180s
 	kubectl --context admin@ocidex-dev wait --for=condition=Ready pods --all -n kube-system --timeout=180s
 
