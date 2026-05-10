@@ -157,6 +157,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 
 	arch := resolveArchitecture(bom, params)
 	bd := resolveBuildDate(bom, params)
+	flavor := detectFlavor(bom, info.subjectVersion.String)
 
 	// Mandatory validation for container SBOMs.
 	if err := validateContainerRequired(bom, info, arch, bd); err != nil {
@@ -172,6 +173,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		SubjectVersion: info.subjectVersion,
 		Digest:         info.digest,
 		RegistryID:     params.RegistryID,
+		Flavor:         pgtype.Text{String: flavor, Valid: true},
 	})
 	if err != nil {
 		return pgtype.UUID{}, fmt.Errorf("inserting sbom: %w", err)

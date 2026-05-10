@@ -1,7 +1,10 @@
 -- name: InsertSBOM :one
-INSERT INTO sbom (serial_number, spec_version, version, raw_bom, artifact_id, subject_version, digest, registry_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO sbom (serial_number, spec_version, version, raw_bom, artifact_id, subject_version, digest, registry_id, flavor)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING id, serial_number, spec_version, version, created_at;
+
+-- name: UpdateSBOMFlavor :exec
+UPDATE sbom SET flavor = $2 WHERE id = $1;
 
 -- name: InsertComponent :one
 INSERT INTO component (
