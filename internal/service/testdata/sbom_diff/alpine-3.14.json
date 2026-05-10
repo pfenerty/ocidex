@@ -1,0 +1,68 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "serialNumber": "urn:uuid:11111111-1111-1111-1111-111111111111",
+  "metadata": {
+    "component": {
+      "bom-ref": "pkg:oci/dex@sha256:aaaaaaaa",
+      "type": "container",
+      "name": "dex",
+      "version": "v2.30.3"
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "pkg:apk/alpine/alpine-baselayout@3.2.0-r16?arch=aarch64&distro=alpine-3.14.3",
+      "type": "library",
+      "name": "alpine-baselayout",
+      "version": "3.2.0-r16",
+      "purl": "pkg:apk/alpine/alpine-baselayout@3.2.0-r16?arch=aarch64&distro=alpine-3.14.3"
+    },
+    {
+      "bom-ref": "pkg:apk/alpine/busybox@1.33.1-r6?arch=aarch64&distro=alpine-3.14.3",
+      "type": "library",
+      "name": "busybox",
+      "version": "1.33.1-r6",
+      "purl": "pkg:apk/alpine/busybox@1.33.1-r6?arch=aarch64&distro=alpine-3.14.3"
+    },
+    {
+      "bom-ref": "pkg:apk/alpine/musl@1.2.2-r3?arch=aarch64&distro=alpine-3.14.3",
+      "type": "library",
+      "name": "musl",
+      "version": "1.2.2-r3",
+      "purl": "pkg:apk/alpine/musl@1.2.2-r3?arch=aarch64&distro=alpine-3.14.3"
+    },
+    {
+      "bom-ref": "pkg:apk/alpine/libssl1.1@1.1.1l-r0?arch=aarch64&distro=alpine-3.14.3",
+      "type": "library",
+      "name": "libssl1.1",
+      "version": "1.1.1l-r0",
+      "purl": "pkg:apk/alpine/libssl1.1@1.1.1l-r0?arch=aarch64&distro=alpine-3.14.3"
+    },
+    {
+      "bom-ref": "pkg:apk/alpine/openssl@1.1.1l-r0?arch=aarch64&distro=alpine-3.14.3",
+      "type": "library",
+      "name": "openssl",
+      "version": "1.1.1l-r0",
+      "purl": "pkg:apk/alpine/openssl@1.1.1l-r0?arch=aarch64&distro=alpine-3.14.3"
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:oci/dex@sha256:aaaaaaaa",
+      "dependsOn": [
+        "pkg:apk/alpine/alpine-baselayout@3.2.0-r16?arch=aarch64&distro=alpine-3.14.3",
+        "pkg:apk/alpine/busybox@1.33.1-r6?arch=aarch64&distro=alpine-3.14.3",
+        "pkg:apk/alpine/musl@1.2.2-r3?arch=aarch64&distro=alpine-3.14.3",
+        "pkg:apk/alpine/libssl1.1@1.1.1l-r0?arch=aarch64&distro=alpine-3.14.3",
+        "pkg:apk/alpine/openssl@1.1.1l-r0?arch=aarch64&distro=alpine-3.14.3"
+      ]
+    },
+    {
+      "ref": "pkg:apk/alpine/libssl1.1@1.1.1l-r0?arch=aarch64&distro=alpine-3.14.3",
+      "dependsOn": [
+        "pkg:apk/alpine/musl@1.2.2-r3?arch=aarch64&distro=alpine-3.14.3"
+      ]
+    }
+  ]
+}
