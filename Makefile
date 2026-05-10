@@ -113,8 +113,10 @@ dev-cluster-up: dev-registry ## Create local Talos dev cluster wired to the loca
 	kubectl --context admin@ocidex-dev wait --for=condition=Ready pods --all -n kube-system --timeout=180s
 
 dev-cluster-down: ## Destroy local Talos dev cluster and its registry
-	talosctl cluster destroy --name ocidex-dev || true
-	docker rm -f ocidex-dev-registry || true
+	talosctl --name ocidex-dev cluster destroy --force 2>/dev/null || true
+	rm -rf $(HOME)/.talos/clusters/ocidex-dev
+	docker rm -f ocidex-dev-controlplane-1 ocidex-dev-worker-1 ocidex-dev-registry 2>/dev/null || true
+	docker network rm ocidex-dev 2>/dev/null || true
 
 dev-up: ## Build, deploy, and watch ocidex on the local Talos cluster (Tilt)
 	@command -v tilt >/dev/null || { echo "tilt not on PATH — run inside 'flox activate'"; exit 1; }
