@@ -531,6 +531,163 @@ func TestDiffSBOMs_DBError(t *testing.T) {
 	is.True(err != nil)
 }
 
+// ---------------------------------------------------------------------------
+// normalizeComponentPurl (E2 — ADR 0019 Rule 1)
+// ---------------------------------------------------------------------------
+
+func TestNormalizeComponentPurl(t *testing.T) {
+	tests := []struct {
+		name string
+		purl string
+		want string
+	}{
+		{
+			name: "strips version, no qualifiers",
+			purl: "pkg:deb/ubuntu/curl@7.81.0-1ubuntu1.15",
+			want: "pkg:deb/ubuntu/curl",
+		},
+		{
+			name: "strips version, keeps identity qualifier",
+			purl: "pkg:deb/ubuntu/curl@7.81.0?arch=amd64",
+			want: "pkg:deb/ubuntu/curl?arch=amd64",
+		},
+		{
+			name: "drops noise qualifier download_url",
+			purl: "pkg:apk/wolfi/curl@8.6.0?download_url=https://a.example",
+			want: "pkg:apk/wolfi/curl",
+		},
+		{
+			name: "keeps distro, drops download_url",
+			purl: "pkg:apk/wolfi/curl@8.6.0?distro=wolfi-os&download_url=https://a.example",
+			want: "pkg:apk/wolfi/curl?distro=wolfi-os",
+		},
+		{
+			name: "sorts identity qualifiers alphabetically",
+			purl: "pkg:deb/ubuntu/curl@7.0?epoch=1&arch=amd64&distro=ubuntu-22.04",
+			want: "pkg:deb/ubuntu/curl?arch=amd64&distro=ubuntu-22.04&epoch=1",
+		},
+		{
+			name: "qualifier order normalization — same result",
+			purl: "pkg:deb/ubuntu/curl@7.0?distro=ubuntu-22.04&arch=amd64",
+			want: "pkg:deb/ubuntu/curl?arch=amd64&distro=ubuntu-22.04",
+		},
+		{
+			name: "unknown qualifier treated as noise",
+			purl: "pkg:npm/lodash@4.17.21?some_future_qualifier=x",
+			want: "pkg:npm/lodash",
+		},
+		{
+			name: "no version, no qualifiers",
+			purl: "pkg:deb/ubuntu/curl",
+			want: "pkg:deb/ubuntu/curl",
+		},
+		{
+			name: "all qualifiers are noise — returns bare path",
+			purl: "pkg:deb/ubuntu/curl@1.0?checksum=sha256:abc&tag=latest&commit=deadbeef",
+			want: "pkg:deb/ubuntu/curl",
+		},
+		{
+			name: "repository_url is identity",
+			purl: "pkg:deb/ubuntu/curl@1.0?repository_url=https://ppa.example",
+			want: "pkg:deb/ubuntu/curl?repository_url=https://ppa.example",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			is := is.New(t)
+			is.Equal(normalizeComponentPurl(tc.purl), tc.want)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// reconcileVersionedPackages survivor guard (E1 — ADR 0019 Rule 3)
+// ---------------------------------------------------------------------------
+
+func TestDiffComponents_SurvivorGuard(t *testing.T) {
+	from := SBOMRef{ID: "aaa"}
+	to := SBOMRef{ID: "bbb"}
+	v := func(s string) *string { return &s }
+
+	tests := []struct {
+		name         string
+		oldMap       map[string]componentIdentity
+		newMap       map[string]componentIdentity
+		wantUpgraded int
+		wantAdded    int
+		wantRemoved  int
+	}{
+		{
+			name: "clean upgrade — no survivor — collapses to modified",
+			oldMap: map[string]componentIdentity{
+				"library\x00gcc-11\x00": {version: v("11")},
+			},
+			newMap: map[string]componentIdentity{
+				"library\x00gcc-12\x00": {version: v("12")},
+			},
+			wantUpgraded: 1,
+		},
+		{
+			name: "survivor exists — does not collapse",
+			oldMap: map[string]componentIdentity{
+				"library\x00gcc-11\x00": {version: v("11")},
+				"library\x00gcc-12\x00": {version: v("12")},
+			},
+			newMap: map[string]componentIdentity{
+				"library\x00gcc-12\x00": {version: v("12")},
+				"library\x00gcc-13\x00": {version: v("13")},
+			},
+			// gcc-12 unchanged; gcc-11 removed; gcc-13 added. No collapse.
+			wantRemoved: 1,
+			wantAdded:   1,
+		},
+		{
+			name: "multi-add same base — does not collapse",
+			oldMap: map[string]componentIdentity{
+				"library\x00gcc-11\x00": {version: v("11")},
+			},
+			newMap: map[string]componentIdentity{
+				"library\x00gcc-12\x00": {version: v("12")},
+				"library\x00gcc-13\x00": {version: v("13")},
+			},
+			// Two new versions added, one old removed. No collapse.
+			wantRemoved: 1,
+			wantAdded:   2,
+		},
+		{
+			name: "same name after stripping — no collapse (same-name guard)",
+			oldMap: map[string]componentIdentity{
+				"library\x00libssl1\x00": {version: v("1.0")},
+			},
+			newMap: map[string]componentIdentity{
+				"library\x00libssl1\x00": {version: v("2.0")},
+			},
+			// Same component key — treated as upgraded directly, versionedNormKey returns "" (no dash).
+			wantUpgraded: 1,
+		},
+		{
+			name: "purl-based upgrade with qualifier — collapses correctly",
+			oldMap: map[string]componentIdentity{
+				"pkg:deb/ubuntu/gcc-11?arch=amd64": {version: v("11")},
+			},
+			newMap: map[string]componentIdentity{
+				"pkg:deb/ubuntu/gcc-12?arch=amd64": {version: v("12")},
+			},
+			wantUpgraded: 1,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			is := is.New(t)
+			entry := diffComponents(from, to, tc.oldMap, tc.newMap)
+			is.Equal(entry.Summary.Upgraded, tc.wantUpgraded)
+			is.Equal(entry.Summary.Added, tc.wantAdded)
+			is.Equal(entry.Summary.Removed, tc.wantRemoved)
+		})
+	}
+}
+
 func TestSbomToRef(t *testing.T) {
 	is := is.New(t)
 	id := pgtype.UUID{Bytes: [16]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}, Valid: true}
