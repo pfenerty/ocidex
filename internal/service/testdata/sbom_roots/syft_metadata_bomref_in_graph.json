@@ -1,0 +1,22 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "metadata": {
+    "component": {
+      "bom-ref": "pkg:oci/myimage@sha256:aaaa",
+      "type": "container",
+      "name": "myimage"
+    }
+  },
+  "components": [
+    { "bom-ref": "pkg:deb/debian/curl@7.81.0",  "type": "library", "name": "curl" },
+    { "bom-ref": "pkg:deb/debian/libssl@1.1.1", "type": "library", "name": "libssl" },
+    { "bom-ref": "pkg:deb/debian/libc@2.31",    "type": "library", "name": "libc" }
+  ],
+  "dependencies": [
+    { "ref": "pkg:oci/myimage@sha256:aaaa",    "dependsOn": ["pkg:deb/debian/curl@7.81.0", "pkg:deb/debian/libssl@1.1.1"] },
+    { "ref": "pkg:deb/debian/curl@7.81.0",     "dependsOn": [] },
+    { "ref": "pkg:deb/debian/libssl@1.1.1",    "dependsOn": ["pkg:deb/debian/libc@2.31"] },
+    { "ref": "pkg:deb/debian/libc@2.31",       "dependsOn": [] }
+  ]
+}
