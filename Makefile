@@ -103,12 +103,10 @@ dev-registry: ## Start the local Docker registry used by the Talos dev cluster
 	  docker run -d --restart=always -p 5005:5000 --name ocidex-dev-registry registry:2
 
 dev-cluster-up: dev-registry ## Create local Talos dev cluster wired to the local registry
-	talosctl cluster create \
+	talosctl cluster create docker \
 	  --name ocidex-dev \
 	  --workers 1 \
-	  --controlplanes 1 \
-	  --config-patch @tilt/talos-cluster.yaml \
-	  --wait
+	  --config-patch @tilt/talos-cluster.yaml
 	kubectl --context admin@ocidex-dev wait --for=condition=Ready nodes --all --timeout=120s
 
 dev-cluster-down: ## Destroy local Talos dev cluster and its registry
