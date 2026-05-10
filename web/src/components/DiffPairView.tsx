@@ -38,7 +38,21 @@ export function DiffPairView(props: {
                     const hasTree = () =>
                         (tree.roots?.length ?? 0) > 0 || tree.edges.length > 0;
                     const effectiveMode = () => (hasTree() ? props.viewMode : "list");
+                    const fromArch = tree.from.architecture;
+                    const toArch = tree.to.architecture;
+                    const crossArch = fromArch !== undefined && fromArch !== "" &&
+                        toArch !== undefined && toArch !== "" &&
+                        fromArch !== toArch;
                     return (
+                    <>
+                    <Show when={crossArch}>
+                        <div class="alert alert-warning mb-4">
+                            Comparing across architectures ({fromArch} → {toArch}).
+                            Most package identities include the architecture, so changes here
+                            will appear as removed+added rather than upgraded. Pick same-arch
+                            SBOMs for a cleaner diff.
+                        </div>
+                    </Show>
                     <Show
                         when={effectiveMode() === "tree"}
                         fallback={
@@ -55,6 +69,7 @@ export function DiffPairView(props: {
                     >
                         <DiffTreeView tree={tree} />
                     </Show>
+                    </>
                     );
                 }}
             </Show>
