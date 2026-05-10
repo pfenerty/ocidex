@@ -4,3 +4,14 @@ machine:
       "localhost:5005":
         endpoints:
           - http://10.5.0.1:5005
+  kubelet:
+    extraConfig:
+      # Dev cluster on a workstation where the host disk may be tight.
+      # Default thresholds (nodefs.available<10%) cause disk-pressure
+      # taints that block scheduling for everything including CoreDNS.
+      evictionHard:
+        memory.available: "100Mi"
+        nodefs.available: "1%"
+        nodefs.inodesFree: "1%"
+        imagefs.available: "1%"
+        imagefs.inodesFree: "1%"

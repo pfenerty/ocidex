@@ -1,5 +1,6 @@
 load('ext://restart_process', 'docker_build_with_restart')
 
+allow_k8s_contexts('admin@ocidex-dev')
 default_registry('localhost:5005')
 
 docker_build(
