@@ -57,9 +57,21 @@ docker_build('ocidex-api',               target='api',               **_build_ct
 docker_build('ocidex-scanner-worker',    target='scanner-worker',    **_build_ctx)
 docker_build('ocidex-enrichment-worker', target='enrichment-worker', **_build_ctx)
 
+# Web image (Caddy + built SPA). Built so the in-cluster ocidex-web Deployment
+# has an image to pull. The Vite local_resource below still serves HMR on
+# http://localhost:3000 for day-to-day frontend work.
+docker_build(
+    'ocidex-web',
+    context='.',
+    dockerfile='docker/web/Dockerfile',
+    only=['web/'],
+    ignore=['web/dist', 'web/node_modules'],
+)
+
 k8s_yaml(kustomize('k8s/overlays/dev'))
 
 k8s_resource('ocidex-api', port_forwards=port_forward(8080, 8080, host='0.0.0.0'), labels=['app'])
+k8s_resource('ocidex-web', labels=['app'])
 k8s_resource('ocidex-scanner-worker', labels=['workers'])
 k8s_resource('ocidex-enrichment-worker', labels=['workers'])
 k8s_resource('nats', labels=['infra'])

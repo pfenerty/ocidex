@@ -8,3 +8,5 @@ resources:
   - postgres-service.yaml
   - postgres-statefulset.yaml
   - scanner-worker-deployment.yaml
+  - web-deployment.yaml
+  - web-service.yaml

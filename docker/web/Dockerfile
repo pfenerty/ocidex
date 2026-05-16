@@ -10,12 +10,9 @@ COPY web/ .
 RUN npx tsc && npx vite build
 
 # Serve stage
-FROM docker.io/nginx:bookworm
+FROM docker.io/caddy:2-alpine
 
-COPY web/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY web/Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /app/dist /srv
 
-EXPOSE 3000
-
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000/ || exit 1
+EXPOSE 80
