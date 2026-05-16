@@ -123,6 +123,19 @@ dev-cluster-down: ## Destroy local Talos dev cluster and its registry
 	rm -rf $(HOME)/.talos/clusters/ocidex-dev
 	docker rm -f ocidex-dev-controlplane-1 ocidex-dev-worker-1 ocidex-dev-registry 2>/dev/null || true
 	docker network rm ocidex-dev 2>/dev/null || true
+	@# Prune stale talos/kube context entries so the next dev-cluster-up isn't auto-renamed (ocidex-dev-2, etc).
+	@for ctx in $$(talosctl config contexts 2>/dev/null | awk 'NR>1 {n = ($$1 == "*") ? $$2 : $$1; if (n ~ /^ocidex-dev(-[0-9]+)?$$/) print n}'); do \
+	  talosctl config remove "$$ctx" -y >/dev/null 2>&1 || true; \
+	done
+	@for ctx in $$(kubectl config get-contexts -o name 2>/dev/null | grep -E '^admin@ocidex-dev(-[0-9]+)?$$'); do \
+	  kubectl config delete-context "$$ctx" >/dev/null 2>&1 || true; \
+	done
+	@for c in $$(kubectl config get-clusters 2>/dev/null | grep -E '^ocidex-dev(-[0-9]+)?$$'); do \
+	  kubectl config delete-cluster "$$c" >/dev/null 2>&1 || true; \
+	done
+	@for u in $$(kubectl config get-users 2>/dev/null | grep -E '^admin@ocidex-dev(-[0-9]+)?$$'); do \
+	  kubectl config delete-user "$$u" >/dev/null 2>&1 || true; \
+	done
 
 dev-up: ## Build, deploy, and watch ocidex on the local Talos cluster (Tilt)
 	@command -v tilt >/dev/null || { echo "tilt not on PATH — run inside 'flox activate'"; exit 1; }
