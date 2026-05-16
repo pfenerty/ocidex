@@ -139,6 +139,12 @@ dev-cluster-down: ## Destroy local Talos dev cluster and its registry
 
 dev-up: ## Build, deploy, and watch ocidex on the local Talos cluster (Tilt)
 	@command -v tilt >/dev/null || { echo "tilt not on PATH — run inside 'flox activate'"; exit 1; }
+	@# docker-compose binds the same host ports (5432, 4222, 5000, 8080, 3000) that Tilt port-forwards;
+	@# postgres has a restart policy and silently re-binds 5432 on Docker daemon start.
+	@if [ -f docker-compose.yml ] && [ -n "$$(docker compose ps -q 2>/dev/null)" ]; then \
+	  echo "stopping docker-compose stack (host port conflicts with Tilt port-forwards)"; \
+	  docker compose stop >/dev/null 2>&1 || true; \
+	fi
 	@# A suspended make dev-up (Ctrl-Z) or an orphan daemon from a prior session keeps port 10350 bound.
 	@if pgrep -x tilt >/dev/null 2>&1; then \
 	  echo "stopping existing tilt process(es): $$(pgrep -x tilt | tr '\n' ' ')"; \
