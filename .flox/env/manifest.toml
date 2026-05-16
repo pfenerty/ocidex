@@ -21,6 +21,7 @@ golangci-lint.pkg-path = "golangci-lint"
 tilt.pkg-path = "tilt"
 talosctl.pkg-path = "talosctl"
 kubectl.pkg-path = "kubectl"
+git-cliff.pkg-path = "git-cliff"
 # gum.pkg-path = "gum"
 # gum.version = "^0.14.5"
 

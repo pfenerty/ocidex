@@ -7,6 +7,9 @@
         "pkg-path": "curl",
         "outputs": "all"
       },
+      "git-cliff": {
+        "pkg-path": "git-cliff"
+      },
       "gnumake": {
         "pkg-path": "gnumake",
         "outputs": "all"
@@ -185,6 +188,126 @@
         "devdoc": "/nix/store/74hjnnn67f1ax4mkx4nwbcxaih6k5hrv-curl-8.17.0-devdoc",
         "man": "/nix/store/msaigk8gy4rikyxbxiqksh8njd5dx13h-curl-8.17.0-man",
         "out": "/nix/store/8ylzjm58ghiq60vklfy58j14sgryjjzw-curl-8.17.0"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "git-cliff",
+      "broken": false,
+      "derivation": "/nix/store/pv485953pxb66bji3572wx3jkxs2d1fc-git-cliff-2.12.0.drv",
+      "description": "Highly customizable Changelog Generator that follows Conventional Commit specifications",
+      "install_id": "git-cliff",
+      "license": "GPL-3.0-only",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "git-cliff-2.12.0",
+      "pname": "git-cliff",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T04:39:53.150860Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "2.12.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/wigp1xll94a678cs4gd5snnq6sj0b6sd-git-cliff-2.12.0"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "git-cliff",
+      "broken": false,
+      "derivation": "/nix/store/87rs7w5bd9m0y17wn6hbhk0xr2y3y4wn-git-cliff-2.12.0.drv",
+      "description": "Highly customizable Changelog Generator that follows Conventional Commit specifications",
+      "install_id": "git-cliff",
+      "license": "GPL-3.0-only",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "git-cliff-2.12.0",
+      "pname": "git-cliff",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T05:12:55.408977Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "2.12.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/ayi8wm9aay5819i35azawdqji88pvwwc-git-cliff-2.12.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "git-cliff",
+      "broken": false,
+      "derivation": "/nix/store/xgvmqwdyn3bir2gdc1ybv0p8jik2k76m-git-cliff-2.12.0.drv",
+      "description": "Highly customizable Changelog Generator that follows Conventional Commit specifications",
+      "install_id": "git-cliff",
+      "license": "GPL-3.0-only",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "git-cliff-2.12.0",
+      "pname": "git-cliff",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T05:45:38.177269Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "2.12.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/jgw1d15f46xd8sckan19q5yzgazhvj0b-git-cliff-2.12.0"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "git-cliff",
+      "broken": false,
+      "derivation": "/nix/store/rq172936pq5ymn1n84gbjhyi9085xj2l-git-cliff-2.12.0.drv",
+      "description": "Highly customizable Changelog Generator that follows Conventional Commit specifications",
+      "install_id": "git-cliff",
+      "license": "GPL-3.0-only",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "git-cliff-2.12.0",
+      "pname": "git-cliff",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T06:23:24.583975Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "2.12.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/3lm7am3fk2g7na9dc7hjnbqa3sr9wkaq-git-cliff-2.12.0"
       },
       "system": "x86_64-linux",
       "group": "toplevel",
