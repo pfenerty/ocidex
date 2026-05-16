@@ -26,6 +26,7 @@ for required in ('GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'SESSION_SECRET'):
     if not env.get(required):
         fail("%s must be set in .env (used by both docker-compose and Tilt)" % required)
 env['DATABASE_URL'] = 'postgres://ocidex:devpass@postgres:5432/ocidex?sslmode=disable'
+env['POSTGRES_PASSWORD'] = 'devpass'
 
 def _secret_yaml(name, data):
     lines = [
