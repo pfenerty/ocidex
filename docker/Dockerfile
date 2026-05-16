@@ -19,7 +19,8 @@ RUN --mount=type=cache,target=/root/go/pkg/mod \
       -X github.com/pfenerty/ocidex/internal/version.Date=${DATE}" && \
     CGO_ENABLED=0 GOOS=linux go build -ldflags "${LDFLAGS}" -o /app/bin/ocidex ./cmd/ocidex && \
     CGO_ENABLED=0 GOOS=linux go build -ldflags "${LDFLAGS}" -o /app/bin/scanner-worker ./cmd/scanner-worker && \
-    CGO_ENABLED=0 GOOS=linux go build -ldflags "${LDFLAGS}" -o /app/bin/enrichment-worker ./cmd/enrichment-worker
+    CGO_ENABLED=0 GOOS=linux go build -ldflags "${LDFLAGS}" -o /app/bin/enrichment-worker ./cmd/enrichment-worker && \
+    CGO_ENABLED=0 GOOS=linux go install github.com/pressly/goose/v3/cmd/goose@v3.27.0
 
 # ---- api --------------------------------------------------------------------
 FROM gcr.io/distroless/static-debian12:nonroot AS api
@@ -36,3 +37,9 @@ ENTRYPOINT ["/scanner-worker"]
 FROM gcr.io/distroless/static-debian12:nonroot AS enrichment-worker
 COPY --from=builder /app/bin/enrichment-worker /enrichment-worker
 ENTRYPOINT ["/enrichment-worker"]
+
+# ---- migrate ----------------------------------------------------------------
+FROM gcr.io/distroless/static-debian12:nonroot AS migrate
+COPY --from=builder /root/go/bin/goose /goose
+COPY --from=builder /app/db/migrations /migrations
+ENTRYPOINT ["/goose", "-dir", "/migrations", "postgres"]
