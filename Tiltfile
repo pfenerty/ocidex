@@ -56,6 +56,7 @@ _build_ctx = {
 docker_build('ocidex-api',               target='api',               **_build_ctx)
 docker_build('ocidex-scanner-worker',    target='scanner-worker',    **_build_ctx)
 docker_build('ocidex-enrichment-worker', target='enrichment-worker', **_build_ctx)
+docker_build('ocidex-migrate',           target='migrate',           **_build_ctx)
 
 # Web image (Caddy + built SPA). Built so the in-cluster ocidex-web Deployment
 # has an image to pull. The Vite local_resource below still serves HMR on
@@ -76,6 +77,7 @@ k8s_resource('ocidex-scanner-worker', labels=['workers'])
 k8s_resource('ocidex-enrichment-worker', labels=['workers'])
 k8s_resource('nats', labels=['infra'])
 k8s_resource('postgres', port_forwards=port_forward(5432, 5432, host='0.0.0.0'), labels=['infra'])
+k8s_resource('ocidex-migrate', resource_deps=['postgres'], labels=['infra'])
 
 local_resource(
     'web',

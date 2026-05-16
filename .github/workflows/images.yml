@@ -36,6 +36,11 @@ jobs:
             target: enrichment-worker
             title: ocidex-enrichment-worker
             description: OCIDex enrichment worker (SBOM post-processing pipeline)
+          - name: migrate
+            dockerfile: docker/Dockerfile
+            target: migrate
+            title: ocidex-migrate
+            description: OCIDex DB migrations (goose CLI + db/migrations)
           - name: web
             dockerfile: docker/web/Dockerfile
             target: ""

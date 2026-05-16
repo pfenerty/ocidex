@@ -4,6 +4,7 @@ resources:
   - api-deployment.yaml
   - api-service.yaml
   - enrichment-worker-deployment.yaml
+  - migrate-job.yaml
   - nats-statefulset.yaml
   - postgres-service.yaml
   - postgres-statefulset.yaml
