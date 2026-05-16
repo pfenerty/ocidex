@@ -25,15 +25,20 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Generate notes with git-cliff
-        id: cliff
-        uses: orhun/git-cliff-action@v3
+      - name: Install git-cliff
+        uses: taiki-e/install-action@v2
         with:
-          config: cliff.toml
-          args: --latest --strip header
-        env:
-          OUTPUT: CHANGES.md
-          GITHUB_REPO: ${{ github.repository }}
+          tool: git-cliff
+
+      - name: Generate release notes
+        id: cliff
+        run: |
+          git cliff --config cliff.toml --latest --strip header --output CHANGES.md
+          {
+            echo 'content<<CLIFF_EOF'
+            cat CHANGES.md
+            echo 'CLIFF_EOF'
+          } >> "$GITHUB_OUTPUT"
 
   images:
     name: build ${{ matrix.name }}
