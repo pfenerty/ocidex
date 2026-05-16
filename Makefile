@@ -139,10 +139,26 @@ dev-cluster-down: ## Destroy local Talos dev cluster and its registry
 
 dev-up: ## Build, deploy, and watch ocidex on the local Talos cluster (Tilt)
 	@command -v tilt >/dev/null || { echo "tilt not on PATH — run inside 'flox activate'"; exit 1; }
+	@# A suspended make dev-up (Ctrl-Z) or an orphan daemon from a prior session keeps port 10350 bound.
+	@if pgrep -x tilt >/dev/null 2>&1; then \
+	  echo "stopping existing tilt process(es): $$(pgrep -x tilt | tr '\n' ' ')"; \
+	  pkill -x tilt 2>/dev/null || true; \
+	  for i in 1 2 3 4 5; do pgrep -x tilt >/dev/null 2>&1 || break; sleep 1; done; \
+	  if pgrep -x tilt >/dev/null 2>&1; then \
+	    echo "tilt still running after SIGTERM, sending SIGKILL"; \
+	    pkill -9 -x tilt 2>/dev/null || true; sleep 1; \
+	  fi; \
+	fi
 	tilt up
 
 dev-down: ## Stop Tilt and remove deployed resources
-	tilt down
+	@tilt down || true
+	@if pgrep -x tilt >/dev/null 2>&1; then \
+	  echo "stopping tilt process(es): $$(pgrep -x tilt | tr '\n' ' ')"; \
+	  pkill -x tilt 2>/dev/null || true; \
+	  for i in 1 2 3 4 5; do pgrep -x tilt >/dev/null 2>&1 || break; sleep 1; done; \
+	  pgrep -x tilt >/dev/null 2>&1 && pkill -9 -x tilt 2>/dev/null || true; \
+	fi
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
