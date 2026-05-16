@@ -1,22 +1,10 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: postgres
-spec:
-  selector:
-    app: postgres
-  ports:
-    - port: 5432
-      targetPort: 5432
----
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: postgres
 spec:
+  serviceName: postgres
   replicas: 1
-  strategy:
-    type: Recreate
   selector:
     matchLabels:
       app: postgres
@@ -33,12 +21,15 @@ spec:
           env:
             - name: POSTGRES_USER
               value: ocidex
-            - name: POSTGRES_PASSWORD
-              value: devpass
             - name: POSTGRES_DB
               value: ocidex
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ocidex-secrets
+                  key: POSTGRES_PASSWORD
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
@@ -47,6 +38,19 @@ spec:
               command: ["pg_isready", "-U", "ocidex"]
             initialDelaySeconds: 3
             periodSeconds: 5
-      volumes:
-        - name: data
-          emptyDir: {}
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 5Gi

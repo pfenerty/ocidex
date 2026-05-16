@@ -1,0 +1,7 @@
+- op: add
+  path: /spec/template/spec/volumes
+  value:
+    - name: data
+      emptyDir: {}
+- op: remove
+  path: /spec/volumeClaimTemplates
