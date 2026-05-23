@@ -21,14 +21,15 @@ services:
         image: docker.io/nats:2-alpine
         container_name: ocidex-nats
         restart: unless-stopped
-        command: ["-js"]
+        command: ["-js", "-m", "8222"]
         ports:
             - "4222:4222"
         healthcheck:
-            test: ["CMD-SHELL", "wget -qO- http://localhost:8222/healthz || exit 1"]
+            test: ["CMD", "wget", "-q", "--spider", "http://localhost:8222/healthz"]
             interval: 5s
             timeout: 3s
             retries: 5
+            start_period: 5s
 
     zot:
         image: ghcr.io/project-zot/zot:v2.1.15
