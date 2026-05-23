@@ -1,0 +1,38 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ocidex
+resources:
+  - ../../base
+# Image tags are pinned to a known-good ref. Flux image automation will patch
+# newTag at deploy time later; until then, ocidex-0my.14 bumps this to a
+# specific commit SHA at smoke-deploy.
+images:
+  - name: ocidex-api
+    newName: ghcr.io/pfenerty/ocidex-api
+    newTag: main
+  - name: ocidex-scanner-worker
+    newName: ghcr.io/pfenerty/ocidex-scanner-worker
+    newTag: main
+  - name: ocidex-enrichment-worker
+    newName: ghcr.io/pfenerty/ocidex-enrichment-worker
+    newTag: main
+  - name: ocidex-web
+    newName: ghcr.io/pfenerty/ocidex-web
+    newTag: main
+  - name: ocidex-migrate
+    newName: ghcr.io/pfenerty/ocidex-migrate
+    newTag: main
+patches:
+  # scanner-worker and enrichment-worker → 1 replica
+  - path: patches/replicas.yaml
+  # web cpu limit 100m (only resource deviation from base)
+  - path: patches/resources.yaml
+  # Per-workload env additions + imagePullPolicy: IfNotPresent
+  - path: patches/env-prod-api.yaml
+  - path: patches/env-prod-scanner.yaml
+  - path: patches/env-prod-enrichment.yaml
+  - path: patches/env-prod-web.yaml
+  - path: patches/env-prod-migrate.yaml
+# NOTE: the ocidex-secrets Secret is supplied by the homelab Flux app
+# (SOPS-encrypted, see k8s/base/secrets.yaml.example and ocidex-0my.12). This
+# overlay deliberately does NOT declare it.
