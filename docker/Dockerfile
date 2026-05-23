@@ -40,6 +40,6 @@ ENTRYPOINT ["/enrichment-worker"]
 
 # ---- migrate ----------------------------------------------------------------
 FROM gcr.io/distroless/static-debian12:nonroot AS migrate
-COPY --from=builder /root/go/bin/goose /goose
+COPY --from=builder /go/bin/goose /goose
 COPY --from=builder /app/db/migrations /migrations
 ENTRYPOINT ["/goose", "-dir", "/migrations", "postgres"]
