@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"log/slog"
@@ -35,6 +36,12 @@ func main() {
 		switch os.Args[1] {
 		case "--version", "-version", "version":
 			fmt.Printf("ocidex %s (commit %s, built %s)\n", version.Version, version.Commit, version.Date)
+			return
+		case "migrate":
+			if err := runMigrate(os.Args[2:]); err != nil {
+				slog.Error("migrate failed", "err", err)
+				os.Exit(1)
+			}
 			return
 		}
 	}
@@ -168,10 +175,6 @@ func setupDatabase(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, erro
 		return nil, fmt.Errorf("pinging database: %w", err)
 	}
 	slog.Info("database connected")
-	if err := runMigrations(cfg.DatabaseURL); err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("running migrations: %w", err)
-	}
 	return pool, nil
 }
 
@@ -265,10 +268,20 @@ func serveAndWait(srv *http.Server) error {
 	return nil
 }
 
-func runMigrations(databaseURL string) error {
-	conn, err := sql.Open("pgx", databaseURL)
+// runMigrate dispatches `ocidex migrate up|down|status`. It deliberately
+// avoids config.Load() because the migration tool has no business depending
+// on NATS connectivity — only DATABASE_URL is required.
+func runMigrate(args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: ocidex migrate up|down|status")
+	}
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		return errors.New("DATABASE_URL is required")
+	}
+	conn, err := sql.Open("pgx", dbURL)
 	if err != nil {
-		return fmt.Errorf("opening migration connection: %w", err)
+		return fmt.Errorf("opening db: %w", err)
 	}
 	defer conn.Close()
 
@@ -277,9 +290,14 @@ func runMigrations(databaseURL string) error {
 		return fmt.Errorf("setting dialect: %w", err)
 	}
 
-	if err := goose.Up(conn, "migrations"); err != nil {
-		return fmt.Errorf("running migrations: %w", err)
+	switch args[0] {
+	case "up":
+		return goose.Up(conn, "migrations")
+	case "down":
+		return goose.Down(conn, "migrations")
+	case "status":
+		return goose.Status(conn, "migrations")
+	default:
+		return fmt.Errorf("unknown migrate subcommand %q (want up|down|status)", args[0])
 	}
-	slog.Info("migrations complete")
-	return nil
 }

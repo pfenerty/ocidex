@@ -14,10 +14,11 @@ spec:
     spec:
       restartPolicy: OnFailure
       containers:
-        - name: goose
-          image: ocidex-migrate:latest
+        - name: migrate
+          image: ocidex-api:latest
           imagePullPolicy: Always
-          args: ["$(DATABASE_URL)", "up"]
+          command: ["/ocidex"]
+          args: ["migrate", "up"]
           envFrom:
             - secretRef:
                 name: ocidex-secrets

@@ -37,7 +37,7 @@ walkthrough connecting it to the cluster.
                 └──────────┬──────────┘                  │
                            ▼                             │
                     ┌─────────────┐                      │
-                    │  postgres   │◀── goose-migrate Job │
+                    │  postgres   │◀── ocidex-migrate Job│
                     │ StatefulSet │     (runs on apply)  │
                     └─────────────┘                      │
 ```
@@ -100,7 +100,9 @@ server. See [`ocidex-mf3`](https://github.com/pfenerty/ocidex) for the open bug
 that workers currently still require those vars at startup — until it is fixed,
 include them via `envFrom` too.
 
-### `goose-migrate` Job (one-shot, on every apply)
+### `ocidex-migrate` Job (one-shot, on every apply)
+
+Runs the API image (`ocidex-api:<tag>`) with `command: ["/ocidex"]`, `args: ["migrate", "up"]`. The API binary embeds the migration files and the goose runtime, so no separate image is needed.
 
 | Variable | Source | Production value |
 |---|---|---|
@@ -148,7 +150,7 @@ Each step links to the beads issue that owns it. Steps 1, 3, and 5 are merged.
 
 1. **Multi-arch images on GHCR** (`ocidex-0my.1`, merged).
    GitHub Actions publishes
-   `ghcr.io/pfenerty/ocidex-{api,scanner-worker,enrichment-worker,web,migrate}:<tag>`
+   `ghcr.io/pfenerty/ocidex-{api,scanner-worker,enrichment-worker,web}:<tag>` (migrations run via the API image)
    for `linux/amd64,linux/arm64` on every `main` push and tag.
 
 2. **Create the GitHub OAuth App** (`ocidex-0my.9`).
@@ -243,7 +245,7 @@ Postgres data persists in the StatefulSet PVC across rollbacks.
 | Pods stuck `CreateContainerConfigError` | `kubectl -n ocidex describe pod …` — usually `ocidex-secrets` missing or misnamed; verify the homelab Flux app reconciled the Secret. |
 | API pod `CrashLoopBackOff` immediately at startup | `kubectl -n ocidex logs deploy/ocidex-api` — missing required env (`DATABASE_URL`, OAuth vars, `SESSION_SECRET`) or `OCIDEX_MODE` not `embedded`/`distributed`. |
 | OAuth login returns 400 `redirect_uri_mismatch` | `GITHUB_REDIRECT_URL` env in `k8s/overlays/prod` does not exactly match the OAuth App's "Authorization callback URL". |
-| `goose-migrate` Job fails | `kubectl -n ocidex logs job/goose-migrate` — usually `DATABASE_URL` shape, Postgres not yet `Ready`, or pgcrypto extension permission. |
+| `ocidex-migrate` Job fails | `kubectl -n ocidex logs job/ocidex-migrate` — usually `DATABASE_URL` shape, Postgres not yet `Ready`, or pgcrypto extension permission. |
 | `https://ocidex.app` returns 404 from Cloudflare | HTTPRoute hostname / `parentRefs` mismatch; `kubectl -n ocidex get httproute -o yaml`. Verify the cloudflare-gateway controller logs accepted the route. |
 | API pods `Ready` but `/health` 502 via tunnel | `ocidex-web` Service selector vs Deployment labels, or HTTPRoute backendRef name/port wrong (should be `ocidex-web:80`). |
 | Postgres pod restart loops | PVC permissions on `/var/lib/postgresql/data/pgdata`; check `local-path-provisioner` events. |

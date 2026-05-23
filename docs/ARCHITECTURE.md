@@ -239,7 +239,7 @@ The `oci-metadata` enricher applies to container image artifacts. It pulls OCI i
 
 ### Migrations
 
-Schema changes are managed by [goose](https://pressly.github.io/goose/) with SQL migration files in `db/migrations/`. Migrations run automatically at server startup (the main function calls `goose.Up` before starting the HTTP server).
+Schema changes are managed by [goose](https://pressly.github.io/goose/) with SQL migration files in `db/migrations/`. Migrations are explicit: run `ocidex migrate up` (or `make migrate-up`). The API server does not migrate on startup — in multi-replica deployments, K8s runs `ocidex migrate up` as a one-shot Job before rolling the API.
 
 ### Query generation
 

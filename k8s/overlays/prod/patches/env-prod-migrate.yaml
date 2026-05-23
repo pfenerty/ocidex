@@ -6,5 +6,5 @@ spec:
   template:
     spec:
       containers:
-        - name: goose
+        - name: migrate
           imagePullPolicy: IfNotPresent

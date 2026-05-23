@@ -19,9 +19,6 @@ images:
   - name: ocidex-web
     newName: ghcr.io/pfenerty/ocidex-web
     newTag: main
-  - name: ocidex-migrate
-    newName: ghcr.io/pfenerty/ocidex-migrate
-    newTag: main
 patches:
   # scanner-worker and enrichment-worker → 1 replica
   - path: patches/replicas.yaml
