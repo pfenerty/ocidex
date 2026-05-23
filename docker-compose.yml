@@ -136,8 +136,10 @@ services:
         restart: unless-stopped
         depends_on:
             - ocidex
+        environment:
+            BACKEND_URL: http://ocidex:8080
         ports:
-            - "3000:3000"
+            - "3000:80"
 
 volumes:
     db-data:
