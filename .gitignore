@@ -17,6 +17,9 @@ coverage.html
 # Environment
 .env
 
+# k8s — local-only populated Secret (template is k8s/base/secrets.yaml.example)
+k8s/base/secrets.yaml
+
 # Dolt (beads issue tracker)
 config.yaml
 .doltcfg/
