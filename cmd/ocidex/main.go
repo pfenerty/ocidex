@@ -86,9 +86,7 @@ func run() error {
 
 	registrySvc := service.NewRegistryService(pool)
 	insecureResolver := service.BuildInsecureResolver(registrySvc)
-	credentialResolver := service.BuildCredentialResolver(registrySvc)
 
-	setupEnrichmentExt(cfg, reg, pool, insecureResolver, credentialResolver)
 	setupOptionalExts(cfg, reg, natsClient, logger)
 
 	ociValidator := ocivalidate.NewValidator(ocivalidate.WithInsecureResolver(insecureResolver))
@@ -212,12 +210,6 @@ func setupOptionalExts(cfg *config.Config, reg *extension.Registry, natsClient *
 		reg.Register(audit.NewExtension(logger))
 	}
 	reg.Register(natspkg.NewRelayExtension(natsClient, cfg.NATSStreamName, logger))
-}
-
-// setupEnrichmentExt is a no-op shell kept so ocidex-ujj.57 can delete the
-// function and its call site as a single focused commit. Enrichment now runs
-// exclusively in cmd/enrichment-worker.
-func setupEnrichmentExt(_ *config.Config, _ *extension.Registry, _ *pgxpool.Pool, _ func(string) bool, _ func(string) (string, string)) {
 }
 
 func setupRegistryWalker(cfg *config.Config, natsClient *natspkg.Client, sub api.ScanSubmitter, dl scanner.DigestLister, logger *slog.Logger) scanner.RegistryWalker {
