@@ -23,6 +23,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/enrichment"
 	"github.com/pfenerty/ocidex/internal/enrichment/oci"
+	"github.com/pfenerty/ocidex/internal/enrichment/ocivalidate"
 	"github.com/pfenerty/ocidex/internal/enrichment/user"
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/extension"
@@ -97,7 +98,7 @@ func run() error {
 	setupEnrichmentExt(cfg, reg, pool, insecureResolver, credentialResolver)
 	setupOptionalExts(cfg, reg, natsClient, logger)
 
-	ociValidator := oci.NewValidator(oci.WithInsecureResolver(insecureResolver))
+	ociValidator := ocivalidate.NewValidator(ocivalidate.WithInsecureResolver(insecureResolver))
 	sbomSvc := service.NewSBOMService(pool, bus, ociValidator)
 	searchSvc := service.NewSearchService(pool)
 	authSvc := service.NewAuthService(pool, cfg, bus)
