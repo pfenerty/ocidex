@@ -1,27 +1,14 @@
-// Package scanner provides a Syft library wrapper for scanning OCI images.
+// Package scanner defines the scan request type, the Scanner interface,
+// and the lightweight OCI catalog/walker/submitter machinery used by the API.
+// The Syft-based scan implementation lives in subpackage engine to keep the
+// API binary free of syft and stereoscope when scanning runs out-of-process.
 package scanner
 
-import (
-	"bytes"
-	"context"
-	"fmt"
-	"log/slog"
-
-	"github.com/anchore/stereoscope/pkg/image"
-	"github.com/anchore/syft/syft"
-	"github.com/anchore/syft/syft/format/cyclonedxjson"
-	_ "modernc.org/sqlite" // register "sqlite" driver for Syft RPM DB cataloging
-)
+import "context"
 
 // Scanner scans an OCI image and returns CycloneDX JSON.
 type Scanner interface {
 	Scan(ctx context.Context, req ScanRequest) ([]byte, error)
-}
-
-// SyftScanner runs syft against an OCI registry to produce CycloneDX JSON SBOMs.
-// It is stateless; registry address and insecure flag are provided per-request.
-type SyftScanner struct {
-	logger *slog.Logger
 }
 
 // ScanRequest identifies an OCI image to scan.
@@ -38,55 +25,4 @@ type ScanRequest struct {
 	AuthToken    string // registry auth token/PAT; empty = no auth
 	RegistryID   string // UUID of the source registry; empty = unknown
 	MsgID        string // NATS deduplication ID (Nats-Msg-Id header); not serialized to NATS payload
-}
-
-// NewSyftScanner creates a stateless SyftScanner.
-func NewSyftScanner(logger *slog.Logger) *SyftScanner {
-	return &SyftScanner{logger: logger}
-}
-
-// Scan runs syft against the image identified by req and returns CycloneDX JSON.
-func (s *SyftScanner) Scan(ctx context.Context, req ScanRequest) ([]byte, error) {
-	registryHost := normalizeRegistryHost(req.RegistryURL)
-	ref := fmt.Sprintf("%s/%s@%s", registryHost, req.Repository, req.Digest)
-	s.logger.Info("scanning image", "ref", ref, "tag", req.Tag)
-
-	regOpts := &image.RegistryOptions{InsecureUseHTTP: req.Insecure}
-	if req.AuthToken != "" {
-		username := req.AuthUsername
-		if username == "" {
-			username = "ocidex"
-		}
-		regOpts.Credentials = []image.RegistryCredentials{{
-			Authority: registryHost,
-			Username:  username,
-			Password:  req.AuthToken,
-		}}
-	}
-	srcCfg := syft.DefaultGetSourceConfig().
-		WithSources("oci-registry").
-		WithRegistryOptions(regOpts)
-
-	src, err := syft.GetSource(ctx, ref, srcCfg)
-	if err != nil {
-		return nil, fmt.Errorf("getting source for %s: %w", ref, err)
-	}
-	defer src.Close()
-
-	result, err := syft.CreateSBOM(ctx, src, syft.DefaultCreateSBOMConfig())
-	if err != nil {
-		return nil, fmt.Errorf("creating SBOM for %s: %w", ref, err)
-	}
-
-	encoder, err := cyclonedxjson.NewFormatEncoderWithConfig(cyclonedxjson.DefaultEncoderConfig())
-	if err != nil {
-		return nil, fmt.Errorf("creating encoder: %w", err)
-	}
-
-	var buf bytes.Buffer
-	if err := encoder.Encode(&buf, *result); err != nil {
-		return nil, fmt.Errorf("encoding SBOM for %s: %w", ref, err)
-	}
-
-	return buf.Bytes(), nil
 }

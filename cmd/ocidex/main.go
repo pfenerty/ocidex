@@ -57,6 +57,9 @@ func run() error {
 	if err := validateOAuthConfig(cfg); err != nil {
 		return err
 	}
+	if err := validateScannerConfig(cfg); err != nil {
+		return err
+	}
 
 	// Initialize structured logging.
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
@@ -197,6 +200,17 @@ func setupNATSClient(cfg *config.Config) (*natspkg.Client, error) {
 	return client, nil
 }
 
+// validateScannerConfig rejects in-process scanning. The API server links
+// against the lightweight scanner submitter only; the syft-backed scan engine
+// runs in cmd/scanner-worker. Operators wanting an all-in-one deployment must
+// still run the scanner-worker as a separate process.
+func validateScannerConfig(cfg *config.Config) error {
+	if cfg.ScannerEnabled && !cfg.IsDistributed() {
+		return fmt.Errorf("SCANNER_ENABLED=true requires OCIDEX_MODE=distributed; run cmd/scanner-worker separately")
+	}
+	return nil
+}
+
 func validateOAuthConfig(cfg *config.Config) error {
 	if cfg.GitHubClientID == "" || cfg.GitHubClientSecret == "" || cfg.SessionSecret == "" {
 		return fmt.Errorf("GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and SESSION_SECRET are required")
@@ -252,19 +266,15 @@ func setupRegistryWalker(cfg *config.Config, natsClient *natspkg.Client, sub api
 	return scanner.NewDirectWalker(sub, dl, logger)
 }
 
-func setupScannerExt(cfg *config.Config, pool *pgxpool.Pool, bus *event.Bus, reg *extension.Registry, natsClient *natspkg.Client, logger *slog.Logger, jobSvc service.JobService) api.ScanSubmitter {
+// setupScannerExt wires the NATS scan submitter when scanning is enabled.
+// In-process (embedded) scanning is not supported by the API server: scanning
+// must run in a dedicated scanner-worker process to keep syft and its
+// transitive deps out of the API binary. Validated in validateScannerConfig.
+func setupScannerExt(cfg *config.Config, _ *pgxpool.Pool, _ *event.Bus, _ *extension.Registry, natsClient *natspkg.Client, _ *slog.Logger, jobSvc service.JobService) api.ScanSubmitter {
 	if !cfg.ScannerEnabled {
 		return nil
 	}
-	// Use nil validator: webhook confirms image exists at a known digest.
-	scannerSbomSvc := service.NewSBOMService(pool, bus, nil)
-	sc := scanner.NewSyftScanner(logger)
-	if cfg.IsDistributed() {
-		return scanner.NewNATSSubmitter(natsClient, cfg.NATSStreamName, jobSvc)
-	}
-	scanDispatcher := scanner.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerWorkers, cfg.ScannerQueueSize, logger, jobSvc)
-	reg.Register(scanner.NewExtension(scanDispatcher))
-	return scanDispatcher
+	return scanner.NewNATSSubmitter(natsClient, cfg.NATSStreamName, jobSvc)
 }
 
 func runSessionCleaner(ctx context.Context, authSvc service.AuthService) {

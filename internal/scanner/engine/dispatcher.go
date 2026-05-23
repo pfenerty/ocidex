@@ -1,24 +1,24 @@
-package scanner
+package engine
 
 import (
 	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"sync"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
 // Dispatcher manages a worker pool that scans OCI images and ingests the resulting SBOMs.
 type Dispatcher struct {
-	queue    chan ScanRequest
+	queue    chan scanner.ScanRequest
 	stopping chan struct{} // closed by Run when shutdown begins
-	scanner  Scanner
+	scanner  scanner.Scanner
 	sbomSvc  service.SBOMService
 	jobSvc   service.JobService // optional; nil disables job tracking
 	workers  int
@@ -26,9 +26,9 @@ type Dispatcher struct {
 }
 
 // NewDispatcher creates a Dispatcher with the given scanner, SBOM service, and pool configuration.
-func NewDispatcher(sc Scanner, sbomSvc service.SBOMService, workers, queueSize int, logger *slog.Logger, jobSvc service.JobService) *Dispatcher {
+func NewDispatcher(sc scanner.Scanner, sbomSvc service.SBOMService, workers, queueSize int, logger *slog.Logger, jobSvc service.JobService) *Dispatcher {
 	return &Dispatcher{
-		queue:    make(chan ScanRequest, queueSize),
+		queue:    make(chan scanner.ScanRequest, queueSize),
 		stopping: make(chan struct{}),
 		scanner:  sc,
 		sbomSvc:  sbomSvc,
@@ -39,7 +39,7 @@ func NewDispatcher(sc Scanner, sbomSvc service.SBOMService, workers, queueSize i
 }
 
 // Submit enqueues a scan request. Blocks until a slot is available or the dispatcher stops.
-func (d *Dispatcher) Submit(ctx context.Context, req ScanRequest) error {
+func (d *Dispatcher) Submit(ctx context.Context, req scanner.ScanRequest) error {
 	if d.jobSvc != nil {
 		if req.MsgID == "" {
 			req.MsgID = req.RegistryID + "@" + req.Digest
@@ -58,7 +58,7 @@ func (d *Dispatcher) Submit(ctx context.Context, req ScanRequest) error {
 }
 
 // SubmitWithResult enqueues a scan request without blocking. Returns true if accepted, false if the queue is full.
-func (d *Dispatcher) SubmitWithResult(req ScanRequest) bool {
+func (d *Dispatcher) SubmitWithResult(req scanner.ScanRequest) bool {
 	select {
 	case d.queue <- req:
 		d.logger.Debug("scan queued", "repo", req.Repository, "digest", req.Digest)
@@ -103,16 +103,14 @@ func (d *Dispatcher) worker(ctx context.Context, id int) {
 
 // ProcessOne processes a single scan request synchronously and returns any error.
 // Used by NATSExtension to defer Ack/Nak to after processing completes.
-func (d *Dispatcher) ProcessOne(ctx context.Context, req ScanRequest) error {
+func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) error {
 	return d.process(ctx, req)
 }
 
-func (d *Dispatcher) process(ctx context.Context, req ScanRequest) error {
+func (d *Dispatcher) process(ctx context.Context, req scanner.ScanRequest) error {
 	// Fill in missing metadata from the registry manifest/config before scanning.
 	// Webhook-triggered requests don't pre-fetch this; the catalog walker does.
-	if req.Architecture == "" || req.BuildDate == "" || req.ImageVersion == "" {
-		req = d.fillMetadata(ctx, req)
-	}
+	req = scanner.FillMetadata(ctx, req)
 
 	raw, err := d.scanner.Scan(ctx, req)
 	if err != nil {
@@ -160,26 +158,6 @@ func (d *Dispatcher) process(ctx context.Context, req ScanRequest) error {
 		return err
 	}
 	return nil
-}
-
-func (d *Dispatcher) fillMetadata(ctx context.Context, req ScanRequest) ScanRequest {
-	scheme := "https"
-	if req.Insecure {
-		scheme = "http"
-	}
-	baseURL := scheme + "://" + normalizeRegistryHost(req.RegistryURL)
-	client := &http.Client{Transport: newOCITokenTransport(req.AuthUsername, req.AuthToken)}
-	meta := ociGetImageMetadata(ctx, client, baseURL, req.Repository, req.Digest)
-	if req.Architecture == "" {
-		req.Architecture = meta.architecture
-	}
-	if req.BuildDate == "" {
-		req.BuildDate = meta.buildDate
-	}
-	if req.ImageVersion == "" {
-		req.ImageVersion = meta.imageVersion
-	}
-	return req
 }
 
 func (d *Dispatcher) startJob(ctx context.Context, msgID string) error {

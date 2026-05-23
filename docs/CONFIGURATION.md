@@ -48,7 +48,7 @@ Key setting: `OCIDEX_MODE=distributed` (requires `NATS_URL`)
 | `PORT` | `8080` | no | HTTP listen port. |
 | `LOG_LEVEL` | `info` | no | Log verbosity: `debug`, `info`, `warn`, `error`. |
 | `ENVIRONMENT` | `development` | no | Runtime environment label: `development`, `staging`, `production`. |
-| `OCIDEX_MODE` | `embedded` | no | Deployment mode. `embedded`: in-process enrichment and scanning, no NATS required. `distributed`: NATS required; API publishes, workers consume from JetStream. |
+| `OCIDEX_MODE` | `embedded` | no | Deployment mode. `embedded`: in-process enrichment, no NATS required (scanning is not available in this mode — see `SCANNER_ENABLED`). `distributed`: NATS required; API publishes, scanner-worker/enrichment-worker consume from JetStream. |
 
 ### Authentication (GitHub OAuth)
 
@@ -92,9 +92,9 @@ Controls webhook-triggered and poll-triggered OCI image scanning (runs Syft).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SCANNER_ENABLED` | `false` | Enable the scanner subsystem. Required for both webhook and poll scan modes. |
-| `SCANNER_WORKERS` | `2` | Number of concurrent in-process scan goroutines. Only used in `embedded` mode. |
-| `SCANNER_QUEUE_SIZE` | `50` | In-process scan work queue depth. Only used in `embedded` mode. |
+| `SCANNER_ENABLED` | `false` | Enable the scanner subsystem. Required for both webhook and poll scan modes. Must be combined with `OCIDEX_MODE=distributed`; the API server only publishes scan requests, so a `scanner-worker` process must run to consume them. |
+| `SCANNER_WORKERS` | `2` | Number of concurrent scan goroutines inside each `scanner-worker` process. |
+| `SCANNER_QUEUE_SIZE` | `50` | Scan work queue depth inside each `scanner-worker` process. |
 | `REGISTRY_POLLER_ENABLED` | `false` | Enable the background poller for registries with `scan_mode=poll` or `scan_mode=both`. Requires `SCANNER_ENABLED=true`. Uses leader election so multiple API replicas are safe. |
 
 **Scan mode summary:**
@@ -181,13 +181,17 @@ GITHUB_CLIENT_SECRET=...
 SESSION_SECRET=...
 ```
 
-### Docker Compose (in-process scan + poll)
+### Docker Compose (embedded, ingest-only)
+
+The bundled `docker-compose.yml` runs in embedded mode with scanning disabled.
+Manual SBOM uploads and enrichment still work; webhook/poll scanning requires
+extending the compose file with NATS plus a `scanner-worker` service and
+switching `OCIDEX_MODE` to `distributed`.
 
 ```env
 DATABASE_URL=postgres://ocidex:ocidex@postgres:5432/ocidex?sslmode=disable
-SCANNER_ENABLED=true
-REGISTRY_POLLER_ENABLED=true
 ENRICHMENT_ENABLED=true
+SCANNER_ENABLED=false
 GITHUB_CLIENT_ID=...
 GITHUB_CLIENT_SECRET=...
 SESSION_SECRET=...

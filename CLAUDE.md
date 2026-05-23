@@ -202,7 +202,7 @@ Environment variables (see `.env.example` and `docs/CONFIGURATION.md`):
 - `ENVIRONMENT` (development/staging/production)
 - `DATABASE_URL` (PostgreSQL connection string)
 - `OCIDEX_MODE` (default: `embedded`) — deployment mode:
-  - `embedded`: in-process enrichment and scanning; no NATS required. Used for `make run` and Docker Compose.
+  - `embedded`: in-process enrichment; no NATS required. Used for `make run` and Docker Compose. Scanning is not available — `SCANNER_ENABLED=true` requires `distributed`.
   - `distributed`: NATS required; API publishes, `scanner-worker`/`enrichment-worker` consume from JetStream. Used for K8s.
 
 ## Health Endpoints
