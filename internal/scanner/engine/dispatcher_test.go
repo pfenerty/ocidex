@@ -1,8 +1,10 @@
-package scanner
+package engine
 
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -11,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
 
+	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -69,10 +72,10 @@ func (f *fakeJobSvc) getStartCalls() int {
 	return f.startCalls
 }
 
-// fakeScanner implements Scanner, returning minimal valid CycloneDX JSON.
+// fakeScanner implements scanner.Scanner, returning minimal valid CycloneDX JSON.
 type fakeScanner struct{ err error }
 
-func (f *fakeScanner) Scan(_ context.Context, _ ScanRequest) ([]byte, error) {
+func (f *fakeScanner) Scan(_ context.Context, _ scanner.ScanRequest) ([]byte, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -99,6 +102,10 @@ func (f *fakeSBOMSvc) GetSBOMRegistryID(_ context.Context, _ pgtype.UUID) (pgtyp
 }
 func (f *fakeSBOMSvc) GetArtifactOwnerID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
 	return pgtype.UUID{}, nil
+}
+
+func discardLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
 func TestDispatcher_JobTracking(t *testing.T) {
@@ -140,7 +147,7 @@ func TestDispatcher_JobTracking(t *testing.T) {
 
 			d := NewDispatcher(sc, sbomSvc, 1, 10, discardLogger(), jobSvc)
 
-			req := ScanRequest{
+			req := scanner.ScanRequest{
 				MsgID:      "msg-test-id",
 				Repository: "testrepo",
 				Digest:     "sha256:abc123",

@@ -20,6 +20,7 @@ import (
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/scanner"
+	"github.com/pfenerty/ocidex/internal/scanner/engine"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -197,8 +198,8 @@ func TestScanToEnrichFlow(t *testing.T) {
 
 	// Wire scanner pipeline: real Syft Go library → real Red Hat registry.
 	sbomSvc := service.NewSBOMService(pool, bus, nil) // nil validator skips OCI manifest check
-	sc := scanner.NewSyftScanner(logger)
-	scanDisp := scanner.NewDispatcher(sc, sbomSvc, 1, 10, logger, nil)
+	sc := engine.NewSyftScanner(logger)
+	scanDisp := engine.NewDispatcher(sc, sbomSvc, 1, 10, logger, nil)
 
 	extCtx, extCancel := context.WithCancel(ctx)
 	t.Cleanup(extCancel)

@@ -57,16 +57,14 @@ services:
             ENVIRONMENT: development
             FRONTEND_URL: "http://localhost:3000"
             CORS_ALLOWED_ORIGINS: "http://localhost:3000"
-            # Embedded mode: in-process enrichment and scanning, no NATS required.
-            # Set OCIDEX_MODE=distributed (and NATS_URL) to test distributed mode locally.
+            # Embedded mode: in-process enrichment; scanning is out-of-process only.
+            # Webhook / poller-driven scanning requires OCIDEX_MODE=distributed plus
+            # a NATS service and scanner-worker container (not wired in this compose
+            # file). Manual SBOM uploads via the API still work in embedded mode.
             ENRICHMENT_ENABLED: "true"
             ENRICHMENT_WORKERS: "2"
             ENRICHMENT_QUEUE_SIZE: "100"
-            SCANNER_ENABLED: "true"
-            SCANNER_WORKERS: "2"
-            SCANNER_QUEUE_SIZE: "50"
-            # Background poller for poll/both scan-mode registries
-            REGISTRY_POLLER_ENABLED: "true"
+            SCANNER_ENABLED: "false"
         env_file:
             - .env
         ports:

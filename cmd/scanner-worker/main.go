@@ -27,6 +27,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/extension"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 	"github.com/pfenerty/ocidex/internal/scanner"
+	"github.com/pfenerty/ocidex/internal/scanner/engine"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -104,8 +105,8 @@ func run() error {
 	// Wire scanner worker: stateless scanner + nil OCI validator (webhook confirms image exists).
 	jobSvc := service.NewJobService(pool)
 	scannerSbomSvc := service.NewSBOMService(pool, bus, nil)
-	sc := scanner.NewSyftScanner(logger)
-	dispatcher := scanner.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerWorkers, cfg.ScannerQueueSize, logger, jobSvc)
+	sc := engine.NewSyftScanner(logger)
+	dispatcher := engine.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerWorkers, cfg.ScannerQueueSize, logger, jobSvc)
 	// scanMsgTimeout is set just under the consumer AckWait (10m) so a hung goroutine
 	// is cancelled and the semaphore slot released before JetStream redelivers.
 	const scanMsgTimeout = 9 * time.Minute
@@ -177,7 +178,7 @@ func runOnce(ctx context.Context, pool *pgxpool.Pool) error {
 	logger := slog.Default()
 	bus := event.NewBus(logger)
 	sbomSvc := service.NewSBOMService(pool, bus, nil)
-	sc := scanner.NewSyftScanner(logger)
+	sc := engine.NewSyftScanner(logger)
 
 	req := scanner.ScanRequest{
 		RegistryURL:  registryURL,
