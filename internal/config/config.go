@@ -24,13 +24,8 @@ type Config struct {
 	// Audit logging.
 	AuditLogEnabled bool `env:"AUDIT_LOG_ENABLED" envDefault:"true"`
 
-	// Mode controls how the API server and workers operate.
-	// 'embedded' (default): in-process event bus and dispatchers; no NATS required.
-	// 'distributed': NATS required; API publishes, workers consume from JetStream.
-	Mode string `env:"OCIDEX_MODE" envDefault:"embedded"`
-
-	// NATS JetStream (distributed mode only).
-	NATSURL            string `env:"NATS_URL"             envDefault:"nats://localhost:4222"`
+	// NATS JetStream — required. API publishes, workers consume.
+	NATSURL            string `env:"NATS_URL"`
 	NATSStreamName     string `env:"NATS_STREAM_NAME"     envDefault:"ocidex"`
 	NATSEventTTL       int    `env:"NATS_EVENT_TTL_HOURS" envDefault:"24"`
 	NATSStreamReplicas int    `env:"NATS_STREAM_REPLICAS" envDefault:"1"`
@@ -73,17 +68,11 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) validate() error {
-	if c.Mode != "embedded" && c.Mode != "distributed" {
-		return fmt.Errorf("OCIDEX_MODE must be 'embedded' or 'distributed', got %q", c.Mode)
-	}
-	if c.IsDistributed() && c.NATSURL == "" {
-		return fmt.Errorf("NATS_URL is required when OCIDEX_MODE=distributed")
+	if c.NATSURL == "" {
+		return fmt.Errorf("NATS_URL is required")
 	}
 	return nil
 }
-
-// IsDistributed reports whether the server is operating in distributed mode.
-func (c *Config) IsDistributed() bool { return c.Mode == "distributed" }
 
 // LogLevel returns the slog.Level corresponding to the configured log level string.
 func (c *Config) SlogLevel() slog.Level {

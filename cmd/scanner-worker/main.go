@@ -1,6 +1,6 @@
 // Package main is the entry point for the OCIDex scanner worker.
 // It consumes scan requests from NATS JetStream, runs Syft, and ingests
-// the resulting SBOMs. Requires OCIDEX_MODE=distributed.
+// the resulting SBOMs.
 //
 // Pass --once to scan a single image and exit (K8s Job mode). Set SCAN_IMAGE
 // and optionally SCAN_REGISTRY_ID, SCAN_INSECURE, SCAN_AUTH_USERNAME, SCAN_AUTH_TOKEN.
@@ -45,10 +45,6 @@ func run() error {
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
-	}
-
-	if !cfg.IsDistributed() {
-		return fmt.Errorf("scanner-worker requires OCIDEX_MODE=distributed")
 	}
 
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{

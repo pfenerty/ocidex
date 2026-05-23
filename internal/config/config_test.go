@@ -22,9 +22,17 @@ func TestLoad(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "missing required NATS_URL",
+			env: map[string]string{
+				"DATABASE_URL": "postgres://localhost/test",
+			},
+			wantErr: true,
+		},
+		{
 			name: "defaults applied",
 			env: map[string]string{
 				"DATABASE_URL": "postgres://localhost/test",
+				"NATS_URL":     "nats://localhost:4222",
 			},
 			check: func(is *is.I, cfg *config.Config) {
 				is.Equal(cfg.Port, 8080)
@@ -33,8 +41,7 @@ func TestLoad(t *testing.T) {
 				is.Equal(cfg.DatabaseURL, "postgres://localhost/test")
 				is.Equal(cfg.DatabaseMaxConns, 10)
 				is.Equal(cfg.NATSStreamReplicas, 1)
-				is.Equal(cfg.Mode, "embedded")
-				is.True(!cfg.IsDistributed())
+				is.Equal(cfg.NATSURL, "nats://localhost:4222")
 			},
 		},
 		{
@@ -46,7 +53,7 @@ func TestLoad(t *testing.T) {
 				"DATABASE_URL":             "postgres://prod/ocidex",
 				"DATABASE_MAX_CONNECTIONS": "3",
 				"NATS_STREAM_REPLICAS":     "3",
-				"OCIDEX_MODE":              "distributed",
+				"NATS_URL":                 "nats://nats:4222",
 			},
 			check: func(is *is.I, cfg *config.Config) {
 				is.Equal(cfg.Port, 9090)
@@ -54,17 +61,8 @@ func TestLoad(t *testing.T) {
 				is.Equal(cfg.Environment, "production")
 				is.Equal(cfg.DatabaseMaxConns, 3)
 				is.Equal(cfg.NATSStreamReplicas, 3)
-				is.Equal(cfg.Mode, "distributed")
-				is.True(cfg.IsDistributed())
+				is.Equal(cfg.NATSURL, "nats://nats:4222")
 			},
-		},
-		{
-			name: "invalid mode",
-			env: map[string]string{
-				"DATABASE_URL": "postgres://localhost/test",
-				"OCIDEX_MODE":  "invalid",
-			},
-			wantErr: true,
 		},
 	}
 
@@ -78,6 +76,8 @@ func TestLoad(t *testing.T) {
 			// os.Unsetenv then actually removes it for the duration of the test.
 			t.Setenv("DATABASE_URL", "")
 			os.Unsetenv("DATABASE_URL") //nolint:errcheck
+			t.Setenv("NATS_URL", "")
+			os.Unsetenv("NATS_URL") //nolint:errcheck
 
 			// Clear OAuth vars — no longer required by config.Load().
 			for _, k := range []string{"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "SESSION_SECRET"} {
