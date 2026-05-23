@@ -21,14 +21,10 @@ import (
 	"github.com/pfenerty/ocidex/internal/api"
 	"github.com/pfenerty/ocidex/internal/audit"
 	"github.com/pfenerty/ocidex/internal/config"
-	"github.com/pfenerty/ocidex/internal/enrichment"
-	"github.com/pfenerty/ocidex/internal/enrichment/oci"
 	"github.com/pfenerty/ocidex/internal/enrichment/ocivalidate"
-	"github.com/pfenerty/ocidex/internal/enrichment/user"
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/extension"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
-	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
 	"github.com/pfenerty/ocidex/internal/version"
@@ -56,9 +52,6 @@ func run() error {
 	}
 
 	if err := validateOAuthConfig(cfg); err != nil {
-		return err
-	}
-	if err := validateScannerConfig(cfg); err != nil {
 		return err
 	}
 
@@ -185,9 +178,6 @@ func setupDatabase(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, erro
 }
 
 func setupNATSClient(cfg *config.Config) (*natspkg.Client, error) {
-	if !cfg.IsDistributed() {
-		return nil, nil
-	}
 	client, err := natspkg.Connect(natspkg.Config{
 		URL:           cfg.NATSURL,
 		StreamName:    cfg.NATSStreamName,
@@ -199,17 +189,6 @@ func setupNATSClient(cfg *config.Config) (*natspkg.Client, error) {
 	}
 	slog.Info("NATS connected", "url", cfg.NATSURL, "stream", cfg.NATSStreamName)
 	return client, nil
-}
-
-// validateScannerConfig rejects in-process scanning. The API server links
-// against the lightweight scanner submitter only; the syft-backed scan engine
-// runs in cmd/scanner-worker. Operators wanting an all-in-one deployment must
-// still run the scanner-worker as a separate process.
-func validateScannerConfig(cfg *config.Config) error {
-	if cfg.ScannerEnabled && !cfg.IsDistributed() {
-		return fmt.Errorf("SCANNER_ENABLED=true requires OCIDEX_MODE=distributed; run cmd/scanner-worker separately")
-	}
-	return nil
 }
 
 func validateOAuthConfig(cfg *config.Config) error {
@@ -232,36 +211,17 @@ func setupOptionalExts(cfg *config.Config, reg *extension.Registry, natsClient *
 	if cfg.AuditLogEnabled {
 		reg.Register(audit.NewExtension(logger))
 	}
-	if cfg.IsDistributed() {
-		reg.Register(natspkg.NewRelayExtension(natsClient, cfg.NATSStreamName, logger))
-	}
+	reg.Register(natspkg.NewRelayExtension(natsClient, cfg.NATSStreamName, logger))
 }
 
-func setupEnrichmentExt(cfg *config.Config, reg *extension.Registry, pool *pgxpool.Pool, insecureResolver func(string) bool, credentialResolver func(string) (string, string)) {
-	if cfg.IsDistributed() {
-		return
-	}
-	if !cfg.EnrichmentEnabled {
-		return
-	}
-	enrichStore := repository.New(pool)
-	enrichReg := enrichment.NewRegistry()
-	enrichReg.Register(user.NewEnricher())
-	enrichReg.Register(oci.NewEnricher(
-		oci.WithInsecureResolver(insecureResolver),
-		oci.WithCredentialResolver(credentialResolver),
-	))
-	dispatcher := enrichment.NewDispatcher(
-		enrichStore,
-		enrichReg,
-		enrichment.WithWorkers(cfg.EnrichmentWorkers),
-		enrichment.WithQueueSize(cfg.EnrichmentQueueSize),
-	)
-	reg.Register(enrichment.NewExtension(dispatcher))
+// setupEnrichmentExt is a no-op shell kept so ocidex-ujj.57 can delete the
+// function and its call site as a single focused commit. Enrichment now runs
+// exclusively in cmd/enrichment-worker.
+func setupEnrichmentExt(_ *config.Config, _ *extension.Registry, _ *pgxpool.Pool, _ func(string) bool, _ func(string) (string, string)) {
 }
 
 func setupRegistryWalker(cfg *config.Config, natsClient *natspkg.Client, sub api.ScanSubmitter, dl scanner.DigestLister, logger *slog.Logger) scanner.RegistryWalker {
-	if cfg.IsDistributed() && natsClient != nil {
+	if natsClient != nil {
 		return scanner.NewNATSCatalogPublisher(natsClient, cfg.NATSStreamName)
 	}
 	return scanner.NewDirectWalker(sub, dl, logger)
