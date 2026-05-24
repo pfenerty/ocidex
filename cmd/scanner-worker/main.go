@@ -106,7 +106,7 @@ func run() error {
 	// scanMsgTimeout is set just under the consumer AckWait (10m) so a hung goroutine
 	// is cancelled and the semaphore slot released before JetStream redelivers.
 	const scanMsgTimeout = 9 * time.Minute
-	registry.Register(scanner.NewNATSExtension(natsClient, dispatcher, cfg.NATSStreamName, logger, jobSvc, scanMsgTimeout))
+	registry.Register(scanner.NewNATSExtension(natsClient, dispatcher, cfg.NATSStreamName, logger, jobSvc, scanMsgTimeout, cfg.ScannerMaxConcurrency))
 
 	// Wire catalog walk consumer: receives catalog.walk.requested from the API server poller
 	// and performs the OCI catalog walk here in the scanner-worker.
