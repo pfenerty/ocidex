@@ -62,7 +62,7 @@ func TestValidator_ValidateDigest(t *testing.T) {
 			defer srv.Close()
 
 			host := strings.TrimPrefix(srv.URL, "http://")
-			v := NewValidator(WithInsecureResolver(func(h string) bool { return h == host }))
+			v := NewValidator(WithInsecureResolver(func(_ context.Context, h string) bool { return h == host }))
 
 			err := v.ValidateDigest(context.Background(), host+"/"+repo, digest)
 			if tt.wantErr {
@@ -105,7 +105,7 @@ func TestValidator_FollowsBearerChallenge(t *testing.T) {
 	defer manifestSrv.Close()
 
 	host := strings.TrimPrefix(manifestSrv.URL, "http://")
-	v := NewValidator(WithInsecureResolver(func(h string) bool { return h == host }))
+	v := NewValidator(WithInsecureResolver(func(_ context.Context, h string) bool { return h == host }))
 
 	err := v.ValidateDigest(context.Background(), host+"/"+repo, digest)
 	is.NoErr(err)

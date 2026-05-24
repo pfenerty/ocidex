@@ -50,8 +50,8 @@ type Enricher struct {
 	timeout            time.Duration
 	options            []remote.Option
 	insecure           bool
-	insecureResolver   func(host string) bool
-	credentialResolver func(host string) (username, token string)
+	insecureResolver   func(ctx context.Context, host string) bool
+	credentialResolver func(ctx context.Context, host string) (username, token string)
 }
 
 // Option configures the OCI Enricher.
@@ -74,19 +74,19 @@ func WithInsecure() Option {
 
 // WithInsecureResolver sets a per-host function that returns true when plain
 // HTTP should be used. Takes precedence over WithInsecure for resolved hosts.
-func WithInsecureResolver(fn func(host string) bool) Option {
+func WithInsecureResolver(fn func(ctx context.Context, host string) bool) Option {
 	return func(e *Enricher) { e.insecureResolver = fn }
 }
 
 // WithCredentialResolver sets a function that resolves registry credentials by
 // hostname. Called at enrichment time; takes precedence over anonymous access.
-func WithCredentialResolver(fn func(host string) (username, token string)) Option {
+func WithCredentialResolver(fn func(ctx context.Context, host string) (username, token string)) Option {
 	return func(e *Enricher) { e.credentialResolver = fn }
 }
 
 // insecureFor returns true if the given host should be contacted over plain HTTP.
-func (e *Enricher) insecureFor(host string) bool {
-	if e.insecureResolver != nil && e.insecureResolver(host) {
+func (e *Enricher) insecureFor(ctx context.Context, host string) bool {
+	if e.insecureResolver != nil && e.insecureResolver(ctx, host) {
 		return true
 	}
 	return e.insecure
@@ -127,7 +127,7 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 	}
 
 	nameOpts := []name.Option{}
-	if e.insecureFor(host) {
+	if e.insecureFor(ctx, host) {
 		nameOpts = append(nameOpts, name.Insecure)
 	}
 	parsedRef, err := name.ParseReference(imageRef, nameOpts...)
@@ -139,7 +139,7 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 	opts = append(opts, remote.WithContext(ctx))
 	opts = append(opts, e.options...)
 	if e.credentialResolver != nil {
-		if u, t := e.credentialResolver(host); u != "" || t != "" {
+		if u, t := e.credentialResolver(ctx, host); u != "" || t != "" {
 			opts = append(opts, remote.WithAuth(authn.FromConfig(authn.AuthConfig{
 				Username: u,
 				Password: t,
@@ -219,7 +219,7 @@ func (e *Enricher) fetchParentIndexAnnotations(ctx context.Context, ref enrichme
 	}
 
 	nameOpts := []name.Option{}
-	if e.insecureFor(host) {
+	if e.insecureFor(ctx, host) {
 		nameOpts = append(nameOpts, name.Insecure)
 	}
 	tagRef, err := name.ParseReference(repo+":"+version, nameOpts...)

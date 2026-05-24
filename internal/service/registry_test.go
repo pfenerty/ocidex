@@ -278,7 +278,7 @@ func TestMatchGlob_Exact(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// BuildCredentialResolver tests
+// BuildCredentialLookup tests
 // ---------------------------------------------------------------------------
 
 // fakeListRegistryService is a minimal RegistryService that returns a fixed list.
@@ -320,7 +320,18 @@ func (f *fakeListRegistryService) MarkPolled(_ context.Context, _ string) (Regis
 	return Registry{}, nil
 }
 
-func TestBuildCredentialResolver_MatchingHost(t *testing.T) {
+// countingListService wraps fakeListRegistryService and calls onList on every List.
+type countingListService struct {
+	fakeListRegistryService
+	onList func()
+}
+
+func (c *countingListService) List(ctx context.Context, f VisibilityFilter) ([]Registry, error) {
+	c.onList()
+	return c.fakeListRegistryService.List(ctx, f)
+}
+
+func TestBuildCredentialLookup_MatchingHost(t *testing.T) {
 	is := is.New(t)
 	user := "admin"
 	token := "secret123"
@@ -329,15 +340,15 @@ func TestBuildCredentialResolver_MatchingHost(t *testing.T) {
 			{URL: "https://registry.example.com", AuthUsername: &user, AuthToken: &token},
 		},
 	}
-	resolver := BuildCredentialResolver(svc)
+	lookup := BuildCredentialLookup(svc)
 
-	u, tk := resolver("registry.example.com")
+	u, tk := lookup(context.Background(), "registry.example.com")
 
 	is.Equal(u, user)
 	is.Equal(tk, token)
 }
 
-func TestBuildCredentialResolver_NoMatch(t *testing.T) {
+func TestBuildCredentialLookup_NoMatch(t *testing.T) {
 	is := is.New(t)
 	token := "secret"
 	svc := &fakeListRegistryService{
@@ -345,12 +356,31 @@ func TestBuildCredentialResolver_NoMatch(t *testing.T) {
 			{URL: "https://other.example.com", AuthToken: &token},
 		},
 	}
-	resolver := BuildCredentialResolver(svc)
+	lookup := BuildCredentialLookup(svc)
 
-	u, tk := resolver("registry.example.com")
+	u, tk := lookup(context.Background(), "registry.example.com")
 
 	is.Equal(u, "")
 	is.Equal(tk, "")
+}
+
+func TestBuildCredentialLookup_CachesResults(t *testing.T) {
+	is := is.New(t)
+	callCount := 0
+	token := "tok"
+	svc := &countingListService{
+		fakeListRegistryService: fakeListRegistryService{registries: []Registry{
+			{URL: "https://registry.example.com", AuthToken: &token},
+		}},
+		onList: func() { callCount++ },
+	}
+	lookup := BuildCredentialLookup(svc)
+	ctx := context.Background()
+
+	lookup(ctx, "registry.example.com")
+	lookup(ctx, "registry.example.com")
+
+	is.Equal(callCount, 1)
 }
 
 // ---------------------------------------------------------------------------
@@ -501,43 +531,61 @@ func TestRegistrySetEnabled_InvalidUUID(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// BuildInsecureResolver tests
+// BuildInsecureHostLookup tests
 // ---------------------------------------------------------------------------
 
-func TestBuildInsecureResolver_MatchingInsecureHost(t *testing.T) {
+func TestBuildInsecureHostLookup_MatchingInsecureHost(t *testing.T) {
 	is := is.New(t)
 	svc := &fakeListRegistryService{
 		registries: []Registry{
 			{URL: "http://insecure.example.com", Insecure: true},
 		},
 	}
-	resolver := BuildInsecureResolver(svc)
+	lookup := BuildInsecureHostLookup(svc)
 
-	is.True(resolver("insecure.example.com"))
+	is.True(lookup(context.Background(), "insecure.example.com"))
 }
 
-func TestBuildInsecureResolver_SecureHost(t *testing.T) {
+func TestBuildInsecureHostLookup_SecureHost(t *testing.T) {
 	is := is.New(t)
 	svc := &fakeListRegistryService{
 		registries: []Registry{
 			{URL: "https://secure.example.com", Insecure: false},
 		},
 	}
-	resolver := BuildInsecureResolver(svc)
+	lookup := BuildInsecureHostLookup(svc)
 
-	is.True(!resolver("secure.example.com"))
+	is.True(!lookup(context.Background(), "secure.example.com"))
 }
 
-func TestBuildCredentialResolver_NoAuthToken(t *testing.T) {
+func TestBuildInsecureHostLookup_CachesResults(t *testing.T) {
+	is := is.New(t)
+	callCount := 0
+	svc := &countingListService{
+		fakeListRegistryService: fakeListRegistryService{registries: []Registry{
+			{URL: "http://insecure.example.com", Insecure: true},
+		}},
+		onList: func() { callCount++ },
+	}
+	lookup := BuildInsecureHostLookup(svc)
+	ctx := context.Background()
+
+	lookup(ctx, "insecure.example.com")
+	lookup(ctx, "insecure.example.com")
+
+	is.Equal(callCount, 1)
+}
+
+func TestBuildCredentialLookup_NoAuthToken(t *testing.T) {
 	is := is.New(t)
 	svc := &fakeListRegistryService{
 		registries: []Registry{
 			{URL: "https://registry.example.com"}, // no token
 		},
 	}
-	resolver := BuildCredentialResolver(svc)
+	lookup := BuildCredentialLookup(svc)
 
-	u, tk := resolver("registry.example.com")
+	u, tk := lookup(context.Background(), "registry.example.com")
 
 	is.Equal(u, "")
 	is.Equal(tk, "")
