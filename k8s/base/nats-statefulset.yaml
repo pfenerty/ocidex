@@ -16,7 +16,15 @@ spec:
       containers:
         - name: nats
           image: docker.io/nats:2-alpine
+          env:
+            # JetStream clustering requires a unique server_name per pod.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           args:
+            - "--name"
+            - "$(POD_NAME)"
             - "-js"
             - "-cluster"
             - "nats://0.0.0.0:6222"
