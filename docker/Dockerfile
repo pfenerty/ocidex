@@ -1,6 +1,9 @@
 # ---- Builder ----------------------------------------------------------------
-FROM docker.io/golang:1.25-bookworm AS builder
+# Always build on the runner's native platform; cross-compile via GOARCH.
+# This avoids QEMU emulation for arm64, which is the main CI slowdown.
+FROM --platform=$BUILDPLATFORM docker.io/golang:1.25-bookworm AS builder
 
+ARG TARGETARCH
 ARG VERSION=dev
 ARG COMMIT=unknown
 ARG DATE=unknown
@@ -17,9 +20,9 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       -X github.com/pfenerty/ocidex/internal/version.Version=${VERSION} \
       -X github.com/pfenerty/ocidex/internal/version.Commit=${COMMIT} \
       -X github.com/pfenerty/ocidex/internal/version.Date=${DATE}" && \
-    CGO_ENABLED=0 GOOS=linux go build -ldflags "${LDFLAGS}" -o /app/bin/ocidex ./cmd/ocidex && \
-    CGO_ENABLED=0 GOOS=linux go build -ldflags "${LDFLAGS}" -o /app/bin/scanner-worker ./cmd/scanner-worker && \
-    CGO_ENABLED=0 GOOS=linux go build -ldflags "${LDFLAGS}" -o /app/bin/enrichment-worker ./cmd/enrichment-worker
+    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "${LDFLAGS}" -o /app/bin/ocidex ./cmd/ocidex && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "${LDFLAGS}" -o /app/bin/scanner-worker ./cmd/scanner-worker && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "${LDFLAGS}" -o /app/bin/enrichment-worker ./cmd/enrichment-worker
 
 # ---- api --------------------------------------------------------------------
 FROM gcr.io/distroless/static-debian12:nonroot AS api
