@@ -25,6 +25,8 @@ spec:
           args:
             - "--name"
             - "$(POD_NAME)"
+            - "--cluster_name"
+            - "ocidex"
             - "-js"
             - "-cluster"
             - "nats://0.0.0.0:6222"

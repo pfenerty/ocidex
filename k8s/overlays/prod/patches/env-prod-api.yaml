@@ -25,3 +25,5 @@ spec:
               value: "true"
             - name: REGISTRY_POLLER_ENABLED
               value: "true"
+            - name: OCIDEX_MODE
+              value: "distributed"
