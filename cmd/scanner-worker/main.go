@@ -93,7 +93,7 @@ func run() error {
 
 	logger := slog.Default()
 	bus := event.NewBus(logger)
-	registry := extension.NewRegistry(bus, logger)
+	registry := extension.NewManager(bus, logger)
 
 	// Relay SBOM events to NATS so enrichment workers can pick them up.
 	registry.Register(natspkg.NewRelayExtension(natsClient, cfg.NATSStreamName, logger))

@@ -92,13 +92,13 @@ func run() error {
 
 	logger := slog.Default()
 	bus := event.NewBus(logger)
-	reg := extension.NewRegistry(bus, logger)
+	reg := extension.NewManager(bus, logger)
 
 	registrySvc := service.NewRegistryService(pool)
 	insecureResolver := service.BuildInsecureHostLookup(registrySvc)
 
 	enrichStore := repository.New(pool)
-	enrichReg := enrichment.NewRegistry()
+	enrichReg := enrichment.NewCatalog()
 	enrichReg.Register(user.NewEnricher())
 	enrichReg.Register(oci.NewEnricher(oci.WithInsecureResolver(insecureResolver)))
 	dispatcher := enrichment.NewDispatcher(
@@ -177,7 +177,7 @@ func runEnrichOnce(ctx context.Context, pool *pgxpool.Pool) error {
 	registrySvc := service.NewRegistryService(pool)
 	insecureResolver := service.BuildInsecureHostLookup(registrySvc)
 
-	enrichReg := enrichment.NewRegistry()
+	enrichReg := enrichment.NewCatalog()
 	enrichReg.Register(user.NewEnricher())
 	enrichReg.Register(oci.NewEnricher(oci.WithInsecureResolver(insecureResolver)))
 	dispatcher := enrichment.NewDispatcher(store, enrichReg)

@@ -8,26 +8,26 @@ import (
 	"github.com/pfenerty/ocidex/internal/event"
 )
 
-// Registry manages the lifecycle of all registered extensions.
-type Registry struct {
+// Manager manages the lifecycle of all registered extensions.
+type Manager struct {
 	bus        *event.Bus
 	logger     *slog.Logger
 	extensions []Extension
 }
 
-// NewRegistry creates a new extension registry.
-func NewRegistry(bus *event.Bus, logger *slog.Logger) *Registry {
-	return &Registry{bus: bus, logger: logger}
+// NewManager creates a new extension manager.
+func NewManager(bus *event.Bus, logger *slog.Logger) *Manager {
+	return &Manager{bus: bus, logger: logger}
 }
 
-// Register adds an extension to the registry. Must be called before InitAll.
-func (r *Registry) Register(ext Extension) {
+// Register adds an extension to the manager. Must be called before InitAll.
+func (r *Manager) Register(ext Extension) {
 	r.extensions = append(r.extensions, ext)
 }
 
 // InitAll calls Init on every registered extension in registration order.
 // Fail-fast: the first Init error aborts startup.
-func (r *Registry) InitAll() error {
+func (r *Manager) InitAll() error {
 	for _, ext := range r.extensions {
 		r.logger.Info("initializing extension", "extension", ext.Name())
 		if err := ext.Init(r.bus); err != nil {
@@ -38,7 +38,7 @@ func (r *Registry) InitAll() error {
 }
 
 // StartAll calls Start on every registered extension in registration order.
-func (r *Registry) StartAll(ctx context.Context) error {
+func (r *Manager) StartAll(ctx context.Context) error {
 	for _, ext := range r.extensions {
 		r.logger.Info("starting extension", "extension", ext.Name())
 		if err := ext.Start(ctx); err != nil {
@@ -50,7 +50,7 @@ func (r *Registry) StartAll(ctx context.Context) error {
 
 // StopAll calls Stop on every registered extension in reverse registration order.
 // All extensions are stopped even if one returns an error; the first error is returned.
-func (r *Registry) StopAll() error {
+func (r *Manager) StopAll() error {
 	var firstErr error
 	for i := len(r.extensions) - 1; i >= 0; i-- {
 		ext := r.extensions[i]
