@@ -65,7 +65,6 @@ Three classes of source:
 | `GITHUB_CLIENT_SECRET` | Secret | from OAuth App (`0my.9`) |
 | `SESSION_SECRET` | Secret | `openssl rand -hex 32` (`0my.10`) |
 | `GITHUB_REDIRECT_URL` | Deployment env | `https://ocidex.app/auth/callback` |
-| `OCIDEX_MODE` | Deployment env | `distributed` |
 | `NATS_URL` | Deployment env | `nats://nats:4222` |
 | `NATS_STREAM_REPLICAS` | Deployment env | `3` |
 | `ENVIRONMENT` | Deployment env | `production` |
@@ -86,7 +85,6 @@ Source of truth: [`internal/config/config.go`](../internal/config/config.go).
 | Variable | Source | Production value |
 |---|---|---|
 | `DATABASE_URL` | Secret | same as API |
-| `OCIDEX_MODE` | Deployment env | `distributed` |
 | `NATS_URL` | Deployment env | `nats://nats:4222` |
 | `NATS_STREAM_REPLICAS` | Deployment env | `3` |
 | `DATABASE_MAX_CONNECTIONS` | Deployment env | `3` |
@@ -177,7 +175,7 @@ Each step links to the beads issue that owns it. Steps 1, 3, and 5 are merged.
      - `patches/resources.yaml` (Pi-appropriate: api 500m/512Mi,
        workers 500m/512Mi, postgres 500m/1Gi, web 100m/128Mi).
      - `patches/env-prod.yaml` — the **Deployment env** values from the tables
-       above (`OCIDEX_MODE`, `GITHUB_REDIRECT_URL`, `FRONTEND_URL`, …).
+       above (`GITHUB_REDIRECT_URL`, `FRONTEND_URL`, …).
    Does **not** define `ocidex-secrets`; that comes from step 6.
 
 5. **Build the homelab Flux app** (`ocidex-0my.11`):
@@ -243,7 +241,7 @@ Postgres data persists in the StatefulSet PVC across rollbacks.
 | Symptom | First thing to check |
 |---|---|
 | Pods stuck `CreateContainerConfigError` | `kubectl -n ocidex describe pod …` — usually `ocidex-secrets` missing or misnamed; verify the homelab Flux app reconciled the Secret. |
-| API pod `CrashLoopBackOff` immediately at startup | `kubectl -n ocidex logs deploy/ocidex-api` — missing required env (`DATABASE_URL`, OAuth vars, `SESSION_SECRET`) or `OCIDEX_MODE` not `embedded`/`distributed`. |
+| API pod `CrashLoopBackOff` immediately at startup | `kubectl -n ocidex logs deploy/ocidex-api` — missing required env (`DATABASE_URL`, `NATS_URL`, OAuth vars, `SESSION_SECRET`). |
 | OAuth login returns 400 `redirect_uri_mismatch` | `GITHUB_REDIRECT_URL` env in `k8s/overlays/prod` does not exactly match the OAuth App's "Authorization callback URL". |
 | `ocidex-migrate` Job fails | `kubectl -n ocidex logs job/ocidex-migrate` — usually `DATABASE_URL` shape, Postgres not yet `Ready`, or pgcrypto extension permission. |
 | `https://ocidex.app` returns 404 from Cloudflare | HTTPRoute hostname / `parentRefs` mismatch; `kubectl -n ocidex get httproute -o yaml`. Verify the cloudflare-gateway controller logs accepted the route. |

@@ -2,29 +2,11 @@
 
 OCIDex is configured entirely via environment variables. The API server, scanner worker, and enrichment worker all share the same `Config` struct (`internal/config/config.go`) and load from the process environment.
 
-## Deployment Modes
+## Architecture
 
-OCIDex supports two deployment topologies, controlled by a single `OCIDEX_MODE` variable:
-
-### Embedded (default — Docker Compose / single server)
-
-All subsystems run inside the single `ocidex` process. No NATS or separate workers needed.
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  ocidex API process                                       │
-│  ├── HTTP server                                          │
-│  ├── Enrichment workers  (ENRICHMENT_ENABLED=true)       │
-│  ├── Scanner workers     (SCANNER_ENABLED=true)           │
-│  └── Registry poller     (REGISTRY_POLLER_ENABLED=true)  │
-└─────────────────────────────────────────────────────────┘
-```
-
-Key setting: `OCIDEX_MODE=embedded` (or unset — this is the default)
-
-### Distributed (Kubernetes / production)
-
-The API process publishes work to NATS JetStream; separate worker processes consume it. Run `scanner-worker` and `enrichment-worker` as independent deployments.
+OCIDex runs as three independent processes wired together by NATS JetStream.
+The API process publishes work; the workers consume it. `NATS_URL` is required
+for every process — there is no in-process/single-binary mode.
 
 ```
 ┌──────────────────┐     ┌─────────┐     ┌──────────────────┐
@@ -34,7 +16,9 @@ The API process publishes work to NATS JetStream; separate worker processes cons
 └──────────────────┘                     └──────────────────┘
 ```
 
-Key setting: `OCIDEX_MODE=distributed` (requires `NATS_URL`)
+Database migrations are **not** run at startup; apply them explicitly with
+`ocidex migrate up` (a subcommand of the API binary) before rolling out a new
+schema. See `docs/DEPLOYMENT.md`.
 
 ---
 
@@ -44,11 +28,10 @@ Key setting: `OCIDEX_MODE=distributed` (requires `NATS_URL`)
 
 | Variable | Default | Required | Description |
 |----------|---------|----------|-------------|
-| `DATABASE_URL` | — | **yes** | PostgreSQL connection string. Migrations run automatically at startup. |
+| `DATABASE_URL` | — | **yes** | PostgreSQL connection string. Apply migrations separately with `ocidex migrate up`; they do not run at startup. |
 | `PORT` | `8080` | no | HTTP listen port. |
 | `LOG_LEVEL` | `info` | no | Log verbosity: `debug`, `info`, `warn`, `error`. |
 | `ENVIRONMENT` | `development` | no | Runtime environment label: `development`, `staging`, `production`. |
-| `OCIDEX_MODE` | `embedded` | no | Deployment mode. `embedded`: in-process enrichment, no NATS required (scanning is not available in this mode — see `SCANNER_ENABLED`). `distributed`: NATS required; API publishes, scanner-worker/enrichment-worker consume from JetStream. |
 
 ### Authentication (GitHub OAuth)
 
@@ -82,9 +65,9 @@ Controls how SBOMs are enriched after ingestion (OCI label extraction, user meta
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ENRICHMENT_ENABLED` | `true` | Enable in-process enrichment workers. Only applies in `embedded` mode; ignored in `distributed` mode (enrichment-worker handles it). |
-| `ENRICHMENT_WORKERS` | `2` | Number of concurrent in-process enrichment goroutines. |
-| `ENRICHMENT_QUEUE_SIZE` | `100` | In-process enrichment work queue depth before back-pressure. |
+| `ENRICHMENT_ENABLED` | `true` | Read by `enrichment-worker`; gates whether it consumes enrichment jobs. Has no effect on the API process. |
+| `ENRICHMENT_WORKERS` | `2` | Number of concurrent enrichment goroutines inside each `enrichment-worker` process. |
+| `ENRICHMENT_QUEUE_SIZE` | `100` | Enrichment work queue depth inside each `enrichment-worker` process before back-pressure. |
 
 ### OCI Registry Scanner
 
@@ -92,7 +75,7 @@ Controls webhook-triggered and poll-triggered OCI image scanning (runs Syft).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SCANNER_ENABLED` | `false` | Enable the scanner subsystem. Required for both webhook and poll scan modes. Must be combined with `OCIDEX_MODE=distributed`; the API server only publishes scan requests, so a `scanner-worker` process must run to consume them. |
+| `SCANNER_ENABLED` | `false` | On the API, enables publishing scan requests (required for both webhook and poll scan modes). The API never scans in-process, so a `scanner-worker` must run to consume the requests. |
 | `SCANNER_WORKERS` | `2` | Number of concurrent scan goroutines inside each `scanner-worker` process. |
 | `SCANNER_QUEUE_SIZE` | `50` | Scan work queue depth inside each `scanner-worker` process. |
 | `REGISTRY_POLLER_ENABLED` | `false` | Enable the background poller for registries with `scan_mode=poll` or `scan_mode=both`. Requires `SCANNER_ENABLED=true`. Uses leader election so multiple API replicas are safe. |
@@ -107,11 +90,11 @@ Controls webhook-triggered and poll-triggered OCI image scanning (runs Syft).
 
 ### NATS JetStream
 
-Required when `OCIDEX_MODE=distributed`. Ignored in `embedded` mode.
+Required by every process — the API and both workers fail to start without `NATS_URL`.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `NATS_URL` | `nats://localhost:4222` | NATS server connection URL. |
+| `NATS_URL` | — | **Required.** NATS server connection URL. |
 | `NATS_STREAM_NAME` | `ocidex` | JetStream stream name. |
 | `NATS_EVENT_TTL_HOURS` | `24` | How long events are retained in the stream. |
 | `NATS_STREAM_REPLICAS` | `1` | JetStream stream replica count. Set to `3` for a 3-node NATS cluster. |
@@ -126,7 +109,7 @@ Required when `OCIDEX_MODE=distributed`. Ignored in `embedded` mode.
 
 ## Worker Binaries
 
-Both worker binaries require `OCIDEX_MODE=distributed` and will exit non-zero immediately if it is not set.
+Both worker binaries require `DATABASE_URL` and `NATS_URL` and will exit non-zero immediately if either is missing.
 
 ### `scanner-worker`
 
@@ -135,8 +118,7 @@ Runs as a long-lived daemon consuming scan jobs from NATS.
 Shares the same config vars as the API process. Relevant subset:
 
 - `DATABASE_URL` (required)
-- `OCIDEX_MODE=distributed`
-- `NATS_URL`, `NATS_STREAM_NAME`
+- `NATS_URL`, `NATS_STREAM_NAME` (`NATS_URL` required)
 - `SCANNER_WORKERS`, `SCANNER_QUEUE_SIZE`
 - `DATABASE_MAX_CONNECTIONS` (set low, e.g. `3`)
 
@@ -157,8 +139,7 @@ Runs as a long-lived daemon consuming enrichment jobs from NATS.
 Relevant config vars:
 
 - `DATABASE_URL` (required)
-- `OCIDEX_MODE=distributed`
-- `NATS_URL`, `NATS_STREAM_NAME`
+- `NATS_URL`, `NATS_STREAM_NAME` (`NATS_URL` required)
 - `ENRICHMENT_WORKERS`, `ENRICHMENT_QUEUE_SIZE`
 - `DATABASE_MAX_CONNECTIONS` (set low, e.g. `3`)
 
@@ -176,33 +157,32 @@ Relevant config vars:
 
 ```env
 DATABASE_URL=postgres://ocidex:ocidex@localhost:5432/ocidex?sslmode=disable
+NATS_URL=nats://localhost:4222
 GITHUB_CLIENT_ID=...
 GITHUB_CLIENT_SECRET=...
 SESSION_SECRET=...
 ```
 
-### Docker Compose (embedded, ingest-only)
+### Docker Compose
 
-The bundled `docker-compose.yml` runs in embedded mode with scanning disabled.
-Manual SBOM uploads and enrichment still work; webhook/poll scanning requires
-extending the compose file with NATS plus a `scanner-worker` service and
-switching `OCIDEX_MODE` to `distributed`.
+The bundled `docker-compose.yml` runs the full distributed topology — API,
+`scanner-worker`, `enrichment-worker`, NATS, Postgres, and a one-shot `migrate`
+service — mirroring the Kubernetes layout. The API has scanning off by default;
+set `SCANNER_ENABLED=true` to publish scan jobs to the running `scanner-worker`.
 
 ```env
 DATABASE_URL=postgres://ocidex:ocidex@postgres:5432/ocidex?sslmode=disable
-ENRICHMENT_ENABLED=true
-SCANNER_ENABLED=false
+NATS_URL=nats://nats:4222
 GITHUB_CLIENT_ID=...
 GITHUB_CLIENT_SECRET=...
 SESSION_SECRET=...
 ```
 
-### Kubernetes (distributed mode)
+### Kubernetes
 
 API process:
 ```env
 DATABASE_URL=...
-OCIDEX_MODE=distributed
 SCANNER_ENABLED=true
 NATS_URL=nats://nats:4222
 NATS_STREAM_REPLICAS=3
@@ -212,7 +192,6 @@ REGISTRY_POLLER_ENABLED=true
 `scanner-worker` and `enrichment-worker` processes:
 ```env
 DATABASE_URL=...
-OCIDEX_MODE=distributed
 NATS_URL=nats://nats:4222
 NATS_STREAM_REPLICAS=3
 DATABASE_MAX_CONNECTIONS=3

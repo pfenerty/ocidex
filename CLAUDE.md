@@ -201,9 +201,7 @@ Environment variables (see `.env.example` and `docs/CONFIGURATION.md`):
 - `LOG_LEVEL` (default: info)
 - `ENVIRONMENT` (development/staging/production)
 - `DATABASE_URL` (PostgreSQL connection string)
-- `OCIDEX_MODE` (default: `embedded`) — deployment mode:
-  - `embedded`: in-process enrichment; no NATS required. Used for `make run` and Docker Compose. Scanning is not available — `SCANNER_ENABLED=true` requires `distributed`.
-  - `distributed`: NATS required; API publishes, `scanner-worker`/`enrichment-worker` consume from JetStream. Used for K8s.
+- `NATS_URL` (required) — NATS JetStream URL. The deployment is distributed-only: the API publishes scan/enrich jobs and `scanner-worker`/`enrichment-worker` consume them. All three binaries (and Docker Compose) require NATS. Migrations are applied explicitly via `ocidex migrate up`, not at startup.
 
 ## Health Endpoints
 
