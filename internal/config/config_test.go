@@ -45,6 +45,22 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
+			// Regression guard for ocidex-mf3: the scanner/enrichment workers
+			// share config.Load() but never authenticate browser sessions, so
+			// GITHUB_*/SESSION_SECRET must remain optional. Load() must succeed
+			// with only DATABASE_URL/NATS_URL set and leave the OAuth fields empty.
+			name: "OAuth/session vars not required (workers, ocidex-mf3)",
+			env: map[string]string{
+				"DATABASE_URL": "postgres://localhost/test",
+				"NATS_URL":     "nats://localhost:4222",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.GitHubClientID, "")
+				is.Equal(cfg.GitHubClientSecret, "")
+				is.Equal(cfg.SessionSecret, "")
+			},
+		},
+		{
 			name: "overrides",
 			env: map[string]string{
 				"PORT":                     "9090",
