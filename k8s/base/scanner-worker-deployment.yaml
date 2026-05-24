@@ -21,8 +21,6 @@ spec:
             - secretRef:
                 name: ocidex-secrets
           env:
-            - name: OCIDEX_MODE
-              value: "distributed"
             - name: NATS_STREAM_REPLICAS
               value: "3"
             - name: DATABASE_MAX_CONNECTIONS

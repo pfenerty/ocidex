@@ -223,9 +223,9 @@ func setupRegistryWalker(cfg *config.Config, natsClient *natspkg.Client, sub api
 }
 
 // setupScannerExt wires the NATS scan submitter when scanning is enabled.
-// In-process (embedded) scanning is not supported by the API server: scanning
-// must run in a dedicated scanner-worker process to keep syft and its
-// transitive deps out of the API binary. Validated in validateScannerConfig.
+// The API server never scans in-process: it only publishes scan requests to
+// NATS, so that syft and its transitive deps stay out of the API binary. A
+// dedicated scanner-worker process consumes the requests and runs the scan.
 func setupScannerExt(cfg *config.Config, _ *pgxpool.Pool, _ *event.Bus, _ *extension.Registry, natsClient *natspkg.Client, _ *slog.Logger, jobSvc service.JobService) api.ScanSubmitter {
 	if !cfg.ScannerEnabled {
 		return nil

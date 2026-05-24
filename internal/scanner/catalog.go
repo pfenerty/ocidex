@@ -30,8 +30,8 @@ type RegistryWalker interface {
 	Walk(ctx context.Context, reg service.Registry) (int, error)
 }
 
-// DirectWalker walks a registry catalog in-process and submits scan requests immediately.
-// Used in embedded mode where NATS is not available.
+// DirectWalker walks a registry catalog in-process and submits scan requests immediately,
+// as an alternative to NATSCatalogPublisher when a walk should not be delegated to a worker.
 type DirectWalker struct {
 	submitter    Submitter
 	digestLister DigestLister

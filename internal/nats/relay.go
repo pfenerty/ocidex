@@ -49,6 +49,12 @@ var subjectMap = map[event.Type]string{
 
 // RelayExtension subscribes to the in-process bus and forwards events to JetStream.
 // It is best-effort: relay failures are logged but never block the HTTP handler.
+//
+// This is the only API-only type in package nats; it pulls in internal/event.
+// It is deliberately left here rather than split into a subpackage: the workers
+// already import internal/event through internal/extension and their own
+// nats_extension wiring, so moving RelayExtension out would remove no
+// dependency from the worker binaries (audited in ocidex-ujj.61).
 type RelayExtension struct {
 	client     *Client
 	streamName string
