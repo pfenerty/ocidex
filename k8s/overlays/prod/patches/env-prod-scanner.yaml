@@ -13,3 +13,5 @@ spec:
               value: "info"
             - name: ENVIRONMENT
               value: "production"
+            - name: NATS_STREAM_REPLICAS
+              value: "1"

@@ -25,3 +25,5 @@ spec:
               value: "true"
             - name: REGISTRY_POLLER_ENABLED
               value: "true"
+            - name: NATS_STREAM_REPLICAS
+              value: "1"
