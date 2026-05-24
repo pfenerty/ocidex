@@ -81,7 +81,7 @@ func TestNATS_ScannerDedup(t *testing.T) {
 
 		fake := &fakeScanProcessor{}
 		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-		ext := scanner.NewNATSExtension(client, fake, "ocidex", logger, nil, 5*time.Minute)
+		ext := scanner.NewNATSExtension(client, fake, "ocidex", logger, nil, 5*time.Minute, 10)
 
 		extCtx, extCancel := context.WithCancel(t.Context())
 		t.Cleanup(extCancel)
@@ -130,7 +130,7 @@ func TestNATS_ScannerDedup(t *testing.T) {
 
 		fake := &fakeScanProcessor{failFirst: true}
 		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-		ext := scanner.NewNATSExtension(client, fake, "ocidex", logger, nil, 5*time.Minute)
+		ext := scanner.NewNATSExtension(client, fake, "ocidex", logger, nil, 5*time.Minute, 10)
 
 		extCtx, extCancel := context.WithCancel(t.Context())
 		t.Cleanup(extCancel)

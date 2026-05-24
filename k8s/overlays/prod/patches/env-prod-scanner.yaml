@@ -15,3 +15,5 @@ spec:
               value: "production"
             - name: NATS_STREAM_REPLICAS
               value: "1"
+            - name: SCANNER_MAX_CONCURRENCY
+              value: "1"

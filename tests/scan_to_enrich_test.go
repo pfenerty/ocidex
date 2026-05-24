@@ -204,7 +204,7 @@ func TestScanToEnrichFlow(t *testing.T) {
 	extCtx, extCancel := context.WithCancel(ctx)
 	t.Cleanup(extCancel)
 
-	scanExt := scanner.NewNATSExtension(natsClient, scanDisp, streamName, logger, nil, 9*time.Minute)
+	scanExt := scanner.NewNATSExtension(natsClient, scanDisp, streamName, logger, nil, 9*time.Minute, 10)
 	if err := scanExt.Start(extCtx); err != nil {
 		t.Fatalf("scanner ext start: %v", err)
 	}
