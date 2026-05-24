@@ -93,7 +93,7 @@ func (s *fakeStore) versionResults() []repository.UpdateSBOMSubjectVersionParams
 
 func TestDispatcher_SubmitWithResult(t *testing.T) {
 	store := &fakeStore{}
-	d := NewDispatcher(store, NewRegistry(), WithWorkers(1), WithQueueSize(1))
+	d := NewDispatcher(store, NewCatalog(), WithWorkers(1), WithQueueSize(1))
 
 	ref := SubjectRef{
 		SBOMId:       pgtype.UUID{Bytes: [16]byte{1}, Valid: true},
@@ -115,7 +115,7 @@ func TestDispatcher_SubmitAndProcess(t *testing.T) {
 	enricher := &fakeEnricher{name: "test-enricher", canRun: true, output: data}
 	store := &fakeStore{}
 
-	reg := NewRegistry()
+	reg := NewCatalog()
 	reg.Register(enricher)
 	d := NewDispatcher(store, reg, WithWorkers(1), WithQueueSize(10))
 
@@ -161,7 +161,7 @@ func TestDispatcher_CanEnrichFiltering(t *testing.T) {
 	active := &fakeEnricher{name: "active", canRun: true, output: []byte(`{}`)}
 	store := &fakeStore{}
 
-	reg := NewRegistry()
+	reg := NewCatalog()
 	reg.Register(skipped)
 	reg.Register(active)
 	d := NewDispatcher(store, reg, WithWorkers(1), WithQueueSize(10))
@@ -199,7 +199,7 @@ func TestDispatcher_ErrorRecording(t *testing.T) {
 	}
 	store := &fakeStore{}
 
-	reg := NewRegistry()
+	reg := NewCatalog()
 	reg.Register(enricher)
 	d := NewDispatcher(store, reg, WithWorkers(1), WithQueueSize(10))
 
@@ -238,7 +238,7 @@ func TestDispatcher_OCIVersionPromotion(t *testing.T) {
 	enricher := &fakeEnricher{name: "oci-metadata", canRun: true, output: data}
 	store := &fakeStore{}
 
-	reg := NewRegistry()
+	reg := NewCatalog()
 	reg.Register(enricher)
 	d := NewDispatcher(store, reg, WithWorkers(1), WithQueueSize(10))
 
@@ -278,7 +278,7 @@ func TestDispatcher_OCIVersionPromotion_SkipsNonOCI(t *testing.T) {
 	enricher := &fakeEnricher{name: "other-enricher", canRun: true, output: data}
 	store := &fakeStore{}
 
-	reg := NewRegistry()
+	reg := NewCatalog()
 	reg.Register(enricher)
 	d := NewDispatcher(store, reg, WithWorkers(1), WithQueueSize(10))
 
@@ -339,7 +339,7 @@ func TestDispatcher_EnrichmentSufficiency(t *testing.T) {
 			enricher := &fakeEnricher{name: "oci-metadata", canRun: true, output: data}
 			store := &fakeStore{}
 
-			reg := NewRegistry()
+			reg := NewCatalog()
 			reg.Register(enricher)
 			d := NewDispatcher(store, reg, WithWorkers(1), WithQueueSize(10))
 
@@ -381,7 +381,7 @@ func TestDispatcher_EnrichmentSufficiency_SkipsOtherEnrichers(t *testing.T) {
 	enricher := &fakeEnricher{name: "other-enricher", canRun: true, output: data}
 	store := &fakeStore{}
 
-	reg := NewRegistry()
+	reg := NewCatalog()
 	reg.Register(enricher)
 	d := NewDispatcher(store, reg, WithWorkers(1), WithQueueSize(10))
 
@@ -413,7 +413,7 @@ func TestDispatcher_UserEnricher_TriggersSufficiency(t *testing.T) {
 	enricher := &fakeEnricher{name: "user", canRun: true, output: data}
 	store := &fakeStore{}
 
-	reg := NewRegistry()
+	reg := NewCatalog()
 	reg.Register(enricher)
 	d := NewDispatcher(store, reg, WithWorkers(1), WithQueueSize(10))
 

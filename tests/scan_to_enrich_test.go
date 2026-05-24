@@ -212,7 +212,7 @@ func TestScanToEnrichFlow(t *testing.T) {
 
 	// Wire enrichment pipeline: real OCI enricher → real Red Hat registry.
 	repoQ := repository.New(pool)
-	reg := enrichment.NewRegistry()
+	reg := enrichment.NewCatalog()
 	reg.Register(ocienricher.NewEnricher())
 	enrichDisp := enrichment.NewDispatcher(repoQ, reg)
 	enrichExt := enrichment.NewNATSExtension(natsClient, enrichDisp, streamName, logger, 4*time.Minute)

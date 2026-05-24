@@ -53,7 +53,7 @@ func (f *fakeExtension) Stop() error {
 func TestRegistry_Lifecycle(t *testing.T) {
 	is := matryer.New(t)
 	bus := event.NewBus(slog.Default())
-	reg := NewRegistry(bus, slog.Default())
+	reg := NewManager(bus, slog.Default())
 
 	var order []string
 	a := &fakeExtension{name: "a", order: &order}
@@ -85,7 +85,7 @@ func TestRegistry_Lifecycle(t *testing.T) {
 func TestRegistry_InitFailFast(t *testing.T) {
 	is := matryer.New(t)
 	bus := event.NewBus(slog.Default())
-	reg := NewRegistry(bus, slog.Default())
+	reg := NewManager(bus, slog.Default())
 
 	a := &fakeExtension{name: "a", initErr: errors.New("broken")}
 	b := &fakeExtension{name: "b"}
@@ -101,7 +101,7 @@ func TestRegistry_InitFailFast(t *testing.T) {
 func TestRegistry_StopContinuesOnError(t *testing.T) {
 	is := matryer.New(t)
 	bus := event.NewBus(slog.Default())
-	reg := NewRegistry(bus, slog.Default())
+	reg := NewManager(bus, slog.Default())
 
 	a := &fakeExtension{name: "a"}
 	b := &fakeExtension{name: "b", stopErr: errors.New("cleanup failed")}

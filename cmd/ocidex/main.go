@@ -89,7 +89,7 @@ func run() error {
 
 	logger := slog.Default()
 	bus := event.NewBus(logger)
-	reg := extension.NewRegistry(bus, logger)
+	reg := extension.NewManager(bus, logger)
 
 	registrySvc := service.NewRegistryService(pool)
 	insecureResolver := service.BuildInsecureHostLookup(registrySvc)
@@ -208,7 +208,7 @@ func warnUnpolledRegistries(ctx context.Context, registrySvc service.RegistrySer
 	}
 }
 
-func setupOptionalExts(cfg *config.Config, reg *extension.Registry, natsClient *natspkg.Client, logger *slog.Logger) {
+func setupOptionalExts(cfg *config.Config, reg *extension.Manager, natsClient *natspkg.Client, logger *slog.Logger) {
 	if cfg.AuditLogEnabled {
 		reg.Register(audit.NewExtension(logger))
 	}
@@ -226,7 +226,7 @@ func setupRegistryWalker(cfg *config.Config, natsClient *natspkg.Client, sub api
 // The API server never scans in-process: it only publishes scan requests to
 // NATS, so that syft and its transitive deps stay out of the API binary. A
 // dedicated scanner-worker process consumes the requests and runs the scan.
-func setupScannerExt(cfg *config.Config, _ *pgxpool.Pool, _ *event.Bus, _ *extension.Registry, natsClient *natspkg.Client, _ *slog.Logger, jobSvc service.JobService) api.ScanSubmitter {
+func setupScannerExt(cfg *config.Config, _ *pgxpool.Pool, _ *event.Bus, _ *extension.Manager, natsClient *natspkg.Client, _ *slog.Logger, jobSvc service.JobService) api.ScanSubmitter {
 	if !cfg.ScannerEnabled {
 		return nil
 	}

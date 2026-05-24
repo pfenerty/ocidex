@@ -48,8 +48,8 @@ func WithLogger(l *slog.Logger) Option {
 	}
 }
 
-// NewDispatcher creates a dispatcher backed by the given registry and store.
-func NewDispatcher(store Store, reg *Registry, opts ...Option) *Dispatcher {
+// NewDispatcher creates a dispatcher backed by the given catalog and store.
+func NewDispatcher(store Store, reg *Catalog, opts ...Option) *Dispatcher {
 	var enrichers []Enricher
 	if reg != nil {
 		enrichers = reg.Enrichers()
