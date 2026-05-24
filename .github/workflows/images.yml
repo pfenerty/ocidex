@@ -134,10 +134,10 @@ jobs:
         run: |
           cd k8s/overlays/prod
           kustomize edit set image \
-            ocidex-api:sha-${{ steps.vars.outputs.sha_short }} \
-            ocidex-scanner-worker:sha-${{ steps.vars.outputs.sha_short }} \
-            ocidex-enrichment-worker:sha-${{ steps.vars.outputs.sha_short }} \
-            ocidex-web:sha-${{ steps.vars.outputs.sha_short }}
+            ocidex-api=ghcr.io/${{ github.repository_owner }}/ocidex-api:sha-${{ steps.vars.outputs.sha_short }} \
+            ocidex-scanner-worker=ghcr.io/${{ github.repository_owner }}/ocidex-scanner-worker:sha-${{ steps.vars.outputs.sha_short }} \
+            ocidex-enrichment-worker=ghcr.io/${{ github.repository_owner }}/ocidex-enrichment-worker:sha-${{ steps.vars.outputs.sha_short }} \
+            ocidex-web=ghcr.io/${{ github.repository_owner }}/ocidex-web:sha-${{ steps.vars.outputs.sha_short }}
 
       - name: Push OCI artifact
         run: |
