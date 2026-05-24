@@ -92,7 +92,7 @@ func run() error {
 	reg := extension.NewRegistry(bus, logger)
 
 	registrySvc := service.NewRegistryService(pool)
-	insecureResolver := service.BuildInsecureResolver(registrySvc)
+	insecureResolver := service.BuildInsecureHostLookup(registrySvc)
 
 	setupOptionalExts(cfg, reg, natsClient, logger)
 

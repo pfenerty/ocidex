@@ -95,7 +95,7 @@ func run() error {
 	reg := extension.NewRegistry(bus, logger)
 
 	registrySvc := service.NewRegistryService(pool)
-	insecureResolver := service.BuildInsecureResolver(registrySvc)
+	insecureResolver := service.BuildInsecureHostLookup(registrySvc)
 
 	enrichStore := repository.New(pool)
 	enrichReg := enrichment.NewRegistry()
@@ -175,7 +175,7 @@ func runEnrichOnce(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 
 	registrySvc := service.NewRegistryService(pool)
-	insecureResolver := service.BuildInsecureResolver(registrySvc)
+	insecureResolver := service.BuildInsecureHostLookup(registrySvc)
 
 	enrichReg := enrichment.NewRegistry()
 	enrichReg.Register(user.NewEnricher())

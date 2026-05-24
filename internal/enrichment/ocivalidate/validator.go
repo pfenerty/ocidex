@@ -39,7 +39,7 @@ const manifestAccept = mediaTypeOCIIndex + "," +
 type Validator struct {
 	timeout          time.Duration
 	insecure         bool
-	insecureResolver func(host string) bool
+	insecureResolver func(ctx context.Context, host string) bool
 	client           *http.Client
 }
 
@@ -53,7 +53,7 @@ func WithTimeout(d time.Duration) Option { return func(v *Validator) { v.timeout
 func WithInsecure() Option { return func(v *Validator) { v.insecure = true } }
 
 // WithInsecureResolver sets a per-host predicate for plain HTTP.
-func WithInsecureResolver(fn func(host string) bool) Option {
+func WithInsecureResolver(fn func(ctx context.Context, host string) bool) Option {
 	return func(v *Validator) { v.insecureResolver = fn }
 }
 
@@ -69,8 +69,8 @@ func NewValidator(opts ...Option) *Validator {
 	return v
 }
 
-func (v *Validator) insecureFor(host string) bool {
-	if v.insecureResolver != nil && v.insecureResolver(host) {
+func (v *Validator) insecureFor(ctx context.Context, host string) bool {
+	if v.insecureResolver != nil && v.insecureResolver(ctx, host) {
 		return true
 	}
 	return v.insecure
@@ -87,7 +87,7 @@ func (v *Validator) ValidateDigest(ctx context.Context, imageName, digest string
 		return err
 	}
 	scheme := "https"
-	if v.insecureFor(host) {
+	if v.insecureFor(ctx, host) {
 		scheme = "http"
 	}
 	registryHost := normalizeRegistryHost(host)

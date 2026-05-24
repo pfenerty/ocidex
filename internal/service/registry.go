@@ -6,6 +6,7 @@ import (
 	"path"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -104,53 +105,85 @@ func matchGlob(pattern, s string) bool {
 	return ok
 }
 
-// BuildCredentialResolver returns a function that resolves registry credentials
-// (username, token) by hostname. Used by OCI clients at enrichment time to
-// authenticate against private registries without threading credentials through events.
-func BuildCredentialResolver(svc RegistryService) func(string) (string, string) {
-	return func(host string) (string, string) {
-		regs, err := svc.List(context.Background(), VisibilityFilter{IsAdmin: true})
-		if err != nil {
-			return "", ""
-		}
-		for _, r := range regs {
-			regHost := r.URL
-			if i := strings.Index(regHost, "://"); i != -1 {
-				regHost = regHost[i+3:]
+// HostInsecurityChecker reports whether a given hostname should be contacted
+// over plain HTTP (TLS verification disabled or HTTP-only).
+type HostInsecurityChecker func(ctx context.Context, host string) bool
+
+// HostCredentialLookup returns the (username, token) pair for a hostname, or
+// ("", "") when no credentials are configured for that host.
+type HostCredentialLookup func(ctx context.Context, host string) (username, token string)
+
+// registryHost strips the scheme and trailing slash from a registry URL,
+// returning the bare host[:port] used for lookup.
+func registryHost(rawURL string) string {
+	if i := strings.Index(rawURL, "://"); i != -1 {
+		rawURL = rawURL[i+3:]
+	}
+	return strings.TrimSuffix(rawURL, "/")
+}
+
+const resolverCacheTTL = 30 * time.Second
+
+// BuildInsecureHostLookup returns a HostInsecurityChecker that reports whether
+// a host is configured as insecure. Results are cached for resolverCacheTTL to
+// avoid a DB round-trip on every OCI pull.
+func BuildInsecureHostLookup(svc RegistryService) HostInsecurityChecker {
+	var (
+		mu        sync.Mutex
+		cache     map[string]bool
+		fetchedAt time.Time
+	)
+	return func(ctx context.Context, host string) bool {
+		mu.Lock()
+		defer mu.Unlock()
+		if cache == nil || time.Since(fetchedAt) > resolverCacheTTL {
+			regs, err := svc.List(ctx, VisibilityFilter{IsAdmin: true})
+			if err != nil {
+				return false
 			}
-			regHost = strings.TrimSuffix(regHost, "/")
-			if regHost == host && r.AuthToken != nil && *r.AuthToken != "" {
-				username := ""
-				if r.AuthUsername != nil {
-					username = *r.AuthUsername
-				}
-				return username, *r.AuthToken
+			cache = make(map[string]bool, len(regs))
+			for _, r := range regs {
+				cache[registryHost(r.URL)] = r.Insecure
 			}
+			fetchedAt = time.Now()
 		}
-		return "", ""
+		return cache[host]
 	}
 }
 
-// BuildInsecureResolver returns a function that checks whether a host belongs
-// to a registry marked as insecure. Useful for OCI clients that need to know
-// when to use HTTP instead of HTTPS.
-func BuildInsecureResolver(svc RegistryService) func(string) bool {
-	return func(host string) bool {
-		regs, err := svc.List(context.Background(), VisibilityFilter{IsAdmin: true})
-		if err != nil {
-			return false
-		}
-		for _, r := range regs {
-			regHost := r.URL
-			if i := strings.Index(regHost, "://"); i != -1 {
-				regHost = regHost[i+3:]
+// BuildCredentialLookup returns a HostCredentialLookup that resolves registry
+// credentials by hostname. Results are cached for resolverCacheTTL to avoid a
+// DB round-trip on every OCI pull.
+func BuildCredentialLookup(svc RegistryService) HostCredentialLookup {
+	type creds struct{ username, token string }
+	var (
+		mu        sync.Mutex
+		cache     map[string]creds
+		fetchedAt time.Time
+	)
+	return func(ctx context.Context, host string) (string, string) {
+		mu.Lock()
+		defer mu.Unlock()
+		if cache == nil || time.Since(fetchedAt) > resolverCacheTTL {
+			regs, err := svc.List(ctx, VisibilityFilter{IsAdmin: true})
+			if err != nil {
+				return "", ""
 			}
-			regHost = strings.TrimSuffix(regHost, "/")
-			if regHost == host && r.Insecure {
-				return true
+			cache = make(map[string]creds, len(regs))
+			for _, r := range regs {
+				if r.AuthToken == nil || *r.AuthToken == "" {
+					continue
+				}
+				u := ""
+				if r.AuthUsername != nil {
+					u = *r.AuthUsername
+				}
+				cache[registryHost(r.URL)] = creds{u, *r.AuthToken}
 			}
+			fetchedAt = time.Now()
 		}
-		return false
+		c := cache[host]
+		return c.username, c.token
 	}
 }
 
