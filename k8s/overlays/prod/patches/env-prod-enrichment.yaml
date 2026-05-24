@@ -7,7 +7,7 @@ spec:
     spec:
       containers:
         - name: enrichment-worker
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           env:
             - name: LOG_LEVEL
               value: "info"

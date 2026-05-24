@@ -3,9 +3,9 @@ kind: Kustomization
 namespace: ocidex
 resources:
   - ../../base
-# Image tags are pinned to a known-good ref. Flux image automation will patch
-# newTag at deploy time later; until then, ocidex-0my.14 bumps this to a
-# specific commit SHA at smoke-deploy.
+# Image tags here are placeholders. CI overwrites newTag with the commit SHA
+# (sha-<short>) before pushing this overlay as an OCI artifact. Do not deploy
+# this overlay directly from git.
 images:
   - name: ocidex-api
     newName: ghcr.io/pfenerty/ocidex-api

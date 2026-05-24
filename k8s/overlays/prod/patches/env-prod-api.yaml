@@ -7,7 +7,7 @@ spec:
     spec:
       containers:
         - name: ocidex-api
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           env:
             - name: GITHUB_REDIRECT_URL
               value: "https://ocidex.app/auth/callback"
