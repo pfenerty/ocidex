@@ -7,6 +7,12 @@
         "pkg-path": "curl",
         "outputs": "all"
       },
+      "direnv": {
+        "pkg-path": "direnv"
+      },
+      "git": {
+        "pkg-path": "git"
+      },
       "git-cliff": {
         "pkg-path": "git-cliff"
       },
@@ -29,6 +35,9 @@
       "nushell": {
         "pkg-path": "nushell"
       },
+      "openssh": {
+        "pkg-path": "openssh"
+      },
       "oras": {
         "pkg-path": "oras"
       },
@@ -44,44 +53,14 @@
     },
     "hook": {},
     "profile": {},
-    "options": {}
+    "options": {
+      "systems": [
+        "aarch64-linux",
+        "x86_64-linux"
+      ]
+    }
   },
   "packages": [
-    {
-      "attr_path": "curl",
-      "broken": false,
-      "derivation": "/nix/store/vn7qyigb9aqbzk93v3yjz3zdacbp48vw-curl-8.17.0.drv",
-      "description": "Command line tool for transferring files with URL syntax",
-      "install_id": "curl",
-      "license": "curl",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "curl-8.17.0",
-      "pname": "curl",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T04:39:52.469176Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "8.17.0",
-      "outputs_to_install": [
-        "bin",
-        "man"
-      ],
-      "outputs": {
-        "bin": "/nix/store/qncd2qavd8nj797izhqzyzz5q9cr5bwx-curl-8.17.0-bin",
-        "dev": "/nix/store/27hnypizfhndg47s81v9gvc9ywsiqq5p-curl-8.17.0-dev",
-        "devdoc": "/nix/store/izi1l0h196fyaf7w06wqziq02m43acij-curl-8.17.0-devdoc",
-        "man": "/nix/store/2swlvcnn1xrsanyd4fc8mdlmx6c216dd-curl-8.17.0-man",
-        "out": "/nix/store/vzv2n6g3g6ynxdzflh4s5crn6px9b0wb-curl-8.17.0"
-      },
-      "system": "aarch64-darwin",
-      "group": "toplevel",
-      "priority": 5
-    },
     {
       "attr_path": "curl",
       "broken": false,
@@ -97,8 +76,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:12:54.299111Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "8.17.0",
@@ -123,41 +102,6 @@
     {
       "attr_path": "curl",
       "broken": false,
-      "derivation": "/nix/store/7f4kfgr9bwbzm3xzah75z0qii7gramff-curl-8.17.0.drv",
-      "description": "Command line tool for transferring files with URL syntax",
-      "install_id": "curl",
-      "license": "curl",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "curl-8.17.0",
-      "pname": "curl",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T05:45:37.490090Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "8.17.0",
-      "outputs_to_install": [
-        "bin",
-        "man"
-      ],
-      "outputs": {
-        "bin": "/nix/store/9392lab8kdzr8ch1g2lfh63fm3gvkg77-curl-8.17.0-bin",
-        "dev": "/nix/store/k4vydyjfpc7j04dldqlmnc688xfzjlvv-curl-8.17.0-dev",
-        "devdoc": "/nix/store/h7rj1lxpqbfpd6l42rfbpby4zb1pxsjx-curl-8.17.0-devdoc",
-        "man": "/nix/store/1x5mhbmgag1x0m1iqg793w3nkpa879qa-curl-8.17.0-man",
-        "out": "/nix/store/073hhh572b5vjk02rdyd68rqip6zfdc5-curl-8.17.0"
-      },
-      "system": "x86_64-darwin",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "curl",
-      "broken": false,
       "derivation": "/nix/store/a1kpbbk1lnnaw2gl5pffs92hxm54mjpm-curl-8.17.0.drv",
       "description": "Command line tool for transferring files with URL syntax",
       "install_id": "curl",
@@ -170,8 +114,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T06:23:23.402714Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "8.17.0",
@@ -194,32 +138,126 @@
       "priority": 5
     },
     {
-      "attr_path": "git-cliff",
+      "attr_path": "direnv",
       "broken": false,
-      "derivation": "/nix/store/pv485953pxb66bji3572wx3jkxs2d1fc-git-cliff-2.12.0.drv",
-      "description": "Highly customizable Changelog Generator that follows Conventional Commit specifications",
-      "install_id": "git-cliff",
-      "license": "GPL-3.0-only",
+      "derivation": "/nix/store/kycmqa04gpn5p51hdivc6lwx9drjr6ln-direnv-2.37.1.drv",
+      "description": "Shell extension that manages your environment",
+      "install_id": "direnv",
+      "license": "MIT",
       "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "git-cliff-2.12.0",
-      "pname": "git-cliff",
+      "name": "direnv-2.37.1",
+      "pname": "direnv",
       "rev": "0182a361324364ae3f436a63005877674cf45efb",
       "rev_count": 948083,
       "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T04:39:53.150860Z",
+      "scrape_date": "2026-02-19T05:12:54.444616Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
-      "version": "2.12.0",
+      "version": "2.37.1",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/wigp1xll94a678cs4gd5snnq6sj0b6sd-git-cliff-2.12.0"
+        "out": "/nix/store/bpkmfw0kx8wyqwf6b0yz4hdjni3jar05-direnv-2.37.1"
       },
-      "system": "aarch64-darwin",
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "direnv",
+      "broken": false,
+      "derivation": "/nix/store/zlli5aslji83g1399m13pay7cs35jb59-direnv-2.37.1.drv",
+      "description": "Shell extension that manages your environment",
+      "install_id": "direnv",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "direnv-2.37.1",
+      "pname": "direnv",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T06:23:23.563470Z",
+      "stabilities": [
+        "unstable",
+        "staging"
+      ],
+      "unfree": false,
+      "version": "2.37.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/aqm6npczf3rnavcxihwvz7c8r6i6dw9q-direnv-2.37.1"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "git",
+      "broken": false,
+      "derivation": "/nix/store/xh28gpzhgrisb6hvk986vvswa75l6bhw-git-2.52.0.drv",
+      "description": "Distributed version control system",
+      "install_id": "git",
+      "license": "GPL-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "git-2.52.0",
+      "pname": "git",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T05:12:55.399120Z",
+      "stabilities": [
+        "unstable",
+        "staging"
+      ],
+      "unfree": false,
+      "version": "2.52.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/cx033x4nmr12d9dcn8hxjfrajc3983f0-git-2.52.0-debug",
+        "doc": "/nix/store/ylsmgdrnp78p8hn7n9lxpada78dka41v-git-2.52.0-doc",
+        "out": "/nix/store/sd4bjblxfljbm13mpl50x8g336gw2dri-git-2.52.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "git",
+      "broken": false,
+      "derivation": "/nix/store/b5a7flvc1aq2h7pfgr756p7wpyjydzv9-git-2.52.0.drv",
+      "description": "Distributed version control system",
+      "install_id": "git",
+      "license": "GPL-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "git-2.52.0",
+      "pname": "git",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T06:23:24.573388Z",
+      "stabilities": [
+        "unstable",
+        "staging"
+      ],
+      "unfree": false,
+      "version": "2.52.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "debug": "/nix/store/zd8di23fmzjwrhb5ij1bjnlfqkx9j7d6-git-2.52.0-debug",
+        "doc": "/nix/store/d8kc4kqzcrbcj92msxrpdsdjglh2q5gp-git-2.52.0-doc",
+        "out": "/nix/store/ipwndaag56mm8g8gn8j98z0jvn8x4mk1-git-2.52.0"
+      },
+      "system": "x86_64-linux",
       "group": "toplevel",
       "priority": 5
     },
@@ -238,8 +276,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:12:55.408977Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "2.12.0",
@@ -250,36 +288,6 @@
         "out": "/nix/store/ayi8wm9aay5819i35azawdqji88pvwwc-git-cliff-2.12.0"
       },
       "system": "aarch64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "git-cliff",
-      "broken": false,
-      "derivation": "/nix/store/xgvmqwdyn3bir2gdc1ybv0p8jik2k76m-git-cliff-2.12.0.drv",
-      "description": "Highly customizable Changelog Generator that follows Conventional Commit specifications",
-      "install_id": "git-cliff",
-      "license": "GPL-3.0-only",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "git-cliff-2.12.0",
-      "pname": "git-cliff",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T05:45:38.177269Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "2.12.0",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/jgw1d15f46xd8sckan19q5yzgazhvj0b-git-cliff-2.12.0"
-      },
-      "system": "x86_64-darwin",
       "group": "toplevel",
       "priority": 5
     },
@@ -298,8 +306,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T06:23:24.583975Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "2.12.0",
@@ -310,46 +318,6 @@
         "out": "/nix/store/3lm7am3fk2g7na9dc7hjnbqa3sr9wkaq-git-cliff-2.12.0"
       },
       "system": "x86_64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "gnumake",
-      "broken": false,
-      "derivation": "/nix/store/2x0iq3b0ldv411ld1i6a9ma8dh182h14-gnumake-4.4.1.drv",
-      "description": "Tool to control the generation of non-source files from sources",
-      "install_id": "gnumake",
-      "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "gnumake-4.4.1",
-      "pname": "gnumake",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T04:39:53.260522Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "4.4.1",
-      "outputs_to_install": [
-        "man",
-        "man",
-        "man",
-        "man",
-        "out",
-        "out",
-        "out",
-        "out"
-      ],
-      "outputs": {
-        "doc": "/nix/store/8cnmyqhnlxpl7k9z15cridfdd9kka64b-gnumake-4.4.1-doc",
-        "info": "/nix/store/jar06k1k53zsig2iah8vaw1y9r0wxa55-gnumake-4.4.1-info",
-        "man": "/nix/store/2cd4idcvj4fnn4ss1ffz9fqagfhvjpy1-gnumake-4.4.1-man",
-        "out": "/nix/store/cz4rjcd28s9qqk2zcnn9d8pgs5l6qqy9-gnumake-4.4.1"
-      },
-      "system": "aarch64-darwin",
       "group": "toplevel",
       "priority": 5
     },
@@ -368,8 +336,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:12:55.991495Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "4.4.1",
@@ -393,40 +361,6 @@
     {
       "attr_path": "gnumake",
       "broken": false,
-      "derivation": "/nix/store/dhwc8f7yshq6m26lfn8sdsw9crnzfzkk-gnumake-4.4.1.drv",
-      "description": "Tool to control the generation of non-source files from sources",
-      "install_id": "gnumake",
-      "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "gnumake-4.4.1",
-      "pname": "gnumake",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T05:45:38.315617Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "4.4.1",
-      "outputs_to_install": [
-        "man",
-        "out"
-      ],
-      "outputs": {
-        "doc": "/nix/store/2kpsfrqzyr0kzckkdjbqnsdcz2d719lk-gnumake-4.4.1-doc",
-        "info": "/nix/store/jlb9r2mzq8660lhn9my1pgri15jiqljq-gnumake-4.4.1-info",
-        "man": "/nix/store/x7p2q0wx9828p9n8r3pisbijncsfphvr-gnumake-4.4.1-man",
-        "out": "/nix/store/sqp22z2pm7s7n0wb3al4c3h47shw5aic-gnumake-4.4.1"
-      },
-      "system": "x86_64-darwin",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "gnumake",
-      "broken": false,
       "derivation": "/nix/store/cy06y5fkvbiif016ab9icsj7vqyyiky1-gnumake-4.4.1.drv",
       "description": "Tool to control the generation of non-source files from sources",
       "install_id": "gnumake",
@@ -439,8 +373,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T06:23:25.239208Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "4.4.1",
@@ -462,37 +396,6 @@
     {
       "attr_path": "go",
       "broken": false,
-      "derivation": "/nix/store/h19kjqi10ynjk0i6scllhv82gx45p58w-go-1.25.5.drv",
-      "description": "Go Programming language",
-      "install_id": "go",
-      "license": "BSD-3-Clause",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "go-1.25.5",
-      "pname": "go",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T04:39:53.269291Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "1.25.5",
-      "outputs_to_install": [
-        "out",
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/wh88zz6r1ihcp2mm7ys1f2anp8aga6n2-go-1.25.5"
-      },
-      "system": "aarch64-darwin",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "go",
-      "broken": false,
       "derivation": "/nix/store/32f3plvjz6apyxgi010l0c0ngqydzbyj-go-1.25.5.drv",
       "description": "Go Programming language",
       "install_id": "go",
@@ -505,8 +408,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:12:56.006200Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "1.25.5",
@@ -517,36 +420,6 @@
         "out": "/nix/store/k3knzdi0v21bf2m7vcxpdy1jnqg1h0zk-go-1.25.5"
       },
       "system": "aarch64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "go",
-      "broken": false,
-      "derivation": "/nix/store/5m70w19x64mr74nzlmlmv2mia2k6mykd-go-1.25.5.drv",
-      "description": "Go Programming language",
-      "install_id": "go",
-      "license": "BSD-3-Clause",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "go-1.25.5",
-      "pname": "go",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T05:45:38.324899Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "1.25.5",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/bwdahzajhqd5x14dbvkqww5f1wpsxif3-go-1.25.5"
-      },
-      "system": "x86_64-darwin",
       "group": "toplevel",
       "priority": 5
     },
@@ -565,8 +438,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T06:23:25.254913Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "1.25.5",
@@ -587,36 +460,6 @@
     {
       "attr_path": "golangci-lint",
       "broken": false,
-      "derivation": "/nix/store/j2njnv1h9995f4i1zvh4krmwd0snm01i-golangci-lint-2.10.1.drv",
-      "description": "Fast linters Runner for Go",
-      "install_id": "golangci-lint",
-      "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "golangci-lint-2.10.1",
-      "pname": "golangci-lint",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T04:39:53.332345Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "2.10.1",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/jzg7rzz4jb3axv2si20ivkskx7rs2rsf-golangci-lint-2.10.1"
-      },
-      "system": "aarch64-darwin",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "golangci-lint",
-      "broken": false,
       "derivation": "/nix/store/5qy1ns5iviscrrmr03mnja9i4ai6rmb5-golangci-lint-2.10.1.drv",
       "description": "Fast linters Runner for Go",
       "install_id": "golangci-lint",
@@ -629,8 +472,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:12:56.102620Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "2.10.1",
@@ -641,36 +484,6 @@
         "out": "/nix/store/d62cz4yb539xv94g2vh7i4b8knykx66f-golangci-lint-2.10.1"
       },
       "system": "aarch64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "golangci-lint",
-      "broken": false,
-      "derivation": "/nix/store/dlwc75p3dyflk3y3dq7brdn4v3l4vdrd-golangci-lint-2.10.1.drv",
-      "description": "Fast linters Runner for Go",
-      "install_id": "golangci-lint",
-      "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "golangci-lint-2.10.1",
-      "pname": "golangci-lint",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T05:45:38.385870Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "2.10.1",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/k0jh1c2p5mdqkfhc61zfk41h3an29sfd-golangci-lint-2.10.1"
-      },
-      "system": "x86_64-darwin",
       "group": "toplevel",
       "priority": 5
     },
@@ -689,8 +502,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T06:23:25.353931Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "2.10.1",
@@ -701,39 +514,6 @@
         "out": "/nix/store/vw87yalwqrq8k0rcmvnsrdklywgv29vw-golangci-lint-2.10.1"
       },
       "system": "x86_64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "kubectl",
-      "broken": false,
-      "derivation": "/nix/store/qfsx4299as1kis07gfzgls4vvkmsajfj-kubectl-1.35.0.drv",
-      "description": "Kubernetes CLI",
-      "install_id": "kubectl",
-      "license": "Apache-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "kubectl-1.35.0",
-      "pname": "kubectl",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T04:40:08.903150Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "1.35.0",
-      "outputs_to_install": [
-        "man",
-        "out"
-      ],
-      "outputs": {
-        "convert": "/nix/store/ml1x9ycfby94h8bahq0l76728v8535qd-kubectl-1.35.0-convert",
-        "man": "/nix/store/aryw5q5dm62jrcpaynl37d2qx34bmfw0-kubectl-1.35.0-man",
-        "out": "/nix/store/6zf21d0d0l252rly0plb2qg6y62wxfca-kubectl-1.35.0"
-      },
-      "system": "aarch64-darwin",
       "group": "toplevel",
       "priority": 5
     },
@@ -752,8 +532,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:13:16.773359Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "1.35.0",
@@ -773,39 +553,6 @@
     {
       "attr_path": "kubectl",
       "broken": false,
-      "derivation": "/nix/store/gj4la7zbnrp5pwmb275iihy104fgvwzp-kubectl-1.35.0.drv",
-      "description": "Kubernetes CLI",
-      "install_id": "kubectl",
-      "license": "Apache-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "kubectl-1.35.0",
-      "pname": "kubectl",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T05:45:54.347450Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "1.35.0",
-      "outputs_to_install": [
-        "man",
-        "out"
-      ],
-      "outputs": {
-        "convert": "/nix/store/0g5i26adcp489q9fgqh7vics4gx8jl47-kubectl-1.35.0-convert",
-        "man": "/nix/store/pc80ka91m6bsy78n46d7zif2akjczcjs-kubectl-1.35.0-man",
-        "out": "/nix/store/f7sjp6h0sg1dzvwmzb6d9vl43s2cqxr0-kubectl-1.35.0"
-      },
-      "system": "x86_64-darwin",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "kubectl",
-      "broken": false,
       "derivation": "/nix/store/h74cp0ypq9znqijdw2qgz9rb3z0d4kv3-kubectl-1.35.0.drv",
       "description": "Kubernetes CLI",
       "install_id": "kubectl",
@@ -818,8 +565,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T06:23:46.940594Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "1.35.0",
@@ -839,40 +586,6 @@
     {
       "attr_path": "nodejs",
       "broken": false,
-      "derivation": "/nix/store/0jp24w00c62cysdikz38xrnmxwzv0q4r-nodejs-24.13.0.drv",
-      "description": "Event-driven I/O framework for the V8 JavaScript engine",
-      "install_id": "nodejs",
-      "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "nodejs-24.13.0",
-      "pname": "nodejs",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T04:40:16.349089Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "24.13.0",
-      "outputs_to_install": [
-        "out",
-        "out",
-        "out"
-      ],
-      "outputs": {
-        "dev": "/nix/store/ywm49y8ncwny2nr0wvs6vmaxqjiqg523-nodejs-24.13.0-dev",
-        "libv8": "/nix/store/67xyvmmgkisc7mr16wbpyjq2fqyz44af-nodejs-24.13.0-libv8",
-        "out": "/nix/store/szvl8aalaplzshakdpyq8l5yq8q1bw66-nodejs-24.13.0"
-      },
-      "system": "aarch64-darwin",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "nodejs",
-      "broken": false,
       "derivation": "/nix/store/l64r4vxgdpi0jxp27mvr9sj2c2mq2cys-nodejs-24.13.0.drv",
       "description": "Event-driven I/O framework for the V8 JavaScript engine",
       "install_id": "nodejs",
@@ -885,8 +598,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:13:32.346309Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "24.13.0",
@@ -905,38 +618,6 @@
     {
       "attr_path": "nodejs",
       "broken": false,
-      "derivation": "/nix/store/xgryfaiwfymf8ndij80ssly7q2kdq8y1-nodejs-24.13.0.drv",
-      "description": "Event-driven I/O framework for the V8 JavaScript engine",
-      "install_id": "nodejs",
-      "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "nodejs-24.13.0",
-      "pname": "nodejs",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T05:46:02.015150Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "24.13.0",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "dev": "/nix/store/rp55bch0hqxynmxnh7q5bs586kp0dib6-nodejs-24.13.0-dev",
-        "libv8": "/nix/store/dvl504xzwklpfjngdnn6kcpriklwsf6l-nodejs-24.13.0-libv8",
-        "out": "/nix/store/xhp1pnnq7hski7hwg36vw7kpxmg56khh-nodejs-24.13.0"
-      },
-      "system": "x86_64-darwin",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "nodejs",
-      "broken": false,
       "derivation": "/nix/store/qk40027pvikybl0lvr1wmia9n8ljf99c-nodejs-24.13.0.drv",
       "description": "Event-driven I/O framework for the V8 JavaScript engine",
       "install_id": "nodejs",
@@ -949,8 +630,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T06:24:05.313886Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "24.13.0",
@@ -969,36 +650,6 @@
     {
       "attr_path": "nushell",
       "broken": false,
-      "derivation": "/nix/store/2ii4b48875hmw6304jljmji974cwnc4b-nushell-0.110.0.drv",
-      "description": "Modern shell written in Rust",
-      "install_id": "nushell",
-      "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "nushell-0.110.0",
-      "pname": "nushell",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T04:40:16.612622Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "0.110.0",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/sv8lrcd9ysshjakiq0n44im0dkbbb84y-nushell-0.110.0"
-      },
-      "system": "aarch64-darwin",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "nushell",
-      "broken": false,
       "derivation": "/nix/store/2kb958bfh1645z9k77i8xjfxyk9flnsm-nushell-0.110.0.drv",
       "description": "Modern shell written in Rust",
       "install_id": "nushell",
@@ -1011,8 +662,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:13:32.755900Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "0.110.0",
@@ -1023,36 +674,6 @@
         "out": "/nix/store/dsbxdp9k7i0mppsf04mss0sg09w3s54z-nushell-0.110.0"
       },
       "system": "aarch64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "nushell",
-      "broken": false,
-      "derivation": "/nix/store/a90rf3w314mzpl5zms2gq32472h8xyzm-nushell-0.110.0.drv",
-      "description": "Modern shell written in Rust",
-      "install_id": "nushell",
-      "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "nushell-0.110.0",
-      "pname": "nushell",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T05:46:02.289762Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "0.110.0",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/vz399hzzwv314a77q81ya1s94nzbvnvc-nushell-0.110.0"
-      },
-      "system": "x86_64-darwin",
       "group": "toplevel",
       "priority": 5
     },
@@ -1071,8 +692,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T06:24:05.826781Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "0.110.0",
@@ -1087,32 +708,68 @@
       "priority": 5
     },
     {
-      "attr_path": "oras",
+      "attr_path": "openssh",
       "broken": false,
-      "derivation": "/nix/store/dy437mglwqhs8amky5hzmih0zy9vdmma-oras-1.3.0.drv",
-      "description": "Distribute artifacts across OCI registries with ease",
-      "install_id": "oras",
-      "license": "Apache-2.0",
+      "derivation": "/nix/store/prb5mzbfgk2waks3jvhgbb7j979smsb9-openssh-10.2p1.drv",
+      "description": "Implementation of the SSH protocol",
+      "install_id": "openssh",
+      "license": "BSD-2-Clause",
       "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "oras-1.3.0",
-      "pname": "oras",
+      "name": "openssh-10.2p1",
+      "pname": "openssh",
       "rev": "0182a361324364ae3f436a63005877674cf45efb",
       "rev_count": 948083,
       "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T04:40:21.581333Z",
+      "scrape_date": "2026-02-19T05:13:39.411909Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
-      "version": "1.3.0",
+      "version": "10.2p1",
       "outputs_to_install": [
+        "man",
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/8272qx3ppc6f79238rc0yigxmcyvwjmy-oras-1.3.0"
+        "dev": "/nix/store/sqdlnxzhxbldan5d3037hr76idgv6gqm-openssh-10.2p1-dev",
+        "man": "/nix/store/civ3bmy8vmbwdx4mjg5mhmkbhs97zwvj-openssh-10.2p1-man",
+        "out": "/nix/store/sxzcrcqf4dl3ap4r0a8hrkszwx2zbfj9-openssh-10.2p1"
       },
-      "system": "aarch64-darwin",
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "openssh",
+      "broken": false,
+      "derivation": "/nix/store/cimzs4r9i0279acc7sjqs6bnrlnq2hr1-openssh-10.2p1.drv",
+      "description": "Implementation of the SSH protocol",
+      "install_id": "openssh",
+      "license": "BSD-2-Clause",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "openssh-10.2p1",
+      "pname": "openssh",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T06:24:13.181939Z",
+      "stabilities": [
+        "unstable",
+        "staging"
+      ],
+      "unfree": false,
+      "version": "10.2p1",
+      "outputs_to_install": [
+        "man",
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/cccwwgpkf42pxif5pvdzhr16jiirwjnv-openssh-10.2p1-dev",
+        "man": "/nix/store/942yj3apvf8r0xs8f6qh061cdry5dxwc-openssh-10.2p1-man",
+        "out": "/nix/store/50jp3q2sjgw4shh0sgx9il1h005fpp8s-openssh-10.2p1"
+      },
+      "system": "x86_64-linux",
       "group": "toplevel",
       "priority": 5
     },
@@ -1131,8 +788,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:13:39.707581Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "1.3.0",
@@ -1143,36 +800,6 @@
         "out": "/nix/store/mmvk4njyf4akkvar54wvpjbmgwg6qw70-oras-1.3.0"
       },
       "system": "aarch64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "oras",
-      "broken": false,
-      "derivation": "/nix/store/xi99xhw5pxf7rik9pxwf597222xcl8p1-oras-1.3.0.drv",
-      "description": "Distribute artifacts across OCI registries with ease",
-      "install_id": "oras",
-      "license": "Apache-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "oras-1.3.0",
-      "pname": "oras",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T05:46:07.498305Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "1.3.0",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/yfr7zpbfg7km06ya90d4di1x117rvkdq-oras-1.3.0"
-      },
-      "system": "x86_64-darwin",
       "group": "toplevel",
       "priority": 5
     },
@@ -1191,8 +818,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T06:24:13.497546Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "1.3.0",
@@ -1203,36 +830,6 @@
         "out": "/nix/store/gijpfiqpx30dk1wdiqvwn3757g7mjjb0-oras-1.3.0"
       },
       "system": "x86_64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "syft",
-      "broken": false,
-      "derivation": "/nix/store/s2sq47h1h4jmz8sc2q1kvbiylwkkvc4v-syft-1.41.2.drv",
-      "description": "CLI tool and library for generating a Software Bill of Materials from container images and filesystems",
-      "install_id": "syft",
-      "license": "[ Apache-2.0 ]",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "syft-1.41.2",
-      "pname": "syft",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T04:41:44.363139Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "1.41.2",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/d57lyy1hzgsvc8m98fl27b49inw1i731-syft-1.41.2"
-      },
-      "system": "aarch64-darwin",
       "group": "toplevel",
       "priority": 5
     },
@@ -1251,8 +848,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:15:23.759226Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "1.41.2",
@@ -1263,36 +860,6 @@
         "out": "/nix/store/wj7vn3smynmgndmwjgsm25ls1d58ljg4-syft-1.41.2"
       },
       "system": "aarch64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "syft",
-      "broken": false,
-      "derivation": "/nix/store/ffzcrlz306qb0vlay081pmxj8x0h3qj2-syft-1.41.2.drv",
-      "description": "CLI tool and library for generating a Software Bill of Materials from container images and filesystems",
-      "install_id": "syft",
-      "license": "[ Apache-2.0 ]",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "syft-1.41.2",
-      "pname": "syft",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T05:47:29.837534Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "1.41.2",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/38hnhih6qrc5mdlhy5gsx4yspbgcgvld-syft-1.41.2"
-      },
-      "system": "x86_64-darwin",
       "group": "toplevel",
       "priority": 5
     },
@@ -1311,8 +878,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T06:26:05.152671Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "1.41.2",
@@ -1323,36 +890,6 @@
         "out": "/nix/store/zgjgi52c4rg4pyxcwibspw6vvxhqzk32-syft-1.41.2"
       },
       "system": "x86_64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "talosctl",
-      "broken": false,
-      "derivation": "/nix/store/3rqa7yb9hh0zz2dkqky4f0kk9zf7dngz-talosctl-1.12.3.drv",
-      "description": "CLI for out-of-band management of Kubernetes nodes created by Talos",
-      "install_id": "talosctl",
-      "license": "MPL-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "talosctl-1.12.3",
-      "pname": "talosctl",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T04:41:44.679369Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "1.12.3",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/lrlsam58v1hrjh131szk4f57lbs7sdpb-talosctl-1.12.3"
-      },
-      "system": "aarch64-darwin",
       "group": "toplevel",
       "priority": 5
     },
@@ -1371,8 +908,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:15:24.340150Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "1.12.3",
@@ -1383,36 +920,6 @@
         "out": "/nix/store/dv16m4064v0rvhc91z90w1haps701n6z-talosctl-1.12.3"
       },
       "system": "aarch64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "talosctl",
-      "broken": false,
-      "derivation": "/nix/store/abv70i1b8pzipg50271riscxyd572k1g-talosctl-1.12.3.drv",
-      "description": "CLI for out-of-band management of Kubernetes nodes created by Talos",
-      "install_id": "talosctl",
-      "license": "MPL-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "talosctl-1.12.3",
-      "pname": "talosctl",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T05:47:30.161588Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "1.12.3",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/nzxqz40vi35mhnzdckdc4k8q2rxpnprf-talosctl-1.12.3"
-      },
-      "system": "x86_64-darwin",
       "group": "toplevel",
       "priority": 5
     },
@@ -1431,8 +938,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T06:26:05.810535Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "1.12.3",
@@ -1443,36 +950,6 @@
         "out": "/nix/store/2ysspr3fhawvbpj11mmcg7jcmd91kqsf-talosctl-1.12.3"
       },
       "system": "x86_64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "tilt",
-      "broken": false,
-      "derivation": "/nix/store/9zys3g7dlazd53sqfagwkzil0sb1czkj-tilt-0.36.3.drv",
-      "description": "Local development tool to manage your developer instance when your team deploys to Kubernetes in production",
-      "install_id": "tilt",
-      "license": "Apache-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "tilt-0.36.3",
-      "pname": "tilt",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T04:42:05.181796Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "0.36.3",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/6c7rdc8z6iwgzc6jf0z0fyz6mwfw3dmz-tilt-0.36.3"
-      },
-      "system": "aarch64-darwin",
       "group": "toplevel",
       "priority": 5
     },
@@ -1491,8 +968,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T05:15:52.858407Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "0.36.3",
@@ -1503,36 +980,6 @@
         "out": "/nix/store/ga4an8xiywlp9wq8rfijfknpvq0sai1x-tilt-0.36.3"
       },
       "system": "aarch64-linux",
-      "group": "toplevel",
-      "priority": 5
-    },
-    {
-      "attr_path": "tilt",
-      "broken": false,
-      "derivation": "/nix/store/agwjcfggm3x35vm59dx4sydjrackmjzg-tilt-0.36.3.drv",
-      "description": "Local development tool to manage your developer instance when your team deploys to Kubernetes in production",
-      "install_id": "tilt",
-      "license": "Apache-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
-      "name": "tilt-0.36.3",
-      "pname": "tilt",
-      "rev": "0182a361324364ae3f436a63005877674cf45efb",
-      "rev_count": 948083,
-      "rev_date": "2026-02-17T23:04:30Z",
-      "scrape_date": "2026-02-19T05:47:50.467638Z",
-      "stabilities": [
-        "staging",
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "0.36.3",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/14h59cn9n96mi2r3xf1knhldxm8wq0b4-tilt-0.36.3"
-      },
-      "system": "x86_64-darwin",
       "group": "toplevel",
       "priority": 5
     },
@@ -1551,8 +998,8 @@
       "rev_date": "2026-02-17T23:04:30Z",
       "scrape_date": "2026-02-19T06:26:35.964046Z",
       "stabilities": [
-        "staging",
-        "unstable"
+        "unstable",
+        "staging"
       ],
       "unfree": false,
       "version": "0.36.3",

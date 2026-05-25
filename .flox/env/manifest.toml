@@ -22,6 +22,11 @@ tilt.pkg-path = "tilt"
 talosctl.pkg-path = "talosctl"
 kubectl.pkg-path = "kubectl"
 git-cliff.pkg-path = "git-cliff"
+# Remote dev-workspace tooling (used when this env is `flox containerize`d
+# into a dev image; harmless for local activation).
+openssh.pkg-path = "openssh"
+direnv.pkg-path = "direnv"
+git.pkg-path = "git"
 # gum.pkg-path = "gum"
 # gum.version = "^0.14.5"
 
@@ -99,12 +104,12 @@ git-cliff.pkg-path = "git-cliff"
 
 ## Other Environment Options -----------------------------------------
 [options]
-# Systems that environment is compatible with
-# systems = [
-#   "aarch64-darwin",
-#   "aarch64-linux",
-#   "x86_64-darwin",
-#   "x86_64-linux",
-# ]
+# Systems that environment is compatible with.
+# aarch64-linux: build the dev image on arm64 (current Pi cluster).
+# x86_64-linux:  build it for the amd64 tower once it joins.
+systems = [
+  "aarch64-linux",
+  "x86_64-linux",
+]
 # Uncomment to disable CUDA detection.
 # cuda-detection = false
