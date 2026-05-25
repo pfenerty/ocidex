@@ -56,24 +56,17 @@ jobs:
           LOCAL=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep ":$TAG$" | head -1)
           echo "local=$LOCAL" >> "$GITHUB_OUTPUT"
 
-      # flox/nix images symlink /etc/{passwd,group,...} into /nix/store (fake-nss).
-      # containerd rejects those as path-escapes ("path escapes from parent") and they're
-      # read-only, which also blocks our entrypoint's user setup. Replace them with real
-      # files (run via the image's flox-activation entrypoint so coreutils is on PATH).
+      # flox/nix images symlink /etc/{passwd,group,nsswitch.conf} into /nix/store
+      # (fake-nss). containerd rejects those at mount time ("path escapes from parent"),
+      # so the image runs under Docker but not on Talos/K8s. Replace them with real files
+      # via a Dockerfile RUN layer — `docker commit` does NOT work here because the edit
+      # has to happen outside Flox's activation overlay (RUN uses /bin/sh directly, no
+      # flox entrypoint, so the change lands in a real layer that overrides the symlinks).
       - name: Make image containerd-safe (dereference nss symlinks)
         run: |
-          docker run --name deref "${{ steps.build.outputs.local }}" sh -c '
-            set -e
-            for f in passwd group shadow nsswitch.conf; do
-              if [ -L "/etc/$f" ]; then
-                cp -L "/etc/$f" "/etc/$f.real"
-                rm -f "/etc/$f"
-                mv "/etc/$f.real" "/etc/$f"
-              fi
-            done
-          '
-          docker commit deref "${{ steps.build.outputs.local }}"
-          docker rm deref
+          printf 'FROM %s\nRUN cp -L /etc/passwd /tmp/p && rm -f /etc/passwd && mv /tmp/p /etc/passwd && cp -L /etc/group /tmp/g && rm -f /etc/group && mv /tmp/g /etc/group && cp -L /etc/nsswitch.conf /tmp/n && rm -f /etc/nsswitch.conf && mv /tmp/n /etc/nsswitch.conf\n' \
+            "${{ steps.build.outputs.local }}" \
+            | docker build -f - -t "${{ steps.build.outputs.local }}" .
 
       - name: Tag & push to GHCR
         run: |
