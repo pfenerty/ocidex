@@ -1,0 +1,66 @@
+name: dev-image
+
+# Builds the Flox dev-workspace image for ocidex via `flox containerize`
+# and pushes it to GHCR. Consumed by the homelab `dev-spaces/devbox`
+# Deployment (swap its image: to ghcr.io/<owner>/ocidex-dev).
+#
+# NOTE: runs on a native arm64 runner because `flox containerize` is a Nix
+# build (not a Dockerfile) and can't be cross-built with buildx. `ubuntu-24.04-arm`
+# is free for public repos; for a private repo it's a billed runner — switch to a
+# self-hosted arm64 runner if needed.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".flox/**"
+      - ".github/workflows/dev-image.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: dev-image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Flox
+        uses: flox/install-flox-action@v2
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tag
+        id: vars
+        run: echo "sha=sha-$(echo ${GITHUB_SHA} | cut -c1-7)" >> "$GITHUB_OUTPUT"
+
+      # `--tag` only sets the tag; flox names the local image after the env (ocidex:<tag>),
+      # so we build with the unique sha tag, locate the loaded image, then retag to GHCR.
+      - name: Containerize Flox env
+        id: build
+        run: |
+          TAG=${{ steps.vars.outputs.sha }}
+          flox containerize -d . --runtime docker --tag "$TAG"
+          LOCAL=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep ":$TAG$" | head -1)
+          echo "local=$LOCAL" >> "$GITHUB_OUTPUT"
+
+      - name: Tag & push to GHCR
+        run: |
+          IMAGE=ghcr.io/${{ github.repository_owner }}/ocidex-dev
+          TAG=${{ steps.vars.outputs.sha }}
+          docker tag "${{ steps.build.outputs.local }}" "$IMAGE:$TAG"
+          docker tag "${{ steps.build.outputs.local }}" "$IMAGE:latest"
+          docker push "$IMAGE:$TAG"
+          docker push "$IMAGE:latest"
