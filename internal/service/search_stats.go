@@ -4,51 +4,85 @@ import (
 	"context"
 	"fmt"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
 // GetDashboardStats returns aggregated metrics for the home dashboard.
 func (s *searchService) GetDashboardStats(ctx context.Context, vis VisibilityFilter) (*DashboardStats, error) {
 	q := repository.New(s.db)
+	isAdmin := visAdminBool(vis)
 
-	visParams := func() (repository.GetSummaryCountsParams, repository.GetLicenseCategoryCountsParams, repository.GetSBOMIngestionTimelineParams, repository.GetPackageGrowthTimelineParams, repository.GetVersionGrowthTimelineParams, repository.GetTopPackagesByVersionCountParams) {
-		return repository.GetSummaryCountsParams{UserID: vis.UserID, IsAdmin: visAdminBool(vis)},
-			repository.GetLicenseCategoryCountsParams{UserID: vis.UserID, IsAdmin: visAdminBool(vis)},
-			repository.GetSBOMIngestionTimelineParams{NumDays: 30, UserID: vis.UserID, IsAdmin: visAdminBool(vis)},
-			repository.GetPackageGrowthTimelineParams{UserID: vis.UserID, IsAdmin: visAdminBool(vis)},
-			repository.GetVersionGrowthTimelineParams{UserID: vis.UserID, IsAdmin: visAdminBool(vis)},
-			repository.GetTopPackagesByVersionCountParams{TopN: 10, UserID: vis.UserID, IsAdmin: visAdminBool(vis)}
-	}
-	summaryP, catP, timelineP, pkgP, verP, topP := visParams()
+	summaryP := repository.GetSummaryCountsParams{UserID: vis.UserID, IsAdmin: isAdmin}
+	catP := repository.GetLicenseCategoryCountsParams{UserID: vis.UserID, IsAdmin: isAdmin}
+	timelineP := repository.GetSBOMIngestionTimelineParams{NumDays: 30, UserID: vis.UserID, IsAdmin: isAdmin}
+	pkgP := repository.GetPackageGrowthTimelineParams{UserID: vis.UserID, IsAdmin: isAdmin}
+	verP := repository.GetVersionGrowthTimelineParams{UserID: vis.UserID, IsAdmin: isAdmin}
+	topP := repository.GetTopPackagesByVersionCountParams{TopN: 10, UserID: vis.UserID, IsAdmin: isAdmin}
 
-	counts, err := q.GetSummaryCounts(ctx, summaryP)
-	if err != nil {
-		return nil, fmt.Errorf("getting counts: %w", err)
-	}
+	var (
+		counts   repository.GetSummaryCountsRow
+		cats     []repository.GetLicenseCategoryCountsRow
+		timeline []repository.GetSBOMIngestionTimelineRow
+		pkgGrowth []repository.GetPackageGrowthTimelineRow
+		verGrowth []repository.GetVersionGrowthTimelineRow
+		topRows  []repository.GetTopPackagesByVersionCountRow
+	)
 
-	cats, err := q.GetLicenseCategoryCounts(ctx, catP)
-	if err != nil {
-		return nil, fmt.Errorf("getting license categories: %w", err)
-	}
+	g, gctx := errgroup.WithContext(ctx)
 
-	timeline, err := q.GetSBOMIngestionTimeline(ctx, timelineP)
-	if err != nil {
-		return nil, fmt.Errorf("getting ingestion timeline: %w", err)
-	}
+	g.Go(func() error {
+		var err error
+		counts, err = q.GetSummaryCounts(gctx, summaryP)
+		if err != nil {
+			return fmt.Errorf("getting counts: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		var err error
+		cats, err = q.GetLicenseCategoryCounts(gctx, catP)
+		if err != nil {
+			return fmt.Errorf("getting license categories: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		var err error
+		timeline, err = q.GetSBOMIngestionTimeline(gctx, timelineP)
+		if err != nil {
+			return fmt.Errorf("getting ingestion timeline: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		var err error
+		pkgGrowth, err = q.GetPackageGrowthTimeline(gctx, pkgP)
+		if err != nil {
+			return fmt.Errorf("getting package growth timeline: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		var err error
+		verGrowth, err = q.GetVersionGrowthTimeline(gctx, verP)
+		if err != nil {
+			return fmt.Errorf("getting version growth timeline: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		var err error
+		topRows, err = q.GetTopPackagesByVersionCount(gctx, topP)
+		if err != nil {
+			return fmt.Errorf("getting top packages: %w", err)
+		}
+		return nil
+	})
 
-	pkgGrowth, err := q.GetPackageGrowthTimeline(ctx, pkgP)
-	if err != nil {
-		return nil, fmt.Errorf("getting package growth timeline: %w", err)
-	}
-
-	verGrowth, err := q.GetVersionGrowthTimeline(ctx, verP)
-	if err != nil {
-		return nil, fmt.Errorf("getting version growth timeline: %w", err)
-	}
-
-	topRows, err := q.GetTopPackagesByVersionCount(ctx, topP)
-	if err != nil {
-		return nil, fmt.Errorf("getting top packages: %w", err)
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 
 	catItems := make([]CategoryCount, 0, len(cats))
