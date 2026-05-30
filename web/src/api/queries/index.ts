@@ -6,4 +6,4 @@ export { useDiff, useDiffTree } from "./diff";
 export { useDashboardStats } from "./stats";
 export { useListAPIKeys, useCreateAPIKey, useDeleteAPIKey, useListUsers, useUpdateUserRole, useGetSystemStatus } from "./auth";
 export { useListRegistries, useCreateRegistry, useUpdateRegistry, useDeleteRegistry, useTestRegistryConnection, useScanRegistry, useRegenerateWebhookSecret } from "./registries";
-export { useListScanJobs, useGetScanJob } from "./jobs";
+export { useListScanJobs, useGetScanJob, useListScanJobFailures } from "./jobs";

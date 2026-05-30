@@ -25,6 +25,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/enrichment/user"
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/extension"
+	"github.com/pfenerty/ocidex/internal/health"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/service"
@@ -126,6 +127,10 @@ func run() error {
 	if err := reg.StartAll(extCtx); err != nil {
 		return fmt.Errorf("starting extensions: %w", err)
 	}
+
+	healthSrv := health.New(":9090", pool, natsClient, slog.Default())
+	healthSrv.Start()
+	defer healthSrv.Stop()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

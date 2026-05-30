@@ -65,6 +65,16 @@ func (f *fakeJobSvc) TimeoutJobs(_ context.Context, _ time.Duration) error { ret
 func (f *fakeJobSvc) RecordFailure(_ context.Context, _ string, _ []byte, _ string, _ int) error {
 	return nil
 }
+func (f *fakeJobSvc) ClaimStaleQueuedJobs(_ context.Context, _, _, _ int32) ([]service.StaleQueuedJob, error) {
+	return nil, nil
+}
+func (f *fakeJobSvc) FailExhaustedQueuedJobs(_ context.Context, _ int32) error { return nil }
+func (f *fakeJobSvc) ListFailures(_ context.Context, _, _ int32) ([]service.ScanJobFailure, int64, error) {
+	return nil, 0, nil
+}
+func (f *fakeJobSvc) PurgeOldFailures(_ context.Context, _ time.Duration) (int64, error) {
+	return 0, nil
+}
 
 func (f *fakeJobSvc) getStartCalls() int {
 	f.mu.Lock()

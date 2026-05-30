@@ -59,3 +59,62 @@ WHERE state = 'running'
 INSERT INTO scan_job_failures (nats_msg_id, payload, failure_reason, delivery_count)
 VALUES (sqlc.narg('nats_msg_id'), @payload, @failure_reason, @delivery_count)
 RETURNING *;
+
+-- ClaimStaleQueuedJobs atomically selects scan_jobs stuck in 'queued' past their
+-- per-attempt backoff threshold (10m * 2^reconcile_attempts, capped) and increments
+-- reconcile_attempts so concurrent worker pods can't double-republish the same row.
+-- Returns the data the reconciler needs to rebuild the NATS scan request.
+-- name: ClaimStaleQueuedJobs :many
+WITH candidates AS (
+    SELECT sj.id
+    FROM scan_jobs sj
+    WHERE sj.state = 'queued'
+      AND sj.nats_msg_id IS NOT NULL
+      AND sj.reconcile_attempts < @max_attempts::int
+      AND sj.created_at < now() - (
+          interval '10 minutes' *
+          LEAST(power(2, sj.reconcile_attempts)::int, @backoff_cap::int)
+      )
+    ORDER BY sj.created_at
+    LIMIT @batch_size::int
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE scan_jobs sj
+SET reconcile_attempts = sj.reconcile_attempts + 1
+FROM candidates c, registry r
+WHERE sj.id = c.id
+  AND r.id = sj.registry_id
+RETURNING
+    sj.nats_msg_id::text          AS nats_msg_id,
+    r.id::text                    AS registry_id,
+    sj.repository                 AS repository,
+    sj.digest                     AS digest,
+    COALESCE(sj.tag, '')::text    AS tag,
+    r.url                         AS registry_url,
+    r.insecure                    AS insecure,
+    COALESCE(r.auth_username, '')::text AS auth_username,
+    COALESCE(r.auth_token, '')::text    AS auth_token,
+    sj.reconcile_attempts         AS reconcile_attempts;
+
+-- FailExhaustedQueuedJobs marks queued jobs that exceeded the reconciler attempt
+-- budget as permanently failed so they stop being scanned every tick.
+-- name: FailExhaustedQueuedJobs :exec
+UPDATE scan_jobs
+SET state       = 'failed',
+    finished_at = now(),
+    last_error  = 'orphaned: max reconcile attempts'
+WHERE state = 'queued'
+  AND reconcile_attempts >= @max_attempts::int;
+
+-- name: ListScanJobFailures :many
+SELECT id, nats_msg_id, failure_reason, delivery_count, created_at
+FROM scan_job_failures
+ORDER BY created_at DESC
+LIMIT sqlc.arg('limit_') OFFSET sqlc.arg('offset_');
+
+-- name: CountScanJobFailures :one
+SELECT COUNT(*) FROM scan_job_failures;
+
+-- name: DeleteOldScanJobFailures :execrows
+DELETE FROM scan_job_failures
+WHERE created_at < @cutoff::timestamptz;

@@ -24,3 +24,17 @@ export function useGetScanJob(id: Accessor<string>) {
         refetchInterval: 2500,
     }));
 }
+
+export function useListScanJobFailures(params?: Accessor<{
+    limit?: number;
+    offset?: number;
+}>) {
+    return createQuery(() => {
+        const p = params?.() ?? {};
+        return {
+            queryKey: ["jobs", "dlq", p.limit, p.offset] as const,
+            queryFn: () => unwrap(client.GET("/api/v1/admin/dlq", { params: { query: p } })),
+            refetchInterval: 5000,
+        };
+    });
+}

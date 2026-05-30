@@ -4,6 +4,7 @@ package nats
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -19,16 +20,30 @@ type Config struct {
 }
 
 // Client wraps a NATS connection and JetStream context.
+// NC is exported so callers can check connection state (e.g. readiness probes).
 type Client struct {
-	conn *nats.Conn
-	JS   jetstream.JetStream
+	NC *nats.Conn
+	JS jetstream.JetStream
 }
 
 // Connect establishes a NATS connection and provisions the JetStream stream.
 // The stream is created or updated idempotently, so multiple instances can
 // call Connect concurrently on startup without conflict.
 func Connect(cfg Config) (*Client, error) {
-	nc, err := nats.Connect(cfg.URL)
+	logger := slog.Default()
+	nc, err := nats.Connect(cfg.URL,
+		nats.MaxReconnects(-1),
+		nats.ReconnectWait(2*time.Second),
+		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
+			logger.Warn("nats disconnected", "err", err)
+		}),
+		nats.ReconnectHandler(func(nc *nats.Conn) {
+			logger.Warn("nats reconnected", "url", nc.ConnectedUrl())
+		}),
+		nats.ClosedHandler(func(_ *nats.Conn) {
+			logger.Warn("nats connection closed")
+		}),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("nats connect: %w", err)
 	}
@@ -60,10 +75,16 @@ func Connect(cfg Config) (*Client, error) {
 		return nil, fmt.Errorf("nats stream provision: %w", err)
 	}
 
-	return &Client{conn: nc, JS: js}, nil
+	return &Client{NC: nc, JS: js}, nil
 }
 
 // Close drains and closes the NATS connection.
 func (c *Client) Close() {
-	_ = c.conn.Drain()
+	_ = c.NC.Drain()
+}
+
+// Connected reports whether the underlying NATS connection is currently up.
+// Suitable for readiness probes.
+func (c *Client) Connected() bool {
+	return c.NC != nil && c.NC.Status() == nats.CONNECTED
 }

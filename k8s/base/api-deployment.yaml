@@ -33,7 +33,7 @@ spec:
             - name: PORT
               value: "8080"
             - name: NATS_STREAM_REPLICAS
-              value: "3"
+              value: "1"
             - name: NATS_URL
               value: "nats://nats:4222"
           livenessProbe:

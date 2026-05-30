@@ -486,6 +486,15 @@ func registerJobOps(api huma.API, h *Handler) {
 		Summary:     "Get a scan job",
 		Tags:        []string{"Jobs"},
 	}, h.GetScanJob)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-scan-job-failures",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/admin/dlq",
+		Summary:     "List dead-letter scan job failures",
+		Description: "Returns scan jobs that exhausted MaxDeliver retries and were routed to the DLQ. Admin-only.",
+		Tags:        []string{"Jobs", "Admin"},
+	}, h.ListScanJobFailures)
 }
 
 // ---------------------------------------------------------------------------

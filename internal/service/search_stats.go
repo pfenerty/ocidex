@@ -22,12 +22,12 @@ func (s *searchService) GetDashboardStats(ctx context.Context, vis VisibilityFil
 	topP := repository.GetTopPackagesByVersionCountParams{TopN: 10, UserID: vis.UserID, IsAdmin: isAdmin}
 
 	var (
-		counts   repository.GetSummaryCountsRow
-		cats     []repository.GetLicenseCategoryCountsRow
-		timeline []repository.GetSBOMIngestionTimelineRow
+		counts    repository.GetSummaryCountsRow
+		cats      []repository.GetLicenseCategoryCountsRow
+		timeline  []repository.GetSBOMIngestionTimelineRow
 		pkgGrowth []repository.GetPackageGrowthTimelineRow
 		verGrowth []repository.GetVersionGrowthTimelineRow
-		topRows  []repository.GetTopPackagesByVersionCountRow
+		topRows   []repository.GetTopPackagesByVersionCountRow
 	)
 
 	g, gctx := errgroup.WithContext(ctx)

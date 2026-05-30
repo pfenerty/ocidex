@@ -25,6 +25,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/extension"
+	"github.com/pfenerty/ocidex/internal/health"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/scanner/engine"
@@ -132,6 +133,10 @@ func run() error {
 		return fmt.Errorf("starting extensions: %w", err)
 	}
 
+	healthSrv := health.New(":9090", pool, natsClient, slog.Default())
+	healthSrv.Start()
+	defer healthSrv.Stop()
+
 	// Sweep jobs stuck in 'running' at startup, then every 5 minutes.
 	// Covers the case where a prior worker crashed before completing a job.
 	const jobTimeout = 30 * time.Minute
@@ -142,12 +147,22 @@ func run() error {
 	defer reaperCancel()
 	go runJobReaper(reaperCtx, jobSvc, jobTimeout)
 
-	// Re-publish NATS messages for jobs stuck in 'queued' longer than one AckWait
-	// cycle. Covers NATS stream resets or volume loss where messages are gone but
-	// DB records remain. Runs at startup and every 5 minutes.
+	// Re-publish NATS messages for jobs stuck in 'queued'. Each row tracks
+	// reconcile_attempts; thresholds grow exponentially (10m * 2^attempts, cap 80m)
+	// so a job pointing at an unreachable registry doesn't get hammered.
+	// After reconcileMaxAttempts the job is failed with 'orphaned: max reconcile attempts'.
+	// Runs at startup and every 5 minutes.
 	reconcilerCtx, reconcilerCancel := context.WithCancel(context.Background())
 	defer reconcilerCancel()
-	go runJobReconciler(reconcilerCtx, pool, natsSubmitter, slog.Default())
+	go runJobReconciler(reconcilerCtx, jobSvc, natsSubmitter, slog.Default())
+
+	// Purge old DLQ rows once per hour so scan_job_failures doesn't grow unbounded.
+	if cfg.ScanDLQRetentionDays > 0 {
+		purgeCtx, purgeCancel := context.WithCancel(context.Background())
+		defer purgeCancel()
+		retention := time.Duration(cfg.ScanDLQRetentionDays) * 24 * time.Hour
+		go runDLQPurge(purgeCtx, jobSvc, retention, slog.Default())
+	}
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -269,65 +284,32 @@ func runJobReaper(ctx context.Context, jobSvc service.JobService, timeout time.D
 	}
 }
 
-// staleQueuedJob holds the data needed to re-publish a scan request.
-type staleQueuedJob struct {
-	NatsMsgID    string
-	RegistryID   string
-	Repository   string
-	Digest       string
-	Tag          string
-	RegistryURL  string
-	Insecure     bool
-	AuthUsername string
-	AuthToken    string
-}
+// Reconciler tuning. 6 attempts × exponential 10m → 80m (capped at 80m) means a
+// truly orphaned job is failed after ~7h of retries. batchSize bounds the work
+// per tick so a flood of orphans doesn't republish thousands at once.
+const (
+	reconcileMaxAttempts = 6
+	reconcileBackoffCap  = 8 // 10m * 8 = 80m max wait between attempts
+	reconcileBatchSize   = 100
+)
 
-// reconcileStaleJobs queries for scan_jobs that have been 'queued' longer than
-// threshold and re-publishes their NATS messages. This recovers from NATS stream
-// resets or volume loss where messages are gone but DB records remain.
-func reconcileStaleJobs(ctx context.Context, pool *pgxpool.Pool, submitter *scanner.NATSSubmitter, logger *slog.Logger) {
-	// One AckWait cycle (10 min) is enough: if the message existed and was
-	// pending, it would have been redelivered and the job transitioned to
-	// 'running' by now. Still-queued after this threshold means it's orphaned.
-	const staleThreshold = 10 * time.Minute
-
-	rows, err := pool.Query(ctx, `
-		SELECT sj.nats_msg_id, r.id::text, sj.repository, sj.digest,
-		       COALESCE(sj.tag, ''), r.url, r.insecure,
-		       COALESCE(r.auth_username, ''), COALESCE(r.auth_token, '')
-		FROM scan_jobs sj
-		JOIN registry r ON r.id = sj.registry_id
-		WHERE sj.state = 'queued'
-		  AND sj.nats_msg_id IS NOT NULL
-		  AND sj.created_at < now() - $1::interval
-		ORDER BY sj.created_at
-	`, staleThreshold)
+// reconcileStaleJobs claims queued scan_jobs whose backoff window has elapsed and
+// re-publishes their NATS message. Claim + increment is a single UPDATE...RETURNING
+// with SKIP LOCKED so concurrent worker pods don't double-republish the same row.
+// Jobs that exhaust reconcileMaxAttempts are transitioned to 'failed' in the same
+// tick so subsequent passes ignore them.
+func reconcileStaleJobs(ctx context.Context, jobSvc service.JobService, submitter *scanner.NATSSubmitter, logger *slog.Logger) {
+	jobs, err := jobSvc.ClaimStaleQueuedJobs(ctx, reconcileMaxAttempts, reconcileBackoffCap, reconcileBatchSize)
 	if err != nil {
-		logger.Error("reconciler: query stale jobs", "err", err)
-		return
-	}
-	defer rows.Close()
-
-	var jobs []staleQueuedJob
-	for rows.Next() {
-		var j staleQueuedJob
-		if err := rows.Scan(&j.NatsMsgID, &j.RegistryID, &j.Repository, &j.Digest,
-			&j.Tag, &j.RegistryURL, &j.Insecure, &j.AuthUsername, &j.AuthToken); err != nil {
-			logger.Error("reconciler: scan row", "err", err)
-			return
-		}
-		jobs = append(jobs, j)
-	}
-	if err := rows.Err(); err != nil {
-		logger.Error("reconciler: rows", "err", err)
+		logger.Error("reconciler: claim stale jobs", "err", err)
 		return
 	}
 
-	if len(jobs) == 0 {
-		return
+	if err := jobSvc.FailExhaustedQueuedJobs(ctx, reconcileMaxAttempts); err != nil {
+		logger.Error("reconciler: fail exhausted jobs", "err", err)
 	}
-	logger.Info("reconciler: re-publishing stale queued jobs", "count", len(jobs))
 
+	republished := 0
 	for _, j := range jobs {
 		req := scanner.ScanRequest{
 			RegistryURL:  j.RegistryURL,
@@ -340,13 +322,46 @@ func reconcileStaleJobs(ctx context.Context, pool *pgxpool.Pool, submitter *scan
 			AuthToken:    j.AuthToken,
 		}
 		if err := submitter.Republish(ctx, j.NatsMsgID, req); err != nil {
-			logger.Error("reconciler: republish failed", "msg_id", j.NatsMsgID, "err", err)
+			logger.Error("reconciler: republish failed", "msg_id", j.NatsMsgID, "attempt", j.ReconcileAttempts, "err", err)
+			continue
+		}
+		republished++
+	}
+
+	logger.Info("reconciler: tick complete", "claimed", len(jobs), "republished", republished)
+}
+
+func runDLQPurge(ctx context.Context, jobSvc service.JobService, retention time.Duration, logger *slog.Logger) {
+	purge := func() {
+		n, err := jobSvc.PurgeOldFailures(ctx, retention)
+		if err != nil {
+			if ctx.Err() == nil {
+				logger.Error("dlq purge failed", "err", err)
+			}
+			return
+		}
+		if n > 0 {
+			logger.Info("dlq purge", "deleted", n, "retention_days", retention/(24*time.Hour))
+		}
+	}
+	purge()
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if ctx.Err() != nil {
+				return
+			}
+			purge()
+		case <-ctx.Done():
+			return
 		}
 	}
 }
 
-func runJobReconciler(ctx context.Context, pool *pgxpool.Pool, submitter *scanner.NATSSubmitter, logger *slog.Logger) {
-	reconcileStaleJobs(ctx, pool, submitter, logger)
+func runJobReconciler(ctx context.Context, jobSvc service.JobService, submitter *scanner.NATSSubmitter, logger *slog.Logger) {
+	reconcileStaleJobs(ctx, jobSvc, submitter, logger)
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 	for {
@@ -355,7 +370,7 @@ func runJobReconciler(ctx context.Context, pool *pgxpool.Pool, submitter *scanne
 			if ctx.Err() != nil {
 				return
 			}
-			reconcileStaleJobs(ctx, pool, submitter, logger)
+			reconcileStaleJobs(ctx, jobSvc, submitter, logger)
 		case <-ctx.Done():
 			return
 		}
