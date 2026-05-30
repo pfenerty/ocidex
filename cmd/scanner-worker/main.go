@@ -142,6 +142,13 @@ func run() error {
 	defer reaperCancel()
 	go runJobReaper(reaperCtx, jobSvc, jobTimeout)
 
+	// Re-publish NATS messages for jobs stuck in 'queued' longer than one AckWait
+	// cycle. Covers NATS stream resets or volume loss where messages are gone but
+	// DB records remain. Runs at startup and every 5 minutes.
+	reconcilerCtx, reconcilerCancel := context.WithCancel(context.Background())
+	defer reconcilerCancel()
+	go runJobReconciler(reconcilerCtx, pool, natsSubmitter, slog.Default())
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-quit
@@ -256,6 +263,99 @@ func runJobReaper(ctx context.Context, jobSvc service.JobService, timeout time.D
 			if err := jobSvc.TimeoutJobs(ctx, timeout); err != nil && ctx.Err() == nil {
 				slog.Warn("timeout sweep failed", "err", err)
 			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// staleQueuedJob holds the data needed to re-publish a scan request.
+type staleQueuedJob struct {
+	NatsMsgID    string
+	RegistryID   string
+	Repository   string
+	Digest       string
+	Tag          string
+	RegistryURL  string
+	Insecure     bool
+	AuthUsername string
+	AuthToken    string
+}
+
+// reconcileStaleJobs queries for scan_jobs that have been 'queued' longer than
+// threshold and re-publishes their NATS messages. This recovers from NATS stream
+// resets or volume loss where messages are gone but DB records remain.
+func reconcileStaleJobs(ctx context.Context, pool *pgxpool.Pool, submitter *scanner.NATSSubmitter, logger *slog.Logger) {
+	// One AckWait cycle (10 min) is enough: if the message existed and was
+	// pending, it would have been redelivered and the job transitioned to
+	// 'running' by now. Still-queued after this threshold means it's orphaned.
+	const staleThreshold = 10 * time.Minute
+
+	rows, err := pool.Query(ctx, `
+		SELECT sj.nats_msg_id, r.id::text, sj.repository, sj.digest,
+		       COALESCE(sj.tag, ''), r.url, r.insecure,
+		       COALESCE(r.auth_username, ''), COALESCE(r.auth_token, '')
+		FROM scan_jobs sj
+		JOIN registry r ON r.id = sj.registry_id
+		WHERE sj.state = 'queued'
+		  AND sj.nats_msg_id IS NOT NULL
+		  AND sj.created_at < now() - $1::interval
+		ORDER BY sj.created_at
+	`, staleThreshold)
+	if err != nil {
+		logger.Error("reconciler: query stale jobs", "err", err)
+		return
+	}
+	defer rows.Close()
+
+	var jobs []staleQueuedJob
+	for rows.Next() {
+		var j staleQueuedJob
+		if err := rows.Scan(&j.NatsMsgID, &j.RegistryID, &j.Repository, &j.Digest,
+			&j.Tag, &j.RegistryURL, &j.Insecure, &j.AuthUsername, &j.AuthToken); err != nil {
+			logger.Error("reconciler: scan row", "err", err)
+			return
+		}
+		jobs = append(jobs, j)
+	}
+	if err := rows.Err(); err != nil {
+		logger.Error("reconciler: rows", "err", err)
+		return
+	}
+
+	if len(jobs) == 0 {
+		return
+	}
+	logger.Info("reconciler: re-publishing stale queued jobs", "count", len(jobs))
+
+	for _, j := range jobs {
+		req := scanner.ScanRequest{
+			RegistryURL:  j.RegistryURL,
+			Insecure:     j.Insecure,
+			Repository:   j.Repository,
+			Digest:       j.Digest,
+			Tag:          j.Tag,
+			RegistryID:   j.RegistryID,
+			AuthUsername: j.AuthUsername,
+			AuthToken:    j.AuthToken,
+		}
+		if err := submitter.Republish(ctx, j.NatsMsgID, req); err != nil {
+			logger.Error("reconciler: republish failed", "msg_id", j.NatsMsgID, "err", err)
+		}
+	}
+}
+
+func runJobReconciler(ctx context.Context, pool *pgxpool.Pool, submitter *scanner.NATSSubmitter, logger *slog.Logger) {
+	reconcileStaleJobs(ctx, pool, submitter, logger)
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if ctx.Err() != nil {
+				return
+			}
+			reconcileStaleJobs(ctx, pool, submitter, logger)
 		case <-ctx.Done():
 			return
 		}

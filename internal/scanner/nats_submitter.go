@@ -45,6 +45,47 @@ type scanRequestWire struct {
 	RegistryID   string `json:"registry_id,omitempty"`
 }
 
+// Republish re-publishes a scan request to JetStream using an existing msgID.
+// Unlike Submit it does not call Enqueue — the DB record already exists.
+func (s *NATSSubmitter) Republish(ctx context.Context, msgID string, req ScanRequest) error {
+	payload, err := json.Marshal(scanRequestWire{ //nolint:gosec // G117: auth credentials must travel with scan requests through NATS
+		RegistryURL:  req.RegistryURL,
+		Insecure:     req.Insecure,
+		Repository:   req.Repository,
+		Digest:       req.Digest,
+		Tag:          req.Tag,
+		Architecture: req.Architecture,
+		BuildDate:    req.BuildDate,
+		ImageVersion: req.ImageVersion,
+		AuthUsername: req.AuthUsername,
+		AuthToken:    req.AuthToken,
+		RegistryID:   req.RegistryID,
+	})
+	if err != nil {
+		return err
+	}
+
+	env := natspkg.Envelope{
+		EventType:  "scan.requested",
+		OccurredAt: time.Now().UTC(),
+		Payload:    payload,
+	}
+	data, err := json.Marshal(env)
+	if err != nil {
+		return err
+	}
+
+	pubCtx, cancel := context.WithTimeout(ctx, natsPublishTimeout)
+	defer cancel()
+
+	subject := s.streamName + ".scan.requested"
+	msg := nats.NewMsg(subject)
+	msg.Header.Set("Nats-Msg-Id", msgID)
+	msg.Data = data
+	_, err = s.client.JS.PublishMsg(pubCtx, msg)
+	return err
+}
+
 // Submit synchronously publishes a scan request to JetStream and returns any publish error.
 func (s *NATSSubmitter) Submit(ctx context.Context, req ScanRequest) error {
 	msgID := req.RegistryID + "@" + req.Digest
