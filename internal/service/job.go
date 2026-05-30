@@ -33,9 +33,10 @@ type ScanJob struct {
 	LastError  *string
 	NATSMsgID  *string
 	SbomID     *string
-	CreatedAt  time.Time
-	StartedAt  *time.Time
-	FinishedAt *time.Time
+	CreatedAt     time.Time
+	StartedAt     *time.Time
+	LastAttemptAt *time.Time
+	FinishedAt    *time.Time
 }
 
 // JobService manages the lifecycle of scan pipeline jobs.
@@ -156,6 +157,10 @@ func fromJobRow(r repository.ScanJob) ScanJob {
 	if r.StartedAt.Valid {
 		t := r.StartedAt.Time
 		j.StartedAt = &t
+	}
+	if r.LastAttemptAt.Valid {
+		t := r.LastAttemptAt.Time
+		j.LastAttemptAt = &t
 	}
 	if r.FinishedAt.Valid {
 		t := r.FinishedAt.Time
