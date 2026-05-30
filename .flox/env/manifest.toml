@@ -27,6 +27,7 @@ git-cliff.pkg-path = "git-cliff"
 openssh.pkg-path = "openssh"
 direnv.pkg-path = "direnv"
 git.pkg-path = "git"
+beads.pkg-path = "beads"
 # gum.pkg-path = "gum"
 # gum.version = "^0.14.5"
 
@@ -110,6 +111,7 @@ git.pkg-path = "git"
 systems = [
   "aarch64-linux",
   "x86_64-linux",
+  "aarch64-darwin"
 ]
 # Uncomment to disable CUDA detection.
 # cuda-detection = false
