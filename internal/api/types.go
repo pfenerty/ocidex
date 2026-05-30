@@ -377,6 +377,7 @@ type ListArtifactVersionsInput struct {
 type ArtifactVersionSummary struct {
 	VersionKey    string     `json:"versionKey"`
 	SbomID        string     `json:"sbomId"`
+	SBOMCount     int64      `json:"sbomCount" doc:"Total number of SBOMs ingested for this version"`
 	Architectures []string   `json:"architectures"`
 	ImageVersion  *string    `json:"imageVersion,omitempty"`
 	Revision      *string    `json:"revision,omitempty"`

@@ -96,12 +96,25 @@ export function VersionsTab(props: {
                                         </Show>
                                     </td>
                                     <td>
-                                        <A
-                                            href={`/artifacts/${props.artifactId}/versions/${encodeURIComponent(version.versionKey)}`}
-                                            class="btn btn-sm"
+                                        <Show
+                                            when={version.sbomCount > 1}
+                                            fallback={
+                                                <button
+                                                    class="btn btn-sm"
+                                                    disabled
+                                                    title="Only one build — need at least two to show history"
+                                                >
+                                                    Build History
+                                                </button>
+                                            }
                                         >
-                                            Changelog
-                                        </A>
+                                            <A
+                                                href={`/artifacts/${props.artifactId}/versions/${encodeURIComponent(version.versionKey)}`}
+                                                class="btn btn-sm"
+                                            >
+                                                Build History
+                                            </A>
+                                        </Show>
                                     </td>
                                 </tr>
                             )}

@@ -711,6 +711,11 @@ export interface components {
             createdAt: string;
             imageVersion?: string;
             revision?: string;
+            /**
+             * Format: int64
+             * @description Total number of SBOMs ingested for this version
+             */
+            sbomCount: number;
             sbomId: string;
             sourceUrl?: string;
             sufficient: boolean;

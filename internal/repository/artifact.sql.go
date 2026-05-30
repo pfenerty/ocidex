@@ -129,6 +129,11 @@ architectures_per_version AS (
         array_agg(DISTINCT architecture) FILTER (WHERE architecture IS NOT NULL) AS architectures
     FROM sboms_meta
     GROUP BY version_key
+),
+sbom_count_per_version AS (
+    SELECT version_key, COUNT(*) AS sbom_count
+    FROM sboms_meta
+    GROUP BY version_key
 )
 SELECT
     n.version_key,
@@ -140,9 +145,11 @@ SELECT
     n.source_url,
     n.build_date,
     a.architectures,
+    c.sbom_count,
     COUNT(*) OVER() AS total_count
 FROM newest_per_version n
 JOIN architectures_per_version a ON a.version_key = n.version_key
+JOIN sbom_count_per_version c ON c.version_key = n.version_key
 ORDER BY n.created_at DESC
 LIMIT $3 OFFSET $2
 `
@@ -165,6 +172,7 @@ type ListArtifactVersionsRow struct {
 	SourceUrl            interface{}        `json:"source_url"`
 	BuildDate            pgtype.Timestamptz `json:"build_date"`
 	Architectures        interface{}        `json:"architectures"`
+	SbomCount            int64              `json:"sbom_count"`
 	TotalCount           int64              `json:"total_count"`
 }
 
@@ -193,6 +201,7 @@ func (q *Queries) ListArtifactVersions(ctx context.Context, arg ListArtifactVers
 			&i.SourceUrl,
 			&i.BuildDate,
 			&i.Architectures,
+			&i.SbomCount,
 			&i.TotalCount,
 		); err != nil {
 			return nil, err
