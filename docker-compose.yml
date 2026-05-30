@@ -1,146 +1,131 @@
 services:
-    postgres:
-        image: docker.io/postgres:15.4-alpine
-        container_name: ocidex-postgres
-        restart: always
-        environment:
-            POSTGRES_USER: ocidex
-            POSTGRES_PASSWORD: ocidex
-            POSTGRES_DB: ocidex
-        volumes:
-            - db-data:/var/lib/postgresql/data
-        ports:
-            - "5432:5432"
-        healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U ocidex"]
-            interval: 5s
-            timeout: 3s
-            retries: 5
+  postgres:
+    image: docker.io/postgres:15.4-alpine
+    container_name: ocidex-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ocidex
+      POSTGRES_PASSWORD: ocidex
+      POSTGRES_DB: ocidex
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ocidex"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
-    nats:
-        image: docker.io/nats:2-alpine
-        container_name: ocidex-nats
-        restart: unless-stopped
-        command: ["-js", "-m", "8222"]
-        ports:
-            - "4222:4222"
-        healthcheck:
-            test: ["CMD", "wget", "-q", "--spider", "http://localhost:8222/healthz"]
-            interval: 5s
-            timeout: 3s
-            retries: 5
-            start_period: 5s
+  nats:
+    image: docker.io/nats:2-alpine
+    container_name: ocidex-nats
+    restart: unless-stopped
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "4222:4222"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
-    zot:
-        image: ghcr.io/project-zot/zot:v2.1.15
-        container_name: ocidex-zot
-        restart: unless-stopped
-        ports:
-            - "5000:5000"
-        volumes:
-            - ./config/zot/config.json:/etc/zot/config.json:ro
-            - zot-data:/var/lib/registry
-        # healthcheck:
-        #     test: ["CMD-SHELL", "wget -qO- http://localhost:5000/v2/ || exit 1"]
-        #     interval: 10s
-        #     timeout: 5s
-        #     retries: 5
+  migrate:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: api
+    container_name: ocidex-migrate
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://ocidex:ocidex@postgres:5432/ocidex?sslmode=disable
+    command: ["migrate", "up"]
 
-    migrate:
-        build:
-            context: .
-            dockerfile: docker/Dockerfile
-            target: api
-        container_name: ocidex-migrate
-        restart: "no"
-        depends_on:
-            postgres:
-                condition: service_healthy
-        environment:
-            DATABASE_URL: postgres://ocidex:ocidex@postgres:5432/ocidex?sslmode=disable
-        command: ["migrate", "up"]
+  ocidex:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: api
+    container_name: ocidex-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      # Distributed topology: scanner-worker + enrichment-worker consume from NATS.
+      # FRONTEND_URL, CORS_ALLOWED_ORIGINS, GITHUB_REDIRECT_URL come from .env so
+      # tailnet/remote hostnames work without compose edits.
+      DATABASE_URL: postgres://ocidex:ocidex@postgres:5432/ocidex?sslmode=disable
+      NATS_URL: nats://nats:4222
+      PORT: "8080"
+      LOG_LEVEL: info
+      ENVIRONMENT: development
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
 
-    ocidex:
-        build:
-            context: .
-            dockerfile: docker/Dockerfile
-            target: api
-        container_name: ocidex-app
-        restart: unless-stopped
-        depends_on:
-            postgres:
-                condition: service_healthy
-            nats:
-                condition: service_healthy
-            migrate:
-                condition: service_completed_successfully
-        environment:
-            # Distributed topology: scanner-worker + enrichment-worker consume from NATS.
-            # FRONTEND_URL, CORS_ALLOWED_ORIGINS, GITHUB_REDIRECT_URL come from .env so
-            # tailnet/remote hostnames work without compose edits.
-            DATABASE_URL: postgres://ocidex:ocidex@postgres:5432/ocidex?sslmode=disable
-            NATS_URL: nats://nats:4222
-            PORT: "8080"
-            LOG_LEVEL: info
-            ENVIRONMENT: development
-        env_file:
-            - .env
-        ports:
-            - "8080:8080"
+  scanner-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: scanner-worker
+    container_name: ocidex-scanner-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgres://ocidex:ocidex@postgres:5432/ocidex?sslmode=disable
+      NATS_URL: nats://nats:4222
+      LOG_LEVEL: info
+      ENVIRONMENT: development
 
-    scanner-worker:
-        build:
-            context: .
-            dockerfile: docker/Dockerfile
-            target: scanner-worker
-        container_name: ocidex-scanner-worker
-        restart: unless-stopped
-        depends_on:
-            postgres:
-                condition: service_healthy
-            nats:
-                condition: service_healthy
-            migrate:
-                condition: service_completed_successfully
-        environment:
-            DATABASE_URL: postgres://ocidex:ocidex@postgres:5432/ocidex?sslmode=disable
-            NATS_URL: nats://nats:4222
-            LOG_LEVEL: info
-            ENVIRONMENT: development
+  enrichment-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: enrichment-worker
+    container_name: ocidex-enrichment-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgres://ocidex:ocidex@postgres:5432/ocidex?sslmode=disable
+      NATS_URL: nats://nats:4222
+      LOG_LEVEL: info
+      ENVIRONMENT: development
 
-    enrichment-worker:
-        build:
-            context: .
-            dockerfile: docker/Dockerfile
-            target: enrichment-worker
-        container_name: ocidex-enrichment-worker
-        restart: unless-stopped
-        depends_on:
-            postgres:
-                condition: service_healthy
-            nats:
-                condition: service_healthy
-            migrate:
-                condition: service_completed_successfully
-        environment:
-            DATABASE_URL: postgres://ocidex:ocidex@postgres:5432/ocidex?sslmode=disable
-            NATS_URL: nats://nats:4222
-            LOG_LEVEL: info
-            ENVIRONMENT: development
-
-    web:
-        build:
-            context: .
-            dockerfile: docker/web/Dockerfile
-        container_name: ocidex-web
-        restart: unless-stopped
-        depends_on:
-            - ocidex
-        environment:
-            BACKEND_URL: http://ocidex:8080
-        ports:
-            - "3000:80"
+  web:
+    build:
+      context: .
+      dockerfile: docker/web/Dockerfile
+    container_name: ocidex-web
+    restart: unless-stopped
+    depends_on:
+      - ocidex
+    environment:
+      BACKEND_URL: http://ocidex:8080
+    ports:
+      - "3000:80"
 
 volumes:
-    db-data:
-    zot-data:
+  db-data:
+  zot-data:
