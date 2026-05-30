@@ -138,6 +138,10 @@ func scanTag(ctx context.Context, client *http.Client, baseURL, repo, tag string
 	if isIndexMediaType(info.mediaType) {
 		return scanIndex(ctx, client, baseURL, repo, tag, info.digest, reg, sub, scannedDigests, logger)
 	}
+	if !isImageManifestType(info.mediaType) {
+		logger.Debug("skipping unsupported manifest type", "repo", repo, "tag", tag, "mediaType", info.mediaType)
+		return 0
+	}
 	meta := ociGetImageMetadata(ctx, client, baseURL, repo, info.digest)
 	if err := sub.Submit(ctx, ScanRequest{
 		RegistryURL:  reg.URL,
