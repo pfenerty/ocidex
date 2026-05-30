@@ -21,9 +21,11 @@ services:
     image: docker.io/nats:2-alpine
     container_name: ocidex-nats
     restart: unless-stopped
-    command: ["-js", "-m", "8222"]
+    command: ["-js", "-m", "8222", "--store_dir", "/data"]
     ports:
       - "4222:4222"
+    volumes:
+      - nats-data:/data
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8222/healthz"]
       interval: 5s
@@ -128,4 +130,5 @@ services:
 
 volumes:
   db-data:
+  nats-data:
   zot-data:
