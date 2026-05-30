@@ -147,14 +147,12 @@ func run() error {
 	defer reaperCancel()
 	go runJobReaper(reaperCtx, jobSvc, jobTimeout)
 
-	// Re-publish NATS messages for jobs stuck in 'queued'. Each row tracks
-	// reconcile_attempts; thresholds grow exponentially (10m * 2^attempts, cap 80m)
-	// so a job pointing at an unreachable registry doesn't get hammered.
-	// After reconcileMaxAttempts the job is failed with 'orphaned: max reconcile attempts'.
-	// Runs at startup and every 5 minutes.
-	reconcilerCtx, reconcilerCancel := context.WithCancel(context.Background())
-	defer reconcilerCancel()
-	go runJobReconciler(reconcilerCtx, jobSvc, natsSubmitter, slog.Default())
+	// NOTE: the orphan reconciler (runJobReconciler) is intentionally NOT started.
+	// Under throughput-bound conditions (Pi4 prod, ~24 scans/hour) almost every
+	// queued job crosses the 10-min "orphan" threshold simply from queue-wait
+	// time, triggering false-positive republishes that create duplicate stream
+	// messages and waste worker cycles on re-scans. Tracked: ocidex-ujj.74 — the
+	// dual-write design is being replaced by the outbox pattern.
 
 	// Purge old DLQ rows once per hour so scan_job_failures doesn't grow unbounded.
 	if cfg.ScanDLQRetentionDays > 0 {
