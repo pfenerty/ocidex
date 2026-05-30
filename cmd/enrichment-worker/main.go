@@ -110,7 +110,11 @@ func run() error {
 	// enrichMsgTimeout is set just under the consumer AckWait (5m) so a hung goroutine
 	// is cancelled and the semaphore slot released before JetStream redelivers.
 	const enrichMsgTimeout = 4 * time.Minute
-	reg.Register(enrichment.NewNATSExtension(natsClient, dispatcher, cfg.NATSStreamName, logger, enrichMsgTimeout))
+	enrichMaxAckPending := cfg.EnrichmentMaxAckPending
+	if enrichMaxAckPending == 0 {
+		enrichMaxAckPending = cfg.EnrichmentMaxConcurrency * 4
+	}
+	reg.Register(enrichment.NewNATSExtension(natsClient, dispatcher, cfg.NATSStreamName, logger, enrichMsgTimeout, cfg.EnrichmentMaxConcurrency, enrichMaxAckPending))
 
 	if err := reg.InitAll(); err != nil {
 		return fmt.Errorf("initializing extensions: %w", err)

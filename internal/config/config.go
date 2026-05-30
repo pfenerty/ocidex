@@ -47,10 +47,19 @@ type Config struct {
 	APIBaseURL string `env:"API_BASE_URL" envDefault:""`
 
 	// Scanner (OCI registry auto-scan via webhook).
-	ScannerEnabled        bool `env:"SCANNER_ENABLED"          envDefault:"false"`
-	ScannerWorkers        int  `env:"SCANNER_WORKERS"          envDefault:"2"`
-	ScannerQueueSize      int  `env:"SCANNER_QUEUE_SIZE"       envDefault:"50"`
-	ScannerMaxConcurrency int  `env:"SCANNER_MAX_CONCURRENCY"  envDefault:"10"`
+	ScannerEnabled        bool `env:"SCANNER_ENABLED"           envDefault:"false"`
+	ScannerWorkers        int  `env:"SCANNER_WORKERS"           envDefault:"2"`
+	ScannerQueueSize      int  `env:"SCANNER_QUEUE_SIZE"        envDefault:"50"`
+	ScannerMaxConcurrency int  `env:"SCANNER_MAX_CONCURRENCY"   envDefault:"10"`
+	// ScannerMaxAckPending sets the JetStream MaxAckPending for the scanner consumer.
+	// Defaults to ScannerMaxConcurrency*4 when zero, accommodating up to 4 replicas.
+	ScannerMaxAckPending int `env:"SCANNER_MAX_ACK_PENDING" envDefault:"0"`
+
+	// Enrichment worker NATS concurrency.
+	// EnrichmentMaxConcurrency controls goroutines per pod; EnrichmentMaxAckPending
+	// is the JetStream global cap across all pods (defaults to maxConc*4 when zero).
+	EnrichmentMaxConcurrency int `env:"ENRICHMENT_MAX_CONCURRENCY" envDefault:"50"`
+	EnrichmentMaxAckPending  int `env:"ENRICHMENT_MAX_ACK_PENDING" envDefault:"0"`
 
 	// RegistryPollerEnabled starts the background poller for poll-mode registries.
 	RegistryPollerEnabled bool `env:"REGISTRY_POLLER_ENABLED" envDefault:"false"`

@@ -1494,6 +1494,8 @@ export interface components {
             /** @enum {string} */
             state: "queued" | "running" | "succeeded" | "failed";
             tag?: string;
+            /** @description Pod hostname that is processing this job */
+            worker_id?: string;
         };
         ScanJobsStatus: {
             /** Format: int64 */

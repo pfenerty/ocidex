@@ -15,10 +15,6 @@ import (
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 )
 
-// enrichmentMaxConcurrency mirrors the MaxAckPending consumer config — limits how many
-// enrichment goroutines run concurrently, keeping unacknowledged message count bounded.
-const enrichmentMaxConcurrency = 50
-
 // DispatchRunner is implemented by Dispatcher and allows substitution in tests.
 type DispatchRunner interface {
 	ProcessOne(ctx context.Context, ref SubjectRef) error
@@ -28,27 +24,32 @@ type DispatchRunner interface {
 // It consumes from a durable JetStream pull consumer, providing durability and
 // multi-instance coordination. The in-process Extension is not used alongside this.
 type NATSExtension struct {
-	client      *natspkg.Client
-	dispatcher  DispatchRunner
-	streamName  string
-	logger      *slog.Logger
-	msgTimeout  time.Duration // per-message processing deadline; should be < AckWait
-	fetchCancel context.CancelFunc
-	fetchDone   chan struct{}
-	sem         chan struct{} // bounds concurrent goroutines to MaxAckPending
-	wg          sync.WaitGroup
+	client        *natspkg.Client
+	dispatcher    DispatchRunner
+	streamName    string
+	logger        *slog.Logger
+	msgTimeout    time.Duration // per-message processing deadline; should be < AckWait
+	maxConc       int           // max concurrent goroutines per pod (semaphore)
+	maxAckPending int           // JetStream MaxAckPending — global across all pods
+	fetchCancel   context.CancelFunc
+	fetchDone     chan struct{}
+	sem           chan struct{} // bounds concurrent goroutines to maxConc
+	wg            sync.WaitGroup
 }
 
 // NewNATSExtension creates a NATSExtension backed by the given client and dispatcher.
-// msgTimeout is the per-message processing deadline; set it slightly under the consumer
-// AckWait so a hung goroutine is cancelled before JetStream redelivers to another worker.
-func NewNATSExtension(client *natspkg.Client, dispatcher DispatchRunner, streamName string, logger *slog.Logger, msgTimeout time.Duration) *NATSExtension {
+// maxConcurrency controls how many enrichment goroutines run simultaneously on this pod.
+// maxAckPending is the JetStream consumer MaxAckPending; set it to maxConcurrency *
+// expected replica count so multiple pods can each hold a full batch concurrently.
+func NewNATSExtension(client *natspkg.Client, dispatcher DispatchRunner, streamName string, logger *slog.Logger, msgTimeout time.Duration, maxConcurrency, maxAckPending int) *NATSExtension {
 	return &NATSExtension{
-		client:     client,
-		dispatcher: dispatcher,
-		streamName: streamName,
-		logger:     logger,
-		msgTimeout: msgTimeout,
+		client:        client,
+		dispatcher:    dispatcher,
+		streamName:    streamName,
+		logger:        logger,
+		msgTimeout:    msgTimeout,
+		maxConc:       maxConcurrency,
+		maxAckPending: maxAckPending,
 	}
 }
 
@@ -72,13 +73,13 @@ func (e *NATSExtension) Start(ctx context.Context) error {
 		AckWait:       5 * time.Minute,
 		MaxDeliver:    5,
 		DeliverPolicy: jetstream.DeliverAllPolicy,
-		MaxAckPending: enrichmentMaxConcurrency,
+		MaxAckPending: e.maxAckPending,
 	})
 	if err != nil {
 		return fmt.Errorf("nats enrichment consumer: %w", err)
 	}
 
-	e.sem = make(chan struct{}, enrichmentMaxConcurrency)
+	e.sem = make(chan struct{}, e.maxConc)
 
 	fetchCtx, fetchCancel := context.WithCancel(ctx)
 	e.fetchCancel = fetchCancel
@@ -104,7 +105,7 @@ func (e *NATSExtension) Stop() error {
 
 func (e *NATSExtension) fetchLoop(ctx context.Context, consumer jetstream.Consumer) {
 	for {
-		msgs, err := consumer.Fetch(enrichmentMaxConcurrency, jetstream.FetchMaxWait(2*time.Second))
+		msgs, err := consumer.Fetch(e.maxConc, jetstream.FetchMaxWait(2*time.Second))
 		if err != nil {
 			if ctx.Err() != nil {
 				return

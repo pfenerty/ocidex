@@ -37,12 +37,13 @@ type ScanJob struct {
 	StartedAt     *time.Time
 	LastAttemptAt *time.Time
 	FinishedAt    *time.Time
+	WorkerID      *string
 }
 
 // JobService manages the lifecycle of scan pipeline jobs.
 type JobService interface {
 	Enqueue(ctx context.Context, registryID, repo, digest, tag, msgID string) (ScanJob, error)
-	Start(ctx context.Context, msgID string) error
+	Start(ctx context.Context, msgID, workerID string) error
 	Finish(ctx context.Context, msgID string, sbomID pgtype.UUID) error
 	Fail(ctx context.Context, msgID, lastError string) error
 	List(ctx context.Context, state string, limit, offset int32) ([]ScanJob, int64, error)
@@ -77,8 +78,11 @@ func (s *jobService) Enqueue(ctx context.Context, registryID, repo, digest, tag,
 	return fromJobRow(row), nil
 }
 
-func (s *jobService) Start(ctx context.Context, msgID string) error {
-	return s.repo.StartScanJob(ctx, pgtype.Text{String: msgID, Valid: msgID != ""})
+func (s *jobService) Start(ctx context.Context, msgID, workerID string) error {
+	return s.repo.StartScanJob(ctx, repository.StartScanJobParams{
+		NatsMsgID: pgtype.Text{String: msgID, Valid: msgID != ""},
+		WorkerID:  pgtype.Text{String: workerID, Valid: workerID != ""},
+	})
 }
 
 func (s *jobService) Finish(ctx context.Context, msgID string, sbomID pgtype.UUID) error {
@@ -165,6 +169,9 @@ func fromJobRow(r repository.ScanJob) ScanJob {
 	if r.FinishedAt.Valid {
 		t := r.FinishedAt.Time
 		j.FinishedAt = &t
+	}
+	if r.WorkerID.Valid {
+		j.WorkerID = &r.WorkerID.String
 	}
 	return j
 }

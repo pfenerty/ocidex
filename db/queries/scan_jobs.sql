@@ -5,10 +5,11 @@ RETURNING *;
 
 -- name: StartScanJob :exec
 UPDATE scan_jobs
-SET state        = 'running',
-    started_at   = COALESCE(started_at, now()),
+SET state           = 'running',
+    started_at      = COALESCE(started_at, now()),
     last_attempt_at = now(),
-    attempts     = attempts + 1
+    worker_id       = @worker_id,
+    attempts        = attempts + 1
 WHERE nats_msg_id = @nats_msg_id
   AND state NOT IN ('succeeded', 'failed');
 
@@ -25,7 +26,15 @@ WHERE nats_msg_id = @nats_msg_id;
 -- name: ListScanJobs :many
 SELECT * FROM scan_jobs
 WHERE (sqlc.narg('state')::text IS NULL OR state = sqlc.narg('state')::text)
-ORDER BY created_at DESC
+ORDER BY
+    CASE state
+        WHEN 'running'   THEN 1
+        WHEN 'queued'    THEN 2
+        WHEN 'failed'    THEN 3
+        WHEN 'succeeded' THEN 4
+        ELSE 5
+    END,
+    created_at DESC
 LIMIT sqlc.arg('limit_') OFFSET sqlc.arg('offset_');
 
 -- name: CountScanJobs :one

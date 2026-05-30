@@ -69,5 +69,6 @@ func toScanJobResponse(j service.ScanJob) ScanJobResponse {
 		s := j.FinishedAt.UTC().Format("2006-01-02T15:04:05Z")
 		r.FinishedAt = &s
 	}
+	r.WorkerID = j.WorkerID
 	return r
 }

@@ -73,7 +73,7 @@ func (q *Queries) FinishScanJob(ctx context.Context, arg FinishScanJobParams) er
 }
 
 const getScanJob = `-- name: GetScanJob :one
-SELECT id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at FROM scan_jobs WHERE id = $1
+SELECT id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id FROM scan_jobs WHERE id = $1
 `
 
 func (q *Queries) GetScanJob(ctx context.Context, id pgtype.UUID) (ScanJob, error) {
@@ -94,6 +94,7 @@ func (q *Queries) GetScanJob(ctx context.Context, id pgtype.UUID) (ScanJob, erro
 		&i.StartedAt,
 		&i.FinishedAt,
 		&i.LastAttemptAt,
+		&i.WorkerID,
 	)
 	return i, err
 }
@@ -101,7 +102,7 @@ func (q *Queries) GetScanJob(ctx context.Context, id pgtype.UUID) (ScanJob, erro
 const insertScanJob = `-- name: InsertScanJob :one
 INSERT INTO scan_jobs (registry_id, repository, digest, tag, nats_msg_id)
 VALUES ($1::uuid, $2, $3, $4, $5)
-RETURNING id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at
+RETURNING id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id
 `
 
 type InsertScanJobParams struct {
@@ -136,6 +137,7 @@ func (q *Queries) InsertScanJob(ctx context.Context, arg InsertScanJobParams) (S
 		&i.StartedAt,
 		&i.FinishedAt,
 		&i.LastAttemptAt,
+		&i.WorkerID,
 	)
 	return i, err
 }
@@ -173,9 +175,17 @@ func (q *Queries) InsertScanJobFailure(ctx context.Context, arg InsertScanJobFai
 }
 
 const listScanJobs = `-- name: ListScanJobs :many
-SELECT id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at FROM scan_jobs
+SELECT id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id FROM scan_jobs
 WHERE ($1::text IS NULL OR state = $1::text)
-ORDER BY created_at DESC
+ORDER BY
+    CASE state
+        WHEN 'running'   THEN 1
+        WHEN 'queued'    THEN 2
+        WHEN 'failed'    THEN 3
+        WHEN 'succeeded' THEN 4
+        ELSE 5
+    END,
+    created_at DESC
 LIMIT $3 OFFSET $2
 `
 
@@ -209,6 +219,7 @@ func (q *Queries) ListScanJobs(ctx context.Context, arg ListScanJobsParams) ([]S
 			&i.StartedAt,
 			&i.FinishedAt,
 			&i.LastAttemptAt,
+			&i.WorkerID,
 		); err != nil {
 			return nil, err
 		}
@@ -222,16 +233,22 @@ func (q *Queries) ListScanJobs(ctx context.Context, arg ListScanJobsParams) ([]S
 
 const startScanJob = `-- name: StartScanJob :exec
 UPDATE scan_jobs
-SET state        = 'running',
-    started_at   = COALESCE(started_at, now()),
+SET state           = 'running',
+    started_at      = COALESCE(started_at, now()),
     last_attempt_at = now(),
-    attempts     = attempts + 1
-WHERE nats_msg_id = $1
+    worker_id       = $1,
+    attempts        = attempts + 1
+WHERE nats_msg_id = $2
   AND state NOT IN ('succeeded', 'failed')
 `
 
-func (q *Queries) StartScanJob(ctx context.Context, natsMsgID pgtype.Text) error {
-	_, err := q.db.Exec(ctx, startScanJob, natsMsgID)
+type StartScanJobParams struct {
+	WorkerID  pgtype.Text `json:"worker_id"`
+	NatsMsgID pgtype.Text `json:"nats_msg_id"`
+}
+
+func (q *Queries) StartScanJob(ctx context.Context, arg StartScanJobParams) error {
+	_, err := q.db.Exec(ctx, startScanJob, arg.WorkerID, arg.NatsMsgID)
 	return err
 }
 
