@@ -1,17 +1,28 @@
 :80 {
-	root * /srv
 	encode gzip
 
-	# Reverse-proxy API/auth/health paths to the backend.
+	# Backend paths — explicit handle blocks take priority over the SPA fallback.
 	# Default targets the K8s Service name; compose overrides via BACKEND_URL.
 	# In prod, the Gateway HTTPRoute peels /api off before traffic reaches Caddy,
-	# so this is a no-op there for /api but covers /auth/callback (which the
-	# HTTPRoute does not route).
-	reverse_proxy /api/*  {$BACKEND_URL:http://ocidex-api:80}
-	reverse_proxy /auth/* {$BACKEND_URL:http://ocidex-api:80}
-	reverse_proxy /health {$BACKEND_URL:http://ocidex-api:80}
-	reverse_proxy /ready  {$BACKEND_URL:http://ocidex-api:80}
+	# so this is a no-op there for /api but covers /auth/* (which the HTTPRoute
+	# does not route).
+	handle /api/* {
+		reverse_proxy {$BACKEND_URL:http://ocidex-api:80}
+	}
+	handle /auth/* {
+		reverse_proxy {$BACKEND_URL:http://ocidex-api:80}
+	}
+	handle /health {
+		reverse_proxy {$BACKEND_URL:http://ocidex-api:80}
+	}
+	handle /ready {
+		reverse_proxy {$BACKEND_URL:http://ocidex-api:80}
+	}
 
-	try_files {path} /index.html
-	file_server
+	# SPA fallback — serve static files, fall back to index.html for client-side routing.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
 }
