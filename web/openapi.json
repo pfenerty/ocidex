@@ -2365,6 +2365,9 @@
             "description": "Job UUID",
             "type": "string"
           },
+          "last_attempt_at": {
+            "type": "string"
+          },
           "last_error": {
             "type": "string"
           },

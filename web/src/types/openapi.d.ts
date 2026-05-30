@@ -1481,6 +1481,7 @@ export interface components {
             finished_at?: string;
             /** @description Job UUID */
             id: string;
+            last_attempt_at?: string;
             last_error?: string;
             /** @description NATS deduplication message ID */
             nats_msg_id?: string;

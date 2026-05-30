@@ -61,6 +61,10 @@ func toScanJobResponse(j service.ScanJob) ScanJobResponse {
 		s := j.StartedAt.UTC().Format("2006-01-02T15:04:05Z")
 		r.StartedAt = &s
 	}
+	if j.LastAttemptAt != nil {
+		s := j.LastAttemptAt.UTC().Format("2006-01-02T15:04:05Z")
+		r.LastAttemptAt = &s
+	}
 	if j.FinishedAt != nil {
 		s := j.FinishedAt.UTC().Format("2006-01-02T15:04:05Z")
 		r.FinishedAt = &s

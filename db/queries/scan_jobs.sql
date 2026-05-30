@@ -5,7 +5,10 @@ RETURNING *;
 
 -- name: StartScanJob :exec
 UPDATE scan_jobs
-SET state = 'running', started_at = now(), attempts = attempts + 1
+SET state        = 'running',
+    started_at   = COALESCE(started_at, now()),
+    last_attempt_at = now(),
+    attempts     = attempts + 1
 WHERE nats_msg_id = @nats_msg_id
   AND state NOT IN ('succeeded', 'failed');
 
@@ -41,7 +44,7 @@ UPDATE scan_jobs
 SET state = 'failed', finished_at = now(),
     last_error = 'timed out: job was still running after timeout threshold'
 WHERE state = 'running'
-  AND started_at < @started_before::timestamptz;
+  AND COALESCE(last_attempt_at, started_at) < @started_before::timestamptz;
 
 -- name: InsertScanJobFailure :one
 INSERT INTO scan_job_failures (nats_msg_id, payload, failure_reason, delivery_count)

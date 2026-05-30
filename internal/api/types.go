@@ -787,9 +787,10 @@ type ScanJobResponse struct {
 	LastError  *string `json:"last_error,omitempty"`
 	NATSMsgID  *string `json:"nats_msg_id,omitempty" doc:"NATS deduplication message ID"`
 	SbomID     *string `json:"sbom_id,omitempty" doc:"Resulting SBOM UUID on success"`
-	CreatedAt  string  `json:"created_at"`
-	StartedAt  *string `json:"started_at,omitempty"`
-	FinishedAt *string `json:"finished_at,omitempty"`
+	CreatedAt     string  `json:"created_at"`
+	StartedAt     *string `json:"started_at,omitempty"`
+	LastAttemptAt *string `json:"last_attempt_at,omitempty"`
+	FinishedAt    *string `json:"finished_at,omitempty"`
 }
 
 // ListScanJobsInput is the request for GET /api/v1/jobs.
