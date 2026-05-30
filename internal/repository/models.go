@@ -162,6 +162,7 @@ type ScanJob struct {
 	StartedAt     pgtype.Timestamptz `json:"started_at"`
 	FinishedAt    pgtype.Timestamptz `json:"finished_at"`
 	LastAttemptAt pgtype.Timestamptz `json:"last_attempt_at"`
+	WorkerID      pgtype.Text        `json:"worker_id"`
 }
 
 type ScanJobFailure struct {

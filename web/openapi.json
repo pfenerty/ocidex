@@ -2400,6 +2400,10 @@
           },
           "tag": {
             "type": "string"
+          },
+          "worker_id": {
+            "description": "Pod hostname that is processing this job",
+            "type": "string"
           }
         },
         "required": [

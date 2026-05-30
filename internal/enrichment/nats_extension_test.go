@@ -78,7 +78,7 @@ func TestHandleMsg_MalformedEnvelope(t *testing.T) {
 	is := is.New(t)
 	proc := &fakeProcessor{}
 	ext := &NATSExtension{dispatcher: proc, streamName: "ocidex", logger: noopLogger(),
-		sem: make(chan struct{}, enrichmentMaxConcurrency)}
+		sem: make(chan struct{}, 50)}
 
 	msg := &recordingMsg{data: []byte("not json")}
 	ext.handleMsg(context.Background(), msg)
@@ -91,7 +91,7 @@ func TestHandleMsg_MalformedPayload(t *testing.T) {
 	is := is.New(t)
 	proc := &fakeProcessor{}
 	ext := &NATSExtension{dispatcher: proc, streamName: "ocidex", logger: noopLogger(),
-		sem: make(chan struct{}, enrichmentMaxConcurrency)}
+		sem: make(chan struct{}, 50)}
 
 	env := natspkg.Envelope{
 		EventType: "sbom.ingested",
@@ -108,7 +108,7 @@ func TestHandleMsg_Success(t *testing.T) {
 	is := is.New(t)
 	proc := &fakeProcessor{}
 	ext := &NATSExtension{dispatcher: proc, streamName: "ocidex", logger: noopLogger(),
-		sem: make(chan struct{}, enrichmentMaxConcurrency)}
+		sem: make(chan struct{}, 50)}
 
 	msg := &recordingMsg{data: makeIngestedEnvelope("01234567-89ab-cdef-0123-456789abcdef")}
 	ext.handleMsg(context.Background(), msg)
@@ -122,7 +122,7 @@ func TestHandleMsg_ProcessingError(t *testing.T) {
 	is := is.New(t)
 	proc := &fakeProcessor{err: errors.New("db failure")}
 	ext := &NATSExtension{dispatcher: proc, streamName: "ocidex", logger: noopLogger(),
-		sem: make(chan struct{}, enrichmentMaxConcurrency)}
+		sem: make(chan struct{}, 50)}
 
 	msg := &recordingMsg{data: makeIngestedEnvelope("01234567-89ab-cdef-0123-456789abcdef")}
 	ext.handleMsg(context.Background(), msg)

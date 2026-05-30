@@ -31,33 +31,36 @@ type ScanProcessor interface {
 // It consumes from a durable JetStream pull consumer, providing durability and
 // multi-instance coordination. The in-process Extension is not used alongside this.
 type NATSExtension struct {
-	client      *natspkg.Client
-	processor   ScanProcessor
-	streamName  string
-	logger      *slog.Logger
-	jobSvc      service.JobService // optional; nil disables job tracking
-	msgTimeout  time.Duration      // per-message processing deadline; should be < AckWait
-	maxConc     int                // max concurrent scan goroutines; mirrors MaxAckPending
-	fetchCancel context.CancelFunc
-	fetchDone   chan struct{}
-	sem         chan struct{} // bounds concurrent goroutines to maxConc
-	wg          sync.WaitGroup
+	client        *natspkg.Client
+	processor     ScanProcessor
+	streamName    string
+	logger        *slog.Logger
+	jobSvc        service.JobService // optional; nil disables job tracking
+	workerID      string             // hostname/pod name stamped on job records
+	msgTimeout    time.Duration      // per-message processing deadline; should be < AckWait
+	maxConc       int                // max concurrent scan goroutines per pod (semaphore)
+	maxAckPending int                // JetStream MaxAckPending — global across all pods
+	fetchCancel   context.CancelFunc
+	fetchDone     chan struct{}
+	sem           chan struct{} // bounds concurrent goroutines to maxConc
+	wg            sync.WaitGroup
 }
 
 // NewNATSExtension creates a NATSExtension backed by the given client and processor.
-// msgTimeout is the per-message processing deadline; set it slightly under the consumer
-// AckWait so a hung goroutine is cancelled before JetStream redelivers to another worker.
-// maxConcurrency controls how many scan goroutines run simultaneously and must match the
-// consumer MaxAckPending to prevent JetStream from withholding messages.
-func NewNATSExtension(client *natspkg.Client, processor ScanProcessor, streamName string, logger *slog.Logger, jobSvc service.JobService, msgTimeout time.Duration, maxConcurrency int) *NATSExtension {
+// maxConcurrency controls how many scan goroutines run simultaneously on this pod.
+// maxAckPending is the JetStream consumer MaxAckPending; set it to maxConcurrency *
+// expected replica count so multiple pods can each hold a full batch concurrently.
+func NewNATSExtension(client *natspkg.Client, processor ScanProcessor, streamName string, logger *slog.Logger, jobSvc service.JobService, workerID string, msgTimeout time.Duration, maxConcurrency, maxAckPending int) *NATSExtension {
 	return &NATSExtension{
-		client:     client,
-		processor:  processor,
-		streamName: streamName,
-		logger:     logger,
-		jobSvc:     jobSvc,
-		msgTimeout: msgTimeout,
-		maxConc:    maxConcurrency,
+		client:        client,
+		processor:     processor,
+		streamName:    streamName,
+		logger:        logger,
+		jobSvc:        jobSvc,
+		workerID:      workerID,
+		msgTimeout:    msgTimeout,
+		maxConc:       maxConcurrency,
+		maxAckPending: maxAckPending,
 	}
 }
 
@@ -81,7 +84,7 @@ func (e *NATSExtension) Start(ctx context.Context) error {
 		AckWait:       10 * time.Minute,
 		MaxDeliver:    scannerMaxDeliver,
 		DeliverPolicy: jetstream.DeliverAllPolicy,
-		MaxAckPending: e.maxConc,
+		MaxAckPending: e.maxAckPending,
 	})
 	if err != nil {
 		return fmt.Errorf("nats scanner consumer: %w", err)
@@ -196,7 +199,7 @@ func (e *NATSExtension) handleMsg(fetchCtx context.Context, msg natsMsg) {
 	}
 
 	if e.jobSvc != nil && msgID != "" {
-		if err := e.jobSvc.Start(context.Background(), msgID); err != nil {
+		if err := e.jobSvc.Start(context.Background(), msgID, e.workerID); err != nil {
 			e.logger.Warn("scan_jobs: failed to start job", "msg_id", msgID, "err", err)
 		}
 	}

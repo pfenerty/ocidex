@@ -30,7 +30,7 @@ func (f *fakeJobSvc) Enqueue(_ context.Context, _, _, _, _, _ string) (service.S
 	return service.ScanJob{}, nil
 }
 
-func (f *fakeJobSvc) Start(_ context.Context, _ string) error {
+func (f *fakeJobSvc) Start(_ context.Context, _, _ string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.startCalls++

@@ -791,6 +791,7 @@ type ScanJobResponse struct {
 	StartedAt     *string `json:"started_at,omitempty"`
 	LastAttemptAt *string `json:"last_attempt_at,omitempty"`
 	FinishedAt    *string `json:"finished_at,omitempty"`
+	WorkerID      *string `json:"worker_id,omitempty" doc:"Pod hostname that is processing this job"`
 }
 
 // ListScanJobsInput is the request for GET /api/v1/jobs.

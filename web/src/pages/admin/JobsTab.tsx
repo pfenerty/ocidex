@@ -49,10 +49,18 @@ export function JobsTab() {
     const isError = () => qMain.isError || (isActive() && qQueued.isError);
 
     const displayJobs = () => {
-        const jobs = isActive()
-            ? [...(qMain.data?.data ?? []), ...(qQueued.data?.data ?? [])]
-                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-            : (qMain.data?.data ?? []);
+        let jobs;
+        if (isActive()) {
+            const running = [...(qMain.data?.data ?? [])].sort(
+                (a, b) => new Date(a.started_at ?? a.created_at).getTime() - new Date(b.started_at ?? b.created_at).getTime()
+            );
+            const queued = [...(qQueued.data?.data ?? [])].sort(
+                (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            );
+            jobs = [...running, ...queued];
+        } else {
+            jobs = qMain.data?.data ?? [];
+        }
         const repo = repoFilter().toLowerCase();
         const reg = registryFilter();
         return jobs.filter(job =>
@@ -95,7 +103,8 @@ export function JobsTab() {
                             <thead>
                                 <tr>
                                     <th>State</th>
-                                    <th>Repository</th>
+                                    <th>Image</th>
+                                    <th>Worker</th>
                                     <th>Attempts</th>
                                     <th>Created</th>
                                     <th>Last Error</th>
@@ -113,6 +122,12 @@ export function JobsTab() {
                                             </td>
                                             <td>
                                                 <code>{job.tag !== undefined ? `${job.repository}:${job.tag}` : job.repository}</code>
+                                                <code style={{ display: "block", "font-size": "0.75rem", color: "var(--color-text-muted)", "margin-top": "0.15rem" }}>
+                                                    {job.digest.replace(/^sha256:/, "").slice(0, 12)}
+                                                </code>
+                                            </td>
+                                            <td style={{ "font-size": "0.8rem", color: "var(--color-text-muted)", "white-space": "nowrap" }}>
+                                                {job.worker_id ?? "—"}
                                             </td>
                                             <td>{job.attempts}</td>
                                             <td style={{ "white-space": "nowrap" }}>{formatDateTime(job.created_at)}</td>

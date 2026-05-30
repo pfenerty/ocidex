@@ -164,7 +164,7 @@ func (d *Dispatcher) startJob(ctx context.Context, msgID string) error {
 	if d.jobSvc == nil || msgID == "" {
 		return nil
 	}
-	return d.jobSvc.Start(ctx, msgID)
+	return d.jobSvc.Start(ctx, msgID, "")
 }
 
 func (d *Dispatcher) failJob(ctx context.Context, msgID, errMsg string) error {
