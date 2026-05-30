@@ -43,6 +43,38 @@ func (h *Handler) GetScanJob(ctx context.Context, in *GetScanJobInput) (*GetScan
 	return &GetScanJobOutput{Body: toScanJobResponse(job)}, nil
 }
 
+// ListScanJobFailures returns paginated DLQ rows (admin-only).
+func (h *Handler) ListScanJobFailures(ctx context.Context, in *ListScanJobFailuresInput) (*ListScanJobFailuresOutput, error) {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	if user.Role != roleAdmin {
+		return nil, huma.Error403Forbidden("admin only")
+	}
+	failures, total, err := h.jobService.ListFailures(ctx, in.Limit, in.Offset)
+	if err != nil {
+		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing dlq: %v", err))
+	}
+	out := &ListScanJobFailuresOutput{}
+	out.Body.Data = make([]ScanJobFailureResponse, len(failures))
+	for i, f := range failures {
+		out.Body.Data[i] = ScanJobFailureResponse{
+			ID:            f.ID,
+			NATSMsgID:     f.NATSMsgID,
+			FailureReason: f.FailureReason,
+			DeliveryCount: f.DeliveryCount,
+			CreatedAt:     f.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+		}
+	}
+	out.Body.Pagination = PaginationMeta{
+		Total:  total,
+		Limit:  in.Limit,
+		Offset: in.Offset,
+	}
+	return out, nil
+}
+
 func toScanJobResponse(j service.ScanJob) ScanJobResponse {
 	r := ScanJobResponse{
 		ID:         j.ID,

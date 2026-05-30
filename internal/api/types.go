@@ -778,16 +778,16 @@ type RegistryWebhookInput struct {
 
 // ScanJobResponse is the public representation of a scan pipeline job.
 type ScanJobResponse struct {
-	ID         string  `json:"id" doc:"Job UUID"`
-	RegistryID *string `json:"registry_id,omitempty" doc:"Source registry UUID"`
-	Repository string  `json:"repository"`
-	Digest     string  `json:"digest"`
-	Tag        *string `json:"tag,omitempty"`
-	State      string  `json:"state" enum:"queued,running,succeeded,failed"`
-	Attempts   int32   `json:"attempts"`
-	LastError  *string `json:"last_error,omitempty"`
-	NATSMsgID  *string `json:"nats_msg_id,omitempty" doc:"NATS deduplication message ID"`
-	SbomID     *string `json:"sbom_id,omitempty" doc:"Resulting SBOM UUID on success"`
+	ID            string  `json:"id" doc:"Job UUID"`
+	RegistryID    *string `json:"registry_id,omitempty" doc:"Source registry UUID"`
+	Repository    string  `json:"repository"`
+	Digest        string  `json:"digest"`
+	Tag           *string `json:"tag,omitempty"`
+	State         string  `json:"state" enum:"queued,running,succeeded,failed"`
+	Attempts      int32   `json:"attempts"`
+	LastError     *string `json:"last_error,omitempty"`
+	NATSMsgID     *string `json:"nats_msg_id,omitempty" doc:"NATS deduplication message ID"`
+	SbomID        *string `json:"sbom_id,omitempty" doc:"Resulting SBOM UUID on success"`
 	CreatedAt     string  `json:"created_at"`
 	StartedAt     *string `json:"started_at,omitempty"`
 	LastAttemptAt *string `json:"last_attempt_at,omitempty"`
@@ -817,4 +817,26 @@ type GetScanJobInput struct {
 // GetScanJobOutput is the response for GET /api/v1/jobs/{id}.
 type GetScanJobOutput struct {
 	Body ScanJobResponse
+}
+
+// ScanJobFailureResponse is the public representation of a DLQ row (scan_job_failures).
+type ScanJobFailureResponse struct {
+	ID            string  `json:"id" doc:"Failure record UUID"`
+	NATSMsgID     *string `json:"nats_msg_id,omitempty" doc:"Original NATS deduplication message ID"`
+	FailureReason string  `json:"failure_reason"`
+	DeliveryCount int32   `json:"delivery_count" doc:"How many times JetStream delivered this message before DLQ"`
+	CreatedAt     string  `json:"created_at"`
+}
+
+// ListScanJobFailuresInput is the request for GET /api/v1/admin/dlq.
+type ListScanJobFailuresInput struct {
+	PaginationParams
+}
+
+// ListScanJobFailuresOutput is the response for GET /api/v1/admin/dlq.
+type ListScanJobFailuresOutput struct {
+	Body struct {
+		Data       []ScanJobFailureResponse `json:"data"`
+		Pagination PaginationMeta           `json:"pagination"`
+	}
 }

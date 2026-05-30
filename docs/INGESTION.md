@@ -114,6 +114,27 @@ The API always publishes scan requests over NATS rather than scanning in-process
 - Submitter marshals `ScanRequest` to `scanRequestWire` JSON (all fields, `omitempty`), publishes to subject `ocidex.scan.requested`.
 - Consumer: durable consumer named `"scanner"`, `AckWait=10min`, `MaxDeliver=3`. Deserializes back to `ScanRequest` with all fields intact.
 - Reconstructed `ScanRequest` is submitted to the in-process dispatcher → same as Path D from there.
+- Idempotency key: `Nats-Msg-Id = registry_id@digest` deduplicated by JetStream over a 5-minute window and uniquely indexed in `scan_jobs.nats_msg_id`.
+
+#### Concurrency knobs
+
+- `SCANNER_MAX_CONCURRENCY` (per pod) — both the fetch batch size and a goroutine semaphore. Prod runs on a Pi4-class cluster where Syft's per-image memory footprint vs the 1Gi limit forces this to `1`; non-constrained deployments use `10`.
+- `SCANNER_MAX_ACK_PENDING` (global, across pods) — JetStream's cap on unacked messages for the `scanner` consumer. Defaults to `SCANNER_MAX_CONCURRENCY * 4` when unset, which assumes up to 4 replicas. Tune up if running more.
+- Enrichment has the same pair: `ENRICHMENT_MAX_CONCURRENCY` (default 50) and `ENRICHMENT_MAX_ACK_PENDING` (same `× 4` default).
+
+The decoupling is deliberate: setting `MaxAckPending` equal to per-pod concurrency causes one pod to monopolise the slots and starves siblings. The `× 4` multiplier gives every replica room for one full batch without starvation.
+
+#### Orphan reconciliation
+
+The scanner-worker runs `reconcileStaleJobs` at startup and every 5 min. It claims `scan_jobs` rows that are still `queued` past their per-attempt backoff (10 min × min(2^attempts, 8); cap 80 min) using a single `UPDATE … RETURNING` with `FOR UPDATE SKIP LOCKED` so concurrent pods don't double-publish. After 6 attempts the row is failed with `last_error = 'orphaned: max reconcile attempts'`. This recovers from NATS stream resets or PVC loss where DB rows survive but the message did not.
+
+#### Dead-letter queue
+
+After `MaxDeliver=3` attempts, the scanner extension routes the message to subject `ocidex.scan.dlq` and inserts a row in `scan_job_failures` (`nats_msg_id`, `payload`, `failure_reason`, `delivery_count`). The admin endpoint `GET /api/v1/admin/dlq` and the **Dead Letter** view in the admin Jobs tab expose these. The scanner-worker purges rows older than `SCAN_DLQ_RETENTION_DAYS` (default `30`, `0` disables) once per hour.
+
+#### Layer-cache (future work)
+
+Each scan re-pulls all image layers — Stereoscope keeps a per-job tmpdir but there is no cross-job cache. For the Pi4 deployment this is acceptable; for higher-throughput targets, a shared volume mount (or registry mirror in front of the scanner) would amortise layer pulls. Not implemented; the redesign is significant and the current bottleneck is Syft CPU, not registry bandwidth.
 
 ---
 
