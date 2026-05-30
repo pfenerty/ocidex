@@ -144,6 +144,7 @@ type ArtifactDetail struct {
 type ArtifactVersion struct {
 	VersionKey    string     `json:"versionKey"`
 	SbomID        string     `json:"sbomId"`
+	SBOMCount     int64      `json:"sbomCount"`
 	Architectures []string   `json:"architectures"`
 	ImageVersion  *string    `json:"imageVersion,omitempty"`
 	Revision      *string    `json:"revision,omitempty"`

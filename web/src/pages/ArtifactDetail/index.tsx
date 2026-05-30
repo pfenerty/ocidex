@@ -314,13 +314,7 @@ export default function ArtifactDetail() {
                                             }
                                         >
                                             <Show
-                                                when={
-                                                    changelogQuery.data &&
-                                                    changelogQuery.data.entries
-                                                        .length > 0
-                                                        ? changelogQuery.data
-                                                        : undefined
-                                                }
+                                                when={changelogQuery.data}
                                                 fallback={
                                                     <EmptyState
                                                         title="No changes detected"

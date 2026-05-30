@@ -316,6 +316,7 @@ func (h *Handler) ListArtifactVersions(ctx context.Context, input *ListArtifactV
 		items = append(items, ArtifactVersionSummary{
 			VersionKey:    v.VersionKey,
 			SbomID:        v.SbomID,
+			SBOMCount:     v.SBOMCount,
 			Architectures: v.Architectures,
 			ImageVersion:  v.ImageVersion,
 			Revision:      v.Revision,

@@ -118,6 +118,11 @@
           "revision": {
             "type": "string"
           },
+          "sbomCount": {
+            "description": "Total number of SBOMs ingested for this version",
+            "format": "int64",
+            "type": "integer"
+          },
           "sbomId": {
             "type": "string"
           },
@@ -134,6 +139,7 @@
         "required": [
           "versionKey",
           "sbomId",
+          "sbomCount",
           "architectures",
           "createdAt",
           "sufficient"

@@ -100,6 +100,7 @@ func (s *searchService) ListVersionsByArtifact(ctx context.Context, artifactID p
 		v := ArtifactVersion{
 			VersionKey: row.VersionKey.String,
 			SbomID:     uuidToString(row.NewestSbomID),
+			SBOMCount:  row.SbomCount,
 			Sufficient: row.EnrichmentSufficient,
 			CreatedAt:  row.CreatedAt.Time,
 		}

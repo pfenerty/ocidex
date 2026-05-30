@@ -3,6 +3,7 @@ import "./ChangelogTab.css";
 import type { ChangelogEntryData } from "~/utils/diff";
 import { ViewToggle } from "~/components/DiffPairView";
 import { DiffEntryCard } from "~/components/DiffEntryCard";
+import { EmptyState } from "~/components/Feedback";
 
 export function ChangelogTab(props: {
     entries: ChangelogEntryData[];
@@ -61,15 +62,25 @@ export function ChangelogTab(props: {
                 </div>
                 <ViewToggle mode={viewMode()} onChange={setViewMode} />
             </div>
-            <For each={props.entries}>
-                {(entry) => (
-                    <DiffEntryCard
-                        entry={entry}
-                        viewMode={viewMode()}
-                        defaultExpanded={false}
+            <Show
+                when={props.entries.length > 0}
+                fallback={
+                    <EmptyState
+                        title="No changes for this architecture"
+                        message="Select a different architecture to see changelog entries, or ingest another SBOM to generate a diff."
                     />
-                )}
-            </For>
+                }
+            >
+                <For each={props.entries}>
+                    {(entry) => (
+                        <DiffEntryCard
+                            entry={entry}
+                            viewMode={viewMode()}
+                            defaultExpanded={false}
+                        />
+                    )}
+                </For>
+            </Show>
         </>
     );
 }
