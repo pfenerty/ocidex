@@ -10,11 +10,11 @@ kind: Deployment
 metadata:
   name: ocidex-scanner-worker
 spec:
-  replicas: 1
+  replicas: 2
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ocidex-enrichment-worker
 spec:
-  replicas: 1
+  replicas: 2
