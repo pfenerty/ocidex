@@ -88,3 +88,96 @@ The submitter inserts the row + publishes a hint. If a row with the same `(regis
 - **PVC backups** — back up the Postgres volume. The NATS volume is now no-data: at worst, losing it costs you queue latency until workers' next poll, which is bounded by `SCANNER_POLL_INTERVAL`.
 - **Tuning concurrency** — `SCANNER_MAX_CONCURRENCY` directly maps to active worker goroutines. Watch pod memory: Syft is the cost. There is no longer a `SCANNER_MAX_ACK_PENDING` to tune in lockstep.
 - **DLQ table cleanup** — `scan_job_failures` is the legacy DLQ-via-NATS audit table. It is no longer written to. `SCAN_DLQ_RETENTION_DAYS` (default 30) controls how long old rows linger before the purge sweep deletes them. The table itself is scheduled for removal in a follow-up migration (`ocidex-ujj.74.6`).
+
+## Postgres on CloudNativePG — migration playbook
+
+The production Postgres deployment is being moved from a hand-managed `StatefulSet` (`postgres:15.4-alpine` in `ocidex/k8s/base/`) to a CloudNativePG (CNPG) `Cluster` (declared in `homelab/talos-cluster/flux/apps/ocidex/postgres.yaml`). Tracked under `ocidex-ujj.78`. ADR: see commit history + the homelab `talos-cluster/flux/apps/cnpg/`.
+
+### Why
+
+- Auto-tuning of `shared_buffers`, `work_mem`, `effective_cache_size`, `max_connections` from the declared `resources` block. No more remembering Postgres tuning formulas.
+- Continuous WAL archival + PITR available by setting `spec.backup` once a target is provisioned (NAS MinIO, S3, NFS).
+- Built-in failover when a second worker node justifies a replica.
+- Managed major-version upgrades via `spec.imageName` bumps.
+
+### Pre-flight
+
+1. Verify the existing StatefulSet's PVC is healthy: `kubectl -n ocidex get pvc`.
+2. Take a snapshot or `pg_dump` to the NAS for paranoia. CNPG's `initdb.import.monolith` does pg_dump/restore internally, but having an out-of-band copy makes the rollback story simpler.
+3. Confirm cluster has spare memory for both Postgres pods to coexist briefly during the import (~2 GiB extra during the import window).
+
+### Cutover sequence
+
+1. **Create the CNPG app-user Secret locally.** The Cluster CR's bootstrap references `Secret/ocidex-pg-app` which doesn't yet exist. CNPG requires the keys `username` and `password` literally — they are not configurable. Use the template + one-liner that lives at `homelab/talos-cluster/flux/apps/ocidex/postgres-app-secret.template.yaml`:
+
+    ```bash
+    cd homelab/talos-cluster/flux/apps/ocidex
+    PW=$(SOPS_AGE_KEY_FILE=../../../../age.key \
+         sops -d --extract '["stringData"]["POSTGRES_PASSWORD"]' secrets.enc.yaml)
+    sed "s|<PLACEHOLDER>|$PW|" postgres-app-secret.template.yaml \
+      > postgres-app-secret.enc.yaml
+    SOPS_AGE_KEY_FILE=../../../../age.key \
+      sops -e -i postgres-app-secret.enc.yaml
+    unset PW
+    ```
+
+    Verify the file is encrypted (`head postgres-app-secret.enc.yaml` should show `ENC[…]`).
+
+2. **Commit + push the homelab change.** Flux installs the CNPG operator, creates the `ocidex-pg` Cluster, and CNPG runs `initdb.import` against the legacy StatefulSet's `postgres` Service. Watch:
+
+    ```bash
+    kubectl -n cnpg-system get pods -w           # operator is up
+    kubectl -n ocidex get cluster ocidex-pg -w    # imports → Cluster in healthy state
+    kubectl -n ocidex get pods                    # ocidex-pg-1 reaches Ready
+    ```
+
+    Initial import takes a couple of minutes for the ocidex schema.
+
+3. **Verify the new cluster has the data.** Spot-check row counts:
+
+    ```bash
+    kubectl -n ocidex exec -it ocidex-pg-1 -- \
+      psql -U ocidex -d ocidex -c "SELECT count(*) FROM scan_jobs; SELECT count(*) FROM sbom;"
+    ```
+
+    Compare to the same query against the legacy pod (`postgres-0`). Counts should match exactly — no writes have been routed to the new cluster yet.
+
+4. **Update `DATABASE_URL` in `ocidex-secrets` to point at the new RW service.** Edit `homelab/talos-cluster/flux/apps/ocidex/secrets.enc.yaml` to change `host=postgres` → `host=ocidex-pg-rw` (port + dbname stay 5432 / `ocidex`):
+
+    ```bash
+    SOPS_AGE_KEY_FILE=../../../../age.key sops secrets.enc.yaml
+    # change the DATABASE_URL line, save, exit
+    ```
+
+    Commit + push. Flux updates the Secret.
+
+5. **Roll the apps so they pick up the new env var.** Secrets don't auto-restart pods:
+
+    ```bash
+    kubectl -n ocidex rollout restart deploy/ocidex-api \
+      deploy/ocidex-scanner-worker deploy/ocidex-enrichment-worker
+    ```
+
+    Wait for rollouts to complete. Tail a worker log; the `database connected` line should appear and processing should resume against the new Postgres.
+
+6. **Verify** for a few minutes that scans are succeeding against the new DB and no `connection refused` errors appear.
+
+### Post-cutover cleanup (separate PR)
+
+7. In the ocidex repo, delete `k8s/base/postgres-statefulset.yaml` + `k8s/base/postgres-service.yaml`, deregister them from `k8s/base/kustomization.yaml`, and remove the `postgres` block from `k8s/overlays/prod/patches/resources.yaml`. CI republishes the manifest OCI bundle; Flux prunes the old StatefulSet and Service on the next reconcile.
+
+8. The legacy PVC has retention policy `Retain`, so the old data sticks around. After a grace period (1–2 weeks), `kubectl -n ocidex delete pvc data-postgres-0` to reclaim the storage.
+
+### Rollback
+
+If anything looks off before step 5:
+
+- The legacy `postgres` StatefulSet is still running and still has the original data (CNPG's import is non-destructive — it only reads from the source).
+- Revert the homelab commits (`git revert`), push. Flux removes the CNPG Cluster CR; apps continue against the legacy Postgres uninterrupted.
+- Drop the new app-user Secret on principle: `kubectl -n ocidex delete secret ocidex-pg-app`.
+
+If a problem surfaces after step 5:
+
+- Reverse step 4 (DATABASE_URL back to `host=postgres`).
+- Reverse step 5 (`kubectl rollout restart …` again).
+- Diagnose the new cluster, then re-attempt.
