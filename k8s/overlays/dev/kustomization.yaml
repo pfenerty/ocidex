@@ -12,11 +12,6 @@ patches:
     target:
       kind: StatefulSet
       name: nats
-  # Postgres: emptyDir storage, drop PVC template
-  - path: patches/postgres.yaml
-    target:
-      kind: StatefulSet
-      name: postgres
   # API Service: NodePort for local access
   - path: patches/api-service-nodeport.yaml
   # Per-deployment: IfNotPresent pull policy + NATS_STREAM_REPLICAS=1
