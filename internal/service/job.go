@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -64,6 +66,22 @@ type ScanJobFailure struct {
 	CreatedAt     time.Time
 }
 
+// ScanJobClaim is the "ready-to-scan" projection a worker receives after
+// claiming a queued row. It includes the registry credentials joined in so
+// the worker does not need a second query.
+type ScanJobClaim struct {
+	ID           string
+	RegistryID   string
+	Repository   string
+	Digest       string
+	Tag          string
+	RegistryURL  string
+	Insecure     bool
+	AuthUsername string
+	AuthToken    string
+	Attempts     int32
+}
+
 // JobService manages the lifecycle of scan pipeline jobs.
 type JobService interface {
 	Enqueue(ctx context.Context, registryID, repo, digest, tag, msgID string) (ScanJob, error)
@@ -79,6 +97,26 @@ type JobService interface {
 	FailExhaustedQueuedJobs(ctx context.Context, maxAttempts int32) error
 	ListFailures(ctx context.Context, limit, offset int32) ([]ScanJobFailure, int64, error)
 	PurgeOldFailures(ctx context.Context, olderThan time.Duration) (int64, error)
+
+	// Outbox-pattern primitives.
+	// ClaimByID transitions a specific queued row to running and returns the
+	// claim (with registry credentials joined in). The bool is false when the
+	// row is missing, already running, or terminal — never an error.
+	ClaimByID(ctx context.Context, id, workerID string) (ScanJobClaim, bool, error)
+	// ClaimNext picks the oldest queued row and claims it (FOR UPDATE SKIP
+	// LOCKED). False when the queue is empty.
+	ClaimNext(ctx context.Context, workerID string) (ScanJobClaim, bool, error)
+	// FinishByID transitions running → succeeded with an SBOM id.
+	FinishByID(ctx context.Context, id string, sbomID pgtype.UUID) error
+	// FailOrRequeueByID either resets state to 'queued' for retry (when
+	// attempts < maxAttempts) or marks 'failed' (when attempts >= maxAttempts).
+	// Returns the resulting state.
+	FailOrRequeueByID(ctx context.Context, id, lastError string, maxAttempts int32) (ScanJobState, error)
+	// RequeueStuckRunning sweeps running rows whose worker hasn't updated
+	// last_attempt_at within stuckThreshold. They go back to queued, or to
+	// failed if they've used up retries. This is the only stuck-job sweep
+	// the outbox model needs — no NATS-aware reconciler.
+	RequeueStuckRunning(ctx context.Context, stuckThreshold time.Duration, maxAttempts int32) error
 }
 
 type jobService struct{ repo repository.JobRepository }
@@ -306,6 +344,91 @@ func (s *jobService) PurgeOldFailures(ctx context.Context, olderThan time.Durati
 	cutoff := pgtype.Timestamptz{}
 	_ = cutoff.Scan(time.Now().Add(-olderThan))
 	return s.repo.DeleteOldScanJobFailures(ctx, cutoff)
+}
+
+func (s *jobService) ClaimByID(ctx context.Context, id, workerID string) (ScanJobClaim, bool, error) {
+	uid, err := parseRegistryUUID(id)
+	if err != nil {
+		return ScanJobClaim{}, false, nil
+	}
+	row, err := s.repo.ClaimScanJobByID(ctx, repository.ClaimScanJobByIDParams{
+		ID:       uid,
+		WorkerID: workerID,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ScanJobClaim{}, false, nil
+		}
+		return ScanJobClaim{}, false, fmt.Errorf("claim scan job by id: %w", err)
+	}
+	return claimFromRow(row.ID, row.RegistryID, row.Repository, row.Digest,
+		row.Tag, row.RegistryUrl, row.Insecure, row.AuthUsername, row.AuthToken, row.Attempts), true, nil
+}
+
+func (s *jobService) ClaimNext(ctx context.Context, workerID string) (ScanJobClaim, bool, error) {
+	row, err := s.repo.ClaimNextQueuedJob(ctx, workerID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ScanJobClaim{}, false, nil
+		}
+		return ScanJobClaim{}, false, fmt.Errorf("claim next queued job: %w", err)
+	}
+	return claimFromRow(row.ID, row.RegistryID, row.Repository, row.Digest,
+		row.Tag, row.RegistryUrl, row.Insecure, row.AuthUsername, row.AuthToken, row.Attempts), true, nil
+}
+
+func (s *jobService) FinishByID(ctx context.Context, id string, sbomID pgtype.UUID) error {
+	uid, err := parseRegistryUUID(id)
+	if err != nil {
+		return fmt.Errorf("invalid job id: %w", err)
+	}
+	return s.repo.FinishScanJobByID(ctx, repository.FinishScanJobByIDParams{
+		ID:     uid,
+		SbomID: sbomID,
+	})
+}
+
+func (s *jobService) FailOrRequeueByID(ctx context.Context, id, lastError string, maxAttempts int32) (ScanJobState, error) {
+	uid, err := parseRegistryUUID(id)
+	if err != nil {
+		return "", fmt.Errorf("invalid job id: %w", err)
+	}
+	state, err := s.repo.FailOrRequeueScanJobByID(ctx, repository.FailOrRequeueScanJobByIDParams{
+		ID:          uid,
+		MaxAttempts: maxAttempts,
+		LastError:   pgtype.Text{String: lastError, Valid: lastError != ""},
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", nil
+		}
+		return "", fmt.Errorf("fail or requeue scan job: %w", err)
+	}
+	return ScanJobState(state), nil
+}
+
+func (s *jobService) RequeueStuckRunning(ctx context.Context, stuckThreshold time.Duration, maxAttempts int32) error {
+	cutoff := pgtype.Timestamptz{}
+	_ = cutoff.Scan(time.Now().Add(-stuckThreshold))
+	return s.repo.RequeueStuckRunning(ctx, repository.RequeueStuckRunningParams{
+		MaxAttempts:  maxAttempts,
+		StuckBefore:  cutoff,
+	})
+}
+
+func claimFromRow(id pgtype.UUID, registryID, repo, digest, tag, registryURL string, insecure bool, authUser, authToken string, attempts int32) ScanJobClaim {
+	return ScanJobClaim{
+		ID:           uuidToStr(id),
+		RegistryID:   registryID,
+		Repository:   repo,
+		Digest:       digest,
+		Tag:          tag,
+		RegistryURL:  registryURL,
+		Insecure:     insecure,
+		AuthUsername: authUser,
+		AuthToken:    authToken,
+		Attempts:     attempts,
+	}
 }
 
 func nullStr(s string) *string {

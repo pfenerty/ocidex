@@ -75,6 +75,19 @@ func (f *fakeJobSvc) ListFailures(_ context.Context, _, _ int32) ([]service.Scan
 func (f *fakeJobSvc) PurgeOldFailures(_ context.Context, _ time.Duration) (int64, error) {
 	return 0, nil
 }
+func (f *fakeJobSvc) ClaimByID(_ context.Context, _, _ string) (service.ScanJobClaim, bool, error) {
+	return service.ScanJobClaim{}, false, nil
+}
+func (f *fakeJobSvc) ClaimNext(_ context.Context, _ string) (service.ScanJobClaim, bool, error) {
+	return service.ScanJobClaim{}, false, nil
+}
+func (f *fakeJobSvc) FinishByID(_ context.Context, _ string, _ pgtype.UUID) error { return nil }
+func (f *fakeJobSvc) FailOrRequeueByID(_ context.Context, _, _ string, _ int32) (service.ScanJobState, error) {
+	return "", nil
+}
+func (f *fakeJobSvc) RequeueStuckRunning(_ context.Context, _ time.Duration, _ int32) error {
+	return nil
+}
 
 func (f *fakeJobSvc) getStartCalls() int {
 	f.mu.Lock()
