@@ -55,24 +55,6 @@ SET state = 'failed', finished_at = now(),
 WHERE state = 'running'
   AND COALESCE(last_attempt_at, started_at) < @started_before::timestamptz;
 
--- name: InsertScanJobFailure :one
-INSERT INTO scan_job_failures (nats_msg_id, payload, failure_reason, delivery_count)
-VALUES (sqlc.narg('nats_msg_id'), @payload, @failure_reason, @delivery_count)
-RETURNING *;
-
--- name: ListScanJobFailures :many
-SELECT id, nats_msg_id, failure_reason, delivery_count, created_at
-FROM scan_job_failures
-ORDER BY created_at DESC
-LIMIT sqlc.arg('limit_') OFFSET sqlc.arg('offset_');
-
--- name: CountScanJobFailures :one
-SELECT COUNT(*) FROM scan_job_failures;
-
--- name: DeleteOldScanJobFailures :execrows
-DELETE FROM scan_job_failures
-WHERE created_at < @cutoff::timestamptz;
-
 -- Outbox-pattern queries. The scan_jobs row IS the queue; NATS hints just
 -- trigger faster wakeup. ClaimScanJobByID handles the hint path; ClaimNextQueuedJob
 -- handles the poll-loop fallback. Both atomically transition queued → running and

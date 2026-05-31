@@ -42,15 +42,6 @@ type ScanJob struct {
 	WorkerID      *string
 }
 
-// ScanJobFailure is the domain model for a row in scan_job_failures (DLQ).
-type ScanJobFailure struct {
-	ID            string
-	NATSMsgID     *string
-	FailureReason string
-	DeliveryCount int32
-	CreatedAt     time.Time
-}
-
 // ScanJobClaim is the "ready-to-scan" projection a worker receives after
 // claiming a queued row. It includes the registry credentials joined in so
 // the worker does not need a second query.
@@ -77,8 +68,6 @@ type JobService interface {
 	Get(ctx context.Context, id string) (ScanJob, error)
 	CountByState(ctx context.Context) (queued, running, succeeded24h, failed24h int64, err error)
 	TimeoutJobs(ctx context.Context, olderThan time.Duration) error
-	RecordFailure(ctx context.Context, natsMsgID string, payload []byte, reason string, deliveryCount int) error
-	PurgeOldFailures(ctx context.Context, olderThan time.Duration) (int64, error)
 
 	// Outbox-pattern primitives.
 	// ClaimByID transitions a specific queued row to running and returns the
@@ -254,22 +243,6 @@ func (s *jobService) CountByState(ctx context.Context) (int64, int64, int64, int
 		return 0, 0, 0, 0, err
 	}
 	return queued, running, succ, fail, nil
-}
-
-func (s *jobService) RecordFailure(ctx context.Context, natsMsgID string, payload []byte, reason string, deliveryCount int) error {
-	_, err := s.repo.InsertScanJobFailure(ctx, repository.InsertScanJobFailureParams{
-		NatsMsgID:     pgtype.Text{String: natsMsgID, Valid: natsMsgID != ""},
-		Payload:       payload,
-		FailureReason: reason,
-		DeliveryCount: int32(deliveryCount), //nolint:gosec // G115: delivery count is always small
-	})
-	return err
-}
-
-func (s *jobService) PurgeOldFailures(ctx context.Context, olderThan time.Duration) (int64, error) {
-	cutoff := pgtype.Timestamptz{}
-	_ = cutoff.Scan(time.Now().Add(-olderThan))
-	return s.repo.DeleteOldScanJobFailures(ctx, cutoff)
 }
 
 func (s *jobService) ClaimByID(ctx context.Context, id, workerID string) (ScanJobClaim, bool, error) {

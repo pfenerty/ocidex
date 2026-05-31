@@ -99,10 +99,6 @@ type JobRepository interface {
 	CountScanJobsSince(ctx context.Context, arg CountScanJobsSinceParams) (int64, error)
 	GetScanJob(ctx context.Context, id pgtype.UUID) (ScanJob, error)
 	TimeoutScanJobs(ctx context.Context, startedBefore pgtype.Timestamptz) error
-	InsertScanJobFailure(ctx context.Context, arg InsertScanJobFailureParams) (ScanJobFailure, error)
-	ListScanJobFailures(ctx context.Context, arg ListScanJobFailuresParams) ([]ListScanJobFailuresRow, error)
-	CountScanJobFailures(ctx context.Context) (int64, error)
-	DeleteOldScanJobFailures(ctx context.Context, cutoff pgtype.Timestamptz) (int64, error)
 	ClaimScanJobByID(ctx context.Context, arg ClaimScanJobByIDParams) (ClaimScanJobByIDRow, error)
 	ClaimNextQueuedJob(ctx context.Context, workerID string) (ClaimNextQueuedJobRow, error)
 	FinishScanJobByID(ctx context.Context, arg FinishScanJobByIDParams) error
