@@ -104,33 +104,50 @@ Flow:
 
 ---
 
-### Path E: NATS Distributed Worker
+### Path E: Outbox-pattern scan pipeline (Postgres-as-queue)
 
 **Publish:** `internal/scanner/nats_submitter.go`
-**Consume:** `internal/scanner/nats_extension.go`
+**Consume:** `internal/scanner/nats_hint.go`
+**ADR:** `docs/adr/0024-outbox-pattern-for-scan-queue.md`
 
-The API always publishes scan requests over NATS rather than scanning in-process; a `scanner-worker` consumes them.
+The `scan_jobs` row is the single source of truth for queued work. NATS carries only `{id}` hints for fast worker wakeup, and is never load-bearing for durability or retry.
 
-- Submitter marshals `ScanRequest` to `scanRequestWire` JSON (all fields, `omitempty`), publishes to subject `ocidex.scan.requested`.
-- Consumer: durable consumer named `"scanner"`, `AckWait=10min`, `MaxDeliver=3`. Deserializes back to `ScanRequest` with all fields intact.
-- Reconstructed `ScanRequest` is submitted to the in-process dispatcher → same as Path D from there.
-- Idempotency key: `Nats-Msg-Id = registry_id@digest` deduplicated by JetStream over a 5-minute window and uniquely indexed in `scan_jobs.nats_msg_id`.
+**Producer (`NATSSubmitter.Submit`).**
 
-#### Concurrency knobs
+1. `jobSvc.Enqueue` inserts a `scan_jobs` row with `state='queued'` and `nats_msg_id=registry_id@digest` (a row-level idempotency key under its legacy column name — same `(registry, digest)` pair publishing twice collapses to one row via the column's UNIQUE constraint).
+2. Best-effort `JS.Publish` of `{"id":"<uuid>"}` to `ocidex.scan.hint`. Publish failure is logged but not fatal; the worker's DB poll loop will pick the row up.
 
-- `SCANNER_MAX_CONCURRENCY` (per pod) — both the fetch batch size and a goroutine semaphore. Prod runs on a Pi4-class cluster where Syft's per-image memory footprint vs the 1Gi limit forces this to `1`; non-constrained deployments use `10`.
-- `SCANNER_MAX_ACK_PENDING` (global, across pods) — JetStream's cap on unacked messages for the `scanner` consumer. Defaults to `SCANNER_MAX_CONCURRENCY * 4` when unset, which assumes up to 4 replicas. Tune up if running more.
-- Enrichment has the same pair: `ENRICHMENT_MAX_CONCURRENCY` (default 50) and `ENRICHMENT_MAX_ACK_PENDING` (same `× 4` default).
+**Consumer (`NATSHintExtension`).**
 
-The decoupling is deliberate: setting `MaxAckPending` equal to per-pod concurrency causes one pod to monopolise the slots and starves siblings. The `× 4` multiplier gives every replica room for one full batch without starvation.
+- Durable JetStream consumer `scanner-hint` on `ocidex.scan.hint`, `AckPolicy=AckExplicit`, `MaxDeliver=1` (NATS does not retry — the DB owns retry).
+- `handleHint`: ack immediately on receipt, decode `{id}`, push id to a bounded `hints` channel.
+- N worker goroutines (`N = SCANNER_MAX_CONCURRENCY`) each loop on `select { hint | pollTicker }`. On hint: `ClaimByID(id)`; on poll: `ClaimNext()`. Either path returns the job with registry credentials joined in (a single `UPDATE … RETURNING` with `FOR UPDATE SKIP LOCKED`).
+- On `ProcessOne` success: `FinishByID(id, sbomID)` — `state → succeeded`.
+- On `ProcessOne` failure: `FailOrRequeueByID(id, err, SCANNER_MAX_ATTEMPTS)` — increments `attempts`; transitions `→ queued` for retry or `→ failed` when the budget is exhausted.
 
-#### Orphan reconciliation
+**Stuck-running sweep.** `runStuckRunningSweep` calls `RequeueStuckRunning` every `SCANNER_STUCK_THRESHOLD/3`. Any `running` row whose `last_attempt_at` is older than the threshold goes back to `queued` (or `failed` if retries are exhausted). This replaces the orphan reconciler — under the outbox model there is no NATS-aware reconciliation.
 
-The scanner-worker runs `reconcileStaleJobs` at startup and every 5 min. It claims `scan_jobs` rows that are still `queued` past their per-attempt backoff (10 min × min(2^attempts, 8); cap 80 min) using a single `UPDATE … RETURNING` with `FOR UPDATE SKIP LOCKED` so concurrent pods don't double-publish. After 6 attempts the row is failed with `last_error = 'orphaned: max reconcile attempts'`. This recovers from NATS stream resets or PVC loss where DB rows survive but the message did not.
+#### Knobs
 
-#### Dead-letter queue
+| Var | Default | Purpose |
+|---|---|---|
+| `SCANNER_MAX_CONCURRENCY` | 10 (prod: 1) | Number of worker goroutines per pod. Bounds memory: Syft is the heavyweight. |
+| `SCANNER_POLL_INTERVAL` | 30s | DB poll cadence for the queue-drain fallback. Lower = lower latency when NATS hints fail; higher = lower DB load. |
+| `SCANNER_STUCK_THRESHOLD` | 15m | A `running` row idle longer than this is presumed dead and requeued. |
+| `SCANNER_MAX_ATTEMPTS` | 3 | Retry budget per row. Beyond this, `FailOrRequeueByID` marks `failed`. |
 
-After `MaxDeliver=3` attempts, the scanner extension routes the message to subject `ocidex.scan.dlq` and inserts a row in `scan_job_failures` (`nats_msg_id`, `payload`, `failure_reason`, `delivery_count`). The admin endpoint `GET /api/v1/admin/dlq` and the **Dead Letter** view in the admin Jobs tab expose these. The scanner-worker purges rows older than `SCAN_DLQ_RETENTION_DAYS` (default `30`, `0` disables) once per hour.
+`SCANNER_MAX_ACK_PENDING`, `SCANNER_WORKERS`, `SCANNER_QUEUE_SIZE` are gone — they existed only to coordinate the dual-write design.
+
+#### Failure modes
+
+| Event | Recovery |
+|---|---|
+| NATS pod down | Poll loop drains the queue at `SCANNER_POLL_INTERVAL` latency. |
+| NATS PVC lost | Same as above. No work loss — rows are in Postgres. |
+| Publish fails after row insert | Poll loop picks up within `SCANNER_POLL_INTERVAL`. |
+| Worker crashes mid-scan | Stuck-running sweep requeues the row after `SCANNER_STUCK_THRESHOLD`. |
+| Two workers race the same hint | One `ClaimByID` claim succeeds, the other returns no row and no-ops. |
+| Duplicate enqueue (same registry@digest) | `nats_msg_id` UNIQUE → producer's `Enqueue` errors with PG `23505`; submitter treats as no-op. |
 
 #### Layer-cache (future work)
 

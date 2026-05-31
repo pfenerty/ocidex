@@ -1,13 +1,14 @@
 # OCIDex Operations Playbook
 
-Runbook for production incidents involving the NATS JetStream + scanner-worker pipeline. Pair with `docs/INGESTION.md` for the architectural detail.
+Runbook for production incidents involving the scanner pipeline. Pair with `docs/INGESTION.md` (Path E) for architectural detail and `docs/adr/0024-outbox-pattern-for-scan-queue.md` for the design rationale.
 
 ## Topology recap
 
-- **NATS** — single standalone pod (`k8s/base/nats-statefulset.yaml`), `-js --store_dir /data`, PVC-backed. Stream `ocidex`, subjects `ocidex.>`, `FileStorage`, `MaxAge=24h`, `Duplicates=5m`. **No clustering** — quorum needs ≥3 nodes which the prod hardware does not have.
-- **Producers** — API server (webhook + admin manual-scan) and scanner-worker (catalog walks) publish to `ocidex.scan.requested`.
-- **Consumers** — durable `scanner` consumer on `ocidex.scan.requested` (AckWait 10 min, MaxDeliver 3), durable `enrichment` consumer on `ocidex.sbom.ingested` (AckWait 5 min, MaxDeliver 5).
-- **State** — every scan has a `scan_jobs` row inserted before publish; reconciler repairs any DB-row-without-message.
+- **Postgres** — system of record for everything, including queued work (`scan_jobs.state='queued'`). The transactional outbox: a producer's DB insert IS the enqueue.
+- **NATS** — single-pod standalone JetStream, PVC-backed. Carries only `{id}` hints on `ocidex.scan.hint` to wake workers faster than the 30s poll cadence. No retry, no dedup window dependency, no DLQ subject. Failure of NATS reduces the pipeline to "drains at poll cadence" — never "drops work."
+- **API server** — producer. The webhook handler and the catalog walker both insert `scan_jobs` rows + publish hints via `NATSSubmitter.Submit`.
+- **scanner-worker** — N replicas. Each runs `SCANNER_MAX_CONCURRENCY` goroutines that wake on NATS hints OR the 30s DB poll, claim a row via `UPDATE…RETURNING`, run Syft, and finish/fail the row. Plus one stuck-running sweep goroutine.
+- **enrichment-worker** — N replicas. Same NATS as before (one-shot SBOMIngested events; no queue depth, no reconciler ever existed here).
 
 ## Health surfaces
 
@@ -16,56 +17,58 @@ Runbook for production incidents involving the NATS JetStream + scanner-worker p
 | `GET /health` (8080) | API | Always 200 if process is up. |
 | `GET /ready` (8080) | API | DB ping. |
 | `GET /healthz` (9090) | scanner-worker, enrichment-worker | Process up. |
-| `GET /readyz` (9090) | scanner-worker, enrichment-worker | NATS conn `Connected` + DB ping <1s. |
-| `GET /api/v1/admin/status` | API (admin-only) | NATS enabled, scanner/enrichment enabled, queued/running counts, 24h success/fail counts, DB latency. |
-| `GET /api/v1/admin/dlq` | API (admin-only) | Paginated dead-letter rows. |
-| Admin → Jobs → Dead Letter | Web UI | Same data as `/admin/dlq`, with auto-refresh. |
+| `GET /readyz` (9090) | scanner-worker, enrichment-worker | NATS Connected + DB Ping <1s. |
+| `GET /api/v1/admin/status` | API (admin-only) | Counts from `scan_jobs` by state, DB latency. The counts are trivially correct — there is no second source. |
+| `POST /api/v1/admin/jobs/{id}/retry` | API (admin-only) | Resets a `failed` row to `queued`. |
 
-Worker pods log NATS disconnect / reconnect / closed events at WARN — grep for `nats disconnected` or `nats reconnected` to see connection flaps.
+Worker pods log NATS disconnect / reconnect / closed at WARN — grep for these to see connection flaps.
 
 ## Common incidents
 
-### 1. Scan jobs are stuck in `queued`
+### 1. Queue is not draining
 
-**Symptoms.** Admin status shows non-zero `queued` count that is not draining. Jobs UI shows rows older than 10 min still queued.
+**Symptoms.** `queued` count is increasing or static. No worker progress in the admin Jobs tab.
 
 **Diagnosis.**
 
-- Check the scanner-worker readiness probe: `kubectl get pods -l app=ocidex-scanner-worker`. A pod in `0/1 Ready` means it can't reach NATS or the DB.
-- Tail the worker log for `reconciler: tick complete claimed=N republished=M`. If `claimed > 0`, the reconciler is doing its job; jobs should drain within the next AckWait cycle.
-- If `claimed = 0` but jobs are still queued, the *registry itself* may be unreachable — check the `last_error` once the job transitions to `failed` after 6 reconcile attempts (~7h).
+- Check scanner-worker readiness: `kubectl get pods -l app=ocidex-scanner-worker`. `0/1 Ready` means the readiness probe is failing — NATS conn dropped *and* DB ping >1s.
+- Tail the worker log. The poll loop is silent when there is nothing queued, but `ClaimNext` errors will appear if the DB is unreachable.
+- Check resource limits: Syft typically uses 200–600 MB; if pods are OOMKilled the scanner stops claiming.
 
 **Recovery.**
 
-- Transient NATS conn drop: the worker auto-reconnects (`MaxReconnects=-1`, `ReconnectWait=2s`). No action.
-- NATS pod evicted / PVC reattached: orphan reconciler republishes within 10 min of the new stream existing. No action.
-- Stream genuinely gone (PVC lost, dev wipe): same path — reconciler republishes the queued jobs on its next tick (≤5 min).
+- Transient NATS drop: workers auto-reconnect (`MaxReconnects=-1`, `ReconnectWait=2s`). No action — they keep polling and processing meanwhile.
+- DB outage: blocks everything. Fix Postgres.
+- Worker OOM: raise the K8s memory limit or lower `SCANNER_MAX_CONCURRENCY`.
 
 ### 2. NATS pod won't start
 
-**Symptoms.** `kubectl get pods -l app=nats` shows `CrashLoopBackOff`. All scan ingestion halts.
+**Symptoms.** `kubectl get pods -l app=nats` shows `CrashLoopBackOff`. **Under the outbox model this is not a production-stopping incident** — workers fall back to 30s DB polling and the queue keeps draining.
 
-**Likely causes.**
+**Diagnosis.** PVC unavailable, disk full, or corrupted JetStream metadata. `kubectl describe pvc nats-data-nats-0` and the NATS pod logs are the first stops.
 
-- PVC unavailable (storage class issue) — `kubectl describe pvc nats-data-nats-0`.
-- Disk full on the node — `kubectl describe pod` will say `FailedScheduling` or the container will exit with disk errors. Free space or evacuate.
-- Corrupted JetStream metadata after an ungraceful shutdown — extremely rare; check the NATS pod logs for `unable to recover stream`. Recovery: scale to 0, take a PVC backup, then either restore from backup or delete the PVC contents (this loses in-flight messages; the orphan reconciler will republish DB-tracked jobs).
+**Recovery.** Whichever the root cause, fix NATS at your own pace. Until then expect a worst-case ~30s extra queue latency per row. No data loss is possible: the producer's row commit happened in Postgres; the NATS hint is a luxury.
 
-### 3. Dead-letter pile-up
+### 3. Stuck-running rows
 
-**Symptoms.** Admin → Jobs → Dead Letter shows a growing count. Same `failure_reason` repeats.
+**Symptoms.** A `running` row's `last_attempt_at` is older than `SCANNER_STUCK_THRESHOLD` (default 15 min). Usually means the worker pod was evicted, terminated mid-scan, or networked into a hung Syft.
 
-**Diagnosis.** The `failure_reason` column is the Syft / ingest error verbatim. Common patterns:
+**Recovery.** Automatic — `runStuckRunningSweep` runs every `SCANNER_STUCK_THRESHOLD/3` (default every 5 min) and moves the row back to `queued` (or to `failed` if `attempts >= SCANNER_MAX_ATTEMPTS`). Operator action only needed if the same row repeatedly cycles through the sweep — that points at a genuine Syft / registry problem on that specific image.
 
-- `manifest unknown` / `404 NotFound` — image was deleted from the registry after the scan was scheduled. Nothing to do.
-- `connect: connection refused` — registry is down. Fix upstream.
-- `syft: …` — actual analysis failure. File a `bd` issue; attach the failure row.
+### 4. Failed rows accumulating
 
-**Recovery.** DLQ rows older than `SCAN_DLQ_RETENTION_DAYS` (default 30) are purged automatically by the scanner-worker every hour. Set `SCAN_DLQ_RETENTION_DAYS=0` to disable purging.
+**Symptoms.** `state='failed'` count growing. Visible in the admin Jobs tab with the state filter set to `failed`. Each row's `last_error` carries the verbatim error.
 
-### 4. Manual re-enqueue of a specific image
+**Diagnosis by `last_error`:**
 
-Trigger a webhook-style scan against the existing API endpoint. The producer side handles idempotency via `nats_msg_id = registry_id@digest`:
+- `manifest unknown` / `404 NotFound` — image was deleted between scheduling and scanning. Nothing to do.
+- `connect: connection refused` — registry was unreachable. Either retry once it's back (Retry button on the row) or accept it.
+- `syft: …` — actual analysis failure. File a `bd` issue with the row id and digest.
+- `stuck: worker did not complete and retries exhausted` — the row cycled through the stuck-running sweep `SCANNER_MAX_ATTEMPTS` times. Usually a specific image Syft can't handle.
+
+**Recovery.** Click Retry on the row to reset it to `queued`. The next poll or hint picks it up with `attempts=0`. For bulk retry: `UPDATE scan_jobs SET state='queued', attempts=0, last_error=NULL WHERE state='failed' AND last_error LIKE '%pattern%'`.
+
+### 5. Manual re-enqueue of a specific image
 
 ```bash
 curl -X POST "$OCIDEX_API/api/v1/registries/$REGISTRY_ID/scan" \
@@ -74,16 +77,14 @@ curl -X POST "$OCIDEX_API/api/v1/registries/$REGISTRY_ID/scan" \
   -d '{"repository":"library/alpine","digest":"sha256:…","tag":"latest"}'
 ```
 
-If the digest has been scanned in the last 5 min the JetStream dedup window drops the duplicate. To force a re-scan despite that, wait 5 min or run a fresh tag/digest.
+The submitter inserts the row + publishes a hint. If a row with the same `(registry, digest)` is already queued/running, the producer returns no error and no duplicate is created (UNIQUE constraint at the row level).
 
-### 5. Reconciler is republishing the same job every 5 min
+### 6. Duplicate scans / wasted worker cycles
 
-This is by design for the first few attempts (10 min, 20 min, 40 min, 80 min, 80 min, 80 min). After 6 attempts the row is failed with `last_error = 'orphaned: max reconcile attempts'` and the reconciler stops.
-
-If a job is going through every backoff window and never running, something is wrong with the consumer side: check the scanner-worker pod's readiness probe and logs.
+**Should not happen under the outbox model.** If you see `skipping duplicate sbom ingestion` log lines from the scanner-worker, something has regressed — file an issue. Under the old (NATS-as-queue) design this was caused by the orphan reconciler republishing slow-but-not-orphaned rows; the redesign removed that path entirely.
 
 ## Routine maintenance
 
-- **PVC backups** — back up `pvc/nats-data-nats-0` and the Postgres volume on the same cadence. The DB-only restore + orphan reconciler can recover from a NATS loss; the reverse (NATS-only + lost DB) cannot.
-- **Bumping concurrency** — start with `SCANNER_MAX_CONCURRENCY` and watch memory: Syft routinely uses 200–600 MB per scan depending on image size. If you raise per-pod concurrency past `4`, also raise `SCANNER_MAX_ACK_PENDING` to `concurrency × replicas + slack`.
-- **DLQ inspection cadence** — quarterly is fine in steady state. The Dead Letter view's count badge surfaces the absolute number on every visit to the Jobs tab.
+- **PVC backups** — back up the Postgres volume. The NATS volume is now no-data: at worst, losing it costs you queue latency until workers' next poll, which is bounded by `SCANNER_POLL_INTERVAL`.
+- **Tuning concurrency** — `SCANNER_MAX_CONCURRENCY` directly maps to active worker goroutines. Watch pod memory: Syft is the cost. There is no longer a `SCANNER_MAX_ACK_PENDING` to tune in lockstep.
+- **DLQ table cleanup** — `scan_job_failures` is the legacy DLQ-via-NATS audit table. It is no longer written to. `SCAN_DLQ_RETENTION_DAYS` (default 30) controls how long old rows linger before the purge sweep deletes them. The table itself is scheduled for removal in a follow-up migration (`ocidex-ujj.74.6`).
