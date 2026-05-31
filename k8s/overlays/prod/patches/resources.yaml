@@ -85,23 +85,3 @@ spec:
             limits:
               cpu: "100m"
               memory: "64Mi"
----
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: postgres
-spec:
-  template:
-    spec:
-      containers:
-        - name: postgres
-          resources:
-            # Postgres is on the hot path of every claim/finish under the
-            # outbox model; bumped from 200m/512Mi after observing it pegged
-            # at its CPU limit during steady-state load.
-            requests:
-              cpu: "300m"
-              memory: "256Mi"
-            limits:
-              cpu: "1000m"
-              memory: "1Gi"

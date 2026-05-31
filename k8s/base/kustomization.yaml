@@ -6,8 +6,6 @@ resources:
   - enrichment-worker-deployment.yaml
   - migrate-job.yaml
   - nats-statefulset.yaml
-  - postgres-service.yaml
-  - postgres-statefulset.yaml
   - scanner-worker-deployment.yaml
   - web-deployment.yaml
   - web-service.yaml
