@@ -163,6 +163,20 @@ WHERE id = @id::uuid
   AND state NOT IN ('succeeded', 'failed')
 RETURNING state;
 
+-- RetryScanJob resets a failed row back to 'queued' with cleared retry state,
+-- so an operator can manually retry a permanently-failed scan. The row is
+-- picked up by the poll loop or a fresh NATS hint.
+-- name: RetryScanJob :exec
+UPDATE scan_jobs
+SET state       = 'queued',
+    attempts    = 0,
+    last_error  = NULL,
+    finished_at = NULL,
+    started_at  = NULL,
+    last_attempt_at = NULL
+WHERE id = @id::uuid
+  AND state = 'failed';
+
 -- RequeueStuckRunning replaces the orphan reconciler. A 'running' row whose
 -- worker hasn't updated last_attempt_at recently is presumed dead; we move it
 -- back to 'queued' for another worker to claim, or 'failed' if it has used up

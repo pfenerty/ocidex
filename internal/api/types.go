@@ -819,24 +819,7 @@ type GetScanJobOutput struct {
 	Body ScanJobResponse
 }
 
-// ScanJobFailureResponse is the public representation of a DLQ row (scan_job_failures).
-type ScanJobFailureResponse struct {
-	ID            string  `json:"id" doc:"Failure record UUID"`
-	NATSMsgID     *string `json:"nats_msg_id,omitempty" doc:"Original NATS deduplication message ID"`
-	FailureReason string  `json:"failure_reason"`
-	DeliveryCount int32   `json:"delivery_count" doc:"How many times JetStream delivered this message before DLQ"`
-	CreatedAt     string  `json:"created_at"`
-}
-
-// ListScanJobFailuresInput is the request for GET /api/v1/admin/dlq.
-type ListScanJobFailuresInput struct {
-	PaginationParams
-}
-
-// ListScanJobFailuresOutput is the response for GET /api/v1/admin/dlq.
-type ListScanJobFailuresOutput struct {
-	Body struct {
-		Data       []ScanJobFailureResponse `json:"data"`
-		Pagination PaginationMeta           `json:"pagination"`
-	}
+// RetryScanJobInput is the request for POST /api/v1/admin/jobs/{id}/retry.
+type RetryScanJobInput struct {
+	ID string `path:"id" doc:"Failed scan job UUID to reset back to 'queued'"`
 }

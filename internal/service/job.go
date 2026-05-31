@@ -78,7 +78,6 @@ type JobService interface {
 	CountByState(ctx context.Context) (queued, running, succeeded24h, failed24h int64, err error)
 	TimeoutJobs(ctx context.Context, olderThan time.Duration) error
 	RecordFailure(ctx context.Context, natsMsgID string, payload []byte, reason string, deliveryCount int) error
-	ListFailures(ctx context.Context, limit, offset int32) ([]ScanJobFailure, int64, error)
 	PurgeOldFailures(ctx context.Context, olderThan time.Duration) (int64, error)
 
 	// Outbox-pattern primitives.
@@ -100,6 +99,9 @@ type JobService interface {
 	// failed if they've used up retries. This is the only stuck-job sweep
 	// the outbox model needs — no NATS-aware reconciler.
 	RequeueStuckRunning(ctx context.Context, stuckThreshold time.Duration, maxAttempts int32) error
+	// Retry resets a 'failed' row back to 'queued' so an operator can manually
+	// retry a permanently-failed scan.
+	Retry(ctx context.Context, id string) error
 }
 
 type jobService struct{ repo repository.JobRepository }
@@ -264,34 +266,6 @@ func (s *jobService) RecordFailure(ctx context.Context, natsMsgID string, payloa
 	return err
 }
 
-func (s *jobService) ListFailures(ctx context.Context, limit, offset int32) ([]ScanJobFailure, int64, error) {
-	rows, err := s.repo.ListScanJobFailures(ctx, repository.ListScanJobFailuresParams{
-		Limit:  limit,
-		Offset: offset,
-	})
-	if err != nil {
-		return nil, 0, fmt.Errorf("listing scan job failures: %w", err)
-	}
-	total, err := s.repo.CountScanJobFailures(ctx)
-	if err != nil {
-		return nil, 0, fmt.Errorf("counting scan job failures: %w", err)
-	}
-	out := make([]ScanJobFailure, len(rows))
-	for i, r := range rows {
-		f := ScanJobFailure{
-			ID:            uuidToStr(r.ID),
-			FailureReason: r.FailureReason,
-			DeliveryCount: r.DeliveryCount,
-			CreatedAt:     r.CreatedAt.Time,
-		}
-		if r.NatsMsgID.Valid {
-			f.NATSMsgID = &r.NatsMsgID.String
-		}
-		out[i] = f
-	}
-	return out, total, nil
-}
-
 func (s *jobService) PurgeOldFailures(ctx context.Context, olderThan time.Duration) (int64, error) {
 	cutoff := pgtype.Timestamptz{}
 	_ = cutoff.Scan(time.Now().Add(-olderThan))
@@ -363,9 +337,17 @@ func (s *jobService) RequeueStuckRunning(ctx context.Context, stuckThreshold tim
 	cutoff := pgtype.Timestamptz{}
 	_ = cutoff.Scan(time.Now().Add(-stuckThreshold))
 	return s.repo.RequeueStuckRunning(ctx, repository.RequeueStuckRunningParams{
-		MaxAttempts:  maxAttempts,
-		StuckBefore:  cutoff,
+		MaxAttempts: maxAttempts,
+		StuckBefore: cutoff,
 	})
+}
+
+func (s *jobService) Retry(ctx context.Context, id string) error {
+	uid, err := parseRegistryUUID(id)
+	if err != nil {
+		return fmt.Errorf("invalid job id: %w", err)
+	}
+	return s.repo.RetryScanJob(ctx, uid)
 }
 
 func claimFromRow(id pgtype.UUID, registryID, repo, digest, tag, registryURL string, insecure bool, authUser, authToken string, attempts int32) ScanJobClaim {

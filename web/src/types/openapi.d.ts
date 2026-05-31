@@ -21,20 +21,20 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/dlq": {
+    "/api/v1/admin/jobs/{id}/retry": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * List dead-letter scan job failures
-         * @description Returns scan jobs that exhausted MaxDeliver retries and were routed to the DLQ. Admin-only.
-         */
-        get: operations["list-scan-job-failures"];
+        get?: never;
         put?: never;
-        post?: never;
+        /**
+         * Retry a failed scan job
+         * @description Resets a 'failed' scan_jobs row back to 'queued' so it gets reprocessed. Admin-only.
+         */
+        post: operations["retry-scan-job"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1290,16 +1290,6 @@ export interface components {
             data: components["schemas"]["SBOMSummary"][] | null;
             pagination: components["schemas"]["PaginationMeta"];
         };
-        ListScanJobFailuresOutputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/ListScanJobFailuresOutputBody.json
-             */
-            readonly $schema?: string;
-            data: components["schemas"]["ScanJobFailureResponse"][] | null;
-            pagination: components["schemas"]["PaginationMeta"];
-        };
         ListScanJobsOutputBody: {
             /**
              * Format: uri
@@ -1501,19 +1491,6 @@ export interface components {
             sufficient: boolean;
             /** Format: int32 */
             version: number;
-        };
-        ScanJobFailureResponse: {
-            created_at: string;
-            /**
-             * Format: int32
-             * @description How many times JetStream delivered this message before DLQ
-             */
-            delivery_count: number;
-            failure_reason: string;
-            /** @description Failure record UUID */
-            id: string;
-            /** @description Original NATS deduplication message ID */
-            nats_msg_id?: string;
         };
         ScanJobResponse: {
             /**
@@ -1741,28 +1718,24 @@ export interface operations {
             };
         };
     };
-    "list-scan-job-failures": {
+    "retry-scan-job": {
         parameters: {
-            query?: {
-                /** @description Maximum number of results per page */
-                limit?: number;
-                /** @description Number of results to skip */
-                offset?: number;
-            };
+            query?: never;
             header?: never;
-            path?: never;
+            path: {
+                /** @description Failed scan job UUID to reset back to 'queued' */
+                id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description OK */
-            200: {
+            /** @description No Content */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["ListScanJobFailuresOutputBody"];
-                };
+                content?: never;
             };
             /** @description Error */
             default: {

@@ -2,7 +2,7 @@ import { For, Show, createEffect, createSignal } from "solid-js";
 import { A } from "@solidjs/router";
 import { Loading, ErrorBox } from "~/components/Feedback";
 import { formatDateTime } from "~/utils/format";
-import { useListRegistries, useListScanJobs, useListScanJobFailures } from "~/api/queries";
+import { useListRegistries, useListScanJobs, useRetryScanJob } from "~/api/queries";
 
 const JOB_STATE_COLORS: Record<string, string> = {
     queued: "var(--color-text-muted)",
@@ -14,15 +14,14 @@ const JOB_STATE_COLORS: Record<string, string> = {
 const PAGE_SIZE = 20;
 
 type StateFilter = "active" | "running" | "queued" | "succeeded" | "failed" | "";
-type View = "jobs" | "dlq";
 
 export function JobsTab() {
-    const [view, setView] = createSignal<View>("jobs");
     const [page, setPage] = createSignal(0);
     const [expandedErrors, setExpandedErrors] = createSignal(new Set<string>());
     const [stateFilter, setStateFilter] = createSignal<StateFilter>("active");
     const [repoFilter, setRepoFilter] = createSignal("");
     const [registryFilter, setRegistryFilter] = createSignal("");
+    const retry = useRetryScanJob();
 
     const toggleError = (id: string) =>
         setExpandedErrors(prev => {
@@ -32,7 +31,7 @@ export function JobsTab() {
             return next;
         });
 
-    createEffect(() => { view(); stateFilter(); repoFilter(); registryFilter(); setPage(0); });
+    createEffect(() => { stateFilter(); repoFilter(); registryFilter(); setPage(0); });
 
     const isActive = () => stateFilter() === "active";
 
@@ -74,72 +73,9 @@ export function JobsTab() {
     const total = () => qMain.data?.pagination.total ?? 0;
     const pageCount = () => Math.max(1, Math.ceil(total() / PAGE_SIZE));
 
-    const qDLQ = useListScanJobFailures(() => ({
-        limit: PAGE_SIZE,
-        offset: view() === "dlq" ? page() * PAGE_SIZE : 0,
-    }));
-    const dlqTotal = () => qDLQ.data?.pagination.total ?? 0;
-    const dlqPageCount = () => Math.max(1, Math.ceil(dlqTotal() / PAGE_SIZE));
-
-    const viewTabStyle = (active: boolean) => ({
-        cursor: "pointer",
-        background: active ? "var(--color-primary)" : "transparent",
-        color: active ? "var(--color-bg)" : "var(--color-text)",
-        border: "1px solid var(--color-border)",
-        padding: "0.35rem 0.75rem",
-        "border-radius": "4px",
-    });
-
     return (
-        <Show when={view() === "jobs"} fallback={
-            <Show when={!qDLQ.isLoading} fallback={<Loading />}>
-                <Show when={!qDLQ.isError} fallback={<ErrorBox error={qDLQ.error} />}>
-                    <div style={{ display: "flex", gap: "0.5rem", "margin-bottom": "1rem" }}>
-                        <button style={viewTabStyle(false)} onClick={() => setView("jobs")}>Scan Jobs</button>
-                        <button style={viewTabStyle(true)} onClick={() => setView("dlq")}>Dead Letter ({dlqTotal()})</button>
-                    </div>
-                    <div class="card">
-                        <div class="table-wrapper">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Created</th>
-                                        <th>NATS Msg ID</th>
-                                        <th>Delivery Attempts</th>
-                                        <th>Failure Reason</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <For each={qDLQ.data?.data ?? []}>
-                                        {(row) => (
-                                            <tr>
-                                                <td style={{ "white-space": "nowrap" }}>{formatDateTime(row.created_at)}</td>
-                                                <td><code style={{ "font-size": "0.8rem" }}>{row.nats_msg_id ?? "—"}</code></td>
-                                                <td>{row.delivery_count}</td>
-                                                <td><code style={{ "font-size": "0.8rem", "word-break": "break-all" }}>{row.failure_reason}</code></td>
-                                            </tr>
-                                        )}
-                                    </For>
-                                </tbody>
-                            </table>
-                        </div>
-                        <Show when={dlqPageCount() > 1}>
-                            <div style={{ display: "flex", gap: "0.5rem", "align-items": "center", "margin-top": "1rem", "justify-content": "flex-end" }}>
-                                <button class="btn" disabled={page() === 0} onClick={() => setPage(p => p - 1)}>Prev</button>
-                                <span style={{ "font-size": "0.85rem" }}>Page {page() + 1} of {dlqPageCount()}</span>
-                                <button class="btn" disabled={page() + 1 >= dlqPageCount()} onClick={() => setPage(p => p + 1)}>Next</button>
-                            </div>
-                        </Show>
-                    </div>
-                </Show>
-            </Show>
-        }>
         <Show when={!isLoading()} fallback={<Loading />}>
             <Show when={!isError()} fallback={<ErrorBox error={qMain.error} />}>
-                <div style={{ display: "flex", gap: "0.5rem", "margin-bottom": "1rem" }}>
-                    <button style={viewTabStyle(true)} onClick={() => setView("jobs")}>Scan Jobs</button>
-                    <button style={viewTabStyle(false)} onClick={() => setView("dlq")}>Dead Letter ({dlqTotal()})</button>
-                </div>
                 <div style={{ display: "flex", gap: "0.75rem", "align-items": "center", "margin-bottom": "1rem", "flex-wrap": "wrap" }}>
                     <select value={stateFilter()} onInput={e => setStateFilter(e.currentTarget.value as StateFilter)}>
                         <option value="active">Active (Running + Queued)</option>
@@ -174,6 +110,7 @@ export function JobsTab() {
                                     <th>Created</th>
                                     <th>Last Error</th>
                                     <th>SBOM</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -218,6 +155,18 @@ export function JobsTab() {
                                                     </A>
                                                 </Show>
                                             </td>
+                                            <td>
+                                                <Show when={job.state === "failed"}>
+                                                    <button
+                                                        class="btn"
+                                                        style={{ "font-size": "0.8rem", padding: "0.25rem 0.5rem" }}
+                                                        disabled={retry.isPending}
+                                                        onClick={() => retry.mutate(job.id)}
+                                                    >
+                                                        Retry
+                                                    </button>
+                                                </Show>
+                                            </td>
                                         </tr>
                                     )}
                                 </For>
@@ -233,7 +182,6 @@ export function JobsTab() {
                     </Show>
                 </div>
             </Show>
-        </Show>
         </Show>
     );
 }

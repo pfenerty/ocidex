@@ -518,6 +518,26 @@ func (q *Queries) RequeueStuckRunning(ctx context.Context, arg RequeueStuckRunni
 	return err
 }
 
+const retryScanJob = `-- name: RetryScanJob :exec
+UPDATE scan_jobs
+SET state       = 'queued',
+    attempts    = 0,
+    last_error  = NULL,
+    finished_at = NULL,
+    started_at  = NULL,
+    last_attempt_at = NULL
+WHERE id = $1::uuid
+  AND state = 'failed'
+`
+
+// RetryScanJob resets a failed row back to 'queued' with cleared retry state,
+// so an operator can manually retry a permanently-failed scan. The row is
+// picked up by the poll loop or a fresh NATS hint.
+func (q *Queries) RetryScanJob(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, retryScanJob, id)
+	return err
+}
+
 const startScanJob = `-- name: StartScanJob :exec
 UPDATE scan_jobs
 SET state           = 'running',

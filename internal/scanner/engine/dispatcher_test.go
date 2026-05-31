@@ -15,6 +15,9 @@ import (
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
+// Compile-time assertion: fakeSBOMSvc must satisfy service.SBOMService.
+var _ service.SBOMService = (*fakeSBOMSvc)(nil)
+
 // fakeScanner implements scanner.Scanner, returning minimal valid CycloneDX JSON.
 type fakeScanner struct{ err error }
 

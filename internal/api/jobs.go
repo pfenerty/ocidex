@@ -43,8 +43,9 @@ func (h *Handler) GetScanJob(ctx context.Context, in *GetScanJobInput) (*GetScan
 	return &GetScanJobOutput{Body: toScanJobResponse(job)}, nil
 }
 
-// ListScanJobFailures returns paginated DLQ rows (admin-only).
-func (h *Handler) ListScanJobFailures(ctx context.Context, in *ListScanJobFailuresInput) (*ListScanJobFailuresOutput, error) {
+// RetryScanJob resets a 'failed' scan_jobs row back to 'queued' so the worker
+// poll loop or a fresh NATS hint can re-process it. Admin-only.
+func (h *Handler) RetryScanJob(ctx context.Context, in *RetryScanJobInput) (*struct{}, error) {
 	user, ok := UserFromContext(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
@@ -52,27 +53,13 @@ func (h *Handler) ListScanJobFailures(ctx context.Context, in *ListScanJobFailur
 	if user.Role != roleAdmin {
 		return nil, huma.Error403Forbidden("admin only")
 	}
-	failures, total, err := h.jobService.ListFailures(ctx, in.Limit, in.Offset)
-	if err != nil {
-		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing dlq: %v", err))
+	if !isWriteAllowed(user) {
+		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
 	}
-	out := &ListScanJobFailuresOutput{}
-	out.Body.Data = make([]ScanJobFailureResponse, len(failures))
-	for i, f := range failures {
-		out.Body.Data[i] = ScanJobFailureResponse{
-			ID:            f.ID,
-			NATSMsgID:     f.NATSMsgID,
-			FailureReason: f.FailureReason,
-			DeliveryCount: f.DeliveryCount,
-			CreatedAt:     f.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
-		}
+	if err := h.jobService.Retry(ctx, in.ID); err != nil {
+		return nil, huma.Error500InternalServerError(fmt.Sprintf("retry job: %v", err))
 	}
-	out.Body.Pagination = PaginationMeta{
-		Total:  total,
-		Limit:  in.Limit,
-		Offset: in.Offset,
-	}
-	return out, nil
+	return nil, nil
 }
 
 func toScanJobResponse(j service.ScanJob) ScanJobResponse {
