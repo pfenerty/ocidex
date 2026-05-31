@@ -11,6 +11,138 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const claimNextQueuedJob = `-- name: ClaimNextQueuedJob :one
+WITH next_id AS (
+    SELECT id FROM scan_jobs
+    WHERE state = 'queued'
+    ORDER BY created_at
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+),
+claimed AS (
+    UPDATE scan_jobs
+    SET state           = 'running',
+        started_at      = COALESCE(started_at, now()),
+        last_attempt_at = now(),
+        worker_id       = $1::text,
+        attempts        = attempts + 1
+    WHERE id IN (SELECT id FROM next_id)
+    RETURNING id, registry_id, repository, digest, tag, attempts
+)
+SELECT
+    c.id,
+    COALESCE(c.registry_id::text, '')::text     AS registry_id,
+    c.repository,
+    c.digest,
+    COALESCE(c.tag, '')::text                   AS tag,
+    COALESCE(r.url, '')::text                   AS registry_url,
+    COALESCE(r.insecure, false)::bool           AS insecure,
+    COALESCE(r.auth_username, '')::text         AS auth_username,
+    COALESCE(r.auth_token, '')::text            AS auth_token,
+    c.attempts
+FROM claimed c
+LEFT JOIN registry r ON r.id = c.registry_id
+`
+
+type ClaimNextQueuedJobRow struct {
+	ID           pgtype.UUID `json:"id"`
+	RegistryID   string      `json:"registry_id"`
+	Repository   string      `json:"repository"`
+	Digest       string      `json:"digest"`
+	Tag          string      `json:"tag"`
+	RegistryUrl  string      `json:"registry_url"`
+	Insecure     bool        `json:"insecure"`
+	AuthUsername string      `json:"auth_username"`
+	AuthToken    string      `json:"auth_token"`
+	Attempts     int32       `json:"attempts"`
+}
+
+func (q *Queries) ClaimNextQueuedJob(ctx context.Context, workerID string) (ClaimNextQueuedJobRow, error) {
+	row := q.db.QueryRow(ctx, claimNextQueuedJob, workerID)
+	var i ClaimNextQueuedJobRow
+	err := row.Scan(
+		&i.ID,
+		&i.RegistryID,
+		&i.Repository,
+		&i.Digest,
+		&i.Tag,
+		&i.RegistryUrl,
+		&i.Insecure,
+		&i.AuthUsername,
+		&i.AuthToken,
+		&i.Attempts,
+	)
+	return i, err
+}
+
+const claimScanJobByID = `-- name: ClaimScanJobByID :one
+
+WITH claimed AS (
+    UPDATE scan_jobs
+    SET state           = 'running',
+        started_at      = COALESCE(started_at, now()),
+        last_attempt_at = now(),
+        worker_id       = $1::text,
+        attempts        = attempts + 1
+    WHERE id = $2::uuid
+      AND state = 'queued'
+    RETURNING id, registry_id, repository, digest, tag, attempts
+)
+SELECT
+    c.id,
+    COALESCE(c.registry_id::text, '')::text     AS registry_id,
+    c.repository,
+    c.digest,
+    COALESCE(c.tag, '')::text                   AS tag,
+    COALESCE(r.url, '')::text                   AS registry_url,
+    COALESCE(r.insecure, false)::bool           AS insecure,
+    COALESCE(r.auth_username, '')::text         AS auth_username,
+    COALESCE(r.auth_token, '')::text            AS auth_token,
+    c.attempts
+FROM claimed c
+LEFT JOIN registry r ON r.id = c.registry_id
+`
+
+type ClaimScanJobByIDParams struct {
+	WorkerID string      `json:"worker_id"`
+	ID       pgtype.UUID `json:"id"`
+}
+
+type ClaimScanJobByIDRow struct {
+	ID           pgtype.UUID `json:"id"`
+	RegistryID   string      `json:"registry_id"`
+	Repository   string      `json:"repository"`
+	Digest       string      `json:"digest"`
+	Tag          string      `json:"tag"`
+	RegistryUrl  string      `json:"registry_url"`
+	Insecure     bool        `json:"insecure"`
+	AuthUsername string      `json:"auth_username"`
+	AuthToken    string      `json:"auth_token"`
+	Attempts     int32       `json:"attempts"`
+}
+
+// Outbox-pattern queries. The scan_jobs row IS the queue; NATS hints just
+// trigger faster wakeup. ClaimScanJobByID handles the hint path; ClaimNextQueuedJob
+// handles the poll-loop fallback. Both atomically transition queued → running and
+// return the data needed to run the scan.
+func (q *Queries) ClaimScanJobByID(ctx context.Context, arg ClaimScanJobByIDParams) (ClaimScanJobByIDRow, error) {
+	row := q.db.QueryRow(ctx, claimScanJobByID, arg.WorkerID, arg.ID)
+	var i ClaimScanJobByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.RegistryID,
+		&i.Repository,
+		&i.Digest,
+		&i.Tag,
+		&i.RegistryUrl,
+		&i.Insecure,
+		&i.AuthUsername,
+		&i.AuthToken,
+		&i.Attempts,
+	)
+	return i, err
+}
+
 const claimStaleQueuedJobs = `-- name: ClaimStaleQueuedJobs :many
 WITH candidates AS (
     SELECT sj.id
@@ -167,6 +299,38 @@ func (q *Queries) FailExhaustedQueuedJobs(ctx context.Context, maxAttempts int32
 	return err
 }
 
+const failOrRequeueScanJobByID = `-- name: FailOrRequeueScanJobByID :one
+UPDATE scan_jobs
+SET state       = CASE
+        WHEN attempts >= $1::int THEN 'failed'
+        ELSE 'queued'
+    END,
+    last_error  = $2,
+    finished_at = CASE
+        WHEN attempts >= $1::int THEN now()
+        ELSE NULL
+    END
+WHERE id = $3::uuid
+  AND state NOT IN ('succeeded', 'failed')
+RETURNING state
+`
+
+type FailOrRequeueScanJobByIDParams struct {
+	MaxAttempts int32       `json:"max_attempts"`
+	LastError   pgtype.Text `json:"last_error"`
+	ID          pgtype.UUID `json:"id"`
+}
+
+// FailOrRequeueScanJobByID transitions a 'running' job back to 'queued' for
+// retry, or to 'failed' if it has exhausted its attempts. Idempotent on
+// already-terminal rows: the WHERE clause skips them.
+func (q *Queries) FailOrRequeueScanJobByID(ctx context.Context, arg FailOrRequeueScanJobByIDParams) (string, error) {
+	row := q.db.QueryRow(ctx, failOrRequeueScanJobByID, arg.MaxAttempts, arg.LastError, arg.ID)
+	var state string
+	err := row.Scan(&state)
+	return state, err
+}
+
 const failScanJob = `-- name: FailScanJob :exec
 UPDATE scan_jobs
 SET state = 'failed', finished_at = now(), last_error = $1
@@ -196,6 +360,22 @@ type FinishScanJobParams struct {
 
 func (q *Queries) FinishScanJob(ctx context.Context, arg FinishScanJobParams) error {
 	_, err := q.db.Exec(ctx, finishScanJob, arg.SbomID, arg.NatsMsgID)
+	return err
+}
+
+const finishScanJobByID = `-- name: FinishScanJobByID :exec
+UPDATE scan_jobs
+SET state = 'succeeded', finished_at = now(), sbom_id = $1::uuid
+WHERE id = $2::uuid
+`
+
+type FinishScanJobByIDParams struct {
+	SbomID pgtype.UUID `json:"sbom_id"`
+	ID     pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) FinishScanJobByID(ctx context.Context, arg FinishScanJobByIDParams) error {
+	_, err := q.db.Exec(ctx, finishScanJobByID, arg.SbomID, arg.ID)
 	return err
 }
 
@@ -405,6 +585,39 @@ func (q *Queries) ListScanJobs(ctx context.Context, arg ListScanJobsParams) ([]S
 		return nil, err
 	}
 	return items, nil
+}
+
+const requeueStuckRunning = `-- name: RequeueStuckRunning :exec
+UPDATE scan_jobs
+SET state = CASE
+        WHEN attempts >= $1::int THEN 'failed'
+        ELSE 'queued'
+    END,
+    last_error = CASE
+        WHEN attempts >= $1::int
+            THEN 'stuck: worker did not complete and retries exhausted'
+        ELSE last_error
+    END,
+    finished_at = CASE
+        WHEN attempts >= $1::int THEN now()
+        ELSE NULL
+    END
+WHERE state = 'running'
+  AND last_attempt_at < $2::timestamptz
+`
+
+type RequeueStuckRunningParams struct {
+	MaxAttempts int32              `json:"max_attempts"`
+	StuckBefore pgtype.Timestamptz `json:"stuck_before"`
+}
+
+// RequeueStuckRunning replaces the orphan reconciler. A 'running' row whose
+// worker hasn't updated last_attempt_at recently is presumed dead; we move it
+// back to 'queued' for another worker to claim, or 'failed' if it has used up
+// its retries. This is the only stuck-job sweep the outbox model needs.
+func (q *Queries) RequeueStuckRunning(ctx context.Context, arg RequeueStuckRunningParams) error {
+	_, err := q.db.Exec(ctx, requeueStuckRunning, arg.MaxAttempts, arg.StuckBefore)
+	return err
 }
 
 const startScanJob = `-- name: StartScanJob :exec

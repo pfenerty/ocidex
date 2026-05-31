@@ -105,6 +105,11 @@ type JobRepository interface {
 	ListScanJobFailures(ctx context.Context, arg ListScanJobFailuresParams) ([]ListScanJobFailuresRow, error)
 	CountScanJobFailures(ctx context.Context) (int64, error)
 	DeleteOldScanJobFailures(ctx context.Context, cutoff pgtype.Timestamptz) (int64, error)
+	ClaimScanJobByID(ctx context.Context, arg ClaimScanJobByIDParams) (ClaimScanJobByIDRow, error)
+	ClaimNextQueuedJob(ctx context.Context, workerID string) (ClaimNextQueuedJobRow, error)
+	FinishScanJobByID(ctx context.Context, arg FinishScanJobByIDParams) error
+	FailOrRequeueScanJobByID(ctx context.Context, arg FailOrRequeueScanJobByIDParams) (string, error)
+	RequeueStuckRunning(ctx context.Context, arg RequeueStuckRunningParams) error
 }
 
 // AuthRepository defines data access methods for authentication and authorization.
