@@ -5,9 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"sync"
 	"testing"
-	"time"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -16,84 +14,6 @@ import (
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
 )
-
-// fakeJobSvc implements service.JobService for dispatcher tests.
-type fakeJobSvc struct {
-	mu         sync.Mutex
-	startCalls int
-	startErr   error
-	finishErr  error
-	failErr    error
-}
-
-func (f *fakeJobSvc) Enqueue(_ context.Context, _, _, _, _, _ string) (service.ScanJob, error) {
-	return service.ScanJob{}, nil
-}
-
-func (f *fakeJobSvc) Start(_ context.Context, _, _ string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.startCalls++
-	return f.startErr
-}
-
-func (f *fakeJobSvc) Finish(_ context.Context, _ string, _ pgtype.UUID) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.finishErr
-}
-
-func (f *fakeJobSvc) Fail(_ context.Context, _, _ string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.failErr
-}
-
-func (f *fakeJobSvc) List(_ context.Context, _ string, _, _ int32) ([]service.ScanJob, int64, error) {
-	return nil, 0, nil
-}
-
-func (f *fakeJobSvc) Get(_ context.Context, _ string) (service.ScanJob, error) {
-	return service.ScanJob{}, nil
-}
-
-func (f *fakeJobSvc) CountByState(_ context.Context) (int64, int64, int64, int64, error) {
-	return 0, 0, 0, 0, nil
-}
-
-func (f *fakeJobSvc) TimeoutJobs(_ context.Context, _ time.Duration) error { return nil }
-func (f *fakeJobSvc) RecordFailure(_ context.Context, _ string, _ []byte, _ string, _ int) error {
-	return nil
-}
-func (f *fakeJobSvc) ClaimStaleQueuedJobs(_ context.Context, _, _, _ int32) ([]service.StaleQueuedJob, error) {
-	return nil, nil
-}
-func (f *fakeJobSvc) FailExhaustedQueuedJobs(_ context.Context, _ int32) error { return nil }
-func (f *fakeJobSvc) ListFailures(_ context.Context, _, _ int32) ([]service.ScanJobFailure, int64, error) {
-	return nil, 0, nil
-}
-func (f *fakeJobSvc) PurgeOldFailures(_ context.Context, _ time.Duration) (int64, error) {
-	return 0, nil
-}
-func (f *fakeJobSvc) ClaimByID(_ context.Context, _, _ string) (service.ScanJobClaim, bool, error) {
-	return service.ScanJobClaim{}, false, nil
-}
-func (f *fakeJobSvc) ClaimNext(_ context.Context, _ string) (service.ScanJobClaim, bool, error) {
-	return service.ScanJobClaim{}, false, nil
-}
-func (f *fakeJobSvc) FinishByID(_ context.Context, _ string, _ pgtype.UUID) error { return nil }
-func (f *fakeJobSvc) FailOrRequeueByID(_ context.Context, _, _ string, _ int32) (service.ScanJobState, error) {
-	return "", nil
-}
-func (f *fakeJobSvc) RequeueStuckRunning(_ context.Context, _ time.Duration, _ int32) error {
-	return nil
-}
-
-func (f *fakeJobSvc) getStartCalls() int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.startCalls
-}
 
 // fakeScanner implements scanner.Scanner, returning minimal valid CycloneDX JSON.
 type fakeScanner struct{ err error }
@@ -131,72 +51,37 @@ func discardLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-func TestDispatcher_JobTracking(t *testing.T) {
+func TestDispatcher_ProcessOne(t *testing.T) {
 	tests := []struct {
-		name           string
-		useWorkerPath  bool
-		finishErr      error
-		wantStartCalls int
-		wantErr        bool
+		name      string
+		scanErr   error
+		ingestErr error
+		wantErr   bool
 	}{
-		{
-			name:           "ProcessOne does not call Start (NATS extension owns it)",
-			useWorkerPath:  false,
-			wantStartCalls: 0,
-			wantErr:        false,
-		},
-		{
-			name:           "worker calls Start exactly once per job",
-			useWorkerPath:  true,
-			wantStartCalls: 1,
-			wantErr:        false,
-		},
-		{
-			name:           "ProcessOne returns error when finishJob fails",
-			useWorkerPath:  false,
-			finishErr:      errors.New("db write failed"),
-			wantStartCalls: 0,
-			wantErr:        true,
-		},
+		{name: "success returns sbom id"},
+		{name: "scan error propagates", scanErr: errors.New("boom"), wantErr: true},
+		{name: "ingest error propagates", ingestErr: errors.New("nope"), wantErr: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			is := is.New(t)
 
-			jobSvc := &fakeJobSvc{finishErr: tt.finishErr}
-			sc := &fakeScanner{}
-			sbomSvc := &fakeSBOMSvc{}
+			d := NewDispatcher(
+				&fakeScanner{err: tt.scanErr},
+				&fakeSBOMSvc{ingestErr: tt.ingestErr},
+				discardLogger(),
+			)
 
-			d := NewDispatcher(sc, sbomSvc, 1, 10, discardLogger(), jobSvc)
+			req := scanner.ScanRequest{Repository: "testrepo", Digest: "sha256:abc"}
+			sbomID, err := d.ProcessOne(context.Background(), req)
 
-			req := scanner.ScanRequest{
-				MsgID:      "msg-test-id",
-				Repository: "testrepo",
-				Digest:     "sha256:abc123",
-			}
-
-			if tt.useWorkerPath {
-				ctx, cancel := context.WithCancel(context.Background())
-				done := make(chan struct{})
-				go func() {
-					defer close(done)
-					d.Run(ctx)
-				}()
-				err := d.Submit(ctx, req)
-				is.NoErr(err)
-				time.Sleep(100 * time.Millisecond)
-				cancel()
-				<-done
-				is.Equal(jobSvc.getStartCalls(), tt.wantStartCalls)
+			if tt.wantErr {
+				is.True(err != nil)
+				is.True(!sbomID.Valid)
 			} else {
-				err := d.ProcessOne(context.Background(), req)
-				is.Equal(jobSvc.getStartCalls(), tt.wantStartCalls)
-				if tt.wantErr {
-					is.True(err != nil)
-				} else {
-					is.NoErr(err)
-				}
+				is.NoErr(err)
+				is.True(sbomID.Valid)
 			}
 		})
 	}

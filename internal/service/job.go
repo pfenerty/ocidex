@@ -42,21 +42,6 @@ type ScanJob struct {
 	WorkerID      *string
 }
 
-// StaleQueuedJob is the projection of a queued scan_job that the reconciler
-// has claimed and incremented (its reconcile_attempts now reflects the claim).
-type StaleQueuedJob struct {
-	NatsMsgID         string
-	RegistryID        string
-	Repository        string
-	Digest            string
-	Tag               string
-	RegistryURL       string
-	Insecure          bool
-	AuthUsername      string
-	AuthToken         string
-	ReconcileAttempts int32
-}
-
 // ScanJobFailure is the domain model for a row in scan_job_failures (DLQ).
 type ScanJobFailure struct {
 	ID            string
@@ -93,8 +78,6 @@ type JobService interface {
 	CountByState(ctx context.Context) (queued, running, succeeded24h, failed24h int64, err error)
 	TimeoutJobs(ctx context.Context, olderThan time.Duration) error
 	RecordFailure(ctx context.Context, natsMsgID string, payload []byte, reason string, deliveryCount int) error
-	ClaimStaleQueuedJobs(ctx context.Context, maxAttempts, backoffCap, batchSize int32) ([]StaleQueuedJob, error)
-	FailExhaustedQueuedJobs(ctx context.Context, maxAttempts int32) error
 	ListFailures(ctx context.Context, limit, offset int32) ([]ScanJobFailure, int64, error)
 	PurgeOldFailures(ctx context.Context, olderThan time.Duration) (int64, error)
 
@@ -279,37 +262,6 @@ func (s *jobService) RecordFailure(ctx context.Context, natsMsgID string, payloa
 		DeliveryCount: int32(deliveryCount), //nolint:gosec // G115: delivery count is always small
 	})
 	return err
-}
-
-func (s *jobService) ClaimStaleQueuedJobs(ctx context.Context, maxAttempts, backoffCap, batchSize int32) ([]StaleQueuedJob, error) {
-	rows, err := s.repo.ClaimStaleQueuedJobs(ctx, repository.ClaimStaleQueuedJobsParams{
-		MaxAttempts: maxAttempts,
-		BackoffCap:  backoffCap,
-		BatchSize:   batchSize,
-	})
-	if err != nil {
-		return nil, err
-	}
-	out := make([]StaleQueuedJob, len(rows))
-	for i, r := range rows {
-		out[i] = StaleQueuedJob{
-			NatsMsgID:         r.NatsMsgID,
-			RegistryID:        r.RegistryID,
-			Repository:        r.Repository,
-			Digest:            r.Digest,
-			Tag:               r.Tag,
-			RegistryURL:       r.RegistryUrl,
-			Insecure:          r.Insecure,
-			AuthUsername:      r.AuthUsername,
-			AuthToken:         r.AuthToken,
-			ReconcileAttempts: r.ReconcileAttempts,
-		}
-	}
-	return out, nil
-}
-
-func (s *jobService) FailExhaustedQueuedJobs(ctx context.Context, maxAttempts int32) error {
-	return s.repo.FailExhaustedQueuedJobs(ctx, maxAttempts)
 }
 
 func (s *jobService) ListFailures(ctx context.Context, limit, offset int32) ([]ScanJobFailure, int64, error) {

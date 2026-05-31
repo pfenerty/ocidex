@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/caarlos0/env/v11"
 )
@@ -47,13 +48,18 @@ type Config struct {
 	APIBaseURL string `env:"API_BASE_URL" envDefault:""`
 
 	// Scanner (OCI registry auto-scan via webhook).
-	ScannerEnabled        bool `env:"SCANNER_ENABLED"           envDefault:"false"`
-	ScannerWorkers        int  `env:"SCANNER_WORKERS"           envDefault:"2"`
-	ScannerQueueSize      int  `env:"SCANNER_QUEUE_SIZE"        envDefault:"50"`
-	ScannerMaxConcurrency int  `env:"SCANNER_MAX_CONCURRENCY"   envDefault:"10"`
-	// ScannerMaxAckPending sets the JetStream MaxAckPending for the scanner consumer.
-	// Defaults to ScannerMaxConcurrency*4 when zero, accommodating up to 4 replicas.
-	ScannerMaxAckPending int `env:"SCANNER_MAX_ACK_PENDING" envDefault:"0"`
+	ScannerEnabled        bool `env:"SCANNER_ENABLED"          envDefault:"false"`
+	ScannerMaxConcurrency int  `env:"SCANNER_MAX_CONCURRENCY"  envDefault:"10"`
+	// ScannerPollInterval is the cadence at which each worker checks the DB
+	// for queued scan_jobs rows, even when no NATS hint arrives. Keeps the
+	// queue draining if NATS is unavailable.
+	ScannerPollInterval time.Duration `env:"SCANNER_POLL_INTERVAL" envDefault:"30s"`
+	// ScannerStuckThreshold is how long a 'running' scan_jobs row can go
+	// without a last_attempt_at update before the sweep requeues it.
+	ScannerStuckThreshold time.Duration `env:"SCANNER_STUCK_THRESHOLD" envDefault:"15m"`
+	// ScannerMaxAttempts is the per-row retry budget. When attempts >= max,
+	// FailOrRequeueByID transitions to 'failed' instead of 'queued'.
+	ScannerMaxAttempts int `env:"SCANNER_MAX_ATTEMPTS" envDefault:"3"`
 
 	// ScanDLQRetentionDays controls the TTL for scan_job_failures (DLQ) rows.
 	// The scanner-worker purges anything older once per hour. 0 disables purging.

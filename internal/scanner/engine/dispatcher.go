@@ -1,3 +1,4 @@
+// Package engine houses the scan + ingest dispatcher used by the scanner-worker.
 package engine
 
 import (
@@ -5,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"sync"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -14,120 +14,33 @@ import (
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
-// Dispatcher manages a worker pool that scans OCI images and ingests the resulting SBOMs.
+// Dispatcher runs a single scan: fetch image, decode SBOM, ingest. It does not
+// touch the scan_jobs lifecycle — the caller (NATS hint handler or DB poll loop)
+// owns Claim / Finish / Fail. This keeps the job state machine in one place.
 type Dispatcher struct {
-	queue    chan scanner.ScanRequest
-	stopping chan struct{} // closed by Run when shutdown begins
-	scanner  scanner.Scanner
-	sbomSvc  service.SBOMService
-	jobSvc   service.JobService // optional; nil disables job tracking
-	workers  int
-	logger   *slog.Logger
+	scanner scanner.Scanner
+	sbomSvc service.SBOMService
+	logger  *slog.Logger
 }
 
-// NewDispatcher creates a Dispatcher with the given scanner, SBOM service, and pool configuration.
-func NewDispatcher(sc scanner.Scanner, sbomSvc service.SBOMService, workers, queueSize int, logger *slog.Logger, jobSvc service.JobService) *Dispatcher {
-	return &Dispatcher{
-		queue:    make(chan scanner.ScanRequest, queueSize),
-		stopping: make(chan struct{}),
-		scanner:  sc,
-		sbomSvc:  sbomSvc,
-		jobSvc:   jobSvc,
-		workers:  workers,
-		logger:   logger,
-	}
+// NewDispatcher creates a Dispatcher backed by the given Syft scanner and SBOM service.
+func NewDispatcher(sc scanner.Scanner, sbomSvc service.SBOMService, logger *slog.Logger) *Dispatcher {
+	return &Dispatcher{scanner: sc, sbomSvc: sbomSvc, logger: logger}
 }
 
-// Submit enqueues a scan request. Blocks until a slot is available or the dispatcher stops.
-func (d *Dispatcher) Submit(ctx context.Context, req scanner.ScanRequest) error {
-	if d.jobSvc != nil {
-		if req.MsgID == "" {
-			req.MsgID = req.RegistryID + "@" + req.Digest
-		}
-		if _, err := d.jobSvc.Enqueue(ctx, req.RegistryID, req.Repository, req.Digest, req.Tag, req.MsgID); err != nil {
-			d.logger.Warn("scan_jobs: failed to enqueue job", "msg_id", req.MsgID, "err", err)
-		}
-	}
-	select {
-	case d.queue <- req:
-		d.logger.Debug("scan queued", "repo", req.Repository, "digest", req.Digest)
-		return nil
-	case <-d.stopping:
-		return fmt.Errorf("dispatcher stopping")
-	}
-}
-
-// SubmitWithResult enqueues a scan request without blocking. Returns true if accepted, false if the queue is full.
-func (d *Dispatcher) SubmitWithResult(req scanner.ScanRequest) bool {
-	select {
-	case d.queue <- req:
-		d.logger.Debug("scan queued", "repo", req.Repository, "digest", req.Digest)
-		return true
-	default:
-		d.logger.Warn("scan queue full, dropping request", "repo", req.Repository, "digest", req.Digest)
-		return false
-	}
-}
-
-// Run starts the worker goroutines and blocks until ctx is cancelled.
-// Workers drain the queue before returning.
-func (d *Dispatcher) Run(ctx context.Context) {
-	d.logger.Info("scanner dispatcher starting", "workers", d.workers)
-
-	var wg sync.WaitGroup
-	for i := range d.workers {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			d.worker(ctx, id)
-		}(i)
-	}
-
-	<-ctx.Done()
-	close(d.stopping) // unblock any Submit calls waiting for a slot
-	close(d.queue)    // signal workers to drain and exit
-	wg.Wait()
-
-	d.logger.Info("scanner dispatcher stopped")
-}
-
-func (d *Dispatcher) worker(ctx context.Context, id int) {
-	d.logger.Debug("scanner worker started", "worker_id", id)
-	for req := range d.queue {
-		if err := d.startJob(ctx, req.MsgID); err != nil {
-			d.logger.Warn("scan_jobs: failed to mark job running", "msg_id", req.MsgID, "err", err)
-		}
-		_ = d.process(ctx, req)
-	}
-}
-
-// ProcessOne processes a single scan request synchronously and returns any error.
-// Used by NATSExtension to defer Ack/Nak to after processing completes.
-func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) error {
-	return d.process(ctx, req)
-}
-
-func (d *Dispatcher) process(ctx context.Context, req scanner.ScanRequest) error {
-	// Fill in missing metadata from the registry manifest/config before scanning.
-	// Webhook-triggered requests don't pre-fetch this; the catalog walker does.
+// ProcessOne scans the image described by req and ingests the resulting SBOM.
+// Returns the created SBOM id on success.
+func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (pgtype.UUID, error) {
 	req = scanner.FillMetadata(ctx, req)
 
 	raw, err := d.scanner.Scan(ctx, req)
 	if err != nil {
-		d.logger.Error("scan failed", "repo", req.Repository, "digest", req.Digest, "err", err)
-		if ferr := d.failJob(ctx, req.MsgID, err.Error()); ferr != nil {
-			d.logger.Warn("scan_jobs: failed to mark job failed", "msg_id", req.MsgID, "err", ferr)
-		}
-		return err
+		return pgtype.UUID{}, fmt.Errorf("scan: %w", err)
 	}
 
 	bom := new(cdx.BOM)
 	if err := cdx.NewBOMDecoder(bytes.NewReader(raw), cdx.BOMFileFormatJSON).Decode(bom); err != nil {
-		d.logger.Error("failed to decode SBOM from syft output", "repo", req.Repository, "err", err)
-		if ferr := d.failJob(ctx, req.MsgID, err.Error()); ferr != nil {
-			d.logger.Warn("scan_jobs: failed to mark job failed", "msg_id", req.MsgID, "err", ferr)
-		}
-		return err
+		return pgtype.UUID{}, fmt.Errorf("decode sbom: %w", err)
 	}
 
 	version := req.Tag
@@ -145,38 +58,9 @@ func (d *Dispatcher) process(ctx context.Context, req scanner.ScanRequest) error
 		RegistryID:   registryID,
 	})
 	if err != nil {
-		d.logger.Error("failed to ingest scanned SBOM", "repo", req.Repository, "digest", req.Digest, "err", err)
-		if ferr := d.failJob(ctx, req.MsgID, err.Error()); ferr != nil {
-			d.logger.Warn("scan_jobs: failed to mark job failed", "msg_id", req.MsgID, "err", ferr)
-		}
-		return err
+		return pgtype.UUID{}, fmt.Errorf("ingest: %w", err)
 	}
 
 	d.logger.Info("SBOM ingested from scan", "repo", req.Repository, "digest", req.Digest)
-	if err := d.finishJob(ctx, req.MsgID, sbomID); err != nil {
-		d.logger.Error("scan_jobs: failed to mark job succeeded", "msg_id", req.MsgID, "err", err)
-		return err
-	}
-	return nil
-}
-
-func (d *Dispatcher) startJob(ctx context.Context, msgID string) error {
-	if d.jobSvc == nil || msgID == "" {
-		return nil
-	}
-	return d.jobSvc.Start(ctx, msgID, "")
-}
-
-func (d *Dispatcher) failJob(ctx context.Context, msgID, errMsg string) error {
-	if d.jobSvc == nil || msgID == "" {
-		return nil
-	}
-	return d.jobSvc.Fail(ctx, msgID, errMsg)
-}
-
-func (d *Dispatcher) finishJob(ctx context.Context, msgID string, sbomID pgtype.UUID) error {
-	if d.jobSvc == nil || msgID == "" {
-		return nil
-	}
-	return d.jobSvc.Finish(ctx, msgID, sbomID)
+	return sbomID, nil
 }

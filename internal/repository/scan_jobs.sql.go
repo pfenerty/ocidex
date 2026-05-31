@@ -125,6 +125,10 @@ type ClaimScanJobByIDRow struct {
 // trigger faster wakeup. ClaimScanJobByID handles the hint path; ClaimNextQueuedJob
 // handles the poll-loop fallback. Both atomically transition queued → running and
 // return the data needed to run the scan.
+//
+// Historical: this file previously contained ClaimStaleQueuedJobs and
+// FailExhaustedQueuedJobs (the NATS-aware reconciler). Removed in
+// ocidex-ujj.74 alongside the dual-write design they papered over.
 func (q *Queries) ClaimScanJobByID(ctx context.Context, arg ClaimScanJobByIDParams) (ClaimScanJobByIDRow, error) {
 	row := q.db.QueryRow(ctx, claimScanJobByID, arg.WorkerID, arg.ID)
 	var i ClaimScanJobByIDRow
@@ -141,93 +145,6 @@ func (q *Queries) ClaimScanJobByID(ctx context.Context, arg ClaimScanJobByIDPara
 		&i.Attempts,
 	)
 	return i, err
-}
-
-const claimStaleQueuedJobs = `-- name: ClaimStaleQueuedJobs :many
-WITH candidates AS (
-    SELECT sj.id
-    FROM scan_jobs sj
-    WHERE sj.state = 'queued'
-      AND sj.nats_msg_id IS NOT NULL
-      AND sj.reconcile_attempts < $1::int
-      AND sj.created_at < now() - (
-          interval '10 minutes' *
-          LEAST(power(2, sj.reconcile_attempts)::int, $2::int)
-      )
-    ORDER BY sj.created_at
-    LIMIT $3::int
-    FOR UPDATE SKIP LOCKED
-)
-UPDATE scan_jobs sj
-SET reconcile_attempts = sj.reconcile_attempts + 1
-FROM candidates c, registry r
-WHERE sj.id = c.id
-  AND r.id = sj.registry_id
-RETURNING
-    sj.nats_msg_id::text          AS nats_msg_id,
-    r.id::text                    AS registry_id,
-    sj.repository                 AS repository,
-    sj.digest                     AS digest,
-    COALESCE(sj.tag, '')::text    AS tag,
-    r.url                         AS registry_url,
-    r.insecure                    AS insecure,
-    COALESCE(r.auth_username, '')::text AS auth_username,
-    COALESCE(r.auth_token, '')::text    AS auth_token,
-    sj.reconcile_attempts         AS reconcile_attempts
-`
-
-type ClaimStaleQueuedJobsParams struct {
-	MaxAttempts int32 `json:"max_attempts"`
-	BackoffCap  int32 `json:"backoff_cap"`
-	BatchSize   int32 `json:"batch_size"`
-}
-
-type ClaimStaleQueuedJobsRow struct {
-	NatsMsgID         string `json:"nats_msg_id"`
-	RegistryID        string `json:"registry_id"`
-	Repository        string `json:"repository"`
-	Digest            string `json:"digest"`
-	Tag               string `json:"tag"`
-	RegistryUrl       string `json:"registry_url"`
-	Insecure          bool   `json:"insecure"`
-	AuthUsername      string `json:"auth_username"`
-	AuthToken         string `json:"auth_token"`
-	ReconcileAttempts int32  `json:"reconcile_attempts"`
-}
-
-// ClaimStaleQueuedJobs atomically selects scan_jobs stuck in 'queued' past their
-// per-attempt backoff threshold (10m * 2^reconcile_attempts, capped) and increments
-// reconcile_attempts so concurrent worker pods can't double-republish the same row.
-// Returns the data the reconciler needs to rebuild the NATS scan request.
-func (q *Queries) ClaimStaleQueuedJobs(ctx context.Context, arg ClaimStaleQueuedJobsParams) ([]ClaimStaleQueuedJobsRow, error) {
-	rows, err := q.db.Query(ctx, claimStaleQueuedJobs, arg.MaxAttempts, arg.BackoffCap, arg.BatchSize)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ClaimStaleQueuedJobsRow{}
-	for rows.Next() {
-		var i ClaimStaleQueuedJobsRow
-		if err := rows.Scan(
-			&i.NatsMsgID,
-			&i.RegistryID,
-			&i.Repository,
-			&i.Digest,
-			&i.Tag,
-			&i.RegistryUrl,
-			&i.Insecure,
-			&i.AuthUsername,
-			&i.AuthToken,
-			&i.ReconcileAttempts,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const countScanJobFailures = `-- name: CountScanJobFailures :one
@@ -281,22 +198,6 @@ func (q *Queries) DeleteOldScanJobFailures(ctx context.Context, cutoff pgtype.Ti
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const failExhaustedQueuedJobs = `-- name: FailExhaustedQueuedJobs :exec
-UPDATE scan_jobs
-SET state       = 'failed',
-    finished_at = now(),
-    last_error  = 'orphaned: max reconcile attempts'
-WHERE state = 'queued'
-  AND reconcile_attempts >= $1::int
-`
-
-// FailExhaustedQueuedJobs marks queued jobs that exceeded the reconciler attempt
-// budget as permanently failed so they stop being scanned every tick.
-func (q *Queries) FailExhaustedQueuedJobs(ctx context.Context, maxAttempts int32) error {
-	_, err := q.db.Exec(ctx, failExhaustedQueuedJobs, maxAttempts)
-	return err
 }
 
 const failOrRequeueScanJobByID = `-- name: FailOrRequeueScanJobByID :one
@@ -380,7 +281,7 @@ func (q *Queries) FinishScanJobByID(ctx context.Context, arg FinishScanJobByIDPa
 }
 
 const getScanJob = `-- name: GetScanJob :one
-SELECT id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id, reconcile_attempts FROM scan_jobs WHERE id = $1
+SELECT id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id FROM scan_jobs WHERE id = $1
 `
 
 func (q *Queries) GetScanJob(ctx context.Context, id pgtype.UUID) (ScanJob, error) {
@@ -402,7 +303,6 @@ func (q *Queries) GetScanJob(ctx context.Context, id pgtype.UUID) (ScanJob, erro
 		&i.FinishedAt,
 		&i.LastAttemptAt,
 		&i.WorkerID,
-		&i.ReconcileAttempts,
 	)
 	return i, err
 }
@@ -410,7 +310,7 @@ func (q *Queries) GetScanJob(ctx context.Context, id pgtype.UUID) (ScanJob, erro
 const insertScanJob = `-- name: InsertScanJob :one
 INSERT INTO scan_jobs (registry_id, repository, digest, tag, nats_msg_id)
 VALUES ($1::uuid, $2, $3, $4, $5)
-RETURNING id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id, reconcile_attempts
+RETURNING id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id
 `
 
 type InsertScanJobParams struct {
@@ -446,7 +346,6 @@ func (q *Queries) InsertScanJob(ctx context.Context, arg InsertScanJobParams) (S
 		&i.FinishedAt,
 		&i.LastAttemptAt,
 		&i.WorkerID,
-		&i.ReconcileAttempts,
 	)
 	return i, err
 }
@@ -530,7 +429,7 @@ func (q *Queries) ListScanJobFailures(ctx context.Context, arg ListScanJobFailur
 }
 
 const listScanJobs = `-- name: ListScanJobs :many
-SELECT id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id, reconcile_attempts FROM scan_jobs
+SELECT id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id FROM scan_jobs
 WHERE ($1::text IS NULL OR state = $1::text)
 ORDER BY
     CASE state
@@ -575,7 +474,6 @@ func (q *Queries) ListScanJobs(ctx context.Context, arg ListScanJobsParams) ([]S
 			&i.FinishedAt,
 			&i.LastAttemptAt,
 			&i.WorkerID,
-			&i.ReconcileAttempts,
 		); err != nil {
 			return nil, err
 		}

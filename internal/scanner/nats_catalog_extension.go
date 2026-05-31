@@ -161,6 +161,16 @@ func (e *NATSCatalogExtension) fetchLoop(ctx context.Context, consumer jetstream
 	}
 }
 
+// natsMsg is the subset of jetstream.Msg the catalog handler uses; defined
+// locally so tests can inject a stub.
+type natsMsg interface {
+	Data() []byte
+	Headers() nats.Header
+	Ack() error
+	Nak() error
+	Term() error
+}
+
 func (e *NATSCatalogExtension) handleMsg(ctx context.Context, msg natsMsg) {
 	var env natspkg.Envelope
 	if err := json.Unmarshal(msg.Data(), &env); err != nil {

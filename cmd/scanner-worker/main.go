@@ -32,6 +32,10 @@ import (
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
+// scanTimeout bounds a single Syft scan. The stuck-running sweep uses a
+// slightly larger threshold so a still-active scan is not preempted.
+const scanTimeout = 9 * time.Minute
+
 func main() {
 	if err := run(); err != nil {
 		slog.Error("fatal", "err", err)
@@ -99,20 +103,27 @@ func run() error {
 	// Relay SBOM events to NATS so enrichment workers can pick them up.
 	registry.Register(natspkg.NewRelayExtension(natsClient, cfg.NATSStreamName, logger))
 
-	// Wire scanner worker: stateless scanner + nil OCI validator (webhook confirms image exists).
+	// Wire scanner worker: stateless scanner + outbox-pattern hint extension.
+	// The scan_jobs row is the source of truth; NATS hints are a latency hint
+	// and the DB poll loop is the fallback when hints are lost.
 	jobSvc := service.NewJobService(pool)
 	scannerSbomSvc := service.NewSBOMService(pool, bus, nil)
 	sc := engine.NewSyftScanner(logger)
-	dispatcher := engine.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerWorkers, cfg.ScannerQueueSize, logger, jobSvc)
-	// scanMsgTimeout is set just under the consumer AckWait (10m) so a hung goroutine
-	// is cancelled and the semaphore slot released before JetStream redelivers.
-	const scanMsgTimeout = 9 * time.Minute
-	scanMaxAckPending := cfg.ScannerMaxAckPending
-	if scanMaxAckPending == 0 {
-		scanMaxAckPending = cfg.ScannerMaxConcurrency * 4
-	}
+	dispatcher := engine.NewDispatcher(sc, scannerSbomSvc, logger)
+
 	workerID, _ := os.Hostname()
-	registry.Register(scanner.NewNATSExtension(natsClient, dispatcher, cfg.NATSStreamName, logger, jobSvc, workerID, scanMsgTimeout, cfg.ScannerMaxConcurrency, scanMaxAckPending))
+	registry.Register(scanner.NewNATSHintExtension(
+		natsClient,
+		dispatcher,
+		jobSvc,
+		cfg.NATSStreamName,
+		workerID,
+		logger,
+		cfg.ScannerMaxConcurrency,
+		cfg.ScannerPollInterval,
+		scanTimeout,
+		cfg.ScannerMaxAttempts,
+	))
 
 	// Wire catalog walk consumer: receives catalog.walk.requested from the API server poller
 	// and performs the OCI catalog walk here in the scanner-worker.
@@ -137,24 +148,21 @@ func run() error {
 	healthSrv.Start()
 	defer healthSrv.Stop()
 
-	// Sweep jobs stuck in 'running' at startup, then every 5 minutes.
-	// Covers the case where a prior worker crashed before completing a job.
-	const jobTimeout = 30 * time.Minute
-	if err := jobSvc.TimeoutJobs(ctx, jobTimeout); err != nil {
-		slog.Warn("startup timeout sweep failed", "err", err)
+	// Stuck-running sweep: any row stuck in 'running' past the stuck-threshold
+	// is moved back to 'queued' (or 'failed' if retries are exhausted). This
+	// replaces the NATS-aware orphan reconciler — under the outbox pattern the
+	// DB row is the source of truth and no NATS-side reconciliation exists.
+	stuckThreshold := cfg.ScannerStuckThreshold
+	if err := jobSvc.RequeueStuckRunning(ctx, stuckThreshold, int32(cfg.ScannerMaxAttempts)); err != nil { //nolint:gosec // G115: small bounded retry count
+		slog.Warn("startup stuck-running sweep failed", "err", err)
 	}
-	reaperCtx, reaperCancel := context.WithCancel(context.Background())
-	defer reaperCancel()
-	go runJobReaper(reaperCtx, jobSvc, jobTimeout)
+	sweepCtx, sweepCancel := context.WithCancel(context.Background())
+	defer sweepCancel()
+	go runStuckRunningSweep(sweepCtx, jobSvc, stuckThreshold, int32(cfg.ScannerMaxAttempts)) //nolint:gosec // G115: as above
 
-	// NOTE: the orphan reconciler (runJobReconciler) is intentionally NOT started.
-	// Under throughput-bound conditions (Pi4 prod, ~24 scans/hour) almost every
-	// queued job crosses the 10-min "orphan" threshold simply from queue-wait
-	// time, triggering false-positive republishes that create duplicate stream
-	// messages and waste worker cycles on re-scans. Tracked: ocidex-ujj.74 — the
-	// dual-write design is being replaced by the outbox pattern.
-
-	// Purge old DLQ rows once per hour so scan_job_failures doesn't grow unbounded.
+	// Purge old DLQ audit rows once per hour. The table is no longer written
+	// to under the outbox model, but existing rows are retained for the admin
+	// UI's failure-history view until SCAN_DLQ_RETENTION_DAYS expires them.
 	if cfg.ScanDLQRetentionDays > 0 {
 		purgeCtx, purgeCancel := context.WithCancel(context.Background())
 		defer purgeCancel()
@@ -267,66 +275,24 @@ func parseImageRef(ref string) (registryURL, repo, digest, tag string, err error
 	return registryURL, repo, digest, tag, nil
 }
 
-func runJobReaper(ctx context.Context, jobSvc service.JobService, timeout time.Duration) {
-	ticker := time.NewTicker(5 * time.Minute)
+// runStuckRunningSweep periodically requeues 'running' scan_jobs rows whose
+// worker hasn't updated last_attempt_at within stuckThreshold. The row goes
+// back to 'queued' for another worker to claim, or to 'failed' if its retry
+// budget is exhausted. This is the only stuck-job sweep the outbox model
+// needs — there is no NATS-side reconciler.
+func runStuckRunningSweep(ctx context.Context, jobSvc service.JobService, stuckThreshold time.Duration, maxAttempts int32) {
+	ticker := time.NewTicker(stuckThreshold / 3)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			if err := jobSvc.TimeoutJobs(ctx, timeout); err != nil && ctx.Err() == nil {
-				slog.Warn("timeout sweep failed", "err", err)
+			if err := jobSvc.RequeueStuckRunning(ctx, stuckThreshold, maxAttempts); err != nil && ctx.Err() == nil {
+				slog.Warn("stuck-running sweep failed", "err", err)
 			}
 		case <-ctx.Done():
 			return
 		}
 	}
-}
-
-// Reconciler tuning. 6 attempts × exponential 10m → 80m (capped at 80m) means a
-// truly orphaned job is failed after ~7h of retries. batchSize bounds the work
-// per tick so a flood of orphans doesn't republish thousands at once.
-const (
-	reconcileMaxAttempts = 6
-	reconcileBackoffCap  = 8 // 10m * 8 = 80m max wait between attempts
-	reconcileBatchSize   = 100
-)
-
-// reconcileStaleJobs claims queued scan_jobs whose backoff window has elapsed and
-// re-publishes their NATS message. Claim + increment is a single UPDATE...RETURNING
-// with SKIP LOCKED so concurrent worker pods don't double-republish the same row.
-// Jobs that exhaust reconcileMaxAttempts are transitioned to 'failed' in the same
-// tick so subsequent passes ignore them.
-func reconcileStaleJobs(ctx context.Context, jobSvc service.JobService, submitter *scanner.NATSSubmitter, logger *slog.Logger) {
-	jobs, err := jobSvc.ClaimStaleQueuedJobs(ctx, reconcileMaxAttempts, reconcileBackoffCap, reconcileBatchSize)
-	if err != nil {
-		logger.Error("reconciler: claim stale jobs", "err", err)
-		return
-	}
-
-	if err := jobSvc.FailExhaustedQueuedJobs(ctx, reconcileMaxAttempts); err != nil {
-		logger.Error("reconciler: fail exhausted jobs", "err", err)
-	}
-
-	republished := 0
-	for _, j := range jobs {
-		req := scanner.ScanRequest{
-			RegistryURL:  j.RegistryURL,
-			Insecure:     j.Insecure,
-			Repository:   j.Repository,
-			Digest:       j.Digest,
-			Tag:          j.Tag,
-			RegistryID:   j.RegistryID,
-			AuthUsername: j.AuthUsername,
-			AuthToken:    j.AuthToken,
-		}
-		if err := submitter.Republish(ctx, j.NatsMsgID, req); err != nil {
-			logger.Error("reconciler: republish failed", "msg_id", j.NatsMsgID, "attempt", j.ReconcileAttempts, "err", err)
-			continue
-		}
-		republished++
-	}
-
-	logger.Info("reconciler: tick complete", "claimed", len(jobs), "republished", republished)
 }
 
 func runDLQPurge(ctx context.Context, jobSvc service.JobService, retention time.Duration, logger *slog.Logger) {
@@ -352,23 +318,6 @@ func runDLQPurge(ctx context.Context, jobSvc service.JobService, retention time.
 				return
 			}
 			purge()
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-func runJobReconciler(ctx context.Context, jobSvc service.JobService, submitter *scanner.NATSSubmitter, logger *slog.Logger) {
-	reconcileStaleJobs(ctx, jobSvc, submitter, logger)
-	ticker := time.NewTicker(5 * time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			if ctx.Err() != nil {
-				return
-			}
-			reconcileStaleJobs(ctx, jobSvc, submitter, logger)
 		case <-ctx.Done():
 			return
 		}

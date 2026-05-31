@@ -100,8 +100,6 @@ type JobRepository interface {
 	GetScanJob(ctx context.Context, id pgtype.UUID) (ScanJob, error)
 	TimeoutScanJobs(ctx context.Context, startedBefore pgtype.Timestamptz) error
 	InsertScanJobFailure(ctx context.Context, arg InsertScanJobFailureParams) (ScanJobFailure, error)
-	ClaimStaleQueuedJobs(ctx context.Context, arg ClaimStaleQueuedJobsParams) ([]ClaimStaleQueuedJobsRow, error)
-	FailExhaustedQueuedJobs(ctx context.Context, maxAttempts int32) error
 	ListScanJobFailures(ctx context.Context, arg ListScanJobFailuresParams) ([]ListScanJobFailuresRow, error)
 	CountScanJobFailures(ctx context.Context) (int64, error)
 	DeleteOldScanJobFailures(ctx context.Context, cutoff pgtype.Timestamptz) (int64, error)
