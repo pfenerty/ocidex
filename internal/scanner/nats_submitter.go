@@ -3,22 +3,32 @@ package scanner
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"time"
 
-	"github.com/nats-io/nats.go"
+	"github.com/jackc/pgx/v5/pgconn"
+
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
-const natsPublishTimeout = 5 * time.Second
+const (
+	natsPublishTimeout = 5 * time.Second
 
-// NATSSubmitter publishes scan requests to JetStream.
-// It satisfies the api.ScanSubmitter interface.
+	// scanHintSubjectSuffix is appended to the stream name. The hint payload is
+	// just the scan_jobs row id — workers look up everything they need from the
+	// DB. The DB row is the only source of truth for "this work needs to happen."
+	scanHintSubjectSuffix = ".scan.hint"
+)
+
+// NATSSubmitter inserts a scan_jobs row and publishes a tiny hint to NATS so
+// workers wake up promptly. It satisfies the api.ScanSubmitter interface.
 type NATSSubmitter struct {
 	client     *natspkg.Client
 	streamName string
-	jobSvc     service.JobService // optional; nil disables job tracking
+	jobSvc     service.JobService
+	logger     *slog.Logger
 }
 
 // NewNATSSubmitter creates a NATSSubmitter backed by the given client.
@@ -27,99 +37,39 @@ func NewNATSSubmitter(client *natspkg.Client, streamName string, jobSvc service.
 		client:     client,
 		streamName: streamName,
 		jobSvc:     jobSvc,
+		logger:     slog.Default(),
 	}
 }
 
-// scanRequestWire is the wire format for scan requests published to NATS.
-type scanRequestWire struct {
-	RegistryURL  string `json:"registry_url"`
-	Insecure     bool   `json:"insecure"`
-	Repository   string `json:"repository"`
-	Digest       string `json:"digest"`
-	Tag          string `json:"tag"`
-	Architecture string `json:"architecture,omitempty"`
-	BuildDate    string `json:"build_date,omitempty"`
-	ImageVersion string `json:"image_version,omitempty"`
-	AuthUsername string `json:"auth_username,omitempty"`
-	AuthToken    string `json:"auth_token,omitempty"`
-	RegistryID   string `json:"registry_id,omitempty"`
+// scanHint is the entire wire payload: just the row id. Auth credentials and
+// scan parameters live on scan_jobs + registry rows; the worker reads them
+// during ClaimByID.
+type scanHint struct {
+	ID string `json:"id"`
 }
 
-// Republish re-publishes a scan request to JetStream using an existing msgID.
-// Unlike Submit it does not call Enqueue — the DB record already exists.
-func (s *NATSSubmitter) Republish(ctx context.Context, msgID string, req ScanRequest) error {
-	payload, err := json.Marshal(scanRequestWire{ //nolint:gosec // G117: auth credentials must travel with scan requests through NATS
-		RegistryURL:  req.RegistryURL,
-		Insecure:     req.Insecure,
-		Repository:   req.Repository,
-		Digest:       req.Digest,
-		Tag:          req.Tag,
-		Architecture: req.Architecture,
-		BuildDate:    req.BuildDate,
-		ImageVersion: req.ImageVersion,
-		AuthUsername: req.AuthUsername,
-		AuthToken:    req.AuthToken,
-		RegistryID:   req.RegistryID,
-	})
-	if err != nil {
-		return err
-	}
-
-	env := natspkg.Envelope{
-		EventType:  "scan.requested",
-		OccurredAt: time.Now().UTC(),
-		Payload:    payload,
-	}
-	data, err := json.Marshal(env)
-	if err != nil {
-		return err
-	}
-
-	pubCtx, cancel := context.WithTimeout(ctx, natsPublishTimeout)
-	defer cancel()
-
-	subject := s.streamName + ".scan.requested"
-	msg := nats.NewMsg(subject)
-	msg.Header.Set("Nats-Msg-Id", msgID)
-	msg.Data = data
-	_, err = s.client.JS.PublishMsg(pubCtx, msg)
-	return err
-}
-
-// Submit synchronously publishes a scan request to JetStream and returns any publish error.
+// Submit inserts a scan_jobs row in the queued state, then best-effort publishes
+// a NATS hint. If publish fails, the worker poll loop will pick the row up. If
+// a row with the same (registry_id, digest) already exists (unique violation on
+// nats_msg_id), Submit returns nil — the existing row is already being
+// processed by some worker.
 func (s *NATSSubmitter) Submit(ctx context.Context, req ScanRequest) error {
-	msgID := req.RegistryID + "@" + req.Digest
+	// nats_msg_id doubles as a row-level idempotency key so re-enqueues for the
+	// same registry+digest pair collapse to one row. The column name is a
+	// historical artifact from the dual-write era; the value still serves the
+	// same purpose at the row level.
+	idempotencyKey := req.RegistryID + "@" + req.Digest
 
-	if s.jobSvc != nil {
-		if _, err := s.jobSvc.Enqueue(ctx, req.RegistryID, req.Repository, req.Digest, req.Tag, msgID); err != nil {
-			slog.Warn("scan_jobs: failed to enqueue job", "msg_id", msgID, "err", err)
-		}
-	}
-
-	payload, err := json.Marshal(scanRequestWire{ //nolint:gosec // G117: auth credentials must travel with scan requests through NATS
-		RegistryURL:  req.RegistryURL,
-		Insecure:     req.Insecure,
-		Repository:   req.Repository,
-		Digest:       req.Digest,
-		Tag:          req.Tag,
-		Architecture: req.Architecture,
-		BuildDate:    req.BuildDate,
-		ImageVersion: req.ImageVersion,
-		AuthUsername: req.AuthUsername,
-		AuthToken:    req.AuthToken,
-		RegistryID:   req.RegistryID,
-	})
+	job, err := s.jobSvc.Enqueue(ctx, req.RegistryID, req.Repository, req.Digest, req.Tag, idempotencyKey)
 	if err != nil {
+		if isUniqueViolation(err) {
+			// Already enqueued; the existing row is being polled or hinted. No-op.
+			return nil
+		}
 		return err
 	}
 
-	env := natspkg.Envelope{
-		EventType:  "scan.requested",
-		OccurredAt: time.Now().UTC(),
-		Payload:    payload,
-	}
-
-	data, err := json.Marshal(env)
+	hint, err := json.Marshal(scanHint{ID: job.ID})
 	if err != nil {
 		return err
 	}
@@ -127,10 +77,15 @@ func (s *NATSSubmitter) Submit(ctx context.Context, req ScanRequest) error {
 	pubCtx, cancel := context.WithTimeout(ctx, natsPublishTimeout)
 	defer cancel()
 
-	subject := s.streamName + ".scan.requested"
-	msg := nats.NewMsg(subject)
-	msg.Header.Set("Nats-Msg-Id", msgID)
-	msg.Data = data
-	_, err = s.client.JS.PublishMsg(pubCtx, msg)
-	return err
+	if _, err := s.client.JS.Publish(pubCtx, s.streamName+scanHintSubjectSuffix, hint); err != nil {
+		// Hint is best-effort — the row exists in the DB, the worker poll loop
+		// will pick it up within the poll interval.
+		s.logger.Warn("scan hint publish failed; poll loop will pick up", "job_id", job.ID, "err", err)
+	}
+	return nil
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }

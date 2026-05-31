@@ -2,7 +2,6 @@ package tests
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"log/slog"
 	"testing"
@@ -11,6 +10,7 @@ import (
 	gcname "github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/matryer/is"
 	natsc "github.com/testcontainers/testcontainers-go/modules/nats"
 
@@ -101,46 +101,34 @@ func resolveAMD64Digest(t *testing.T) (digest, architecture, buildDate string) {
 	return digest, architecture, buildDate
 }
 
-// publishScanRequest publishes a scan.requested envelope to JetStream.
-func publishScanRequest(t *testing.T, client *natspkg.Client, streamName, digest, architecture, buildDate string) {
+// enqueueScanJob inserts a registry row + uses NATSSubmitter to enqueue a
+// scan and publish a hint. This mirrors how the catalog walker / webhook
+// enter the pipeline under the outbox model.
+func enqueueScanJob(t *testing.T, pool *pgxpool.Pool, submitter *scanner.NATSSubmitter, digest, architecture, buildDate string) {
 	t.Helper()
 
-	type scanRequestWire struct {
-		RegistryURL  string `json:"registry_url"`
-		Repository   string `json:"repository"`
-		Digest       string `json:"digest"`
-		Architecture string `json:"architecture,omitempty"`
-		BuildDate    string `json:"build_date,omitempty"`
-		ImageVersion string `json:"image_version,omitempty"`
+	regID := pgtype.UUID{}
+	_ = regID.Scan("11111111-1111-4111-8111-111111111111")
+	if _, err := pool.Exec(t.Context(), `
+		INSERT INTO registry (id, name, url, type, enabled)
+		VALUES ($1, $2, $3, 'generic', true)
+		ON CONFLICT (id) DO NOTHING
+	`, regID, "redhat-"+digest[7:15], testRegistryURL); err != nil {
+		t.Fatalf("insert registry: %v", err)
 	}
 
-	payload, err := json.Marshal(scanRequestWire{
+	regIDStr := "11111111-1111-4111-8111-111111111111"
+	if err := submitter.Submit(t.Context(), scanner.ScanRequest{
 		RegistryURL:  testRegistryURL,
 		Repository:   testRepository,
 		Digest:       digest,
+		Tag:          testImageVersion,
 		Architecture: architecture,
 		BuildDate:    buildDate,
 		ImageVersion: testImageVersion,
-	})
-	if err != nil {
-		t.Fatalf("marshal scan request: %v", err)
-	}
-
-	env := natspkg.Envelope{
-		EventType:  "scan.requested",
-		OccurredAt: time.Now().UTC(),
-		Payload:    json.RawMessage(payload),
-	}
-	envData, err := json.Marshal(env)
-	if err != nil {
-		t.Fatalf("marshal envelope: %v", err)
-	}
-
-	pubCtx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-	defer cancel()
-	subject := streamName + ".scan.requested"
-	if _, err := client.JS.Publish(pubCtx, subject, envData); err != nil {
-		t.Fatalf("publish scan.requested: %v", err)
+		RegistryID:   regIDStr,
+	}); err != nil {
+		t.Fatalf("submit scan: %v", err)
 	}
 }
 
@@ -199,12 +187,18 @@ func TestScanToEnrichFlow(t *testing.T) {
 	// Wire scanner pipeline: real Syft Go library → real Red Hat registry.
 	sbomSvc := service.NewSBOMService(pool, bus, nil) // nil validator skips OCI manifest check
 	sc := engine.NewSyftScanner(logger)
-	scanDisp := engine.NewDispatcher(sc, sbomSvc, 1, 10, logger, nil)
+	scanDisp := engine.NewDispatcher(sc, sbomSvc, logger)
+
+	jobSvc := service.NewJobService(pool)
+	submitter := scanner.NewNATSSubmitter(natsClient, streamName, jobSvc)
 
 	extCtx, extCancel := context.WithCancel(ctx)
 	t.Cleanup(extCancel)
 
-	scanExt := scanner.NewNATSExtension(natsClient, scanDisp, streamName, logger, nil, "", 9*time.Minute, 10, 40)
+	scanExt := scanner.NewNATSHintExtension(
+		natsClient, scanDisp, jobSvc, streamName, "test-worker", logger,
+		1, 5*time.Second, 9*time.Minute, 3,
+	)
 	if err := scanExt.Start(extCtx); err != nil {
 		t.Fatalf("scanner ext start: %v", err)
 	}
@@ -221,9 +215,8 @@ func TestScanToEnrichFlow(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = enrichExt.Stop() })
 
-	// Trigger the pipeline by publishing a scan request.
-	// All three metadata fields are set so dispatcher.process() skips fillMetadata().
-	publishScanRequest(t, natsClient, streamName, digest, architecture, buildDate)
+	// Trigger the pipeline by inserting a scan_jobs row + publishing a hint.
+	enqueueScanJob(t, pool, submitter, digest, architecture, buildDate)
 
 	is := is.New(t)
 
