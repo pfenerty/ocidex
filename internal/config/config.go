@@ -61,10 +61,6 @@ type Config struct {
 	// FailOrRequeueByID transitions to 'failed' instead of 'queued'.
 	ScannerMaxAttempts int `env:"SCANNER_MAX_ATTEMPTS" envDefault:"3"`
 
-	// ScanDLQRetentionDays controls the TTL for scan_job_failures (DLQ) rows.
-	// The scanner-worker purges anything older once per hour. 0 disables purging.
-	ScanDLQRetentionDays int `env:"SCAN_DLQ_RETENTION_DAYS" envDefault:"30"`
-
 	// Enrichment worker NATS concurrency.
 	// EnrichmentMaxConcurrency controls goroutines per pod; EnrichmentMaxAckPending
 	// is the JetStream global cap across all pods (defaults to maxConc*4 when zero).

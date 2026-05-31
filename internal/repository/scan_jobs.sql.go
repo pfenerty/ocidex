@@ -147,17 +147,6 @@ func (q *Queries) ClaimScanJobByID(ctx context.Context, arg ClaimScanJobByIDPara
 	return i, err
 }
 
-const countScanJobFailures = `-- name: CountScanJobFailures :one
-SELECT COUNT(*) FROM scan_job_failures
-`
-
-func (q *Queries) CountScanJobFailures(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countScanJobFailures)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const countScanJobs = `-- name: CountScanJobs :one
 SELECT COUNT(*) FROM scan_jobs
 WHERE ($1::text IS NULL OR state = $1::text)
@@ -185,19 +174,6 @@ func (q *Queries) CountScanJobsSince(ctx context.Context, arg CountScanJobsSince
 	var count int64
 	err := row.Scan(&count)
 	return count, err
-}
-
-const deleteOldScanJobFailures = `-- name: DeleteOldScanJobFailures :execrows
-DELETE FROM scan_job_failures
-WHERE created_at < $1::timestamptz
-`
-
-func (q *Queries) DeleteOldScanJobFailures(ctx context.Context, cutoff pgtype.Timestamptz) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteOldScanJobFailures, cutoff)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
 }
 
 const failOrRequeueScanJobByID = `-- name: FailOrRequeueScanJobByID :one
@@ -348,84 +324,6 @@ func (q *Queries) InsertScanJob(ctx context.Context, arg InsertScanJobParams) (S
 		&i.WorkerID,
 	)
 	return i, err
-}
-
-const insertScanJobFailure = `-- name: InsertScanJobFailure :one
-INSERT INTO scan_job_failures (nats_msg_id, payload, failure_reason, delivery_count)
-VALUES ($1, $2, $3, $4)
-RETURNING id, nats_msg_id, payload, failure_reason, delivery_count, created_at
-`
-
-type InsertScanJobFailureParams struct {
-	NatsMsgID     pgtype.Text `json:"nats_msg_id"`
-	Payload       []byte      `json:"payload"`
-	FailureReason string      `json:"failure_reason"`
-	DeliveryCount int32       `json:"delivery_count"`
-}
-
-func (q *Queries) InsertScanJobFailure(ctx context.Context, arg InsertScanJobFailureParams) (ScanJobFailure, error) {
-	row := q.db.QueryRow(ctx, insertScanJobFailure,
-		arg.NatsMsgID,
-		arg.Payload,
-		arg.FailureReason,
-		arg.DeliveryCount,
-	)
-	var i ScanJobFailure
-	err := row.Scan(
-		&i.ID,
-		&i.NatsMsgID,
-		&i.Payload,
-		&i.FailureReason,
-		&i.DeliveryCount,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const listScanJobFailures = `-- name: ListScanJobFailures :many
-SELECT id, nats_msg_id, failure_reason, delivery_count, created_at
-FROM scan_job_failures
-ORDER BY created_at DESC
-LIMIT $2 OFFSET $1
-`
-
-type ListScanJobFailuresParams struct {
-	Offset int32 `json:"offset_"`
-	Limit  int32 `json:"limit_"`
-}
-
-type ListScanJobFailuresRow struct {
-	ID            pgtype.UUID        `json:"id"`
-	NatsMsgID     pgtype.Text        `json:"nats_msg_id"`
-	FailureReason string             `json:"failure_reason"`
-	DeliveryCount int32              `json:"delivery_count"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-}
-
-func (q *Queries) ListScanJobFailures(ctx context.Context, arg ListScanJobFailuresParams) ([]ListScanJobFailuresRow, error) {
-	rows, err := q.db.Query(ctx, listScanJobFailures, arg.Offset, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListScanJobFailuresRow{}
-	for rows.Next() {
-		var i ListScanJobFailuresRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.NatsMsgID,
-			&i.FailureReason,
-			&i.DeliveryCount,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listScanJobs = `-- name: ListScanJobs :many

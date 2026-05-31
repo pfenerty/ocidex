@@ -160,15 +160,6 @@ func run() error {
 	defer sweepCancel()
 	go runStuckRunningSweep(sweepCtx, jobSvc, stuckThreshold, int32(cfg.ScannerMaxAttempts)) //nolint:gosec // G115: as above
 
-	// Purge old DLQ audit rows once per hour. The table is no longer written
-	// to under the outbox model, but existing rows are retained for the admin
-	// UI's failure-history view until SCAN_DLQ_RETENTION_DAYS expires them.
-	if cfg.ScanDLQRetentionDays > 0 {
-		purgeCtx, purgeCancel := context.WithCancel(context.Background())
-		defer purgeCancel()
-		retention := time.Duration(cfg.ScanDLQRetentionDays) * 24 * time.Hour
-		go runDLQPurge(purgeCtx, jobSvc, retention, slog.Default())
-	}
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -295,31 +286,3 @@ func runStuckRunningSweep(ctx context.Context, jobSvc service.JobService, stuckT
 	}
 }
 
-func runDLQPurge(ctx context.Context, jobSvc service.JobService, retention time.Duration, logger *slog.Logger) {
-	purge := func() {
-		n, err := jobSvc.PurgeOldFailures(ctx, retention)
-		if err != nil {
-			if ctx.Err() == nil {
-				logger.Error("dlq purge failed", "err", err)
-			}
-			return
-		}
-		if n > 0 {
-			logger.Info("dlq purge", "deleted", n, "retention_days", retention/(24*time.Hour))
-		}
-	}
-	purge()
-	ticker := time.NewTicker(1 * time.Hour)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			if ctx.Err() != nil {
-				return
-			}
-			purge()
-		case <-ctx.Done():
-			return
-		}
-	}
-}
