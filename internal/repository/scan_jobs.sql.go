@@ -416,6 +416,27 @@ func (q *Queries) RequeueStuckRunning(ctx context.Context, arg RequeueStuckRunni
 	return err
 }
 
+const retryAllFailedScanJobs = `-- name: RetryAllFailedScanJobs :execrows
+UPDATE scan_jobs
+SET state       = 'queued',
+    attempts    = 0,
+    last_error  = NULL,
+    finished_at = NULL,
+    started_at  = NULL,
+    last_attempt_at = NULL
+WHERE state = 'failed'
+`
+
+// RetryAllFailedScanJobs resets every 'failed' row back to 'queued' with cleared
+// retry state. Returns the row count so the caller can surface it to the operator.
+func (q *Queries) RetryAllFailedScanJobs(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, retryAllFailedScanJobs)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const retryScanJob = `-- name: RetryScanJob :exec
 UPDATE scan_jobs
 SET state       = 'queued',

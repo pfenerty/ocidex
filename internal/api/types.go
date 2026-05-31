@@ -823,3 +823,10 @@ type GetScanJobOutput struct {
 type RetryScanJobInput struct {
 	ID string `path:"id" doc:"Failed scan job UUID to reset back to 'queued'"`
 }
+
+// RetryAllFailedScanJobsOutput is the response for POST /api/v1/admin/jobs/retry-failed.
+type RetryAllFailedScanJobsOutput struct {
+	Body struct {
+		Count int64 `json:"count" doc:"Number of rows transitioned from 'failed' to 'queued'"`
+	}
+}

@@ -91,6 +91,9 @@ type JobService interface {
 	// Retry resets a 'failed' row back to 'queued' so an operator can manually
 	// retry a permanently-failed scan.
 	Retry(ctx context.Context, id string) error
+	// RetryAllFailed resets every 'failed' row back to 'queued'. Returns the
+	// number of rows affected.
+	RetryAllFailed(ctx context.Context) (int64, error)
 }
 
 type jobService struct{ repo repository.JobRepository }
@@ -321,6 +324,10 @@ func (s *jobService) Retry(ctx context.Context, id string) error {
 		return fmt.Errorf("invalid job id: %w", err)
 	}
 	return s.repo.RetryScanJob(ctx, uid)
+}
+
+func (s *jobService) RetryAllFailed(ctx context.Context) (int64, error) {
+	return s.repo.RetryAllFailedScanJobs(ctx)
 }
 
 func claimFromRow(id pgtype.UUID, registryID, repo, digest, tag, registryURL string, insecure bool, authUser, authToken string, attempts int32) ScanJobClaim {

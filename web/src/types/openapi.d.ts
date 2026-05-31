@@ -21,6 +21,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/jobs/retry-failed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry every failed scan job
+         * @description Resets every scan_jobs row whose state is 'failed' back to 'queued' and returns the row count. Admin-only.
+         */
+        post: operations["retry-all-failed-scan-jobs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/jobs/{id}/retry": {
         parameters: {
             query?: never;
@@ -1428,6 +1448,19 @@ export interface components {
             name: string;
             reference: string;
         };
+        RetryAllFailedScanJobsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/RetryAllFailedScanJobsOutputBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Number of rows transitioned from 'failed' to 'queued'
+             */
+            count: number;
+        };
         SBOMDetail: {
             /**
              * Format: uri
@@ -1705,6 +1738,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VersionOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "retry-all-failed-scan-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetryAllFailedScanJobsOutputBody"];
                 };
             };
             /** @description Error */

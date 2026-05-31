@@ -33,3 +33,11 @@ export function useRetryScanJob() {
         onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
     }));
 }
+
+export function useRetryAllFailedScanJobs() {
+    const qc = useQueryClient();
+    return createMutation(() => ({
+        mutationFn: () => unwrap(client.POST("/api/v1/admin/jobs/retry-failed", {})),
+        onSuccess: () => qc.invalidateQueries({ queryKey: ["jobs"] }),
+    }));
+}
