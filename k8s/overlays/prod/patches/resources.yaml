@@ -28,10 +28,12 @@ spec:
           resources:
             requests:
               cpu: "100m"
-              memory: "128Mi"
+              memory: "256Mi"
             limits:
-              cpu: "500m"
-              memory: "1Gi"
+              # 1500m + 1.5Gi accommodates two concurrent Syft scans
+              # (SCANNER_MAX_CONCURRENCY=2).
+              cpu: "1500m"
+              memory: "1536Mi"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -94,9 +96,12 @@ spec:
       containers:
         - name: postgres
           resources:
+            # Postgres is on the hot path of every claim/finish under the
+            # outbox model; bumped from 200m/512Mi after observing it pegged
+            # at its CPU limit during steady-state load.
             requests:
-              cpu: "50m"
-              memory: "128Mi"
+              cpu: "300m"
+              memory: "256Mi"
             limits:
-              cpu: "200m"
-              memory: "512Mi"
+              cpu: "1000m"
+              memory: "1Gi"
