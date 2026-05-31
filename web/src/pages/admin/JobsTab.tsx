@@ -2,7 +2,7 @@ import { For, Show, createEffect, createSignal } from "solid-js";
 import { A } from "@solidjs/router";
 import { Loading, ErrorBox } from "~/components/Feedback";
 import { formatDateTime } from "~/utils/format";
-import { useListRegistries, useListScanJobs, useRetryScanJob } from "~/api/queries";
+import { useListRegistries, useListScanJobs, useRetryScanJob, useRetryAllFailedScanJobs } from "~/api/queries";
 
 const JOB_STATE_COLORS: Record<string, string> = {
     queued: "var(--color-text-muted)",
@@ -22,6 +22,19 @@ export function JobsTab() {
     const [repoFilter, setRepoFilter] = createSignal("");
     const [registryFilter, setRegistryFilter] = createSignal("");
     const retry = useRetryScanJob();
+    const retryAll = useRetryAllFailedScanJobs();
+
+    const retryAllFailed = async () => {
+        if (!confirm("Reset every 'failed' scan_jobs row back to 'queued'? This affects all failed rows, not just the visible page.")) {
+            return;
+        }
+        try {
+            const res = await retryAll.mutateAsync();
+            alert(`Re-queued ${res.count} failed scan job${res.count === 1 ? "" : "s"}.`);
+        } catch (err) {
+            alert(`Retry all failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+    };
 
     const toggleError = (id: string) =>
         setExpandedErrors(prev => {
@@ -97,6 +110,16 @@ export function JobsTab() {
                             {(r) => <option value={r.id}>{r.name}</option>}
                         </For>
                     </select>
+                    <Show when={stateFilter() === "failed"}>
+                        <button
+                            class="btn"
+                            disabled={retryAll.isPending}
+                            onClick={() => { void retryAllFailed(); }}
+                            style={{ "margin-left": "auto" }}
+                        >
+                            {retryAll.isPending ? "Re-queuing…" : "Retry all failed"}
+                        </button>
+                    </Show>
                 </div>
                 <div class="card">
                     <div class="table-wrapper">

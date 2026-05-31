@@ -159,6 +159,18 @@ SET state       = 'queued',
 WHERE id = @id::uuid
   AND state = 'failed';
 
+-- RetryAllFailedScanJobs resets every 'failed' row back to 'queued' with cleared
+-- retry state. Returns the row count so the caller can surface it to the operator.
+-- name: RetryAllFailedScanJobs :execrows
+UPDATE scan_jobs
+SET state       = 'queued',
+    attempts    = 0,
+    last_error  = NULL,
+    finished_at = NULL,
+    started_at  = NULL,
+    last_attempt_at = NULL
+WHERE state = 'failed';
+
 -- RequeueStuckRunning replaces the orphan reconciler. A 'running' row whose
 -- worker hasn't updated last_attempt_at recently is presumed dead; we move it
 -- back to 'queued' for another worker to claim, or 'failed' if it has used up

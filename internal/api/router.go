@@ -495,6 +495,15 @@ func registerJobOps(api huma.API, h *Handler) {
 		Description: "Resets a 'failed' scan_jobs row back to 'queued' so it gets reprocessed. Admin-only.",
 		Tags:        []string{"Jobs", "Admin"},
 	}, h.RetryScanJob)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "retry-all-failed-scan-jobs",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/admin/jobs/retry-failed",
+		Summary:     "Retry every failed scan job",
+		Description: "Resets every scan_jobs row whose state is 'failed' back to 'queued' and returns the row count. Admin-only.",
+		Tags:        []string{"Jobs", "Admin"},
+	}, h.RetryAllFailedScanJobs)
 }
 
 // ---------------------------------------------------------------------------

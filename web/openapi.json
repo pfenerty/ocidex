@@ -2168,6 +2168,29 @@
         ],
         "type": "object"
       },
+      "RetryAllFailedScanJobsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/RetryAllFailedScanJobsOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "count": {
+            "description": "Number of rows transitioned from 'failed' to 'queued'",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count"
+        ],
+        "type": "object"
+      },
       "SBOMDetail": {
         "additionalProperties": false,
         "properties": {
@@ -2890,6 +2913,39 @@
         "summary": "API version",
         "tags": [
           "Meta"
+        ]
+      }
+    },
+    "/api/v1/admin/jobs/retry-failed": {
+      "post": {
+        "description": "Resets every scan_jobs row whose state is 'failed' back to 'queued' and returns the row count. Admin-only.",
+        "operationId": "retry-all-failed-scan-jobs",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetryAllFailedScanJobsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Retry every failed scan job",
+        "tags": [
+          "Jobs",
+          "Admin"
         ]
       }
     },

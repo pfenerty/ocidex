@@ -105,6 +105,7 @@ type JobRepository interface {
 	FailOrRequeueScanJobByID(ctx context.Context, arg FailOrRequeueScanJobByIDParams) (string, error)
 	RequeueStuckRunning(ctx context.Context, arg RequeueStuckRunningParams) error
 	RetryScanJob(ctx context.Context, id pgtype.UUID) error
+	RetryAllFailedScanJobs(ctx context.Context) (int64, error)
 }
 
 // AuthRepository defines data access methods for authentication and authorization.

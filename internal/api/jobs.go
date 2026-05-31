@@ -62,6 +62,28 @@ func (h *Handler) RetryScanJob(ctx context.Context, in *RetryScanJobInput) (*str
 	return nil, nil
 }
 
+// RetryAllFailedScanJobs resets every 'failed' scan_jobs row back to 'queued'.
+// Returns the count so the UI can surface it. Admin-only.
+func (h *Handler) RetryAllFailedScanJobs(ctx context.Context, _ *struct{}) (*RetryAllFailedScanJobsOutput, error) {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	if user.Role != roleAdmin {
+		return nil, huma.Error403Forbidden("admin only")
+	}
+	if !isWriteAllowed(user) {
+		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
+	}
+	n, err := h.jobService.RetryAllFailed(ctx)
+	if err != nil {
+		return nil, huma.Error500InternalServerError(fmt.Sprintf("retry all failed: %v", err))
+	}
+	out := &RetryAllFailedScanJobsOutput{}
+	out.Body.Count = n
+	return out, nil
+}
+
 func toScanJobResponse(j service.ScanJob) ScanJobResponse {
 	r := ScanJobResponse{
 		ID:         j.ID,
