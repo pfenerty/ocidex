@@ -1795,37 +1795,6 @@
         ],
         "type": "object"
       },
-      "ListScanJobFailuresOutputBody": {
-        "additionalProperties": false,
-        "properties": {
-          "$schema": {
-            "description": "A URL to the JSON Schema for this object.",
-            "examples": [
-              "https://example.com/schemas/ListScanJobFailuresOutputBody.json"
-            ],
-            "format": "uri",
-            "readOnly": true,
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/ScanJobFailureResponse"
-            },
-            "type": [
-              "array",
-              "null"
-            ]
-          },
-          "pagination": {
-            "$ref": "#/components/schemas/PaginationMeta"
-          }
-        },
-        "required": [
-          "data",
-          "pagination"
-        ],
-        "type": "object"
-      },
       "ListScanJobsOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -2370,37 +2339,6 @@
           "version",
           "createdAt",
           "sufficient"
-        ],
-        "type": "object"
-      },
-      "ScanJobFailureResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "created_at": {
-            "type": "string"
-          },
-          "delivery_count": {
-            "description": "How many times JetStream delivered this message before DLQ",
-            "format": "int32",
-            "type": "integer"
-          },
-          "failure_reason": {
-            "type": "string"
-          },
-          "id": {
-            "description": "Failure record UUID",
-            "type": "string"
-          },
-          "nats_msg_id": {
-            "description": "Original NATS deduplication message ID",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "failure_reason",
-          "delivery_count",
-          "created_at"
         ],
         "type": "object"
       },
@@ -2955,49 +2893,25 @@
         ]
       }
     },
-    "/api/v1/admin/dlq": {
-      "get": {
-        "description": "Returns scan jobs that exhausted MaxDeliver retries and were routed to the DLQ. Admin-only.",
-        "operationId": "list-scan-job-failures",
+    "/api/v1/admin/jobs/{id}/retry": {
+      "post": {
+        "description": "Resets a 'failed' scan_jobs row back to 'queued' so it gets reprocessed. Admin-only.",
+        "operationId": "retry-scan-job",
         "parameters": [
           {
-            "description": "Maximum number of results per page",
-            "explode": false,
-            "in": "query",
-            "name": "limit",
+            "description": "Failed scan job UUID to reset back to 'queued'",
+            "in": "path",
+            "name": "id",
+            "required": true,
             "schema": {
-              "default": 50,
-              "description": "Maximum number of results per page",
-              "format": "int32",
-              "maximum": 200,
-              "minimum": 1,
-              "type": "integer"
-            }
-          },
-          {
-            "description": "Number of results to skip",
-            "explode": false,
-            "in": "query",
-            "name": "offset",
-            "schema": {
-              "default": 0,
-              "description": "Number of results to skip",
-              "format": "int32",
-              "minimum": 0,
-              "type": "integer"
+              "description": "Failed scan job UUID to reset back to 'queued'",
+              "type": "string"
             }
           }
         ],
         "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ListScanJobFailuresOutputBody"
-                }
-              }
-            },
-            "description": "OK"
+          "204": {
+            "description": "No Content"
           },
           "default": {
             "content": {
@@ -3010,7 +2924,7 @@
             "description": "Error"
           }
         },
-        "summary": "List dead-letter scan job failures",
+        "summary": "Retry a failed scan job",
         "tags": [
           "Jobs",
           "Admin"

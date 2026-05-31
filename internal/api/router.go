@@ -488,13 +488,13 @@ func registerJobOps(api huma.API, h *Handler) {
 	}, h.GetScanJob)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "list-scan-job-failures",
-		Method:      http.MethodGet,
-		Path:        "/api/v1/admin/dlq",
-		Summary:     "List dead-letter scan job failures",
-		Description: "Returns scan jobs that exhausted MaxDeliver retries and were routed to the DLQ. Admin-only.",
+		OperationID: "retry-scan-job",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/admin/jobs/{id}/retry",
+		Summary:     "Retry a failed scan job",
+		Description: "Resets a 'failed' scan_jobs row back to 'queued' so it gets reprocessed. Admin-only.",
 		Tags:        []string{"Jobs", "Admin"},
-	}, h.ListScanJobFailures)
+	}, h.RetryScanJob)
 }
 
 // ---------------------------------------------------------------------------
