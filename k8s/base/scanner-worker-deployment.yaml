@@ -3,7 +3,8 @@ kind: Deployment
 metadata:
   name: ocidex-scanner-worker
 spec:
-  replicas: 2
+  # replicas intentionally unset — KEDA's ScaledObject owns this field.
+  # See homelab/talos-cluster/flux/apps/ocidex/scaledobject.yaml.
   selector:
     matchLabels:
       app: ocidex-scanner-worker

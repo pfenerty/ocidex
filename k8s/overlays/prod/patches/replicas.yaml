@@ -5,13 +5,10 @@ metadata:
 spec:
   replicas: 1
 ---
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ocidex-scanner-worker
-spec:
-  replicas: 3
----
+# NOTE: ocidex-scanner-worker replicas are owned by KEDA's ScaledObject
+# (declared in homelab/talos-cluster/flux/apps/ocidex/scaledobject.yaml).
+# A static replicas value here would fight with KEDA on every Flux
+# reconcile. KEDA enforces minReplicaCount=1 / maxReplicaCount=5.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
