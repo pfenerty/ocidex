@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check tekton-synth tekton-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
+.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check tekton-synth tekton-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
 
 all: check build ## Run all checks and build
 
@@ -35,17 +35,28 @@ test-coverage: ## Run tests with HTML coverage report
 test-integration: ## Run integration tests
 	go test -v -race ./tests/...
 
-check: fmt lint test openapi-check frontend-lint frontend-typecheck frontend-test ## Run fmt, lint, test, and openapi staleness check
+check: fmt lint test openapi-check generate-client-check frontend-lint frontend-typecheck frontend-test ## Run fmt, lint, test, and openapi staleness check
 
 init: ## Download dependencies and install tools
 	go mod download
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
 
 clean: ## Clean build artifacts
 	rm -rf $(BUILD_DIR) coverage.out coverage.html
 
 generate: ## Run code generation (sqlc)
 	sqlc generate
+
+generate-client: ## Generate Go types from OpenAPI spec (oapi-codegen)
+	python3 scripts/spec-to-3.0.py web/openapi.json > /tmp/openapi-3.0.json
+	oapi-codegen --config pkg/client/.oapi-codegen.yml /tmp/openapi-3.0.json
+
+generate-client-check: ## Verify generated client types are up-to-date
+	python3 scripts/spec-to-3.0.py web/openapi.json > /tmp/openapi-3.0.json
+	sed 's|output: pkg/client/types.go|output: /tmp/client-types-check.go|' pkg/client/.oapi-codegen.yml > /tmp/oapi-codegen-check.yml
+	oapi-codegen --config /tmp/oapi-codegen-check.yml /tmp/openapi-3.0.json
+	diff pkg/client/types.go /tmp/client-types-check.go || (echo "ERROR: pkg/client/types.go is stale. Run 'make generate-client'." && exit 1)
 
 migrate-up: ## Run database migrations up
 	goose -dir db/migrations postgres "$$DATABASE_URL" up
