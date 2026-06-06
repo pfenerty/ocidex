@@ -43,9 +43,9 @@ type Client interface {
 	SearchComponents(ctx context.Context, query string, opts PageOpts) (Page[ComponentSummary], error)
 	SearchDistinctComponents(ctx context.Context, query string, opts PageOpts) (Page[DistinctComponentSummary], error)
 	GetComponent(ctx context.Context, id string) (ComponentDetail, error)
-	GetComponentVersions(ctx context.Context, id string) (GetComponentVersionsOutputBody, error)
+	GetComponentVersions(ctx context.Context, params GetComponentVersionsParams) (GetComponentVersionsOutputBody, error)
 	ListComponentPurlTypes(ctx context.Context) ([]string, error)
-	ListSBOMComponents(ctx context.Context, sbomID string, opts PageOpts) (Page[ComponentSummary], error)
+	ListSBOMComponents(ctx context.Context, sbomID string) ([]ComponentSummary, error)
 	GetSBOMDependencies(ctx context.Context, sbomID string) (DependencyGraph, error)
 
 	ListJobs(ctx context.Context, opts PageOpts) (Page[ScanJobResponse], error)

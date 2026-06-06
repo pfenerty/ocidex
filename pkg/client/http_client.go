@@ -103,3 +103,6 @@ func pageParams(opts PageOpts) url.Values {
 	}
 	return p
 }
+
+// Compile-time assertion that *httpClient satisfies the full Client interface.
+var _ Client = (*httpClient)(nil)
