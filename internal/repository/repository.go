@@ -88,6 +88,16 @@ type RegistryRepository interface {
 	UpdateRegistryLastPolled(ctx context.Context, id pgtype.UUID) (Registry, error)
 }
 
+// EnrichmentJobRepository defines data access methods for enrichment job lifecycle.
+type EnrichmentJobRepository interface {
+	InsertEnrichmentJob(ctx context.Context, arg InsertEnrichmentJobParams) (EnrichmentJob, error)
+	ClaimEnrichmentJobByID(ctx context.Context, arg ClaimEnrichmentJobByIDParams) (ClaimEnrichmentJobByIDRow, error)
+	ClaimNextEnrichmentJob(ctx context.Context, workerID string) (ClaimNextEnrichmentJobRow, error)
+	FinishEnrichmentJobByID(ctx context.Context, id pgtype.UUID) error
+	FailOrRequeueEnrichmentJobByID(ctx context.Context, arg FailOrRequeueEnrichmentJobByIDParams) (string, error)
+	RequeueStuckEnrichmentJobs(ctx context.Context, arg RequeueStuckEnrichmentJobsParams) error
+}
+
 // JobRepository defines data access methods for scan job lifecycle.
 type JobRepository interface {
 	InsertScanJob(ctx context.Context, arg InsertScanJobParams) (ScanJob, error)

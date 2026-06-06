@@ -61,11 +61,11 @@ type Config struct {
 	// FailOrRequeueByID transitions to 'failed' instead of 'queued'.
 	ScannerMaxAttempts int `env:"SCANNER_MAX_ATTEMPTS" envDefault:"3"`
 
-	// Enrichment worker NATS concurrency.
-	// EnrichmentMaxConcurrency controls goroutines per pod; EnrichmentMaxAckPending
-	// is the JetStream global cap across all pods (defaults to maxConc*4 when zero).
-	EnrichmentMaxConcurrency int `env:"ENRICHMENT_MAX_CONCURRENCY" envDefault:"50"`
-	EnrichmentMaxAckPending  int `env:"ENRICHMENT_MAX_ACK_PENDING" envDefault:"0"`
+	// Enrichment worker outbox-pattern settings (mirrors the scanner equivalents).
+	EnrichmentMaxConcurrency int           `env:"ENRICHMENT_MAX_CONCURRENCY"  envDefault:"10"`
+	EnrichmentPollInterval   time.Duration `env:"ENRICHMENT_POLL_INTERVAL"    envDefault:"30s"`
+	EnrichmentStuckThreshold time.Duration `env:"ENRICHMENT_STUCK_THRESHOLD"  envDefault:"10m"`
+	EnrichmentMaxAttempts    int           `env:"ENRICHMENT_MAX_ATTEMPTS"     envDefault:"3"`
 
 	// RegistryPollerEnabled starts the background poller for poll-mode registries.
 	RegistryPollerEnabled bool `env:"REGISTRY_POLLER_ENABLED" envDefault:"false"`

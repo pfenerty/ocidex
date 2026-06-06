@@ -26,6 +26,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/extension"
 	"github.com/pfenerty/ocidex/internal/health"
+	"github.com/pfenerty/ocidex/internal/jobqueue"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/service"
@@ -102,20 +103,43 @@ func run() error {
 	enrichReg := enrichment.NewCatalog()
 	enrichReg.Register(user.NewEnricher())
 	enrichReg.Register(oci.NewEnricher(oci.WithInsecureResolver(insecureResolver)))
-	dispatcher := enrichment.NewDispatcher(
-		enrichStore,
-		enrichReg,
-		enrichment.WithWorkers(cfg.EnrichmentWorkers),
-		enrichment.WithQueueSize(cfg.EnrichmentQueueSize),
-	)
-	// enrichMsgTimeout is set just under the consumer AckWait (5m) so a hung goroutine
-	// is cancelled and the semaphore slot released before JetStream redelivers.
-	const enrichMsgTimeout = 4 * time.Minute
-	enrichMaxAckPending := cfg.EnrichmentMaxAckPending
-	if enrichMaxAckPending == 0 {
-		enrichMaxAckPending = cfg.EnrichmentMaxConcurrency * 4
+	dispatcher := enrichment.NewDispatcher(enrichStore, enrichReg)
+
+	enrichJobSvc := service.NewEnrichJobService(pool)
+	workerID, _ := os.Hostname()
+	enrichProcessor := func(ctx context.Context, claim service.EnrichJobClaim) error {
+		ref := enrichment.SubjectRef{
+			SBOMId:         claim.SBOMId,
+			ArtifactType:   claim.ArtifactType,
+			ArtifactName:   claim.ArtifactName,
+			Digest:         claim.Digest,
+			SubjectVersion: claim.SubjectVersion,
+			Architecture:   claim.Architecture,
+			BuildDate:      claim.BuildDate,
+		}
+		if err := dispatcher.ProcessOne(ctx, ref); err != nil {
+			return err
+		}
+		return enrichJobSvc.FinishByID(ctx, claim.ID)
 	}
-	reg.Register(enrichment.NewNATSExtension(natsClient, dispatcher, cfg.NATSStreamName, logger, enrichMsgTimeout, cfg.EnrichmentMaxConcurrency, enrichMaxAckPending))
+	reg.Register(jobqueue.NewWorker(
+		"enrichment-hint",
+		natsClient,
+		cfg.NATSStreamName,
+		enrichJobSvc,
+		enrichProcessor,
+		jobqueue.Config{
+			WorkerID:          workerID,
+			MaxConc:           cfg.EnrichmentMaxConcurrency,
+			PollInterval:      cfg.EnrichmentPollInterval,
+			JobTimeout:        cfg.EnrichmentStuckThreshold,
+			MaxAttempts:       int32(cfg.EnrichmentMaxAttempts), //nolint:gosec // G115: small bounded retry count
+			StuckThreshold:    cfg.EnrichmentStuckThreshold,
+			HintSubjectSuffix: ".enrich.hint",
+			HintDurable:       "enrichment-hint",
+		},
+		logger,
+	))
 
 	if err := reg.InitAll(); err != nil {
 		return fmt.Errorf("initializing extensions: %w", err)

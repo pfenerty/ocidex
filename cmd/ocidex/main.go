@@ -22,6 +22,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/api"
 	"github.com/pfenerty/ocidex/internal/audit"
 	"github.com/pfenerty/ocidex/internal/config"
+	"github.com/pfenerty/ocidex/internal/enrichment"
 	"github.com/pfenerty/ocidex/internal/enrichment/ocivalidate"
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/extension"
@@ -102,7 +103,9 @@ func run() error {
 	authSvc := service.NewAuthService(pool, cfg, bus)
 
 	jobSvc := service.NewJobService(pool)
+	enrichJobSvc := service.NewEnrichJobService(pool)
 	scanSubmitter := setupScannerExt(cfg, pool, bus, reg, natsClient, logger, jobSvc)
+	setupEnrichmentSubmitter(cfg, reg, natsClient, logger, enrichJobSvc)
 
 	if err := reg.InitAll(); err != nil {
 		return fmt.Errorf("initializing extensions: %w", err)
@@ -213,6 +216,10 @@ func setupOptionalExts(cfg *config.Config, reg *extension.Manager, natsClient *n
 		reg.Register(audit.NewExtension(logger))
 	}
 	reg.Register(natspkg.NewRelayExtension(natsClient, cfg.NATSStreamName, logger))
+}
+
+func setupEnrichmentSubmitter(cfg *config.Config, reg *extension.Manager, natsClient *natspkg.Client, logger *slog.Logger, jobSvc service.EnrichJobService) {
+	reg.Register(enrichment.NewNATSSubmitter(natsClient, cfg.NATSStreamName, jobSvc, logger))
 }
 
 func setupRegistryWalker(cfg *config.Config, natsClient *natspkg.Client, sub api.ScanSubmitter, dl scanner.DigestLister, logger *slog.Logger) scanner.RegistryWalker {

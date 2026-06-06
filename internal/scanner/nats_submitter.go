@@ -16,10 +16,12 @@ import (
 const (
 	natsPublishTimeout = 5 * time.Second
 
-	// scanHintSubjectSuffix is appended to the stream name. The hint payload is
-	// just the scan_jobs row id — workers look up everything they need from the
-	// DB. The DB row is the only source of truth for "this work needs to happen."
-	scanHintSubjectSuffix = ".scan.hint"
+	// ScanHintSubjectSuffix is appended to the stream name for scan job hints.
+	// The hint payload is just the scan_jobs row id; the DB row is the source of truth.
+	ScanHintSubjectSuffix = ".scan.hint"
+
+	// ScannerHintDurable is the JetStream durable consumer name for scan hints.
+	ScannerHintDurable = "scanner-hint"
 )
 
 // NATSSubmitter inserts a scan_jobs row and publishes a tiny hint to NATS so
@@ -77,7 +79,7 @@ func (s *NATSSubmitter) Submit(ctx context.Context, req ScanRequest) error {
 	pubCtx, cancel := context.WithTimeout(ctx, natsPublishTimeout)
 	defer cancel()
 
-	if _, err := s.client.JS.Publish(pubCtx, s.streamName+scanHintSubjectSuffix, hint); err != nil {
+	if _, err := s.client.JS.Publish(pubCtx, s.streamName+ScanHintSubjectSuffix, hint); err != nil {
 		// Hint is best-effort — the row exists in the DB, the worker poll loop
 		// will pick it up within the poll interval.
 		s.logger.Warn("scan hint publish failed; poll loop will pick up", "job_id", job.ID, "err", err)
@@ -88,4 +90,18 @@ func (s *NATSSubmitter) Submit(ctx context.Context, req ScanRequest) error {
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+// ScanRequestFromClaim converts a ScanJobClaim into a ScanRequest for the processor.
+func ScanRequestFromClaim(c service.ScanJobClaim) ScanRequest {
+	return ScanRequest{
+		RegistryURL:  c.RegistryURL,
+		Insecure:     c.Insecure,
+		Repository:   c.Repository,
+		Digest:       c.Digest,
+		Tag:          c.Tag,
+		AuthUsername: c.AuthUsername,
+		AuthToken:    c.AuthToken,
+		RegistryID:   c.RegistryID,
+	}
 }
