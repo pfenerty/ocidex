@@ -58,8 +58,8 @@ type ScanJobClaim struct {
 	Attempts     int32
 }
 
-func (c ScanJobClaim) JobID() string       { return c.ID }
-func (c ScanJobClaim) JobAttempts() int32  { return c.Attempts }
+func (c ScanJobClaim) JobID() string      { return c.ID }
+func (c ScanJobClaim) JobAttempts() int32 { return c.Attempts }
 
 // JobService manages the lifecycle of scan pipeline jobs.
 type JobService interface {

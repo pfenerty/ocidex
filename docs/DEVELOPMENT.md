@@ -20,136 +20,122 @@ Each layer depends only on the layer below it. `api/` imports `service/`, `servi
 
 ## Stack Examples
 
-### Example A: Create Artifact (POST)
+OCIDex uses [huma v2](https://huma.rocks/) for all API handlers. Huma generates the OpenAPI spec from Go types; there is no separate spec file to maintain.
+
+### Example A: Ingest SBOM (POST with raw body)
 
 **Route registration** (`internal/api/router.go`):
 ```go
-r.Route("/api/v1", func(r chi.Router) {
-    r.Post("/artifacts", h.CreateArtifact)
-})
+func registerSBOMOps(api huma.API, h *Handler) {
+    memberMW := RequireMember(api)
+    huma.Register(api, huma.Operation{
+        OperationID:   "ingest-sbom",
+        Method:        http.MethodPost,
+        Path:          "/api/v1/sboms",
+        Summary:       "Ingest an SBOM",
+        Tags:          []string{"SBOMs"},
+        MaxBodyBytes:  maxSBOMBodyBytes,
+        DefaultStatus: http.StatusCreated,
+        Middlewares:   huma.Middlewares{memberMW},
+    }, h.IngestSBOM)
+}
 ```
 
-**Handler** (`internal/api/artifact.go`):
+**Input/output types** (`internal/api/types.go`):
 ```go
-func (h *Handler) CreateArtifact(w http.ResponseWriter, r *http.Request) {
-    var req CreateArtifactRequest
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-        WriteError(w, ErrBadRequest("invalid JSON"))
-        return
+type IngestSBOMInput struct {
+    RawBody      []byte
+    Version      string `query:"version"      doc:"Image version/tag"`
+    Architecture string `query:"architecture" doc:"Image architecture (e.g. amd64, arm64)"`
+    BuildDate    string `query:"build_date"   doc:"Image build date (RFC3339)"`
+}
+
+type IngestSBOMOutput struct {
+    Body struct {
+        ID             string `json:"id"             doc:"UUID of the created SBOM"`
+        Status         string `json:"status"         example:"accepted"`
+        ComponentCount int    `json:"componentCount" doc:"Number of components"`
     }
-    if err := req.Validate(); err != nil {
-        WriteError(w, err)
-        return
-    }
-    artifact, err := h.artifactService.Create(r.Context(), req.ToDomain())
-    if err != nil {
-        WriteError(w, err)
-        return
-    }
-    WriteJSON(w, http.StatusCreated, artifact)
 }
 ```
 
-**Service interface** (`internal/service/artifact.go`):
+**Handler** (`internal/api/sbom.go`):
 ```go
-type ArtifactService interface {
-    Create(ctx context.Context, a domain.Artifact) (*domain.Artifact, error)
-}
-
-func (s *artifactService) Create(ctx context.Context, a domain.Artifact) (*domain.Artifact, error) {
-    slog.InfoContext(ctx, "creating artifact", "name", a.Name)
-    result, err := s.repo.InsertArtifact(ctx, repository.InsertArtifactParams{...})
-    if err != nil {
-        return nil, fmt.Errorf("creating artifact: %w", err)
+func (h *Handler) IngestSBOM(ctx context.Context, input *IngestSBOMInput) (*IngestSBOMOutput, error) {
+    if user, ok := UserFromContext(ctx); ok && !isWriteAllowed(user) {
+        return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
     }
-    return mapToDomain(result), nil
+    bom := new(cdx.BOM)
+    if err := cdx.NewBOMDecoder(bytes.NewReader(input.RawBody), cdx.BOMFileFormatJSON).Decode(bom); err != nil {
+        return nil, huma.Error400BadRequest("invalid CycloneDX JSON: " + err.Error())
+    }
+    sbomID, err := h.sbomService.Ingest(ctx, bom, input.RawBody, service.IngestParams{...})
+    if err != nil {
+        return nil, mapServiceError(err)
+    }
+    out := &IngestSBOMOutput{}
+    out.Body.ID = sbomID.String()
+    out.Body.Status = "accepted"
+    return out, nil
 }
 ```
 
-**sqlc query** (`db/queries/artifact.sql`):
-```sql
--- name: InsertArtifact :one
-INSERT INTO artifacts (name, version, sbom_data)
-VALUES ($1, $2, $3)
-RETURNING *;
+### Example B: Get SBOM by ID (GET with path param)
+
+**Types** (`internal/api/types.go`):
+```go
+type GetSBOMInput struct {
+    ID      string `path:"id" doc:"SBOM UUID" format:"uuid"`
+    Include string `query:"include" doc:"Set to 'raw' to include the raw BOM JSON"`
+}
+
+type GetSBOMOutput struct {
+    Body service.SBOMDetail
+}
 ```
 
-### Example B: Get Artifact by ID (GET)
+**Handler** (`internal/api/sbom.go`):
+```go
+func (h *Handler) GetSBOM(ctx context.Context, input *GetSBOMInput) (*GetSBOMOutput, error) {
+    id, err := parseUUID(input.ID)
+    if err != nil {
+        return nil, err  // parseUUID returns huma.Error400BadRequest on invalid input
+    }
+    detail, err := h.sbomService.GetSBOM(ctx, id, input.Include == "raw")
+    if err != nil {
+        return nil, mapServiceError(err)
+    }
+    return &GetSBOMOutput{Body: *detail}, nil
+}
+```
+
+## Error Handling
+
+Handlers return `error` directly. Use huma helpers for HTTP errors; use `mapServiceError` to convert service sentinel errors:
 
 ```go
-// Route
-r.Get("/artifacts/{id}", h.GetArtifact)
-
-// Handler
-func (h *Handler) GetArtifact(w http.ResponseWriter, r *http.Request) {
-    id, err := uuid.Parse(chi.URLParam(r, "id"))
-    if err != nil {
-        WriteError(w, ErrBadRequest("invalid artifact ID"))
-        return
+// internal/api/errors.go
+func mapServiceError(err error) error {
+    switch {
+    case errors.Is(err, service.ErrNotFound):
+        return huma.Error404NotFound("not found")
+    case errors.Is(err, service.ErrConflict):
+        return huma.Error409Conflict("conflict")
+    default:
+        return err  // huma renders unrecognized errors as 500
     }
-    artifact, err := h.artifactService.GetByID(r.Context(), id)
-    if err != nil {
-        WriteError(w, err)
-        return
-    }
-    WriteJSON(w, http.StatusOK, artifact)
 }
 ```
 
-## Error Types & HTTP Mapping
-
-**Core types** (`internal/api/errors.go`):
-```go
-// APIError maps domain errors to HTTP responses.
-type APIError struct {
-    Code    int    `json:"-"`
-    Message string `json:"error"`
-    Err     error  `json:"-"`
-}
-
-func (e *APIError) Error() string { return e.Message }
-func (e *APIError) Unwrap() error { return e.Err }
-
-// ValidationError holds per-field errors.
-type ValidationError struct {
-    Fields map[string][]string `json:"errors"`
-}
-```
-
-**Sentinel errors** (`internal/service/errors.go`):
+**Service sentinel errors** (`internal/service/errors.go`):
 ```go
 var (
-    ErrNotFound  = errors.New("not found")
-    ErrConflict  = errors.New("conflict")
+    ErrNotFound = errors.New("not found")
+    ErrConflict = errors.New("conflict")
 )
 ```
 
-**Error-handling helper** — single place that maps errors to HTTP responses:
-```go
-func WriteError(w http.ResponseWriter, err error) {
-    var apiErr *APIError
-    if errors.As(err, &apiErr) {
-        WriteJSON(w, apiErr.Code, apiErr)
-        return
-    }
-    var valErr *ValidationError
-    if errors.As(err, &valErr) {
-        WriteJSON(w, http.StatusUnprocessableEntity, valErr)
-        return
-    }
-    switch {
-    case errors.Is(err, service.ErrNotFound):
-        WriteJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
-    case errors.Is(err, service.ErrConflict):
-        WriteJSON(w, http.StatusConflict, map[string]string{"error": "conflict"})
-    default:
-        slog.Error("unhandled error", "err", err)
-        WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
-    }
-}
-```
-
-No ad-hoc `http.Error()` calls in handlers. All errors flow through `WriteError`.
+Never call `http.Error()` or write directly to `http.ResponseWriter` in a huma handler — return errors instead. Huma serializes them as RFC 7807 problem details.
 
 ## Test-Driven Development
 
@@ -197,25 +183,25 @@ func TestArtifactService_Create(t *testing.T) {
 
 ### HTTP Handler Test
 
+Huma handlers accept typed inputs, so test them by calling the handler directly with a constructed input rather than routing through HTTP:
+
 ```go
-func TestGetArtifact_NotFound(t *testing.T) {
+func TestGetSBOM_NotFound(t *testing.T) {
     is := is.New(t)
-    svc := &fakeArtifactService{err: service.ErrNotFound}
-    h := api.NewHandler(svc)
+    svc := &fakeSBOMService{err: service.ErrNotFound}
+    h := api.NewHandler(svc, ...)
 
-    r := httptest.NewRequest("GET", "/api/v1/artifacts/"+uuid.New().String(), nil)
-    w := httptest.NewRecorder()
+    _, err := h.GetSBOM(context.Background(), &api.GetSBOMInput{ID: uuid.New().String()})
 
-    // chi requires a route context for URL params
-    rctx := chi.NewRouteContext()
-    rctx.URLParams.Add("id", uuid.New().String())
-    r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
-
-    h.GetArtifact(w, r)
-
-    is.Equal(w.Code, http.StatusNotFound)
+    var humaErr huma.StatusError
+    is.True(errors.As(err, &humaErr))
+    is.Equal(humaErr.GetStatus(), http.StatusNotFound)
 }
 ```
+
+For full integration tests that exercise routing, auth middleware, and serialization, use `httptest.NewServer` with the router returned by `api.NewRouter`.
+
+See `internal/api/sbom_test.go` and `internal/api/auth_boundary_test.go` for working examples.
 
 ### Integration Test — Repository with testcontainers
 

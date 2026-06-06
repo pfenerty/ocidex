@@ -1,0 +1,28 @@
+{
+    "distSpecVersion": "1.1.0",
+    "storage": { "rootDirectory": "/var/lib/registry" },
+    "http": { "address": "0.0.0.0", "port": "5000" },
+    "log": { "level": "info" },
+    "extensions": {
+        "search": { "enable": false },
+        "sync": { "enable": false },
+        "scrub": { "enable": false },
+        "lint": { "enable": false },
+        "trust": { "enable": false },
+        "ui": { "enable": false },
+        "metrics": { "enable": false },
+        "events": {
+            "enable": true,
+            "sinks": [
+                {
+                    "type": "http",
+                    "address": "${OCIDEX_URL}/api/v1/registries/${OCIDEX_REGISTRY_ID}/webhook",
+                    "timeout": "10s",
+                    "headers": {
+                        "Authorization": "Bearer ${OCIDEX_WEBHOOK_TOKEN}"
+                    }
+                }
+            ]
+        }
+    }
+}

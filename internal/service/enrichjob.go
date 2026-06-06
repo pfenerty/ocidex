@@ -53,7 +53,9 @@ type EnrichJobService interface {
 	RequeueStuckRunning(ctx context.Context, stuckThreshold time.Duration, maxAttempts int32) error
 }
 
-type enrichJobService struct{ repo repository.EnrichmentJobRepository }
+type enrichJobService struct {
+	repo repository.EnrichmentJobRepository
+}
 
 // NewEnrichJobService constructs an EnrichJobService backed by the given pool.
 func NewEnrichJobService(pool *pgxpool.Pool) EnrichJobService {

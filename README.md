@@ -40,16 +40,17 @@ The fastest way to get a running instance with seed data:
 ```sh
 git clone https://github.com/pfenerty/ocidex.git
 cd ocidex
+cp .env.example .env   # fill in GitHub OAuth credentials and SESSION_SECRET
 docker compose up -d
 ```
 
-This starts PostgreSQL, the OCIDex API server (port 8080), and the web frontend (port 3000).
+This starts PostgreSQL, NATS JetStream, the OCIDex API server (port 8080), the scanner and enrichment workers, and the web frontend (port 3000). Database migrations run automatically on startup.
 
 To populate it with real-world SBOMs from public container images:
 
 ```sh
 # Requires oras, syft, and curl — available in the Flox dev environment
-flox activate -- ./scripts/seed.sh
+flox activate -- make seed
 ```
 
 Then open [http://localhost:3000](http://localhost:3000).
@@ -105,6 +106,7 @@ syft registry:docker.io/library/nginx:latest -o cyclonedx-json | \
 | Language | Go |
 | HTTP | [chi](https://github.com/go-chi/chi) + [huma](https://huma.rocks/) (code-first OpenAPI 3.1) |
 | Database | PostgreSQL ([pgx](https://github.com/jackc/pgx) driver, [sqlc](https://sqlc.dev/) query gen, [goose](https://pressly.github.io/goose/) migrations) |
+| Messaging | [NATS JetStream](https://docs.nats.io/nats-concepts/jetstream) (scan and enrichment job queue) |
 | Frontend | [SolidJS](https://www.solidjs.com/) + [TanStack Query](https://tanstack.com/query) + [Tailwind CSS](https://tailwindcss.com/) |
 | API Client | [openapi-fetch](https://openapi-ts.dev/openapi-fetch/) with generated TypeScript types |
 | Testing | [matryer/is](https://github.com/matryer/is) (unit), [testcontainers-go](https://golang.testcontainers.org/) (integration) |
@@ -114,17 +116,23 @@ syft registry:docker.io/library/nginx:latest -o cyclonedx-json | \
 ## Project Structure
 
 ```
-cmd/ocidex/          Entry point, server wiring, graceful shutdown
-internal/api/        HTTP handlers and routing (chi + huma)
-internal/service/    Business logic interfaces and implementations
-internal/repository/ Data access layer (sqlc-generated queries)
-internal/enrichment/ Post-ingestion enrichment pipeline
-internal/config/     Environment-based configuration
-db/migrations/       SQL schema migrations (goose)
-db/queries/          SQL query definitions (sqlc source of truth)
-web/                 SolidJS frontend (Vite + Tailwind)
-tests/               Integration tests (testcontainers)
-docs/                Architecture docs, ADRs, development guide
+cmd/ocidex/              API server entry point, wiring, graceful shutdown
+cmd/scanner-worker/      OCI registry scanner (NATS daemon + --once K8s Job mode)
+cmd/enrichment-worker/   SBOM enrichment worker (NATS daemon + --once K8s Job mode)
+internal/api/            HTTP handlers and routing (chi + huma)
+internal/service/        Business logic interfaces and implementations
+internal/repository/     Data access layer (sqlc-generated queries)
+internal/enrichment/     Pluggable enrichment pipeline
+internal/scanner/        OCI registry scanning (Syft engine)
+internal/nats/           NATS JetStream client helpers
+internal/jobqueue/       Generic outbox-pattern worker (Postgres → NATS doorbell)
+internal/config/         Environment-based configuration
+db/migrations/           SQL schema migrations (goose)
+db/queries/              SQL query definitions (sqlc source of truth)
+web/                     SolidJS frontend (Vite + Tailwind)
+tests/                   Integration tests (testcontainers)
+k8s/                     Kubernetes manifests (kustomize base + overlays)
+docs/                    Architecture docs, ADRs, development guide
 ```
 
 ## API Overview
@@ -154,25 +162,22 @@ Errors follow [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807) problem details
 
 OCIDex is configured via environment variables:
 
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full reference. Key variables:
+
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `8080` | HTTP listen port |
 | `DATABASE_URL` | — | PostgreSQL connection string (required) |
+| `NATS_URL` | — | NATS server URL (required for API + both workers) |
+| `PORT` | `8080` | HTTP listen port (API server) |
 | `LOG_LEVEL` | `info` | Log level (`debug`, `info`, `warn`, `error`) |
 | `ENVIRONMENT` | `development` | Runtime environment |
-| `CORS_ALLOWED_ORIGINS` | — | Comma-separated allowed origins |
-| `ENRICHMENT_ENABLED` | `false` | Enable post-ingestion enrichment pipeline |
-| `ENRICHMENT_WORKERS` | `2` | Number of enrichment worker goroutines |
-| `ENRICHMENT_QUEUE_SIZE` | `100` | Enrichment request queue capacity |
-| `NATS_URL` | — | NATS server URL (required; API publishes, workers consume) |
+| `GITHUB_CLIENT_ID` | — | GitHub OAuth app client ID (required for login) |
+| `GITHUB_CLIENT_SECRET` | — | GitHub OAuth app client secret |
+| `SESSION_SECRET` | — | Session signing key (required; generate with `openssl rand -hex 32`) |
+| `FRONTEND_URL` | `http://localhost:3000` | Frontend origin (used for CORS and OAuth redirect) |
 | `NATS_STREAM_NAME` | `ocidex` | JetStream stream name |
-| `NATS_EVENT_TTL_HOURS` | `24` | Event retention period (hours) |
-| `SCANNER_ENABLED` | `false` | Enable OCI registry auto-scan via Zot webhook |
-| `ZOT_REGISTRY_ADDR` | `zot:5000` | Zot registry address (host:port) |
-| `ZOT_WEBHOOK_SECRET` | — | Bearer token Zot sends with push notifications |
-| `SYFT_PATH` | `/usr/local/bin/syft` | Path to the syft binary |
-| `SCANNER_WORKERS` | `2` | Number of scanner worker goroutines |
-| `SCANNER_QUEUE_SIZE` | `50` | Scanner request queue capacity |
+| `SCANNER_MAX_CONCURRENCY` | `10` | Max parallel scans per scanner-worker pod |
+| `ENRICHMENT_MAX_CONCURRENCY` | `10` | Max parallel enrichments per enrichment-worker pod |
 
 ## Documentation
 
@@ -180,7 +185,11 @@ OCIDex is configured via environment variables:
 |----------|-------------|
 | [Architecture](docs/ARCHITECTURE.md) | System design, data model, and component overview |
 | [Development Guide](docs/DEVELOPMENT.md) | Coding patterns, testing strategy, and stack examples |
-| [Architecture Decision Records](docs/adr/) | 17 ADRs documenting every major technical choice |
+| [Configuration](docs/CONFIGURATION.md) | All environment variables with descriptions and defaults |
+| [Deployment](docs/DEPLOYMENT.md) | Production deployment guide (K8s + Flux) |
+| [Ephemeral Jobs](docs/EPHEMERAL_JOBS.md) | K8s Job / `--once` mode for scanner and enrichment workers |
+| [API Versioning](docs/API_VERSIONING.md) | Versioning policy and breaking-change definition |
+| [Architecture Decision Records](docs/adr/) | 27 ADRs documenting every major technical choice |
 | [How AI Was Used](docs/AI.md) | Transparent account of AI's role in development |
 
 ## Releases
