@@ -277,8 +277,8 @@ bd close <id> --reason "..."          # Close with a brief one-liner (simple cha
 | 012 | Frontend Framework | SolidJS |
 | 013 | State/Routing/Data | Collocated data fetching near components |
 | 014 | Build/Deploy | Vite; independent API/frontend deploys |
-| 015 | UI/Styling | Accessible components, WCAG 2.1 AA |
-| 016 | Frontend Testing | Table-driven parity with backend |
+| 015 | UI/Styling | Tailwind + lucide-solid + unovis + custom primitives (Kobalte/TanStack Table not adopted) |
+| 016 | Frontend Testing | Vitest + Solid Testing Library (Playwright/MSW not adopted; no E2E suite yet) |
 | 017 | Frontend Organization | Monorepo; single `make build` |
 | 018 | API Documentation | huma v2 (code-first, supersedes 011) |
 | 019 | Diff Identity Model | Layered: purl-base + identity-bearing qualifiers, tuple fallback, versioned-name post-pass with survivor guard |

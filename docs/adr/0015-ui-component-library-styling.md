@@ -28,21 +28,22 @@ The OCIDex frontend is a data-heavy dashboard: artifact tables, SBOM detail view
 
 ## Decision Outcome
 
-Chosen option: "Tailwind CSS + Kobalte + TanStack Table", because Tailwind provides composable, tree-shakeable utility-first styling with zero runtime overhead; Kobalte provides accessible headless UI primitives designed specifically for SolidJS (modals, dropdowns, tabs, tooltips); and TanStack Table's Solid adapter provides headless data table primitives for sortable, filterable, paginated tables — the core UI element of the dashboard.
+Chosen option: "Tailwind CSS + custom headless primitives", because the app's interactive component needs turned out to be covered by custom SolidJS primitives without requiring Kobalte, and data tables are rendered as plain HTML tables styled with Tailwind rather than through TanStack Table. Kobalte and TanStack Table were the original plan but were not adopted during implementation.
+
+Icons use `lucide-solid` (tree-shaken, 1.5px stroke, consistent with the design). Charts use `@unovis/solid` for the dashboard stats visualizations.
 
 ### Consequences
 
-* Good, because Kobalte handles ARIA attributes, keyboard navigation, and focus trapping — no manual accessibility implementation
 * Good, because Tailwind utilities are composable and produce zero unused CSS in production via purging
-* Good, because TanStack Table is headless — we control the DOM and styling while it manages sort/filter/pagination state
-* Good, because all three are headless/utility-first — full control over appearance with no design lock-in
-* Good, because Kobalte is designed for SolidJS — reactivity integration is native, not adapted
-* Neutral, because Kobalte's component count is smaller than Radix — may need to build some primitives manually
-* Bad, because Tailwind utility classes require learning the vocabulary (offset by excellent IDE integration)
+* Good, because zero runtime CSS-in-JS — all styling is utility class composition
+* Good, because lucide-solid icons are tree-shaken and consistent in stroke style
+* Neutral, because interactive components (modals, dropdowns) are hand-rolled — accessibility attributes must be added manually
+* Bad, because without Kobalte, ARIA and keyboard navigation for complex widgets (dropdowns, modals) requires manual implementation and is likely incomplete
+* Bad, because without TanStack Table, sort/filter/pagination state on large tables is custom-coded rather than framework-managed
 
 ### Confirmation
 
-All interactive components (modals, dropdowns, tabs) pass axe-core accessibility audit. No runtime CSS-in-JS in the bundle. Data tables use TanStack Table for sort/filter/pagination.
+No runtime CSS-in-JS in the bundle. Tailwind utilities cover all layout and typography. `lucide-solid` provides the icon set. `@unovis/solid` provides chart primitives on the dashboard.
 
 ## Pros and Cons of the Options
 
