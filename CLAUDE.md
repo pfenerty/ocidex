@@ -10,23 +10,29 @@
 
 ## Codebase Exploration with Repomix
 
-Repomix MCP tools are available and auto-allowed. Prefer them over spawning Explore subagents or doing many sequential Glob/Grep calls when you need broad codebase understanding.
+Repomix is available two ways — prefer MCP tools when loaded; fall back to the CLI (available in the flox environment) otherwise.
 
+**MCP tools** (auto-allowed when the MCP server is active):
 ```
-# Pack the local codebase (call once per session for broad exploration)
-mcp__repomix__pack_codebase     → produces an output ID
-
-# Search within a packed output (fast, no re-packing)
-mcp__repomix__grep_repomix_output  → regex search across all files
-
-# Read sections of the packed output
-mcp__repomix__read_repomix_output  → read with offset/limit
-
-# Attach a previous pack by output ID (avoids re-packing)
-mcp__repomix__attach_packed_output
+mcp__repomix__pack_codebase        → pack codebase, produces an output ID
+mcp__repomix__grep_repomix_output  → regex search within a packed output
+mcp__repomix__read_repomix_output  → read sections with offset/limit
+mcp__repomix__attach_packed_output → reattach a previous pack by ID
 ```
 
-**When to use repomix:**
+**CLI fallback** (when MCP tools are not loaded in the session):
+```bash
+# Pack and write to repomix-output.xml (gitignored)
+flox activate -- repomix
+
+# Pack a subtree only
+flox activate -- repomix internal/service
+
+# Search the output file directly
+grep -n "pattern" repomix-output.xml
+```
+
+**When to use repomix (either form):**
 - PR review or security review (pack once, grep many times)
 - "How does X work across the codebase?" questions
 - Finding all callsites/usages of an interface or function

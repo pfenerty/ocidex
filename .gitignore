@@ -27,6 +27,9 @@ config.yaml
 # Temp
 tmp/
 
+# Repomix output
+repomix-output.xml
+
 # Claude Code (local settings are machine-specific)
 .claude/settings.local.json
 

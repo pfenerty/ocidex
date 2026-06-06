@@ -47,6 +47,9 @@
       "postgresql": {
         "pkg-path": "postgresql"
       },
+      "repomix": {
+        "pkg-path": "repomix"
+      },
       "syft": {
         "pkg-path": "syft"
       },
@@ -1435,6 +1438,96 @@
         "plperl": "/nix/store/1cyq4ss8ka7jdz41nrp07ww3z1zlmy2j-postgresql-17.8-plperl",
         "plpython3": "/nix/store/dvns08sjwplp42y80q6j6gii8xz4fyq4-postgresql-17.8-plpython3",
         "pltcl": "/nix/store/8q9f07yfn01ca565l2i0rr2sw8s26zxc-postgresql-17.8-pltcl"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "repomix",
+      "broken": false,
+      "derivation": "/nix/store/q1dclcinqj3kfpxpb6jqfj099si4xgq6-repomix-1.11.1.drv",
+      "description": "Tool to pack repository contents to single file for AI consumption",
+      "install_id": "repomix",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "repomix-1.11.1",
+      "pname": "repomix",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T04:41:20.248625Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.11.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/6kklgwv2hsif423wsh00kql17klkdl0n-repomix-1.11.1"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "repomix",
+      "broken": false,
+      "derivation": "/nix/store/dqz4q39ah3lyzzn7w3crwbiys8a2ihdr-repomix-1.11.1.drv",
+      "description": "Tool to pack repository contents to single file for AI consumption",
+      "install_id": "repomix",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "repomix-1.11.1",
+      "pname": "repomix",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T05:14:52.938244Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.11.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/g950pv6spxvlcgahhnqprwal7yc7g8dg-repomix-1.11.1"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "repomix",
+      "broken": false,
+      "derivation": "/nix/store/hz9z76wlzvkk211bqvcarr0358lg4xh9-repomix-1.11.1.drv",
+      "description": "Tool to pack repository contents to single file for AI consumption",
+      "install_id": "repomix",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=0182a361324364ae3f436a63005877674cf45efb",
+      "name": "repomix-1.11.1",
+      "pname": "repomix",
+      "rev": "0182a361324364ae3f436a63005877674cf45efb",
+      "rev_count": 948083,
+      "rev_date": "2026-02-17T23:04:30Z",
+      "scrape_date": "2026-02-19T06:25:32.186474Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.11.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/2ij9fjsbyk1mj1q2gw1395kph0qjz6j7-repomix-1.11.1"
       },
       "system": "x86_64-linux",
       "group": "toplevel",
