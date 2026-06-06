@@ -220,7 +220,7 @@ export function PackagesTab(props: {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Dependency Tree View – simple table, lazy-mount on expand         */
+/*  Dependency Tree View – flat DFS, no per-node signals              */
 /* ------------------------------------------------------------------ */
 
 interface TreeNode {
@@ -231,6 +231,12 @@ interface TreeNode {
     id?: string;
     purl?: string;
     children: string[];
+}
+
+interface DepRow {
+    node: TreeNode;
+    depth: number;
+    isCyclic: boolean;
 }
 
 export function DependencyTreeView(props: {
@@ -293,171 +299,169 @@ export function DependencyTreeView(props: {
         return { roots: rootRefs, nodes };
     });
 
-    return (
-        <div class="table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Version</th>
-                        <th>Type</th>
-                        <th>Package URL</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <For each={treeData().roots}>
-                        {(rootRef) => {
-                            const node = treeData().nodes.get(rootRef);
-                            return node ? (
-                                <TreeNodeRow
-                                    node={node}
-                                    allNodes={treeData().nodes}
-                                    depth={0}
-                                    visited={new Set()}
-                                />
-                            ) : null;
-                        }}
-                    </For>
-                </tbody>
-            </table>
-        </div>
-    );
-}
+    const [expandedRefs, setExpandedRefs] = createSignal(new Set<string>(), { equals: false });
 
-function TreeNodeRow(props: {
-    node: TreeNode;
-    allNodes: Map<string, TreeNode>;
-    depth: number;
-    visited: Set<string>;
-}) {
-    const [expanded, setExpanded] = createSignal(false);
-    const hasChildren = () => props.node.children.length > 0;
-    const isCyclic = () => props.visited.has(props.node.ref);
+    const toggleExpanded = (ref: string) => {
+        setExpandedRefs(s => {
+            const next = new Set(s);
+            if (next.has(ref)) next.delete(ref); else next.add(ref);
+            return next;
+        });
+    };
 
-    const childNodes = createMemo(() => {
-        if (!expanded() || isCyclic()) return [];
-        return props.node.children
-            .map((ref) => props.allNodes.get(ref))
-            .filter((n): n is TreeNode => !!n);
-    });
+    const expandAll = () => {
+        const { roots, nodes } = treeData();
+        const toExpand = new Set<string>();
+        const pathSet = new Set<string>();
+        function collect(ref: string) {
+            if (pathSet.has(ref)) return;
+            const node = nodes.get(ref);
+            if (!node) return;
+            if (node.children.length > 0) toExpand.add(ref);
+            pathSet.add(ref);
+            for (const childRef of node.children) collect(childRef);
+            pathSet.delete(ref);
+        }
+        for (const rootRef of roots) collect(rootRef);
+        setExpandedRefs(() => toExpand);
+    };
 
-    const nextVisited = createMemo(() => {
-        const s = new Set(props.visited);
-        s.add(props.node.ref);
-        return s;
+    const collapseAll = () => setExpandedRefs(() => new Set<string>());
+
+    // DFS over roots → flat array of visible rows. pathSet tracks the current ancestry
+    // path for cycle detection — a node is cyclic only if it appears among its own ancestors.
+    const visibleRows = createMemo((): DepRow[] => {
+        const { roots, nodes } = treeData();
+        const expanded = expandedRefs();
+        const result: DepRow[] = [];
+        const pathSet = new Set<string>();
+
+        function visit(ref: string, depth: number) {
+            const node = nodes.get(ref);
+            if (!node) return;
+            const isCyclic = pathSet.has(ref);
+            result.push({ node, depth, isCyclic });
+            if (expanded.has(ref) && !isCyclic) {
+                pathSet.add(ref);
+                for (const childRef of node.children) visit(childRef, depth + 1);
+                pathSet.delete(ref);
+            }
+        }
+
+        for (const rootRef of roots) visit(rootRef, 0);
+        return result;
     });
 
     return (
         <>
-            <tr
-                style={{
-                    cursor:
-                        hasChildren() && !isCyclic() ? "pointer" : "default",
-                }}
-                onClick={() =>
-                    hasChildren() && !isCyclic() && setExpanded(!expanded())
-                }
-            >
-                <td>
-                    <span
-                        style={{
-                            display: "flex",
-                            "align-items": "center",
-                            gap: "0.375rem",
-                            "padding-left": `${props.depth * 1.25}rem`,
-                        }}
-                    >
-                        <span
-                            style={{
-                                width: "1rem",
-                                "text-align": "center",
-                                color: "var(--color-text-dim)",
-                                "font-size": "0.7rem",
-                                "flex-shrink": "0",
-                                transition: "transform 0.15s",
-                                transform:
-                                    hasChildren() &&
-                                    !isCyclic() &&
-                                    expanded()
-                                        ? "rotate(90deg)"
-                                        : "rotate(0deg)",
+            <div style={{ display: "flex", gap: "0.5rem", padding: "0.5rem 0" }}>
+                <button class="btn btn-sm" onClick={expandAll}>Expand all</button>
+                <button class="btn btn-sm" onClick={collapseAll}>Collapse all</button>
+            </div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Version</th>
+                            <th>Type</th>
+                            <th>Package URL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <For each={visibleRows()}>
+                            {(row) => {
+                                const isExpanded = () => expandedRefs().has(row.node.ref);
+                                const hasChildren = row.node.children.length > 0;
+                                return (
+                                    <tr
+                                        style={{
+                                            cursor: hasChildren && !row.isCyclic ? "pointer" : "default",
+                                        }}
+                                        onClick={() => hasChildren && !row.isCyclic && toggleExpanded(row.node.ref)}
+                                    >
+                                        <td>
+                                            <span
+                                                style={{
+                                                    display: "flex",
+                                                    "align-items": "center",
+                                                    gap: "0.375rem",
+                                                    "padding-left": `${row.depth * 1.25}rem`,
+                                                }}
+                                            >
+                                                <span
+                                                    style={{
+                                                        width: "1rem",
+                                                        "text-align": "center",
+                                                        color: "var(--color-text-dim)",
+                                                        "font-size": "0.7rem",
+                                                        "flex-shrink": "0",
+                                                        transition: "transform 0.15s",
+                                                        transform: hasChildren && !row.isCyclic && isExpanded()
+                                                            ? "rotate(90deg)"
+                                                            : "rotate(0deg)",
+                                                    }}
+                                                >
+                                                    {hasChildren && !row.isCyclic ? "▸" : ""}
+                                                </span>
+                                                <Show
+                                                    when={row.node.id}
+                                                    keyed
+                                                    fallback={
+                                                        <span
+                                                            class="font-mono"
+                                                            style={{
+                                                                "font-size": "0.85rem",
+                                                                color: "var(--color-text-muted)",
+                                                            }}
+                                                        >
+                                                            {row.node.name}
+                                                        </span>
+                                                    }
+                                                >
+                                                    {(id) => (
+                                                        <A
+                                                            href={`/components/${id}`}
+                                                            class="font-mono"
+                                                            style={{ "font-size": "0.85rem" }}
+                                                            onClick={(e: MouseEvent) => e.stopPropagation()}
+                                                        >
+                                                            {row.node.name}
+                                                        </A>
+                                                    )}
+                                                </Show>
+                                                <Show when={hasChildren}>
+                                                    <span class="badge badge-sm">{row.node.children.length}</span>
+                                                </Show>
+                                                <Show when={row.isCyclic}>
+                                                    <span class="badge badge-warning" style={{ "font-size": "0.65rem" }}>circular</span>
+                                                </Show>
+                                            </span>
+                                        </td>
+                                        <td class="font-mono" style={{ "font-size": "0.85rem" }}>
+                                            {row.node.version ?? <span class="text-muted">—</span>}
+                                        </td>
+                                        <td>
+                                            <Show when={row.node.type}>
+                                                <span class="badge badge-sm">{row.node.type}</span>
+                                            </Show>
+                                        </td>
+                                        <td class="truncate">
+                                            <Show
+                                                when={row.node.purl}
+                                                keyed
+                                                fallback={<span class="text-muted">—</span>}
+                                            >
+                                                {(purl) => <PurlLink purl={purl} showBadge />}
+                                            </Show>
+                                        </td>
+                                    </tr>
+                                );
                             }}
-                        >
-                            {hasChildren() && !isCyclic() ? "▸" : ""}
-                        </span>
-                        <Show
-                            when={props.node.id}
-                            keyed
-                            fallback={
-                                <span
-                                    class="font-mono"
-                                    style={{
-                                        "font-size": "0.85rem",
-                                        color: "var(--color-text-muted)",
-                                    }}
-                                >
-                                    {props.node.name}
-                                </span>
-                            }
-                        >
-                            {(id) => (
-                                <A
-                                    href={`/components/${id}`}
-                                    class="font-mono"
-                                    style={{ "font-size": "0.85rem" }}
-                                    onClick={(e: MouseEvent) =>
-                                        e.stopPropagation()
-                                    }
-                                >
-                                    {props.node.name}
-                                </A>
-                            )}
-                        </Show>
-                        <Show when={hasChildren()}>
-                            <span class="badge badge-sm">
-                                {props.node.children.length}
-                            </span>
-                        </Show>
-                        <Show when={isCyclic()}>
-                            <span
-                                class="badge badge-warning"
-                                style={{ "font-size": "0.65rem" }}
-                            >
-                                circular
-                            </span>
-                        </Show>
-                    </span>
-                </td>
-                <td class="font-mono" style={{ "font-size": "0.85rem" }}>
-                    {props.node.version ?? <span class="text-muted">—</span>}
-                </td>
-                <td>
-                    <Show when={props.node.type}>
-                        <span class="badge badge-sm">{props.node.type}</span>
-                    </Show>
-                </td>
-                <td class="truncate">
-                    <Show
-                        when={props.node.purl}
-                        keyed
-                        fallback={<span class="text-muted">—</span>}
-                    >
-                        {(purl) => <PurlLink purl={purl} showBadge />}
-                    </Show>
-                </td>
-            </tr>
-            <Show when={expanded() && !isCyclic()}>
-                <For each={childNodes()}>
-                    {(child) => (
-                        <TreeNodeRow
-                            node={child}
-                            allNodes={props.allNodes}
-                            depth={props.depth + 1}
-                            visited={nextVisited()}
-                        />
-                    )}
-                </For>
-            </Show>
+                        </For>
+                    </tbody>
+                </table>
+            </div>
         </>
     );
 }
