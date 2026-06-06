@@ -28,7 +28,7 @@ type Client interface {
 	GetSBOM(ctx context.Context, id string, includeRaw bool) (SBOMDetail, error)
 	ListSBOMs(ctx context.Context, opts PageOpts) (Page[SBOMSummary], error)
 	DeleteSBOM(ctx context.Context, id string) error
-	DiffSBOMs(ctx context.Context, fromID, toID string) (Changelog, error)
+	DiffSBOMs(ctx context.Context, fromID, toID string) (ChangelogEntry, error)
 	GetDiffTree(ctx context.Context, fromID, toID string) (DiffTree, error)
 
 	ListArtifacts(ctx context.Context, opts PageOpts) (Page[ArtifactSummary], error)
