@@ -27,21 +27,23 @@ The backend has unit tests (table-driven, `matryer/is`) and integration tests (t
 
 ## Decision Outcome
 
-Chosen option: "Vitest + Solid Testing Library + Playwright + MSW", because Vitest shares the Vite config (zero extra bundler setup), Solid Testing Library follows the Testing Library "test behavior, not implementation" philosophy adapted for Solid's reactivity, Playwright provides cross-browser E2E with auto-waiting and trace debugging, and MSW intercepts API calls at the network level for both component and E2E tests.
+Chosen option: "Vitest + Solid Testing Library", because Vitest shares the Vite config (zero extra bundler setup) and Solid Testing Library follows the Testing Library "test behavior, not implementation" philosophy adapted for Solid's reactivity. Playwright and MSW were the original plan but were not adopted during implementation — E2E tests and network-level API mocking remain as future work.
+
+Component tests mock API client modules directly rather than at the network level.
 
 ### Consequences
 
 * Good, because Vitest uses the same Vite config — no separate test bundler configuration
 * Good, because Solid Testing Library tests behavior (what the user sees and clicks), not implementation details
-* Good, because MSW mocks the API at the network level — tests exercise the full data fetching path
-* Good, because Playwright provides cross-browser E2E with trace viewer for debugging failures
 * Good, because `make test` can run frontend unit tests alongside Go tests
 * Neutral, because Solid Testing Library is less mature than React Testing Library — fewer examples
+* Bad, because without MSW, component tests mock the generated API client rather than the network — less realistic
+* Bad, because without Playwright, there are no E2E tests covering full user flows (ingest → browse → view)
 * Bad, because Solid's fine-grained reactivity can make async state assertions tricky (requires `waitFor`)
 
 ### Confirmation
 
-`make test` runs both Go and frontend unit/component tests. CI runs Playwright E2E tests against a real API. All component tests use MSW for API mocking.
+`make test` runs both Go unit tests and frontend component tests via Vitest. API calls in component tests are mocked at the module level. No E2E test suite exists yet.
 
 ## Pros and Cons of the Options
 
