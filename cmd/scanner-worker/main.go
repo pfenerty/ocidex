@@ -267,5 +267,3 @@ func parseImageRef(ref string) (registryURL, repo, digest, tag string, err error
 
 	return registryURL, repo, digest, tag, nil
 }
-
-
