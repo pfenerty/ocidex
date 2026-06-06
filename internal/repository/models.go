@@ -85,6 +85,22 @@ type Enrichment struct {
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
+type EnrichmentJob struct {
+	ID             pgtype.UUID        `json:"id"`
+	SbomID         pgtype.UUID        `json:"sbom_id"`
+	State          string             `json:"state"`
+	Attempts       int32              `json:"attempts"`
+	LastError      pgtype.Text        `json:"last_error"`
+	IdempotencyKey pgtype.Text        `json:"idempotency_key"`
+	WorkerID       pgtype.Text        `json:"worker_id"`
+	Architecture   pgtype.Text        `json:"architecture"`
+	BuildDate      pgtype.Text        `json:"build_date"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	StartedAt      pgtype.Timestamptz `json:"started_at"`
+	LastAttemptAt  pgtype.Timestamptz `json:"last_attempt_at"`
+	FinishedAt     pgtype.Timestamptz `json:"finished_at"`
+}
+
 type ExternalReference struct {
 	ID          pgtype.UUID `json:"id"`
 	ComponentID pgtype.UUID `json:"component_id"`

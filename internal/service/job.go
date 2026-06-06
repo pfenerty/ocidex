@@ -58,6 +58,9 @@ type ScanJobClaim struct {
 	Attempts     int32
 }
 
+func (c ScanJobClaim) JobID() string       { return c.ID }
+func (c ScanJobClaim) JobAttempts() int32  { return c.Attempts }
+
 // JobService manages the lifecycle of scan pipeline jobs.
 type JobService interface {
 	Enqueue(ctx context.Context, registryID, repo, digest, tag, msgID string) (ScanJob, error)
@@ -79,10 +82,10 @@ type JobService interface {
 	ClaimNext(ctx context.Context, workerID string) (ScanJobClaim, bool, error)
 	// FinishByID transitions running → succeeded with an SBOM id.
 	FinishByID(ctx context.Context, id string, sbomID pgtype.UUID) error
-	// FailOrRequeueByID either resets state to 'queued' for retry (when
+	// FailOrRequeue either resets state to 'queued' for retry (when
 	// attempts < maxAttempts) or marks 'failed' (when attempts >= maxAttempts).
-	// Returns the resulting state.
-	FailOrRequeueByID(ctx context.Context, id, lastError string, maxAttempts int32) (ScanJobState, error)
+	// Returns the resulting state string. Satisfies jobqueue.Queue[ScanJobClaim].
+	FailOrRequeue(ctx context.Context, id, lastError string, maxAttempts int32) (string, error)
 	// RequeueStuckRunning sweeps running rows whose worker hasn't updated
 	// last_attempt_at within stuckThreshold. They go back to queued, or to
 	// failed if they've used up retries. This is the only stuck-job sweep
@@ -290,7 +293,7 @@ func (s *jobService) FinishByID(ctx context.Context, id string, sbomID pgtype.UU
 	})
 }
 
-func (s *jobService) FailOrRequeueByID(ctx context.Context, id, lastError string, maxAttempts int32) (ScanJobState, error) {
+func (s *jobService) FailOrRequeue(ctx context.Context, id, lastError string, maxAttempts int32) (string, error) {
 	uid, err := parseRegistryUUID(id)
 	if err != nil {
 		return "", fmt.Errorf("invalid job id: %w", err)
@@ -306,7 +309,7 @@ func (s *jobService) FailOrRequeueByID(ctx context.Context, id, lastError string
 		}
 		return "", fmt.Errorf("fail or requeue scan job: %w", err)
 	}
-	return ScanJobState(state), nil
+	return state, nil
 }
 
 func (s *jobService) RequeueStuckRunning(ctx context.Context, stuckThreshold time.Duration, maxAttempts int32) error {

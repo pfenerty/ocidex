@@ -26,6 +26,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/extension"
 	"github.com/pfenerty/ocidex/internal/health"
+	"github.com/pfenerty/ocidex/internal/jobqueue"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/scanner/engine"
@@ -112,17 +113,31 @@ func run() error {
 	dispatcher := engine.NewDispatcher(sc, scannerSbomSvc, logger)
 
 	workerID, _ := os.Hostname()
-	registry.Register(scanner.NewNATSHintExtension(
+	scanProcessor := func(ctx context.Context, claim service.ScanJobClaim) error {
+		req := scanner.ScanRequestFromClaim(claim)
+		sbomID, err := dispatcher.ProcessOne(ctx, req)
+		if err != nil {
+			return err
+		}
+		return jobSvc.FinishByID(ctx, claim.ID, sbomID)
+	}
+	registry.Register(jobqueue.NewWorker(
+		"scanner-hint",
 		natsClient,
-		dispatcher,
-		jobSvc,
 		cfg.NATSStreamName,
-		workerID,
+		jobSvc,
+		scanProcessor,
+		jobqueue.Config{
+			WorkerID:          workerID,
+			MaxConc:           cfg.ScannerMaxConcurrency,
+			PollInterval:      cfg.ScannerPollInterval,
+			JobTimeout:        scanTimeout,
+			MaxAttempts:       int32(cfg.ScannerMaxAttempts), //nolint:gosec // G115: small bounded retry count
+			StuckThreshold:    cfg.ScannerStuckThreshold,
+			HintSubjectSuffix: scanner.ScanHintSubjectSuffix,
+			HintDurable:       scanner.ScannerHintDurable,
+		},
 		logger,
-		cfg.ScannerMaxConcurrency,
-		cfg.ScannerPollInterval,
-		scanTimeout,
-		cfg.ScannerMaxAttempts,
 	))
 
 	// Wire catalog walk consumer: receives catalog.walk.requested from the API server poller
@@ -147,19 +162,6 @@ func run() error {
 	healthSrv := health.New(":9090", pool, natsClient, slog.Default())
 	healthSrv.Start()
 	defer healthSrv.Stop()
-
-	// Stuck-running sweep: any row stuck in 'running' past the stuck-threshold
-	// is moved back to 'queued' (or 'failed' if retries are exhausted). This
-	// replaces the NATS-aware orphan reconciler — under the outbox pattern the
-	// DB row is the source of truth and no NATS-side reconciliation exists.
-	stuckThreshold := cfg.ScannerStuckThreshold
-	if err := jobSvc.RequeueStuckRunning(ctx, stuckThreshold, int32(cfg.ScannerMaxAttempts)); err != nil { //nolint:gosec // G115: small bounded retry count
-		slog.Warn("startup stuck-running sweep failed", "err", err)
-	}
-	sweepCtx, sweepCancel := context.WithCancel(context.Background())
-	defer sweepCancel()
-	go runStuckRunningSweep(sweepCtx, jobSvc, stuckThreshold, int32(cfg.ScannerMaxAttempts)) //nolint:gosec // G115: as above
-
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -266,23 +268,4 @@ func parseImageRef(ref string) (registryURL, repo, digest, tag string, err error
 	return registryURL, repo, digest, tag, nil
 }
 
-// runStuckRunningSweep periodically requeues 'running' scan_jobs rows whose
-// worker hasn't updated last_attempt_at within stuckThreshold. The row goes
-// back to 'queued' for another worker to claim, or to 'failed' if its retry
-// budget is exhausted. This is the only stuck-job sweep the outbox model
-// needs — there is no NATS-side reconciler.
-func runStuckRunningSweep(ctx context.Context, jobSvc service.JobService, stuckThreshold time.Duration, maxAttempts int32) {
-	ticker := time.NewTicker(stuckThreshold / 3)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			if err := jobSvc.RequeueStuckRunning(ctx, stuckThreshold, maxAttempts); err != nil && ctx.Err() == nil {
-				slog.Warn("stuck-running sweep failed", "err", err)
-			}
-		case <-ctx.Done():
-			return
-		}
-	}
-}
 

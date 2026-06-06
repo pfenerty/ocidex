@@ -17,6 +17,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/enrichment"
 	ocienricher "github.com/pfenerty/ocidex/internal/enrichment/oci"
 	"github.com/pfenerty/ocidex/internal/event"
+	"github.com/pfenerty/ocidex/internal/jobqueue"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/scanner"
@@ -195,21 +196,78 @@ func TestScanToEnrichFlow(t *testing.T) {
 	extCtx, extCancel := context.WithCancel(ctx)
 	t.Cleanup(extCancel)
 
-	scanExt := scanner.NewNATSHintExtension(
-		natsClient, scanDisp, jobSvc, streamName, "test-worker", logger,
-		1, 5*time.Second, 9*time.Minute, 3,
+	scanProcessor := func(scanCtx context.Context, claim service.ScanJobClaim) error {
+		req := scanner.ScanRequestFromClaim(claim)
+		sbomID, err := scanDisp.ProcessOne(scanCtx, req)
+		if err != nil {
+			return err
+		}
+		return jobSvc.FinishByID(scanCtx, claim.ID, sbomID)
+	}
+	scanExt := jobqueue.NewWorker(
+		"scanner-hint",
+		natsClient, streamName, jobSvc, scanProcessor,
+		jobqueue.Config{
+			WorkerID:          "test-worker",
+			MaxConc:           1,
+			PollInterval:      5 * time.Second,
+			JobTimeout:        9 * time.Minute,
+			MaxAttempts:       3,
+			StuckThreshold:    15 * time.Minute,
+			HintSubjectSuffix: scanner.ScanHintSubjectSuffix,
+			HintDurable:       scanner.ScannerHintDurable,
+		},
+		logger,
 	)
 	if err := scanExt.Start(extCtx); err != nil {
 		t.Fatalf("scanner ext start: %v", err)
 	}
 	t.Cleanup(func() { _ = scanExt.Stop() })
 
-	// Wire enrichment pipeline: real OCI enricher → real Red Hat registry.
+	// Wire enrichment pipeline: DB-backed outbox + real OCI enricher.
 	repoQ := repository.New(pool)
-	reg := enrichment.NewCatalog()
-	reg.Register(ocienricher.NewEnricher())
-	enrichDisp := enrichment.NewDispatcher(repoQ, reg)
-	enrichExt := enrichment.NewNATSExtension(natsClient, enrichDisp, streamName, logger, 4*time.Minute, 50, 200)
+	enrichReg := enrichment.NewCatalog()
+	enrichReg.Register(ocienricher.NewEnricher())
+	enrichDisp := enrichment.NewDispatcher(repoQ, enrichReg)
+
+	enrichJobSvc := service.NewEnrichJobService(pool)
+
+	// The submitter enqueues enrichment_jobs rows when SBOMIngested fires.
+	enrichSubmitter := enrichment.NewNATSSubmitter(natsClient, streamName, enrichJobSvc, logger)
+	if err := enrichSubmitter.Init(bus); err != nil {
+		t.Fatalf("enrich submitter init: %v", err)
+	}
+
+	enrichProcessor := func(enrichCtx context.Context, claim service.EnrichJobClaim) error {
+		ref := enrichment.SubjectRef{
+			SBOMId:         claim.SBOMId,
+			ArtifactType:   claim.ArtifactType,
+			ArtifactName:   claim.ArtifactName,
+			Digest:         claim.Digest,
+			SubjectVersion: claim.SubjectVersion,
+			Architecture:   claim.Architecture,
+			BuildDate:      claim.BuildDate,
+		}
+		if err := enrichDisp.ProcessOne(enrichCtx, ref); err != nil {
+			return err
+		}
+		return enrichJobSvc.FinishByID(enrichCtx, claim.ID)
+	}
+	enrichExt := jobqueue.NewWorker(
+		"enrichment-hint",
+		natsClient, streamName, enrichJobSvc, enrichProcessor,
+		jobqueue.Config{
+			WorkerID:          "test-worker",
+			MaxConc:           1,
+			PollInterval:      5 * time.Second,
+			JobTimeout:        4 * time.Minute,
+			MaxAttempts:       3,
+			StuckThreshold:    10 * time.Minute,
+			HintSubjectSuffix: ".enrich.hint",
+			HintDurable:       "enrichment-hint",
+		},
+		logger,
+	)
 	if err := enrichExt.Start(extCtx); err != nil {
 		t.Fatalf("enrichment ext start: %v", err)
 	}
