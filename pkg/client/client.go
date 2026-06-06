@@ -14,7 +14,7 @@ type Client interface {
 	UpdateRegistry(ctx context.Context, id string, body UpdateRegistryInputBody) (RegistryResponse, error)
 	DeleteRegistry(ctx context.Context, id string) error
 	ScanRegistry(ctx context.Context, id string) (ScanRegistryOutputBody, error)
-	TestRegistryConnection(ctx context.Context, id string, body TestRegistryConnectionInputBody) (TestRegistryConnectionOutputBody, error)
+	TestRegistryConnection(ctx context.Context, body TestRegistryConnectionInputBody) (TestRegistryConnectionOutputBody, error)
 	RegenerateWebhookSecret(ctx context.Context, id string) (RegenerateWebhookSecretOutputBody, error)
 
 	CreateAPIKey(ctx context.Context, body CreateAPIKeyInputBody) (CreateAPIKeyOutputBody, error)
