@@ -23,3 +23,12 @@ type PageOpts struct {
 	Limit  int32
 	Offset int32
 }
+
+// derefSlice returns the dereferenced slice, or nil if the pointer is nil.
+// Used to unwrap the *[]T fields that generated list response bodies carry.
+func derefSlice[T any](p *[]T) []T {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
