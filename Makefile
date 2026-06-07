@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check tekton-synth tekton-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
+.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check tekton-synth tekton-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
 
 all: check build ## Run all checks and build
 
@@ -15,6 +15,7 @@ build: ## Build the Go binaries
 	go build -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/ocidex
 	go build -o $(BUILD_DIR)/scanner-worker ./cmd/scanner-worker
 	go build -o $(BUILD_DIR)/enrichment-worker ./cmd/enrichment-worker
+	go build -o $(BUILD_DIR)/operator ./cmd/operator
 
 run: build ## Run the API server
 	./$(BUILD_DIR)/$(BINARY_NAME)
@@ -39,8 +40,9 @@ check: fmt lint test openapi-check generate-client-check frontend-lint frontend-
 
 init: ## Download dependencies and install tools
 	go mod download
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 	go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+	go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest
 
 clean: ## Clean build artifacts
 	rm -rf $(BUILD_DIR) coverage.out coverage.html
@@ -57,6 +59,14 @@ generate-client-check: ## Verify generated client types are up-to-date
 	sed 's|output: pkg/client/types.go|output: /tmp/client-types-check.go|' pkg/client/.oapi-codegen.yml > /tmp/oapi-codegen-check.yml
 	oapi-codegen --config /tmp/oapi-codegen-check.yml /tmp/openapi-3.0.json
 	diff pkg/client/types.go /tmp/client-types-check.go || (echo "ERROR: pkg/client/types.go is stale. Run 'make generate-client'." && exit 1)
+
+generate-operator: ## Generate CRD manifests and deepcopy (controller-gen; requires ~/go/bin in PATH)
+	~/go/bin/controller-gen object:headerFile="" paths="./api/..." output:dir=./api/v1alpha1
+	~/go/bin/controller-gen crd paths="./api/..." output:crd:dir=./config/operator/crd
+
+generate-operator-check: ## Verify generated operator files are up-to-date
+	~/go/bin/controller-gen object:headerFile="" paths="./api/..." output:dir=/tmp/operator-check
+	diff api/v1alpha1/zz_generated.deepcopy.go /tmp/operator-check/zz_generated.deepcopy.go || (echo "ERROR: zz_generated.deepcopy.go is stale. Run 'make generate-operator'." && exit 1)
 
 migrate-up: ## Run database migrations up
 	goose -dir db/migrations postgres "$$DATABASE_URL" up
