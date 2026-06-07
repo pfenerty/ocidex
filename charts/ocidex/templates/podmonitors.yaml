@@ -1,0 +1,24 @@
+{{- if .Values.monitoring.enabled }}
+{{- $components := list "api" "scanner-worker" "enrichment-worker" }}
+{{- range $components }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ include "ocidex.fullname" $ }}-{{ . }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "ocidex.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ . }}
+    {{- with $.Values.monitoring.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "ocidex.selectorLabels" (dict "root" $ "component" .) | nindent 6 }}
+  podMetricsEndpoints:
+    - port: health
+      path: /metrics
+{{- end }}
+{{- end }}

@@ -22,7 +22,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       -X github.com/pfenerty/ocidex/internal/version.Date=${DATE}" && \
     CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "${LDFLAGS}" -o /app/bin/ocidex ./cmd/ocidex && \
     CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "${LDFLAGS}" -o /app/bin/scanner-worker ./cmd/scanner-worker && \
-    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "${LDFLAGS}" -o /app/bin/enrichment-worker ./cmd/enrichment-worker
+    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "${LDFLAGS}" -o /app/bin/enrichment-worker ./cmd/enrichment-worker && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "${LDFLAGS}" -o /app/bin/operator ./cmd/operator
 
 # ---- api --------------------------------------------------------------------
 FROM gcr.io/distroless/static-debian12:nonroot AS api
@@ -39,3 +40,8 @@ ENTRYPOINT ["/scanner-worker"]
 FROM gcr.io/distroless/static-debian12:nonroot AS enrichment-worker
 COPY --from=builder /app/bin/enrichment-worker /enrichment-worker
 ENTRYPOINT ["/enrichment-worker"]
+
+# ---- operator ---------------------------------------------------------------
+FROM gcr.io/distroless/static-debian12:nonroot AS operator
+COPY --from=builder /app/bin/operator /operator
+ENTRYPOINT ["/operator"]

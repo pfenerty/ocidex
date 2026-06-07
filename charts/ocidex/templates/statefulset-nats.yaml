@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "ocidex.fullname" . }}-nats
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ocidex.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nats
+spec:
+  replicas: 1
+  serviceName: {{ include "ocidex.fullname" . }}-nats
+  selector:
+    matchLabels:
+      {{- include "ocidex.selectorLabels" (dict "root" . "component" "nats") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ocidex.selectorLabels" (dict "root" . "component" "nats") | nindent 8 }}
+    spec:
+      containers:
+        - name: nats
+          image: docker.io/nats:2-alpine
+          args: ["-js", "--store_dir", "/data"]
+          ports:
+            - name: client
+              containerPort: 4222
+          resources:
+            {{- toYaml .Values.nats.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- if .Values.nats.storage.storageClass }}
+        storageClassName: {{ .Values.nats.storage.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.nats.storage.size }}
