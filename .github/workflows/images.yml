@@ -42,6 +42,11 @@ jobs:
             target: ""
             title: ocidex-web
             description: OCIDex SolidJS frontend served by nginx
+          - name: operator
+            dockerfile: docker/Dockerfile
+            target: operator
+            title: ocidex-operator
+            description: OCIDex K8s operator for OCIRegistry, ScanRequest, and APIKey CRDs
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -104,6 +109,40 @@ jobs:
             DATE=${{ steps.vars.outputs.date }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  publish-charts:
+    name: publish Helm charts
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Short SHA
+        id: sha
+        run: echo "short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Log in to GHCR (Helm)
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Package and push ocidex chart
+        run: |
+          helm package charts/ocidex \
+            --version "0.0.0-${{ github.sha }}" \
+            --app-version "sha-${{ steps.sha.outputs.short }}"
+          helm push ocidex-*.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
+
+      - name: Package and push ocidex-operator chart
+        run: |
+          helm package charts/ocidex-operator \
+            --version "0.0.0-${{ github.sha }}" \
+            --app-version "sha-${{ steps.sha.outputs.short }}"
+          helm push ocidex-operator-*.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
 
   manifests:
     name: push OCI manifests
