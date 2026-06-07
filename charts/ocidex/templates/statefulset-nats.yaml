@@ -20,10 +20,12 @@ spec:
       containers:
         - name: nats
           image: docker.io/nats:2-alpine
-          args: ["-js", "--store_dir", "/data"]
+          args: ["-js", "--store_dir", "/data", "-m", "8222"]
           ports:
             - name: client
               containerPort: 4222
+            - name: monitoring
+              containerPort: 8222
           resources:
             {{- toYaml .Values.nats.resources | nindent 12 }}
           volumeMounts:
