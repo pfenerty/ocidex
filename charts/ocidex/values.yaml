@@ -110,7 +110,6 @@ keda:
   scanner:
     minReplicas: 1
     maxReplicas: 5
-    natsMonitoringEndpoint: "nats:8222"
     stream: SCANS
     consumer: scanner-worker
     lagThreshold: "5"
@@ -118,7 +117,6 @@ keda:
   enrichment:
     minReplicas: 1
     maxReplicas: 4
-    natsMonitoringEndpoint: "nats:8222"
     stream: ENRICHMENTS
     consumer: enrichment-worker
     lagThreshold: "10"

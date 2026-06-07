@@ -15,7 +15,7 @@ spec:
   triggers:
     - type: nats-jetstream
       metadata:
-        natsServerMonitoringEndpoint: {{ .Values.keda.scanner.natsMonitoringEndpoint | quote }}
+        natsServerMonitoringEndpoint: {{ printf "%s-nats:8222" (include "ocidex.fullname" .) | quote }}
         account: "$G"
         stream: {{ .Values.keda.scanner.stream | quote }}
         consumer: {{ .Values.keda.scanner.consumer | quote }}
