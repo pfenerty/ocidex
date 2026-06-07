@@ -35,6 +35,10 @@ type APIKeyReconciler struct {
 
 // Reconcile is the main reconcile loop for APIKey.
 //
+//+kubebuilder:rbac:groups=ocidex.io,resources=apikeys,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=ocidex.io,resources=apikeys/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;create;update;patch;delete
+
 // Contract (ADR-030):
 //  1. Deletion: call DeleteAPIKey, delete Secret, remove finalizer.
 //  2. Add finalizer; re-fetch; continue (GenerationChangedPredicate filters the event).

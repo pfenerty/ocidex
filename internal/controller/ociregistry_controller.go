@@ -29,6 +29,10 @@ type OCIRegistryReconciler struct {
 	OCIDexClient ocidexclient.Client
 }
 
+//+kubebuilder:rbac:groups=ocidex.io,resources=ociregistries,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=ocidex.io,resources=ociregistries/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups="",resources=secrets,verbs=get
+
 // Reconcile is the main reconcile loop for OCIRegistry.
 //
 // Contract (ADR-030):
