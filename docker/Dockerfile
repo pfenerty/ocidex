@@ -1,7 +1,7 @@
 # ---- Builder ----------------------------------------------------------------
 # Always build on the runner's native platform; cross-compile via GOARCH.
 # This avoids QEMU emulation for arm64, which is the main CI slowdown.
-FROM --platform=$BUILDPLATFORM docker.io/golang:1.25-bookworm AS builder
+FROM --platform=$BUILDPLATFORM docker.io/golang:1.26-bookworm AS builder
 
 ARG TARGETARCH
 ARG VERSION=dev
