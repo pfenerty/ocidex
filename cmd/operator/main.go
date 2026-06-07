@@ -103,7 +103,13 @@ func run() error {
 		return fmt.Errorf("setting up ScanRequest controller: %w", err)
 	}
 
-	// APIKey controller registered in ocidex-01v.5.
+	if err := (&controller.APIKeyReconciler{
+		Client:       mgr.GetClient(),
+		Scheme:       mgr.GetScheme(),
+		OCIDexClient: ocidexClient,
+	}).SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("setting up APIKey controller: %w", err)
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
