@@ -1,0 +1,140 @@
+# OCIDex application Helm values.
+#
+# Required before install:
+#   kubectl create secret generic <existingSecret> \
+#     --from-literal=DATABASE_URL=<postgres-connection-string> \
+#     --from-literal=GITHUB_CLIENT_ID=<github-oauth-client-id> \
+#     --from-literal=GITHUB_CLIENT_SECRET=<github-oauth-client-secret> \
+#     --from-literal=SESSION_SECRET=$(openssl rand -hex 32)
+#
+# See k8s/base/secrets.yaml.example for all required fields.
+
+# --- Images ------------------------------------------------------------------
+image:
+  registry: ghcr.io/pfenerty
+  # tag defaults to Chart.appVersion (set to sha-<short> or vX.Y.Z at package time).
+  # Override with --set image.tag=<tag> to pin a specific version.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# --- Secrets -----------------------------------------------------------------
+# Name of a pre-created Secret containing DATABASE_URL, GITHUB_CLIENT_ID,
+# GITHUB_CLIENT_SECRET, and SESSION_SECRET.
+existingSecret: ocidex-secrets
+
+# --- API server --------------------------------------------------------------
+api:
+  replicas: 1
+  env:
+    environment: production
+    logLevel: info
+    frontendUrl: ""
+    corsAllowedOrigins: ""
+    apiBaseUrl: ""
+    githubRedirectUrl: ""
+    scannerEnabled: "true"
+    registryPollerEnabled: "true"
+    natsStreamReplicas: "1"
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "250m"
+      memory: "128Mi"
+
+# --- Scanner worker ----------------------------------------------------------
+scannerWorker:
+  # Ignored when keda.enabled=true; KEDA ScaledObject owns replica count.
+  replicas: 1
+  env:
+    maxConcurrency: "1"
+    natsStreamReplicas: "1"
+    databaseMaxConnections: "3"
+    logLevel: info
+    environment: production
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "1500m"
+      memory: "1536Mi"
+
+# --- Enrichment worker -------------------------------------------------------
+enrichmentWorker:
+  replicas: 2
+  env:
+    natsStreamReplicas: "1"
+    databaseMaxConnections: "3"
+    logLevel: info
+    environment: production
+  resources:
+    requests:
+      cpu: "20m"
+      memory: "32Mi"
+    limits:
+      cpu: "250m"
+      memory: "128Mi"
+
+# --- Web frontend ------------------------------------------------------------
+web:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "10m"
+      memory: "32Mi"
+    limits:
+      cpu: "100m"
+      memory: "64Mi"
+
+# --- NATS JetStream ----------------------------------------------------------
+nats:
+  storage:
+    size: 1Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: "20m"
+      memory: "32Mi"
+    limits:
+      cpu: "100m"
+      memory: "64Mi"
+
+# --- KEDA (optional) ---------------------------------------------------------
+# Requires the KEDA operator to be installed in the cluster.
+# When enabled, the scanner-worker Deployment has no replica count set;
+# KEDA's ScaledObject manages scaling based on NATS JetStream consumer lag.
+keda:
+  enabled: false
+  scanner:
+    minReplicas: 1
+    maxReplicas: 5
+    natsMonitoringEndpoint: "nats:8222"
+    stream: SCANS
+    consumer: scanner-worker
+    lagThreshold: "5"
+    activationLagThreshold: "1"
+
+# --- Monitoring (optional) ---------------------------------------------------
+# Requires the Prometheus Operator to be installed.
+monitoring:
+  enabled: false
+  # Additional labels to add to PodMonitor resources (e.g. for label-based
+  # Prometheus scrape selection).
+  additionalLabels: {}
+
+# --- Gateway API (optional) --------------------------------------------------
+# Requires Gateway API CRDs (v1) and a conformant Gateway controller (e.g. Cilium).
+gatewayApi:
+  enabled: false
+  gatewayName: ""
+  gatewayNamespace: ""
+  apiHostname: ""
+  webHostname: ""
+  tlsSecretName: ""
+
+# --- Cilium network policies (optional) --------------------------------------
+# Requires Cilium CNI with network policy enforcement enabled.
+cilium:
+  enabled: false
