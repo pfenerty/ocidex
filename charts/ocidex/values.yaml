@@ -115,6 +115,14 @@ keda:
     consumer: scanner-worker
     lagThreshold: "5"
     activationLagThreshold: "1"
+  enrichment:
+    minReplicas: 1
+    maxReplicas: 4
+    natsMonitoringEndpoint: "nats:8222"
+    stream: ENRICHMENTS
+    consumer: enrichment-worker
+    lagThreshold: "10"
+    activationLagThreshold: "1"
 
 # --- Monitoring (optional) ---------------------------------------------------
 # Requires the Prometheus Operator to be installed.

@@ -7,7 +7,9 @@ metadata:
     {{- include "ocidex.labels" . | nindent 4 }}
     app.kubernetes.io/component: enrichment-worker
 spec:
+  {{- if not .Values.keda.enabled }}
   replicas: {{ .Values.enrichmentWorker.replicas }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "ocidex.selectorLabels" (dict "root" . "component" "enrichment-worker") | nindent 6 }}
