@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -39,6 +40,8 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+//+kubebuilder:rbac:groups=coordination.k8s.io,resources=leases,verbs=get;list;watch;create;update;patch;delete
 
 func run() error {
 	metricsAddr := flag.String("metrics-bind-address", ":8080", "Address for the metrics endpoint")
@@ -68,6 +71,7 @@ func run() error {
 
 	ocidexClient := client.New(client.Config{BaseURL: serverURL, APIKey: apiKey})
 
+	shutdownTimeout := 30 * time.Second
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                  scheme,
 		Metrics:                 metricsserver.Options{BindAddress: *metricsAddr},
@@ -75,6 +79,7 @@ func run() error {
 		LeaderElection:          *leaderElect,
 		LeaderElectionID:        "ocidex-operator-leader",
 		LeaderElectionNamespace: operatorNS,
+		GracefulShutdownTimeout: &shutdownTimeout,
 	})
 	if err != nil {
 		return fmt.Errorf("creating manager: %w", err)
