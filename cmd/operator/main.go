@@ -22,6 +22,7 @@ import (
 
 	ocidexv1alpha1 "github.com/pfenerty/ocidex/api/v1alpha1"
 	"github.com/pfenerty/ocidex/internal/config"
+	"github.com/pfenerty/ocidex/internal/controller"
 	"github.com/pfenerty/ocidex/pkg/client"
 )
 
@@ -65,8 +66,7 @@ func run() error {
 		return fmt.Errorf("OPERATOR_NAMESPACE must be set")
 	}
 
-	// ocidexClient will be injected into reconcilers in ocidex-01v.3/4/5.
-	_ = client.New(client.Config{BaseURL: serverURL, APIKey: apiKey})
+	ocidexClient := client.New(client.Config{BaseURL: serverURL, APIKey: apiKey})
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                  scheme,
@@ -87,8 +87,15 @@ func run() error {
 		return fmt.Errorf("setting up readyz: %w", err)
 	}
 
-	// Controllers are registered in ocidex-01v.3 (OCIRegistry), 01v.4 (ScanRequest),
-	// and 01v.5 (APIKey).
+	if err := (&controller.OCIRegistryReconciler{
+		Client:       mgr.GetClient(),
+		Scheme:       mgr.GetScheme(),
+		OCIDexClient: ocidexClient,
+	}).SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("setting up OCIRegistry controller: %w", err)
+	}
+
+	// ScanRequest and APIKey controllers registered in ocidex-01v.4 and ocidex-01v.5.
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
