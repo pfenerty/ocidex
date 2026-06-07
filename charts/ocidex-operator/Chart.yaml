@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ocidex-operator
+description: Kubernetes operator for OCIDex — manages OCIRegistry, ScanRequest, and APIKey CRDs.
+type: application
+version: 0.1.0
+appVersion: "latest"
