@@ -60,9 +60,10 @@ generate-client-check: ## Verify generated client types are up-to-date
 	oapi-codegen --config /tmp/oapi-codegen-check.yml /tmp/openapi-3.0.json
 	diff pkg/client/types.go /tmp/client-types-check.go || (echo "ERROR: pkg/client/types.go is stale. Run 'make generate-client'." && exit 1)
 
-generate-operator: ## Generate CRD manifests and deepcopy (controller-gen; requires ~/go/bin in PATH)
+generate-operator: ## Generate CRD manifests, deepcopy, and RBAC (controller-gen; requires ~/go/bin in PATH)
 	~/go/bin/controller-gen object:headerFile="" paths="./api/..." output:dir=./api/v1alpha1
 	~/go/bin/controller-gen crd paths="./api/..." output:crd:dir=./config/operator/crd
+	~/go/bin/controller-gen rbac:roleName=ocidex-operator paths="./internal/controller/...;./cmd/operator/..." output:rbac:dir=./config/operator/rbac
 
 generate-operator-check: ## Verify generated operator files are up-to-date
 	~/go/bin/controller-gen object:headerFile="" paths="./api/..." output:dir=/tmp/operator-check

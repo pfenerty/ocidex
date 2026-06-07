@@ -29,6 +29,10 @@ type ScanRequestReconciler struct {
 	OCIDexClient ocidexclient.Client
 }
 
+//+kubebuilder:rbac:groups=ocidex.io,resources=scanrequests,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=ocidex.io,resources=scanrequests/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=ocidex.io,resources=ociregistries,verbs=get;list;watch
+
 // Reconcile is the main reconcile loop for ScanRequest.
 //
 // Contract (ADR-030): ScanRequest is a one-shot fire-and-forget trigger.
