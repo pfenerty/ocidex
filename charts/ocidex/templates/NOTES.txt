@@ -1,0 +1,34 @@
+OCIDex {{ .Chart.AppVersion }} has been deployed to namespace {{ .Release.Namespace }}.
+
+=== Prerequisites ===
+
+The application requires a Secret named "{{ .Values.existingSecret }}" containing:
+  - DATABASE_URL      (PostgreSQL connection string, e.g. postgres://user:pass@host:5432/db)
+  - GITHUB_CLIENT_ID  (GitHub OAuth app client ID)
+  - GITHUB_CLIENT_SECRET
+  - SESSION_SECRET    (random 32-byte hex: openssl rand -hex 32)
+
+Create it with:
+
+  kubectl create secret generic {{ .Values.existingSecret }} \
+    --namespace {{ .Release.Namespace }} \
+    --from-literal=DATABASE_URL=<your-postgres-url> \
+    --from-literal=GITHUB_CLIENT_ID=<client-id> \
+    --from-literal=GITHUB_CLIENT_SECRET=<client-secret> \
+    --from-literal=SESSION_SECRET=$(openssl rand -hex 32)
+
+See k8s/base/secrets.yaml.example for the full list of supported fields.
+
+=== Optional integrations ===
+{{- if .Values.keda.enabled }}
+  KEDA ScaledObject: enabled (scanner-worker scales {{ .Values.keda.scanner.minReplicas }}–{{ .Values.keda.scanner.maxReplicas }} replicas)
+{{- end }}
+{{- if .Values.monitoring.enabled }}
+  Monitoring: PodMonitors created — ensure Prometheus Operator is installed.
+{{- end }}
+{{- if .Values.gatewayApi.enabled }}
+  Gateway API: HTTPRoutes created for api={{ .Values.gatewayApi.apiHostname }} web={{ .Values.gatewayApi.webHostname }}
+{{- end }}
+{{- if .Values.cilium.enabled }}
+  Cilium: CiliumNetworkPolicy created.
+{{- end }}

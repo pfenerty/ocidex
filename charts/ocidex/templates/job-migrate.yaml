@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "ocidex.fullname" . }}-migrate-{{ .Release.Revision }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ocidex.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migrate
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 5
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        {{- include "ocidex.selectorLabels" (dict "root" . "component" "migrate") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: {{ include "ocidex.image" (dict "root" . "name" "api") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/ocidex", "migrate", "up"]
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          envFrom:
+            - secretRef:
+                name: {{ .Values.existingSecret }}
+          env:
+            - name: NATS_URL
+              value: "nats://{{ include "ocidex.fullname" . }}-nats:4222"

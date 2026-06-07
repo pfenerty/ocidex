@@ -1,0 +1,23 @@
+{{- if .Values.keda.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "ocidex.fullname" . }}-scanner-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ocidex.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "ocidex.fullname" . }}-scanner-worker
+  minReplicaCount: {{ .Values.keda.scanner.minReplicas }}
+  maxReplicaCount: {{ .Values.keda.scanner.maxReplicas }}
+  triggers:
+    - type: nats-jetstream
+      metadata:
+        natsServerMonitoringEndpoint: {{ .Values.keda.scanner.natsMonitoringEndpoint | quote }}
+        account: "$G"
+        stream: {{ .Values.keda.scanner.stream | quote }}
+        consumer: {{ .Values.keda.scanner.consumer | quote }}
+        lagThreshold: {{ .Values.keda.scanner.lagThreshold | quote }}
+        activationLagThreshold: {{ .Values.keda.scanner.activationLagThreshold | quote }}
+{{- end }}

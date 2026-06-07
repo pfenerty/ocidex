@@ -1,0 +1,37 @@
+{{- if .Values.cilium.enabled }}
+---
+# Allow api → nats
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "ocidex.fullname" . }}-allow-app-to-nats
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ocidex.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: nats
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: {{ include "ocidex.name" . }}
+      toPorts:
+        - ports:
+            - port: "4222"
+              protocol: TCP
+---
+# Deny all other ingress to NATS
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "ocidex.fullname" . }}-deny-nats-external
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ocidex.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: nats
+  ingress: []
+{{- end }}

@@ -1,0 +1,8 @@
+apiVersion: v2
+name: ocidex
+description: OCIDex — open container initiative metadata index. Tracks SBOMs, dependencies, and licenses across OCI registries.
+type: application
+version: 0.1.0
+# appVersion is set at package time to sha-<short> (dev) or vX.Y.Z (release).
+# Templates use this as the default image tag when image.tag is empty.
+appVersion: "latest"
