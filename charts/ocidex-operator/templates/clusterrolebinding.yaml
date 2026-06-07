@@ -1,0 +1,14 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "ocidex-operator.fullname" . }}
+  labels:
+    {{- include "ocidex-operator.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "ocidex-operator.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "ocidex-operator.fullname" . }}
+    namespace: {{ .Release.Namespace }}

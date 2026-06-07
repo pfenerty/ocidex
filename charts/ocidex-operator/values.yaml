@@ -1,0 +1,28 @@
+# OCIDex operator Helm values.
+# Required: server.url must be set to the OCIDex API server URL.
+
+image:
+  repository: ocidex-operator
+  tag: latest
+  pullPolicy: Always
+
+# server.url is the base URL of the OCIDex API server (OCIDEX_SERVER).
+# Example: "http://ocidex-api.ocidex.svc.cluster.local:8080"
+server:
+  url: ""
+
+# apiKey configures where the operator reads its OCIDex API key (OCIDEX_API_KEY).
+apiKey:
+  secretName: ocidex-operator-secrets
+  secretKey: OCIDEX_API_KEY
+
+# leaderElect enables leader election for multi-replica deployments.
+leaderElect: true
+
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "200m"
+    memory: "128Mi"
