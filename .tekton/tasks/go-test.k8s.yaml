@@ -1,0 +1,101 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-go-test
+  namespace: ocidex-ci
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+    - name: revision
+      type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    env:
+      - name: GOMODCACHE
+        value: $(workspaces.workspace.path)/.go-mod
+      - name: GOCACHE
+        value: $(workspaces.workspace.path)/.go-build
+      - name: GIT_CONFIG_GLOBAL
+        value: $(workspaces.workspace.path)/.gitconfig
+      - name: GOMAXPROCS
+        value: "2"
+      - name: GOMEMLIMIT
+        value: 1800MiB
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    workingDir: $(workspaces.workspace.path)
+  steps:
+    - computeResources:
+        limits:
+          cpu: "2"
+          ephemeral-storage: 2Gi
+          memory: 2Gi
+        requests:
+          cpu: 500m
+          ephemeral-storage: 2Gi
+          memory: 256Mi
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.25
+      name: test
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def run_and_save [prev_ec: int, ...args: string] {
+            try { run-external ...$args } catch { null }
+            let ec = $env.LAST_EXIT_CODE
+            let worst = if $prev_ec != 0 { $prev_ec } else { $ec }
+            $"($worst)" | save -f /tekton/home/.exit-code
+            $worst
+        }
+
+        log "Running go test"
+        let ec = run_and_save 0 "go" "test" "-v" "-short" "-p" "2" "./..."
+        log $"Exit code: ($ec)"
+        exit $ec
+    - env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: report-status
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] {
+          print $"[(date now | format date '%H:%M:%S')] report-status [go-test]: ($msg)"
+        }
+
+        let exit_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        let state = if $exit_code == 0 { "success" } else { "failure" }
+        let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
+
+        log $"exit-code=($exit_code) state=($state)"
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "go-test", description: $desc }
+
+        log $"POST ($url)"
+        log $"body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "done"
+        } catch { |e|
+          log $"error: ($e.msg)"
+        }
+  workspaces:
+    - name: workspace

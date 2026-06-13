@@ -2,7 +2,7 @@ import {
   Task,
   Workspace,
   GitPipeline,
-  TektonProject,
+  PACProject,
   TRIGGER_EVENTS,
   GitHubStatusReporter,
 } from "@pfenerty/tektonic";
@@ -302,15 +302,12 @@ const prPipeline = new GitPipeline({
 });
 
 // ─── Synthesize ─────────────────────────────────────────────────────────────
-new TektonProject({
+new PACProject({
   name: "ocidex",
   namespace: "ocidex-ci",
   pipelines: [pushPipeline, prPipeline],
-  outdir: "generated",
-  webhookSecretRef: {
-    secretName: "github-webhook-secret",
-    secretKey: "secret",
-  },
+  outdir: "../.tekton",
+  repoRelativePath: ".tekton",
   workspaceStorageSize: "5Gi",
   workspaceStorageClass: "local-path",
   defaultPodSecurityContext: {
