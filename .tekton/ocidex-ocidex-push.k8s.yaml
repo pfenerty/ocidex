@@ -141,7 +141,7 @@ spec:
         runAsUser: 1024
         seccompProfile:
           type: RuntimeDefault
-    serviceAccountName: tekton-triggers
+    serviceAccountName: default
   workspaces:
     - name: workspace
       volumeClaimTemplate:

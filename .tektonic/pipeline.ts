@@ -308,6 +308,7 @@ new PACProject({
   pipelines: [pushPipeline, prPipeline],
   outdir: "../.tekton",
   repoRelativePath: ".tekton",
+  serviceAccountName: "default",
   workspaceStorageSize: "5Gi",
   workspaceStorageClass: "local-path",
   defaultPodSecurityContext: {
