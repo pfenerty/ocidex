@@ -1,9 +1,9 @@
 import {
-    Task,
-    GitPipeline,
-    TektonProject,
-    TRIGGER_EVENTS,
-    GitHubStatusReporter,
+  Task,
+  GitPipeline,
+  TektonProject,
+  TRIGGER_EVENTS,
+  GitHubStatusReporter,
 } from "@pfenerty/tektonic";
 
 // --- Images ─────────────────────────────────────────────────────────────────
@@ -18,44 +18,44 @@ const statusReporter = new GitHubStatusReporter();
 // Archives stored in gs://ocidex-ci-cache/{go,node}/HASH.tar.zst.
 // Auth via GKE Workload Identity (serviceAccountAnnotations below).
 const goCache = {
-    name: "go-cache",
-    key: ["go.sum"],
-    // Use dotdir paths so `go test ./...` skips them (Go ignores dirs starting with '.')
-    paths: [".go-mod", ".go-build"],
-    backend: { type: "gcs" as const, bucket: "ocidex-ci-cache", prefix: "go/" },
-    compress: true,
-    workingDir: "$(workspaces.workspace.path)",
+  name: "go-cache",
+  key: ["go.sum"],
+  // Use dotdir paths so `go test ./...` skips them (Go ignores dirs starting with '.')
+  paths: [".go-mod", ".go-build"],
+  backend: { type: "gcs" as const, bucket: "ocidex-ci-cache", prefix: "go/" },
+  compress: true,
+  workingDir: "$(workspaces.workspace.path)",
 };
 
 const nodeModulesCache = {
-    name: "node-modules",
-    key: ["package-lock.json"],
-    paths: ["node_modules"],
-    backend: {
-        type: "gcs" as const,
-        bucket: "ocidex-ci-cache",
-        prefix: "node/",
-    },
-    compress: true,
-    workingDir: "$(workspaces.workspace.path)/web",
+  name: "node-modules",
+  key: ["package-lock.json"],
+  paths: ["node_modules"],
+  backend: {
+    type: "gcs" as const,
+    bucket: "ocidex-ci-cache",
+    prefix: "node/",
+  },
+  compress: true,
+  workingDir: "$(workspaces.workspace.path)/web",
 };
 
 // ─── Go env ──────────────────────────────────────────────────────────────────
 const goEnv = [
-    { name: "GOMODCACHE", value: "$(workspaces.workspace.path)/.go-mod" },
-    { name: "GOCACHE", value: "$(workspaces.workspace.path)/.go-build" },
-    {
-        name: "GIT_CONFIG_GLOBAL",
-        value: "$(workspaces.workspace.path)/.gitconfig",
-    },
+  { name: "GOMODCACHE", value: "$(workspaces.workspace.path)/.go-mod" },
+  { name: "GOCACHE", value: "$(workspaces.workspace.path)/.go-build" },
+  {
+    name: "GIT_CONFIG_GLOBAL",
+    value: "$(workspaces.workspace.path)/.gitconfig",
+  },
 ];
 
 const lintEnv = [
-    ...goEnv,
-    {
-        name: "GOLANGCI_LINT_CACHE",
-        value: "$(workspaces.workspace.path)/.golangci-cache",
-    },
+  ...goEnv,
+  {
+    name: "GOLANGCI_LINT_CACHE",
+    value: "$(workspaces.workspace.path)/.golangci-cache",
+  },
 ];
 
 const nodeEnv = [{ name: "HOME", value: "$(workspaces.workspace.path)" }];
@@ -74,15 +74,15 @@ def run_and_save [prev_ec: int, ...args: string] {
 
 // ─── Tasks ──────────────────────────────────────────────────────────────────
 const goFmt = new Task({
-    name: "go-fmt",
-    statusReporter,
-    steps: [
-        {
-            name: "fmt",
-            image: goImage,
-            script:
-                nuHeader +
-                `
+  name: "go-fmt",
+  statusReporter,
+  steps: [
+    {
+      name: "fmt",
+      image: goImage,
+      script:
+        nuHeader +
+        `
 log "Checking gofmt"
 let result = (^gofmt -l . | complete)
 let ec = if ($result.stdout | str trim | str length) > 0 {
@@ -91,33 +91,33 @@ let ec = if ($result.stdout | str trim | str length) > 0 {
 $"($ec)" | save -f /tekton/home/.exit-code
 log (if $ec == 0 { "OK: all files formatted" } else { "FAIL: formatting issues found" })
 exit $ec`,
-            onError: "continue",
-        },
-    ],
+      onError: "continue",
+    },
+  ],
 });
 
 const goBuild = new Task({
-    name: "go-build",
-    caches: [goCache],
-    statusReporter,
-    stepTemplate: {
-        env: goEnv,
-    },
-    steps: [
-        {
-            name: "build",
-            image: goImage,
-            computeResources: {
-                limits: { cpu: "2", memory: "2Gi", "ephemeral-storage": "4Gi" },
-                requests: {
-                    cpu: "1",
-                    memory: "1Gi",
-                    "ephemeral-storage": "2Gi",
-                },
-            },
-            script:
-                nuHeader +
-                `
+  name: "go-build",
+  caches: [goCache],
+  statusReporter,
+  stepTemplate: {
+    env: goEnv,
+  },
+  steps: [
+    {
+      name: "build",
+      image: goImage,
+      computeResources: {
+        limits: { cpu: "2", memory: "2Gi", "ephemeral-storage": "4Gi" },
+        requests: {
+          cpu: "1",
+          memory: "1Gi",
+          "ephemeral-storage": "2Gi",
+        },
+      },
+      script:
+        nuHeader +
+        `
 log $"pwd=(pwd) uid=(id -u) go=(go version)"
 log $"GOMODCACHE=($env.GOMODCACHE) GOCACHE=($env.GOCACHE)"
 log $".git exists=('.git' | path exists) go-mod exists=('go-mod' | path exists)"
@@ -132,68 +132,68 @@ for cmd in ["./cmd/ocidex", "./cmd/scanner-worker", "./cmd/enrichment-worker"] {
 }
 log $"Exit code: ($ec)"
 exit $ec`,
-            onError: "continue",
-        },
-    ],
+      onError: "continue",
+    },
+  ],
 });
 
 const goTest = new Task({
-    name: "go-test",
-    needs: [goBuild],
-    statusReporter,
-    stepTemplate: {
-        env: [
-            ...goEnv,
-            { name: "GOMAXPROCS", value: "2" },
-            { name: "GOMEMLIMIT", value: "1800MiB" },
-        ],
-    },
-    steps: [
-        {
-            name: "test",
-            image: goImage,
-            computeResources: {
-                // GKE Autopilot assigns ephemeral-storage: 1Gi by default; go test
-                // writes compiled test binaries to $TMPDIR which can exceed that.
-                // Request 2Gi so the container has room without routing to the PVC.
-                limits: { cpu: "2", memory: "2Gi", "ephemeral-storage": "2Gi" },
-                requests: {
-                    cpu: "500m",
-                    memory: "256Mi",
-                    "ephemeral-storage": "2Gi",
-                },
-            },
-            script:
-                nuHeader +
-                `
+  name: "go-test",
+  needs: [goBuild],
+  statusReporter,
+  stepTemplate: {
+    env: [
+      ...goEnv,
+      { name: "GOMAXPROCS", value: "2" },
+      { name: "GOMEMLIMIT", value: "1800MiB" },
+    ],
+  },
+  steps: [
+    {
+      name: "test",
+      image: goImage,
+      computeResources: {
+        // GKE Autopilot assigns ephemeral-storage: 1Gi by default; go test
+        // writes compiled test binaries to $TMPDIR which can exceed that.
+        // Request 2Gi so the container has room without routing to the PVC.
+        limits: { cpu: "2", memory: "2Gi", "ephemeral-storage": "2Gi" },
+        requests: {
+          cpu: "500m",
+          memory: "256Mi",
+          "ephemeral-storage": "2Gi",
+        },
+      },
+      script:
+        nuHeader +
+        `
 log "Running go test"
 let ec = run_and_save 0 "go" "test" "-v" "-short" "-p" "2" "./..."
 log $"Exit code: ($ec)"
 exit $ec`,
-            onError: "continue",
-        },
-    ],
+      onError: "continue",
+    },
+  ],
 });
 
 const frontendLint = new Task({
-    name: "frontend-lint",
-    statusReporter,
-    caches: [nodeModulesCache],
-    stepTemplate: {
-        env: nodeEnv,
-    },
-    steps: [
-        {
-            name: "lint",
-            image: nodeImage,
-            workingDir: "$(workspaces.workspace.path)/web",
-            computeResources: {
-                limits: { cpu: "2", memory: "3Gi" },
-                requests: { cpu: "1", memory: "2Gi" },
-            },
-            script:
-                nuHeader +
-                `
+  name: "frontend-lint",
+  statusReporter,
+  caches: [nodeModulesCache],
+  stepTemplate: {
+    env: nodeEnv,
+  },
+  steps: [
+    {
+      name: "lint",
+      image: nodeImage,
+      workingDir: "$(workspaces.workspace.path)/web",
+      computeResources: {
+        limits: { cpu: "2", memory: "3Gi" },
+        requests: { cpu: "1", memory: "2Gi" },
+      },
+      script:
+        nuHeader +
+        `
 log $"pwd=(pwd) uid=(id -u) node=(node --version) npm=(npm --version)"
 log $"node_modules exists=('node_modules' | path exists) package.json exists=('package.json' | path exists)"
 log "Installing dependencies"
@@ -205,25 +205,25 @@ log "Running ESLint"
 let ec = run_and_save $install_ec "npm" "run" "lint"
 log (if $ec == 0 { "OK: no lint errors" } else { "FAIL: lint errors found" })
 exit $ec`,
-            onError: "continue",
-        },
-    ],
+      onError: "continue",
+    },
+  ],
 });
 
 const openapiCheck = new Task({
-    name: "openapi-check",
-    needs: [goBuild, frontendLint],
-    statusReporter,
-    stepTemplate: {
-        env: [...goEnv, ...nodeEnv],
-    },
-    steps: [
-        {
-            name: "check-spec",
-            image: goImage,
-            script:
-                nuHeader +
-                `
+  name: "openapi-check",
+  needs: [goBuild, frontendLint],
+  statusReporter,
+  stepTemplate: {
+    env: [...goEnv, ...nodeEnv],
+  },
+  steps: [
+    {
+      name: "check-spec",
+      image: goImage,
+      script:
+        nuHeader +
+        `
 log $"pwd=(pwd) uid=(id -u) go=(go version)"
 log $".git exists=('.git' | path exists)"
 ^git config --global --add safe.directory (pwd)
@@ -239,15 +239,15 @@ log "Diffing against committed spec"
 let ec = run_and_save 0 "diff" "web/openapi.json" "/tmp/openapi-check.json"
 log (if $ec == 0 { "OK: spec is up to date" } else { "FAIL: spec out of date" })
 exit $ec`,
-            onError: "continue",
-        },
-        {
-            name: "check-types",
-            image: nodeImage,
-            workingDir: "$(workspaces.workspace.path)/web",
-            script:
-                nuHeader +
-                `
+      onError: "continue",
+    },
+    {
+      name: "check-types",
+      image: nodeImage,
+      workingDir: "$(workspaces.workspace.path)/web",
+      script:
+        nuHeader +
+        `
 let prev_ec = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
 log $"prev exit code from check-spec: ($prev_ec)"
 log $"pwd=(pwd) uid=(id -u) node=(node --version) npm=(npm --version)"
@@ -270,9 +270,9 @@ log "Diffing against committed types"
 let ec = run_and_save $prev_ec "diff" "src/types/openapi.d.ts" "/tmp/openapi-check.d.ts"
 log (if $ec == 0 { "OK: types up to date" } else { "FAIL: types out of date" })
 exit $ec`,
-            onError: "continue",
-        },
-    ],
+      onError: "continue",
+    },
+  ],
 });
 
 // ─── Pipelines ──────────────────────────────────────────────────────────────
@@ -280,36 +280,36 @@ exit $ec`,
 const allTasks = [goFmt, goTest, goBuild, openapiCheck, frontendLint];
 
 const pushPipeline = new GitPipeline({
-    name: "ocidex-push",
-    triggers: [TRIGGER_EVENTS.PUSH],
-    tasks: allTasks,
+  name: "ocidex-push",
+  triggers: [TRIGGER_EVENTS.PUSH],
+  tasks: allTasks,
 });
 
 const prPipeline = new GitPipeline({
-    name: "ocidex-pull-request",
-    triggers: [TRIGGER_EVENTS.PULL_REQUEST],
-    tasks: allTasks,
+  name: "ocidex-pull-request",
+  triggers: [TRIGGER_EVENTS.PULL_REQUEST],
+  tasks: allTasks,
 });
 
 // ─── Synthesize ─────────────────────────────────────────────────────────────
 new TektonProject({
-    name: "ocidex",
-    namespace: "ocidex-ci",
-    pipelines: [pushPipeline, prPipeline],
-    outdir: "generated",
-    webhookSecretRef: {
-        secretName: "github-webhook-secret",
-        secretKey: "secret",
-    },
-    workspaceStorageSize: "5Gi",
-    workspaceStorageClass: "standard-rwo",
-    defaultPodSecurityContext: {
-        runAsUser: 1024,
-        runAsGroup: 1024,
-        fsGroup: 1024,
-    },
-    serviceAccountAnnotations: {
-        "iam.gke.io/gcp-service-account":
-            "ocidex-ci-cache@default-350219.iam.gserviceaccount.com",
-    },
+  name: "ocidex",
+  namespace: "ocidex-ci",
+  pipelines: [pushPipeline, prPipeline],
+  outdir: "generated",
+  webhookSecretRef: {
+    secretName: "github-webhook-secret",
+    secretKey: "secret",
+  },
+  workspaceStorageSize: "5Gi",
+  workspaceStorageClass: "local-path",
+  defaultPodSecurityContext: {
+    runAsUser: 1024,
+    runAsGroup: 1024,
+    fsGroup: 1024,
+  },
+  serviceAccountAnnotations: {
+    "iam.gke.io/gcp-service-account":
+      "ocidex-ci-cache@default-350219.iam.gserviceaccount.com",
+  },
 });
