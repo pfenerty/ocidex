@@ -24,7 +24,7 @@ spec:
           - ALL
     workingDir: $(workspaces.workspace.path)
   steps:
-    - image: ghcr.io/pfenerty/apko-cicd/golang:1.25
+    - image: ghcr.io/pfenerty/apko-cicd/golang:1.26
       name: fmt
       onError: continue
       script: |-
