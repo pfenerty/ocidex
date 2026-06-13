@@ -134,6 +134,9 @@ func scanTag(ctx context.Context, client *http.Client, baseURL, repo, tag string
 		logger.Warn("manifest HEAD returned no digest", "repo", repo, "tag", tag)
 		return 0
 	}
+	if scannedDigests[info.digest] {
+		return 0
+	}
 	scannedDigests[info.digest] = true
 	if isIndexMediaType(info.mediaType) {
 		return scanIndex(ctx, client, baseURL, repo, tag, info.digest, reg, sub, scannedDigests, logger)
@@ -171,6 +174,9 @@ func scanIndex(ctx context.Context, client *http.Client, baseURL, repo, tag, ind
 	}
 	queued := 0
 	for _, p := range platforms {
+		if scannedDigests[p.digest] {
+			continue
+		}
 		scannedDigests[p.digest] = true
 		meta := ociGetImageMetadata(ctx, client, baseURL, repo, p.digest)
 		arch := p.arch

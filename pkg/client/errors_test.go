@@ -9,9 +9,9 @@ import (
 
 func TestMapError(t *testing.T) {
 	tests := []struct {
-		name       string
-		status     int
-		body       []byte
+		name         string
+		status       int
+		body         []byte
 		wantSentinel error
 		wantAPIErr   *APIError
 	}{
@@ -34,16 +34,16 @@ func TestMapError(t *testing.T) {
 			wantSentinel: ErrConflict,
 		},
 		{
-			name:         "500 returns APIError with decoded detail",
-			status:       500,
-			body:         []byte(`{"status":500,"detail":"internal error"}`),
-			wantAPIErr:   &APIError{Status: 500, Detail: "internal error"},
+			name:       "500 returns APIError with decoded detail",
+			status:     500,
+			body:       []byte(`{"status":500,"detail":"internal error"}`),
+			wantAPIErr: &APIError{Status: 500, Detail: "internal error"},
 		},
 		{
-			name:         "422 returns APIError with raw body fallback on malformed JSON",
-			status:       422,
-			body:         []byte(`bad json`),
-			wantAPIErr:   &APIError{Status: 422, Detail: "bad json"},
+			name:       "422 returns APIError with raw body fallback on malformed JSON",
+			status:     422,
+			body:       []byte(`bad json`),
+			wantAPIErr: &APIError{Status: 422, Detail: "bad json"},
 		},
 	}
 

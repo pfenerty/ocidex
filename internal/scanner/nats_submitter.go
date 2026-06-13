@@ -3,11 +3,8 @@ package scanner
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"log/slog"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgconn"
 
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 	"github.com/pfenerty/ocidex/internal/service"
@@ -64,10 +61,6 @@ func (s *NATSSubmitter) Submit(ctx context.Context, req ScanRequest) error {
 
 	job, err := s.jobSvc.Enqueue(ctx, req.RegistryID, req.Repository, req.Digest, req.Tag, idempotencyKey)
 	if err != nil {
-		if isUniqueViolation(err) {
-			// Already enqueued; the existing row is being polled or hinted. No-op.
-			return nil
-		}
 		return err
 	}
 
@@ -85,11 +78,6 @@ func (s *NATSSubmitter) Submit(ctx context.Context, req ScanRequest) error {
 		s.logger.Warn("scan hint publish failed; poll loop will pick up", "job_id", job.ID, "err", err)
 	}
 	return nil
-}
-
-func isUniqueViolation(err error) bool {
-	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
 // ScanRequestFromClaim converts a ScanJobClaim into a ScanRequest for the processor.

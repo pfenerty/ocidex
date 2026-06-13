@@ -286,6 +286,15 @@ func (q *Queries) GetScanJob(ctx context.Context, id pgtype.UUID) (ScanJob, erro
 const insertScanJob = `-- name: InsertScanJob :one
 INSERT INTO scan_jobs (registry_id, repository, digest, tag, nats_msg_id)
 VALUES ($1::uuid, $2, $3, $4, $5)
+ON CONFLICT (nats_msg_id) DO UPDATE
+    SET state           = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN 'queued'::text ELSE scan_jobs.state           END,
+        attempts        = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN 0              ELSE scan_jobs.attempts        END,
+        last_error      = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.last_error      END,
+        finished_at     = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.finished_at     END,
+        started_at      = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.started_at      END,
+        last_attempt_at = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.last_attempt_at END,
+        sbom_id         = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.sbom_id         END,
+        tag             = EXCLUDED.tag
 RETURNING id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id
 `
 
@@ -297,6 +306,9 @@ type InsertScanJobParams struct {
 	NatsMsgID  pgtype.Text `json:"nats_msg_id"`
 }
 
+// On conflict with a terminal row (succeeded/failed), reset it to queued so
+// ad-hoc re-scans work. On conflict with an active row (queued/running), leave
+// it unchanged — the existing job is still being processed.
 func (q *Queries) InsertScanJob(ctx context.Context, arg InsertScanJobParams) (ScanJob, error) {
 	row := q.db.QueryRow(ctx, insertScanJob,
 		arg.RegistryID,

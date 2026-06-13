@@ -317,8 +317,10 @@ func (h *Handler) ScanRegistry(ctx context.Context, in *ScanRegistryInput) (*Sca
 	go func() { //nolint:gosec
 		walkCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		known := scanner.FetchKnownDigests(walkCtx, h.sbomService, reg.ID)
-		queued, err := scanner.WalkRegistry(walkCtx, reg, h.scanSubmitter, known, slog.Default())
+		// Pass nil knownDigests so that already-scanned images are re-queued
+		// by the upsert in InsertScanJob. The scheduled scanner uses
+		// FetchKnownDigests to skip known images at the walk level.
+		queued, err := scanner.WalkRegistry(walkCtx, reg, h.scanSubmitter, nil, slog.Default())
 		if err != nil {
 			slog.Error("ad-hoc registry scan failed", "registry", reg.Name, "err", err)
 			return

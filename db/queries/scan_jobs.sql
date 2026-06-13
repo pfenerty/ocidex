@@ -1,6 +1,18 @@
 -- name: InsertScanJob :one
+-- On conflict with a terminal row (succeeded/failed), reset it to queued so
+-- ad-hoc re-scans work. On conflict with an active row (queued/running), leave
+-- it unchanged — the existing job is still being processed.
 INSERT INTO scan_jobs (registry_id, repository, digest, tag, nats_msg_id)
 VALUES (sqlc.narg('registry_id')::uuid, @repository, @digest, sqlc.narg('tag'), sqlc.narg('nats_msg_id'))
+ON CONFLICT (nats_msg_id) DO UPDATE
+    SET state           = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN 'queued'::text ELSE scan_jobs.state           END,
+        attempts        = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN 0              ELSE scan_jobs.attempts        END,
+        last_error      = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.last_error      END,
+        finished_at     = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.finished_at     END,
+        started_at      = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.started_at      END,
+        last_attempt_at = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.last_attempt_at END,
+        sbom_id         = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.sbom_id         END,
+        tag             = EXCLUDED.tag
 RETURNING *;
 
 -- name: StartScanJob :exec

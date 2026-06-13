@@ -263,6 +263,43 @@ func TestWalkRegistry_CatalogDiscovery(t *testing.T) {
 	is.Equal(got[0].Digest, "sha256:digest-repo1")
 }
 
+// TestWalkRegistry_KnownDigestDedup_TagPath verifies that digests present in
+// knownDigests are not re-submitted via the tag-based scan path. This is what
+// prevents the scheduled scanner from resetting already-succeeded scan jobs.
+func TestWalkRegistry_KnownDigestDedup_TagPath(t *testing.T) {
+	is := is.New(t)
+
+	cfg := ociRegistryConfig{
+		tags: map[string][]string{
+			"myrepo": {"v1.0"},
+		},
+		manifests: map[string]fakeManifest{
+			"myrepo:v1.0": {
+				digest:    "sha256:already-known",
+				mediaType: "application/vnd.oci.image.manifest.v1+json",
+				body:      singleArchManifest("sha256:config-known"),
+			},
+		},
+		blobs: map[string][]byte{
+			"sha256:config-known": configBlob("amd64"),
+		},
+	}
+	srv := newFakeOCIRegistry(t, cfg)
+	defer srv.Close()
+
+	sub := &fakeSubmitter{}
+	reg := service.Registry{
+		URL:          srv.URL,
+		Repositories: []string{"myrepo"},
+	}
+	knownDigests := map[string]bool{"sha256:already-known": true}
+	queued, err := WalkRegistry(t.Context(), reg, sub, knownDigests, discardLogger())
+
+	is.NoErr(err)
+	is.Equal(queued, 0)
+	is.Equal(len(sub.submitted()), 0)
+}
+
 // TestWalkRegistry_KnownDigestDedup verifies that digests present in knownDigests
 // are not re-submitted via the untagged-discovery path.
 func TestWalkRegistry_KnownDigestDedup(t *testing.T) {
