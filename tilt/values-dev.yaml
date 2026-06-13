@@ -1,5 +1,9 @@
 image:
+  registry: ""
   pullPolicy: IfNotPresent
+
+migrate:
+  enabled: false
 
 api:
   replicas: 1
