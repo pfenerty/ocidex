@@ -19,6 +19,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
@@ -72,6 +73,11 @@ func run() error {
 		return fmt.Errorf("OPERATOR_NAMESPACE must be set")
 	}
 
+	watchNS := os.Getenv("WATCH_NAMESPACE")
+	if watchNS == "" {
+		return fmt.Errorf("WATCH_NAMESPACE must be set")
+	}
+
 	ocidexClient := client.New(client.Config{BaseURL: serverURL, APIKey: apiKey})
 
 	shutdownTimeout := 30 * time.Second
@@ -83,6 +89,11 @@ func run() error {
 		LeaderElectionID:        "ocidex-operator-leader",
 		LeaderElectionNamespace: operatorNS,
 		GracefulShutdownTimeout: &shutdownTimeout,
+		Cache: cache.Options{
+			DefaultNamespaces: map[string]cache.Config{
+				watchNS: {},
+			},
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("creating manager: %w", err)
