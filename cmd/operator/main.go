@@ -49,7 +49,7 @@ func run() error {
 	leaderElect := flag.Bool("leader-elect", false, "Enable leader election (required when running multiple replicas)")
 	flag.Parse()
 
-	cfg, err := config.Load()
+	cfg, err := config.LoadOperator()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
