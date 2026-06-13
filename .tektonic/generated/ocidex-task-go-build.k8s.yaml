@@ -80,9 +80,9 @@ spec:
           ephemeral-storage: 4Gi
           memory: 2Gi
         requests:
-          cpu: 500m
+          cpu: "1"
           ephemeral-storage: 2Gi
-          memory: 256Mi
+          memory: 1Gi
       image: ghcr.io/pfenerty/apko-cicd/golang:1.25
       name: build
       onError: continue
