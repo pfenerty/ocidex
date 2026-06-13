@@ -8,9 +8,9 @@ import (
 
 func TestPage_HasMore(t *testing.T) {
 	tests := []struct {
-		name  string
-		page  Page[string]
-		want  bool
+		name string
+		page Page[string]
+		want bool
 	}{
 		{
 			name: "more results exist",

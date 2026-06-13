@@ -24,7 +24,6 @@ func TestNew_CustomHTTPClient(t *testing.T) {
 	is.Equal(c.http, custom)
 }
 
-
 func TestDo_SendsBearerToken(t *testing.T) {
 	is := is.New(t)
 	var got string

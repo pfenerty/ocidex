@@ -8,9 +8,9 @@ import (
 
 // Sentinel errors returned by Client methods. Use errors.Is to check.
 var (
-	ErrNotFound  = errors.New("not found")  // HTTP 404
-	ErrForbidden = errors.New("forbidden")  // HTTP 403
-	ErrConflict  = errors.New("conflict")   // HTTP 409
+	ErrNotFound  = errors.New("not found") // HTTP 404
+	ErrForbidden = errors.New("forbidden") // HTTP 403
+	ErrConflict  = errors.New("conflict")  // HTTP 409
 )
 
 // APIError is returned for non-2xx responses not covered by the named sentinels.
