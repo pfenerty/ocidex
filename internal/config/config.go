@@ -83,6 +83,37 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
+// OperatorConfig holds the subset of configuration needed by the K8s operator.
+// The operator communicates only with the OCIDex API — it does not require a
+// database connection or NATS.
+type OperatorConfig struct {
+	LogLevel    string `env:"LOG_LEVEL"    envDefault:"info"`
+	Environment string `env:"ENVIRONMENT"  envDefault:"development"`
+}
+
+// LoadOperator reads operator-specific configuration from environment variables.
+func LoadOperator() (*OperatorConfig, error) {
+	cfg := &OperatorConfig{}
+	if err := env.Parse(cfg); err != nil {
+		return nil, fmt.Errorf("parsing config: %w", err)
+	}
+	return cfg, nil
+}
+
+// SlogLevel returns the slog.Level for an OperatorConfig.
+func (c *OperatorConfig) SlogLevel() slog.Level {
+	switch c.LogLevel {
+	case "debug":
+		return slog.LevelDebug
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
+
 func (c *Config) validate() error {
 	if c.NATSURL == "" {
 		return fmt.Errorf("NATS_URL is required")
