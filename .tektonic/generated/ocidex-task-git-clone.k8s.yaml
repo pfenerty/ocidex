@@ -9,6 +9,31 @@ spec:
       type: string
     - name: revision
       type: string
+  results:
+    - description: Full commit SHA
+      name: commit
+      type: string
+    - description: Abbreviated commit SHA
+      name: short-sha
+      type: string
+    - description: Checked-out branch/revision
+      name: branch
+      type: string
+    - description: Commit subject line
+      name: commit-message
+      type: string
+    - description: Commit author name
+      name: author-name
+      type: string
+    - description: Commit author email
+      name: author-email
+      type: string
+    - description: Author timestamp (ISO 8601)
+      name: timestamp
+      type: string
+    - description: Repository remote URL
+      name: remote-url
+      type: string
   stepTemplate:
     computeResources:
       limits:
@@ -42,7 +67,7 @@ spec:
         git fetch --depth=1 origin $(params.revision)
         git checkout -b $(params.revision) FETCH_HEAD
 
-        # Capture git metadata for downstream tasks
+        # Write git metadata as Tekton results for downstream tasks.
         let sha = (git rev-parse HEAD | str trim)
         let short_sha = (git rev-parse --short HEAD | str trim)
         let commit_message = (git log -1 --format=%s | str trim)
@@ -50,16 +75,14 @@ spec:
         let author_email = (git log -1 --format=%ae | str trim)
         let timestamp = (git log -1 --format=%aI | str trim)
 
-        {
-            sha: $sha,
-            short_sha: $short_sha,
-            branch: "$(params.revision)",
-            commit_message: $commit_message,
-            author_name: $author_name,
-            author_email: $author_email,
-            timestamp: $timestamp,
-            remote_url: "$(params.url)",
-        } | to json | save $(workspaces.workspace.path)/git-metadata.json
+        $sha            | save -f $(results.commit.path)
+        $short_sha      | save -f $(results.short-sha.path)
+        "$(params.revision)"   | save -f $(results.branch.path)
+        $commit_message | save -f $(results.commit-message.path)
+        $author_name    | save -f $(results.author-name.path)
+        $author_email   | save -f $(results.author-email.path)
+        $timestamp      | save -f $(results.timestamp.path)
+        "$(params.url)"        | save -f $(results.remote-url.path)
       workingDir: $(workspaces.workspace.path)
   workspaces:
     - name: workspace

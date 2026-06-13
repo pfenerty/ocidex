@@ -8,7 +8,6 @@ resources:
   - ocidex-task-git-clone.k8s.yaml
   - ocidex-task-go-build.k8s.yaml
   - ocidex-task-go-fmt.k8s.yaml
-  - ocidex-task-go-lint.k8s.yaml
   - ocidex-task-go-test.k8s.yaml
   - ocidex-task-openapi-check.k8s.yaml
   - ocidex-task-set-status-pending.k8s.yaml

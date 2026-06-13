@@ -23,7 +23,14 @@ spec:
         drop:
           - ALL
   steps:
-    - env:
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      env:
         - name: GITHUB_TOKEN
           valueFrom:
             secretKeyRef:
@@ -53,7 +60,14 @@ spec:
           log $"error: ($e.msg)"
           exit 1
         }
-    - env:
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      env:
         - name: GITHUB_TOKEN
           valueFrom:
             secretKeyRef:
@@ -83,7 +97,14 @@ spec:
           log $"error: ($e.msg)"
           exit 1
         }
-    - env:
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      env:
         - name: GITHUB_TOKEN
           valueFrom:
             secretKeyRef:
@@ -113,7 +134,14 @@ spec:
           log $"error: ($e.msg)"
           exit 1
         }
-    - env:
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      env:
         - name: GITHUB_TOKEN
           valueFrom:
             secretKeyRef:
@@ -143,7 +171,14 @@ spec:
           log $"error: ($e.msg)"
           exit 1
         }
-    - env:
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      env:
         - name: GITHUB_TOKEN
           valueFrom:
             secretKeyRef:
