@@ -68,7 +68,7 @@ spec:
           ephemeral-storage: 4Gi
           memory: 2Gi
         requests:
-          cpu: "1"
+          cpu: 500m
           ephemeral-storage: 2Gi
           memory: 1Gi
       image: ghcr.io/pfenerty/apko-cicd/golang:1.26

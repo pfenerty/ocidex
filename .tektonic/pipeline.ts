@@ -120,7 +120,7 @@ const goBuild = new Task({
       computeResources: {
         limits: { cpu: "2", memory: "2Gi", "ephemeral-storage": "4Gi" },
         requests: {
-          cpu: "1",
+          cpu: "500m",
           memory: "1Gi",
           "ephemeral-storage": "2Gi",
         },
@@ -199,7 +199,7 @@ const frontendLint = new Task({
       workingDir: "$(workspaces.workspace.path)/web",
       computeResources: {
         limits: { cpu: "2", memory: "3Gi" },
-        requests: { cpu: "1", memory: "2Gi" },
+        requests: { cpu: "500m", memory: "2Gi" },
       },
       script:
         nuHeader +
