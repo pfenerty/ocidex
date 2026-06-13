@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -54,9 +55,11 @@ func run() error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: cfg.SlogLevel(),
-	})))
+	}))
+	slog.SetDefault(logger)
+	ctrl.SetLogger(logr.FromSlogHandler(logger.Handler()))
 
 	serverURL := os.Getenv("OCIDEX_SERVER")
 	apiKey := os.Getenv("OCIDEX_API_KEY")
