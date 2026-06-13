@@ -87,6 +87,11 @@ web:
       cpu: "100m"
       memory: "64Mi"
 
+# --- Migrate job -------------------------------------------------------------
+# Set to false in dev; run `make migrate-up` manually instead.
+migrate:
+  enabled: true
+
 # --- NATS JetStream ----------------------------------------------------------
 nats:
   storage:

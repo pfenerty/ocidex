@@ -61,5 +61,9 @@ Full image reference for a named component.
 Usage: {{ include "ocidex.image" (dict "root" . "name" "api") }}
 */}}
 {{- define "ocidex.image" -}}
+{{- if .root.Values.image.registry -}}
 {{ .root.Values.image.registry }}/ocidex-{{ .name }}:{{ include "ocidex.imageTag" .root }}
+{{- else -}}
+ocidex-{{ .name }}:{{ include "ocidex.imageTag" .root }}
+{{- end -}}
 {{- end }}
