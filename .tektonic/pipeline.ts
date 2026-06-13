@@ -8,8 +8,8 @@ import {
 } from "@pfenerty/tektonic";
 
 // --- Images ─────────────────────────────────────────────────────────────────
-const goImage = "ghcr.io/pfenerty/apko-cicd/golang:1.25";
-const lintImage = "ghcr.io/pfenerty/apko-cicd/golangci-lint:2.11.4-go1.25";
+const goImage = "ghcr.io/pfenerty/apko-cicd/golang:1.26";
+const lintImage = "ghcr.io/pfenerty/apko-cicd/golangci-lint:2.12.2-go1.26";
 const nodeImage = "ghcr.io/pfenerty/apko-cicd/nodejs:22";
 
 // ─── Status reporter ─────────────────────────────────────────────────────────

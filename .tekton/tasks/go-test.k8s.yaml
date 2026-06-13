@@ -44,7 +44,7 @@ spec:
           cpu: 500m
           ephemeral-storage: 2Gi
           memory: 256Mi
-      image: ghcr.io/pfenerty/apko-cicd/golang:1.25
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.26
       name: test
       onError: continue
       script: |-
