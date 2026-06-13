@@ -7,7 +7,6 @@
 #     --from-literal=GITHUB_CLIENT_SECRET=<github-oauth-client-secret> \
 #     --from-literal=SESSION_SECRET=$(openssl rand -hex 32)
 #
-# See k8s/base/secrets.yaml.example for all required fields.
 
 # --- Images ------------------------------------------------------------------
 image:
@@ -91,6 +90,7 @@ web:
 # --- NATS JetStream ----------------------------------------------------------
 nats:
   storage:
+    emptyDir: false
     size: 1Gi
     storageClass: ""
   resources:

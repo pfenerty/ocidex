@@ -69,15 +69,15 @@ docker_build(
     ignore=['web/dist', 'web/node_modules'],
 )
 
-k8s_yaml(kustomize('k8s/overlays/dev'))
+k8s_yaml(helm('./charts/ocidex', name='ocidex', namespace='default', values=['tilt/values-dev.yaml']))
 
 k8s_resource('ocidex-api', port_forwards=port_forward(8080, 8080, host='0.0.0.0'), labels=['app'])
 k8s_resource('ocidex-web', labels=['app'])
 k8s_resource('ocidex-scanner-worker', labels=['workers'])
 k8s_resource('ocidex-enrichment-worker', labels=['workers'])
-k8s_resource('nats', labels=['infra'])
+k8s_resource('ocidex-nats', labels=['infra'])
 k8s_resource('postgres', port_forwards=port_forward(5432, 5432, host='0.0.0.0'), labels=['infra'])
-k8s_resource('ocidex-migrate', resource_deps=['postgres'], labels=['infra'])
+k8s_resource('ocidex-migrate-1', resource_deps=['postgres'], labels=['infra'])
 
 local_resource(
     'web',
