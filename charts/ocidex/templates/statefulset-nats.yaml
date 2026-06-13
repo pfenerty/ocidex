@@ -15,8 +15,13 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "ocidex.selectorLabels" (dict "root" . "component" "nats") | nindent 8 }}
+        {{- include "ocidex.podLabels" (dict "root" . "component" "nats") | nindent 8 }}
     spec:
+      {{- if .Values.nats.storage.emptyDir }}
+      volumes:
+        - name: data
+          emptyDir: {}
+      {{- end }}
       containers:
         - name: nats
           image: docker.io/nats:2-alpine
@@ -31,6 +36,7 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+  {{- if not .Values.nats.storage.emptyDir }}
   volumeClaimTemplates:
     - metadata:
         name: data
@@ -42,3 +48,4 @@ spec:
         resources:
           requests:
             storage: {{ .Values.nats.storage.size }}
+  {{- end }}

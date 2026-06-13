@@ -24,6 +24,7 @@ helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
 app.kubernetes.io/name: {{ include "ocidex.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+app.kubernetes.io/part-of: {{ include "ocidex.name" . }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
@@ -35,6 +36,16 @@ Usage: {{ include "ocidex.selectorLabels" (dict "root" . "component" "api") }}
 app.kubernetes.io/name: {{ include "ocidex.name" .root }}
 app.kubernetes.io/instance: {{ .root.Release.Name }}
 app.kubernetes.io/component: {{ .component }}
+{{- end }}
+
+{{/*
+Pod template labels: selector labels + Hubble-visible metadata.
+Usage: {{ include "ocidex.podLabels" (dict "root" . "component" "api") }}
+*/}}
+{{- define "ocidex.podLabels" -}}
+{{- include "ocidex.selectorLabels" . }}
+app.kubernetes.io/part-of: {{ include "ocidex.name" .root }}
+app.kubernetes.io/version: {{ .root.Chart.AppVersion | quote }}
 {{- end }}
 
 {{/*

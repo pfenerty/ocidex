@@ -1,0 +1,29 @@
+image:
+  pullPolicy: IfNotPresent
+
+api:
+  replicas: 1
+  env:
+    environment: development
+    logLevel: debug
+    natsStreamReplicas: "1"
+
+scannerWorker:
+  replicas: 1
+  env:
+    natsStreamReplicas: "1"
+    databaseMaxConnections: "3"
+    environment: development
+    logLevel: debug
+
+enrichmentWorker:
+  replicas: 1
+  env:
+    natsStreamReplicas: "1"
+    databaseMaxConnections: "3"
+    environment: development
+    logLevel: debug
+
+nats:
+  storage:
+    emptyDir: true

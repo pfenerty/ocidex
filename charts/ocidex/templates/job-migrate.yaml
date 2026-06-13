@@ -16,7 +16,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "ocidex.selectorLabels" (dict "root" . "component" "migrate") | nindent 8 }}
+        {{- include "ocidex.podLabels" (dict "root" . "component" "migrate") | nindent 8 }}
     spec:
       restartPolicy: OnFailure
       containers:

@@ -16,7 +16,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "ocidex.selectorLabels" (dict "root" . "component" "scanner-worker") | nindent 8 }}
+        {{- include "ocidex.podLabels" (dict "root" . "component" "scanner-worker") | nindent 8 }}
     spec:
       serviceAccountName: {{ include "ocidex.fullname" . }}
       terminationGracePeriodSeconds: 660
