@@ -1,8 +1,6 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  annotations:
-    iam.gke.io/gcp-service-account: ocidex-ci-cache@default-350219.iam.gserviceaccount.com
   name: ocidex-tekton-triggers
   namespace: ocidex-ci
 ---
@@ -32,6 +30,32 @@ subjects:
   - kind: ServiceAccount
     name: ocidex-tekton-triggers
     namespace: ocidex-ci
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ocidex-go-cache
+  namespace: ocidex-ci
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: local-path
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ocidex-node-cache
+  namespace: ocidex-ci
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: local-path
 ---
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerBinding
@@ -110,6 +134,12 @@ spec:
                   requests:
                     storage: 5Gi
                 storageClassName: local-path
+          - name: go-cache
+            persistentVolumeClaim:
+              claimName: ocidex-go-cache
+          - name: node-cache
+            persistentVolumeClaim:
+              claimName: ocidex-node-cache
 ---
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerBinding
@@ -188,6 +218,12 @@ spec:
                   requests:
                     storage: 5Gi
                 storageClassName: local-path
+          - name: go-cache
+            persistentVolumeClaim:
+              claimName: ocidex-go-cache
+          - name: node-cache
+            persistentVolumeClaim:
+              claimName: ocidex-node-cache
 ---
 apiVersion: triggers.tekton.dev/v1beta1
 kind: EventListener

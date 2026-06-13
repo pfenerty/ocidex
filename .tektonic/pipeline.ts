@@ -1,5 +1,6 @@
 import {
   Task,
+  Workspace,
   GitPipeline,
   TektonProject,
   TRIGGER_EVENTS,
@@ -12,17 +13,30 @@ const lintImage = "ghcr.io/pfenerty/apko-cicd/golangci-lint:2.11.4-go1.25";
 const nodeImage = "ghcr.io/pfenerty/apko-cicd/nodejs:22";
 
 // ─── Status reporter ─────────────────────────────────────────────────────────
-const statusReporter = new GitHubStatusReporter();
+const statusReporter = new GitHubStatusReporter({
+  // 5 tasks report status → 5 steps in set-status-pending, each just an HTTP POST.
+  // Default 512Mi limit per step causes OOM on constrained nodes; these are tight
+  // but sufficient for nushell + a single GitHub API call.
+  pendingTaskComputeResources: {
+    requests: { cpu: "25m", memory: "64Mi" },
+    limits: { cpu: "200m", memory: "128Mi" },
+  },
+});
 
-// ─── Cache specs (GCS — no PVCs needed) ─────────────────────────────────────
-// Archives stored in gs://ocidex-ci-cache/{go,node}/HASH.tar.zst.
-// Auth via GKE Workload Identity (serviceAccountAnnotations below).
+// ─── Cache workspaces (PVC-backed, local-path) ───────────────────────────────
+// Persistent PVCs provisioned once; mounted read-write by each pipeline run.
+// ReadWriteOnce is required — local-path does not support ReadWriteMany.
+// Concurrent pipeline runs on the same node can both mount the PVC but risk
+// cache corruption on simultaneous saves (non-fatal: next run rebuilds).
+const goCacheWs   = new Workspace({ name: "go-cache" });
+const nodeCacheWs = new Workspace({ name: "node-cache" });
+
 const goCache = {
   name: "go-cache",
   key: ["go.sum"],
   // Use dotdir paths so `go test ./...` skips them (Go ignores dirs starting with '.')
   paths: [".go-mod", ".go-build"],
-  backend: { type: "gcs" as const, bucket: "ocidex-ci-cache", prefix: "go/" },
+  workspace: goCacheWs,
   compress: true,
   workingDir: "$(workspaces.workspace.path)",
 };
@@ -31,11 +45,7 @@ const nodeModulesCache = {
   name: "node-modules",
   key: ["package-lock.json"],
   paths: ["node_modules"],
-  backend: {
-    type: "gcs" as const,
-    bucket: "ocidex-ci-cache",
-    prefix: "node/",
-  },
+  workspace: nodeCacheWs,
   compress: true,
   workingDir: "$(workspaces.workspace.path)/web",
 };
@@ -308,8 +318,8 @@ new TektonProject({
     runAsGroup: 1024,
     fsGroup: 1024,
   },
-  serviceAccountAnnotations: {
-    "iam.gke.io/gcp-service-account":
-      "ocidex-ci-cache@default-350219.iam.gserviceaccount.com",
-  },
+  caches: [
+    { workspace: goCacheWs,   storageSize: "5Gi", storageClassName: "local-path" },
+    { workspace: nodeCacheWs, storageSize: "2Gi", storageClassName: "local-path" },
+  ],
 });
