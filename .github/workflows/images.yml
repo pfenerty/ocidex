@@ -133,14 +133,14 @@ jobs:
       - name: Package and push ocidex chart
         run: |
           helm package charts/ocidex \
-            --version "0.0.0-${{ github.sha }}" \
+            --version "0.0.0-${{ github.run_number }}" \
             --app-version "sha-${{ steps.sha.outputs.short }}"
           helm push ocidex-*.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
 
       - name: Package and push ocidex-operator chart
         run: |
           helm package charts/ocidex-operator \
-            --version "0.0.0-${{ github.sha }}" \
+            --version "0.0.0-${{ github.run_number }}" \
             --app-version "sha-${{ steps.sha.outputs.short }}"
           helm push ocidex-operator-*.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
 
