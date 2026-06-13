@@ -451,7 +451,7 @@ func toNullText(s *string) pgtype.Text {
 
 // nonEmpty filters out empty strings from a slice.
 func nonEmpty(ss []string) []string {
-	out := ss[:0:0]
+	out := make([]string, 0, len(ss))
 	for _, s := range ss {
 		if s != "" {
 			out = append(out, s)
