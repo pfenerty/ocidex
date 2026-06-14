@@ -62,7 +62,14 @@ spec:
         let ec = run_and_save 0 "diff" "web/openapi.json" "/tmp/openapi-check.json"
         log (if $ec == 0 { "OK: spec is up to date" } else { "FAIL: spec out of date" })
         exit $ec
-    - image: ghcr.io/pfenerty/apko-cicd/nodejs:22
+    - computeResources:
+        limits:
+          cpu: "2"
+          memory: 3Gi
+        requests:
+          cpu: 100m
+          memory: 2Gi
+      image: ghcr.io/pfenerty/apko-cicd/nodejs:22
       name: check-types
       onError: continue
       script: |-
