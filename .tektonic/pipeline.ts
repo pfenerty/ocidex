@@ -255,6 +255,10 @@ exit $ec`,
       name: "check-types",
       image: nodeImage,
       workingDir: "$(workspaces.workspace.path)/web",
+      computeResources: {
+        limits: { cpu: "2", memory: "3Gi" },
+        requests: { cpu: "100m", memory: "2Gi" },
+      },
       script:
         nuHeader +
         `
