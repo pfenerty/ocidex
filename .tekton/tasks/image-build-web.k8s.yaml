@@ -59,6 +59,11 @@ spec:
         exit "${ec}"
       securityContext:
         allowPrivilegeEscalation: true
+        capabilities:
+          add:
+            - SETUID
+            - SETGID
+          drop: []
         runAsGroup: 1000
         runAsUser: 1000
         seccompProfile:
