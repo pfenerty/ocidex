@@ -29,7 +29,7 @@ const statusReporter = new GitHubStatusReporter({
 // ReadWriteOnce is required — local-path does not support ReadWriteMany.
 // Concurrent pipeline runs on the same node can both mount the PVC but risk
 // cache corruption on simultaneous saves (non-fatal: next run rebuilds).
-const goCacheWs   = new Workspace({ name: "go-cache" });
+const goCacheWs = new Workspace({ name: "go-cache" });
 const nodeCacheWs = new Workspace({ name: "node-cache" });
 
 const goCache = {
@@ -151,6 +151,7 @@ exit $ec`,
 const goTest = new Task({
   name: "go-test",
   needs: [goBuild],
+  caches: [goCache],
   statusReporter,
   stepTemplate: {
     env: [
@@ -296,7 +297,11 @@ const dockerConfigVolume: TaskVolumeSpec = {
   secret: { secretName: "ghcr-docker-config" },
 };
 
-function imageBuildTask(name: string, dockerfile: string, target?: string): Task {
+function imageBuildTask(
+  name: string,
+  dockerfile: string,
+  target?: string,
+): Task {
   const image = `ghcr.io/pfenerty/ocidex-${name}`;
   const targetOpt = target ? `  --opt target=${target} \\\n` : "";
   return new Task({
@@ -313,6 +318,10 @@ function imageBuildTask(name: string, dockerfile: string, target?: string): Task
           allowPrivilegeEscalation: true,
           runAsUser: 1000,
           runAsGroup: 1000,
+          capabilities: {
+            drop: [],
+            add: ["SETUID", "SETGID"],
+          },
         },
         workingDir: "$(workspaces.workspace.path)",
         computeResources: {
@@ -355,11 +364,11 @@ exit "\${ec}"
 }
 
 const imageBuilds = [
-  imageBuildTask("api",               "docker/Dockerfile",     "api"),
-  imageBuildTask("scanner-worker",    "docker/Dockerfile",     "scanner-worker"),
-  imageBuildTask("enrichment-worker", "docker/Dockerfile",     "enrichment-worker"),
-  imageBuildTask("web",               "docker/web/Dockerfile"),
-  imageBuildTask("operator",          "docker/Dockerfile",     "operator"),
+  imageBuildTask("api", "docker/Dockerfile", "api"),
+  imageBuildTask("scanner-worker", "docker/Dockerfile", "scanner-worker"),
+  imageBuildTask("enrichment-worker", "docker/Dockerfile", "enrichment-worker"),
+  imageBuildTask("web", "docker/web/Dockerfile"),
+  imageBuildTask("operator", "docker/Dockerfile", "operator"),
 ];
 
 const helmPublish = new Task({
@@ -443,7 +452,15 @@ new PACProject({
     fsGroup: 1024,
   },
   caches: [
-    { workspace: goCacheWs,   storageSize: "5Gi", storageClassName: "local-path" },
-    { workspace: nodeCacheWs, storageSize: "2Gi", storageClassName: "local-path" },
+    {
+      workspace: goCacheWs,
+      storageSize: "5Gi",
+      storageClassName: "local-path",
+    },
+    {
+      workspace: nodeCacheWs,
+      storageSize: "2Gi",
+      storageClassName: "local-path",
+    },
   ],
 });

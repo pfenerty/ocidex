@@ -35,6 +35,37 @@ spec:
           - ALL
     workingDir: $(workspaces.workspace.path)
   steps:
+    - image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: restore-go-cache-cache
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] {
+          print $"[(date now | format date '%H:%M:%S')] restore-go-cache-cache: ($msg)"
+        }
+
+        let hash = (
+          ["go.sum"]
+          | each { |f| if ($f | path exists) { open --raw $f } else { "" } }
+          | str join | hash sha256 | str substring 0..15
+        )
+        $hash | save -f /tekton/home/.cache-go-cache-hash
+        let archive = $"$(workspaces.go-cache.path)/($hash).tar.zst"
+
+        if ($archive | path exists) {
+          let archive_size = (ls $archive | get size.0)
+          log $"hit ($hash) size=($archive_size)"
+          let cache_paths = [".go-mod", ".go-build"]
+          for p in $cache_paths {
+            if ($p | path exists) { ^chmod -R u+w $p; rm -rf $p }
+          }
+          let t0 = (date now)
+          ^zstd -d -T1 -c $archive | ^tar xf - -o --no-same-permissions
+          let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+          log $"restored in ($elapsed)s"
+        } else {
+          log $"miss ($hash)"
+        }
+      workingDir: $(workspaces.workspace.path)
     - computeResources:
         limits:
           cpu: "2"
@@ -62,6 +93,41 @@ spec:
         let ec = run_and_save 0 "go" "test" "-v" "-short" "-p" "2" "./..."
         log $"Exit code: ($ec)"
         exit $ec
+    - image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: save-go-cache-cache
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] {
+          print $"[(date now | format date '%H:%M:%S')] save-go-cache-cache: ($msg)"
+        }
+
+        let hash = (try { open --raw /tekton/home/.cache-go-cache-hash | str trim } catch { "" })
+        if ($hash | is-empty) { log "no hash, skipping"; exit 0 }
+
+        let archive = $"$(workspaces.go-cache.path)/($hash).tar.zst"
+        if ($archive | path exists) { log $"($hash) exists, skipping"; exit 0 }
+
+        let paths = [".go-mod", ".go-build"] | where { |p| ($p | path exists) }
+        if ($paths | is-empty) { log "no paths to cache"; exit 0 }
+
+        for p in $paths { ^chmod -R u+w $p }
+
+        let max = 3
+        if $max > 0 {
+          let entries = (try { ls $(workspaces.go-cache.path)/*.tar.zst | sort-by modified | reverse | skip $max } catch { [] })
+          for e in $entries { log $"evicting ($e.name | path basename)"; rm $e.name }
+        }
+
+        let uncompressed = ($paths | each { |p| try { du $p | get apparent.0 | into int } catch { 0 } } | math sum)
+        log $"compressing (($uncompressed / 1_000_000) | math round --precision 1)MB uncompressed ..."
+        let t0 = (date now)
+        ^tar cf - ...$paths | ^zstd -1 -T1 -o $archive
+        let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+        let compressed = (ls $archive | get size.0)
+        let ratio = ($uncompressed / ($compressed | into int) | math round --precision 1)
+        log $"saved ($compressed) ratio=($ratio)x in ($elapsed)s"
+      workingDir: $(workspaces.workspace.path)
     - env:
         - name: GITHUB_TOKEN
           valueFrom:
@@ -98,4 +164,5 @@ spec:
           log $"error: ($e.msg)"
         }
   workspaces:
+    - name: go-cache
     - name: workspace
