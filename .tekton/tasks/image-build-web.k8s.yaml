@@ -58,7 +58,7 @@ spec:
         echo "${ec}" > /tekton/home/.exit-code
         exit "${ec}"
       securityContext:
-        allowPrivilegeEscalation: false
+        allowPrivilegeEscalation: true
         runAsGroup: 1000
         runAsUser: 1000
         seccompProfile:
