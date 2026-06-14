@@ -310,7 +310,7 @@ function imageBuildTask(name: string, dockerfile: string, target?: string): Task
         image: "moby/buildkit:rootless",
         securityContext: {
           seccompProfile: { type: "Unconfined" },
-          allowPrivilegeEscalation: false,
+          allowPrivilegeEscalation: true,
           runAsUser: 1000,
           runAsGroup: 1000,
         },
