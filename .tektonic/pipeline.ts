@@ -1,5 +1,6 @@
 import {
   Task,
+  TaskVolumeSpec,
   Workspace,
   GitPipeline,
   PACProject,
@@ -289,6 +290,78 @@ exit $ec`,
   ],
 });
 
+// ─── BuildKit image build tasks (push pipeline only) ────────────────────────
+const dockerConfigVolume: TaskVolumeSpec = {
+  name: "docker-config",
+  secret: { secretName: "ghcr-docker-config" },
+};
+
+function imageBuildTask(name: string, dockerfile: string, target?: string): Task {
+  const image = `ghcr.io/pfenerty/ocidex-${name}`;
+  const targetOpt = target ? `  --opt target=${target} \\\n` : "";
+  return new Task({
+    name: `image-build-${name}`,
+    statusReporter,
+    needs: [goTest, openapiCheck],
+    volumes: [dockerConfigVolume],
+    steps: [
+      {
+        name: "build-and-push",
+        image: "moby/buildkit:rootless",
+        securityContext: {
+          seccompProfile: { type: "Unconfined" },
+          allowPrivilegeEscalation: false,
+          runAsUser: 1000,
+          runAsGroup: 1000,
+        },
+        workingDir: "$(workspaces.workspace.path)",
+        computeResources: {
+          requests: { cpu: "500m", memory: "1Gi" },
+          limits: { cpu: "4", memory: "4Gi" },
+        },
+        env: [{ name: "DOCKER_CONFIG", value: "/tmp/docker-auth" }],
+        volumeMounts: [
+          {
+            name: "docker-config",
+            mountPath: "/tmp/docker-auth/config.json",
+            subPath: ".dockerconfigjson",
+            readOnly: true,
+          },
+        ],
+        onError: "continue",
+        script: `#!/bin/sh
+SHORT_SHA=$(echo "$(params.revision)" | cut -c1-8)
+VERSION="main-\${SHORT_SHA}"
+
+buildctl-daemonless.sh build \\
+  --frontend dockerfile.v0 \\
+  --local context=. \\
+  --local dockerfile=. \\
+  --opt filename=${dockerfile} \\
+${targetOpt}  --opt platform=linux/amd64,linux/arm64 \\
+  --opt build-arg:VERSION="\${VERSION}" \\
+  --opt build-arg:COMMIT="$(params.revision)" \\
+  --opt build-arg:DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \\
+  --output "type=image,\\"name=${image}:sha-\${SHORT_SHA},${image}:main\\",push=true" \\
+  --provenance=mode=max \\
+  --sbom=true
+ec=$?
+echo "\${ec}" > /tekton/home/.exit-code
+exit "\${ec}"
+`,
+      },
+    ],
+  });
+}
+
+const imageBuilds = [
+  imageBuildTask("api",               "docker/Dockerfile",     "api"),
+  imageBuildTask("scanner-worker",    "docker/Dockerfile",     "scanner-worker"),
+  imageBuildTask("enrichment-worker", "docker/Dockerfile",     "enrichment-worker"),
+  imageBuildTask("web",               "docker/web/Dockerfile"),
+  imageBuildTask("operator",          "docker/Dockerfile",     "operator"),
+];
+
 // ─── Pipelines ──────────────────────────────────────────────────────────────
 
 const allTasks = [goFmt, goTest, goBuild, openapiCheck, frontendLint];
@@ -296,7 +369,7 @@ const allTasks = [goFmt, goTest, goBuild, openapiCheck, frontendLint];
 const pushPipeline = new GitPipeline({
   name: "ocidex-push",
   triggers: [TRIGGER_EVENTS.PUSH],
-  tasks: allTasks,
+  tasks: [...allTasks, ...imageBuilds],
 });
 
 const prPipeline = new GitPipeline({

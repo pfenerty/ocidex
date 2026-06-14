@@ -61,8 +61,8 @@ spec:
         git config --global --add safe.directory $(workspaces.workspace.path)
         git init -b main .
         git remote add origin $(params.url)
-        # Fetch only the target branch at depth=1. GitHub doesn't allow fetching by arbitrary
-        # SHA, but the revision is always a branch tip in CI (push/PR events). Fetching a
+        # Fetch only the target branch. GitHub doesn't allow fetching by arbitrary SHA,
+        # but the revision is always a branch tip in CI (push/PR events). Fetching a
         # single branch avoids wildcard-refspec pack issues in newer git versions.
         git fetch --depth=1 origin $(params.revision)
         git checkout -b $(params.revision) FETCH_HEAD
