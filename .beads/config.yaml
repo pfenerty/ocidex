@@ -28,8 +28,7 @@
 # Allows hydrating from multiple repositories and routing writes to the correct JSONL
 repos:
   primary: "."
-  additional:
-    - ~/code/common  # Cross-repo epics (apko-cicd → tektonic → ocidex)
+  # additional: removed — HydrateFromMultiRepo panics on Dolt-backed stores (experimental, unimplemented)
 
 # Integration settings (access with 'bd config get/set')
 # These are stored in the database, not in this file:
