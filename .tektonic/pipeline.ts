@@ -362,6 +362,55 @@ const imageBuilds = [
   imageBuildTask("operator",          "docker/Dockerfile",     "operator"),
 ];
 
+const helmPublish = new Task({
+  name: "helm-publish",
+  statusReporter,
+  needs: [...imageBuilds],
+  volumes: [dockerConfigVolume],
+  steps: [
+    {
+      name: "package-and-push",
+      image: "alpine/helm:3",
+      workingDir: "$(workspaces.workspace.path)",
+      onError: "continue",
+      env: [{ name: "DOCKER_CONFIG", value: "/tmp/helm-auth" }],
+      volumeMounts: [
+        {
+          name: "docker-config",
+          mountPath: "/tmp/helm-auth/config.json",
+          subPath: ".dockerconfigjson",
+          readOnly: true,
+        },
+      ],
+      script: `#!/bin/sh
+SHORT_SHA=$(echo "$(params.revision)" | cut -c1-8)
+VERSION="0.1.0-\${SHORT_SHA}"
+
+helm package charts/ocidex \\
+  --version "\${VERSION}" \\
+  --app-version "sha-\${SHORT_SHA}"
+ec=$?
+if [ $ec -ne 0 ]; then echo "\${ec}" > /tekton/home/.exit-code; exit "\${ec}"; fi
+
+helm package charts/ocidex-operator \\
+  --version "\${VERSION}" \\
+  --app-version "sha-\${SHORT_SHA}"
+ec=$?
+if [ $ec -ne 0 ]; then echo "\${ec}" > /tekton/home/.exit-code; exit "\${ec}"; fi
+
+helm push "ocidex-\${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
+ec=$?
+if [ $ec -ne 0 ]; then echo "\${ec}" > /tekton/home/.exit-code; exit "\${ec}"; fi
+
+helm push "ocidex-operator-\${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
+ec=$?
+echo "\${ec}" > /tekton/home/.exit-code
+exit "\${ec}"
+`,
+    },
+  ],
+});
+
 // ─── Pipelines ──────────────────────────────────────────────────────────────
 
 const allTasks = [goFmt, goTest, goBuild, openapiCheck, frontendLint];
@@ -369,7 +418,7 @@ const allTasks = [goFmt, goTest, goBuild, openapiCheck, frontendLint];
 const pushPipeline = new GitPipeline({
   name: "ocidex-push",
   triggers: [TRIGGER_EVENTS.PUSH],
-  tasks: [...allTasks, ...imageBuilds],
+  tasks: [...allTasks, ...imageBuilds, helmPublish],
 });
 
 const prPipeline = new GitPipeline({

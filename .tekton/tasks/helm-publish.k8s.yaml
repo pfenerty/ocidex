@@ -1,0 +1,104 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-helm-publish
+  namespace: ocidex-ci
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+    - name: revision
+      type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    workingDir: $(workspaces.workspace.path)
+  steps:
+    - env:
+        - name: DOCKER_CONFIG
+          value: /tmp/helm-auth
+      image: alpine/helm:3
+      name: package-and-push
+      onError: continue
+      script: |
+        #!/bin/sh
+        SHORT_SHA=$(echo "$(params.revision)" | cut -c1-8)
+        VERSION="0.1.0-${SHORT_SHA}"
+
+        helm package charts/ocidex \
+          --version "${VERSION}" \
+          --app-version "sha-${SHORT_SHA}"
+        ec=$?
+        if [ $ec -ne 0 ]; then echo "${ec}" > /tekton/home/.exit-code; exit "${ec}"; fi
+
+        helm package charts/ocidex-operator \
+          --version "${VERSION}" \
+          --app-version "sha-${SHORT_SHA}"
+        ec=$?
+        if [ $ec -ne 0 ]; then echo "${ec}" > /tekton/home/.exit-code; exit "${ec}"; fi
+
+        helm push "ocidex-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
+        ec=$?
+        if [ $ec -ne 0 ]; then echo "${ec}" > /tekton/home/.exit-code; exit "${ec}"; fi
+
+        helm push "ocidex-operator-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
+        ec=$?
+        echo "${ec}" > /tekton/home/.exit-code
+        exit "${ec}"
+      volumeMounts:
+        - mountPath: /tmp/helm-auth/config.json
+          name: docker-config
+          readOnly: true
+          subPath: .dockerconfigjson
+      workingDir: $(workspaces.workspace.path)
+    - env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: report-status
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] {
+          print $"[(date now | format date '%H:%M:%S')] report-status [helm-publish]: ($msg)"
+        }
+
+        let exit_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        let state = if $exit_code == 0 { "success" } else { "failure" }
+        let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
+
+        log $"exit-code=($exit_code) state=($state)"
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "helm-publish", description: $desc }
+
+        log $"POST ($url)"
+        log $"body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "done"
+        } catch { |e|
+          log $"error: ($e.msg)"
+        }
+  volumes:
+    - name: docker-config
+      secret:
+        secretName: ghcr-docker-config
+  workspaces:
+    - name: workspace
