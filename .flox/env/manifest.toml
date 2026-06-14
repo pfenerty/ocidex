@@ -27,9 +27,7 @@ git-cliff.pkg-path = "git-cliff"
 openssh.pkg-path = "openssh"
 direnv.pkg-path = "direnv"
 git.pkg-path = "git"
-beads.pkg-path = "beads"
 postgresql.pkg-path = "postgresql"
-repomix.pkg-path = "repomix"
 # gum.pkg-path = "gum"
 # gum.version = "^0.14.5"
 
@@ -85,9 +83,9 @@ repomix.pkg-path = "repomix"
 ## ... environments to create a composed environment
 ## ------------------------------------------------------------------
 [include]
-# environments = [
-#     { dir = "../common" }
-# ]
+environments = [
+    { dir = "../common" }
+]
 
 
 ## Build and publish your own packages ------------------------------

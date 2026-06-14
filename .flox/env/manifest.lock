@@ -1803,5 +1803,101 @@
       "group": "toplevel",
       "priority": 5
     }
-  ]
+  ],
+  "compose": {
+    "composer": {
+      "schema-version": "1.10.0",
+      "install": {
+        "curl": {
+          "pkg-path": "curl",
+          "outputs": "all"
+        },
+        "direnv": {
+          "pkg-path": "direnv"
+        },
+        "git": {
+          "pkg-path": "git"
+        },
+        "git-cliff": {
+          "pkg-path": "git-cliff"
+        },
+        "gnumake": {
+          "pkg-path": "gnumake",
+          "outputs": "all"
+        },
+        "go": {
+          "pkg-path": "go"
+        },
+        "golangci-lint": {
+          "pkg-path": "golangci-lint"
+        },
+        "kubectl": {
+          "pkg-path": "kubectl"
+        },
+        "nodejs": {
+          "pkg-path": "nodejs"
+        },
+        "nushell": {
+          "pkg-path": "nushell"
+        },
+        "openssh": {
+          "pkg-path": "openssh"
+        },
+        "oras": {
+          "pkg-path": "oras"
+        },
+        "postgresql": {
+          "pkg-path": "postgresql"
+        },
+        "syft": {
+          "pkg-path": "syft"
+        },
+        "talosctl": {
+          "pkg-path": "talosctl"
+        },
+        "tilt": {
+          "pkg-path": "tilt"
+        }
+      },
+      "hook": {},
+      "profile": {},
+      "options": {
+        "systems": [
+          "aarch64-linux",
+          "x86_64-linux",
+          "aarch64-darwin"
+        ]
+      },
+      "include": {
+        "environments": [
+          {
+            "dir": "../common"
+          }
+        ]
+      }
+    },
+    "include": [
+      {
+        "manifest": {
+          "schema-version": "1.12.0",
+          "install": {
+            "beads": {
+              "pkg-path": "beads"
+            },
+            "repomix": {
+              "pkg-path": "repomix"
+            }
+          },
+          "hook": {},
+          "profile": {},
+          "options": {}
+        },
+        "name": "planning",
+        "descriptor": {
+          "dir": "../common"
+        }
+      }
+    ],
+    "warnings": []
+  }
 }

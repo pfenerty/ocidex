@@ -84,3 +84,13 @@ bd close <id>         # Complete work
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
+
+## Cross-Repo Planning
+
+`ocidex` is the downstream consumer of `apko-cicd` images (via `.tekton/tasks/*.yaml`) and `tektonic` (via `make tekton-synth`). Cross-cutting initiatives that span multiple repos are tracked in `~/code/common/` (issue prefix: `plan`).
+
+- `bd list` here shows only this repo's issues — cross-repo hydration is not yet implemented in beads
+- **Unified view:** `flox activate -d ~/code/ocidex -- nu ~/code/common/bd-all.nu`
+- To create a cross-repo parent epic: `cd ~/code/common && bd create --title="..." --type=epic`
+- When a local issue is part of a cross-repo initiative: `bd update <id> --notes "Parent epic: plan/<id>"`
+- Upstream changes arrive as: new apko image tag → update `.tekton/tasks/*.yaml`; new tektonic version → `npm install`, `make tekton-synth`, commit regenerated YAML
