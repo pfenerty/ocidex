@@ -330,7 +330,7 @@ function imageBuildTask(
         },
         env: [
           { name: "DOCKER_CONFIG", value: "/tmp/docker-auth" },
-          { name: "BUILDKITD_FLAGS", value: "--oci-worker-snapshotter=native" },
+          { name: "BUILDKITD_FLAGS", value: "--oci-worker-snapshotter=native --oci-worker-no-process-sandbox" },
         ],
         volumeMounts: [
           {
