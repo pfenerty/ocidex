@@ -320,7 +320,7 @@ function imageBuildTask(
           runAsGroup: 1000,
           capabilities: {
             drop: [],
-            add: ["SETUID", "SETGID"],
+            add: ["SETUID", "SETGID", "SYS_ADMIN"],
           },
         },
         workingDir: "$(workspaces.workspace.path)",
