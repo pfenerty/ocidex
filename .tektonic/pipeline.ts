@@ -328,7 +328,10 @@ function imageBuildTask(
           requests: { cpu: "500m", memory: "1Gi" },
           limits: { cpu: "4", memory: "4Gi" },
         },
-        env: [{ name: "DOCKER_CONFIG", value: "/tmp/docker-auth" }],
+        env: [
+          { name: "DOCKER_CONFIG", value: "/tmp/docker-auth" },
+          { name: "BUILDKITD_FLAGS", value: "--oci-worker-snapshotter=native" },
+        ],
         volumeMounts: [
           {
             name: "docker-config",
