@@ -34,6 +34,8 @@ spec:
       env:
         - name: DOCKER_CONFIG
           value: /tmp/docker-auth
+        - name: BUILDKITD_FLAGS
+          value: --oci-worker-snapshotter=native
       image: moby/buildkit:rootless
       name: build-and-push
       onError: continue
