@@ -312,15 +312,13 @@ function imageBuildTask(
     steps: [
       {
         name: "build-and-push",
-        image: "moby/buildkit:rootless",
+        image: "moby/buildkit:latest",
         securityContext: {
+          runAsUser: 0,
           seccompProfile: { type: "Unconfined" },
-          allowPrivilegeEscalation: true,
-          runAsUser: 1000,
-          runAsGroup: 1000,
           capabilities: {
             drop: [],
-            add: ["SETUID", "SETGID", "SYS_ADMIN"],
+            add: ["SYS_ADMIN", "SETUID", "SETGID"],
           },
         },
         workingDir: "$(workspaces.workspace.path)",
@@ -341,8 +339,18 @@ function imageBuildTask(
         script: `#!/bin/sh
 SHORT_SHA=$(echo "$(params.revision)" | cut -c1-8)
 VERSION="main-\${SHORT_SHA}"
+BKADDR=unix:///tmp/buildkitd.sock
 
-buildctl-daemonless.sh build \\
+buildkitd \\
+  --addr "\${BKADDR}" \\
+  --root /tmp/buildkitd \\
+  --oci-worker-no-process-sandbox \\
+  &
+BKPID=$!
+
+until buildctl --addr "\${BKADDR}" debug workers > /dev/null 2>&1; do sleep 1; done
+
+buildctl --addr "\${BKADDR}" build \\
   --frontend dockerfile.v0 \\
   --local context=. \\
   --local dockerfile=. \\
@@ -355,6 +363,8 @@ ${targetOpt}  --opt platform=linux/amd64,linux/arm64 \\
   --opt attest:sbom=generator=ghcr.io/anchore/syft:latest \\
   --output "type=image,\\"name=${image}:sha-\${SHORT_SHA},${image}:main\\",push=true,attestation-manifest-referrers=true"
 ec=$?
+
+kill \${BKPID} 2>/dev/null; wait \${BKPID} 2>/dev/null || true
 echo "\${ec}" > /tekton/home/.exit-code
 exit "\${ec}"
 `,

@@ -34,15 +34,25 @@ spec:
       env:
         - name: DOCKER_CONFIG
           value: /tmp/docker-auth
-      image: moby/buildkit:rootless
+      image: moby/buildkit:latest
       name: build-and-push
       onError: continue
       script: |
         #!/bin/sh
         SHORT_SHA=$(echo "$(params.revision)" | cut -c1-8)
         VERSION="main-${SHORT_SHA}"
+        BKADDR=unix:///tmp/buildkitd.sock
 
-        buildctl-daemonless.sh build \
+        buildkitd \
+          --addr "${BKADDR}" \
+          --root /tmp/buildkitd \
+          --oci-worker-no-process-sandbox \
+          &
+        BKPID=$!
+
+        until buildctl --addr "${BKADDR}" debug workers > /dev/null 2>&1; do sleep 1; done
+
+        buildctl --addr "${BKADDR}" build \
           --frontend dockerfile.v0 \
           --local context=. \
           --local dockerfile=. \
@@ -56,18 +66,18 @@ spec:
           --opt attest:sbom=generator=ghcr.io/anchore/syft:latest \
           --output "type=image,\"name=ghcr.io/pfenerty/ocidex-api:sha-${SHORT_SHA},ghcr.io/pfenerty/ocidex-api:main\",push=true,attestation-manifest-referrers=true"
         ec=$?
+
+        kill ${BKPID} 2>/dev/null; wait ${BKPID} 2>/dev/null || true
         echo "${ec}" > /tekton/home/.exit-code
         exit "${ec}"
       securityContext:
-        allowPrivilegeEscalation: true
         capabilities:
           add:
+            - SYS_ADMIN
             - SETUID
             - SETGID
-            - SYS_ADMIN
           drop: []
-        runAsGroup: 1000
-        runAsUser: 1000
+        runAsUser: 0
         seccompProfile:
           type: Unconfined
       volumeMounts:
