@@ -17,7 +17,8 @@ def main [
     error make { msg: $"must be on main, currently on '($branch)'" }
   }
 
-  if (^git status --porcelain | str trim) != "" {
+  # Only check tracked files (untracked files do not block a release)
+  if (^git status --porcelain -uno | str trim) != "" {
     error make { msg: "working tree has uncommitted changes; commit or stash first" }
   }
 
