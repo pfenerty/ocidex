@@ -4,9 +4,9 @@ metadata:
   annotations:
     pipelinesascode.tekton.dev/max-keep-runs: "5"
     pipelinesascode.tekton.dev/on-event: "[push]"
-    pipelinesascode.tekton.dev/on-target-branch: "[*]"
+    pipelinesascode.tekton.dev/on-target-branch: "[refs/tags/*]"
     pipelinesascode.tekton.dev/task: "[.tekton/tasks/set-status-pending.k8s.yaml, .tekton/tasks/git-clone.k8s.yaml, .tekton/tasks/go-fmt.k8s.yaml, .tekton/tasks/go-test.k8s.yaml, .tekton/tasks/go-build.k8s.yaml, .tekton/tasks/openapi-check.k8s.yaml, .tekton/tasks/frontend-lint.k8s.yaml, .tekton/tasks/image-build-api.k8s.yaml, .tekton/tasks/image-build-scanner-worker.k8s.yaml, .tekton/tasks/image-build-enrichment-worker.k8s.yaml, .tekton/tasks/image-build-web.k8s.yaml, .tekton/tasks/image-build-operator.k8s.yaml, .tekton/tasks/helm-publish.k8s.yaml, .tekton/tasks/image-release-api.k8s.yaml, .tekton/tasks/image-release-scanner-worker.k8s.yaml, .tekton/tasks/image-release-enrichment-worker.k8s.yaml, .tekton/tasks/image-release-web.k8s.yaml, .tekton/tasks/image-release-operator.k8s.yaml, .tekton/tasks/helm-release.k8s.yaml, .tekton/tasks/gh-release.k8s.yaml]"
-  name: ocidex-ocidex-push
+  name: ocidex-ocidex-tag
 spec:
   params:
     - name: project-name
@@ -52,20 +52,6 @@ spec:
         taskRef:
           kind: Task
           name: ocidex-git-clone
-        workspaces:
-          - name: workspace
-            workspace: workspace
-      - name: go-fmt
-        params:
-          - name: repo-full-name
-            value: $(params.repo-full-name)
-          - name: revision
-            value: $(params.revision)
-        runAfter:
-          - set-status-pending
-        taskRef:
-          kind: Task
-          name: ocidex-go-fmt
         workspaces:
           - name: workspace
             workspace: workspace
@@ -134,7 +120,7 @@ spec:
         workspaces:
           - name: workspace
             workspace: workspace
-      - name: image-build-api
+      - name: image-release-api
         params:
           - name: repo-full-name
             value: $(params.repo-full-name)
@@ -146,11 +132,11 @@ spec:
           - set-status-pending
         taskRef:
           kind: Task
-          name: ocidex-image-build-api
+          name: ocidex-image-release-api
         workspaces:
           - name: workspace
             workspace: workspace
-      - name: image-build-scanner-worker
+      - name: image-release-scanner-worker
         params:
           - name: repo-full-name
             value: $(params.repo-full-name)
@@ -162,11 +148,11 @@ spec:
           - set-status-pending
         taskRef:
           kind: Task
-          name: ocidex-image-build-scanner-worker
+          name: ocidex-image-release-scanner-worker
         workspaces:
           - name: workspace
             workspace: workspace
-      - name: image-build-enrichment-worker
+      - name: image-release-enrichment-worker
         params:
           - name: repo-full-name
             value: $(params.repo-full-name)
@@ -178,11 +164,11 @@ spec:
           - set-status-pending
         taskRef:
           kind: Task
-          name: ocidex-image-build-enrichment-worker
+          name: ocidex-image-release-enrichment-worker
         workspaces:
           - name: workspace
             workspace: workspace
-      - name: image-build-web
+      - name: image-release-web
         params:
           - name: repo-full-name
             value: $(params.repo-full-name)
@@ -194,11 +180,11 @@ spec:
           - set-status-pending
         taskRef:
           kind: Task
-          name: ocidex-image-build-web
+          name: ocidex-image-release-web
         workspaces:
           - name: workspace
             workspace: workspace
-      - name: image-build-operator
+      - name: image-release-operator
         params:
           - name: repo-full-name
             value: $(params.repo-full-name)
@@ -210,26 +196,45 @@ spec:
           - set-status-pending
         taskRef:
           kind: Task
-          name: ocidex-image-build-operator
+          name: ocidex-image-release-operator
         workspaces:
           - name: workspace
             workspace: workspace
-      - name: helm-publish
+      - name: helm-release
         params:
           - name: repo-full-name
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
         runAfter:
-          - image-build-api
-          - image-build-scanner-worker
-          - image-build-enrichment-worker
-          - image-build-web
-          - image-build-operator
+          - image-release-api
+          - image-release-scanner-worker
+          - image-release-enrichment-worker
+          - image-release-web
+          - image-release-operator
           - set-status-pending
         taskRef:
           kind: Task
-          name: ocidex-helm-publish
+          name: ocidex-helm-release
+        workspaces:
+          - name: workspace
+            workspace: workspace
+      - name: gh-release
+        params:
+          - name: repo-full-name
+            value: $(params.repo-full-name)
+          - name: revision
+            value: $(params.revision)
+        runAfter:
+          - image-release-api
+          - image-release-scanner-worker
+          - image-release-enrichment-worker
+          - image-release-web
+          - image-release-operator
+          - set-status-pending
+        taskRef:
+          kind: Task
+          name: ocidex-gh-release
         workspaces:
           - name: workspace
             workspace: workspace
