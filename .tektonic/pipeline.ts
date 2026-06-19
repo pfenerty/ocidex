@@ -291,21 +291,16 @@ exit $ec`,
   ],
 });
 
-// ─── BuildKit image build tasks (push pipeline only) ────────────────────────
+// ─── BuildKit image build tasks ──────────────────────────────────────────────
 const dockerConfigVolume: TaskVolumeSpec = {
   name: "docker-config",
   secret: { secretName: "ghcr-docker-config" },
 };
 
-function imageBuildTask(
-  name: string,
-  dockerfile: string,
-  target?: string,
-): Task {
-  const image = `ghcr.io/pfenerty/ocidex-${name}`;
-  const targetOpt = target ? `  --opt target=${target} \\\n` : "";
+// Shared Task skeleton — only the script differs between push and release builds.
+function buildImageTask(taskName: string, script: string): Task {
   return new Task({
-    name: `image-build-${name}`,
+    name: taskName,
     statusReporter,
     needs: [goTest, openapiCheck],
     volumes: [dockerConfigVolume],
@@ -318,10 +313,7 @@ function imageBuildTask(
           allowPrivilegeEscalation: true,
           runAsUser: 1000,
           runAsGroup: 1000,
-          capabilities: {
-            drop: [],
-            add: ["SETUID", "SETGID"],
-          },
+          capabilities: { drop: [], add: ["SETUID", "SETGID"] },
         },
         workingDir: "$(workspaces.workspace.path)",
         computeResources: {
@@ -345,7 +337,23 @@ function imageBuildTask(
           },
         ],
         onError: "continue",
-        script: `#!/bin/sh
+        script,
+      },
+    ],
+  });
+}
+
+// Push pipeline: tags images as sha-<short> and main.
+function imageBuildTask(
+  name: string,
+  dockerfile: string,
+  target?: string,
+): Task {
+  const image = `ghcr.io/pfenerty/ocidex-${name}`;
+  const targetOpt = target ? `  --opt target=${target} \\\n` : "";
+  return buildImageTask(
+    `image-build-${name}`,
+    `#!/bin/sh
 SHORT_SHA=$(echo "$(params.revision)" | cut -c1-8)
 VERSION="main-\${SHORT_SHA}"
 
@@ -365,9 +373,48 @@ ec=$?
 echo "\${ec}" > /tekton/home/.exit-code
 exit "\${ec}"
 `,
-      },
-    ],
-  });
+  );
+}
+
+// Release pipeline: tags images with semver aliases from the git tag name.
+// latest is only added for stable releases (no hyphen in tag).
+function imageBuildTagTask(
+  name: string,
+  dockerfile: string,
+  target?: string,
+): Task {
+  const image = `ghcr.io/pfenerty/ocidex-${name}`;
+  const targetOpt = target ? `  --opt target=${target} \\\n` : "";
+  return buildImageTask(
+    `image-release-${name}`,
+    `#!/bin/sh
+TAG="$(params.source-branch)"
+BARE="\${TAG#v}"
+MAJOR="$(echo "\${BARE}" | cut -d. -f1)"
+MINOR="$(echo "\${BARE}" | cut -d. -f2)"
+
+NAMES="${image}:\${TAG},${image}:\${MAJOR}.\${MINOR},${image}:\${MAJOR}"
+if ! echo "\${TAG}" | grep -q '-'; then
+  NAMES="\${NAMES},${image}:latest"
+fi
+
+buildctl-daemonless.sh build \\
+  --frontend dockerfile.v0 \\
+  --local context=. \\
+  --local dockerfile=. \\
+  --opt filename=${dockerfile} \\
+${targetOpt}  --opt platform=linux/amd64,linux/arm64 \\
+  --opt build-arg:VERSION="\${TAG}" \\
+  --opt build-arg:COMMIT="$(params.revision)" \\
+  --opt build-arg:DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \\
+  --opt attest:provenance=mode=max \\
+  --opt attest:sbom= \\
+  --output "type=image,\\"name=\${NAMES}\\",push=true,attestation-manifest-referrers=true"
+ec=$?
+echo "\${ec}" > /tekton/home/.exit-code
+exit "\${ec}"
+`,
+  );
 }
 
 const imageBuilds = [
@@ -376,6 +423,14 @@ const imageBuilds = [
   imageBuildTask("enrichment-worker", "docker/Dockerfile", "enrichment-worker"),
   imageBuildTask("web", "docker/web/Dockerfile"),
   imageBuildTask("operator", "docker/Dockerfile", "operator"),
+];
+
+const imageBuildsTag = [
+  imageBuildTagTask("api", "docker/Dockerfile", "api"),
+  imageBuildTagTask("scanner-worker", "docker/Dockerfile", "scanner-worker"),
+  imageBuildTagTask("enrichment-worker", "docker/Dockerfile", "enrichment-worker"),
+  imageBuildTagTask("web", "docker/web/Dockerfile"),
+  imageBuildTagTask("operator", "docker/Dockerfile", "operator"),
 ];
 
 const helmPublish = new Task({
@@ -419,6 +474,92 @@ ec=$?
 if [ $ec -ne 0 ]; then echo "\${ec}" > /tekton/home/.exit-code; exit "\${ec}"; fi
 
 helm push "ocidex-operator-\${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
+ec=$?
+echo "\${ec}" > /tekton/home/.exit-code
+exit "\${ec}"
+`,
+    },
+  ],
+});
+
+const helmRelease = new Task({
+  name: "helm-release",
+  statusReporter,
+  needs: [...imageBuildsTag],
+  volumes: [dockerConfigVolume],
+  steps: [
+    {
+      name: "package-and-push",
+      image: "alpine/helm:3",
+      workingDir: "$(workspaces.workspace.path)",
+      onError: "continue",
+      env: [{ name: "DOCKER_CONFIG", value: "/tmp/helm-auth" }],
+      volumeMounts: [
+        {
+          name: "docker-config",
+          mountPath: "/tmp/helm-auth/config.json",
+          subPath: ".dockerconfigjson",
+          readOnly: true,
+        },
+      ],
+      script: `#!/bin/sh
+TAG="$(params.source-branch)"
+VERSION="\${TAG#v}"
+
+helm package charts/ocidex \\
+  --version "\${VERSION}" \\
+  --app-version "\${TAG}"
+ec=$?
+if [ $ec -ne 0 ]; then echo "\${ec}" > /tekton/home/.exit-code; exit "\${ec}"; fi
+
+helm package charts/ocidex-operator \\
+  --version "\${VERSION}" \\
+  --app-version "\${TAG}"
+ec=$?
+if [ $ec -ne 0 ]; then echo "\${ec}" > /tekton/home/.exit-code; exit "\${ec}"; fi
+
+helm push "ocidex-\${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
+ec=$?
+if [ $ec -ne 0 ]; then echo "\${ec}" > /tekton/home/.exit-code; exit "\${ec}"; fi
+
+helm push "ocidex-operator-\${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
+ec=$?
+echo "\${ec}" > /tekton/home/.exit-code
+exit "\${ec}"
+`,
+    },
+  ],
+});
+
+const ghRelease = new Task({
+  name: "gh-release",
+  statusReporter,
+  needs: [...imageBuildsTag],
+  steps: [
+    {
+      name: "create-release",
+      image: "ghcr.io/cli/cli:2",
+      workingDir: "$(workspaces.workspace.path)",
+      onError: "continue",
+      env: [
+        {
+          name: "GH_TOKEN",
+          valueFrom: { secretKeyRef: { name: "github-cli", key: "token" } },
+        },
+      ],
+      script: `#!/bin/sh
+TAG="$(params.source-branch)"
+
+PRERELEASE_FLAG=""
+if echo "\${TAG}" | grep -q '-'; then
+  PRERELEASE_FLAG="--prerelease"
+fi
+
+gh release create "\${TAG}" \\
+  --repo "$(params.repo-full-name)" \\
+  --title "\${TAG}" \\
+  --notes-file CHANGELOG.md \\
+  \${PRERELEASE_FLAG}
 ec=$?
 echo "\${ec}" > /tekton/home/.exit-code
 exit "\${ec}"
