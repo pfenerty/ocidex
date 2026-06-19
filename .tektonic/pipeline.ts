@@ -330,7 +330,11 @@ function imageBuildTask(
         },
         env: [
           { name: "DOCKER_CONFIG", value: "/tmp/docker-auth" },
-          { name: "BUILDKITD_FLAGS", value: "--oci-worker-snapshotter=native --oci-worker-no-process-sandbox" },
+          {
+            name: "BUILDKITD_FLAGS",
+            value:
+              "--oci-worker-snapshotter=native --oci-worker-no-process-sandbox",
+          },
         ],
         volumeMounts: [
           {
@@ -355,7 +359,7 @@ ${targetOpt}  --opt platform=linux/amd64,linux/arm64 \\
   --opt build-arg:COMMIT="$(params.revision)" \\
   --opt build-arg:DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \\
   --opt attest:provenance=mode=max \\
-  --opt attest:sbom=generator=ghcr.io/anchore/syft:latest \\
+  --opt attest:sbom= \\
   --output "type=image,\\"name=${image}:sha-\${SHORT_SHA},${image}:main\\",push=true,attestation-manifest-referrers=true"
 ec=$?
 echo "\${ec}" > /tekton/home/.exit-code

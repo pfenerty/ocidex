@@ -55,7 +55,7 @@ spec:
           --opt build-arg:COMMIT="$(params.revision)" \
           --opt build-arg:DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
           --opt attest:provenance=mode=max \
-          --opt attest:sbom=generator=ghcr.io/anchore/syft:latest \
+          --opt attest:sbom= \
           --output "type=image,\"name=ghcr.io/pfenerty/ocidex-api:sha-${SHORT_SHA},ghcr.io/pfenerty/ocidex-api:main\",push=true,attestation-manifest-referrers=true"
         ec=$?
         echo "${ec}" > /tekton/home/.exit-code
