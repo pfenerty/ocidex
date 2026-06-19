@@ -263,8 +263,11 @@ git checkout main && git pull         # Start from latest main
 git checkout -b <branch-name>         # New branch per issue
 bd update <id> --status=in_progress   # Claim it before coding
 # → explore codebase with repomix before implementing (see "Codebase Exploration with Repomix")
-bd update <id> --notes "Files: ...\nApproach: ..."  # Document implementation before closing
-bd close <id>                         # Close on completion
+# → implement the change
+git add <changed files>               # Stage only the relevant files
+git commit -m "feat/fix: description (<issue-id>)"  # Commit before closing
+bd update <id> --notes "Files: ...\nApproach: ..."  # Document implementation
+bd close <id>                         # Close AFTER committing
 bd close <id1> <id2> ...              # Close multiple at once
 bd close <id> --reason "..."          # Close with a brief one-liner (simple changes only)
 ```
@@ -272,6 +275,7 @@ bd close <id> --reason "..."          # Close with a brief one-liner (simple cha
 **Conventions:**
 - Create the issue *before* writing code; mark `in_progress` when starting.
 - Always branch from `main` before starting work on an issue (`git checkout main && git pull && git checkout -b <branch-name>`).
+- **Commit code before closing the issue.** `bd close` without a prior `git commit` leaves changes stranded. The commit message should include the issue ID (e.g. `feat(tekton): add release tasks (ocidex-avi)`).
 - Priority is `0`–`4` (or `P0`–`P4`), where `0` is critical. Don't use `high`/`medium`/`low`.
 - Hierarchical IDs (`<epic>.<n>`) come from the `--parent` flag at create time.
 - Cross-issue dependencies via `bd dep add <issue> <depends-on>`.
