@@ -1,0 +1,90 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-gh-release
+  namespace: ocidex-ci
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+    - name: revision
+      type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    workingDir: $(workspaces.workspace.path)
+  steps:
+    - env:
+        - name: GH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-cli
+      image: ghcr.io/cli/cli:2
+      name: create-release
+      onError: continue
+      script: |
+        #!/bin/sh
+        TAG="$(params.source-branch)"
+
+        PRERELEASE_FLAG=""
+        if echo "${TAG}" | grep -q '-'; then
+          PRERELEASE_FLAG="--prerelease"
+        fi
+
+        gh release create "${TAG}" \
+          --repo "$(params.repo-full-name)" \
+          --title "${TAG}" \
+          --notes-file CHANGELOG.md \
+          ${PRERELEASE_FLAG}
+        ec=$?
+        echo "${ec}" > /tekton/home/.exit-code
+        exit "${ec}"
+      workingDir: $(workspaces.workspace.path)
+    - env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: report-status
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] {
+          print $"[(date now | format date '%H:%M:%S')] report-status [gh-release]: ($msg)"
+        }
+
+        let exit_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        let state = if $exit_code == 0 { "success" } else { "failure" }
+        let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
+
+        log $"exit-code=($exit_code) state=($state)"
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "gh-release", description: $desc }
+
+        log $"POST ($url)"
+        log $"body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "done"
+        } catch { |e|
+          log $"error: ($e.msg)"
+        }
+  workspaces:
+    - name: workspace

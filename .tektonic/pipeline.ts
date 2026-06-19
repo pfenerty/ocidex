@@ -584,11 +584,17 @@ const prPipeline = new GitPipeline({
   tasks: allTasks,
 });
 
+const tagPipeline = new GitPipeline({
+  name: "ocidex-tag",
+  triggers: [TRIGGER_EVENTS.TAG],
+  tasks: [...imageBuildsTag, helmRelease, ghRelease],
+});
+
 // ─── Synthesize ─────────────────────────────────────────────────────────────
 new PACProject({
   name: "ocidex",
   namespace: "ocidex-ci",
-  pipelines: [pushPipeline, prPipeline],
+  pipelines: [pushPipeline, prPipeline, tagPipeline],
   outdir: "../.tekton",
   repoRelativePath: ".tekton",
   serviceAccountName: "default",

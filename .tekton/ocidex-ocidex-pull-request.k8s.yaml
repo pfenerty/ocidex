@@ -5,7 +5,7 @@ metadata:
     pipelinesascode.tekton.dev/max-keep-runs: "5"
     pipelinesascode.tekton.dev/on-event: "[pull_request]"
     pipelinesascode.tekton.dev/on-target-branch: "[*]"
-    pipelinesascode.tekton.dev/task: "[.tekton/tasks/set-status-pending.k8s.yaml, .tekton/tasks/git-clone.k8s.yaml, .tekton/tasks/go-fmt.k8s.yaml, .tekton/tasks/go-test.k8s.yaml, .tekton/tasks/go-build.k8s.yaml, .tekton/tasks/openapi-check.k8s.yaml, .tekton/tasks/frontend-lint.k8s.yaml, .tekton/tasks/image-build-api.k8s.yaml, .tekton/tasks/image-build-scanner-worker.k8s.yaml, .tekton/tasks/image-build-enrichment-worker.k8s.yaml, .tekton/tasks/image-build-web.k8s.yaml, .tekton/tasks/image-build-operator.k8s.yaml, .tekton/tasks/helm-publish.k8s.yaml]"
+    pipelinesascode.tekton.dev/task: "[.tekton/tasks/set-status-pending.k8s.yaml, .tekton/tasks/git-clone.k8s.yaml, .tekton/tasks/go-fmt.k8s.yaml, .tekton/tasks/go-test.k8s.yaml, .tekton/tasks/go-build.k8s.yaml, .tekton/tasks/openapi-check.k8s.yaml, .tekton/tasks/frontend-lint.k8s.yaml, .tekton/tasks/image-build-api.k8s.yaml, .tekton/tasks/image-build-scanner-worker.k8s.yaml, .tekton/tasks/image-build-enrichment-worker.k8s.yaml, .tekton/tasks/image-build-web.k8s.yaml, .tekton/tasks/image-build-operator.k8s.yaml, .tekton/tasks/helm-publish.k8s.yaml, .tekton/tasks/image-release-api.k8s.yaml, .tekton/tasks/image-release-scanner-worker.k8s.yaml, .tekton/tasks/image-release-enrichment-worker.k8s.yaml, .tekton/tasks/image-release-web.k8s.yaml, .tekton/tasks/image-release-operator.k8s.yaml, .tekton/tasks/helm-release.k8s.yaml, .tekton/tasks/gh-release.k8s.yaml]"
   name: ocidex-ocidex-pull-request
 spec:
   params:
@@ -13,6 +13,8 @@ spec:
       value: "{{ repo_name }}"
     - name: repo-full-name
       value: "{{ repo_owner }}/{{ repo_name }}"
+    - name: source-branch
+      value: "{{ source_branch }}"
     - name: revision
       value: "{{ revision }}"
     - name: url
@@ -22,6 +24,8 @@ spec:
       - name: project-name
         type: string
       - name: repo-full-name
+        type: string
+      - name: source-branch
         type: string
       - name: revision
         type: string
