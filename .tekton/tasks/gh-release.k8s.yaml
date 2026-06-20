@@ -36,6 +36,7 @@ spec:
       script: |
         #!/bin/sh
         TAG="$(params.source-branch)"
+        TAG="${TAG#refs/tags/}"
 
         PRERELEASE_FLAG=""
         if echo "${TAG}" | grep -q '-'; then
