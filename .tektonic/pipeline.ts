@@ -390,6 +390,7 @@ function imageBuildTagTask(
     `image-release-${name}`,
     `#!/bin/sh
 TAG="$(params.source-branch)"
+TAG="\${TAG#refs/tags/}"
 BARE="\${TAG#v}"
 MAJOR="$(echo "\${BARE}" | cut -d. -f1)"
 MINOR="$(echo "\${BARE}" | cut -d. -f2)"
@@ -505,6 +506,7 @@ const helmRelease = new Task({
       ],
       script: `#!/bin/sh
 TAG="$(params.source-branch)"
+TAG="\${TAG#refs/tags/}"
 VERSION="\${TAG#v}"
 
 helm package charts/ocidex \\
@@ -550,6 +552,7 @@ const ghRelease = new Task({
       ],
       script: `#!/bin/sh
 TAG="$(params.source-branch)"
+TAG="\${TAG#refs/tags/}"
 
 PRERELEASE_FLAG=""
 if echo "\${TAG}" | grep -q '-'; then

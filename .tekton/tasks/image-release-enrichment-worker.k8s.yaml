@@ -42,6 +42,7 @@ spec:
       script: |
         #!/bin/sh
         TAG="$(params.source-branch)"
+        TAG="${TAG#refs/tags/}"
         BARE="${TAG#v}"
         MAJOR="$(echo "${BARE}" | cut -d. -f1)"
         MINOR="$(echo "${BARE}" | cut -d. -f2)"

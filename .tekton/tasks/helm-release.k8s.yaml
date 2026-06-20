@@ -33,6 +33,7 @@ spec:
       script: |
         #!/bin/sh
         TAG="$(params.source-branch)"
+        TAG="${TAG#refs/tags/}"
         VERSION="${TAG#v}"
 
         helm package charts/ocidex \
