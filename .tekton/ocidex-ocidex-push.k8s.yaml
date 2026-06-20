@@ -239,12 +239,6 @@ spec:
       - name: node-cache
   taskRunTemplate:
     podTemplate:
-      env:
-        - name: GITHUB_TOKEN
-          valueFrom:
-            secretKeyRef:
-              key: git-provider-token
-              name: "{{ git_auth_secret }}"
       securityContext:
         fsGroup: 1024
         runAsGroup: 1024

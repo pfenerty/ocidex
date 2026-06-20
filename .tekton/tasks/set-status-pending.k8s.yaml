@@ -30,7 +30,12 @@ spec:
         requests:
           cpu: 25m
           memory: 64Mi
-      env: []
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-go-fmt
       script: |-
@@ -62,7 +67,12 @@ spec:
         requests:
           cpu: 25m
           memory: 64Mi
-      env: []
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-go-test
       script: |-
@@ -94,7 +104,12 @@ spec:
         requests:
           cpu: 25m
           memory: 64Mi
-      env: []
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-go-build
       script: |-
@@ -126,7 +141,12 @@ spec:
         requests:
           cpu: 25m
           memory: 64Mi
-      env: []
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-openapi-check
       script: |-
@@ -158,7 +178,12 @@ spec:
         requests:
           cpu: 25m
           memory: 64Mi
-      env: []
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-frontend-lint
       script: |-
@@ -190,7 +215,12 @@ spec:
         requests:
           cpu: 25m
           memory: 64Mi
-      env: []
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-image-build-api
       script: |-
@@ -222,7 +252,12 @@ spec:
         requests:
           cpu: 25m
           memory: 64Mi
-      env: []
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-image-build-scanner-worker
       script: |-
@@ -254,7 +289,12 @@ spec:
         requests:
           cpu: 25m
           memory: 64Mi
-      env: []
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-image-build-enrichment-worker
       script: |-
@@ -286,7 +326,12 @@ spec:
         requests:
           cpu: 25m
           memory: 64Mi
-      env: []
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-image-build-web
       script: |-
@@ -318,7 +363,12 @@ spec:
         requests:
           cpu: 25m
           memory: 64Mi
-      env: []
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-image-build-operator
       script: |-
@@ -350,7 +400,12 @@ spec:
         requests:
           cpu: 25m
           memory: 64Mi
-      env: []
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-helm-publish
       script: |-

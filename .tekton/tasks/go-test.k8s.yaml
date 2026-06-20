@@ -128,7 +128,12 @@ spec:
         let ratio = ($uncompressed / ($compressed | into int) | math round --precision 1)
         log $"saved ($compressed) ratio=($ratio)x in ($elapsed)s"
       workingDir: $(workspaces.workspace.path)
-    - env: []
+    - env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: report-status
       script: |-
