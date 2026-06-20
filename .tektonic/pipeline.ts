@@ -15,6 +15,10 @@ const nodeImage = "ghcr.io/pfenerty/apko-cicd/nodejs:22";
 
 // ─── Status reporter ─────────────────────────────────────────────────────────
 const statusReporter = new GitHubStatusReporter({
+  // GITHUB_TOKEN is injected at the PipelineRun podTemplate level via PAC's
+  // {{ git_auth_secret }} (see PACProject.podTemplateEnv below), so per-step
+  // secretKeyRef injection is not needed.
+  skipTokenInjection: true,
   // 5 tasks report status → 5 steps in set-status-pending, each just an HTTP POST.
   // Default 512Mi limit per step causes OOM on constrained nodes; these are tight
   // but sufficient for nushell + a single GitHub API call.
@@ -605,6 +609,20 @@ new PACProject({
     runAsGroup: 1024,
     fsGroup: 1024,
   },
+  // PAC substitutes {{ git_auth_secret }} with the actual pac-gitauth-{uuid} secret
+  // name before submitting the PipelineRun to Kubernetes. That secret is created by
+  // PAC using the GitHub App installation token (Commit statuses: read/write).
+  podTemplateEnv: [
+    {
+      name: "GITHUB_TOKEN",
+      valueFrom: {
+        secretKeyRef: {
+          name: "{{ git_auth_secret }}",
+          key: "git-provider-token",
+        },
+      },
+    },
+  ],
   caches: [
     {
       workspace: goCacheWs,
