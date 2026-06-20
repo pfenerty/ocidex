@@ -51,12 +51,7 @@ spec:
         echo "${ec}" > /tekton/home/.exit-code
         exit "${ec}"
       workingDir: $(workspaces.workspace.path)
-    - env:
-        - name: GITHUB_TOKEN
-          valueFrom:
-            secretKeyRef:
-              key: token
-              name: github-token
+    - env: []
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: report-status
       script: |-

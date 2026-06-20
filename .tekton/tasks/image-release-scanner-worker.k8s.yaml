@@ -84,12 +84,7 @@ spec:
           readOnly: true
           subPath: .dockerconfigjson
       workingDir: $(workspaces.workspace.path)
-    - env:
-        - name: GITHUB_TOKEN
-          valueFrom:
-            secretKeyRef:
-              key: token
-              name: github-token
+    - env: []
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: report-status
       script: |-
