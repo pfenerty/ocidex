@@ -106,7 +106,12 @@ spec:
         log (if $ec == 0 { "OK: types up to date" } else { "FAIL: types out of date" })
         exit $ec
       workingDir: $(workspaces.workspace.path)/web
-    - env: []
+    - env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: report-status
       script: |-
