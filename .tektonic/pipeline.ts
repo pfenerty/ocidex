@@ -544,7 +544,7 @@ const ghRelease = new Task({
       env: [
         {
           name: "GH_TOKEN",
-          valueFrom: { secretKeyRef: { name: "github-cli", key: "token" } },
+          valueFrom: { secretKeyRef: { name: "pac-github-token", key: "token" } },
         },
       ],
       script: `#!/bin/sh
