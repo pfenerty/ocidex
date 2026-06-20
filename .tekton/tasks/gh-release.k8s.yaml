@@ -29,7 +29,7 @@ spec:
           valueFrom:
             secretKeyRef:
               key: token
-              name: github-cli
+              name: pac-github-token
       image: ghcr.io/cli/cli:2
       name: create-release
       onError: continue
