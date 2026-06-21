@@ -39,8 +39,10 @@ spec:
       image: moby/buildkit:rootless
       name: build-and-push
       onError: continue
-      script: |
+      script: |-
         #!/bin/sh
+        log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+        (
         SHORT_SHA=$(echo "$(params.revision)" | cut -c1-8)
         VERSION="main-${SHORT_SHA}"
 
@@ -56,9 +58,12 @@ spec:
           --opt attest:provenance=mode=max \
           --opt attest:sbom= \
           --output "type=image,\"name=ghcr.io/pfenerty/ocidex-web:sha-${SHORT_SHA},ghcr.io/pfenerty/ocidex-web:main\",push=true,attestation-manifest-referrers=true"
-        ec=$?
-        echo "${ec}" > /tekton/home/.exit-code
-        exit "${ec}"
+        )
+        __tek_rc=$?
+        __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
+        if [ "$__tek_rc" -gt "$__tek_prev" ]; then __tek_prev="$__tek_rc"; fi
+        printf '%s' "$__tek_prev" > /tekton/home/.exit-code
+        exit "$__tek_rc"
       securityContext:
         allowPrivilegeEscalation: true
         capabilities:
