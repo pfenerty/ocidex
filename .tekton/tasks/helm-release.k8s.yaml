@@ -33,28 +33,28 @@ spec:
       script: |
         #!/bin/sh
         TAG="$(params.source-branch)"
-        TAG="${TAG#refs/tags/}"
-        VERSION="${TAG#v}"
+        TAG=$(echo "$TAG" | sed 's|^refs/tags/||')
+        VERSION=$(echo "$TAG" | sed 's|^v||')
 
         helm package charts/ocidex \
-          --version "${VERSION}" \
-          --app-version "${TAG}"
+          --version "$VERSION" \
+          --app-version "$TAG"
         ec=$?
-        if [ $ec -ne 0 ]; then echo "${ec}" > /tekton/home/.exit-code; exit "${ec}"; fi
+        if [ $ec -ne 0 ]; then echo "$ec" > /tekton/home/.exit-code; exit "$ec"; fi
 
         helm package charts/ocidex-operator \
-          --version "${VERSION}" \
-          --app-version "${TAG}"
+          --version "$VERSION" \
+          --app-version "$TAG"
         ec=$?
-        if [ $ec -ne 0 ]; then echo "${ec}" > /tekton/home/.exit-code; exit "${ec}"; fi
+        if [ $ec -ne 0 ]; then echo "$ec" > /tekton/home/.exit-code; exit "$ec"; fi
 
-        helm push "ocidex-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
+        helm push "ocidex-$VERSION.tgz" oci://ghcr.io/pfenerty/charts
         ec=$?
-        if [ $ec -ne 0 ]; then echo "${ec}" > /tekton/home/.exit-code; exit "${ec}"; fi
+        if [ $ec -ne 0 ]; then echo "$ec" > /tekton/home/.exit-code; exit "$ec"; fi
 
-        helm push "ocidex-operator-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
+        helm push "ocidex-operator-$VERSION.tgz" oci://ghcr.io/pfenerty/charts
         ec=$?
-        echo "${ec}" > /tekton/home/.exit-code
+        echo "$ec" > /tekton/home/.exit-code
         exit "${ec}"
       volumeMounts:
         - mountPath: /tmp/helm-auth/config.json
