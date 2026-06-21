@@ -30,27 +30,37 @@ spec:
             secretKeyRef:
               key: token
               name: github-pipeline-token
-      image: ghcr.io/cli/cli:2
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: create-release
       onError: continue
       script: |
-        #!/bin/sh
-        TAG="$(params.source-branch)"
-        TAG="${TAG#refs/tags/}"
+        #!/usr/bin/env nu
+        def log [msg: string] {
+          print $"[(date now | format date '%H:%M:%S')] create-release: ($msg)"
+        }
 
-        PRERELEASE_FLAG=""
-        if echo "${TAG}" | grep -q '-'; then
-          PRERELEASE_FLAG="--prerelease"
-        fi
+        let tag = ("$(params.source-branch)" | str replace "refs/tags/" "")
+        let is_prerelease = ($tag | str contains "-")
+        let body_text = try { open --raw "CHANGELOG.md" } catch { "" }
 
-        gh release create "${TAG}" \
-          --repo "$(params.repo-full-name)" \
-          --title "${TAG}" \
-          --notes-file CHANGELOG.md \
-          ${PRERELEASE_FLAG}
-        ec=$?
-        echo "${ec}" > /tekton/home/.exit-code
-        exit "${ec}"
+        log $"creating release ($tag) prerelease=($is_prerelease)"
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/releases"
+        let payload = { tag_name: $tag, name: $tag, body: $body_text, prerelease: $is_prerelease, draft: false }
+
+        try {
+          http post $url $payload -t application/json -H [
+            Authorization $"token ($env.GH_TOKEN)"
+            Accept "application/vnd.github+json"
+            X-GitHub-Api-Version "2022-11-28"
+          ]
+          log "release created"
+          0 | save -f /tekton/home/.exit-code
+        } catch { |e|
+          log $"error: ($e.msg)"
+          1 | save -f /tekton/home/.exit-code
+          exit 1
+        }
       workingDir: $(workspaces.workspace.path)
     - env:
         - name: GITHUB_TOKEN
