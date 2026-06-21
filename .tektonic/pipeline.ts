@@ -6,6 +6,7 @@ import {
   PACProject,
   TRIGGER_EVENTS,
   GitHubStatusReporter,
+  nu,
 } from "@pfenerty/tektonic";
 
 // --- Images ─────────────────────────────────────────────────────────────────
@@ -92,18 +93,18 @@ const goFmt = new Task({
     {
       name: "fmt",
       image: goImage,
-      script:
-        nuHeader +
-        `
-log "Checking gofmt"
-let result = (^gofmt -l . | complete)
-let ec = if ($result.stdout | str trim | str length) > 0 {
-    print "Unformatted files:"; print $result.stdout; 1
-} else { 0 }
-$"($ec)" | save -f /tekton/home/.exit-code
-log (if $ec == 0 { "OK: all files formatted" } else { "FAIL: formatting issues found" })
-exit $ec`,
-      onError: "continue",
+      // Migrated to the tektonic script API: `nu` supplies the shebang + `log`
+      // helper, and synth injects exit-code capture + onError:'continue' because
+      // a statusReporter is set — so no nuHeader/run_and_save/manual exit-code.
+      script: nu`
+        log "Checking gofmt"
+        let unformatted = (^gofmt -l . | complete | get stdout | str trim)
+        if ($unformatted | str length) > 0 {
+          print "Unformatted files:"; print $unformatted
+          error make {msg: "gofmt: formatting issues found"}
+        }
+        log "OK: all files formatted"
+      `,
     },
   ],
 });
