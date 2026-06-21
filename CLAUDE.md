@@ -120,6 +120,89 @@ make dev-down          # Stop Tilt
 make dev-cluster-down  # Destroy the local Talos cluster and registry
 ```
 
+## Tekton CI Dev Loop
+
+**Never push commits just to test a pipeline change.** Edit task YAML directly and apply it to the cluster, then create an isolated TaskRun. This turns a 1-hour iteration into ~2 minutes.
+
+### Fast iteration on a single task
+
+```bash
+# 1. Edit the task YAML
+vim .tekton/tasks/gh-release.k8s.yaml
+
+# 2. Apply directly to the cluster — no commit, no PAC cycle
+kubectl apply -f .tekton/tasks/gh-release.k8s.yaml
+
+# 3. Find a reusable workspace PVC from a recent pipeline run
+kubectl get pvc -n ocidex-ci
+
+# 4. Create an isolated TaskRun (edit params/PVC name as needed)
+kubectl apply -f - <<'EOF'
+apiVersion: tekton.dev/v1
+kind: TaskRun
+metadata:
+  generateName: test-gh-release-
+  namespace: ocidex-ci
+spec:
+  taskRef:
+    name: ocidex-gh-release
+  params:
+    - name: repo-full-name
+      value: pfenerty/ocidex
+    - name: revision
+      value: <sha>
+    - name: source-branch
+      value: refs/tags/v0.0.1-rc.2
+  workspaces:
+    - name: workspace
+      persistentVolumeClaim:
+        claimName: <pvc-from-recent-run>
+EOF
+
+# 5. Watch logs
+kubectl logs -n ocidex-ci -l tekton.dev/taskRun=<name> -f --all-containers
+```
+
+The workspace PVC from any recent push or tag run already has the source cloned — reuse it directly. PVCs persist after the run completes until Tekton's pruning kicks in (max 5 runs per `max-keep-runs`).
+
+### Triggering a full pipeline without a commit
+
+Re-push the current tag to trigger the tag pipeline, or push an empty commit to trigger the push pipeline:
+
+```bash
+# Re-trigger tag pipeline (no code change needed)
+git push origin :v0.0.1-rc.2 && git push origin v0.0.1-rc.2
+
+# Trigger push pipeline
+git commit --allow-empty -m "chore: retrigger CI" && git push
+```
+
+### Watching pipeline progress
+
+```bash
+kubectl get pipelinerun -n ocidex-ci --sort-by=.metadata.creationTimestamp | tail -5
+kubectl get taskrun -n ocidex-ci --sort-by=.metadata.creationTimestamp | grep <pr-name>
+kubectl logs -n ocidex-ci -l tekton.dev/taskRun=<taskrun-name> -f --all-containers
+```
+
+### Known gotchas
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `secret-created: false` on PipelineRun | PAC GitHub App missing `Checks: read/write` | Add permission in GitHub App settings |
+| `CreateContainerConfigError` on task pod | Referenced secret doesn't exist in cluster | Verify secret with `kubectl get secret -n ocidex-ci`; ensure Flux has reconciled |
+| `refs/tags/v0.0.1-rc.2` appearing as image tag or release name | PAC sets `source_branch` to the full ref for tag events | Strip prefix: `TAG="${TAG#refs/tags/}"` after reading `$(params.source-branch)` |
+| `403 Forbidden` pulling `ghcr.io/<other-org>/image` | Cluster's `ghcr-docker-config` only covers `pfenerty/*` | Use images from `ghcr.io/pfenerty/apko-cicd/*` or Docker Hub instead |
+| Image release task shows `Succeeded` but image wasn't pushed | `onError: continue` masks step failures — TaskRun shows Succeeded even if buildctl failed | Check step logs directly; don't trust TaskRun status alone for `onError: continue` steps |
+
+### tektonic synthesis bug
+
+`make tekton-synth` silently drops certain shell parameter expansion patterns (e.g. `${VAR#prefix}`) from generated YAML — a cdk8s/js-yaml serialization issue with `#` inside block scalars. Until fixed:
+
+1. Make the change in `.tektonic/pipeline.ts` (source of truth)
+2. Also apply the change directly to the affected `.tekton/tasks/*.yaml` file
+3. Verify with `grep` that the pattern appears in the generated YAML before committing
+
 ## Local K8s dev loop (Talos + Tilt)
 
 `make dev-cluster-up` provisions a Docker-backed Talos cluster (`talosctl cluster create`) wired
