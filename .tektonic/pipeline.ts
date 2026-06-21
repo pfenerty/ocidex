@@ -7,6 +7,9 @@ import {
   TRIGGER_EVENTS,
   GitHubStatusReporter,
   nu,
+  sh,
+  scriptFromFile,
+  ScriptInput,
 } from "@pfenerty/tektonic";
 
 // --- Images ─────────────────────────────────────────────────────────────────
@@ -300,7 +303,7 @@ const dockerConfigVolume: TaskVolumeSpec = {
 };
 
 // Shared Task skeleton — only the script differs between push and release builds.
-function buildImageTask(taskName: string, script: string): Task {
+function buildImageTask(taskName: string, script: ScriptInput): Task {
   return new Task({
     name: taskName,
     statusReporter,
@@ -353,9 +356,12 @@ function imageBuildTask(
 ): Task {
   const image = `ghcr.io/pfenerty/ocidex-${name}`;
   const targetOpt = target ? `  --opt target=${target} \\\n` : "";
+  // Migrated to sh`` (POSIX): the moby/buildkit image ships /bin/sh, not bash.
+  // tektonic synth supplies the shebang + exit-code capture, so the manual
+  // ec=$?/echo/exit tail is gone. Shell vars use \${...} to avoid JS interpolation.
   return buildImageTask(
     `image-build-${name}`,
-    `#!/bin/sh
+    sh`
 SHORT_SHA=$(echo "$(params.revision)" | cut -c1-8)
 VERSION="main-\${SHORT_SHA}"
 
@@ -371,9 +377,6 @@ ${targetOpt}  --opt platform=linux/amd64,linux/arm64 \\
   --opt attest:provenance=mode=max \\
   --opt attest:sbom= \\
   --output "type=image,\\"name=${image}:sha-\${SHORT_SHA},${image}:main\\",push=true,attestation-manifest-referrers=true"
-ec=$?
-echo "\${ec}" > /tekton/home/.exit-code
-exit "\${ec}"
 `,
   );
 }
@@ -456,31 +459,10 @@ const helmPublish = new Task({
           readOnly: true,
         },
       ],
-      script: `#!/bin/sh
-SHORT_SHA=$(echo "$(params.revision)" | cut -c1-8)
-VERSION="0.1.0-\${SHORT_SHA}"
-
-helm package charts/ocidex \\
-  --version "\${VERSION}" \\
-  --app-version "sha-\${SHORT_SHA}"
-ec=$?
-if [ $ec -ne 0 ]; then echo "\${ec}" > /tekton/home/.exit-code; exit "\${ec}"; fi
-
-helm package charts/ocidex-operator \\
-  --version "\${VERSION}" \\
-  --app-version "sha-\${SHORT_SHA}"
-ec=$?
-if [ $ec -ne 0 ]; then echo "\${ec}" > /tekton/home/.exit-code; exit "\${ec}"; fi
-
-helm push "ocidex-\${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
-ec=$?
-if [ $ec -ne 0 ]; then echo "\${ec}" > /tekton/home/.exit-code; exit "\${ec}"; fi
-
-helm push "ocidex-operator-\${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
-ec=$?
-echo "\${ec}" > /tekton/home/.exit-code
-exit "\${ec}"
-`,
+      // File-based authoring: the script lives in scripts/helm-publish.sh
+      // (shellcheck-able, no JS-template escaping). tektonic inlines it and
+      // injects exit-code capture; manual ec=$?/exit plumbing is gone.
+      script: scriptFromFile("scripts/helm-publish.sh"),
     },
   ],
 });
