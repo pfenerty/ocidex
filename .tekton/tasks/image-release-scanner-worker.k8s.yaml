@@ -42,14 +42,14 @@ spec:
       script: |
         #!/bin/sh
         TAG="$(params.source-branch)"
-        TAG="${TAG#refs/tags/}"
-        BARE="${TAG#v}"
-        MAJOR="$(echo "${BARE}" | cut -d. -f1)"
-        MINOR="$(echo "${BARE}" | cut -d. -f2)"
+        TAG=$(echo "$TAG" | sed 's|^refs/tags/||')
+        BARE=$(echo "$TAG" | sed 's|^v||')
+        MAJOR=$(echo "$BARE" | cut -d. -f1)
+        MINOR=$(echo "$BARE" | cut -d. -f2)
 
-        NAMES="ghcr.io/pfenerty/ocidex-scanner-worker:${TAG},ghcr.io/pfenerty/ocidex-scanner-worker:${MAJOR}.${MINOR},ghcr.io/pfenerty/ocidex-scanner-worker:${MAJOR}"
-        if ! echo "${TAG}" | grep -q '-'; then
-          NAMES="${NAMES},ghcr.io/pfenerty/ocidex-scanner-worker:latest"
+        NAMES="ghcr.io/pfenerty/ocidex-scanner-worker:$TAG,ghcr.io/pfenerty/ocidex-scanner-worker:$MAJOR.$MINOR,ghcr.io/pfenerty/ocidex-scanner-worker:$MAJOR"
+        if ! echo "$TAG" | grep -q '-'; then
+          NAMES="$NAMES,ghcr.io/pfenerty/ocidex-scanner-worker:latest"
         fi
 
         buildctl-daemonless.sh build \
@@ -59,7 +59,7 @@ spec:
           --opt filename=docker/Dockerfile \
           --opt target=scanner-worker \
           --opt platform=linux/amd64,linux/arm64 \
-          --opt build-arg:VERSION="${TAG}" \
+          --opt build-arg:VERSION="$TAG" \
           --opt build-arg:COMMIT="$(params.revision)" \
           --opt build-arg:DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
           --opt attest:provenance=mode=max \

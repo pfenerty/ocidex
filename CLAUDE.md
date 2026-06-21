@@ -131,6 +131,9 @@ make dev-cluster-down  # Destroy the local Talos cluster and registry
 vim .tekton/tasks/gh-release.k8s.yaml
 
 # 2. Apply directly to the cluster — no commit, no PAC cycle
+# The ocidex-ci namespace is labeled to bypass the Tekton admission webhook:
+#   kubectl label namespace ocidex-ci webhooks.knative.dev/exclude=true
+# Without this label, kubectl apply fails with "non-existent variable" for any $VAR in scripts.
 kubectl apply -f .tekton/tasks/gh-release.k8s.yaml
 
 # 3. Find a reusable workspace PVC from a recent pipeline run
@@ -195,13 +198,21 @@ kubectl logs -n ocidex-ci -l tekton.dev/taskRun=<taskrun-name> -f --all-containe
 | `403 Forbidden` pulling `ghcr.io/<other-org>/image` | Cluster's `ghcr-docker-config` only covers `pfenerty/*` | Use images from `ghcr.io/pfenerty/apko-cicd/*` or Docker Hub instead |
 | Image release task shows `Succeeded` but image wasn't pushed | `onError: continue` masks step failures — TaskRun shows Succeeded even if buildctl failed | Check step logs directly; don't trust TaskRun status alone for `onError: continue` steps |
 
+### Shell variable syntax in task scripts
+
+Tekton's admission webhook flags `$VAR` and `${VAR}` patterns in scripts as undeclared Tekton params — even when they're plain shell variables. The webhook is bypassed for the `ocidex-ci` namespace (see above), but this affects:
+
+- **What to write**: Use `$VAR` (no braces) for simple references. For parameter expansion operators (`${VAR#prefix}`, `${VAR%suffix}`), use POSIX `sed` equivalents: `VAR=$(echo "$VAR" | sed 's|^prefix||')`.
+- **`ec` and exit-code files**: Write `echo "$ec"` not `echo "${ec}"`.
+- **The output line for buildctl**: Use `"name=${NAMES}"` — this is the one place where `${NAMES}` is required by buildctl's flag syntax and is exempt because it's inside a quoted arg, not a standalone variable reference.
+
 ### tektonic synthesis bug
 
 `make tekton-synth` silently drops certain shell parameter expansion patterns (e.g. `${VAR#prefix}`) from generated YAML — a cdk8s/js-yaml serialization issue with `#` inside block scalars. Until fixed:
 
 1. Make the change in `.tektonic/pipeline.ts` (source of truth)
-2. Also apply the change directly to the affected `.tekton/tasks/*.yaml` file
-3. Verify with `grep` that the pattern appears in the generated YAML before committing
+2. Edit the generated `.tekton/tasks/*.yaml` directly to match
+3. Apply with `kubectl apply -f .tekton/tasks/<changed>.k8s.yaml` to validate immediately
 
 ## Local K8s dev loop (Talos + Tilt)
 
