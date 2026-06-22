@@ -30,32 +30,25 @@ spec:
       image: alpine/helm:3
       name: package-and-push
       onError: continue
-      script: |
+      script: |-
         #!/bin/sh
+        log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+        (
+        set -e
         TAG="$(params.source-branch)"
-        TAG=$(echo "$TAG" | sed 's|^refs/tags/||')
-        VERSION=$(echo "$TAG" | sed 's|^v||')
+        TAG="${TAG#refs/tags/}"
+        VERSION="${TAG#v}"
 
-        helm package charts/ocidex \
-          --version "$VERSION" \
-          --app-version "$TAG"
-        ec=$?
-        if [ $ec -ne 0 ]; then echo "$ec" > /tekton/home/.exit-code; exit "$ec"; fi
-
-        helm package charts/ocidex-operator \
-          --version "$VERSION" \
-          --app-version "$TAG"
-        ec=$?
-        if [ $ec -ne 0 ]; then echo "$ec" > /tekton/home/.exit-code; exit "$ec"; fi
-
-        helm push "ocidex-$VERSION.tgz" oci://ghcr.io/pfenerty/charts
-        ec=$?
-        if [ $ec -ne 0 ]; then echo "$ec" > /tekton/home/.exit-code; exit "$ec"; fi
-
-        helm push "ocidex-operator-$VERSION.tgz" oci://ghcr.io/pfenerty/charts
-        ec=$?
-        echo "$ec" > /tekton/home/.exit-code
-        exit "${ec}"
+        helm package charts/ocidex --version "${VERSION}" --app-version "${TAG}"
+        helm package charts/ocidex-operator --version "${VERSION}" --app-version "${TAG}"
+        helm push "ocidex-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
+        helm push "ocidex-operator-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
+        )
+        __tek_rc=$?
+        __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
+        if [ "$__tek_rc" -gt "$__tek_prev" ]; then __tek_prev="$__tek_rc"; fi
+        printf '%s' "$__tek_prev" > /tekton/home/.exit-code
+        exit "$__tek_rc"
       volumeMounts:
         - mountPath: /tmp/helm-auth/config.json
           name: docker-config
@@ -72,30 +65,27 @@ spec:
       name: report-status
       script: |-
         #!/usr/bin/env nu
-        def log [msg: string] {
-          print $"[(date now | format date '%H:%M:%S')] report-status [helm-release]: ($msg)"
-        }
-
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let exit_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
         let state = if $exit_code == 0 { "success" } else { "failure" }
         let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
 
-        log $"exit-code=($exit_code) state=($state)"
+        log $"report-status [helm-release]: exit-code=($exit_code) state=($state)"
 
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
         let body = { state: $state, context: "helm-release", description: $desc }
 
-        log $"POST ($url)"
-        log $"body: ($body | to json -r)"
+        log $"report-status [helm-release]: POST ($url)"
+        log $"report-status [helm-release]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "done"
+          log "report-status [helm-release]: done"
         } catch { |e|
-          log $"error: ($e.msg)"
+          log $"report-status [helm-release]: error: ($e.msg)"
         }
   volumes:
     - name: docker-config

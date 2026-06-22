@@ -39,29 +39,21 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        def run_and_save [prev_ec: int, ...args: string] {
-            try { run-external ...$args } catch { null }
-            let ec = $env.LAST_EXIT_CODE
-            let worst = if $prev_ec != 0 { $prev_ec } else { $ec }
-            $"($worst)" | save -f /tekton/home/.exit-code
-            $worst
-        }
-
+        def main [] {
         log $"pwd=(pwd) uid=(id -u) go=(go version)"
         log $".git exists=('.git' | path exists)"
         ^git config --global --add safe.directory (pwd)
         log "Generating OpenAPI spec"
-        try { ^go run ./cmd/specgen out> /tmp/openapi-check.json } catch { null }
-        let gen_ec = $env.LAST_EXIT_CODE
-        if $gen_ec != 0 {
-            $"($gen_ec)" | save -f /tekton/home/.exit-code
-            log $"FAIL: specgen exit ($gen_ec)"
-            exit $gen_ec
-        }
+        ^go run ./cmd/specgen out> /tmp/openapi-check.json
         log "Diffing against committed spec"
-        let ec = run_and_save 0 "diff" "web/openapi.json" "/tmp/openapi-check.json"
-        log (if $ec == 0 { "OK: spec is up to date" } else { "FAIL: spec out of date" })
-        exit $ec
+        ^diff web/openapi.json /tmp/openapi-check.json
+        log "OK: spec is up to date"
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
     - computeResources:
         limits:
           cpu: "2"
@@ -75,36 +67,23 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        def run_and_save [prev_ec: int, ...args: string] {
-            try { run-external ...$args } catch { null }
-            let ec = $env.LAST_EXIT_CODE
-            let worst = if $prev_ec != 0 { $prev_ec } else { $ec }
-            $"($worst)" | save -f /tekton/home/.exit-code
-            $worst
-        }
-
-        let prev_ec = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
-        log $"prev exit code from check-spec: ($prev_ec)"
+        def main [] {
         log $"pwd=(pwd) uid=(id -u) node=(node --version) npm=(npm --version)"
         log $"node_modules exists=('node_modules' | path exists) package.json exists=('package.json' | path exists)"
         log "Installing dependencies"
-        try { ^npm ci } catch { |e| log $"npm ci failed: ($e.msg)" }
-        let npm_ec = $env.LAST_EXIT_CODE
-        log $"npm ci exit: ($npm_ec)"
+        ^npm ci
         log $"node_modules exists after install=('node_modules' | path exists)"
         log "Generating TypeScript types from spec"
-        try { ^npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts } catch { null }
-        let gen_ec = $env.LAST_EXIT_CODE
-        log $"openapi-typescript exit: ($gen_ec)"
-        if $gen_ec != 0 {
-            let ec = if $prev_ec != 0 { $prev_ec } else { $gen_ec }
-            $"($ec)" | save -f /tekton/home/.exit-code
-            exit $ec
-        }
+        ^npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts
         log "Diffing against committed types"
-        let ec = run_and_save $prev_ec "diff" "src/types/openapi.d.ts" "/tmp/openapi-check.d.ts"
-        log (if $ec == 0 { "OK: types up to date" } else { "FAIL: types out of date" })
-        exit $ec
+        ^diff src/types/openapi.d.ts /tmp/openapi-check.d.ts
+        log "OK: types up to date"
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
       workingDir: $(workspaces.workspace.path)/web
     - env:
         - name: GITHUB_TOKEN
@@ -116,30 +95,27 @@ spec:
       name: report-status
       script: |-
         #!/usr/bin/env nu
-        def log [msg: string] {
-          print $"[(date now | format date '%H:%M:%S')] report-status [openapi-check]: ($msg)"
-        }
-
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let exit_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
         let state = if $exit_code == 0 { "success" } else { "failure" }
         let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
 
-        log $"exit-code=($exit_code) state=($state)"
+        log $"report-status [openapi-check]: exit-code=($exit_code) state=($state)"
 
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
         let body = { state: $state, context: "openapi-check", description: $desc }
 
-        log $"POST ($url)"
-        log $"body: ($body | to json -r)"
+        log $"report-status [openapi-check]: POST ($url)"
+        log $"report-status [openapi-check]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "done"
+          log "report-status [openapi-check]: done"
         } catch { |e|
-          log $"error: ($e.msg)"
+          log $"report-status [openapi-check]: error: ($e.msg)"
         }
   workspaces:
     - name: workspace

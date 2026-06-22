@@ -42,14 +42,14 @@ spec:
       script: |
         #!/bin/sh
         TAG="$(params.source-branch)"
-        TAG=$(echo "$TAG" | sed 's|^refs/tags/||')
-        BARE=$(echo "$TAG" | sed 's|^v||')
-        MAJOR=$(echo "$BARE" | cut -d. -f1)
-        MINOR=$(echo "$BARE" | cut -d. -f2)
+        TAG="${TAG#refs/tags/}"
+        BARE="${TAG#v}"
+        MAJOR="$(echo "${BARE}" | cut -d. -f1)"
+        MINOR="$(echo "${BARE}" | cut -d. -f2)"
 
-        NAMES="ghcr.io/pfenerty/ocidex-web:$TAG,ghcr.io/pfenerty/ocidex-web:$MAJOR.$MINOR,ghcr.io/pfenerty/ocidex-web:$MAJOR"
-        if ! echo "$TAG" | grep -q '-'; then
-          NAMES="$NAMES,ghcr.io/pfenerty/ocidex-web:latest"
+        NAMES="ghcr.io/pfenerty/ocidex-web:${TAG},ghcr.io/pfenerty/ocidex-web:${MAJOR}.${MINOR},ghcr.io/pfenerty/ocidex-web:${MAJOR}"
+        if ! echo "${TAG}" | grep -q '-'; then
+          NAMES="${NAMES},ghcr.io/pfenerty/ocidex-web:latest"
         fi
 
         buildctl-daemonless.sh build \
@@ -58,7 +58,7 @@ spec:
           --local dockerfile=. \
           --opt filename=docker/web/Dockerfile \
           --opt platform=linux/amd64,linux/arm64 \
-          --opt build-arg:VERSION="$TAG" \
+          --opt build-arg:VERSION="${TAG}" \
           --opt build-arg:COMMIT="$(params.revision)" \
           --opt build-arg:DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
           --opt attest:provenance=mode=max \
@@ -94,30 +94,27 @@ spec:
       name: report-status
       script: |-
         #!/usr/bin/env nu
-        def log [msg: string] {
-          print $"[(date now | format date '%H:%M:%S')] report-status [image-release-web]: ($msg)"
-        }
-
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let exit_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
         let state = if $exit_code == 0 { "success" } else { "failure" }
         let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
 
-        log $"exit-code=($exit_code) state=($state)"
+        log $"report-status [image-release-web]: exit-code=($exit_code) state=($state)"
 
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
         let body = { state: $state, context: "image-release-web", description: $desc }
 
-        log $"POST ($url)"
-        log $"body: ($body | to json -r)"
+        log $"report-status [image-release-web]: POST ($url)"
+        log $"report-status [image-release-web]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "done"
+          log "report-status [image-release-web]: done"
         } catch { |e|
-          log $"error: ($e.msg)"
+          log $"report-status [image-release-web]: error: ($e.msg)"
         }
   volumes:
     - name: docker-config

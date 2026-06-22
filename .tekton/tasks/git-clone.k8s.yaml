@@ -54,7 +54,9 @@ spec:
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: clone
       script: |-
-        #!/usr/bin/env nu
+        #!/bin/sh
+        log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+        set -e
         # Mark workspace as safe before any git operations that check directory ownership.
         # The workspace dir may be owned by root (local-path provisioner) while the pod
         # runs as a non-root uid; git 2.35.2+ rejects such repos without this config.
@@ -68,21 +70,14 @@ spec:
         git checkout -b $(params.revision) FETCH_HEAD
 
         # Write git metadata as Tekton results for downstream tasks.
-        let sha = (git rev-parse HEAD | str trim)
-        let short_sha = (git rev-parse --short HEAD | str trim)
-        let commit_message = (git log -1 --format=%s | str trim)
-        let author_name = (git log -1 --format=%an | str trim)
-        let author_email = (git log -1 --format=%ae | str trim)
-        let timestamp = (git log -1 --format=%aI | str trim)
-
-        $sha            | save -f $(results.commit.path)
-        $short_sha      | save -f $(results.short-sha.path)
-        "$(params.revision)"   | save -f $(results.branch.path)
-        $commit_message | save -f $(results.commit-message.path)
-        $author_name    | save -f $(results.author-name.path)
-        $author_email   | save -f $(results.author-email.path)
-        $timestamp      | save -f $(results.timestamp.path)
-        "$(params.url)"        | save -f $(results.remote-url.path)
+        git rev-parse HEAD          | tr -d '\n' > $(results.commit.path)
+        git rev-parse --short HEAD  | tr -d '\n' > $(results.short-sha.path)
+        git log -1 --format=%s      | tr -d '\n' > $(results.commit-message.path)
+        git log -1 --format=%an     | tr -d '\n' > $(results.author-name.path)
+        git log -1 --format=%ae     | tr -d '\n' > $(results.author-email.path)
+        git log -1 --format=%aI     | tr -d '\n' > $(results.timestamp.path)
+        printf '%s' "$(params.revision)" > $(results.branch.path)
+        printf '%s' "$(params.url)" > $(results.remote-url.path)
       workingDir: $(workspaces.workspace.path)
   workspaces:
     - name: workspace
