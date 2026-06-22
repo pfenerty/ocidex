@@ -1,7 +1,7 @@
 #!/bin/sh
 # Push build: tags images as sha-<short> and main.
 # Per-image values come from step env: DOCKERFILE, IMAGE, and optional TARGET.
-# buildctl is the final command so its exit code is what synth captures.
+# buildctl's exit code is captured in $rc and re-exited after writing Chains hints.
 SHORT_SHA=$(echo "$(params.revision)" | cut -c1-8)
 VERSION="main-${SHORT_SHA}"
 
@@ -20,4 +20,15 @@ buildctl-daemonless.sh build \
   --opt build-arg:DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --opt attest:provenance=mode=max \
   --opt attest:sbom= \
+  --metadata-file /tmp/buildctl-metadata.json \
   --output "type=image,\"name=$IMAGE:sha-$SHORT_SHA,$IMAGE:main\",push=true,attestation-manifest-referrers=true"
+rc=$?
+
+# Tekton Chains build-subject hints: record the pushed image ref + digest so Chains
+# attests this run produced this image. Best-effort; never masks buildctl's exit code.
+if [ "$rc" -eq 0 ] && [ -n "$CHAINS_IMAGE_URL_PATH" ]; then
+  DIGEST=$(sed -n 's/.*"containerimage.digest": *"\([^"]*\)".*/\1/p' /tmp/buildctl-metadata.json | head -1)
+  printf '%s' "$IMAGE" > "$CHAINS_IMAGE_URL_PATH"
+  printf '%s' "$DIGEST" > "$CHAINS_IMAGE_DIGEST_PATH"
+fi
+exit "$rc"

@@ -1,5 +1,5 @@
 import * as path from "path";
-import { Task, ScriptInput, scriptFromFile } from "@pfenerty/tektonic";
+import { ChainsImage, Task, ScriptInput, scriptFromFile } from "@pfenerty/tektonic";
 import { statusReporter, dockerConfigVolume } from "../../shared";
 import { goTest } from "../go-test/spec";
 import { openapiCheck } from "../openapi-check/spec";
@@ -12,12 +12,17 @@ const buildScript = scriptFromFile(path.join(__dirname, "build.sh"));
 const releaseScript = scriptFromFile(path.join(__dirname, "release.sh"));
 
 // Shared Task skeleton — only the script and per-image env differ.
-function buildImageTask(taskName: string, script: ScriptInput, imageEnv: EnvVar[]): Task {
+function buildImageTask(taskName: string, imageName: string, script: ScriptInput, imageEnv: EnvVar[]): Task {
+  // Tekton Chains build-subject hints: the build script writes the pushed image
+  // reference and digest to these result paths (passed via env so build.sh/release.sh
+  // stay shared across all images).
+  const chains = new ChainsImage({ name: imageName });
   return new Task({
     name: taskName,
     statusReporter,
     needs: [goTest, openapiCheck],
     volumes: [dockerConfigVolume],
+    results: [...chains.results],
     steps: [
       {
         name: "build-and-push",
@@ -41,6 +46,8 @@ function buildImageTask(taskName: string, script: ScriptInput, imageEnv: EnvVar[
             value:
               "--oci-worker-snapshotter=native --oci-worker-no-process-sandbox",
           },
+          { name: "CHAINS_IMAGE_URL_PATH", value: chains.urlPath },
+          { name: "CHAINS_IMAGE_DIGEST_PATH", value: chains.digestPath },
           ...imageEnv,
         ],
         volumeMounts: [
@@ -70,11 +77,11 @@ function imageEnv(name: string, dockerfile: string, target?: string): EnvVar[] {
 }
 
 function imageBuildTask(name: string, dockerfile: string, target?: string): Task {
-  return buildImageTask(`image-build-${name}`, buildScript, imageEnv(name, dockerfile, target));
+  return buildImageTask(`image-build-${name}`, name, buildScript, imageEnv(name, dockerfile, target));
 }
 
 function imageBuildTagTask(name: string, dockerfile: string, target?: string): Task {
-  return buildImageTask(`image-release-${name}`, releaseScript, imageEnv(name, dockerfile, target));
+  return buildImageTask(`image-release-${name}`, name, releaseScript, imageEnv(name, dockerfile, target));
 }
 
 export const imageBuilds = [
