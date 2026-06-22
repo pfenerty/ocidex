@@ -36,6 +36,12 @@ spec:
           value: /tmp/docker-auth
         - name: BUILDKITD_FLAGS
           value: --oci-worker-snapshotter=native --oci-worker-no-process-sandbox
+        - name: IMAGE
+          value: ghcr.io/pfenerty/ocidex-api
+        - name: DOCKERFILE
+          value: docker/Dockerfile
+        - name: TARGET
+          value: api
       image: moby/buildkit:rootless
       name: build-and-push
       onError: continue
@@ -43,22 +49,28 @@ spec:
         #!/bin/sh
         log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
         (
+        # Push build: tags images as sha-<short> and main.
+        # Per-image values come from step env: DOCKERFILE, IMAGE, and optional TARGET.
+        # buildctl is the final command so its exit code is what synth captures.
         SHORT_SHA=$(echo "$(params.revision)" | cut -c1-8)
         VERSION="main-${SHORT_SHA}"
+
+        TARGET_OPT=""
+        if [ -n "$TARGET" ]; then TARGET_OPT="--opt target=$TARGET"; fi
 
         buildctl-daemonless.sh build \
           --frontend dockerfile.v0 \
           --local context=. \
           --local dockerfile=. \
-          --opt filename=docker/Dockerfile \
-          --opt target=api \
+          --opt filename="$DOCKERFILE" \
+          $TARGET_OPT \
           --opt platform=linux/amd64,linux/arm64 \
-          --opt build-arg:VERSION="${VERSION}" \
+          --opt build-arg:VERSION="$VERSION" \
           --opt build-arg:COMMIT="$(params.revision)" \
           --opt build-arg:DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
           --opt attest:provenance=mode=max \
           --opt attest:sbom= \
-          --output "type=image,\"name=ghcr.io/pfenerty/ocidex-api:sha-${SHORT_SHA},ghcr.io/pfenerty/ocidex-api:main\",push=true,attestation-manifest-referrers=true"
+          --output "type=image,\"name=$IMAGE:sha-$SHORT_SHA,$IMAGE:main\",push=true,attestation-manifest-referrers=true"
         )
         __tek_rc=$?
         __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
