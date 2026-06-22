@@ -76,19 +76,12 @@ const lintEnv = [
 
 const nodeEnv = [{ name: "HOME", value: "$(workspaces.workspace.path)" }];
 
-// ─── Nushell helper ──────────────────────────────────────────────────────────
-const nuHeader = `#!/usr/bin/env nu
-def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-def run_and_save [prev_ec: int, ...args: string] {
-    try { run-external ...$args } catch { null }
-    let ec = $env.LAST_EXIT_CODE
-    let worst = if $prev_ec != 0 { $prev_ec } else { $ec }
-    $"($worst)" | save -f /tekton/home/.exit-code
-    $worst
-}
-`;
-
 // ─── Tasks ──────────────────────────────────────────────────────────────────
+// All status-reporting tasks use the tektonic script API (`nu`/`sh`): the
+// plugin supplies the shebang + `log` helper, and synth injects exit-code
+// capture and onError:'continue' (because a statusReporter is set). Bodies
+// therefore just run commands and signal failure by raising / a non-zero
+// external command — no nuHeader, run_and_save, or manual /tekton/home/.exit-code.
 const goFmt = new Task({
   name: "go-fmt",
   statusReporter,
@@ -131,23 +124,19 @@ const goBuild = new Task({
           "ephemeral-storage": "2Gi",
         },
       },
-      script:
-        nuHeader +
-        `
-log $"pwd=(pwd) uid=(id -u) go=(go version)"
-log $"GOMODCACHE=($env.GOMODCACHE) GOCACHE=($env.GOCACHE)"
-log $".git exists=('.git' | path exists) go-mod exists=('go-mod' | path exists)"
-^git config --global --add safe.directory (pwd)
-log $"git rev-parse HEAD: (^git rev-parse --short HEAD)"
-log "Building ocidex binaries"
-mut ec = 0
-for cmd in ["./cmd/ocidex", "./cmd/scanner-worker", "./cmd/enrichment-worker"] {
-    log $"Building ($cmd)"
-    $ec = (run_and_save $ec "go" "build" "-o" "/dev/null" $cmd)
-    log $"  -> exit ($ec)"
-}
-log $"Exit code: ($ec)"
-exit $ec`,
+      script: nu`
+        log $"pwd=(pwd) uid=(id -u) go=(go version)"
+        log $"GOMODCACHE=($env.GOMODCACHE) GOCACHE=($env.GOCACHE)"
+        log $".git exists=('.git' | path exists) go-mod exists=('go-mod' | path exists)"
+        ^git config --global --add safe.directory (pwd)
+        log $"git rev-parse HEAD: (^git rev-parse --short HEAD)"
+        log "Building ocidex binaries"
+        for cmd in ["./cmd/ocidex", "./cmd/scanner-worker", "./cmd/enrichment-worker"] {
+          log $"Building ($cmd)"
+          ^go build -o /dev/null $cmd
+        }
+        log "OK: all binaries built"
+      `,
       onError: "continue",
     },
   ],
@@ -180,13 +169,11 @@ const goTest = new Task({
           "ephemeral-storage": "2Gi",
         },
       },
-      script:
-        nuHeader +
-        `
-log "Running go test"
-let ec = run_and_save 0 "go" "test" "-v" "-short" "-p" "2" "./..."
-log $"Exit code: ($ec)"
-exit $ec`,
+      script: nu`
+        log "Running go test"
+        ^go test -v -short -p 2 ./...
+        log "OK: tests passed"
+      `,
       onError: "continue",
     },
   ],
@@ -208,20 +195,17 @@ const frontendLint = new Task({
         limits: { cpu: "2", memory: "3Gi" },
         requests: { cpu: "500m", memory: "2Gi" },
       },
-      script:
-        nuHeader +
-        `
-log $"pwd=(pwd) uid=(id -u) node=(node --version) npm=(npm --version)"
-log $"node_modules exists=('node_modules' | path exists) package.json exists=('package.json' | path exists)"
-log "Installing dependencies"
-let install_ec = run_and_save 0 "npm" "ci"
-log $"npm ci exit: ($install_ec)"
-log $"node_modules exists after install=('node_modules' | path exists)"
-if ('node_modules/.bin/eslint' | path exists) { log "eslint binary found" } else { log "WARNING: eslint binary NOT found" }
-log "Running ESLint"
-let ec = run_and_save $install_ec "npm" "run" "lint"
-log (if $ec == 0 { "OK: no lint errors" } else { "FAIL: lint errors found" })
-exit $ec`,
+      script: nu`
+        log $"pwd=(pwd) uid=(id -u) node=(node --version) npm=(npm --version)"
+        log $"node_modules exists=('node_modules' | path exists) package.json exists=('package.json' | path exists)"
+        log "Installing dependencies"
+        ^npm ci
+        log $"node_modules exists after install=('node_modules' | path exists)"
+        if ('node_modules/.bin/eslint' | path exists) { log "eslint binary found" } else { log "WARNING: eslint binary NOT found" }
+        log "Running ESLint"
+        ^npm run lint
+        log "OK: no lint errors"
+      `,
       onError: "continue",
     },
   ],
@@ -238,24 +222,16 @@ const openapiCheck = new Task({
     {
       name: "check-spec",
       image: goImage,
-      script:
-        nuHeader +
-        `
-log $"pwd=(pwd) uid=(id -u) go=(go version)"
-log $".git exists=('.git' | path exists)"
-^git config --global --add safe.directory (pwd)
-log "Generating OpenAPI spec"
-try { ^go run ./cmd/specgen out> /tmp/openapi-check.json } catch { null }
-let gen_ec = $env.LAST_EXIT_CODE
-if $gen_ec != 0 {
-    $"($gen_ec)" | save -f /tekton/home/.exit-code
-    log $"FAIL: specgen exit ($gen_ec)"
-    exit $gen_ec
-}
-log "Diffing against committed spec"
-let ec = run_and_save 0 "diff" "web/openapi.json" "/tmp/openapi-check.json"
-log (if $ec == 0 { "OK: spec is up to date" } else { "FAIL: spec out of date" })
-exit $ec`,
+      script: nu`
+        log $"pwd=(pwd) uid=(id -u) go=(go version)"
+        log $".git exists=('.git' | path exists)"
+        ^git config --global --add safe.directory (pwd)
+        log "Generating OpenAPI spec"
+        ^go run ./cmd/specgen out> /tmp/openapi-check.json
+        log "Diffing against committed spec"
+        ^diff web/openapi.json /tmp/openapi-check.json
+        log "OK: spec is up to date"
+      `,
       onError: "continue",
     },
     {
@@ -266,31 +242,21 @@ exit $ec`,
         limits: { cpu: "2", memory: "3Gi" },
         requests: { cpu: "100m", memory: "2Gi" },
       },
-      script:
-        nuHeader +
-        `
-let prev_ec = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
-log $"prev exit code from check-spec: ($prev_ec)"
-log $"pwd=(pwd) uid=(id -u) node=(node --version) npm=(npm --version)"
-log $"node_modules exists=('node_modules' | path exists) package.json exists=('package.json' | path exists)"
-log "Installing dependencies"
-try { ^npm ci } catch { |e| log $"npm ci failed: ($e.msg)" }
-let npm_ec = $env.LAST_EXIT_CODE
-log $"npm ci exit: ($npm_ec)"
-log $"node_modules exists after install=('node_modules' | path exists)"
-log "Generating TypeScript types from spec"
-try { ^npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts } catch { null }
-let gen_ec = $env.LAST_EXIT_CODE
-log $"openapi-typescript exit: ($gen_ec)"
-if $gen_ec != 0 {
-    let ec = if $prev_ec != 0 { $prev_ec } else { $gen_ec }
-    $"($ec)" | save -f /tekton/home/.exit-code
-    exit $ec
-}
-log "Diffing against committed types"
-let ec = run_and_save $prev_ec "diff" "src/types/openapi.d.ts" "/tmp/openapi-check.d.ts"
-log (if $ec == 0 { "OK: types up to date" } else { "FAIL: types out of date" })
-exit $ec`,
+      // No manual prev-exit-code handling: synth's exit-code contract keeps the
+      // worst code across both steps of this task automatically, so a check-spec
+      // failure already propagates to the reporter even if check-types passes.
+      script: nu`
+        log $"pwd=(pwd) uid=(id -u) node=(node --version) npm=(npm --version)"
+        log $"node_modules exists=('node_modules' | path exists) package.json exists=('package.json' | path exists)"
+        log "Installing dependencies"
+        ^npm ci
+        log $"node_modules exists after install=('node_modules' | path exists)"
+        log "Generating TypeScript types from spec"
+        ^npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts
+        log "Diffing against committed types"
+        ^diff src/types/openapi.d.ts /tmp/openapi-check.d.ts
+        log "OK: types up to date"
+      `,
       onError: "continue",
     },
   ],
@@ -487,32 +453,19 @@ const helmRelease = new Task({
           readOnly: true,
         },
       ],
-      script: `#!/bin/sh
-TAG="$(params.source-branch)"
-TAG="\${TAG#refs/tags/}"
-VERSION="\${TAG#v}"
+      // sh`` + `set -e`: fail-fast on the first failing helm command; synth
+      // captures the exit code, so the manual ec=$?/.exit-code plumbing is gone.
+      script: sh`
+        set -e
+        TAG="$(params.source-branch)"
+        TAG="\${TAG#refs/tags/}"
+        VERSION="\${TAG#v}"
 
-helm package charts/ocidex \\
-  --version "\${VERSION}" \\
-  --app-version "\${TAG}"
-ec=$?
-if [ $ec -ne 0 ]; then echo "\${ec}" > /tekton/home/.exit-code; exit "\${ec}"; fi
-
-helm package charts/ocidex-operator \\
-  --version "\${VERSION}" \\
-  --app-version "\${TAG}"
-ec=$?
-if [ $ec -ne 0 ]; then echo "\${ec}" > /tekton/home/.exit-code; exit "\${ec}"; fi
-
-helm push "ocidex-\${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
-ec=$?
-if [ $ec -ne 0 ]; then echo "\${ec}" > /tekton/home/.exit-code; exit "\${ec}"; fi
-
-helm push "ocidex-operator-\${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
-ec=$?
-echo "\${ec}" > /tekton/home/.exit-code
-exit "\${ec}"
-`,
+        helm package charts/ocidex --version "\${VERSION}" --app-version "\${TAG}"
+        helm package charts/ocidex-operator --version "\${VERSION}" --app-version "\${TAG}"
+        helm push "ocidex-\${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
+        helm push "ocidex-operator-\${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
+      `,
     },
   ],
 });
@@ -533,34 +486,25 @@ const ghRelease = new Task({
           valueFrom: { secretKeyRef: { name: "github-pipeline-token", key: "token" } },
         },
       ],
-      script: `#!/usr/bin/env nu
-def log [msg: string] {
-  print $"[(date now | format date '%H:%M:%S')] create-release: ($msg)"
-}
+      // nu`` supplies the shebang + log helper; a failing `http post` raises and
+      // synth captures it as the failure code — no try/catch + manual exit-code.
+      script: nu`
+        let tag = ("$(params.source-branch)" | str replace "refs/tags/" "")
+        let is_prerelease = ($tag | str contains "-")
+        let body_text = try { open --raw "CHANGELOG.md" } catch { "" }
 
-let tag = ("$(params.source-branch)" | str replace "refs/tags/" "")
-let is_prerelease = ($tag | str contains "-")
-let body_text = try { open --raw "CHANGELOG.md" } catch { "" }
+        log $"creating release ($tag) prerelease=($is_prerelease)"
 
-log $"creating release ($tag) prerelease=($is_prerelease)"
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/releases"
+        let payload = { tag_name: $tag, name: $tag, body: $body_text, prerelease: $is_prerelease, draft: false }
 
-let url = $"https://api.github.com/repos/$(params.repo-full-name)/releases"
-let payload = { tag_name: $tag, name: $tag, body: $body_text, prerelease: $is_prerelease, draft: false }
-
-try {
-  http post $url $payload -t application/json -H [
-    Authorization $"token ($env.GH_TOKEN)"
-    Accept "application/vnd.github+json"
-    X-GitHub-Api-Version "2022-11-28"
-  ]
-  log "release created"
-  0 | save -f /tekton/home/.exit-code
-} catch { |e|
-  log $"error: ($e.msg)"
-  1 | save -f /tekton/home/.exit-code
-  exit 1
-}
-`,
+        http post $url $payload -t application/json -H [
+          Authorization $"token ($env.GH_TOKEN)"
+          Accept "application/vnd.github+json"
+          X-GitHub-Api-Version "2022-11-28"
+        ]
+        log "release created"
+      `,
     },
   ],
 });

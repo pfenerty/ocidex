@@ -40,24 +40,21 @@ spec:
       name: pending-go-fmt
       script: |-
         #!/usr/bin/env nu
-        def log [msg: string] {
-          print $"[(date now | format date '%H:%M:%S')] status-pending [go-fmt]: ($msg)"
-        }
-
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
         let body = { state: "pending", context: "go-fmt", description: "Running" }
 
-        log $"POST ($url)"
-        log $"body: ($body | to json -r)"
+        log $"status-pending [go-fmt]: POST ($url)"
+        log $"status-pending [go-fmt]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "done"
+          log "status-pending [go-fmt]: done"
         } catch { |e|
-          log $"error: ($e.msg)"
+          log $"status-pending [go-fmt]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -77,24 +74,21 @@ spec:
       name: pending-go-test
       script: |-
         #!/usr/bin/env nu
-        def log [msg: string] {
-          print $"[(date now | format date '%H:%M:%S')] status-pending [go-test]: ($msg)"
-        }
-
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
         let body = { state: "pending", context: "go-test", description: "Running" }
 
-        log $"POST ($url)"
-        log $"body: ($body | to json -r)"
+        log $"status-pending [go-test]: POST ($url)"
+        log $"status-pending [go-test]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "done"
+          log "status-pending [go-test]: done"
         } catch { |e|
-          log $"error: ($e.msg)"
+          log $"status-pending [go-test]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -114,24 +108,21 @@ spec:
       name: pending-go-build
       script: |-
         #!/usr/bin/env nu
-        def log [msg: string] {
-          print $"[(date now | format date '%H:%M:%S')] status-pending [go-build]: ($msg)"
-        }
-
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
         let body = { state: "pending", context: "go-build", description: "Running" }
 
-        log $"POST ($url)"
-        log $"body: ($body | to json -r)"
+        log $"status-pending [go-build]: POST ($url)"
+        log $"status-pending [go-build]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "done"
+          log "status-pending [go-build]: done"
         } catch { |e|
-          log $"error: ($e.msg)"
+          log $"status-pending [go-build]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -151,24 +142,21 @@ spec:
       name: pending-openapi-check
       script: |-
         #!/usr/bin/env nu
-        def log [msg: string] {
-          print $"[(date now | format date '%H:%M:%S')] status-pending [openapi-check]: ($msg)"
-        }
-
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
         let body = { state: "pending", context: "openapi-check", description: "Running" }
 
-        log $"POST ($url)"
-        log $"body: ($body | to json -r)"
+        log $"status-pending [openapi-check]: POST ($url)"
+        log $"status-pending [openapi-check]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "done"
+          log "status-pending [openapi-check]: done"
         } catch { |e|
-          log $"error: ($e.msg)"
+          log $"status-pending [openapi-check]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -188,24 +176,21 @@ spec:
       name: pending-frontend-lint
       script: |-
         #!/usr/bin/env nu
-        def log [msg: string] {
-          print $"[(date now | format date '%H:%M:%S')] status-pending [frontend-lint]: ($msg)"
-        }
-
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
         let body = { state: "pending", context: "frontend-lint", description: "Running" }
 
-        log $"POST ($url)"
-        log $"body: ($body | to json -r)"
+        log $"status-pending [frontend-lint]: POST ($url)"
+        log $"status-pending [frontend-lint]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "done"
+          log "status-pending [frontend-lint]: done"
         } catch { |e|
-          log $"error: ($e.msg)"
+          log $"status-pending [frontend-lint]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -225,24 +210,21 @@ spec:
       name: pending-image-build-api
       script: |-
         #!/usr/bin/env nu
-        def log [msg: string] {
-          print $"[(date now | format date '%H:%M:%S')] status-pending [image-build-api]: ($msg)"
-        }
-
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
         let body = { state: "pending", context: "image-build-api", description: "Running" }
 
-        log $"POST ($url)"
-        log $"body: ($body | to json -r)"
+        log $"status-pending [image-build-api]: POST ($url)"
+        log $"status-pending [image-build-api]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "done"
+          log "status-pending [image-build-api]: done"
         } catch { |e|
-          log $"error: ($e.msg)"
+          log $"status-pending [image-build-api]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -262,24 +244,21 @@ spec:
       name: pending-image-build-scanner-worker
       script: |-
         #!/usr/bin/env nu
-        def log [msg: string] {
-          print $"[(date now | format date '%H:%M:%S')] status-pending [image-build-scanner-worker]: ($msg)"
-        }
-
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
         let body = { state: "pending", context: "image-build-scanner-worker", description: "Running" }
 
-        log $"POST ($url)"
-        log $"body: ($body | to json -r)"
+        log $"status-pending [image-build-scanner-worker]: POST ($url)"
+        log $"status-pending [image-build-scanner-worker]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "done"
+          log "status-pending [image-build-scanner-worker]: done"
         } catch { |e|
-          log $"error: ($e.msg)"
+          log $"status-pending [image-build-scanner-worker]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -299,24 +278,21 @@ spec:
       name: pending-image-build-enrichment-worker
       script: |-
         #!/usr/bin/env nu
-        def log [msg: string] {
-          print $"[(date now | format date '%H:%M:%S')] status-pending [image-build-enrichment-worker]: ($msg)"
-        }
-
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
         let body = { state: "pending", context: "image-build-enrichment-worker", description: "Running" }
 
-        log $"POST ($url)"
-        log $"body: ($body | to json -r)"
+        log $"status-pending [image-build-enrichment-worker]: POST ($url)"
+        log $"status-pending [image-build-enrichment-worker]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "done"
+          log "status-pending [image-build-enrichment-worker]: done"
         } catch { |e|
-          log $"error: ($e.msg)"
+          log $"status-pending [image-build-enrichment-worker]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -336,24 +312,21 @@ spec:
       name: pending-image-build-web
       script: |-
         #!/usr/bin/env nu
-        def log [msg: string] {
-          print $"[(date now | format date '%H:%M:%S')] status-pending [image-build-web]: ($msg)"
-        }
-
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
         let body = { state: "pending", context: "image-build-web", description: "Running" }
 
-        log $"POST ($url)"
-        log $"body: ($body | to json -r)"
+        log $"status-pending [image-build-web]: POST ($url)"
+        log $"status-pending [image-build-web]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "done"
+          log "status-pending [image-build-web]: done"
         } catch { |e|
-          log $"error: ($e.msg)"
+          log $"status-pending [image-build-web]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -373,24 +346,21 @@ spec:
       name: pending-image-build-operator
       script: |-
         #!/usr/bin/env nu
-        def log [msg: string] {
-          print $"[(date now | format date '%H:%M:%S')] status-pending [image-build-operator]: ($msg)"
-        }
-
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
         let body = { state: "pending", context: "image-build-operator", description: "Running" }
 
-        log $"POST ($url)"
-        log $"body: ($body | to json -r)"
+        log $"status-pending [image-build-operator]: POST ($url)"
+        log $"status-pending [image-build-operator]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "done"
+          log "status-pending [image-build-operator]: done"
         } catch { |e|
-          log $"error: ($e.msg)"
+          log $"status-pending [image-build-operator]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -410,23 +380,20 @@ spec:
       name: pending-helm-publish
       script: |-
         #!/usr/bin/env nu
-        def log [msg: string] {
-          print $"[(date now | format date '%H:%M:%S')] status-pending [helm-publish]: ($msg)"
-        }
-
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
         let body = { state: "pending", context: "helm-publish", description: "Running" }
 
-        log $"POST ($url)"
-        log $"body: ($body | to json -r)"
+        log $"status-pending [helm-publish]: POST ($url)"
+        log $"status-pending [helm-publish]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "done"
+          log "status-pending [helm-publish]: done"
         } catch { |e|
-          log $"error: ($e.msg)"
+          log $"status-pending [helm-publish]: error: ($e.msg)"
           exit 1
         }

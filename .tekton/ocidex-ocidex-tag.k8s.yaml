@@ -242,8 +242,6 @@ spec:
       - name: workspace
       - name: go-cache
       - name: node-cache
-  timeouts:
-    pipeline: 3h0m0s
   taskRunTemplate:
     podTemplate:
       securityContext:

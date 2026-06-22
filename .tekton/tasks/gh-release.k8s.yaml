@@ -33,12 +33,10 @@ spec:
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: create-release
       onError: continue
-      script: |
+      script: |-
         #!/usr/bin/env nu
-        def log [msg: string] {
-          print $"[(date now | format date '%H:%M:%S')] create-release: ($msg)"
-        }
-
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def main [] {
         let tag = ("$(params.source-branch)" | str replace "refs/tags/" "")
         let is_prerelease = ($tag | str contains "-")
         let body_text = try { open --raw "CHANGELOG.md" } catch { "" }
@@ -48,19 +46,18 @@ spec:
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/releases"
         let payload = { tag_name: $tag, name: $tag, body: $body_text, prerelease: $is_prerelease, draft: false }
 
-        try {
-          http post $url $payload -t application/json -H [
-            Authorization $"token ($env.GH_TOKEN)"
-            Accept "application/vnd.github+json"
-            X-GitHub-Api-Version "2022-11-28"
-          ]
-          log "release created"
-          0 | save -f /tekton/home/.exit-code
-        } catch { |e|
-          log $"error: ($e.msg)"
-          1 | save -f /tekton/home/.exit-code
-          exit 1
+        http post $url $payload -t application/json -H [
+          Authorization $"token ($env.GH_TOKEN)"
+          Accept "application/vnd.github+json"
+          X-GitHub-Api-Version "2022-11-28"
+        ]
+        log "release created"
         }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
       workingDir: $(workspaces.workspace.path)
     - env:
         - name: GITHUB_TOKEN
@@ -72,30 +69,27 @@ spec:
       name: report-status
       script: |-
         #!/usr/bin/env nu
-        def log [msg: string] {
-          print $"[(date now | format date '%H:%M:%S')] report-status [gh-release]: ($msg)"
-        }
-
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let exit_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
         let state = if $exit_code == 0 { "success" } else { "failure" }
         let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
 
-        log $"exit-code=($exit_code) state=($state)"
+        log $"report-status [gh-release]: exit-code=($exit_code) state=($state)"
 
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
         let body = { state: $state, context: "gh-release", description: $desc }
 
-        log $"POST ($url)"
-        log $"body: ($body | to json -r)"
+        log $"report-status [gh-release]: POST ($url)"
+        log $"report-status [gh-release]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "done"
+          log "report-status [gh-release]: done"
         } catch { |e|
-          log $"error: ($e.msg)"
+          log $"report-status [gh-release]: error: ($e.msg)"
         }
   workspaces:
     - name: workspace
