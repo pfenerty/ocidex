@@ -47,3 +47,6 @@ Thumbs.db
 .dolt/
 *.db
 .beads-credential-key
+
+# Stray go build artifact from `go build ./cmd/operator` (use -o bin/)
+/operator
