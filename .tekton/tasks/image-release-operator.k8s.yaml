@@ -36,38 +36,56 @@ spec:
           value: /tmp/docker-auth
         - name: BUILDKITD_FLAGS
           value: --oci-worker-snapshotter=native --oci-worker-no-process-sandbox
+        - name: IMAGE
+          value: ghcr.io/pfenerty/ocidex-operator
+        - name: DOCKERFILE
+          value: docker/Dockerfile
+        - name: TARGET
+          value: operator
       image: moby/buildkit:rootless
       name: build-and-push
       onError: continue
-      script: |
+      script: |-
         #!/bin/sh
+        log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+        (
+        # Release build: tags images with semver aliases from the git tag name.
+        # latest is only added for stable releases (no hyphen in tag).
+        # Per-image values come from step env: DOCKERFILE, IMAGE, and optional TARGET.
+        # buildctl is the final command so its exit code is what synth captures.
         TAG="$(params.source-branch)"
         TAG="${TAG#refs/tags/}"
         BARE="${TAG#v}"
-        MAJOR="$(echo "${BARE}" | cut -d. -f1)"
-        MINOR="$(echo "${BARE}" | cut -d. -f2)"
+        MAJOR=$(echo "$BARE" | cut -d. -f1)
+        MINOR=$(echo "$BARE" | cut -d. -f2)
 
-        NAMES="ghcr.io/pfenerty/ocidex-operator:${TAG},ghcr.io/pfenerty/ocidex-operator:${MAJOR}.${MINOR},ghcr.io/pfenerty/ocidex-operator:${MAJOR}"
-        if ! echo "${TAG}" | grep -q '-'; then
-          NAMES="${NAMES},ghcr.io/pfenerty/ocidex-operator:latest"
+        NAMES="$IMAGE:$TAG,$IMAGE:$MAJOR.$MINOR,$IMAGE:$MAJOR"
+        if ! echo "$TAG" | grep -q '-'; then
+          NAMES="$NAMES,$IMAGE:latest"
         fi
+
+        TARGET_OPT=""
+        if [ -n "$TARGET" ]; then TARGET_OPT="--opt target=$TARGET"; fi
 
         buildctl-daemonless.sh build \
           --frontend dockerfile.v0 \
           --local context=. \
           --local dockerfile=. \
-          --opt filename=docker/Dockerfile \
-          --opt target=operator \
+          --opt filename="$DOCKERFILE" \
+          $TARGET_OPT \
           --opt platform=linux/amd64,linux/arm64 \
-          --opt build-arg:VERSION="${TAG}" \
+          --opt build-arg:VERSION="$TAG" \
           --opt build-arg:COMMIT="$(params.revision)" \
           --opt build-arg:DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
           --opt attest:provenance=mode=max \
           --opt attest:sbom= \
-          --output "type=image,\"name=${NAMES}\",push=true,attestation-manifest-referrers=true"
-        ec=$?
-        echo "${ec}" > /tekton/home/.exit-code
-        exit "${ec}"
+          --output "type=image,\"name=$NAMES\",push=true,attestation-manifest-referrers=true"
+        )
+        __tek_rc=$?
+        __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
+        if [ "$__tek_rc" -gt "$__tek_prev" ]; then __tek_prev="$__tek_rc"; fi
+        printf '%s' "$__tek_prev" > /tekton/home/.exit-code
+        exit "$__tek_rc"
       securityContext:
         allowPrivilegeEscalation: true
         capabilities:

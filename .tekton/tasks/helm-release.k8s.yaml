@@ -34,6 +34,9 @@ spec:
         #!/bin/sh
         log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
         (
+        # Package and push the ocidex Helm charts for a tagged release.
+        # `set -e` fails fast on the first failing helm command; synth captures the exit
+        # code. `$(params.source-branch)` is substituted by Tekton at run time.
         set -e
         TAG="$(params.source-branch)"
         TAG="${TAG#refs/tags/}"
