@@ -29,12 +29,14 @@ buildctl-daemonless.sh build \
   --opt build-arg:DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --opt attest:provenance=mode=max \
   --opt attest:sbom= \
+  --export-cache "type=registry,ref=$IMAGE:buildcache,mode=max,image-manifest=true,oci-mediatypes=true" \
+  --import-cache "type=registry,ref=$IMAGE:buildcache" \
   --metadata-file /tmp/buildctl-metadata.json \
   --output "type=image,\"name=$NAMES\",push=true,attestation-manifest-referrers=true"
 rc=$?
 
 # Tekton Chains build-subject hints: record the pushed image ref + digest so Chains
-# attests this run produced this image. Best-effort; never masks buildctl's exit code.
+# attests this run produced this image. Best-effort; never masks buildctl's exit.
 if [ "$rc" -eq 0 ] && [ -n "$CHAINS_IMAGE_URL_PATH" ]; then
   DIGEST=$(sed -n 's/.*"containerimage.digest": *"\([^"]*\)".*/\1/p' /tmp/buildctl-metadata.json | head -1)
   printf '%s' "$IMAGE" > "$CHAINS_IMAGE_URL_PATH"
