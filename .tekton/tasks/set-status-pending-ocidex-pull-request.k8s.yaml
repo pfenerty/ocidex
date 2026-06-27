@@ -1,0 +1,195 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-set-status-pending-ocidex-pull-request
+  namespace: ocidex-ci
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+    - name: revision
+      type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+  steps:
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: pending-go-fmt
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: "pending", context: "go-fmt", description: "Running" }
+
+        log $"status-pending [go-fmt]: POST ($url)"
+        log $"status-pending [go-fmt]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "status-pending [go-fmt]: done"
+        } catch { |e|
+          log $"status-pending [go-fmt]: error: ($e.msg)"
+          exit 1
+        }
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: pending-go-test
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: "pending", context: "go-test", description: "Running" }
+
+        log $"status-pending [go-test]: POST ($url)"
+        log $"status-pending [go-test]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "status-pending [go-test]: done"
+        } catch { |e|
+          log $"status-pending [go-test]: error: ($e.msg)"
+          exit 1
+        }
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: pending-go-build
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: "pending", context: "go-build", description: "Running" }
+
+        log $"status-pending [go-build]: POST ($url)"
+        log $"status-pending [go-build]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "status-pending [go-build]: done"
+        } catch { |e|
+          log $"status-pending [go-build]: error: ($e.msg)"
+          exit 1
+        }
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: pending-openapi-check
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: "pending", context: "openapi-check", description: "Running" }
+
+        log $"status-pending [openapi-check]: POST ($url)"
+        log $"status-pending [openapi-check]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "status-pending [openapi-check]: done"
+        } catch { |e|
+          log $"status-pending [openapi-check]: error: ($e.msg)"
+          exit 1
+        }
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: pending-frontend-lint
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: "pending", context: "frontend-lint", description: "Running" }
+
+        log $"status-pending [frontend-lint]: POST ($url)"
+        log $"status-pending [frontend-lint]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "status-pending [frontend-lint]: done"
+        } catch { |e|
+          log $"status-pending [frontend-lint]: error: ($e.msg)"
+          exit 1
+        }
