@@ -98,11 +98,12 @@ func (s *searchService) ListVersionsByArtifact(ctx context.Context, artifactID p
 	for _, row := range rows {
 		total = row.TotalCount
 		v := ArtifactVersion{
-			VersionKey: row.VersionKey.String,
-			SbomID:     uuidToString(row.NewestSbomID),
-			SBOMCount:  row.SbomCount,
-			Sufficient: row.EnrichmentSufficient,
-			CreatedAt:  row.CreatedAt.Time,
+			VersionKey:    row.VersionKey.String,
+			SbomID:        uuidToString(row.NewestSbomID),
+			SBOMCount:     row.SbomCount,
+			Sufficient:    row.EnrichmentSufficient,
+			CreatedAt:     row.CreatedAt.Time,
+			SigningStatus: row.SigningStatus,
 		}
 		if row.BuildDate.Valid {
 			t := row.BuildDate.Time
@@ -165,6 +166,7 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 			Group:               textToPtr(row.GroupName),
 			SbomCount:           row.SbomCount,
 			SufficientSbomCount: row.SufficientSbomCount,
+			SigningStatus:       row.SigningStatus,
 		})
 	}
 

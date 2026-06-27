@@ -16,7 +16,22 @@ WHERE id = $1;
 SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
        COUNT(s.id) AS sbom_count,
        COUNT(s.id) FILTER (WHERE s.enrichment_sufficient) AS sufficient_sbom_count,
-       COUNT(*) OVER() AS total_count
+       COUNT(*) OVER() AS total_count,
+       (SELECT CASE
+           WHEN EXISTS (
+               SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
+               WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND pe.status = 'success' AND (pe.data->>'verified')::boolean = true
+           ) THEN 'verified'
+           WHEN EXISTS (
+               SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
+               WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND pe.status = 'success'
+                 AND ((pe.data->>'signaturePresent')::boolean = true
+                      OR (pe.data->>'attestationPresent')::boolean = true)
+           ) THEN 'signed'
+           ELSE 'unsigned'
+       END)::text AS signing_status
 FROM artifact a
 LEFT JOIN sbom s ON s.artifact_id = a.id
 WHERE (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))
@@ -82,16 +97,23 @@ WITH sboms_meta AS (
         COALESCE(e.data->>'imageVersion',  u.data->>'imageVersion')      AS image_version,
         COALESCE(e.data->>'revision',      u.data->>'revision')          AS revision,
         COALESCE(e.data->>'sourceUrl',     u.data->>'sourceUrl')         AS source_url,
-        (COALESCE(e.data->>'created',      u.data->>'created'))::timestamptz AS build_date
+        (COALESCE(e.data->>'created',      u.data->>'created'))::timestamptz AS build_date,
+        CASE
+            WHEN (p.data->>'verified')::boolean = true THEN 'verified'
+            WHEN (p.data->>'signaturePresent')::boolean = true
+                 OR (p.data->>'attestationPresent')::boolean = true THEN 'signed'
+            ELSE 'unsigned'
+        END AS signing_status
     FROM sbom s
     LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
     LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user'         AND u.status = 'success'
+    LEFT JOIN enrichment p ON p.sbom_id = s.id AND p.enricher_name = 'provenance'   AND p.status = 'success'
     WHERE s.artifact_id = $1
       AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
 ),
 newest_per_version AS (
     SELECT DISTINCT ON (version_key)
-        id, version_key, created_at, enrichment_sufficient, image_version, revision, source_url, build_date
+        id, version_key, created_at, enrichment_sufficient, image_version, revision, source_url, build_date, signing_status
     FROM sboms_meta
     ORDER BY version_key, created_at DESC
 ),
@@ -116,6 +138,7 @@ SELECT
     n.revision,
     n.source_url,
     n.build_date,
+    n.signing_status,
     a.architectures,
     c.sbom_count,
     COUNT(*) OVER() AS total_count

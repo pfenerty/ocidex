@@ -727,6 +727,7 @@ export interface components {
             purl?: string;
             /** Format: int64 */
             sbomCount: number;
+            signingStatus: string;
             /** Format: int64 */
             sufficientSbomCount: number;
             type: string;
@@ -739,6 +740,7 @@ export interface components {
             name: string;
             /** Format: int64 */
             sbomCount: number;
+            signingStatus: string;
             /** Format: int64 */
             sufficientSbomCount: number;
             type: string;
@@ -757,6 +759,11 @@ export interface components {
              */
             sbomCount: number;
             sbomId: string;
+            /**
+             * @description Signing status derived from provenance enrichment
+             * @enum {string}
+             */
+            signingStatus: "unsigned" | "signed" | "verified";
             sourceUrl?: string;
             sufficient: boolean;
             versionKey: string;
