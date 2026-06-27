@@ -196,6 +196,9 @@ func TestRegistryUpdate_DefaultVisibility(t *testing.T) {
 	is := is.New(t)
 	var capturedVis string
 	svc := newTestRegistryService(&fakeRegistryRepo{
+		getFn: func(_ context.Context, _ pgtype.UUID) (repository.Registry, error) {
+			return repository.Registry{VerificationMode: "none"}, nil
+		},
 		updateFn: func(_ context.Context, arg repository.UpdateRegistryParams) (repository.Registry, error) {
 			capturedVis = arg.Visibility
 			return repository.Registry{Visibility: arg.Visibility}, nil
