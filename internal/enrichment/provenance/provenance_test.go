@@ -244,6 +244,54 @@ func TestName(t *testing.T) {
 	is.Equal(NewEnricher().Name(), "provenance")
 }
 
+func TestECDSAVerification(t *testing.T) {
+	is := is.New(t)
+
+	sigLayer, err := os.ReadFile("testdata/sig_layer.json")
+	is.NoErr(err)
+	attLayer, err := os.ReadFile("testdata/att_layer.json")
+	is.NoErr(err)
+	annoBytes, err := os.ReadFile("testdata/sig_annotations.json")
+	is.NoErr(err)
+	pubKeyPEM, err := os.ReadFile("testdata/cosign.pub")
+	is.NoErr(err)
+
+	var annotations map[string]string
+	is.NoErr(json.Unmarshal(annoBytes, &annotations))
+
+	raw := RawArtifacts{
+		SigPresent:     true,
+		SigLayerBytes:  sigLayer,
+		SigAnnotations: annotations,
+		AttPresent:     true,
+		AttLayerBytes:  attLayer,
+	}
+
+	// Case 1: valid key → Verified = &true
+	p := buildProvenance(raw)
+	applyVerification(&p, raw, "public_key", string(pubKeyPEM))
+	is.True(p.Verified != nil)
+	is.True(*p.Verified)
+
+	// Case 2: mode "none" → Verified remains nil
+	p2 := buildProvenance(raw)
+	applyVerification(&p2, raw, "none", "")
+	is.True(p2.Verified == nil)
+
+	// Case 3: tampered sig → Verified = &false
+	p3 := buildProvenance(raw)
+	tampered := make(map[string]string)
+	for k, v := range annotations {
+		tampered[k] = v
+	}
+	tampered["dev.cosignproject.cosign/signature"] = "aGVsbG8=" // "hello", invalid sig
+	rawTampered := raw
+	rawTampered.SigAnnotations = tampered
+	applyVerification(&p3, rawTampered, "public_key", string(pubKeyPEM))
+	is.True(p3.Verified != nil)
+	is.True(!*p3.Verified)
+}
+
 func TestParseRealFixtures(t *testing.T) {
 	is := is.New(t)
 

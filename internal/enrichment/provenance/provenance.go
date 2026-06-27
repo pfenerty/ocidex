@@ -39,6 +39,10 @@ type RawArtifacts struct {
 	DiscoveryMethod string            `json:"discoveryMethod"`         // "referrers" | "tag-scheme"
 }
 
+// TrustResolver returns the verification mode and PEM public key for a registry host.
+// mode values: "none" | "public_key" | "keyless"
+type TrustResolver func(ctx context.Context, host string) (mode, pemKey string)
+
 // Enricher discovers cosign signatures and attestations for container images.
 type Enricher struct {
 	timeout            time.Duration
@@ -46,6 +50,7 @@ type Enricher struct {
 	insecure           bool
 	insecureResolver   func(ctx context.Context, host string) bool
 	credentialResolver func(ctx context.Context, host string) (username, token string)
+	trustResolver      TrustResolver
 }
 
 // Option configures the provenance Enricher.
@@ -75,6 +80,11 @@ func WithInsecureResolver(fn func(ctx context.Context, host string) bool) Option
 // WithCredentialResolver sets a function that resolves registry credentials by hostname.
 func WithCredentialResolver(fn func(ctx context.Context, host string) (username, token string)) Option {
 	return func(e *Enricher) { e.credentialResolver = fn }
+}
+
+// WithTrustResolver sets the per-host trust configuration resolver used for ECDSA verification.
+func WithTrustResolver(fn TrustResolver) Option {
+	return func(e *Enricher) { e.trustResolver = fn }
 }
 
 // NewEnricher creates a provenance enricher.
@@ -147,6 +157,10 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 
 	raw := e.discover(ctx, digestRef, repo, ref.Digest, opts)
 	p := buildProvenance(raw)
+	if e.trustResolver != nil {
+		mode, pemKey := e.trustResolver(ctx, host)
+		applyVerification(&p, raw, mode, pemKey)
+	}
 
 	data, err := json.Marshal(p)
 	if err != nil {
