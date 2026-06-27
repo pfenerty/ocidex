@@ -34,6 +34,12 @@ spec:
     - description: Repository remote URL
       name: remote-url
       type: string
+    - description: Repository URL fetched (Tekton Chains provenance material)
+      name: CHAINS-GIT_URL
+      type: string
+    - description: Commit SHA fetched (Tekton Chains provenance material)
+      name: CHAINS-GIT_COMMIT
+      type: string
   stepTemplate:
     computeResources:
       limits:
@@ -78,6 +84,8 @@ spec:
         git log -1 --format=%aI     | tr -d '\n' > $(results.timestamp.path)
         printf '%s' "$(params.revision)" > $(results.branch.path)
         printf '%s' "$(params.url)" > $(results.remote-url.path)
+        git rev-parse HEAD | tr -d '\n' > $(results.CHAINS-GIT_COMMIT.path)
+        printf '%s' "$(params.url)" > $(results.CHAINS-GIT_URL.path)
       workingDir: $(workspaces.workspace.path)
   workspaces:
     - name: workspace
