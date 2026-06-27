@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: ocidex-set-status-pending
+  name: ocidex-set-status-pending-ocidex-push
   namespace: ocidex-ci
 spec:
   params:
