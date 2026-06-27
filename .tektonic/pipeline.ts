@@ -17,6 +17,10 @@ const allTasks = [goFmt, goTest, goBuild, openapiCheck, frontendLint];
 const pushPipeline = new GitPipeline({
   name: "ocidex-push",
   triggers: [TRIGGER_EVENTS.PUSH],
+  // Publish only from main — feature-branch pushes shouldn't run image builds.
+  onTargetBranch: "main",
+  // 5 multi-arch image builds + helm exceed Tekton's 1h default on the homelab node.
+  timeout: "2h",
   tasks: [...allTasks, ...imageBuilds, helmPublish],
 });
 
@@ -29,6 +33,7 @@ const prPipeline = new GitPipeline({
 const tagPipeline = new GitPipeline({
   name: "ocidex-tag",
   triggers: [TRIGGER_EVENTS.TAG],
+  timeout: "2h",
   tasks: [...imageBuildsTag, helmRelease, ghRelease],
 });
 
