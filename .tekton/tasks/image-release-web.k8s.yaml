@@ -9,6 +9,13 @@ spec:
       type: string
     - name: revision
       type: string
+  results:
+    - description: Fully-qualified reference of the web image (Tekton Chains subject)
+      name: web-IMAGE_URL
+      type: string
+    - description: Digest (alg:hex) of the web image (Tekton Chains subject)
+      name: web-IMAGE_DIGEST
+      type: string
   stepTemplate:
     computeResources:
       limits:
@@ -36,6 +43,10 @@ spec:
           value: /tmp/docker-auth
         - name: BUILDKITD_FLAGS
           value: --oci-worker-snapshotter=native --oci-worker-no-process-sandbox
+        - name: CHAINS_IMAGE_URL_PATH
+          value: $(results.web-IMAGE_URL.path)
+        - name: CHAINS_IMAGE_DIGEST_PATH
+          value: $(results.web-IMAGE_DIGEST.path)
         - name: IMAGE
           value: ghcr.io/pfenerty/ocidex-web
         - name: DOCKERFILE
@@ -50,7 +61,7 @@ spec:
         # Release build: tags images with semver aliases from the git tag name.
         # latest is only added for stable releases (no hyphen in tag).
         # Per-image values come from step env: DOCKERFILE, IMAGE, and optional TARGET.
-        # buildctl is the final command so its exit code is what synth captures.
+        # buildctl's exit code is captured in $rc and re-exited after writing Chains hints.
         TAG="$(params.source-branch)"
         TAG="${TAG#refs/tags/}"
         BARE="${TAG#v}"
@@ -79,7 +90,18 @@ spec:
           --opt attest:sbom= \
           --export-cache "type=registry,ref=$IMAGE:buildcache,mode=max,image-manifest=true,oci-mediatypes=true" \
           --import-cache "type=registry,ref=$IMAGE:buildcache" \
+          --metadata-file /tmp/buildctl-metadata.json \
           --output "type=image,\"name=$NAMES\",push=true,attestation-manifest-referrers=true"
+        rc=$?
+
+        # Tekton Chains build-subject hints: record the pushed image ref + digest so Chains
+        # attests this run produced this image. Best-effort; never masks buildctl's exit.
+        if [ "$rc" -eq 0 ] && [ -n "$CHAINS_IMAGE_URL_PATH" ]; then
+          DIGEST=$(sed -n 's/.*"containerimage.digest": *"\([^"]*\)".*/\1/p' /tmp/buildctl-metadata.json | head -1)
+          printf '%s' "$IMAGE" > "$CHAINS_IMAGE_URL_PATH"
+          printf '%s' "$DIGEST" > "$CHAINS_IMAGE_DIGEST_PATH"
+        fi
+        exit "$rc"
         )
         __tek_rc=$?
         __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
