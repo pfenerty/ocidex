@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -164,15 +165,11 @@ func TestDiscoverViaReferrers(t *testing.T) {
 	data, err := e.Enrich(t.Context(), ref)
 	is.NoErr(err)
 
-	var result RawArtifacts
+	var result Provenance
 	is.NoErr(json.Unmarshal(data, &result))
 
-	is.True(result.SigPresent)
-	is.True(result.AttPresent)
-	is.Equal(result.DiscoveryMethod, "referrers")
-	is.Equal(string(result.SigLayerBytes), string(fakeSigPayload))
-	is.Equal(string(result.AttLayerBytes), string(fakeAttPayload))
-	is.Equal(result.SigAnnotations["dev.cosignproject.cosign/signature"], "dGVzdHNpZw==")
+	is.True(result.SignaturePresent)
+	is.True(result.AttestationPresent)
 }
 
 func TestDiscoverViaTagScheme(t *testing.T) {
@@ -226,14 +223,11 @@ func TestDiscoverViaTagScheme(t *testing.T) {
 	data, err := e.Enrich(t.Context(), ref)
 	is.NoErr(err)
 
-	var result RawArtifacts
+	var result Provenance
 	is.NoErr(json.Unmarshal(data, &result))
 
-	is.True(result.SigPresent)
-	is.True(result.AttPresent)
-	is.Equal(result.DiscoveryMethod, "tag-scheme")
-	is.Equal(string(result.SigLayerBytes), string(fakeSigPayload))
-	is.Equal(string(result.AttLayerBytes), string(fakeAttPayload))
+	is.True(result.SignaturePresent)
+	is.True(result.AttestationPresent)
 }
 
 func TestCanEnrich(t *testing.T) {
@@ -248,4 +242,36 @@ func TestCanEnrich(t *testing.T) {
 func TestName(t *testing.T) {
 	is := is.New(t)
 	is.Equal(NewEnricher().Name(), "provenance")
+}
+
+func TestParseRealFixtures(t *testing.T) {
+	is := is.New(t)
+
+	sigLayer, err := os.ReadFile("testdata/sig_layer.json")
+	is.NoErr(err)
+	attLayer, err := os.ReadFile("testdata/att_layer.json")
+	is.NoErr(err)
+	annoBytes, err := os.ReadFile("testdata/sig_annotations.json")
+	is.NoErr(err)
+
+	var annotations map[string]string
+	is.NoErr(json.Unmarshal(annoBytes, &annotations))
+
+	raw := RawArtifacts{
+		SigPresent:     true,
+		SigLayerBytes:  sigLayer,
+		SigAnnotations: annotations,
+		AttPresent:     true,
+		AttLayerBytes:  attLayer,
+	}
+
+	p := buildProvenance(raw)
+
+	is.True(p.SignaturePresent)
+	is.True(p.AttestationPresent)
+	is.Equal(p.PredicateType, "https://slsa.dev/provenance/v1")
+	is.True(p.BuilderID != "")
+	is.True(len(p.Subjects) > 0)
+	is.True(p.SignerFingerprint != "")
+	is.True(p.BuildStartedOn != nil)
 }

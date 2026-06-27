@@ -1,0 +1,1 @@
+{"critical":{"identity":{"docker-reference":"ghcr.io/pfenerty/apko-cicd/base"},"image":{"docker-manifest-digest":"sha256:770d5a878241e8bbe8df521b3d21bcfe1a9603dfc10b28ff2493fef5d73aca77"},"type":"cosign container image signature"},"optional":null}
