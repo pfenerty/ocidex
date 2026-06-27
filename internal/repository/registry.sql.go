@@ -12,9 +12,9 @@ import (
 )
 
 const createRegistry = `-- name: CreateRegistry :one
-INSERT INTO registry (name, type, url, insecure, webhook_secret, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, repositories, auth_username, auth_token, owner_id, visibility, include_untagged)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-RETURNING id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged
+INSERT INTO registry (name, type, url, insecure, webhook_secret, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, repositories, auth_username, auth_token, owner_id, visibility, include_untagged, verification_mode, trust_public_key, trust_identity, trust_issuer)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+RETURNING id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged, verification_mode, trust_public_key, trust_identity, trust_issuer
 `
 
 type CreateRegistryParams struct {
@@ -33,6 +33,10 @@ type CreateRegistryParams struct {
 	OwnerID             pgtype.UUID `json:"owner_id"`
 	Visibility          string      `json:"visibility"`
 	IncludeUntagged     bool        `json:"include_untagged"`
+	VerificationMode    string      `json:"verification_mode"`
+	TrustPublicKey      pgtype.Text `json:"trust_public_key"`
+	TrustIdentity       pgtype.Text `json:"trust_identity"`
+	TrustIssuer         pgtype.Text `json:"trust_issuer"`
 }
 
 func (q *Queries) CreateRegistry(ctx context.Context, arg CreateRegistryParams) (Registry, error) {
@@ -52,6 +56,10 @@ func (q *Queries) CreateRegistry(ctx context.Context, arg CreateRegistryParams) 
 		arg.OwnerID,
 		arg.Visibility,
 		arg.IncludeUntagged,
+		arg.VerificationMode,
+		arg.TrustPublicKey,
+		arg.TrustIdentity,
+		arg.TrustIssuer,
 	)
 	var i Registry
 	err := row.Scan(
@@ -75,6 +83,10 @@ func (q *Queries) CreateRegistry(ctx context.Context, arg CreateRegistryParams) 
 		&i.OwnerID,
 		&i.Visibility,
 		&i.IncludeUntagged,
+		&i.VerificationMode,
+		&i.TrustPublicKey,
+		&i.TrustIdentity,
+		&i.TrustIssuer,
 	)
 	return i, err
 }
@@ -92,7 +104,7 @@ func (q *Queries) DeleteRegistry(ctx context.Context, id pgtype.UUID) (int64, er
 }
 
 const getRegistry = `-- name: GetRegistry :one
-SELECT id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged FROM registry WHERE id = $1
+SELECT id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged, verification_mode, trust_public_key, trust_identity, trust_issuer FROM registry WHERE id = $1
 `
 
 func (q *Queries) GetRegistry(ctx context.Context, id pgtype.UUID) (Registry, error) {
@@ -119,12 +131,16 @@ func (q *Queries) GetRegistry(ctx context.Context, id pgtype.UUID) (Registry, er
 		&i.OwnerID,
 		&i.Visibility,
 		&i.IncludeUntagged,
+		&i.VerificationMode,
+		&i.TrustPublicKey,
+		&i.TrustIdentity,
+		&i.TrustIssuer,
 	)
 	return i, err
 }
 
 const listPollableRegistries = `-- name: ListPollableRegistries :many
-SELECT id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged FROM registry
+SELECT id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged, verification_mode, trust_public_key, trust_identity, trust_issuer FROM registry
 WHERE enabled = true AND scan_mode IN ('poll', 'both')
 ORDER BY created_at ASC
 `
@@ -159,6 +175,10 @@ func (q *Queries) ListPollableRegistries(ctx context.Context) ([]Registry, error
 			&i.OwnerID,
 			&i.Visibility,
 			&i.IncludeUntagged,
+			&i.VerificationMode,
+			&i.TrustPublicKey,
+			&i.TrustIdentity,
+			&i.TrustIssuer,
 		); err != nil {
 			return nil, err
 		}
@@ -171,7 +191,7 @@ func (q *Queries) ListPollableRegistries(ctx context.Context) ([]Registry, error
 }
 
 const listRegistries = `-- name: ListRegistries :many
-SELECT id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged FROM registry
+SELECT id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged, verification_mode, trust_public_key, trust_identity, trust_issuer FROM registry
 WHERE (
     $1::boolean = true
     OR visibility = 'public'
@@ -215,6 +235,10 @@ func (q *Queries) ListRegistries(ctx context.Context, arg ListRegistriesParams) 
 			&i.OwnerID,
 			&i.Visibility,
 			&i.IncludeUntagged,
+			&i.VerificationMode,
+			&i.TrustPublicKey,
+			&i.TrustIdentity,
+			&i.TrustIssuer,
 		); err != nil {
 			return nil, err
 		}
@@ -227,7 +251,7 @@ func (q *Queries) ListRegistries(ctx context.Context, arg ListRegistriesParams) 
 }
 
 const listRegistriesPaged = `-- name: ListRegistriesPaged :many
-SELECT id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged, COUNT(*) OVER() AS total_count FROM registry
+SELECT id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged, verification_mode, trust_public_key, trust_identity, trust_issuer, COUNT(*) OVER() AS total_count FROM registry
 WHERE (
     $1::boolean = true
     OR visibility = 'public'
@@ -265,6 +289,10 @@ type ListRegistriesPagedRow struct {
 	OwnerID             pgtype.UUID        `json:"owner_id"`
 	Visibility          string             `json:"visibility"`
 	IncludeUntagged     bool               `json:"include_untagged"`
+	VerificationMode    string             `json:"verification_mode"`
+	TrustPublicKey      pgtype.Text        `json:"trust_public_key"`
+	TrustIdentity       pgtype.Text        `json:"trust_identity"`
+	TrustIssuer         pgtype.Text        `json:"trust_issuer"`
 	TotalCount          int64              `json:"total_count"`
 }
 
@@ -303,6 +331,10 @@ func (q *Queries) ListRegistriesPaged(ctx context.Context, arg ListRegistriesPag
 			&i.OwnerID,
 			&i.Visibility,
 			&i.IncludeUntagged,
+			&i.VerificationMode,
+			&i.TrustPublicKey,
+			&i.TrustIdentity,
+			&i.TrustIssuer,
 			&i.TotalCount,
 		); err != nil {
 			return nil, err
@@ -320,7 +352,7 @@ UPDATE registry
 SET enabled    = $2,
     updated_at = now()
 WHERE id = $1
-RETURNING id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged
+RETURNING id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged, verification_mode, trust_public_key, trust_identity, trust_issuer
 `
 
 type SetRegistryEnabledParams struct {
@@ -352,6 +384,10 @@ func (q *Queries) SetRegistryEnabled(ctx context.Context, arg SetRegistryEnabled
 		&i.OwnerID,
 		&i.Visibility,
 		&i.IncludeUntagged,
+		&i.VerificationMode,
+		&i.TrustPublicKey,
+		&i.TrustIdentity,
+		&i.TrustIssuer,
 	)
 	return i, err
 }
@@ -373,9 +409,13 @@ SET name                 = $2,
     auth_token           = $14,
     visibility           = $15,
     include_untagged     = $16,
+    verification_mode    = $17,
+    trust_public_key     = $18,
+    trust_identity       = $19,
+    trust_issuer         = $20,
     updated_at           = now()
 WHERE id = $1
-RETURNING id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged
+RETURNING id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged, verification_mode, trust_public_key, trust_identity, trust_issuer
 `
 
 type UpdateRegistryParams struct {
@@ -395,6 +435,10 @@ type UpdateRegistryParams struct {
 	AuthToken           pgtype.Text `json:"auth_token"`
 	Visibility          string      `json:"visibility"`
 	IncludeUntagged     bool        `json:"include_untagged"`
+	VerificationMode    string      `json:"verification_mode"`
+	TrustPublicKey      pgtype.Text `json:"trust_public_key"`
+	TrustIdentity       pgtype.Text `json:"trust_identity"`
+	TrustIssuer         pgtype.Text `json:"trust_issuer"`
 }
 
 func (q *Queries) UpdateRegistry(ctx context.Context, arg UpdateRegistryParams) (Registry, error) {
@@ -415,6 +459,10 @@ func (q *Queries) UpdateRegistry(ctx context.Context, arg UpdateRegistryParams) 
 		arg.AuthToken,
 		arg.Visibility,
 		arg.IncludeUntagged,
+		arg.VerificationMode,
+		arg.TrustPublicKey,
+		arg.TrustIdentity,
+		arg.TrustIssuer,
 	)
 	var i Registry
 	err := row.Scan(
@@ -438,6 +486,10 @@ func (q *Queries) UpdateRegistry(ctx context.Context, arg UpdateRegistryParams) 
 		&i.OwnerID,
 		&i.Visibility,
 		&i.IncludeUntagged,
+		&i.VerificationMode,
+		&i.TrustPublicKey,
+		&i.TrustIdentity,
+		&i.TrustIssuer,
 	)
 	return i, err
 }
@@ -446,7 +498,7 @@ const updateRegistryLastPolled = `-- name: UpdateRegistryLastPolled :one
 UPDATE registry
 SET last_polled_at = now(), updated_at = now()
 WHERE id = $1
-RETURNING id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged
+RETURNING id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged, verification_mode, trust_public_key, trust_identity, trust_issuer
 `
 
 func (q *Queries) UpdateRegistryLastPolled(ctx context.Context, id pgtype.UUID) (Registry, error) {
@@ -473,6 +525,10 @@ func (q *Queries) UpdateRegistryLastPolled(ctx context.Context, id pgtype.UUID) 
 		&i.OwnerID,
 		&i.Visibility,
 		&i.IncludeUntagged,
+		&i.VerificationMode,
+		&i.TrustPublicKey,
+		&i.TrustIdentity,
+		&i.TrustIssuer,
 	)
 	return i, err
 }
