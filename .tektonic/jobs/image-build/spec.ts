@@ -1,5 +1,5 @@
 import * as path from "path";
-import { Task, ScriptInput, scriptFromFile } from "@pfenerty/tektonic";
+import { ChainsImage, Task, ScriptInput, scriptFromFile } from "@pfenerty/tektonic";
 import { statusReporter, dockerConfigVolume } from "../../shared";
 import { goTest } from "../go-test/spec";
 import { openapiCheck } from "../openapi-check/spec";
@@ -11,13 +11,23 @@ type EnvVar = { name: string; value: string };
 const buildScript = scriptFromFile(path.join(__dirname, "build.sh"));
 const releaseScript = scriptFromFile(path.join(__dirname, "release.sh"));
 
-// Shared Task skeleton — only the script and per-image env differ.
-function buildImageTask(taskName: string, script: ScriptInput, imageEnv: EnvVar[], extraNeeds: Task[] = []): Task {
+// Shared Task skeleton. Each image declares a ChainsImage (Tekton Chains build
+// subject); build.sh/release.sh write the pushed ref + digest to its result paths.
+// `extraNeeds` chains the builds serially (see serialChain).
+function buildImageTask(
+  taskName: string,
+  imageName: string,
+  script: ScriptInput,
+  imageEnv: EnvVar[],
+  extraNeeds: Task[] = [],
+): Task {
+  const chains = new ChainsImage({ name: imageName });
   return new Task({
     name: taskName,
     statusReporter,
     needs: [goTest, openapiCheck, ...extraNeeds],
     volumes: [dockerConfigVolume],
+    results: [...chains.results],
     steps: [
       {
         name: "build-and-push",
@@ -41,6 +51,8 @@ function buildImageTask(taskName: string, script: ScriptInput, imageEnv: EnvVar[
             value:
               "--oci-worker-snapshotter=native --oci-worker-no-process-sandbox",
           },
+          { name: "CHAINS_IMAGE_URL_PATH", value: chains.urlPath },
+          { name: "CHAINS_IMAGE_DIGEST_PATH", value: chains.digestPath },
           ...imageEnv,
         ],
         volumeMounts: [
@@ -72,7 +84,7 @@ function imageEnv(name: string, dockerfile: string, target?: string): EnvVar[] {
 // The single CI worker has limited spare CPU (~0.8 core free of 4), so the five
 // image builds run SEQUENTIALLY — each chained after the previous via `extraNeeds`
 // — instead of 5-wide in parallel, which overcommits the node and leaves pods
-// Pending ("Insufficient cpu"). The registry build cache keeps this fast on reruns.
+// Pending ("Insufficient cpu"). The registry build cache keeps reruns fast.
 type ImageSpec = [name: string, dockerfile: string, target?: string];
 const imageSpecs: ImageSpec[] = [
   ["api", "docker/Dockerfile", "api"],
@@ -87,7 +99,7 @@ function serialChain(taskPrefix: string, script: ScriptInput): Task[] {
   const chain: Task[] = [];
   for (const [name, dockerfile, target] of imageSpecs) {
     const after = chain.length ? [chain[chain.length - 1]] : [];
-    chain.push(buildImageTask(`${taskPrefix}-${name}`, script, imageEnv(name, dockerfile, target), after));
+    chain.push(buildImageTask(`${taskPrefix}-${name}`, name, script, imageEnv(name, dockerfile, target), after));
   }
   return chain;
 }
