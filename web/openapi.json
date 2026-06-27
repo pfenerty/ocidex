@@ -36,6 +36,9 @@
             "format": "int64",
             "type": "integer"
           },
+          "signingStatus": {
+            "type": "string"
+          },
           "sufficientSbomCount": {
             "format": "int64",
             "type": "integer"
@@ -55,7 +58,8 @@
           "type",
           "name",
           "sbomCount",
-          "sufficientSbomCount"
+          "sufficientSbomCount",
+          "signingStatus"
         ],
         "type": "object"
       },
@@ -75,6 +79,9 @@
             "format": "int64",
             "type": "integer"
           },
+          "signingStatus": {
+            "type": "string"
+          },
           "sufficientSbomCount": {
             "format": "int64",
             "type": "integer"
@@ -88,7 +95,8 @@
           "type",
           "name",
           "sbomCount",
-          "sufficientSbomCount"
+          "sufficientSbomCount",
+          "signingStatus"
         ],
         "type": "object"
       },
@@ -126,6 +134,15 @@
           "sbomId": {
             "type": "string"
           },
+          "signingStatus": {
+            "description": "Signing status derived from provenance enrichment",
+            "enum": [
+              "unsigned",
+              "signed",
+              "verified"
+            ],
+            "type": "string"
+          },
           "sourceUrl": {
             "type": "string"
           },
@@ -142,7 +159,8 @@
           "sbomCount",
           "architectures",
           "createdAt",
-          "sufficient"
+          "sufficient",
+          "signingStatus"
         ],
         "type": "object"
       },

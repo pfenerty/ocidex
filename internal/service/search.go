@@ -129,6 +129,7 @@ type ArtifactSummary struct {
 	Group               *string `json:"group,omitempty"`
 	SbomCount           int64   `json:"sbomCount"`
 	SufficientSbomCount int64   `json:"sufficientSbomCount"`
+	SigningStatus       string  `json:"signingStatus"`
 }
 
 // ArtifactDetail extends ArtifactSummary with full metadata.
@@ -152,6 +153,7 @@ type ArtifactVersion struct {
 	BuildDate     *time.Time `json:"buildDate,omitempty"`
 	CreatedAt     time.Time  `json:"createdAt"`
 	Sufficient    bool       `json:"sufficient"`
+	SigningStatus string     `json:"signingStatus"`
 }
 
 // SBOMSummary is a lightweight SBOM representation for list views.
