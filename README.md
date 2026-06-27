@@ -205,6 +205,17 @@ git push origin main v0.1.0
 
 The release workflow (`.github/workflows/release.yml`) then builds multi-arch (linux/amd64, linux/arm64) container images for `api`, `scanner-worker`, `enrichment-worker`, and `web`, pushes them to `ghcr.io/pfenerty/ocidex-*` tagged with the semver version (plus `latest` for stable releases), and creates a GitHub Release with the changelog as the body. Images carry the standard `org.opencontainers.image.*` annotations and binaries embed their build version (`ocidex --version`).
 
+## Supply chain security
+
+Every published image (`ghcr.io/pfenerty/ocidex-*`) carries build provenance and an SBOM, and
+is signed by Tekton Chains (cosign + public Rekor). See
+**[docs/verifying-artifacts.md](docs/verifying-artifacts.md)** for copy-paste verification, and
+[`cosign.pub`](cosign.pub) for the signing key:
+
+```bash
+cosign verify --key cosign.pub ghcr.io/pfenerty/ocidex-api@sha256:<digest>
+```
+
 ## AI Acknowledgment
 
 This project was built with significant AI assistance (Claude). Architecture decisions, technology selection, and code review are human-driven; implementation, refactoring, and documentation are collaborative. See [How AI Was Used](docs/AI.md) for the full picture.
