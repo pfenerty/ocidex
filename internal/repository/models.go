@@ -146,6 +146,10 @@ type Registry struct {
 	OwnerID             pgtype.UUID        `json:"owner_id"`
 	Visibility          string             `json:"visibility"`
 	IncludeUntagged     bool               `json:"include_untagged"`
+	VerificationMode    string             `json:"verification_mode"`
+	TrustPublicKey      pgtype.Text        `json:"trust_public_key"`
+	TrustIdentity       pgtype.Text        `json:"trust_identity"`
+	TrustIssuer         pgtype.Text        `json:"trust_issuer"`
 }
 
 type Sbom struct {
