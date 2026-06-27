@@ -252,6 +252,8 @@ spec:
         seccompProfile:
           type: RuntimeDefault
     serviceAccountName: default
+  timeouts:
+    pipeline: 2h
   workspaces:
     - name: workspace
       volumeClaimTemplate:

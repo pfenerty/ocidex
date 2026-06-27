@@ -29,4 +29,6 @@ buildctl-daemonless.sh build \
   --opt build-arg:DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --opt attest:provenance=mode=max \
   --opt attest:sbom= \
+  --export-cache "type=registry,ref=$IMAGE:buildcache,mode=max,image-manifest=true,oci-mediatypes=true" \
+  --import-cache "type=registry,ref=$IMAGE:buildcache" \
   --output "type=image,\"name=$NAMES\",push=true,attestation-manifest-referrers=true"
