@@ -1,4 +1,0 @@
-{"id":"int-f8e1f2f6","kind":"field_change","created_at":"2026-06-21T18:08:49.037472Z","actor":"Patrick Fenerty","issue_id":"ocidex-1n1","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Deleted .github/workflows/dev-image.yml and empty .github/ tree. No GHA workflows remain."}}
-{"id":"int-9c7858cc","kind":"field_change","created_at":"2026-06-22T02:52:37.948155Z","actor":"Patrick Fenerty","issue_id":"ocidex-qh3","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"Closed"}}
-{"id":"int-e3d37221","kind":"field_change","created_at":"2026-06-22T15:18:19.236572Z","actor":"Patrick Fenerty","issue_id":"ocidex-63u","extra":{"field":"status","new_value":"in_progress","old_value":"open"}}
-{"id":"int-91679c89","kind":"field_change","created_at":"2026-06-22T15:22:49.690498Z","actor":"Patrick Fenerty","issue_id":"ocidex-63u","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
