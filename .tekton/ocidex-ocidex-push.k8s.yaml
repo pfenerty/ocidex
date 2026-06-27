@@ -159,6 +159,7 @@ spec:
         runAfter:
           - go-test
           - openapi-check
+          - image-build-api
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
@@ -175,6 +176,7 @@ spec:
         runAfter:
           - go-test
           - openapi-check
+          - image-build-scanner-worker
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
@@ -191,6 +193,7 @@ spec:
         runAfter:
           - go-test
           - openapi-check
+          - image-build-enrichment-worker
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
@@ -207,6 +210,7 @@ spec:
         runAfter:
           - go-test
           - openapi-check
+          - image-build-web
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
