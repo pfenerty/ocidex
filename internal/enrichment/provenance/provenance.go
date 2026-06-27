@@ -145,11 +145,12 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 		}
 	}
 
-	result := e.discover(ctx, digestRef, repo, ref.Digest, opts)
+	raw := e.discover(ctx, digestRef, repo, ref.Digest, opts)
+	p := buildProvenance(raw)
 
-	data, err := json.Marshal(result)
+	data, err := json.Marshal(p)
 	if err != nil {
-		return nil, fmt.Errorf("marshaling provenance artifacts: %w", err)
+		return nil, fmt.Errorf("marshaling provenance: %w", err)
 	}
 	return data, nil
 }
@@ -236,13 +237,27 @@ func (e *Enricher) discoverViaTagScheme(repo name.Repository, rawDigest string, 
 	return result
 }
 
-// manifestAnnotations returns the annotations from an image's manifest, or nil on error.
+// manifestAnnotations returns merged manifest + layer[0] annotations.
+// Cosign stores dev.cosignproject.cosign/signature in the layer descriptor annotations,
+// not at the manifest level, so both must be combined.
 func manifestAnnotations(img v1.Image) map[string]string {
 	m, err := img.Manifest()
 	if err != nil || m == nil {
 		return nil
 	}
-	return m.Annotations
+	merged := make(map[string]string, len(m.Annotations))
+	for k, v := range m.Annotations {
+		merged[k] = v
+	}
+	if len(m.Layers) > 0 {
+		for k, v := range m.Layers[0].Annotations {
+			merged[k] = v
+		}
+	}
+	if len(merged) == 0 {
+		return nil
+	}
+	return merged
 }
 
 // readFirstLayer reads and returns the raw bytes of the first layer in an image.
