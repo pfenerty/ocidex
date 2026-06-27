@@ -324,6 +324,7 @@ func (h *Handler) ListArtifactVersions(ctx context.Context, input *ListArtifactV
 			BuildDate:     v.BuildDate,
 			CreatedAt:     v.CreatedAt,
 			Sufficient:    v.Sufficient,
+			SigningStatus: v.SigningStatus,
 		})
 	}
 
