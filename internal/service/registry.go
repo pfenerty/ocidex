@@ -37,6 +37,8 @@ type Registry struct {
 	OwnerID             *string    // nil = no owner (legacy)
 	Visibility          string     // "public" | "private"
 	IncludeUntagged     bool       // scan untagged manifests via registry-specific APIs
+	VerificationMode    string     // "none" | "public_key" | "keyless"
+	TrustPublicKey      *string    // PEM-encoded EC public key; nil when mode != public_key
 }
 
 // HasAuth returns true if the registry has authentication credentials configured.
@@ -187,6 +189,42 @@ func BuildCredentialLookup(svc RegistryService) HostCredentialLookup {
 	}
 }
 
+// BuildTrustLookup returns a resolver that maps a registry hostname to its
+// configured verification mode and PEM public key. Results are cached for
+// resolverCacheTTL to avoid a DB round-trip on every enrichment.
+func BuildTrustLookup(svc RegistryService) func(ctx context.Context, host string) (mode, pemKey string) {
+	type trust struct{ mode, pemKey string }
+	var (
+		mu        sync.Mutex
+		cache     map[string]trust
+		fetchedAt time.Time
+	)
+	return func(ctx context.Context, host string) (string, string) {
+		mu.Lock()
+		defer mu.Unlock()
+		if cache == nil || time.Since(fetchedAt) > resolverCacheTTL {
+			regs, err := svc.List(ctx, VisibilityFilter{IsAdmin: true})
+			if err != nil {
+				return "none", ""
+			}
+			cache = make(map[string]trust, len(regs))
+			for _, r := range regs {
+				pemKey := ""
+				if r.TrustPublicKey != nil {
+					pemKey = *r.TrustPublicKey
+				}
+				cache[registryHost(r.URL)] = trust{r.VerificationMode, pemKey}
+			}
+			fetchedAt = time.Now()
+		}
+		t := cache[host]
+		if t.mode == "" {
+			return "none", ""
+		}
+		return t.mode, t.pemKey
+	}
+}
+
 // VisibilityFilter controls which registries or artifacts are visible to the caller.
 type VisibilityFilter struct {
 	IsAdmin bool        // admin sees everything
@@ -323,6 +361,11 @@ func (s *registryService) Update(ctx context.Context, id, name, regType, url str
 	if err != nil {
 		return Registry{}, ErrNotFound
 	}
+	// Read existing to preserve trust columns (not yet exposed via this method — see B10).
+	existing, err := s.repo.GetRegistry(ctx, uid)
+	if err != nil {
+		return Registry{}, ErrNotFound
+	}
 	r, err := s.repo.UpdateRegistry(ctx, repository.UpdateRegistryParams{
 		ID:                  uid,
 		Name:                name,
@@ -340,6 +383,10 @@ func (s *registryService) Update(ctx context.Context, id, name, regType, url str
 		AuthToken:           toNullText(authToken),
 		Visibility:          visibility,
 		IncludeUntagged:     includeUntagged,
+		VerificationMode:    existing.VerificationMode,
+		TrustPublicKey:      existing.TrustPublicKey,
+		TrustIdentity:       existing.TrustIdentity,
+		TrustIssuer:         existing.TrustIssuer,
 	})
 	if err != nil {
 		return Registry{}, fmt.Errorf("updating registry: %w", err)
@@ -438,6 +485,11 @@ func fromRepo(r repository.Registry) Registry {
 	if r.OwnerID.Valid {
 		s := uuidToStr(r.OwnerID)
 		out.OwnerID = &s
+	}
+	out.VerificationMode = r.VerificationMode
+	if r.TrustPublicKey.Valid {
+		s := r.TrustPublicKey.String
+		out.TrustPublicKey = &s
 	}
 	return out
 }

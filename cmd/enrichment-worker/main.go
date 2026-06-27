@@ -22,6 +22,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/enrichment"
 	"github.com/pfenerty/ocidex/internal/enrichment/oci"
+	"github.com/pfenerty/ocidex/internal/enrichment/provenance"
 	"github.com/pfenerty/ocidex/internal/enrichment/user"
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/extension"
@@ -98,11 +99,16 @@ func run() error {
 
 	registrySvc := service.NewRegistryService(pool)
 	insecureResolver := service.BuildInsecureHostLookup(registrySvc)
+	trustResolver := service.BuildTrustLookup(registrySvc)
 
 	enrichStore := repository.New(pool)
 	enrichReg := enrichment.NewCatalog()
 	enrichReg.Register(user.NewEnricher())
 	enrichReg.Register(oci.NewEnricher(oci.WithInsecureResolver(insecureResolver)))
+	enrichReg.Register(provenance.NewEnricher(
+		provenance.WithInsecureResolver(insecureResolver),
+		provenance.WithTrustResolver(trustResolver),
+	))
 	dispatcher := enrichment.NewDispatcher(enrichStore, enrichReg)
 
 	enrichJobSvc := service.NewEnrichJobService(pool)
@@ -209,10 +215,15 @@ func runEnrichOnce(ctx context.Context, pool *pgxpool.Pool) error {
 
 	registrySvc := service.NewRegistryService(pool)
 	insecureResolver := service.BuildInsecureHostLookup(registrySvc)
+	trustResolver := service.BuildTrustLookup(registrySvc)
 
 	enrichReg := enrichment.NewCatalog()
 	enrichReg.Register(user.NewEnricher())
 	enrichReg.Register(oci.NewEnricher(oci.WithInsecureResolver(insecureResolver)))
+	enrichReg.Register(provenance.NewEnricher(
+		provenance.WithInsecureResolver(insecureResolver),
+		provenance.WithTrustResolver(trustResolver),
+	))
 	dispatcher := enrichment.NewDispatcher(store, enrichReg)
 
 	if err := dispatcher.ProcessOne(ctx, ref); err != nil {
