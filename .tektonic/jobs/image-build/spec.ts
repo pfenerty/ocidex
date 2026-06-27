@@ -11,16 +11,21 @@ type EnvVar = { name: string; value: string };
 const buildScript = scriptFromFile(path.join(__dirname, "build.sh"));
 const releaseScript = scriptFromFile(path.join(__dirname, "release.sh"));
 
-// Shared Task skeleton — only the script and per-image env differ.
-function buildImageTask(taskName: string, imageName: string, script: ScriptInput, imageEnv: EnvVar[]): Task {
-  // Tekton Chains build-subject hints: the build script writes the pushed image
-  // reference and digest to these result paths (passed via env so build.sh/release.sh
-  // stay shared across all images).
+// Shared Task skeleton. Each image declares a ChainsImage (Tekton Chains build
+// subject); build.sh/release.sh write the pushed ref + digest to its result paths.
+// `extraNeeds` chains the builds serially (see serialChain).
+function buildImageTask(
+  taskName: string,
+  imageName: string,
+  script: ScriptInput,
+  imageEnv: EnvVar[],
+  extraNeeds: Task[] = [],
+): Task {
   const chains = new ChainsImage({ name: imageName });
   return new Task({
     name: taskName,
     statusReporter,
-    needs: [goTest, openapiCheck],
+    needs: [goTest, openapiCheck, ...extraNeeds],
     volumes: [dockerConfigVolume],
     results: [...chains.results],
     steps: [
@@ -76,26 +81,28 @@ function imageEnv(name: string, dockerfile: string, target?: string): EnvVar[] {
   return env;
 }
 
-function imageBuildTask(name: string, dockerfile: string, target?: string): Task {
-  return buildImageTask(`image-build-${name}`, name, buildScript, imageEnv(name, dockerfile, target));
-}
-
-function imageBuildTagTask(name: string, dockerfile: string, target?: string): Task {
-  return buildImageTask(`image-release-${name}`, name, releaseScript, imageEnv(name, dockerfile, target));
-}
-
-export const imageBuilds = [
-  imageBuildTask("api", "docker/Dockerfile", "api"),
-  imageBuildTask("scanner-worker", "docker/Dockerfile", "scanner-worker"),
-  imageBuildTask("enrichment-worker", "docker/Dockerfile", "enrichment-worker"),
-  imageBuildTask("web", "docker/web/Dockerfile"),
-  imageBuildTask("operator", "docker/Dockerfile", "operator"),
+// The single CI worker has limited spare CPU (~0.8 core free of 4), so the five
+// image builds run SEQUENTIALLY — each chained after the previous via `extraNeeds`
+// — instead of 5-wide in parallel, which overcommits the node and leaves pods
+// Pending ("Insufficient cpu"). The registry build cache keeps reruns fast.
+type ImageSpec = [name: string, dockerfile: string, target?: string];
+const imageSpecs: ImageSpec[] = [
+  ["api", "docker/Dockerfile", "api"],
+  ["scanner-worker", "docker/Dockerfile", "scanner-worker"],
+  ["enrichment-worker", "docker/Dockerfile", "enrichment-worker"],
+  ["web", "docker/web/Dockerfile"],
+  ["operator", "docker/Dockerfile", "operator"],
 ];
 
-export const imageBuildsTag = [
-  imageBuildTagTask("api", "docker/Dockerfile", "api"),
-  imageBuildTagTask("scanner-worker", "docker/Dockerfile", "scanner-worker"),
-  imageBuildTagTask("enrichment-worker", "docker/Dockerfile", "enrichment-worker"),
-  imageBuildTagTask("web", "docker/web/Dockerfile"),
-  imageBuildTagTask("operator", "docker/Dockerfile", "operator"),
-];
+// Build a serial chain: task[i] runs after task[i-1].
+function serialChain(taskPrefix: string, script: ScriptInput): Task[] {
+  const chain: Task[] = [];
+  for (const [name, dockerfile, target] of imageSpecs) {
+    const after = chain.length ? [chain[chain.length - 1]] : [];
+    chain.push(buildImageTask(`${taskPrefix}-${name}`, name, script, imageEnv(name, dockerfile, target), after));
+  }
+  return chain;
+}
+
+export const imageBuilds = serialChain("image-build", buildScript);
+export const imageBuildsTag = serialChain("image-release", releaseScript);
