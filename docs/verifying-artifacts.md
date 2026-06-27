@@ -31,8 +31,9 @@ REF="$IMAGE@$(docker buildx imagetools inspect "$IMAGE:main" --format '{{.Manife
 # Tekton Chains image signature (cosign simplesigning)
 cosign verify --key cosign.pub "$REF"
 
-# Signed SLSA provenance attestation
-cosign verify-attestation --key cosign.pub --type slsaprovenance "$REF" \
+# Signed SLSA provenance attestation (Chains emits SLSA v1.0, so use slsaprovenance1;
+# the bare `slsaprovenance` alias is SLSA v0.2 and will not match)
+cosign verify-attestation --key cosign.pub --type slsaprovenance1 "$REF" \
   | jq -r '.payload | @base64d | fromjson | .predicate'
 ```
 
