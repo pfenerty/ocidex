@@ -26,6 +26,11 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND pe.status = 'success' AND (pe.data->>'verified')::boolean = false
+           ) THEN 'verification_failed'
+           WHEN EXISTS (
+               SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
+               WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
                  AND pe.status = 'success'
                  AND ((pe.data->>'signaturePresent')::boolean = true
                       OR (pe.data->>'attestationPresent')::boolean = true)
@@ -100,6 +105,7 @@ WITH sboms_meta AS (
         (COALESCE(e.data->>'created',      u.data->>'created'))::timestamptz AS build_date,
         CASE
             WHEN (p.data->>'verified')::boolean = true THEN 'verified'
+            WHEN (p.data->>'verified')::boolean = false THEN 'verification_failed'
             WHEN (p.data->>'signaturePresent')::boolean = true
                  OR (p.data->>'attestationPresent')::boolean = true THEN 'signed'
             ELSE 'unsigned'

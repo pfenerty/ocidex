@@ -40,14 +40,24 @@ type dsseSignature struct {
 }
 
 type inTotoStatement struct {
-	Subject []inTotoSubject `json:"subject"`
-	PredicateType string    `json:"predicateType"`
-	Predicate     slsaPredicate `json:"predicate"`
+	Subject       []inTotoSubject `json:"subject"`
+	PredicateType string          `json:"predicateType"`
+	Predicate     slsaPredicate   `json:"predicate"`
 }
 
 type inTotoSubject struct {
 	Name   string            `json:"name"`
 	Digest map[string]string `json:"digest"`
+}
+
+// simpleSigning is the cosign simplesigning payload (the sig layer blob).
+// critical.image.docker-manifest-digest binds the signature to a specific image.
+type simpleSigning struct {
+	Critical struct {
+		Image struct {
+			DockerManifestDigest string `json:"docker-manifest-digest"`
+		} `json:"image"`
+	} `json:"critical"`
 }
 
 type slsaPredicate struct {
@@ -58,8 +68,12 @@ type slsaPredicate struct {
 		} `json:"resolvedDependencies"`
 	} `json:"buildDefinition"`
 	RunDetails struct {
-		Builder  struct{ ID string `json:"id"` } `json:"builder"`
-		Metadata struct{ StartedOn *time.Time `json:"startedOn"` } `json:"metadata"`
+		Builder struct {
+			ID string `json:"id"`
+		} `json:"builder"`
+		Metadata struct {
+			StartedOn *time.Time `json:"startedOn"`
+		} `json:"metadata"`
 	} `json:"runDetails"`
 }
 
@@ -112,6 +126,16 @@ func extractFromSig(p *Provenance, annotations map[string]string) {
 		}
 	}
 	// TODO(B12): RekorUUID requires fetching the full log entry from the Rekor API.
+}
+
+// sigBoundDigest returns the image digest a simplesigning payload is bound to
+// (critical.image.docker-manifest-digest), or "" if absent/unparseable.
+func sigBoundDigest(sigLayerBytes []byte) string {
+	var ss simpleSigning
+	if err := json.Unmarshal(sigLayerBytes, &ss); err != nil {
+		return ""
+	}
+	return ss.Critical.Image.DockerManifestDigest
 }
 
 // --- att extraction ----------------------------------------------------------

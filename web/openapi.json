@@ -139,7 +139,8 @@
             "enum": [
               "unsigned",
               "signed",
-              "verified"
+              "verified",
+              "verification_failed"
             ],
             "type": "string"
           },
