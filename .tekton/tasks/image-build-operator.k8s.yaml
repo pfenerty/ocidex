@@ -51,6 +51,10 @@ spec:
           value: ghcr.io/pfenerty/ocidex-operator
         - name: DOCKERFILE
           value: docker/Dockerfile
+        - name: IMAGE_TITLE
+          value: OCIDex Operator
+        - name: IMAGE_DESCRIPTION
+          value: Kubernetes operator for OCIDex CRDs
         - name: TARGET
           value: operator
       image: moby/buildkit:rootless
@@ -61,21 +65,29 @@ spec:
         log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
         (
         # Push build: tags images as sha-<short> and main.
-        # Per-image values come from step env: DOCKERFILE, IMAGE, and optional TARGET.
+        # Per-image values come from step env: DOCKERFILE, IMAGE, optional TARGET,
+        # IMAGE_TITLE, IMAGE_DESCRIPTION.
         # buildctl's exit code is captured in $rc and re-exited after writing Chains hints.
         SHORT_SHA=$(echo "$(params.revision)" | cut -c1-8)
         VERSION="main-$SHORT_SHA"
         CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-        LABELS="label:org.opencontainers.image.version=$VERSION"
-        LABELS="$LABELS,label:org.opencontainers.image.revision=$(params.revision)"
-        LABELS="$LABELS,label:org.opencontainers.image.created=$CREATED"
-        LABELS="$LABELS,label:org.opencontainers.image.source=https://github.com/pfenerty/ocidex"
-        LABELS="$LABELS,label:org.opencontainers.image.licenses=MIT"
-        LABELS="$LABELS,label:org.opencontainers.image.url=https://github.com/pfenerty/ocidex"
-        LABELS="$LABELS,label:org.opencontainers.image.authors=Patrick Fenerty"
-        LABELS="$LABELS,label:org.opencontainers.image.title=OCIDex Operator"
-        LABELS="$LABELS,label:org.opencontainers.image.description=Kubernetes operator for OCIDex CRDs"
+        # OCI metadata is applied entirely via buildctl CLI (no Dockerfile LABELs):
+        #   --opt label:KEY=VALUE      -> per-platform image config labels (docker inspect).
+        #     label: is a dockerfile FRONTEND opt; as an image EXPORTER (--output) attribute
+        #     buildkit silently ignores it, which is why labels were previously missing.
+        #   annotation-index.KEY=VALUE -> OCI annotations on the image index (read by GHCR).
+        A=org.opencontainers.image
+        SRC=https://github.com/pfenerty/ocidex
+        ANN="annotation-index.$A.version=$VERSION"
+        ANN="$ANN,annotation-index.$A.revision=$(params.revision)"
+        ANN="$ANN,annotation-index.$A.created=$CREATED"
+        ANN="$ANN,annotation-index.$A.source=$SRC"
+        ANN="$ANN,annotation-index.$A.url=$SRC"
+        ANN="$ANN,annotation-index.$A.licenses=MIT"
+        ANN="$ANN,annotation-index.$A.authors=Patrick Fenerty"
+        ANN="$ANN,annotation-index.$A.title=$IMAGE_TITLE"
+        ANN="$ANN,annotation-index.$A.description=$IMAGE_DESCRIPTION"
 
         TARGET_OPT=""
         if [ -n "$TARGET" ]; then TARGET_OPT="--opt target=$TARGET"; fi
@@ -90,12 +102,21 @@ spec:
           --opt build-arg:VERSION="$VERSION" \
           --opt build-arg:COMMIT="$(params.revision)" \
           --opt build-arg:DATE="$CREATED" \
+          --opt "label:$A.version=$VERSION" \
+          --opt "label:$A.revision=$(params.revision)" \
+          --opt "label:$A.created=$CREATED" \
+          --opt "label:$A.source=$SRC" \
+          --opt "label:$A.url=$SRC" \
+          --opt "label:$A.licenses=MIT" \
+          --opt "label:$A.authors=Patrick Fenerty" \
+          --opt "label:$A.title=$IMAGE_TITLE" \
+          --opt "label:$A.description=$IMAGE_DESCRIPTION" \
           --opt attest:provenance=mode=max \
           --opt attest:sbom= \
           --export-cache "type=registry,ref=$IMAGE:buildcache,mode=max,image-manifest=true,oci-mediatypes=true" \
           --import-cache "type=registry,ref=$IMAGE:buildcache" \
           --metadata-file /tmp/buildctl-metadata.json \
-          --output "type=image,\"name=$IMAGE:sha-$SHORT_SHA,$IMAGE:main\",push=true,attestation-manifest-referrers=true,$LABELS"
+          --output "type=image,\"name=$IMAGE:sha-$SHORT_SHA,$IMAGE:main\",push=true,attestation-manifest-referrers=true,$ANN"
         rc=$?
 
         # Tekton Chains build-subject hints: record the pushed image ref + digest so Chains
