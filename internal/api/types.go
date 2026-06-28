@@ -630,6 +630,8 @@ type RegistryResponse struct {
 	OwnerID             *string  `json:"owner_id,omitempty" doc:"UUID of the registry owner"`
 	OwnerUsername       *string  `json:"owner_username,omitempty" doc:"GitHub username of the registry owner"`
 	IncludeUntagged     bool     `json:"include_untagged" doc:"Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)"`
+	VerificationMode    string   `json:"verification_mode" enum:"none,public_key,keyless" doc:"Signature verification mode"`
+	TrustPublicKey      *string  `json:"trust_public_key,omitempty" doc:"PEM-encoded EC public key for public_key verification mode"`
 }
 
 // ListRegistriesInput is the request for GET /api/v1/registries.
@@ -672,6 +674,8 @@ type CreateRegistryInput struct {
 		PollIntervalMinutes int      `json:"poll_interval_minutes,omitempty" minimum:"1" doc:"Minutes between polls"`
 		Visibility          string   `json:"visibility,omitempty" enum:"public,private" default:"public" doc:"Registry visibility"`
 		IncludeUntagged     bool     `json:"include_untagged,omitempty" doc:"Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)"`
+		VerificationMode    string   `json:"verification_mode,omitempty" enum:"none,public_key" doc:"Signature verification mode; defaults to none"`
+		TrustPublicKey      *string  `json:"trust_public_key,omitempty" doc:"PEM-encoded EC public key; required when verification_mode is public_key"`
 	}
 }
 
@@ -717,6 +721,8 @@ type UpdateRegistryInput struct {
 		PollIntervalMinutes int      `json:"poll_interval_minutes,omitempty" minimum:"1" doc:"Minutes between polls"`
 		Visibility          string   `json:"visibility,omitempty" enum:"public,private" doc:"Registry visibility"`
 		IncludeUntagged     bool     `json:"include_untagged,omitempty" doc:"Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)"`
+		VerificationMode    string   `json:"verification_mode,omitempty" enum:"none,public_key" doc:"Signature verification mode; defaults to none"`
+		TrustPublicKey      *string  `json:"trust_public_key,omitempty" doc:"PEM-encoded EC public key; required when verification_mode is public_key"`
 	}
 }
 

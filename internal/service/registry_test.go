@@ -108,7 +108,7 @@ func TestRegistryCreate_DefaultVisibility(t *testing.T) {
 		},
 	})
 
-	_, err := svc.Create(context.Background(), "r", "generic", "https://r.example.com", false, nil, nil, nil, nil, "webhook", 0, nil, nil, pgtype.UUID{}, "", false)
+	_, err := svc.Create(context.Background(), "r", "generic", "https://r.example.com", false, nil, nil, nil, nil, "webhook", 0, nil, nil, pgtype.UUID{}, "", false, "", nil)
 
 	is.NoErr(err)
 	is.Equal(capturedVis, "public") // empty string defaults to "public"
@@ -124,7 +124,7 @@ func TestRegistryCreate_ExplicitVisibility(t *testing.T) {
 		},
 	})
 
-	_, err := svc.Create(context.Background(), "r", "generic", "https://r.example.com", false, nil, nil, nil, nil, "webhook", 0, nil, nil, pgtype.UUID{}, "private", false)
+	_, err := svc.Create(context.Background(), "r", "generic", "https://r.example.com", false, nil, nil, nil, nil, "webhook", 0, nil, nil, pgtype.UUID{}, "private", false, "", nil)
 
 	is.NoErr(err)
 	is.Equal(capturedVis, "private")
@@ -205,7 +205,7 @@ func TestRegistryUpdate_DefaultVisibility(t *testing.T) {
 		},
 	})
 
-	_, err := svc.Update(context.Background(), "01020304-0506-0708-090a-0b0c0d0e0f10", "r", "generic", "https://r.example.com", false, nil, true, nil, nil, nil, "webhook", 0, nil, nil, "", false)
+	_, err := svc.Update(context.Background(), "01020304-0506-0708-090a-0b0c0d0e0f10", "r", "generic", "https://r.example.com", false, nil, true, nil, nil, nil, "webhook", 0, nil, nil, "", false, "", nil)
 
 	is.NoErr(err)
 	is.Equal(capturedVis, "public")
@@ -297,7 +297,7 @@ func (f *fakeListRegistryService) ListPaged(_ context.Context, _ VisibilityFilte
 	return PagedResult[Registry]{Data: f.registries, Total: int64(len(f.registries))}, nil
 }
 
-func (f *fakeListRegistryService) Create(_ context.Context, _, _, _ string, _ bool, _ *string, _, _, _ []string, _ string, _ int, _, _ *string, _ pgtype.UUID, _ string, _ bool) (Registry, error) {
+func (f *fakeListRegistryService) Create(_ context.Context, _, _, _ string, _ bool, _ *string, _, _, _ []string, _ string, _ int, _, _ *string, _ pgtype.UUID, _ string, _ bool, _ string, _ *string) (Registry, error) {
 	return Registry{}, nil
 }
 
@@ -305,7 +305,7 @@ func (f *fakeListRegistryService) Get(_ context.Context, _ string) (Registry, er
 	return Registry{}, ErrNotFound
 }
 
-func (f *fakeListRegistryService) Update(_ context.Context, _, _, _, _ string, _ bool, _ *string, _ bool, _, _, _ []string, _ string, _ int, _, _ *string, _ string, _ bool) (Registry, error) {
+func (f *fakeListRegistryService) Update(_ context.Context, _, _, _, _ string, _ bool, _ *string, _ bool, _, _, _ []string, _ string, _ int, _, _ *string, _ string, _ bool, _ string, _ *string) (Registry, error) {
 	return Registry{}, nil
 }
 

@@ -66,7 +66,7 @@ func (f *fakeRegistryService) Delete(_ context.Context, _ string) error {
 	return f.deleteErr
 }
 
-func (f *fakeRegistryService) Create(_ context.Context, _, _, _ string, _ bool, _ *string, _, _, _ []string, _ string, _ int, _, _ *string, _ pgtype.UUID, _ string, _ bool) (service.Registry, error) {
+func (f *fakeRegistryService) Create(_ context.Context, _, _, _ string, _ bool, _ *string, _, _, _ []string, _ string, _ int, _, _ *string, _ pgtype.UUID, _ string, _ bool, _ string, _ *string) (service.Registry, error) {
 	return service.Registry{}, nil
 }
 
@@ -78,7 +78,7 @@ func (f *fakeRegistryService) ListPaged(_ context.Context, _ service.VisibilityF
 	return service.PagedResult[service.Registry]{}, nil
 }
 
-func (f *fakeRegistryService) Update(_ context.Context, _, _, _, _ string, _ bool, _ *string, _ bool, _, _, _ []string, _ string, _ int, _, _ *string, _ string, _ bool) (service.Registry, error) {
+func (f *fakeRegistryService) Update(_ context.Context, _, _, _, _ string, _ bool, _ *string, _ bool, _, _, _ []string, _ string, _ int, _, _ *string, _ string, _ bool, _ string, _ *string) (service.Registry, error) {
 	return service.Registry{}, nil
 }
 
