@@ -72,10 +72,19 @@ function buildImageTask(
 
 // Per-image env consumed by build.sh / release.sh. TARGET is omitted for images
 // without a Dockerfile target (e.g. web), so `$TARGET` is empty in the script.
-function imageEnv(name: string, dockerfile: string, target?: string): EnvVar[] {
+// IMAGE_TITLE / IMAGE_DESCRIPTION feed the OCI title/description label+annotation.
+function imageEnv(
+  name: string,
+  dockerfile: string,
+  title: string,
+  description: string,
+  target?: string,
+): EnvVar[] {
   const env: EnvVar[] = [
     { name: "IMAGE", value: `ghcr.io/pfenerty/ocidex-${name}` },
     { name: "DOCKERFILE", value: dockerfile },
+    { name: "IMAGE_TITLE", value: title },
+    { name: "IMAGE_DESCRIPTION", value: description },
   ];
   if (target) env.push({ name: "TARGET", value: target });
   return env;
@@ -85,24 +94,30 @@ function imageEnv(name: string, dockerfile: string, target?: string): EnvVar[] {
 // image builds run SEQUENTIALLY — each chained after the previous via `extraNeeds`
 // — instead of 5-wide in parallel, which overcommits the node and leaves pods
 // Pending ("Insufficient cpu"). The registry build cache keeps reruns fast.
-type ImageSpec = [name: string, dockerfile: string, target?: string];
+type ImageSpec = [
+  name: string,
+  dockerfile: string,
+  title: string,
+  description: string,
+  target?: string,
+];
 const imageSpecs: ImageSpec[] = [
-  ["api", "docker/Dockerfile", "api"],
-  ["scanner-worker", "docker/Dockerfile", "scanner-worker"],
-  ["enrichment-worker", "docker/Dockerfile", "enrichment-worker"],
-  ["oci-metadata-worker", "docker/Dockerfile", "oci-metadata-worker"],
-  ["user-enricher-worker", "docker/Dockerfile", "user-enricher-worker"],
-  ["provenance-worker", "docker/Dockerfile", "provenance-worker"],
-  ["web", "docker/web/Dockerfile"],
-  ["operator", "docker/Dockerfile", "operator"],
+  ["api", "docker/Dockerfile", "OCIDex API", "HTTP API server for SBOM metadata management", "api"],
+  ["scanner-worker", "docker/Dockerfile", "OCIDex Scanner Worker", "OCI registry scanner and SBOM ingestion worker", "scanner-worker"],
+  ["enrichment-worker", "docker/Dockerfile", "OCIDex Enrichment Worker", "SBOM enrichment pipeline dispatcher", "enrichment-worker"],
+  ["oci-metadata-worker", "docker/Dockerfile", "OCIDex OCI Metadata Worker", "OCI image metadata enricher", "oci-metadata-worker"],
+  ["user-enricher-worker", "docker/Dockerfile", "OCIDex User Enricher Worker", "User-defined enrichment worker", "user-enricher-worker"],
+  ["provenance-worker", "docker/Dockerfile", "OCIDex Provenance Worker", "OCI image provenance verification worker", "provenance-worker"],
+  ["web", "docker/web/Dockerfile", "OCIDex Web UI", "SolidJS frontend for OCIDex"],
+  ["operator", "docker/Dockerfile", "OCIDex Operator", "Kubernetes operator for OCIDex CRDs", "operator"],
 ];
 
 // Build a serial chain: task[i] runs after task[i-1].
 function serialChain(taskPrefix: string, script: ScriptInput): Task[] {
   const chain: Task[] = [];
-  for (const [name, dockerfile, target] of imageSpecs) {
+  for (const [name, dockerfile, title, description, target] of imageSpecs) {
     const after = chain.length ? [chain[chain.length - 1]] : [];
-    chain.push(buildImageTask(`${taskPrefix}-${name}`, name, script, imageEnv(name, dockerfile, target), after));
+    chain.push(buildImageTask(`${taskPrefix}-${name}`, name, script, imageEnv(name, dockerfile, title, description, target), after));
   }
   return chain;
 }
