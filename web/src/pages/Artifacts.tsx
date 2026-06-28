@@ -5,6 +5,12 @@ import { QueryResult, EmptyState } from "~/components/Feedback";
 import Pagination from "~/components/Pagination";
 import { artifactDisplayName, plural } from "~/utils/format";
 
+const signingBadge = (status: string) => {
+    if (status === "verified") return <span class="badge badge-success">Verified</span>;
+    if (status === "signed")   return <span class="badge badge-warning">Signed</span>;
+    return <span class="badge">Unsigned</span>;
+};
+
 export default function Artifacts() {
     const [offset, setOffset] = createSignal(0);
     const [nameFilter, setNameFilter] = createSignal("");
@@ -89,6 +95,7 @@ export default function Artifacts() {
                                     <tr>
                                         <th>Artifact</th>
                                         <th>Type</th>
+                                        <th>Signing</th>
                                         <th>SBOMs</th>
                                     </tr>
                                 </thead>
@@ -109,6 +116,9 @@ export default function Artifacts() {
                                                     <span class="badge">
                                                         {artifact.type}
                                                     </span>
+                                                </td>
+                                                <td>
+                                                    {signingBadge(artifact.signingStatus)}
                                                 </td>
                                                 <td>
                                                     {plural(
