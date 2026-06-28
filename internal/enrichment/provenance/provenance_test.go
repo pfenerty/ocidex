@@ -48,13 +48,29 @@ func buildManifest(layerMediaType, layerDigest string, layerSize int, configDige
 	return []byte(manifest), digestOf([]byte(manifest))
 }
 
-// buildReferrersIndex returns OCI index JSON for a referrers index with sig+att entries.
+// buildReferrersIndex returns OCI index JSON for a referrers index with both sig and att entries.
 func buildReferrersIndex(sigDigest string, sigSize int, attDigest string, attSize int) []byte {
 	idx := fmt.Sprintf(
 		`{"schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"%s","size":%d,"artifactType":"application/vnd.dev.cosign.artifact.sig.v1+json"},{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"%s","size":%d,"artifactType":"application/vnd.dsse.envelope.v1+json"}]}`,
 		sigDigest, sigSize, attDigest, attSize,
 	)
 	return []byte(idx)
+}
+
+// buildSigOnlyReferrersIndex returns a referrers index containing only a signature entry.
+func buildSigOnlyReferrersIndex(sigDigest string, sigSize int) []byte {
+	return []byte(fmt.Sprintf(
+		`{"schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"%s","size":%d,"artifactType":"application/vnd.dev.cosign.artifact.sig.v1+json"}]}`,
+		sigDigest, sigSize,
+	))
+}
+
+// buildAttOnlyReferrersIndex returns a referrers index containing only an attestation entry.
+func buildAttOnlyReferrersIndex(attDigest string, attSize int) []byte {
+	return []byte(fmt.Sprintf(
+		`{"schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"%s","size":%d,"artifactType":"application/vnd.dsse.envelope.v1+json"}]}`,
+		attDigest, attSize,
+	))
 }
 
 // ----- test server helpers ---------------------------------------------------
@@ -113,7 +129,7 @@ func testRef(host string) enrichment.SubjectRef {
 	}
 }
 
-// ----- tests -----------------------------------------------------------------
+// ----- discovery tests -------------------------------------------------------
 
 func TestDiscoverViaReferrers(t *testing.T) {
 	is := is.New(t)
@@ -230,12 +246,138 @@ func TestDiscoverViaTagScheme(t *testing.T) {
 	is.True(result.AttestationPresent)
 }
 
+// TestDiscover_SigOnly verifies that a referrers index containing only a sig entry
+// produces SignaturePresent=true and AttestationPresent=false without tag-scheme fallback.
+func TestDiscover_SigOnly(t *testing.T) {
+	is := is.New(t)
+
+	sigLayerDigest := digestOf(fakeSigPayload)
+	configDigest := digestOf(fakeConfig)
+
+	sigManifestBytes, sigManifestDigest := buildManifest(
+		"application/vnd.dev.cosign.simplesigning.v1+json",
+		sigLayerDigest, len(fakeSigPayload), configDigest,
+		map[string]string{"dev.cosignproject.cosign/signature": "dGVzdHNpZw=="},
+	)
+
+	hexDigest := strings.TrimPrefix(testImageDigest, "sha256:")
+	repo := "/repo"
+
+	routes := map[string]route{
+		repo + "/referrers/sha256:" + hexDigest: {
+			contentType: "application/vnd.oci.image.index.v1+json",
+			body:        buildSigOnlyReferrersIndex(sigManifestDigest, len(sigManifestBytes)),
+		},
+		repo + "/manifests/" + sigManifestDigest: {
+			contentType: "application/vnd.oci.image.manifest.v1+json",
+			body:        sigManifestBytes,
+		},
+		repo + "/blobs/" + sigLayerDigest: {body: fakeSigPayload},
+		repo + "/blobs/" + configDigest:   {body: fakeConfig},
+	}
+
+	srv := newTestServer(t, routes)
+	defer srv.Close()
+
+	e := newTestEnricher(srv)
+	ref := testRef(strings.TrimPrefix(srv.URL, "http://"))
+
+	data, err := e.Enrich(t.Context(), ref)
+	is.NoErr(err)
+
+	var result Provenance
+	is.NoErr(json.Unmarshal(data, &result))
+
+	is.True(result.SignaturePresent)
+	is.True(!result.AttestationPresent)
+}
+
+// TestDiscover_AttOnly verifies that a referrers index containing only an att entry
+// produces AttestationPresent=true and SignaturePresent=false.
+func TestDiscover_AttOnly(t *testing.T) {
+	is := is.New(t)
+
+	attLayerDigest := digestOf(fakeAttPayload)
+	configDigest := digestOf(fakeConfig)
+
+	attManifestBytes, attManifestDigest := buildManifest(
+		"application/vnd.dsse.envelope.v1+json",
+		attLayerDigest, len(fakeAttPayload), configDigest,
+		nil,
+	)
+
+	hexDigest := strings.TrimPrefix(testImageDigest, "sha256:")
+	repo := "/repo"
+
+	routes := map[string]route{
+		repo + "/referrers/sha256:" + hexDigest: {
+			contentType: "application/vnd.oci.image.index.v1+json",
+			body:        buildAttOnlyReferrersIndex(attManifestDigest, len(attManifestBytes)),
+		},
+		repo + "/manifests/" + attManifestDigest: {
+			contentType: "application/vnd.oci.image.manifest.v1+json",
+			body:        attManifestBytes,
+		},
+		repo + "/blobs/" + attLayerDigest: {body: fakeAttPayload},
+		repo + "/blobs/" + configDigest:   {body: fakeConfig},
+	}
+
+	srv := newTestServer(t, routes)
+	defer srv.Close()
+
+	e := newTestEnricher(srv)
+	ref := testRef(strings.TrimPrefix(srv.URL, "http://"))
+
+	data, err := e.Enrich(t.Context(), ref)
+	is.NoErr(err)
+
+	var result Provenance
+	is.NoErr(json.Unmarshal(data, &result))
+
+	is.True(!result.SignaturePresent)
+	is.True(result.AttestationPresent)
+}
+
+// TestDiscover_NoAnchor verifies that when both referrers and tag-scheme lookups return 404
+// the enricher returns a nil error and a zero-value Provenance.
+func TestDiscover_NoAnchor(t *testing.T) {
+	is := is.New(t)
+
+	hexDigest := strings.TrimPrefix(testImageDigest, "sha256:")
+	tagBase := "sha256-" + hexDigest
+	repo := "/repo"
+
+	routes := map[string]route{
+		repo + "/referrers/sha256:" + hexDigest: {statusCode: http.StatusNotFound},
+		repo + "/manifests/sha256-" + hexDigest: {statusCode: http.StatusNotFound},
+		repo + "/manifests/" + tagBase + ".sig": {statusCode: http.StatusNotFound},
+		repo + "/manifests/" + tagBase + ".att": {statusCode: http.StatusNotFound},
+	}
+
+	srv := newTestServer(t, routes)
+	defer srv.Close()
+
+	e := newTestEnricher(srv)
+	ref := testRef(strings.TrimPrefix(srv.URL, "http://"))
+
+	data, err := e.Enrich(t.Context(), ref)
+	is.NoErr(err)
+
+	var result Provenance
+	is.NoErr(json.Unmarshal(data, &result))
+
+	is.True(!result.SignaturePresent)
+	is.True(!result.AttestationPresent)
+}
+
+// ----- CanEnrich / Name -------------------------------------------------------
+
 func TestCanEnrich(t *testing.T) {
 	is := is.New(t)
 	e := NewEnricher()
 
 	is.True(e.CanEnrich(enrichment.SubjectRef{ArtifactType: "container", Digest: "sha256:abc"}))
-	is.True(!e.CanEnrich(enrichment.SubjectRef{ArtifactType: "container"}))       // missing digest
+	is.True(!e.CanEnrich(enrichment.SubjectRef{ArtifactType: "container"}))                  // missing digest
 	is.True(!e.CanEnrich(enrichment.SubjectRef{ArtifactType: "file", Digest: "sha256:abc"})) // wrong type
 }
 
@@ -244,68 +386,159 @@ func TestName(t *testing.T) {
 	is.Equal(NewEnricher().Name(), "provenance")
 }
 
-func TestECDSAVerification(t *testing.T) {
-	is := is.New(t)
+// ----- parse tests ------------------------------------------------------------
 
+// TestBuildProvenance is a table-driven test for buildProvenance across all named edge cases.
+func TestBuildProvenance(t *testing.T) {
 	sigLayer, err := os.ReadFile("testdata/sig_layer.json")
-	is.NoErr(err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	attLayer, err := os.ReadFile("testdata/att_layer.json")
-	is.NoErr(err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	annoBytes, err := os.ReadFile("testdata/sig_annotations.json")
-	is.NoErr(err)
-	pubKeyPEM, err := os.ReadFile("testdata/cosign.pub")
-	is.NoErr(err)
-
+	if err != nil {
+		t.Fatal(err)
+	}
 	var annotations map[string]string
-	is.NoErr(json.Unmarshal(annoBytes, &annotations))
-
-	raw := RawArtifacts{
-		SigPresent:     true,
-		SigLayerBytes:  sigLayer,
-		SigAnnotations: annotations,
-		AttPresent:     true,
-		AttLayerBytes:  attLayer,
+	if err := json.Unmarshal(annoBytes, &annotations); err != nil {
+		t.Fatal(err)
 	}
 
-	// Case 1: valid key → Verified = &true
-	p := buildProvenance(raw)
-	applyVerification(&p, raw, "public_key", string(pubKeyPEM))
-	is.True(p.Verified != nil)
-	is.True(*p.Verified)
+	expectedStartedOn := time.Date(2026, 6, 22, 19, 24, 26, 0, time.UTC)
 
-	// Case 2: mode "none" → Verified remains nil
-	p2 := buildProvenance(raw)
-	applyVerification(&p2, raw, "none", "")
-	is.True(p2.Verified == nil)
-
-	// Case 3: tampered sig → Verified = &false
-	p3 := buildProvenance(raw)
-	tampered := make(map[string]string)
-	for k, v := range annotations {
-		tampered[k] = v
+	cases := []struct {
+		name  string
+		raw   RawArtifacts
+		check func(*testing.T, Provenance)
+	}{
+		{
+			name: "valid",
+			raw: RawArtifacts{
+				SigPresent:     true,
+				SigLayerBytes:  sigLayer,
+				SigAnnotations: annotations,
+				AttPresent:     true,
+				AttLayerBytes:  attLayer,
+			},
+			check: func(t *testing.T, p Provenance) {
+				is := is.New(t)
+				is.True(p.SignaturePresent)
+				is.True(p.AttestationPresent)
+				is.Equal(p.PredicateType, "https://slsa.dev/provenance/v1")
+				is.Equal(p.BuilderID, "https://tekton.dev/chains/v2")
+				is.Equal(p.SignerFingerprint, "SHA256:KLoB48wClIeVK6tEP+oWoDjf1jA9WIEf86lrYOr93RU")
+				is.Equal(len(p.Subjects), 7)
+				is.True(p.BuildStartedOn != nil)
+				is.Equal(p.BuildStartedOn.UTC(), expectedStartedOn)
+			},
+		},
+		{
+			name: "sig_only",
+			raw: RawArtifacts{
+				SigPresent:     true,
+				SigLayerBytes:  sigLayer,
+				SigAnnotations: annotations,
+				AttPresent:     false,
+			},
+			check: func(t *testing.T, p Provenance) {
+				is := is.New(t)
+				is.True(p.SignaturePresent)
+				is.True(!p.AttestationPresent)
+				is.Equal(p.BuilderID, "")
+				is.Equal(p.PredicateType, "")
+				is.True(p.BuildStartedOn == nil)
+				is.Equal(len(p.Subjects), 0)
+			},
+		},
+		{
+			name: "att_only",
+			raw: RawArtifacts{
+				SigPresent:    false,
+				AttPresent:    true,
+				AttLayerBytes: attLayer,
+			},
+			check: func(t *testing.T, p Provenance) {
+				is := is.New(t)
+				is.True(!p.SignaturePresent)
+				is.True(p.AttestationPresent)
+				is.Equal(p.BuilderID, "https://tekton.dev/chains/v2")
+				is.Equal(p.PredicateType, "https://slsa.dev/provenance/v1")
+				is.Equal(len(p.Subjects), 7)
+				// No sig annotations → no RekorLogIndex
+				is.Equal(p.RekorLogIndex, int64(0))
+			},
+		},
+		{
+			name: "no_anchor",
+			raw:  RawArtifacts{},
+			check: func(t *testing.T, p Provenance) {
+				is := is.New(t)
+				is.True(!p.SignaturePresent)
+				is.True(!p.AttestationPresent)
+				is.Equal(p.BuilderID, "")
+				is.Equal(p.PredicateType, "")
+				is.Equal(p.SignerFingerprint, "")
+				is.True(p.BuildStartedOn == nil)
+				is.Equal(len(p.Subjects), 0)
+				is.Equal(p.RekorLogIndex, int64(0))
+				is.True(p.Verified == nil)
+			},
+		},
+		{
+			name: "malformed_att",
+			raw: RawArtifacts{
+				AttPresent:    true,
+				AttLayerBytes: []byte("not valid json"),
+			},
+			check: func(t *testing.T, p Provenance) {
+				is := is.New(t)
+				// Flag is taken from RawArtifacts directly; parse failure is silent.
+				is.True(p.AttestationPresent)
+				is.Equal(p.BuilderID, "")
+				is.Equal(p.PredicateType, "")
+				is.Equal(len(p.Subjects), 0)
+			},
+		},
 	}
-	tampered["dev.cosignproject.cosign/signature"] = "aGVsbG8=" // "hello", invalid sig
-	rawTampered := raw
-	rawTampered.SigAnnotations = tampered
-	applyVerification(&p3, rawTampered, "public_key", string(pubKeyPEM))
-	is.True(p3.Verified != nil)
-	is.True(!*p3.Verified)
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := buildProvenance(tc.raw)
+			tc.check(t, p)
+		})
+	}
 }
 
-func TestParseRealFixtures(t *testing.T) {
-	is := is.New(t)
+// ----- verification tests -----------------------------------------------------
 
+// TestVerification is a table-driven test for applyVerification across all named cases.
+func TestVerification(t *testing.T) {
 	sigLayer, err := os.ReadFile("testdata/sig_layer.json")
-	is.NoErr(err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	attLayer, err := os.ReadFile("testdata/att_layer.json")
-	is.NoErr(err)
+	if err != nil {
+		t.Fatal(err)
+	}
 	annoBytes, err := os.ReadFile("testdata/sig_annotations.json")
-	is.NoErr(err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pubKeyPEM, err := os.ReadFile("testdata/cosign.pub")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	var annotations map[string]string
-	is.NoErr(json.Unmarshal(annoBytes, &annotations))
+	if err := json.Unmarshal(annoBytes, &annotations); err != nil {
+		t.Fatal(err)
+	}
 
-	raw := RawArtifacts{
+	baseRaw := RawArtifacts{
 		SigPresent:     true,
 		SigLayerBytes:  sigLayer,
 		SigAnnotations: annotations,
@@ -313,13 +546,66 @@ func TestParseRealFixtures(t *testing.T) {
 		AttLayerBytes:  attLayer,
 	}
 
-	p := buildProvenance(raw)
+	boolPtr := func(v bool) *bool { return &v }
 
-	is.True(p.SignaturePresent)
-	is.True(p.AttestationPresent)
-	is.Equal(p.PredicateType, "https://slsa.dev/provenance/v1")
-	is.True(p.BuilderID != "")
-	is.True(len(p.Subjects) > 0)
-	is.True(p.SignerFingerprint != "")
-	is.True(p.BuildStartedOn != nil)
+	cases := []struct {
+		name         string
+		mode         string
+		pemKey       string
+		rawOverride  func(RawArtifacts) RawArtifacts // nil = use baseRaw as-is
+		wantVerified *bool                           // nil means expect p.Verified == nil
+	}{
+		{
+			name:         "valid_key",
+			mode:         "public_key",
+			pemKey:       string(pubKeyPEM),
+			wantVerified: boolPtr(true),
+		},
+		{
+			name:         "mode_none",
+			mode:         "none",
+			pemKey:       string(pubKeyPEM),
+			wantVerified: nil,
+		},
+		{
+			name:   "tampered",
+			mode:   "public_key",
+			pemKey: string(pubKeyPEM),
+			rawOverride: func(r RawArtifacts) RawArtifacts {
+				tampered := make(map[string]string, len(r.SigAnnotations))
+				for k, v := range r.SigAnnotations {
+					tampered[k] = v
+				}
+				tampered["dev.cosignproject.cosign/signature"] = "aGVsbG8=" // "hello" — invalid sig
+				r.SigAnnotations = tampered
+				return r
+			},
+			wantVerified: boolPtr(false),
+		},
+		{
+			// invalid PEM: parsePEMPublicKey returns error → applyVerification exits early → Verified stays nil
+			name:         "invalid_pem",
+			mode:         "public_key",
+			pemKey:       "notapemblock",
+			wantVerified: nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			is := is.New(t)
+			raw := baseRaw
+			if tc.rawOverride != nil {
+				raw = tc.rawOverride(raw)
+			}
+			p := buildProvenance(raw)
+			applyVerification(&p, raw, tc.mode, tc.pemKey)
+			if tc.wantVerified == nil {
+				is.True(p.Verified == nil)
+			} else {
+				is.True(p.Verified != nil)
+				is.Equal(*p.Verified, *tc.wantVerified)
+			}
+		})
+	}
 }
