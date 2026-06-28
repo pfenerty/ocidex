@@ -406,12 +406,14 @@ bd close <id> --reason "..."          # Close with a brief one-liner (simple cha
 | 025 | RBAC / Visibility Model | Registry owner, public/private visibility, API key scopes (read/write) |
 | 026 | Pluggable Enricher Interface | `Enricher` interface (`Name/CanEnrich/Enrich`), `Dispatcher`, registration at startup |
 | 027 | Ephemeral Job Contract | `--once` flag for K8s Job mode; env vars, exit codes, structured lifecycle logs |
+| 032 | Provenance Verification | Tiered trust per registry (display → ECDSA verify); four status values; digest-bound; no cosign SDK |
+| 033 | Per-Enricher Services | Per-enricher `cmd/` binary + Docker image + NATS consumer; `enrichment_jobs.enricher_name` partitions work |
 
 **When working on diff, dependency-tree, or changelog code, read ADRs 0019–0021 first.** They are the normative contract; the implementation issues (`ocidex-bqh.*`) reference them by section.
 
 **When adding a new API handler,** follow the huma v2 pattern: `huma.Register(api, huma.Operation{...}, handler)` with typed input/output structs; see `docs/DEVELOPMENT.md` and `internal/api/sbom.go`.
 
-**When adding a new enricher,** implement `enrichment.Enricher` and register in `cmd/enrichment-worker/main.go`; see ADR 026 and `docs/DEVELOPMENT.md` "Adding a New Enricher".
+**When adding a new enricher,** implement `enrichment.Enricher`; create `cmd/<name>-worker/`, a Dockerfile stage, and a `knownEnrichers` entry; see ADR-026, ADR-033, and `docs/DEVELOPMENT.md` "Adding a New Enricher".
 
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
