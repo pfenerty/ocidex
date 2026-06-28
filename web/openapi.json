@@ -698,6 +698,10 @@
               "null"
             ]
           },
+          "trust_public_key": {
+            "description": "PEM-encoded EC public key; required when verification_mode is public_key",
+            "type": "string"
+          },
           "type": {
             "description": "Registry type",
             "enum": [
@@ -712,6 +716,14 @@
           "url": {
             "description": "Registry address (e.g. zot:5000)",
             "minLength": 1,
+            "type": "string"
+          },
+          "verification_mode": {
+            "description": "Signature verification mode; defaults to none",
+            "enum": [
+              "none",
+              "public_key"
+            ],
             "type": "string"
           },
           "visibility": {
@@ -821,6 +833,10 @@
               "null"
             ]
           },
+          "trust_public_key": {
+            "description": "PEM-encoded EC public key for public_key verification mode",
+            "type": "string"
+          },
           "type": {
             "type": "string"
           },
@@ -828,6 +844,15 @@
             "type": "string"
           },
           "url": {
+            "type": "string"
+          },
+          "verification_mode": {
+            "description": "Signature verification mode",
+            "enum": [
+              "none",
+              "public_key",
+              "keyless"
+            ],
             "type": "string"
           },
           "visibility": {
@@ -860,7 +885,8 @@
           "created_at",
           "updated_at",
           "visibility",
-          "include_untagged"
+          "include_untagged",
+          "verification_mode"
         ],
         "type": "object"
       },
@@ -2110,6 +2136,10 @@
               "null"
             ]
           },
+          "trust_public_key": {
+            "description": "PEM-encoded EC public key for public_key verification mode",
+            "type": "string"
+          },
           "type": {
             "type": "string"
           },
@@ -2117,6 +2147,15 @@
             "type": "string"
           },
           "url": {
+            "type": "string"
+          },
+          "verification_mode": {
+            "description": "Signature verification mode",
+            "enum": [
+              "none",
+              "public_key",
+              "keyless"
+            ],
             "type": "string"
           },
           "visibility": {
@@ -2145,7 +2184,8 @@
           "created_at",
           "updated_at",
           "visibility",
-          "include_untagged"
+          "include_untagged",
+          "verification_mode"
         ],
         "type": "object"
       },
@@ -2766,6 +2806,10 @@
               "null"
             ]
           },
+          "trust_public_key": {
+            "description": "PEM-encoded EC public key; required when verification_mode is public_key",
+            "type": "string"
+          },
           "type": {
             "enum": [
               "zot",
@@ -2778,6 +2822,14 @@
           },
           "url": {
             "minLength": 1,
+            "type": "string"
+          },
+          "verification_mode": {
+            "description": "Signature verification mode; defaults to none",
+            "enum": [
+              "none",
+              "public_key"
+            ],
             "type": "string"
           },
           "visibility": {
