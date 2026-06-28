@@ -96,3 +96,18 @@ export interface OCIMetadata {
     title?: string;
     baseDigest?: string;
 }
+
+export interface Provenance {
+    signaturePresent: boolean;
+    attestationPresent: boolean;
+    verified?: boolean;
+    signerFingerprint?: string;
+    predicateType?: string;
+    builderId?: string;
+    sourceUri?: string;
+    sourceCommit?: string;
+    buildStartedOn?: string;
+    subjects?: string[];
+    rekorUuid?: string;
+    rekorLogIndex?: number;
+}
