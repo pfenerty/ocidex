@@ -60,7 +60,20 @@ scannerWorker:
       cpu: "1500m"
       memory: "1536Mi"
 
-# --- Enrichment worker -------------------------------------------------------
+# --- Enrichment workers ------------------------------------------------------
+# Per-enricher worker microservices (ADR-033). Each entry in `enricherWorkers`
+# becomes a Deployment (+ PodMonitor + KEDA ScaledObject) running a single
+# enricher and claiming its own enricher_name partition. `consumer` is the
+# JetStream durable (HintDurable in cmd/<name>/main.go) KEDA scales on.
+# `enrichmentWorker` holds the sizing/env shared by all of them.
+enricherWorkers:
+  - name: oci-metadata-worker
+    consumer: enrich-hint-oci-metadata
+  - name: user-enricher-worker
+    consumer: enrich-hint-user
+  - name: provenance-worker
+    consumer: enrich-hint-provenance
+
 enrichmentWorker:
   replicas: 2
   env:
@@ -120,10 +133,11 @@ keda:
     lagThreshold: "5"
     activationLagThreshold: "1"
   enrichment:
+    # Shared scaling bounds for every per-enricher worker; the per-worker
+    # JetStream consumer comes from enricherWorkers[].consumer.
     minReplicas: 1
     maxReplicas: 4
     stream: ENRICHMENTS
-    consumer: enrichment-worker
     lagThreshold: "10"
     activationLagThreshold: "1"
 

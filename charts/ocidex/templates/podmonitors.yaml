@@ -1,5 +1,6 @@
 {{- if .Values.monitoring.enabled }}
-{{- $components := list "api" "scanner-worker" "enrichment-worker" }}
+{{- $components := list "api" "scanner-worker" }}
+{{- range .Values.enricherWorkers }}{{ $components = append $components .name }}{{- end }}
 {{- range $components }}
 ---
 apiVersion: monitoring.coreos.com/v1

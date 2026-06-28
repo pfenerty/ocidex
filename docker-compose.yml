@@ -62,7 +62,7 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
-      # Distributed topology: scanner-worker + enrichment-worker consume from NATS.
+      # Distributed topology: scanner-worker + per-enricher workers consume from NATS.
       # FRONTEND_URL, CORS_ALLOWED_ORIGINS, GITHUB_REDIRECT_URL come from .env so
       # tailnet/remote hostnames work without compose edits.
       DATABASE_URL: postgres://ocidex:ocidex@postgres:5432/ocidex?sslmode=disable
@@ -95,12 +95,56 @@ services:
       LOG_LEVEL: info
       ENVIRONMENT: development
 
-  enrichment-worker:
+  # Per-enricher microservices (ADR-033). Each worker claims only its own
+  # enricher_name partition from enrichment_jobs and runs a single enricher.
+  # Together they replace the monolithic enrichment-worker (enricher_name="all").
+  # Resolvers (insecure-host, credentials, trust) are DB-backed, so no extra env.
+  oci-metadata-worker:
     build:
       context: .
       dockerfile: docker/Dockerfile
-      target: enrichment-worker
-    container_name: ocidex-enrichment-worker
+      target: oci-metadata-worker
+    container_name: ocidex-oci-metadata-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgres://ocidex:ocidex@postgres:5432/ocidex?sslmode=disable
+      NATS_URL: nats://nats:4222
+      LOG_LEVEL: info
+      ENVIRONMENT: development
+
+  user-enricher-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: user-enricher-worker
+    container_name: ocidex-user-enricher-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgres://ocidex:ocidex@postgres:5432/ocidex?sslmode=disable
+      NATS_URL: nats://nats:4222
+      LOG_LEVEL: info
+      ENVIRONMENT: development
+
+  provenance-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: provenance-worker
+    container_name: ocidex-provenance-worker
     restart: unless-stopped
     depends_on:
       postgres:

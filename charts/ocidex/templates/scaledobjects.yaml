@@ -21,26 +21,28 @@ spec:
         consumer: {{ .Values.keda.scanner.consumer | quote }}
         lagThreshold: {{ .Values.keda.scanner.lagThreshold | quote }}
         activationLagThreshold: {{ .Values.keda.scanner.activationLagThreshold | quote }}
+{{- range .Values.enricherWorkers }}
 ---
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
-  name: {{ include "ocidex.fullname" . }}-enrichment-worker
-  namespace: {{ .Release.Namespace }}
+  name: {{ include "ocidex.fullname" $ }}-{{ .name }}
+  namespace: {{ $.Release.Namespace }}
   labels:
-    {{- include "ocidex.labels" . | nindent 4 }}
+    {{- include "ocidex.labels" $ | nindent 4 }}
 spec:
   scaleTargetRef:
-    name: {{ include "ocidex.fullname" . }}-enrichment-worker
-  minReplicaCount: {{ .Values.keda.enrichment.minReplicas }}
-  maxReplicaCount: {{ .Values.keda.enrichment.maxReplicas }}
+    name: {{ include "ocidex.fullname" $ }}-{{ .name }}
+  minReplicaCount: {{ $.Values.keda.enrichment.minReplicas }}
+  maxReplicaCount: {{ $.Values.keda.enrichment.maxReplicas }}
   triggers:
     - type: nats-jetstream
       metadata:
-        natsServerMonitoringEndpoint: {{ .Values.keda.enrichment.natsMonitoringEndpoint | quote }}
+        natsServerMonitoringEndpoint: {{ printf "%s-nats:8222" (include "ocidex.fullname" $) | quote }}
         account: "$G"
-        stream: {{ .Values.keda.enrichment.stream | quote }}
-        consumer: {{ .Values.keda.enrichment.consumer | quote }}
-        lagThreshold: {{ .Values.keda.enrichment.lagThreshold | quote }}
-        activationLagThreshold: {{ .Values.keda.enrichment.activationLagThreshold | quote }}
+        stream: {{ $.Values.keda.enrichment.stream | quote }}
+        consumer: {{ .consumer | quote }}
+        lagThreshold: {{ $.Values.keda.enrichment.lagThreshold | quote }}
+        activationLagThreshold: {{ $.Values.keda.enrichment.activationLagThreshold | quote }}
+{{- end }}
 {{- end }}
