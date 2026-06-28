@@ -1,10 +1,11 @@
 -- name: InsertEnrichmentJob :one
-INSERT INTO enrichment_jobs (sbom_id, idempotency_key, architecture, build_date)
+INSERT INTO enrichment_jobs (sbom_id, idempotency_key, architecture, build_date, enricher_name)
 VALUES (
     @sbom_id::uuid,
     sqlc.narg('idempotency_key'),
     sqlc.narg('architecture'),
-    sqlc.narg('build_date')
+    sqlc.narg('build_date'),
+    @enricher_name::text
 )
 RETURNING *;
 
@@ -38,6 +39,7 @@ JOIN artifact a ON a.id = s.artifact_id;
 WITH next_id AS (
     SELECT id FROM enrichment_jobs
     WHERE state = 'queued'
+      AND enricher_name = @enricher_name::text
     ORDER BY created_at
     LIMIT 1
     FOR UPDATE SKIP LOCKED
@@ -50,7 +52,7 @@ claimed AS (
         worker_id       = @worker_id::text,
         attempts        = attempts + 1
     WHERE id IN (SELECT id FROM next_id)
-    RETURNING id, sbom_id, attempts, architecture, build_date
+    RETURNING id, sbom_id, attempts, architecture, build_date, enricher_name
 )
 SELECT
     c.id,
@@ -58,6 +60,7 @@ SELECT
     c.attempts,
     COALESCE(c.architecture, '')::text        AS architecture,
     COALESCE(c.build_date, '')::text          AS build_date,
+    c.enricher_name                           AS enricher_name,
     COALESCE(s.digest, '')::text              AS digest,
     COALESCE(s.subject_version, '')::text     AS subject_version,
     COALESCE(a.type, '')::text                AS artifact_type,

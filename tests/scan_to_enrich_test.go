@@ -230,7 +230,7 @@ func TestScanToEnrichFlow(t *testing.T) {
 	enrichReg.Register(ocienricher.NewEnricher())
 	enrichDisp := enrichment.NewDispatcher(repoQ, enrichReg)
 
-	enrichJobSvc := service.NewEnrichJobService(pool)
+	enrichJobSvc := service.NewEnrichJobService(pool, "all")
 
 	// The submitter enqueues enrichment_jobs rows when SBOMIngested fires.
 	enrichSubmitter := enrichment.NewNATSSubmitter(natsClient, streamName, enrichJobSvc, logger)

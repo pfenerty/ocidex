@@ -92,7 +92,7 @@ type RegistryRepository interface {
 type EnrichmentJobRepository interface {
 	InsertEnrichmentJob(ctx context.Context, arg InsertEnrichmentJobParams) (EnrichmentJob, error)
 	ClaimEnrichmentJobByID(ctx context.Context, arg ClaimEnrichmentJobByIDParams) (ClaimEnrichmentJobByIDRow, error)
-	ClaimNextEnrichmentJob(ctx context.Context, workerID string) (ClaimNextEnrichmentJobRow, error)
+	ClaimNextEnrichmentJob(ctx context.Context, arg ClaimNextEnrichmentJobParams) (ClaimNextEnrichmentJobRow, error)
 	FinishEnrichmentJobByID(ctx context.Context, id pgtype.UUID) error
 	FailOrRequeueEnrichmentJobByID(ctx context.Context, arg FailOrRequeueEnrichmentJobByIDParams) (string, error)
 	RequeueStuckEnrichmentJobs(ctx context.Context, arg RequeueStuckEnrichmentJobsParams) error

@@ -76,6 +76,7 @@ const claimNextEnrichmentJob = `-- name: ClaimNextEnrichmentJob :one
 WITH next_id AS (
     SELECT id FROM enrichment_jobs
     WHERE state = 'queued'
+      AND enricher_name = $1::text
     ORDER BY created_at
     LIMIT 1
     FOR UPDATE SKIP LOCKED
@@ -85,10 +86,10 @@ claimed AS (
     SET state           = 'running',
         started_at      = COALESCE(started_at, now()),
         last_attempt_at = now(),
-        worker_id       = $1::text,
+        worker_id       = $2::text,
         attempts        = attempts + 1
     WHERE id IN (SELECT id FROM next_id)
-    RETURNING id, sbom_id, attempts, architecture, build_date
+    RETURNING id, sbom_id, attempts, architecture, build_date, enricher_name
 )
 SELECT
     c.id,
@@ -96,6 +97,7 @@ SELECT
     c.attempts,
     COALESCE(c.architecture, '')::text        AS architecture,
     COALESCE(c.build_date, '')::text          AS build_date,
+    c.enricher_name                           AS enricher_name,
     COALESCE(s.digest, '')::text              AS digest,
     COALESCE(s.subject_version, '')::text     AS subject_version,
     COALESCE(a.type, '')::text                AS artifact_type,
@@ -105,20 +107,26 @@ JOIN sbom s ON s.id = c.sbom_id
 JOIN artifact a ON a.id = s.artifact_id
 `
 
+type ClaimNextEnrichmentJobParams struct {
+	EnricherName string `json:"enricher_name"`
+	WorkerID     string `json:"worker_id"`
+}
+
 type ClaimNextEnrichmentJobRow struct {
 	ID             pgtype.UUID `json:"id"`
 	SbomID         pgtype.UUID `json:"sbom_id"`
 	Attempts       int32       `json:"attempts"`
 	Architecture   string      `json:"architecture"`
 	BuildDate      string      `json:"build_date"`
+	EnricherName   string      `json:"enricher_name"`
 	Digest         string      `json:"digest"`
 	SubjectVersion string      `json:"subject_version"`
 	ArtifactType   string      `json:"artifact_type"`
 	ArtifactName   string      `json:"artifact_name"`
 }
 
-func (q *Queries) ClaimNextEnrichmentJob(ctx context.Context, workerID string) (ClaimNextEnrichmentJobRow, error) {
-	row := q.db.QueryRow(ctx, claimNextEnrichmentJob, workerID)
+func (q *Queries) ClaimNextEnrichmentJob(ctx context.Context, arg ClaimNextEnrichmentJobParams) (ClaimNextEnrichmentJobRow, error) {
+	row := q.db.QueryRow(ctx, claimNextEnrichmentJob, arg.EnricherName, arg.WorkerID)
 	var i ClaimNextEnrichmentJobRow
 	err := row.Scan(
 		&i.ID,
@@ -126,6 +134,7 @@ func (q *Queries) ClaimNextEnrichmentJob(ctx context.Context, workerID string) (
 		&i.Attempts,
 		&i.Architecture,
 		&i.BuildDate,
+		&i.EnricherName,
 		&i.Digest,
 		&i.SubjectVersion,
 		&i.ArtifactType,
@@ -177,14 +186,15 @@ func (q *Queries) FinishEnrichmentJobByID(ctx context.Context, id pgtype.UUID) e
 }
 
 const insertEnrichmentJob = `-- name: InsertEnrichmentJob :one
-INSERT INTO enrichment_jobs (sbom_id, idempotency_key, architecture, build_date)
+INSERT INTO enrichment_jobs (sbom_id, idempotency_key, architecture, build_date, enricher_name)
 VALUES (
     $1::uuid,
     $2,
     $3,
-    $4
+    $4,
+    $5::text
 )
-RETURNING id, sbom_id, state, attempts, last_error, idempotency_key, worker_id, architecture, build_date, created_at, started_at, last_attempt_at, finished_at
+RETURNING id, sbom_id, state, attempts, last_error, idempotency_key, worker_id, architecture, build_date, created_at, started_at, last_attempt_at, finished_at, enricher_name
 `
 
 type InsertEnrichmentJobParams struct {
@@ -192,6 +202,7 @@ type InsertEnrichmentJobParams struct {
 	IdempotencyKey pgtype.Text `json:"idempotency_key"`
 	Architecture   pgtype.Text `json:"architecture"`
 	BuildDate      pgtype.Text `json:"build_date"`
+	EnricherName   string      `json:"enricher_name"`
 }
 
 func (q *Queries) InsertEnrichmentJob(ctx context.Context, arg InsertEnrichmentJobParams) (EnrichmentJob, error) {
@@ -200,6 +211,7 @@ func (q *Queries) InsertEnrichmentJob(ctx context.Context, arg InsertEnrichmentJ
 		arg.IdempotencyKey,
 		arg.Architecture,
 		arg.BuildDate,
+		arg.EnricherName,
 	)
 	var i EnrichmentJob
 	err := row.Scan(
@@ -216,6 +228,7 @@ func (q *Queries) InsertEnrichmentJob(ctx context.Context, arg InsertEnrichmentJ
 		&i.StartedAt,
 		&i.LastAttemptAt,
 		&i.FinishedAt,
+		&i.EnricherName,
 	)
 	return i, err
 }

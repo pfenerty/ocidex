@@ -111,7 +111,7 @@ func run() error {
 	))
 	dispatcher := enrichment.NewDispatcher(enrichStore, enrichReg)
 
-	enrichJobSvc := service.NewEnrichJobService(pool)
+	enrichJobSvc := service.NewEnrichJobService(pool, "all")
 	workerID, _ := os.Hostname()
 	enrichProcessor := func(ctx context.Context, claim service.EnrichJobClaim) error {
 		ref := enrichment.SubjectRef{
