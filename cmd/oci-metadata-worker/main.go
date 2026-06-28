@@ -23,8 +23,13 @@ func main() {
 }
 
 func buildEnrichers(pool *pgxpool.Pool) []enrichment.Enricher {
-	insecureResolver := service.BuildInsecureHostLookup(service.NewRegistryService(pool))
+	registrySvc := service.NewRegistryService(pool)
+	insecureResolver := service.BuildInsecureHostLookup(registrySvc)
+	credResolver := service.BuildCredentialLookup(registrySvc)
 	return []enrichment.Enricher{
-		oci.NewEnricher(oci.WithInsecureResolver(insecureResolver)),
+		oci.NewEnricher(
+			oci.WithInsecureResolver(insecureResolver),
+			oci.WithCredentialResolver(credResolver),
+		),
 	}
 }
