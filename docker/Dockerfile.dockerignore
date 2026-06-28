@@ -17,3 +17,7 @@ web/
 
 # Go test/toolchain artifacts
 *.test
+
+# Go module/build caches (pre-seeded by CI go-build task)
+.go-mod/
+.go-build/
