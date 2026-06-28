@@ -1,8 +1,11 @@
 package provenance
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -129,7 +132,37 @@ func extractFromSig(p *Provenance, annotations map[string]string) {
 			p.RekorLogIndex = b.Payload.LogIndex
 		}
 	}
-	// TODO(B12): RekorUUID requires fetching the full log entry from the Rekor API.
+}
+
+const rekorBaseURL = "https://rekor.sigstore.dev"
+
+// fetchRekorUUID fetches the Rekor transparency log UUID for the given log index.
+// Returns "" on any error — Rekor is external and non-critical (fail-open).
+func fetchRekorUUID(ctx context.Context, logIndex int64) string {
+	return fetchRekorUUIDFromBase(ctx, rekorBaseURL, logIndex)
+}
+
+// fetchRekorUUIDFromBase is the testable core: it accepts a base URL so tests
+// can substitute an httptest.Server without hitting the public Rekor instance.
+func fetchRekorUUIDFromBase(ctx context.Context, baseURL string, logIndex int64) string {
+	reqURL := fmt.Sprintf("%s/api/v1/log/entries?logIndex=%d", baseURL, logIndex)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return ""
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		return ""
+	}
+	defer resp.Body.Close()
+	var entries map[string]json.RawMessage
+	if err := json.NewDecoder(resp.Body).Decode(&entries); err != nil {
+		return ""
+	}
+	for uuid := range entries {
+		return uuid
+	}
+	return ""
 }
 
 // sigBoundDigest returns the image digest a simplesigning payload is bound to

@@ -717,3 +717,74 @@ func TestVerification(t *testing.T) {
 		})
 	}
 }
+
+// ----- Rekor UUID fetch tests ------------------------------------------------
+
+func TestFetchRekorUUID(t *testing.T) {
+	is := is.New(t)
+	const wantUUID = "3e1b9f2a0c4d5678901234567890abcdef1234567890abcdef1234567890abcd"
+
+	cases := []struct {
+		name     string
+		handler  http.HandlerFunc
+		wantUUID string
+	}{
+		{
+			name: "returns_uuid",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				fmt.Fprintf(w, `{%q:{}}`, wantUUID)
+			},
+			wantUUID: wantUUID,
+		},
+		{
+			name: "not_found",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				http.NotFound(w, r)
+			},
+			wantUUID: "",
+		},
+		{
+			name: "malformed_json",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprint(w, `not json`)
+			},
+			wantUUID: "",
+		},
+		{
+			name: "empty_map",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprint(w, `{}`)
+			},
+			wantUUID: "",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			is := is.New(t)
+			srv := httptest.NewServer(tc.handler)
+			defer srv.Close()
+
+			// Patch the URL by building the request against the test server.
+			// fetchRekorUUID uses the hardcoded Rekor URL, so we test the
+			// helper via a thin wrapper that substitutes the base URL.
+			got := fetchRekorUUIDFromBase(t.Context(), srv.URL, 42)
+			is.Equal(got, tc.wantUUID)
+		})
+	}
+
+	// Confirm buildProvenance alone does NOT set RekorUUID (fetch happens in Enrich).
+	t.Run("buildProvenance_does_not_fetch", func(t *testing.T) {
+		is := is.New(t)
+		raw := RawArtifacts{
+			SigPresent: true,
+			SigAnnotations: map[string]string{
+				"chains.tekton.dev/transparency": "https://rekor.sigstore.dev/api/v1/log/entries?logIndex=9999",
+			},
+		}
+		p := buildProvenance(raw)
+		is.Equal(p.RekorLogIndex, int64(9999))
+		is.Equal(p.RekorUUID, "") // not set by buildProvenance
+	})
+}

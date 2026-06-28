@@ -159,6 +159,9 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 
 	raw := e.discover(ctx, digestRef, repo, ref.Digest, opts)
 	p := buildProvenance(raw)
+	if p.RekorLogIndex > 0 {
+		p.RekorUUID = fetchRekorUUID(ctx, p.RekorLogIndex)
+	}
 	if e.trustResolver != nil {
 		mode, pemKey := e.trustResolver(ctx, host)
 		applyVerification(&p, raw, mode, pemKey, ref.Digest)
