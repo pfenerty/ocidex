@@ -275,6 +275,108 @@ spec:
               key: token
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: pending-image-release-oci-metadata-worker
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: "pending", context: "image-release-oci-metadata-worker", description: "Running" }
+
+        log $"status-pending [image-release-oci-metadata-worker]: POST ($url)"
+        log $"status-pending [image-release-oci-metadata-worker]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "status-pending [image-release-oci-metadata-worker]: done"
+        } catch { |e|
+          log $"status-pending [image-release-oci-metadata-worker]: error: ($e.msg)"
+          exit 1
+        }
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: pending-image-release-user-enricher-worker
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: "pending", context: "image-release-user-enricher-worker", description: "Running" }
+
+        log $"status-pending [image-release-user-enricher-worker]: POST ($url)"
+        log $"status-pending [image-release-user-enricher-worker]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "status-pending [image-release-user-enricher-worker]: done"
+        } catch { |e|
+          log $"status-pending [image-release-user-enricher-worker]: error: ($e.msg)"
+          exit 1
+        }
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: pending-image-release-provenance-worker
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: "pending", context: "image-release-provenance-worker", description: "Running" }
+
+        log $"status-pending [image-release-provenance-worker]: POST ($url)"
+        log $"status-pending [image-release-provenance-worker]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "status-pending [image-release-provenance-worker]: done"
+        } catch { |e|
+          log $"status-pending [image-release-provenance-worker]: error: ($e.msg)"
+          exit 1
+        }
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-image-release-web
       script: |-
         #!/usr/bin/env nu

@@ -5,7 +5,7 @@ metadata:
     pipelinesascode.tekton.dev/max-keep-runs: "5"
     pipelinesascode.tekton.dev/on-event: "[push]"
     pipelinesascode.tekton.dev/on-target-branch: "[main]"
-    pipelinesascode.tekton.dev/task: "[.tekton/tasks/set-status-pending-ocidex-push.k8s.yaml, .tekton/tasks/git-clone.k8s.yaml, .tekton/tasks/go-fmt.k8s.yaml, .tekton/tasks/go-test.k8s.yaml, .tekton/tasks/go-build.k8s.yaml, .tekton/tasks/openapi-check.k8s.yaml, .tekton/tasks/frontend-lint.k8s.yaml, .tekton/tasks/image-build-api.k8s.yaml, .tekton/tasks/image-build-scanner-worker.k8s.yaml, .tekton/tasks/image-build-enrichment-worker.k8s.yaml, .tekton/tasks/image-build-web.k8s.yaml, .tekton/tasks/image-build-operator.k8s.yaml, .tekton/tasks/helm-publish.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-pull-request.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-tag.k8s.yaml, .tekton/tasks/image-release-api.k8s.yaml, .tekton/tasks/image-release-scanner-worker.k8s.yaml, .tekton/tasks/image-release-enrichment-worker.k8s.yaml, .tekton/tasks/image-release-web.k8s.yaml, .tekton/tasks/image-release-operator.k8s.yaml, .tekton/tasks/helm-release.k8s.yaml, .tekton/tasks/gh-release.k8s.yaml]"
+    pipelinesascode.tekton.dev/task: "[.tekton/tasks/set-status-pending-ocidex-push.k8s.yaml, .tekton/tasks/git-clone.k8s.yaml, .tekton/tasks/go-fmt.k8s.yaml, .tekton/tasks/go-test.k8s.yaml, .tekton/tasks/go-build.k8s.yaml, .tekton/tasks/openapi-check.k8s.yaml, .tekton/tasks/frontend-lint.k8s.yaml, .tekton/tasks/image-build-api.k8s.yaml, .tekton/tasks/image-build-scanner-worker.k8s.yaml, .tekton/tasks/image-build-enrichment-worker.k8s.yaml, .tekton/tasks/image-build-oci-metadata-worker.k8s.yaml, .tekton/tasks/image-build-user-enricher-worker.k8s.yaml, .tekton/tasks/image-build-provenance-worker.k8s.yaml, .tekton/tasks/image-build-web.k8s.yaml, .tekton/tasks/image-build-operator.k8s.yaml, .tekton/tasks/helm-publish.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-pull-request.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-tag.k8s.yaml, .tekton/tasks/image-release-api.k8s.yaml, .tekton/tasks/image-release-scanner-worker.k8s.yaml, .tekton/tasks/image-release-enrichment-worker.k8s.yaml, .tekton/tasks/image-release-oci-metadata-worker.k8s.yaml, .tekton/tasks/image-release-user-enricher-worker.k8s.yaml, .tekton/tasks/image-release-provenance-worker.k8s.yaml, .tekton/tasks/image-release-web.k8s.yaml, .tekton/tasks/image-release-operator.k8s.yaml, .tekton/tasks/helm-release.k8s.yaml, .tekton/tasks/gh-release.k8s.yaml]"
   name: ocidex-ocidex-push
 spec:
   params:
@@ -184,7 +184,7 @@ spec:
         workspaces:
           - name: workspace
             workspace: workspace
-      - name: image-build-web
+      - name: image-build-oci-metadata-worker
         params:
           - name: repo-full-name
             value: $(params.repo-full-name)
@@ -194,6 +194,57 @@ spec:
           - go-test
           - openapi-check
           - image-build-enrichment-worker
+          - set-status-pending-ocidex-push
+        taskRef:
+          kind: Task
+          name: ocidex-image-build-oci-metadata-worker
+        workspaces:
+          - name: workspace
+            workspace: workspace
+      - name: image-build-user-enricher-worker
+        params:
+          - name: repo-full-name
+            value: $(params.repo-full-name)
+          - name: revision
+            value: $(params.revision)
+        runAfter:
+          - go-test
+          - openapi-check
+          - image-build-oci-metadata-worker
+          - set-status-pending-ocidex-push
+        taskRef:
+          kind: Task
+          name: ocidex-image-build-user-enricher-worker
+        workspaces:
+          - name: workspace
+            workspace: workspace
+      - name: image-build-provenance-worker
+        params:
+          - name: repo-full-name
+            value: $(params.repo-full-name)
+          - name: revision
+            value: $(params.revision)
+        runAfter:
+          - go-test
+          - openapi-check
+          - image-build-user-enricher-worker
+          - set-status-pending-ocidex-push
+        taskRef:
+          kind: Task
+          name: ocidex-image-build-provenance-worker
+        workspaces:
+          - name: workspace
+            workspace: workspace
+      - name: image-build-web
+        params:
+          - name: repo-full-name
+            value: $(params.repo-full-name)
+          - name: revision
+            value: $(params.revision)
+        runAfter:
+          - go-test
+          - openapi-check
+          - image-build-provenance-worker
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
@@ -228,6 +279,9 @@ spec:
           - image-build-api
           - image-build-scanner-worker
           - image-build-enrichment-worker
+          - image-build-oci-metadata-worker
+          - image-build-user-enricher-worker
+          - image-build-provenance-worker
           - image-build-web
           - image-build-operator
           - set-status-pending-ocidex-push
