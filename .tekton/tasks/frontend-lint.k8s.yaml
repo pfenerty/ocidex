@@ -19,7 +19,7 @@ spec:
         memory: 128Mi
     env:
       - name: HOME
-        value: $(workspaces.workspace.path)
+        value: /tmp
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:

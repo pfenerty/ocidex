@@ -57,7 +57,7 @@ export const goEnv = [
   },
 ];
 
-export const nodeEnv = [{ name: "HOME", value: "$(workspaces.workspace.path)" }];
+export const nodeEnv = [{ name: "HOME", value: "/tmp" }];
 
 // ─── Image build volume ──────────────────────────────────────────────────────
 export const dockerConfigVolume: TaskVolumeSpec = {

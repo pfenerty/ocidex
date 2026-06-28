@@ -25,7 +25,7 @@ spec:
       - name: GIT_CONFIG_GLOBAL
         value: $(workspaces.workspace.path)/.gitconfig
       - name: HOME
-        value: $(workspaces.workspace.path)
+        value: /tmp
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
