@@ -9,6 +9,9 @@
 .beads/
 .doltcfg/
 .DS_Store
+.docker
+.github
+.tektonic/
 
 # Documentation
 docs/
