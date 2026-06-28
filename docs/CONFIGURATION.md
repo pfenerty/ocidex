@@ -1,19 +1,20 @@
 # Configuration Reference
 
-OCIDex is configured entirely via environment variables. The API server, scanner worker, and enrichment worker all share the same `Config` struct (`internal/config/config.go`) and load from the process environment.
+OCIDex is configured entirely via environment variables. The API server, scanner worker, and enricher workers all share the same `Config` struct (`internal/config/config.go`) and load from the process environment.
 
 ## Architecture
 
-OCIDex runs as three independent processes wired together by NATS JetStream.
+OCIDex runs as independent processes wired together by NATS JetStream.
 The API process publishes work; the workers consume it. `NATS_URL` is required
 for every process — there is no in-process/single-binary mode.
 
 ```
-┌──────────────────┐     ┌─────────┐     ┌──────────────────┐
-│  ocidex API      │────▶│  NATS   │────▶│  scanner-worker  │
-│  (publishes jobs)│     │JetStream│     │  enrichment-     │
-│  + registry poll │     └─────────┘     │  worker          │
-└──────────────────┘                     └──────────────────┘
+┌──────────────────┐     ┌─────────┐     ┌───────────────────────┐
+│  ocidex API      │────▶│  NATS   │────▶│  scanner-worker       │
+│  (publishes jobs)│     │JetStream│     │  oci-metadata-worker  │
+│  + registry poll │     └─────────┘     │  user-enricher-worker │
+└──────────────────┘                     │  provenance-worker    │
+                                         └───────────────────────┘
 ```
 
 Database migrations are **not** run at startup; apply them explicitly with
@@ -109,7 +110,7 @@ Required by every process — the API and both workers fail to start without `NA
 
 ## Worker Binaries
 
-Both worker binaries require `DATABASE_URL` and `NATS_URL` and will exit non-zero immediately if either is missing.
+All worker binaries require `DATABASE_URL` and `NATS_URL` and will exit non-zero immediately if either is missing.
 
 ### `scanner-worker`
 
@@ -132,22 +133,86 @@ Shares the same config vars as the API process. Relevant subset:
 | `SCAN_AUTH_USERNAME` | Registry auth username. |
 | `SCAN_AUTH_TOKEN` | Registry auth token/password. |
 
-### `enrichment-worker`
+### Enricher Workers
 
-Runs as a long-lived daemon consuming enrichment jobs from NATS.
+Each enricher runs as its own long-lived daemon, claiming only the `enrichment_jobs` rows
+scoped to its `enricher_name`. Deploy them as independent K8s Deployments to scale and
+restart each enricher independently.
 
-Relevant config vars:
+All three workers share the same relevant config vars:
 
 - `DATABASE_URL` (required)
 - `NATS_URL`, `NATS_STREAM_NAME` (`NATS_URL` required)
-- `ENRICHMENT_WORKERS`, `ENRICHMENT_QUEUE_SIZE`
+- `ENRICHMENT_MAX_CONCURRENCY`, `ENRICHMENT_POLL_INTERVAL`, `ENRICHMENT_STUCK_THRESHOLD`, `ENRICHMENT_MAX_ATTEMPTS`
 - `DATABASE_MAX_CONNECTIONS` (set low, e.g. `3`)
 
-**One-shot mode** (`--once` flag):
+**One-shot mode** (`--once` flag): Enriches a single SBOM and exits. Useful for K8s Jobs or ad-hoc re-enrichment.
 
 | Variable | Description |
 |----------|-------------|
 | `ENRICH_SBOM_ID` | **Required.** UUID of the SBOM to enrich. |
+
+#### `oci-metadata-worker`
+
+Claims `enricher_name='oci-metadata'` rows. Fetches OCI image labels, architecture, and
+build metadata from the registry using `go-containerregistry`.
+
+#### `user-enricher-worker`
+
+Claims `enricher_name='user'` rows. Derives enrichment from ingest-time parameters
+(version, architecture, build date) supplied by the caller. No outbound network calls.
+
+#### `provenance-worker`
+
+Claims `enricher_name='provenance'` rows. Fetches cosign signatures and SLSA attestations
+from the registry via the OCI 1.1 Referrers API (with cosign tag-scheme fallback). When a
+registry has a PEM trust anchor configured, performs native ECDSA verification (see
+[Per-Registry Trust Anchors](#per-registry-trust-anchors) below).
+
+### `enrichment-worker` (legacy)
+
+The monolithic `enrichment-worker` (claims `enricher_name='all'`) is retained during the
+transition period. It runs all three enrichers in one process. Remove it from your
+deployment once the three per-enricher workers are stable in production.
+
+---
+
+## Per-Registry Trust Anchors
+
+Provenance verification trust is configured **per registry** via the API or admin UI —
+there are no environment variables for it. Settings are stored on the registry row.
+
+### `verification_mode`
+
+| Value | Behaviour |
+|-------|-----------|
+| `none` | Default. No verification attempted; provenance badge shows `signed` when referrers are found. |
+| `public_key` | Verify signatures with the registry's PEM public key; badge shows `verified` or `verification_failed`. |
+| `keyless` | Reserved for future Fulcio/sigstore-go support. Currently a no-op (treated as `none`). |
+
+### `trust_public_key`
+
+PEM-encoded ECDSA P-256 public key used for `public_key` verification. For
+`ghcr.io/pfenerty` this is the contents of `apko-cicd/cosign.pub`.
+
+### Signing-status badge values
+
+| Value | Meaning |
+|-------|---------|
+| `unsigned` | No signature or attestation referrers found. |
+| `signed` | Referrers found; no trust anchor configured (`verification_mode=none`). |
+| `verified` | ECDSA verification passed against the registry's PEM anchor. |
+| `verification_failed` | Anchor present but verification failed, or an attestation payload was present but unparseable. |
+
+`verification_failed` is displayed as a danger badge — distinct from `unsigned` — so
+operators can distinguish a potentially tampered image from an unsigned one.
+
+### Admin UI path
+
+**Admin → Registries → Edit → Verification Mode**
+
+Set `Verification Mode` to `public_key` and paste the PEM public key into the
+`Trust Public Key` field.
 
 ---
 
@@ -189,7 +254,7 @@ NATS_STREAM_REPLICAS=3
 REGISTRY_POLLER_ENABLED=true
 ```
 
-`scanner-worker` and `enrichment-worker` processes:
+`scanner-worker`, `oci-metadata-worker`, `user-enricher-worker`, and `provenance-worker` processes:
 ```env
 DATABASE_URL=...
 NATS_URL=nats://nats:4222
