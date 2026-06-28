@@ -122,7 +122,7 @@ spec:
         let uncompressed = ($paths | each { |p| try { du $p | get apparent.0 | into int } catch { 0 } } | math sum)
         log $"save-go-cache-cache: compressing (($uncompressed / 1_000_000) | math round --precision 1)MB uncompressed ..."
         let t0 = (date now)
-        ^tar cf - ...$paths | ^zstd -1 -T1 -o $archive
+        ^tar cf - ...$paths | ^zstd -1 -T1 -f -o $archive
         let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
         let compressed = (ls $archive | get size.0)
         let ratio = ($uncompressed / ($compressed | into int) | math round --precision 1)
