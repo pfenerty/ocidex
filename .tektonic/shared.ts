@@ -38,6 +38,15 @@ export const goCache = {
   workingDir: "$(workspaces.workspace.path)",
 };
 
+// go-test runs after go-build on the same workspace PVC. go-build seeds .go-mod/.go-build,
+// so restore must skip extraction when paths exist. forceSave ensures test-only deps are
+// always written back (the archive may already exist from go-build's save).
+export const goCacheTest = {
+  ...goCache,
+  forceSave: true,
+  skipRestoreIfPathsExist: true,
+};
+
 export const nodeModulesCache = {
   name: "node-modules",
   key: ["package-lock.json"],
