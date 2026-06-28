@@ -3,6 +3,10 @@ import { Task, scriptFromFile } from "@pfenerty/tektonic";
 import { goImage, goCache, goEnv, statusReporter } from "../../shared";
 import { goBuild } from "../go-build/spec";
 
+// NOTE: The auto-generated cache steps in go-test.k8s.yaml have been manually
+// patched. The restore step skips extraction when .go-mod already exists (go-build
+// seeds it on the shared workspace PVC). The save step always overwrites the archive
+// so test-only deps are included. Re-running `make tekton-synth` reverts these — re-apply.
 export const goTest = new Task({
   name: "go-test",
   needs: [goBuild],
