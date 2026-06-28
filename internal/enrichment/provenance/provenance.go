@@ -22,9 +22,10 @@ import (
 const (
 	enricherName = "provenance"
 
-	// OCI artifact types used by cosign / Tekton Chains.
-	sigArtifactType = "application/vnd.dev.cosign.artifact.sig.v1+json"
-	attArtifactType = "application/vnd.dsse.envelope.v1+json"
+	// OCI artifact types used by cosign / Tekton Chains / buildkit.
+	sigArtifactType    = "application/vnd.dev.cosign.artifact.sig.v1+json"
+	attArtifactType    = "application/vnd.dsse.envelope.v1+json"
+	inTotoArtifactType = "application/vnd.in-toto+json"
 )
 
 // RawArtifacts is the result stored in the enrichment JSONB column for B2.
@@ -35,8 +36,9 @@ type RawArtifacts struct {
 	SigLayerBytes   []byte            `json:"sigLayerBytes,omitempty"` // simplesigning JSON payload
 	AttPresent      bool              `json:"attPresent"`
 	AttAnnotations  map[string]string `json:"attAnnotations,omitempty"`
-	AttLayerBytes   []byte            `json:"attLayerBytes,omitempty"` // raw DSSE envelope
-	DiscoveryMethod string            `json:"discoveryMethod"`         // "referrers" | "tag-scheme"
+	AttLayerBytes   []byte            `json:"attLayerBytes,omitempty"`   // raw DSSE envelope or raw in-toto statement
+	AttArtifactType string            `json:"attArtifactType,omitempty"` // attArtifactType | inTotoArtifactType; empty means DSSE
+	DiscoveryMethod string            `json:"discoveryMethod"`           // "referrers" | "tag-scheme"
 }
 
 // TrustResolver returns the verification mode and PEM public key for a registry host.
@@ -195,7 +197,7 @@ func (e *Enricher) extractFromReferrers(idx v1.ImageIndex, repo name.Repository,
 	result.DiscoveryMethod = "referrers"
 
 	for _, desc := range idxManifest.Manifests {
-		switch string(desc.ArtifactType) {
+		switch desc.ArtifactType {
 		case sigArtifactType:
 			if result.SigPresent {
 				continue // take first sig only
@@ -221,6 +223,21 @@ func (e *Enricher) extractFromReferrers(idx v1.ImageIndex, repo name.Repository,
 			result.AttAnnotations = manifestAnnotations(img)
 			result.AttLayerBytes, _ = readFirstLayer(img)
 			result.AttPresent = true
+			result.AttArtifactType = attArtifactType
+
+		case inTotoArtifactType:
+			if result.AttPresent {
+				continue // take first att only; prefer DSSE if both present
+			}
+			childRef := repo.Digest(desc.Digest.String())
+			img, err := remote.Image(childRef, opts...)
+			if err != nil {
+				continue
+			}
+			result.AttAnnotations = manifestAnnotations(img)
+			result.AttLayerBytes, _ = readFirstLayer(img)
+			result.AttPresent = true
+			result.AttArtifactType = inTotoArtifactType
 		}
 	}
 

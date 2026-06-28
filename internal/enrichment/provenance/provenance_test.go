@@ -22,9 +22,10 @@ import (
 const testImageDigest = "sha256:0000000000000000000000000000000000000000000000000000000000000001"
 
 var (
-	fakeSigPayload = []byte(`{"critical":{"identity":{"docker-reference":"example.com/repo"},"image":{"docker-manifest-digest":"` + testImageDigest + `"},"type":"cosign container image signature"},"optional":null}`)
-	fakeAttPayload = []byte(`{"payload":"dGVzdA==","payloadType":"application/vnd.in-toto+json","signatures":[]}`)
-	fakeConfig     = []byte(`{}`)
+	fakeSigPayload       = []byte(`{"critical":{"identity":{"docker-reference":"example.com/repo"},"image":{"docker-manifest-digest":"` + testImageDigest + `"},"type":"cosign container image signature"},"optional":null}`)
+	fakeAttPayload       = []byte(`{"payload":"dGVzdA==","payloadType":"application/vnd.in-toto+json","signatures":[]}`)
+	fakeRawInTotoPayload = []byte(`{"_type":"https://in-toto.io/Statement/v0.1","predicateType":"https://slsa.dev/provenance/v1","subject":[{"name":"example.com/repo","digest":{"sha256":"0000000000000000000000000000000000000000000000000000000000000001"}}],"predicate":{"buildDefinition":{"resolvedDependencies":[{"uri":"git+https://github.com/example/repo","digest":{"sha1":"abc123"}}]},"runDetails":{"builder":{"id":"https://buildkit.moby.dev"},"metadata":{}}}}`)
+	fakeConfig           = []byte(`{}`)
 )
 
 func digestOf(data []byte) string {
@@ -69,6 +70,14 @@ func buildSigOnlyReferrersIndex(sigDigest string, sigSize int) []byte {
 func buildAttOnlyReferrersIndex(attDigest string, attSize int) []byte {
 	return []byte(fmt.Sprintf(
 		`{"schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"%s","size":%d,"artifactType":"application/vnd.dsse.envelope.v1+json"}]}`,
+		attDigest, attSize,
+	))
+}
+
+// buildRawInTotoReferrersIndex returns a referrers index with a buildkit-native in-toto entry.
+func buildRawInTotoReferrersIndex(attDigest string, attSize int) []byte {
+	return []byte(fmt.Sprintf(
+		`{"schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"%s","size":%d,"artifactType":"application/vnd.in-toto+json"}]}`,
 		attDigest, attSize,
 	))
 }
@@ -338,6 +347,57 @@ func TestDiscover_AttOnly(t *testing.T) {
 	is.True(result.AttestationPresent)
 }
 
+// TestDiscover_RawInToto verifies that a referrers index with application/vnd.in-toto+json
+// (buildkit native) produces AttestationPresent=true and populates provenance fields.
+func TestDiscover_RawInToto(t *testing.T) {
+	is := is.New(t)
+
+	attLayerDigest := digestOf(fakeRawInTotoPayload)
+	configDigest := digestOf(fakeConfig)
+
+	attManifestBytes, attManifestDigest := buildManifest(
+		"application/vnd.in-toto+json",
+		attLayerDigest, len(fakeRawInTotoPayload), configDigest,
+		nil,
+	)
+
+	hexDigest := strings.TrimPrefix(testImageDigest, "sha256:")
+	repo := "/repo"
+
+	routes := map[string]route{
+		repo + "/referrers/sha256:" + hexDigest: {
+			contentType: "application/vnd.oci.image.index.v1+json",
+			body:        buildRawInTotoReferrersIndex(attManifestDigest, len(attManifestBytes)),
+		},
+		repo + "/manifests/" + attManifestDigest: {
+			contentType: "application/vnd.oci.image.manifest.v1+json",
+			body:        attManifestBytes,
+		},
+		repo + "/blobs/" + attLayerDigest: {body: fakeRawInTotoPayload},
+		repo + "/blobs/" + configDigest:   {body: fakeConfig},
+	}
+
+	srv := newTestServer(t, routes)
+	defer srv.Close()
+
+	e := newTestEnricher(srv)
+	ref := testRef(strings.TrimPrefix(srv.URL, "http://"))
+
+	data, err := e.Enrich(t.Context(), ref)
+	is.NoErr(err)
+
+	var result Provenance
+	is.NoErr(json.Unmarshal(data, &result))
+
+	is.True(!result.SignaturePresent)
+	is.True(result.AttestationPresent)
+	is.Equal(result.PredicateType, "https://slsa.dev/provenance/v1")
+	is.Equal(result.BuilderID, "https://buildkit.moby.dev")
+	is.Equal(len(result.Subjects), 1)
+	is.Equal(result.SourceURI, "https://github.com/example/repo")
+	is.Equal(result.SourceCommit, "abc123")
+}
+
 // TestDiscover_NoAnchor verifies that when both referrers and tag-scheme lookups return 404
 // the enricher returns a nil error and a zero-value Provenance.
 func TestDiscover_NoAnchor(t *testing.T) {
@@ -500,6 +560,24 @@ func TestBuildProvenance(t *testing.T) {
 				is.Equal(p.BuilderID, "")
 				is.Equal(p.PredicateType, "")
 				is.Equal(len(p.Subjects), 0)
+			},
+		},
+		{
+			name: "raw_intoto",
+			raw: RawArtifacts{
+				AttPresent:      true,
+				AttLayerBytes:   fakeRawInTotoPayload,
+				AttArtifactType: inTotoArtifactType,
+			},
+			check: func(t *testing.T, p Provenance) {
+				is := is.New(t)
+				is.True(!p.SignaturePresent)
+				is.True(p.AttestationPresent)
+				is.Equal(p.PredicateType, "https://slsa.dev/provenance/v1")
+				is.Equal(p.BuilderID, "https://buildkit.moby.dev")
+				is.Equal(len(p.Subjects), 1)
+				is.Equal(p.SourceURI, "https://github.com/example/repo")
+				is.Equal(p.SourceCommit, "abc123")
 			},
 		},
 	}

@@ -38,9 +38,10 @@ func applyVerification(p *Provenance, raw RawArtifacts, mode, pemKey, imageDiges
 			sigBoundDigest(raw.SigLayerBytes) == imageDigest
 		verified = verified && ok
 	}
-	if raw.AttPresent {
-		// An asserted attestation that cannot be parsed or verified must fail,
-		// not be silently skipped.
+	if raw.AttPresent && raw.AttArtifactType != inTotoArtifactType {
+		// An asserted DSSE attestation that cannot be parsed or verified must fail,
+		// not be silently skipped. Raw in-toto atts (buildkit-native) carry no
+		// envelope signature and are excluded from cryptographic verification.
 		var env dsseEnvelope
 		ok := json.Unmarshal(raw.AttLayerBytes, &env) == nil &&
 			verifyDSSE(pubkey, env) &&
