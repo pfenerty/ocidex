@@ -943,6 +943,8 @@ export interface components {
             scan_mode?: "webhook" | "poll" | "both";
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
             tag_patterns?: string[] | null;
+            /** @description PEM-encoded EC public key; required when verification_mode is public_key */
+            trust_public_key?: string;
             /**
              * @description Registry type
              * @enum {string}
@@ -950,6 +952,11 @@ export interface components {
             type: "zot" | "harbor" | "docker" | "generic" | "ghcr";
             /** @description Registry address (e.g. zot:5000) */
             url: string;
+            /**
+             * @description Signature verification mode; defaults to none
+             * @enum {string}
+             */
+            verification_mode?: "none" | "public_key";
             /**
              * @description Registry visibility
              * @default public
@@ -989,9 +996,16 @@ export interface components {
             scan_mode: string;
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
             tag_patterns: string[] | null;
+            /** @description PEM-encoded EC public key for public_key verification mode */
+            trust_public_key?: string;
             type: string;
             updated_at: string;
             url: string;
+            /**
+             * @description Signature verification mode
+             * @enum {string}
+             */
+            verification_mode: "none" | "public_key" | "keyless";
             /** @description Registry visibility: public or private */
             visibility: string;
             /** @description Generated webhook secret — shown once only. Store it securely; it cannot be retrieved again. */
@@ -1435,9 +1449,16 @@ export interface components {
             scan_mode: string;
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
             tag_patterns: string[] | null;
+            /** @description PEM-encoded EC public key for public_key verification mode */
+            trust_public_key?: string;
             type: string;
             updated_at: string;
             url: string;
+            /**
+             * @description Signature verification mode
+             * @enum {string}
+             */
+            verification_mode: "none" | "public_key" | "keyless";
             /** @description Registry visibility: public or private */
             visibility: string;
             webhook_url: string;
@@ -1674,9 +1695,16 @@ export interface components {
              */
             scan_mode?: "webhook" | "poll" | "both";
             tag_patterns?: string[] | null;
+            /** @description PEM-encoded EC public key; required when verification_mode is public_key */
+            trust_public_key?: string;
             /** @enum {string} */
             type: "zot" | "harbor" | "docker" | "generic" | "ghcr";
             url: string;
+            /**
+             * @description Signature verification mode; defaults to none
+             * @enum {string}
+             */
+            verification_mode?: "none" | "public_key";
             /**
              * @description Registry visibility
              * @enum {string}
