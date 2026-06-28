@@ -23,6 +23,9 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "${LDFLAGS}" -o /app/bin/ocidex ./cmd/ocidex && \
     CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "${LDFLAGS}" -o /app/bin/scanner-worker ./cmd/scanner-worker && \
     CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "${LDFLAGS}" -o /app/bin/enrichment-worker ./cmd/enrichment-worker && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "${LDFLAGS}" -o /app/bin/oci-metadata-worker ./cmd/oci-metadata-worker && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "${LDFLAGS}" -o /app/bin/user-enricher-worker ./cmd/user-enricher-worker && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "${LDFLAGS}" -o /app/bin/provenance-worker ./cmd/provenance-worker && \
     CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "${LDFLAGS}" -o /app/bin/operator ./cmd/operator
 
 # ---- api --------------------------------------------------------------------
@@ -40,6 +43,21 @@ ENTRYPOINT ["/scanner-worker"]
 FROM gcr.io/distroless/static-debian12:nonroot AS enrichment-worker
 COPY --from=builder /app/bin/enrichment-worker /enrichment-worker
 ENTRYPOINT ["/enrichment-worker"]
+
+# ---- oci-metadata-worker ----------------------------------------------------
+FROM gcr.io/distroless/static-debian12:nonroot AS oci-metadata-worker
+COPY --from=builder /app/bin/oci-metadata-worker /oci-metadata-worker
+ENTRYPOINT ["/oci-metadata-worker"]
+
+# ---- user-enricher-worker ---------------------------------------------------
+FROM gcr.io/distroless/static-debian12:nonroot AS user-enricher-worker
+COPY --from=builder /app/bin/user-enricher-worker /user-enricher-worker
+ENTRYPOINT ["/user-enricher-worker"]
+
+# ---- provenance-worker ------------------------------------------------------
+FROM gcr.io/distroless/static-debian12:nonroot AS provenance-worker
+COPY --from=builder /app/bin/provenance-worker /provenance-worker
+ENTRYPOINT ["/provenance-worker"]
 
 # ---- operator ---------------------------------------------------------------
 FROM gcr.io/distroless/static-debian12:nonroot AS operator
