@@ -342,6 +342,15 @@ enrichReg.Register(myenricher.NewEnricher())
 
 **4. Post-processing hooks** — the dispatcher automatically calls sufficiency promotion (marks the SBOM as fully enriched when both `imageVersion` and `architecture` are present) for `"oci-metadata"` and `"user"` enrichers. If your enricher also determines sufficiency, add its name to the check in `dispatcher.go:processSubject`.
 
+**5. Create a per-enricher worker binary** — each enricher needs its own `cmd/` binary, Docker image, and CI task (see [ADR-033](adr/0033-per-enricher-services.md)):
+
+- **`cmd/<name>-worker/main.go`** (~30 lines): call `enrichmentworker.Run` with `EnricherName: "<name>"` and a unique `HintDurable: "enrich-hint-<name>"`. See `cmd/provenance-worker/main.go` as the canonical example.
+- **`internal/service/enrichjob.go`**: add `"<name>"` to the `knownEnrichers` slice so an `enrichment_jobs` row is created for every new SBOM.
+- **`docker/Dockerfile`**: add a `go build` line in the builder stage and a `FROM gcr.io/distroless/static-debian12:nonroot AS <name>-worker` runtime stage.
+- **`.tektonic/jobs/image-build/spec.ts`**: add `["<name>-worker", "docker/Dockerfile", "<name>-worker"]` to `imageSpecs`, then run `make tekton-synth`.
+
+**Per-host resolvers** — When an enricher needs per-registry behavior (insecure HTTP, credentials, trust anchors), use Option closures and resolver functions rather than baking config into the struct. Define a resolver type (e.g. `type TrustResolver func(ctx context.Context, host string) (mode, pemKey string)`), expose `With*` options on the enricher, and construct the resolver from `internal/service/registry.go` (`BuildTrustLookup`, `BuildInsecureHostLookup`) inside the worker's `EnricherFactory`. See `internal/enrichment/provenance/provenance.go` and `cmd/provenance-worker/main.go` for the full pattern.
+
 ### Fakes Over Mocks
 
 Interfaces are small. Write manual fakes:
