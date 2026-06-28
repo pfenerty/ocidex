@@ -3,10 +3,11 @@ import { Show, For } from "solid-js";
 import { A, useParams, useNavigate } from "@solidjs/router";
 import { useSBOM, useSBOMComponents, useSBOMDependencies, useArtifactSBOMs } from "~/api/queries";
 import { useArtifactNames } from "~/api/queries";
-import type { OCIMetadata } from "~/api/client";
+import type { OCIMetadata, Provenance } from "~/api/client";
 import { Loading, ErrorBox } from "~/components/Feedback";
 import CopyDigest from "~/components/CopyDigest";
 import ImageMetadataCard from "~/components/ImageMetadataCard";
+import ProvenanceCard from "~/components/ProvenanceCard";
 import {
     artifactDisplayName,
     formatDateTime,
@@ -275,6 +276,13 @@ export default function SBOMDetail() {
                                             metadata={metadata}
                                             ingestedAt={s.createdAt}
                                         />
+                                    )}
+                                </Show>
+
+                                {/* --- Provenance (from enrichment) --- */}
+                                <Show when={s.enrichments?.provenance as Provenance | undefined} keyed>
+                                    {(provenance) => (
+                                        <ProvenanceCard provenance={provenance} />
                                     )}
                                 </Show>
 
