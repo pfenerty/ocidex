@@ -25,6 +25,8 @@ export function useCreateRegistry() {
             poll_interval_minutes?: number;
             visibility: "public" | "private";
             include_untagged?: boolean;
+            verification_mode?: "none" | "public_key";
+            trust_public_key?: string;
         }) => unwrap(client.POST("/api/v1/registries", { body })),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ["registries"] }),
     }));
@@ -52,6 +54,8 @@ export function useUpdateRegistry() {
             poll_interval_minutes?: number;
             visibility?: "public" | "private";
             include_untagged?: boolean;
+            verification_mode?: "none" | "public_key";
+            trust_public_key?: string;
         }) =>
             unwrap(
                 client.PATCH("/api/v1/registries/{id}", {

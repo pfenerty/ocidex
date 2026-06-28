@@ -169,7 +169,11 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 		webhookSecret = &generatedSecret
 	}
 
-	reg, err := h.registryService.Create(ctx, in.Body.Name, regType, regURL, in.Body.Insecure, webhookSecret, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval, in.Body.AuthUsername, in.Body.AuthToken, user.ID, visibility, in.Body.IncludeUntagged)
+	verificationMode := in.Body.VerificationMode
+	if verificationMode == "" {
+		verificationMode = "none"
+	}
+	reg, err := h.registryService.Create(ctx, in.Body.Name, regType, regURL, in.Body.Insecure, webhookSecret, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval, in.Body.AuthUsername, in.Body.AuthToken, user.ID, visibility, in.Body.IncludeUntagged, verificationMode, in.Body.TrustPublicKey)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("creating registry: %v", err))
 	}
@@ -193,7 +197,7 @@ func (h *Handler) RegenerateWebhookSecret(ctx context.Context, in *RegenerateWeb
 	if err != nil {
 		return nil, huma.Error500InternalServerError("generating webhook secret")
 	}
-	_, err = h.registryService.Update(ctx, in.ID, existing.Name, existing.Type, existing.URL, existing.Insecure, &secret, existing.Enabled, existing.Repositories, existing.RepositoryPatterns, existing.TagPatterns, existing.ScanMode, existing.PollIntervalMinutes, existing.AuthUsername, existing.AuthToken, existing.Visibility, existing.IncludeUntagged)
+	_, err = h.registryService.Update(ctx, in.ID, existing.Name, existing.Type, existing.URL, existing.Insecure, &secret, existing.Enabled, existing.Repositories, existing.RepositoryPatterns, existing.TagPatterns, existing.ScanMode, existing.PollIntervalMinutes, existing.AuthUsername, existing.AuthToken, existing.Visibility, existing.IncludeUntagged, existing.VerificationMode, existing.TrustPublicKey)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("updating webhook secret")
 	}
@@ -233,8 +237,16 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 	if visibility == "" {
 		visibility = existing.Visibility
 	}
+	updateVerificationMode := in.Body.VerificationMode
+	if updateVerificationMode == "" {
+		updateVerificationMode = existing.VerificationMode
+	}
+	updateTrustPublicKey := in.Body.TrustPublicKey
+	if updateTrustPublicKey == nil {
+		updateTrustPublicKey = existing.TrustPublicKey
+	}
 	var reg service.Registry
-	reg, err = h.registryService.Update(ctx, in.ID, in.Body.Name, regType, regURL, in.Body.Insecure, existing.WebhookSecret, in.Body.Enabled, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval, in.Body.AuthUsername, in.Body.AuthToken, visibility, in.Body.IncludeUntagged)
+	reg, err = h.registryService.Update(ctx, in.ID, in.Body.Name, regType, regURL, in.Body.Insecure, existing.WebhookSecret, in.Body.Enabled, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval, in.Body.AuthUsername, in.Body.AuthToken, visibility, in.Body.IncludeUntagged, updateVerificationMode, updateTrustPublicKey)
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}
@@ -374,6 +386,8 @@ func toRegistryResponse(r service.Registry, apiBaseURL string, ownerUsername *st
 		OwnerID:             r.OwnerID,
 		OwnerUsername:       ownerUsername,
 		IncludeUntagged:     r.IncludeUntagged,
+		VerificationMode:    r.VerificationMode,
+		TrustPublicKey:      r.TrustPublicKey,
 	}
 	if r.LastPolledAt != nil {
 		s := r.LastPolledAt.UTC().Format("2006-01-02T15:04:05Z")
