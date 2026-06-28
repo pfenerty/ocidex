@@ -4,6 +4,12 @@ import type { ArtifactVersionSummary, PaginationMeta } from "~/api/client";
 import Pagination from "~/components/Pagination";
 import { relativeDate } from "~/utils/format";
 
+const signingBadge = (status: string) => {
+    if (status === "verified") return <span class="badge badge-success">Verified</span>;
+    if (status === "signed")   return <span class="badge badge-warning">Signed</span>;
+    return <span class="badge">Unsigned</span>;
+};
+
 export function VersionsTab(props: {
     artifactId: string;
     versions: ArtifactVersionSummary[];
@@ -20,6 +26,7 @@ export function VersionsTab(props: {
                             <th>Revision</th>
                             <th>Build Date</th>
                             <th>Architectures</th>
+                            <th>Signing</th>
                             <th />
                         </tr>
                     </thead>
@@ -94,6 +101,9 @@ export function VersionsTab(props: {
                                                 )}
                                             </For>
                                         </Show>
+                                    </td>
+                                    <td>
+                                        {signingBadge(version.signingStatus)}
                                     </td>
                                     <td>
                                         <Show
