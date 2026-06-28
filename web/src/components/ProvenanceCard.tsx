@@ -17,6 +17,10 @@ export default function ProvenanceCard(props: { provenance: Provenance }) {
     const badge = () => {
         if (p.verified === true)
             return <span class="badge badge-success">Verified</span>;
+        if (p.verified === false)
+            return (
+                <span class="badge badge-danger">Verification failed</span>
+            );
         if (p.signaturePresent || p.attestationPresent)
             return <span class="badge badge-warning">Signed</span>;
         return <span class="badge">Unsigned</span>;

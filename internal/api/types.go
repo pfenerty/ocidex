@@ -385,7 +385,7 @@ type ArtifactVersionSummary struct {
 	BuildDate     *time.Time `json:"buildDate,omitempty"`
 	CreatedAt     time.Time  `json:"createdAt"`
 	Sufficient    bool       `json:"sufficient"`
-	SigningStatus string     `json:"signingStatus" enum:"unsigned,signed,verified" doc:"Signing status derived from provenance enrichment"`
+	SigningStatus string     `json:"signingStatus" enum:"unsigned,signed,verified,verification_failed" doc:"Signing status derived from provenance enrichment"`
 }
 
 // ListArtifactVersionsOutput is the response for GET /api/v1/artifacts/{id}/versions.

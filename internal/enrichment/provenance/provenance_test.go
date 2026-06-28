@@ -548,10 +548,15 @@ func TestVerification(t *testing.T) {
 
 	boolPtr := func(v bool) *bool { return &v }
 
+	// fixtureDigest is the image the testdata sig/att are bound to
+	// (sig critical.image.docker-manifest-digest and att subject[0]).
+	const fixtureDigest = "sha256:770d5a878241e8bbe8df521b3d21bcfe1a9603dfc10b28ff2493fef5d73aca77"
+
 	cases := []struct {
 		name         string
 		mode         string
 		pemKey       string
+		imageDigest  string                          // "" defaults to fixtureDigest
 		rawOverride  func(RawArtifacts) RawArtifacts // nil = use baseRaw as-is
 		wantVerified *bool                           // nil means expect p.Verified == nil
 	}{
@@ -589,6 +594,27 @@ func TestVerification(t *testing.T) {
 			pemKey:       "notapemblock",
 			wantVerified: nil,
 		},
+		{
+			// F1: signature is valid against the key but is bound to a different
+			// image digest (transplant attack) → must NOT verify.
+			name:         "digest_mismatch",
+			mode:         "public_key",
+			pemKey:       string(pubKeyPEM),
+			imageDigest:  "sha256:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+			wantVerified: boolPtr(false),
+		},
+		{
+			// F2: an asserted attestation that cannot be parsed must downgrade,
+			// not be silently skipped.
+			name:   "garbage_att",
+			mode:   "public_key",
+			pemKey: string(pubKeyPEM),
+			rawOverride: func(r RawArtifacts) RawArtifacts {
+				r.AttLayerBytes = []byte("not json")
+				return r
+			},
+			wantVerified: boolPtr(false),
+		},
 	}
 
 	for _, tc := range cases {
@@ -598,8 +624,12 @@ func TestVerification(t *testing.T) {
 			if tc.rawOverride != nil {
 				raw = tc.rawOverride(raw)
 			}
+			digest := tc.imageDigest
+			if digest == "" {
+				digest = fixtureDigest
+			}
 			p := buildProvenance(raw)
-			applyVerification(&p, raw, tc.mode, tc.pemKey)
+			applyVerification(&p, raw, tc.mode, tc.pemKey, digest)
 			if tc.wantVerified == nil {
 				is.True(p.Verified == nil)
 			} else {

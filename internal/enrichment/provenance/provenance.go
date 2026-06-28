@@ -159,7 +159,7 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 	p := buildProvenance(raw)
 	if e.trustResolver != nil {
 		mode, pemKey := e.trustResolver(ctx, host)
-		applyVerification(&p, raw, mode, pemKey)
+		applyVerification(&p, raw, mode, pemKey, ref.Digest)
 	}
 
 	data, err := json.Marshal(p)

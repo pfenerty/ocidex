@@ -763,7 +763,7 @@ export interface components {
              * @description Signing status derived from provenance enrichment
              * @enum {string}
              */
-            signingStatus: "unsigned" | "signed" | "verified";
+            signingStatus: "unsigned" | "signed" | "verified" | "verification_failed";
             sourceUrl?: string;
             sufficient: boolean;
             versionKey: string;
