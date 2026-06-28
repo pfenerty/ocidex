@@ -2,9 +2,11 @@
 # Required: server.url must be set to the OCIDex API server URL.
 
 image:
-  repository: ocidex-operator
-  tag: latest
-  pullPolicy: Always
+  repository: ghcr.io/pfenerty/ocidex-operator
+  # tag defaults to Chart.appVersion (set to sha-<short> or vX.Y.Z at package time).
+  # Override with --set image.tag=<tag> to pin a specific version.
+  tag: ""
+  pullPolicy: IfNotPresent
 
 # server.url is the base URL of the OCIDex API server (OCIDEX_SERVER).
 # Example: "http://ocidex-api.ocidex.svc.cluster.local:8080"
