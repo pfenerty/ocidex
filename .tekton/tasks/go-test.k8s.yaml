@@ -46,15 +46,10 @@ spec:
           | str join | hash sha256 | str substring 0..15
         )
         $hash | save -f /tekton/home/.cache-go-cache-hash
-
-        # go-build runs first on this shared workspace PVC and populates .go-mod.
-        # Re-extracting the archive would overwrite it with build-only deps and
-        # discard any modules go-build downloaded that post-date the archive.
-        if (".go-mod" | path exists) {
-          log $"restore-go-cache-cache: workspace already seeded by go-build, skipping restore ($hash)"
+        if ([".go-mod", ".go-build"] | any { |p| $p | path exists }) {
+          log $"restore-go-cache-cache: paths already exist, skipping restore ($hash)"
           exit 0
         }
-
         let archive = $"$(workspaces.go-cache.path)/($hash).tar.zst"
 
         if ($archive | path exists) {
