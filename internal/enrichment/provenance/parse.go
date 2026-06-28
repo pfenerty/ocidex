@@ -97,7 +97,11 @@ func buildProvenance(raw RawArtifacts) Provenance {
 		extractFromSig(&p, raw.SigAnnotations)
 	}
 	if raw.AttPresent {
-		extractFromAtt(&p, raw.AttLayerBytes)
+		if raw.AttArtifactType == inTotoArtifactType {
+			extractFromRawInToto(&p, raw.AttLayerBytes)
+		} else {
+			extractFromAtt(&p, raw.AttLayerBytes)
+		}
 	}
 	return p
 }
@@ -139,6 +143,32 @@ func sigBoundDigest(sigLayerBytes []byte) string {
 }
 
 // --- att extraction ----------------------------------------------------------
+
+// extractFromRawInToto parses a buildkit-native in-toto statement (not DSSE-wrapped).
+// The layer bytes are raw JSON — no envelope, no base64 encoding.
+func extractFromRawInToto(p *Provenance, layerBytes []byte) {
+	var stmt inTotoStatement
+	if err := json.Unmarshal(layerBytes, &stmt); err != nil {
+		return
+	}
+	p.PredicateType = stmt.PredicateType
+	p.BuilderID = stmt.Predicate.RunDetails.Builder.ID
+	p.BuildStartedOn = stmt.Predicate.RunDetails.Metadata.StartedOn
+	for _, s := range stmt.Subject {
+		if sha, ok := s.Digest["sha256"]; ok {
+			p.Subjects = append(p.Subjects, s.Name+"@sha256:"+sha)
+		}
+	}
+	for _, dep := range stmt.Predicate.BuildDefinition.ResolvedDependencies {
+		if strings.HasPrefix(dep.URI, "git+") {
+			p.SourceURI = strings.TrimPrefix(dep.URI, "git+")
+			if commit, ok := dep.Digest["sha1"]; ok {
+				p.SourceCommit = commit
+			}
+			break
+		}
+	}
+}
 
 // extractFromAtt parses the DSSE envelope and the SLSA in-toto statement inside it.
 func extractFromAtt(p *Provenance, layerBytes []byte) {
