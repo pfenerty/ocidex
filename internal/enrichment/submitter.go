@@ -14,6 +14,10 @@ import (
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
+// knownEnrichers is the set of per-enricher queue partitions created for each SBOM on ingest.
+// "all" is inserted separately for the legacy monolithic worker (removed in atd.22).
+var knownEnrichers = []string{"user", "oci-metadata", "provenance"}
+
 // NATSSubmitter subscribes to in-process SBOMIngested events, writes an
 // enrichment_jobs row to the DB, and publishes a best-effort NATS hint.
 // It implements extension.Extension and is registered on the API server.
@@ -58,11 +62,13 @@ func (s *NATSSubmitter) handle(ctx context.Context, ev event.Event) {
 		return
 	}
 
-	if err := s.jobSvc.Enqueue(ctx, d.SBOMID, d.Architecture, d.BuildDate, "all"); err != nil {
-		s.logger.Error("enrichment-submitter: enqueue failed",
-			"sbom_id", d.SBOMID, "err", err,
-		)
-		return
+	for _, name := range append([]string{"all"}, knownEnrichers...) {
+		if err := s.jobSvc.Enqueue(ctx, d.SBOMID, d.Architecture, d.BuildDate, name); err != nil {
+			s.logger.Error("enrichment-submitter: enqueue failed",
+				"sbom_id", d.SBOMID, "enricher", name, "err", err,
+			)
+			return
+		}
 	}
 
 	jobID := enrichUUIDToString(d.SBOMID)
