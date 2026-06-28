@@ -90,6 +90,9 @@ const imageSpecs: ImageSpec[] = [
   ["api", "docker/Dockerfile", "api"],
   ["scanner-worker", "docker/Dockerfile", "scanner-worker"],
   ["enrichment-worker", "docker/Dockerfile", "enrichment-worker"],
+  ["oci-metadata-worker", "docker/Dockerfile", "oci-metadata-worker"],
+  ["user-enricher-worker", "docker/Dockerfile", "user-enricher-worker"],
+  ["provenance-worker", "docker/Dockerfile", "provenance-worker"],
   ["web", "docker/web/Dockerfile"],
   ["operator", "docker/Dockerfile", "operator"],
 ];
