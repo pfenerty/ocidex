@@ -13,6 +13,8 @@ NAMES="$IMAGE:$TAG,$IMAGE:$MAJOR.$MINOR,$IMAGE:$MAJOR"
 if ! echo "$TAG" | grep -q '-'; then
   NAMES="$NAMES,$IMAGE:latest"
 fi
+CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+LABELS="label:org.opencontainers.image.version=$TAG,label:org.opencontainers.image.revision=$(params.revision),label:org.opencontainers.image.created=$CREATED,label:org.opencontainers.image.source=https://github.com/pfenerty/ocidex"
 
 TARGET_OPT=""
 if [ -n "$TARGET" ]; then TARGET_OPT="--opt target=$TARGET"; fi
@@ -32,7 +34,7 @@ buildctl-daemonless.sh build \
   --export-cache "type=registry,ref=$IMAGE:buildcache,mode=max,image-manifest=true,oci-mediatypes=true" \
   --import-cache "type=registry,ref=$IMAGE:buildcache" \
   --metadata-file /tmp/buildctl-metadata.json \
-  --output "type=image,\"name=$NAMES\",push=true,attestation-manifest-referrers=true"
+  --output "type=image,\"name=$NAMES\",push=true,attestation-manifest-referrers=true,$LABELS"
 rc=$?
 
 # Tekton Chains build-subject hints: record the pushed image ref + digest so Chains
