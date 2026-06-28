@@ -99,6 +99,7 @@ type EnrichmentJob struct {
 	StartedAt      pgtype.Timestamptz `json:"started_at"`
 	LastAttemptAt  pgtype.Timestamptz `json:"last_attempt_at"`
 	FinishedAt     pgtype.Timestamptz `json:"finished_at"`
+	EnricherName   string             `json:"enricher_name"`
 }
 
 type ExternalReference struct {

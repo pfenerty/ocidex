@@ -58,7 +58,7 @@ func (s *NATSSubmitter) handle(ctx context.Context, ev event.Event) {
 		return
 	}
 
-	if err := s.jobSvc.Enqueue(ctx, d.SBOMID, d.Architecture, d.BuildDate); err != nil {
+	if err := s.jobSvc.Enqueue(ctx, d.SBOMID, d.Architecture, d.BuildDate, "all"); err != nil {
 		s.logger.Error("enrichment-submitter: enqueue failed",
 			"sbom_id", d.SBOMID, "err", err,
 		)

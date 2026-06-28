@@ -103,7 +103,7 @@ func run() error {
 	authSvc := service.NewAuthService(pool, cfg, bus)
 
 	jobSvc := service.NewJobService(pool)
-	enrichJobSvc := service.NewEnrichJobService(pool)
+	enrichJobSvc := service.NewEnrichJobService(pool, "all")
 	scanSubmitter := setupScannerExt(cfg, pool, bus, reg, natsClient, logger, jobSvc)
 	setupEnrichmentSubmitter(cfg, reg, natsClient, logger, enrichJobSvc)
 

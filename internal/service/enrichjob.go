@@ -20,6 +20,7 @@ type EnrichJobClaim struct {
 	ID             string
 	SBOMId         pgtype.UUID
 	Attempts       int32
+	EnricherName   string
 	Architecture   string
 	BuildDate      string
 	Digest         string
@@ -34,8 +35,8 @@ func (c EnrichJobClaim) JobAttempts() int32 { return c.Attempts }
 // EnrichJobService manages the lifecycle of enrichment pipeline jobs.
 type EnrichJobService interface {
 	// Enqueue writes a new enrichment_jobs row. The idempotency key prevents
-	// duplicate rows for the same SBOM; if a row already exists, nil is returned.
-	Enqueue(ctx context.Context, sbomID pgtype.UUID, architecture, buildDate string) error
+	// duplicate rows for the same SBOM+enricher pair; if a row already exists, nil is returned.
+	Enqueue(ctx context.Context, sbomID pgtype.UUID, architecture, buildDate, enricherName string) error
 
 	// ClaimByID transitions a specific queued row to running. The bool is false
 	// when the row is missing, already running, or terminal.
@@ -54,21 +55,25 @@ type EnrichJobService interface {
 }
 
 type enrichJobService struct {
-	repo repository.EnrichmentJobRepository
+	repo         repository.EnrichmentJobRepository
+	enricherName string
 }
 
 // NewEnrichJobService constructs an EnrichJobService backed by the given pool.
-func NewEnrichJobService(pool *pgxpool.Pool) EnrichJobService {
-	return &enrichJobService{repo: repository.New(pool)}
+// enricherName scopes ClaimNext to a specific enricher queue partition; use "all"
+// for the legacy single-enricher model.
+func NewEnrichJobService(pool *pgxpool.Pool, enricherName string) EnrichJobService {
+	return &enrichJobService{repo: repository.New(pool), enricherName: enricherName}
 }
 
-func (s *enrichJobService) Enqueue(ctx context.Context, sbomID pgtype.UUID, architecture, buildDate string) error {
+func (s *enrichJobService) Enqueue(ctx context.Context, sbomID pgtype.UUID, architecture, buildDate, enricherName string) error {
 	idempotencyKey := uuidToStr(sbomID)
 	_, err := s.repo.InsertEnrichmentJob(ctx, repository.InsertEnrichmentJobParams{
 		SbomID:         sbomID,
 		IdempotencyKey: pgtype.Text{String: idempotencyKey, Valid: true},
 		Architecture:   pgtype.Text{String: architecture, Valid: architecture != ""},
 		BuildDate:      pgtype.Text{String: buildDate, Valid: buildDate != ""},
+		EnricherName:   enricherName,
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -98,7 +103,10 @@ func (s *enrichJobService) ClaimByID(ctx context.Context, id, workerID string) (
 }
 
 func (s *enrichJobService) ClaimNext(ctx context.Context, workerID string) (EnrichJobClaim, bool, error) {
-	row, err := s.repo.ClaimNextEnrichmentJob(ctx, workerID)
+	row, err := s.repo.ClaimNextEnrichmentJob(ctx, repository.ClaimNextEnrichmentJobParams{
+		WorkerID:     workerID,
+		EnricherName: s.enricherName,
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return EnrichJobClaim{}, false, nil
@@ -163,6 +171,7 @@ func enrichClaimFromNextRow(r repository.ClaimNextEnrichmentJobRow) EnrichJobCla
 		ID:             uuidToStr(r.ID),
 		SBOMId:         r.SbomID,
 		Attempts:       r.Attempts,
+		EnricherName:   r.EnricherName,
 		Architecture:   r.Architecture,
 		BuildDate:      r.BuildDate,
 		Digest:         r.Digest,
