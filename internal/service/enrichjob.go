@@ -67,7 +67,11 @@ func NewEnrichJobService(pool *pgxpool.Pool, enricherName string) EnrichJobServi
 }
 
 func (s *enrichJobService) Enqueue(ctx context.Context, sbomID pgtype.UUID, architecture, buildDate, enricherName string) error {
-	idempotencyKey := uuidToStr(sbomID)
+	// Key per (sbom, enricher): the submitter enqueues one row per enricher for
+	// the same SBOM, so a sbom-only key collides on the idempotency_key UNIQUE
+	// constraint and silently drops every enricher after the first. This mirrors
+	// the UNIQUE (sbom_id, enricher_name) constraint and keeps re-enqueues idempotent.
+	idempotencyKey := uuidToStr(sbomID) + ":" + enricherName
 	_, err := s.repo.InsertEnrichmentJob(ctx, repository.InsertEnrichmentJobParams{
 		SbomID:         sbomID,
 		IdempotencyKey: pgtype.Text{String: idempotencyKey, Valid: true},
