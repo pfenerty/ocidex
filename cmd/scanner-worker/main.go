@@ -23,6 +23,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pfenerty/ocidex/internal/config"
+	"github.com/pfenerty/ocidex/internal/enrichment"
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/extension"
 	"github.com/pfenerty/ocidex/internal/health"
@@ -111,6 +112,14 @@ func run() error {
 	scannerSbomSvc := service.NewSBOMService(pool, bus, nil)
 	sc := engine.NewSyftScanner(logger)
 	dispatcher := engine.NewDispatcher(sc, scannerSbomSvc, logger)
+
+	// Enrichment is driven off the in-process SBOMIngested event, which fires
+	// here (not in the API) for registry-scanned SBOMs. Register the submitter so
+	// each scan ingest enqueues per-enricher jobs and the enrich.hint the
+	// per-enricher workers consume. The constructor enricher name is unused by
+	// Enqueue (it sets enricher_name per call); "all" mirrors cmd/ocidex.
+	enrichJobSvc := service.NewEnrichJobService(pool, "all")
+	registry.Register(enrichment.NewNATSSubmitter(natsClient, cfg.NATSStreamName, enrichJobSvc, logger))
 
 	workerID, _ := os.Hostname()
 	scanProcessor := func(ctx context.Context, claim service.ScanJobClaim) error {
