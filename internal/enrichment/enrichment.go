@@ -17,6 +17,7 @@ type SubjectRef struct {
 	ArtifactType   string
 	ArtifactName   string
 	Digest         string
+	IndexDigest    string // multi-arch index this child came from; provenance lives here, not on the child
 	SubjectVersion string // tag hint for parent index lookup
 	Architecture   string // caller-supplied at ingest time
 	BuildDate      string // caller-supplied at ingest time (RFC3339 or date string)

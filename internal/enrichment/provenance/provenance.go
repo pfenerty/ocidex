@@ -132,7 +132,15 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 		nameOpts = append(nameOpts, name.Insecure)
 	}
 
-	imageRef := ref.ArtifactName + "@" + ref.Digest
+	// cosign/Tekton Chains sign the multi-arch image index (the tag target), not
+	// the per-platform child manifest. When this SBOM was expanded from an index,
+	// look up provenance on the index digest; otherwise use the image's own digest.
+	lookupDigest := ref.Digest
+	if ref.IndexDigest != "" {
+		lookupDigest = ref.IndexDigest
+	}
+
+	imageRef := ref.ArtifactName + "@" + lookupDigest
 	parsedRef, err := name.ParseReference(imageRef, nameOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("parsing image ref %q: %w", imageRef, err)
@@ -157,14 +165,14 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 		}
 	}
 
-	raw := e.discover(ctx, digestRef, repo, ref.Digest, opts)
+	raw := e.discover(ctx, digestRef, repo, lookupDigest, opts)
 	p := buildProvenance(raw)
 	if p.RekorLogIndex > 0 {
 		p.RekorUUID = fetchRekorUUID(ctx, p.RekorLogIndex)
 	}
 	if e.trustResolver != nil {
 		mode, pemKey := e.trustResolver(ctx, host)
-		applyVerification(&p, raw, mode, pemKey, ref.Digest)
+		applyVerification(&p, raw, mode, pemKey, lookupDigest)
 	}
 
 	data, err := json.Marshal(p)

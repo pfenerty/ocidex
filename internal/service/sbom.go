@@ -30,6 +30,7 @@ type IngestParams struct {
 	Architecture string      // e.g. "amd64"
 	BuildDate    string      // RFC3339 or date string
 	RegistryID   pgtype.UUID // links SBOM to the registry it came from
+	IndexDigest  string      // multi-arch index this child was scanned from; empty for single-arch
 }
 
 // SBOMService defines the business logic for SBOM ingestion and management.
@@ -174,6 +175,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		Digest:         info.digest,
 		RegistryID:     params.RegistryID,
 		Flavor:         pgtype.Text{String: flavor, Valid: true},
+		IndexDigest:    pgtype.Text{String: params.IndexDigest, Valid: params.IndexDigest != ""},
 	})
 	if err != nil {
 		return pgtype.UUID{}, fmt.Errorf("inserting sbom: %w", err)

@@ -24,6 +24,7 @@ type EnrichJobClaim struct {
 	Architecture   string
 	BuildDate      string
 	Digest         string
+	IndexDigest    string
 	SubjectVersion string
 	ArtifactType   string
 	ArtifactName   string
@@ -290,6 +291,7 @@ func enrichClaimFromRow(r repository.ClaimEnrichmentJobByIDRow) EnrichJobClaim {
 		Architecture:   r.Architecture,
 		BuildDate:      r.BuildDate,
 		Digest:         r.Digest,
+		IndexDigest:    r.IndexDigest,
 		SubjectVersion: r.SubjectVersion,
 		ArtifactType:   r.ArtifactType,
 		ArtifactName:   r.ArtifactName,
@@ -305,6 +307,7 @@ func enrichClaimFromNextRow(r repository.ClaimNextEnrichmentJobRow) EnrichJobCla
 		Architecture:   r.Architecture,
 		BuildDate:      r.BuildDate,
 		Digest:         r.Digest,
+		IndexDigest:    r.IndexDigest,
 		SubjectVersion: r.SubjectVersion,
 		ArtifactType:   r.ArtifactType,
 		ArtifactName:   r.ArtifactName,

@@ -166,6 +166,7 @@ type Sbom struct {
 	EnrichmentSufficient bool               `json:"enrichment_sufficient"`
 	RegistryID           pgtype.UUID        `json:"registry_id"`
 	Flavor               pgtype.Text        `json:"flavor"`
+	IndexDigest          pgtype.Text        `json:"index_digest"`
 }
 
 type ScanJob struct {
@@ -184,6 +185,7 @@ type ScanJob struct {
 	FinishedAt    pgtype.Timestamptz `json:"finished_at"`
 	LastAttemptAt pgtype.Timestamptz `json:"last_attempt_at"`
 	WorkerID      pgtype.Text        `json:"worker_id"`
+	IndexDigest   pgtype.Text        `json:"index_digest"`
 }
 
 type Session struct {

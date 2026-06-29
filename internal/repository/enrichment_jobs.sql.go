@@ -30,6 +30,7 @@ SELECT
     COALESCE(c.architecture, '')::text        AS architecture,
     COALESCE(c.build_date, '')::text          AS build_date,
     COALESCE(s.digest, '')::text              AS digest,
+    COALESCE(s.index_digest, '')::text        AS index_digest,
     COALESCE(s.subject_version, '')::text     AS subject_version,
     COALESCE(a.type, '')::text                AS artifact_type,
     COALESCE(a.name, '')::text                AS artifact_name
@@ -50,6 +51,7 @@ type ClaimEnrichmentJobByIDRow struct {
 	Architecture   string      `json:"architecture"`
 	BuildDate      string      `json:"build_date"`
 	Digest         string      `json:"digest"`
+	IndexDigest    string      `json:"index_digest"`
 	SubjectVersion string      `json:"subject_version"`
 	ArtifactType   string      `json:"artifact_type"`
 	ArtifactName   string      `json:"artifact_name"`
@@ -65,6 +67,7 @@ func (q *Queries) ClaimEnrichmentJobByID(ctx context.Context, arg ClaimEnrichmen
 		&i.Architecture,
 		&i.BuildDate,
 		&i.Digest,
+		&i.IndexDigest,
 		&i.SubjectVersion,
 		&i.ArtifactType,
 		&i.ArtifactName,
@@ -99,6 +102,7 @@ SELECT
     COALESCE(c.build_date, '')::text          AS build_date,
     c.enricher_name                           AS enricher_name,
     COALESCE(s.digest, '')::text              AS digest,
+    COALESCE(s.index_digest, '')::text        AS index_digest,
     COALESCE(s.subject_version, '')::text     AS subject_version,
     COALESCE(a.type, '')::text                AS artifact_type,
     COALESCE(a.name, '')::text                AS artifact_name
@@ -120,6 +124,7 @@ type ClaimNextEnrichmentJobRow struct {
 	BuildDate      string      `json:"build_date"`
 	EnricherName   string      `json:"enricher_name"`
 	Digest         string      `json:"digest"`
+	IndexDigest    string      `json:"index_digest"`
 	SubjectVersion string      `json:"subject_version"`
 	ArtifactType   string      `json:"artifact_type"`
 	ArtifactName   string      `json:"artifact_name"`
@@ -136,6 +141,7 @@ func (q *Queries) ClaimNextEnrichmentJob(ctx context.Context, arg ClaimNextEnric
 		&i.BuildDate,
 		&i.EnricherName,
 		&i.Digest,
+		&i.IndexDigest,
 		&i.SubjectVersion,
 		&i.ArtifactType,
 		&i.ArtifactName,

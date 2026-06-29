@@ -2,7 +2,7 @@
 SELECT id FROM sbom WHERE digest = $1;
 
 -- name: GetSBOM :one
-SELECT id, serial_number, spec_version, version, artifact_id, subject_version, digest, created_at, registry_id
+SELECT id, serial_number, spec_version, version, artifact_id, subject_version, digest, created_at, registry_id, index_digest
 FROM sbom
 WHERE id = $1;
 

@@ -120,6 +120,7 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 			ArtifactType:   claim.ArtifactType,
 			ArtifactName:   claim.ArtifactName,
 			Digest:         claim.Digest,
+			IndexDigest:    claim.IndexDigest,
 			SubjectVersion: claim.SubjectVersion,
 			Architecture:   claim.Architecture,
 			BuildDate:      claim.BuildDate,
@@ -212,6 +213,7 @@ func RunOnce(ctx context.Context, pool *pgxpool.Pool, factory EnricherFactory) e
 		ArtifactType:   artifact.Type,
 		ArtifactName:   artifact.Name,
 		Digest:         sbomRow.Digest.String,
+		IndexDigest:    sbomRow.IndexDigest.String,
 		SubjectVersion: sbomRow.SubjectVersion.String,
 	}
 

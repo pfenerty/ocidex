@@ -50,6 +50,7 @@ type ScanJobClaim struct {
 	RegistryID   string
 	Repository   string
 	Digest       string
+	IndexDigest  string
 	Tag          string
 	RegistryURL  string
 	Insecure     bool
@@ -63,7 +64,7 @@ func (c ScanJobClaim) JobAttempts() int32 { return c.Attempts }
 
 // JobService manages the lifecycle of scan pipeline jobs.
 type JobService interface {
-	Enqueue(ctx context.Context, registryID, repo, digest, tag, msgID string) (ScanJob, error)
+	Enqueue(ctx context.Context, registryID, repo, digest, indexDigest, tag, msgID string) (ScanJob, error)
 	Start(ctx context.Context, msgID, workerID string) error
 	Finish(ctx context.Context, msgID string, sbomID pgtype.UUID) error
 	Fail(ctx context.Context, msgID, lastError string) error
@@ -106,17 +107,18 @@ func NewJobService(pool *pgxpool.Pool) JobService {
 	return &jobService{repo: repository.New(pool)}
 }
 
-func (s *jobService) Enqueue(ctx context.Context, registryID, repo, digest, tag, msgID string) (ScanJob, error) {
+func (s *jobService) Enqueue(ctx context.Context, registryID, repo, digest, indexDigest, tag, msgID string) (ScanJob, error) {
 	var regID pgtype.UUID
 	if registryID != "" {
 		_ = regID.Scan(registryID)
 	}
 	row, err := s.repo.InsertScanJob(ctx, repository.InsertScanJobParams{
-		RegistryID: regID,
-		Repository: repo,
-		Digest:     digest,
-		Tag:        toNullText(nullStr(tag)),
-		NatsMsgID:  toNullText(nullStr(msgID)),
+		RegistryID:  regID,
+		Repository:  repo,
+		Digest:      digest,
+		IndexDigest: toNullText(nullStr(indexDigest)),
+		Tag:         toNullText(nullStr(tag)),
+		NatsMsgID:   toNullText(nullStr(msgID)),
 	})
 	if err != nil {
 		return ScanJob{}, fmt.Errorf("inserting scan job: %w", err)
@@ -266,7 +268,7 @@ func (s *jobService) ClaimByID(ctx context.Context, id, workerID string) (ScanJo
 		}
 		return ScanJobClaim{}, false, fmt.Errorf("claim scan job by id: %w", err)
 	}
-	return claimFromRow(row.ID, row.RegistryID, row.Repository, row.Digest,
+	return claimFromRow(row.ID, row.RegistryID, row.Repository, row.Digest, row.IndexDigest,
 		row.Tag, row.RegistryUrl, row.Insecure, row.AuthUsername, row.AuthToken, row.Attempts), true, nil
 }
 
@@ -278,7 +280,7 @@ func (s *jobService) ClaimNext(ctx context.Context, workerID string) (ScanJobCla
 		}
 		return ScanJobClaim{}, false, fmt.Errorf("claim next queued job: %w", err)
 	}
-	return claimFromRow(row.ID, row.RegistryID, row.Repository, row.Digest,
+	return claimFromRow(row.ID, row.RegistryID, row.Repository, row.Digest, row.IndexDigest,
 		row.Tag, row.RegistryUrl, row.Insecure, row.AuthUsername, row.AuthToken, row.Attempts), true, nil
 }
 
@@ -333,12 +335,13 @@ func (s *jobService) RetryAllFailed(ctx context.Context) (int64, error) {
 	return s.repo.RetryAllFailedScanJobs(ctx)
 }
 
-func claimFromRow(id pgtype.UUID, registryID, repo, digest, tag, registryURL string, insecure bool, authUser, authToken string, attempts int32) ScanJobClaim {
+func claimFromRow(id pgtype.UUID, registryID, repo, digest, indexDigest, tag, registryURL string, insecure bool, authUser, authToken string, attempts int32) ScanJobClaim {
 	return ScanJobClaim{
 		ID:           uuidToStr(id),
 		RegistryID:   registryID,
 		Repository:   repo,
 		Digest:       digest,
+		IndexDigest:  indexDigest,
 		Tag:          tag,
 		RegistryURL:  registryURL,
 		Insecure:     insecure,
