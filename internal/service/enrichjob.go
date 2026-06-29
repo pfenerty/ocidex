@@ -52,6 +52,43 @@ type EnrichJobService interface {
 	FailOrRequeue(ctx context.Context, id, lastError string, maxAttempts int32) (string, error)
 	// RequeueStuckRunning sweeps running rows whose worker has gone silent.
 	RequeueStuckRunning(ctx context.Context, stuckThreshold time.Duration, maxAttempts int32) error
+
+	// List returns enrichment jobs for the admin Jobs page, optionally filtered
+	// by state and/or enricher, with the total count for pagination.
+	List(ctx context.Context, state, enricherName string, limit, offset int32) ([]EnrichJob, int64, error)
+	// Summary returns per-(enricher, state) counts for the health matrix.
+	Summary(ctx context.Context) ([]EnrichJobStateCount, error)
+	// Retry resets a single 'failed' row back to 'queued'.
+	Retry(ctx context.Context, id string) error
+	// RetryAllFailed resets every 'failed' row back to 'queued', optionally scoped
+	// to one enricher (empty = all enrichers). Returns the number of rows affected.
+	RetryAllFailed(ctx context.Context, enricherName string) (int64, error)
+}
+
+// EnrichJob is the domain model for an enrichment pipeline job as shown on the
+// admin Jobs page. SbomDigest and ArtifactName are joined in for display and may
+// be nil when the SBOM has been deleted.
+type EnrichJob struct {
+	ID            string
+	SbomID        *string
+	EnricherName  string
+	State         string
+	Attempts      int32
+	LastError     *string
+	WorkerID      *string
+	SbomDigest    *string
+	ArtifactName  *string
+	CreatedAt     time.Time
+	StartedAt     *time.Time
+	LastAttemptAt *time.Time
+	FinishedAt    *time.Time
+}
+
+// EnrichJobStateCount is one cell of the per-enricher health matrix.
+type EnrichJobStateCount struct {
+	EnricherName string
+	State        string
+	Count        int64
 }
 
 type enrichJobService struct {
@@ -154,6 +191,95 @@ func (s *enrichJobService) RequeueStuckRunning(ctx context.Context, stuckThresho
 		MaxAttempts: maxAttempts,
 		StuckBefore: cutoff,
 	})
+}
+
+func (s *enrichJobService) List(ctx context.Context, state, enricherName string, limit, offset int32) ([]EnrichJob, int64, error) {
+	stateFilter := pgtype.Text{String: state, Valid: state != ""}
+	enricherFilter := pgtype.Text{String: enricherName, Valid: enricherName != ""}
+	rows, err := s.repo.ListEnrichmentJobs(ctx, repository.ListEnrichmentJobsParams{
+		State:        stateFilter,
+		EnricherName: enricherFilter,
+		Limit:        limit,
+		Offset:       offset,
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("listing enrichment jobs: %w", err)
+	}
+	total, err := s.repo.CountEnrichmentJobs(ctx, repository.CountEnrichmentJobsParams{
+		State:        stateFilter,
+		EnricherName: enricherFilter,
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("counting enrichment jobs: %w", err)
+	}
+	out := make([]EnrichJob, len(rows))
+	for i, r := range rows {
+		out[i] = fromEnrichJobRow(r)
+	}
+	return out, total, nil
+}
+
+func (s *enrichJobService) Summary(ctx context.Context) ([]EnrichJobStateCount, error) {
+	rows, err := s.repo.SummarizeEnrichmentJobs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("summarizing enrichment jobs: %w", err)
+	}
+	out := make([]EnrichJobStateCount, len(rows))
+	for i, r := range rows {
+		out[i] = EnrichJobStateCount{EnricherName: r.EnricherName, State: r.State, Count: r.Count}
+	}
+	return out, nil
+}
+
+func (s *enrichJobService) Retry(ctx context.Context, id string) error {
+	uid, err := parseRegistryUUID(id)
+	if err != nil {
+		return fmt.Errorf("invalid job id: %w", err)
+	}
+	return s.repo.RetryEnrichmentJob(ctx, uid)
+}
+
+func (s *enrichJobService) RetryAllFailed(ctx context.Context, enricherName string) (int64, error) {
+	return s.repo.RetryAllFailedEnrichmentJobs(ctx, pgtype.Text{String: enricherName, Valid: enricherName != ""})
+}
+
+func fromEnrichJobRow(r repository.ListEnrichmentJobsRow) EnrichJob {
+	j := EnrichJob{
+		ID:           uuidToStr(r.ID),
+		EnricherName: r.EnricherName,
+		State:        r.State,
+		Attempts:     r.Attempts,
+		CreatedAt:    r.CreatedAt.Time,
+	}
+	if r.SbomID.Valid {
+		v := uuidToStr(r.SbomID)
+		j.SbomID = &v
+	}
+	if r.LastError.Valid {
+		j.LastError = &r.LastError.String
+	}
+	if r.WorkerID.Valid {
+		j.WorkerID = &r.WorkerID.String
+	}
+	if r.SbomDigest.Valid {
+		j.SbomDigest = &r.SbomDigest.String
+	}
+	if r.ArtifactName.Valid {
+		j.ArtifactName = &r.ArtifactName.String
+	}
+	if r.StartedAt.Valid {
+		t := r.StartedAt.Time
+		j.StartedAt = &t
+	}
+	if r.LastAttemptAt.Valid {
+		t := r.LastAttemptAt.Time
+		j.LastAttemptAt = &t
+	}
+	if r.FinishedAt.Valid {
+		t := r.FinishedAt.Time
+		j.FinishedAt = &t
+	}
+	return j
 }
 
 func enrichClaimFromRow(r repository.ClaimEnrichmentJobByIDRow) EnrichJobClaim {

@@ -92,7 +92,7 @@ func newBoundaryAuthSvc() *configFakeAuthService {
 // newAuthBoundaryRouter builds a router with auth wired and a zero-value Config.
 // Config must be non-nil because GetSystemStatus accesses cfg fields directly.
 func newAuthBoundaryRouter(authSvc service.AuthService) http.Handler {
-	h := api.NewHandler(nil, nil, authSvc, nil, nil, &fakePinger{}, nil, &config.Config{})
+	h := api.NewHandler(nil, nil, authSvc, nil, nil, nil, &fakePinger{}, nil, &config.Config{})
 	return api.NewRouter(h, "*", "", "")
 }
 

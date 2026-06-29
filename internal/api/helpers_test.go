@@ -80,21 +80,21 @@ func (f *failSBOMService) GetArtifactOwnerID(_ context.Context, _ pgtype.UUID) (
 // newTestRouter builds a full huma router backed by the given services and a
 // healthy fakePinger. Auth middleware is disabled (nil authSvc).
 func newTestRouter(sbomSvc service.SBOMService, searchSvc service.SearchService) http.Handler {
-	h := api.NewHandler(sbomSvc, searchSvc, nil, nil, nil, &fakePinger{}, nil, nil)
+	h := api.NewHandler(sbomSvc, searchSvc, nil, nil, nil, nil, &fakePinger{}, nil, nil)
 	return api.NewRouter(h, "*", "", "")
 }
 
 // newTestRouterWithAuth builds a router with an auth service wired so that
 // OptionalAuthenticate and huma auth-gate middlewares function properly.
 func newTestRouterWithAuth(sbomSvc service.SBOMService, searchSvc service.SearchService, authSvc service.AuthService) http.Handler {
-	h := api.NewHandler(sbomSvc, searchSvc, authSvc, nil, nil, &fakePinger{}, nil, nil)
+	h := api.NewHandler(sbomSvc, searchSvc, authSvc, nil, nil, nil, &fakePinger{}, nil, nil)
 	return api.NewRouter(h, "*", "", "")
 }
 
 // newTestHandlerWithPinger creates a Handler with a custom DBPinger (e.g. for
 // testing readiness failures). Auth middleware is disabled (nil authSvc).
 func newTestHandlerWithPinger(sbomSvc service.SBOMService, searchSvc service.SearchService, pinger api.DBPinger) *api.Handler {
-	return api.NewHandler(sbomSvc, searchSvc, nil, nil, nil, pinger, nil, nil)
+	return api.NewHandler(sbomSvc, searchSvc, nil, nil, nil, nil, pinger, nil, nil)
 }
 
 // newTestRouterFromHandler builds a full huma router from an existing Handler.

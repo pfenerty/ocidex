@@ -143,6 +143,24 @@ func (q *Queries) ClaimNextEnrichmentJob(ctx context.Context, arg ClaimNextEnric
 	return i, err
 }
 
+const countEnrichmentJobs = `-- name: CountEnrichmentJobs :one
+SELECT COUNT(*) FROM enrichment_jobs j
+WHERE ($1::text IS NULL OR j.state = $1::text)
+  AND ($2::text IS NULL OR j.enricher_name = $2::text)
+`
+
+type CountEnrichmentJobsParams struct {
+	State        pgtype.Text `json:"state"`
+	EnricherName pgtype.Text `json:"enricher_name"`
+}
+
+func (q *Queries) CountEnrichmentJobs(ctx context.Context, arg CountEnrichmentJobsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countEnrichmentJobs, arg.State, arg.EnricherName)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const failOrRequeueEnrichmentJobByID = `-- name: FailOrRequeueEnrichmentJobByID :one
 UPDATE enrichment_jobs
 SET state       = CASE
@@ -233,6 +251,93 @@ func (q *Queries) InsertEnrichmentJob(ctx context.Context, arg InsertEnrichmentJ
 	return i, err
 }
 
+const listEnrichmentJobs = `-- name: ListEnrichmentJobs :many
+SELECT
+    j.id, j.sbom_id, j.state, j.attempts, j.last_error, j.worker_id,
+    j.enricher_name, j.created_at, j.started_at, j.last_attempt_at, j.finished_at,
+    s.digest AS sbom_digest,
+    a.name   AS artifact_name
+FROM enrichment_jobs j
+LEFT JOIN sbom s     ON s.id = j.sbom_id
+LEFT JOIN artifact a ON a.id = s.artifact_id
+WHERE ($1::text IS NULL OR j.state = $1::text)
+  AND ($2::text IS NULL OR j.enricher_name = $2::text)
+ORDER BY
+    CASE j.state
+        WHEN 'running'   THEN 1
+        WHEN 'queued'    THEN 2
+        WHEN 'failed'    THEN 3
+        WHEN 'succeeded' THEN 4
+        ELSE 5
+    END,
+    j.created_at DESC
+LIMIT $4 OFFSET $3
+`
+
+type ListEnrichmentJobsParams struct {
+	State        pgtype.Text `json:"state"`
+	EnricherName pgtype.Text `json:"enricher_name"`
+	Offset       int32       `json:"offset_"`
+	Limit        int32       `json:"limit_"`
+}
+
+type ListEnrichmentJobsRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	SbomID        pgtype.UUID        `json:"sbom_id"`
+	State         string             `json:"state"`
+	Attempts      int32              `json:"attempts"`
+	LastError     pgtype.Text        `json:"last_error"`
+	WorkerID      pgtype.Text        `json:"worker_id"`
+	EnricherName  string             `json:"enricher_name"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	StartedAt     pgtype.Timestamptz `json:"started_at"`
+	LastAttemptAt pgtype.Timestamptz `json:"last_attempt_at"`
+	FinishedAt    pgtype.Timestamptz `json:"finished_at"`
+	SbomDigest    pgtype.Text        `json:"sbom_digest"`
+	ArtifactName  pgtype.Text        `json:"artifact_name"`
+}
+
+// ListEnrichmentJobs returns enrichment jobs for the admin Jobs page, optionally
+// filtered by state and/or enricher, joined to the SBOM/artifact for display.
+func (q *Queries) ListEnrichmentJobs(ctx context.Context, arg ListEnrichmentJobsParams) ([]ListEnrichmentJobsRow, error) {
+	rows, err := q.db.Query(ctx, listEnrichmentJobs,
+		arg.State,
+		arg.EnricherName,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListEnrichmentJobsRow{}
+	for rows.Next() {
+		var i ListEnrichmentJobsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SbomID,
+			&i.State,
+			&i.Attempts,
+			&i.LastError,
+			&i.WorkerID,
+			&i.EnricherName,
+			&i.CreatedAt,
+			&i.StartedAt,
+			&i.LastAttemptAt,
+			&i.FinishedAt,
+			&i.SbomDigest,
+			&i.ArtifactName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const requeueStuckEnrichmentJobs = `-- name: RequeueStuckEnrichmentJobs :exec
 UPDATE enrichment_jobs
 SET state = CASE
@@ -261,4 +366,77 @@ type RequeueStuckEnrichmentJobsParams struct {
 func (q *Queries) RequeueStuckEnrichmentJobs(ctx context.Context, arg RequeueStuckEnrichmentJobsParams) error {
 	_, err := q.db.Exec(ctx, requeueStuckEnrichmentJobs, arg.MaxAttempts, arg.StuckBefore)
 	return err
+}
+
+const retryAllFailedEnrichmentJobs = `-- name: RetryAllFailedEnrichmentJobs :execrows
+UPDATE enrichment_jobs
+SET state           = 'queued',
+    attempts        = 0,
+    last_error      = NULL,
+    finished_at     = NULL,
+    started_at      = NULL,
+    last_attempt_at = NULL
+WHERE state = 'failed'
+  AND ($1::text IS NULL OR enricher_name = $1::text)
+`
+
+// RetryAllFailedEnrichmentJobs resets every 'failed' row back to 'queued',
+// optionally scoped to a single enricher. Returns the row count.
+func (q *Queries) RetryAllFailedEnrichmentJobs(ctx context.Context, enricherName pgtype.Text) (int64, error) {
+	result, err := q.db.Exec(ctx, retryAllFailedEnrichmentJobs, enricherName)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const retryEnrichmentJob = `-- name: RetryEnrichmentJob :exec
+UPDATE enrichment_jobs
+SET state           = 'queued',
+    attempts        = 0,
+    last_error      = NULL,
+    finished_at     = NULL,
+    started_at      = NULL,
+    last_attempt_at = NULL
+WHERE id = $1::uuid
+  AND state = 'failed'
+`
+
+func (q *Queries) RetryEnrichmentJob(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, retryEnrichmentJob, id)
+	return err
+}
+
+const summarizeEnrichmentJobs = `-- name: SummarizeEnrichmentJobs :many
+SELECT enricher_name, state, COUNT(*) AS count
+FROM enrichment_jobs
+GROUP BY enricher_name, state
+`
+
+type SummarizeEnrichmentJobsRow struct {
+	EnricherName string `json:"enricher_name"`
+	State        string `json:"state"`
+	Count        int64  `json:"count"`
+}
+
+// SummarizeEnrichmentJobs returns one row per (enricher, state) with its count,
+// powering the per-enricher health matrix on the admin Jobs page.
+func (q *Queries) SummarizeEnrichmentJobs(ctx context.Context) ([]SummarizeEnrichmentJobsRow, error) {
+	rows, err := q.db.Query(ctx, summarizeEnrichmentJobs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SummarizeEnrichmentJobsRow{}
+	for rows.Next() {
+		var i SummarizeEnrichmentJobsRow
+		if err := rows.Scan(&i.EnricherName, &i.State, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

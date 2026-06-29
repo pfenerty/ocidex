@@ -504,6 +504,42 @@ func registerJobOps(api huma.API, h *Handler) {
 		Description: "Resets every scan_jobs row whose state is 'failed' back to 'queued' and returns the row count. Admin-only.",
 		Tags:        []string{"Jobs", "Admin"},
 	}, h.RetryAllFailedScanJobs)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-enrichment-jobs",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/enrichment-jobs",
+		Summary:     "List enrichment jobs",
+		Description: "Returns a paginated list of enrichment pipeline jobs, optionally filtered by state and/or enricher.",
+		Tags:        []string{"Jobs"},
+	}, h.ListEnrichmentJobs)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "enrichment-jobs-summary",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/enrichment-jobs/summary",
+		Summary:     "Per-enricher enrichment job counts",
+		Description: "Returns one row per (enricher, state) with its count, for the per-enricher health matrix.",
+		Tags:        []string{"Jobs"},
+	}, h.EnrichmentJobsSummary)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "retry-enrichment-job",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/admin/enrichment-jobs/{id}/retry",
+		Summary:     "Retry a failed enrichment job",
+		Description: "Resets a 'failed' enrichment_jobs row back to 'queued' so it gets reprocessed. Admin-only.",
+		Tags:        []string{"Jobs", "Admin"},
+	}, h.RetryEnrichmentJob)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "retry-all-failed-enrichment-jobs",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/admin/enrichment-jobs/retry-failed",
+		Summary:     "Retry every failed enrichment job",
+		Description: "Resets every 'failed' enrichment_jobs row back to 'queued', optionally scoped to one enricher, and returns the row count. Admin-only.",
+		Tags:        []string{"Jobs", "Admin"},
+	}, h.RetryAllFailedEnrichmentJobs)
 }
 
 // ---------------------------------------------------------------------------
