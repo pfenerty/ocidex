@@ -21,6 +21,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/enrichment-jobs/retry-failed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry every failed enrichment job
+         * @description Resets every 'failed' enrichment_jobs row back to 'queued', optionally scoped to one enricher, and returns the row count. Admin-only.
+         */
+        post: operations["retry-all-failed-enrichment-jobs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/enrichment-jobs/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry a failed enrichment job
+         * @description Resets a 'failed' enrichment_jobs row back to 'queued' so it gets reprocessed. Admin-only.
+         */
+        post: operations["retry-enrichment-job"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/jobs/retry-failed": {
         parameters: {
             query?: never;
@@ -293,6 +333,46 @@ export interface paths {
         };
         /** Get a component */
         get: operations["get-component"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/enrichment-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List enrichment jobs
+         * @description Returns a paginated list of enrichment pipeline jobs, optionally filtered by state and/or enricher.
+         */
+        get: operations["list-enrichment-jobs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/enrichment-jobs/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per-enricher enrichment job counts
+         * @description Returns one row per (enricher, state) with its count, for the per-enricher health matrix.
+         */
+        get: operations["enrichment-jobs-summary"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1085,6 +1165,47 @@ export interface components {
             /** Format: int64 */
             versionCount: number;
         };
+        EnrichmentJobResponse: {
+            /** @description Name of the artifact, for display */
+            artifact_name?: string;
+            /** Format: int32 */
+            attempts: number;
+            created_at: string;
+            /**
+             * @description Which enricher this job runs
+             * @enum {string}
+             */
+            enricher_name: "user" | "oci-metadata" | "provenance";
+            finished_at?: string;
+            /** @description Job UUID */
+            id: string;
+            last_attempt_at?: string;
+            last_error?: string;
+            /** @description Digest of the SBOM's image, for display */
+            sbom_digest?: string;
+            /** @description SBOM being enriched */
+            sbom_id?: string;
+            started_at?: string;
+            /** @enum {string} */
+            state: "queued" | "running" | "succeeded" | "failed";
+            /** @description Pod hostname that is processing this job */
+            worker_id?: string;
+        };
+        EnrichmentJobSummaryRow: {
+            /** Format: int64 */
+            count: number;
+            enricher_name: string;
+            state: string;
+        };
+        EnrichmentJobsSummaryOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/EnrichmentJobsSummaryOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["EnrichmentJobSummaryRow"][] | null;
+        };
         EnrichmentStatus: {
             enabled: boolean;
             /** Format: int64 */
@@ -1292,6 +1413,16 @@ export interface components {
             data: components["schemas"]["ComponentSummary"][] | null;
             pagination: components["schemas"]["PaginationMeta"];
         };
+        ListEnrichmentJobsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListEnrichmentJobsOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["EnrichmentJobResponse"][] | null;
+            pagination: components["schemas"]["PaginationMeta"];
+        };
         ListLicensesOutputBody: {
             /**
              * Format: uri
@@ -1475,6 +1606,19 @@ export interface components {
             mediaType: string;
             name: string;
             reference: string;
+        };
+        RetryAllFailedEnrichmentJobsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/RetryAllFailedEnrichmentJobsOutputBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Number of rows transitioned from 'failed' to 'queued'
+             */
+            count: number;
         };
         RetryAllFailedScanJobsOutputBody: {
             /**
@@ -1774,6 +1918,68 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["VersionOutputBody"];
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "retry-all-failed-enrichment-jobs": {
+        parameters: {
+            query?: {
+                /** @description Limit the reset to a single enricher; omit to reset all */
+                enricher_name?: "user" | "oci-metadata" | "provenance";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetryAllFailedEnrichmentJobsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "retry-enrichment-job": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Failed enrichment job UUID to reset back to 'queued' */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {
@@ -2389,6 +2595,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ComponentDetail"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-enrichment-jobs": {
+        parameters: {
+            query?: {
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Number of results to skip */
+                offset?: number;
+                /** @description Filter by job state */
+                state?: "queued" | "running" | "succeeded" | "failed";
+                /** @description Filter by enricher */
+                enricher_name?: "user" | "oci-metadata" | "provenance";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListEnrichmentJobsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "enrichment-jobs-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrichmentJobsSummaryOutputBody"];
                 };
             };
             /** @description Error */

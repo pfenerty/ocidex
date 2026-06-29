@@ -22,34 +22,36 @@ type ScanSubmitter interface {
 
 // Handler holds dependencies for HTTP handlers.
 type Handler struct {
-	sbomService     service.SBOMService
-	searchService   service.SearchService
-	authService     service.AuthService
-	registryService service.RegistryService
-	jobService      service.JobService
-	db              DBPinger
-	api             huma.API
-	scanSubmitter   ScanSubmitter
-	cfg             *config.Config
-	stateCookie     *securecookie.SecureCookie
+	sbomService      service.SBOMService
+	searchService    service.SearchService
+	authService      service.AuthService
+	registryService  service.RegistryService
+	jobService       service.JobService
+	enrichJobService service.EnrichJobService
+	db               DBPinger
+	api              huma.API
+	scanSubmitter    ScanSubmitter
+	cfg              *config.Config
+	stateCookie      *securecookie.SecureCookie
 }
 
 // NewHandler creates a new Handler with the given dependencies.
-func NewHandler(sbomSvc service.SBOMService, searchSvc service.SearchService, authSvc service.AuthService, registrySvc service.RegistryService, jobSvc service.JobService, db DBPinger, sc ScanSubmitter, cfg *config.Config) *Handler {
+func NewHandler(sbomSvc service.SBOMService, searchSvc service.SearchService, authSvc service.AuthService, registrySvc service.RegistryService, jobSvc service.JobService, enrichJobSvc service.EnrichJobService, db DBPinger, sc ScanSubmitter, cfg *config.Config) *Handler {
 	var sc2 *securecookie.SecureCookie
 	if cfg != nil {
 		sc2 = securecookie.New([]byte(cfg.SessionSecret), nil)
 	}
 	return &Handler{
-		sbomService:     sbomSvc,
-		searchService:   searchSvc,
-		authService:     authSvc,
-		registryService: registrySvc,
-		jobService:      jobSvc,
-		db:              db,
-		scanSubmitter:   sc,
-		cfg:             cfg,
-		stateCookie:     sc2,
+		sbomService:      sbomSvc,
+		searchService:    searchSvc,
+		authService:      authSvc,
+		registryService:  registrySvc,
+		jobService:       jobSvc,
+		enrichJobService: enrichJobSvc,
+		db:               db,
+		scanSubmitter:    sc,
+		cfg:              cfg,
+		stateCookie:      sc2,
 	}
 }
 

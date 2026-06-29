@@ -96,6 +96,11 @@ type EnrichmentJobRepository interface {
 	FinishEnrichmentJobByID(ctx context.Context, id pgtype.UUID) error
 	FailOrRequeueEnrichmentJobByID(ctx context.Context, arg FailOrRequeueEnrichmentJobByIDParams) (string, error)
 	RequeueStuckEnrichmentJobs(ctx context.Context, arg RequeueStuckEnrichmentJobsParams) error
+	ListEnrichmentJobs(ctx context.Context, arg ListEnrichmentJobsParams) ([]ListEnrichmentJobsRow, error)
+	CountEnrichmentJobs(ctx context.Context, arg CountEnrichmentJobsParams) (int64, error)
+	SummarizeEnrichmentJobs(ctx context.Context) ([]SummarizeEnrichmentJobsRow, error)
+	RetryEnrichmentJob(ctx context.Context, id pgtype.UUID) error
+	RetryAllFailedEnrichmentJobs(ctx context.Context, enricherName pgtype.Text) (int64, error)
 }
 
 // JobRepository defines data access methods for scan job lifecycle.

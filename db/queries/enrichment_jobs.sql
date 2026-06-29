@@ -109,3 +109,63 @@ SET state = CASE
     END
 WHERE state = 'running'
   AND last_attempt_at < @stuck_before::timestamptz;
+
+-- ListEnrichmentJobs returns enrichment jobs for the admin Jobs page, optionally
+-- filtered by state and/or enricher, joined to the SBOM/artifact for display.
+-- name: ListEnrichmentJobs :many
+SELECT
+    j.id, j.sbom_id, j.state, j.attempts, j.last_error, j.worker_id,
+    j.enricher_name, j.created_at, j.started_at, j.last_attempt_at, j.finished_at,
+    s.digest AS sbom_digest,
+    a.name   AS artifact_name
+FROM enrichment_jobs j
+LEFT JOIN sbom s     ON s.id = j.sbom_id
+LEFT JOIN artifact a ON a.id = s.artifact_id
+WHERE (sqlc.narg('state')::text IS NULL OR j.state = sqlc.narg('state')::text)
+  AND (sqlc.narg('enricher_name')::text IS NULL OR j.enricher_name = sqlc.narg('enricher_name')::text)
+ORDER BY
+    CASE j.state
+        WHEN 'running'   THEN 1
+        WHEN 'queued'    THEN 2
+        WHEN 'failed'    THEN 3
+        WHEN 'succeeded' THEN 4
+        ELSE 5
+    END,
+    j.created_at DESC
+LIMIT sqlc.arg('limit_') OFFSET sqlc.arg('offset_');
+
+-- name: CountEnrichmentJobs :one
+SELECT COUNT(*) FROM enrichment_jobs j
+WHERE (sqlc.narg('state')::text IS NULL OR j.state = sqlc.narg('state')::text)
+  AND (sqlc.narg('enricher_name')::text IS NULL OR j.enricher_name = sqlc.narg('enricher_name')::text);
+
+-- SummarizeEnrichmentJobs returns one row per (enricher, state) with its count,
+-- powering the per-enricher health matrix on the admin Jobs page.
+-- name: SummarizeEnrichmentJobs :many
+SELECT enricher_name, state, COUNT(*) AS count
+FROM enrichment_jobs
+GROUP BY enricher_name, state;
+
+-- name: RetryEnrichmentJob :exec
+UPDATE enrichment_jobs
+SET state           = 'queued',
+    attempts        = 0,
+    last_error      = NULL,
+    finished_at     = NULL,
+    started_at      = NULL,
+    last_attempt_at = NULL
+WHERE id = @id::uuid
+  AND state = 'failed';
+
+-- RetryAllFailedEnrichmentJobs resets every 'failed' row back to 'queued',
+-- optionally scoped to a single enricher. Returns the row count.
+-- name: RetryAllFailedEnrichmentJobs :execrows
+UPDATE enrichment_jobs
+SET state           = 'queued',
+    attempts        = 0,
+    last_error      = NULL,
+    finished_at     = NULL,
+    started_at      = NULL,
+    last_attempt_at = NULL
+WHERE state = 'failed'
+  AND (sqlc.narg('enricher_name')::text IS NULL OR enricher_name = sqlc.narg('enricher_name')::text);
