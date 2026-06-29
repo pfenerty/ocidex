@@ -150,8 +150,8 @@ func (q *Queries) InsertExternalReference(ctx context.Context, arg InsertExterna
 }
 
 const insertSBOM = `-- name: InsertSBOM :one
-INSERT INTO sbom (serial_number, spec_version, version, raw_bom, artifact_id, subject_version, digest, registry_id, flavor)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO sbom (serial_number, spec_version, version, raw_bom, artifact_id, subject_version, digest, registry_id, flavor, index_digest)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING id, serial_number, spec_version, version, created_at
 `
 
@@ -165,6 +165,7 @@ type InsertSBOMParams struct {
 	Digest         pgtype.Text `json:"digest"`
 	RegistryID     pgtype.UUID `json:"registry_id"`
 	Flavor         pgtype.Text `json:"flavor"`
+	IndexDigest    pgtype.Text `json:"index_digest"`
 }
 
 type InsertSBOMRow struct {
@@ -186,6 +187,7 @@ func (q *Queries) InsertSBOM(ctx context.Context, arg InsertSBOMParams) (InsertS
 		arg.Digest,
 		arg.RegistryID,
 		arg.Flavor,
+		arg.IndexDigest,
 	)
 	var i InsertSBOMRow
 	err := row.Scan(

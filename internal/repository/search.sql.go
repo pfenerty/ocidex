@@ -157,7 +157,7 @@ func (q *Queries) GetComponentVersions(ctx context.Context, arg GetComponentVers
 }
 
 const getSBOM = `-- name: GetSBOM :one
-SELECT id, serial_number, spec_version, version, artifact_id, subject_version, digest, created_at, registry_id
+SELECT id, serial_number, spec_version, version, artifact_id, subject_version, digest, created_at, registry_id, index_digest
 FROM sbom
 WHERE id = $1
 `
@@ -172,6 +172,7 @@ type GetSBOMRow struct {
 	Digest         pgtype.Text        `json:"digest"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	RegistryID     pgtype.UUID        `json:"registry_id"`
+	IndexDigest    pgtype.Text        `json:"index_digest"`
 }
 
 func (q *Queries) GetSBOM(ctx context.Context, id pgtype.UUID) (GetSBOMRow, error) {
@@ -187,6 +188,7 @@ func (q *Queries) GetSBOM(ctx context.Context, id pgtype.UUID) (GetSBOMRow, erro
 		&i.Digest,
 		&i.CreatedAt,
 		&i.RegistryID,
+		&i.IndexDigest,
 	)
 	return i, err
 }

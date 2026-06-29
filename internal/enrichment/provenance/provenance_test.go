@@ -197,6 +197,74 @@ func TestDiscoverViaReferrers(t *testing.T) {
 	is.True(result.AttestationPresent)
 }
 
+// TestDiscover_PrefersIndexDigest verifies that when a SubjectRef carries an
+// IndexDigest (the per-platform SBOM was expanded from a multi-arch index),
+// provenance is looked up on the index digest — where cosign/Tekton Chains sign —
+// not on the child image digest. All routes are keyed on the index digest and the
+// child digest is deliberately unserved; success proves the index digest was used.
+func TestDiscover_PrefersIndexDigest(t *testing.T) {
+	is := is.New(t)
+
+	const indexDigest = "sha256:00000000000000000000000000000000000000000000000000000000000000ab"
+	const childDigest = "sha256:00000000000000000000000000000000000000000000000000000000000000cd"
+
+	sigLayerDigest := digestOf(fakeSigPayload)
+	attLayerDigest := digestOf(fakeAttPayload)
+	configDigest := digestOf(fakeConfig)
+
+	sigManifestBytes, sigManifestDigest := buildManifest(
+		"application/vnd.dev.cosign.simplesigning.v1+json",
+		sigLayerDigest, len(fakeSigPayload), configDigest,
+		map[string]string{"dev.cosignproject.cosign/signature": "dGVzdHNpZw=="},
+	)
+	attManifestBytes, attManifestDigest := buildManifest(
+		"application/vnd.dsse.envelope.v1+json",
+		attLayerDigest, len(fakeAttPayload), configDigest,
+		nil,
+	)
+
+	referrersIdx := buildReferrersIndex(sigManifestDigest, len(sigManifestBytes), attManifestDigest, len(attManifestBytes))
+
+	indexHex := strings.TrimPrefix(indexDigest, "sha256:")
+	repo := "/repo"
+
+	routes := map[string]route{
+		// Served only for the index digest. The child digest has no routes.
+		repo + "/referrers/sha256:" + indexHex: {
+			contentType: "application/vnd.oci.image.index.v1+json",
+			body:        referrersIdx,
+		},
+		repo + "/manifests/" + sigManifestDigest: {
+			contentType: "application/vnd.oci.image.manifest.v1+json",
+			body:        sigManifestBytes,
+		},
+		repo + "/manifests/" + attManifestDigest: {
+			contentType: "application/vnd.oci.image.manifest.v1+json",
+			body:        attManifestBytes,
+		},
+		repo + "/blobs/" + sigLayerDigest: {body: fakeSigPayload},
+		repo + "/blobs/" + attLayerDigest: {body: fakeAttPayload},
+		repo + "/blobs/" + configDigest:   {body: fakeConfig},
+	}
+
+	srv := newTestServer(t, routes)
+	defer srv.Close()
+
+	e := newTestEnricher(srv)
+	ref := testRef(strings.TrimPrefix(srv.URL, "http://"))
+	ref.Digest = childDigest      // the per-platform child (unsigned, unserved)
+	ref.IndexDigest = indexDigest // where provenance actually lives
+
+	data, err := e.Enrich(t.Context(), ref)
+	is.NoErr(err)
+
+	var result Provenance
+	is.NoErr(json.Unmarshal(data, &result))
+
+	is.True(result.SignaturePresent) // found via the index digest
+	is.True(result.AttestationPresent)
+}
+
 func TestDiscoverViaTagScheme(t *testing.T) {
 	is := is.New(t)
 

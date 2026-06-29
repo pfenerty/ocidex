@@ -59,7 +59,7 @@ func (s *NATSSubmitter) Submit(ctx context.Context, req ScanRequest) error {
 	// same purpose at the row level.
 	idempotencyKey := req.RegistryID + "@" + req.Digest
 
-	job, err := s.jobSvc.Enqueue(ctx, req.RegistryID, req.Repository, req.Digest, req.Tag, idempotencyKey)
+	job, err := s.jobSvc.Enqueue(ctx, req.RegistryID, req.Repository, req.Digest, req.IndexDigest, req.Tag, idempotencyKey)
 	if err != nil {
 		return err
 	}
@@ -87,6 +87,7 @@ func ScanRequestFromClaim(c service.ScanJobClaim) ScanRequest {
 		Insecure:     c.Insecure,
 		Repository:   c.Repository,
 		Digest:       c.Digest,
+		IndexDigest:  c.IndexDigest,
 		Tag:          c.Tag,
 		AuthUsername: c.AuthUsername,
 		AuthToken:    c.AuthToken,

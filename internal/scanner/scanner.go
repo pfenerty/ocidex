@@ -17,6 +17,7 @@ type ScanRequest struct {
 	Insecure     bool
 	Repository   string
 	Digest       string
+	IndexDigest  string // multi-arch index this child was expanded from; empty for single-arch
 	Tag          string // optional, for logging
 	Architecture string // e.g. "amd64"; resolved from index entry during catalog walk
 	BuildDate    string // org.opencontainers.image.created from manifest annotations

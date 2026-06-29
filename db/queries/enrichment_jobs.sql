@@ -28,6 +28,7 @@ SELECT
     COALESCE(c.architecture, '')::text        AS architecture,
     COALESCE(c.build_date, '')::text          AS build_date,
     COALESCE(s.digest, '')::text              AS digest,
+    COALESCE(s.index_digest, '')::text        AS index_digest,
     COALESCE(s.subject_version, '')::text     AS subject_version,
     COALESCE(a.type, '')::text                AS artifact_type,
     COALESCE(a.name, '')::text                AS artifact_name
@@ -62,6 +63,7 @@ SELECT
     COALESCE(c.build_date, '')::text          AS build_date,
     c.enricher_name                           AS enricher_name,
     COALESCE(s.digest, '')::text              AS digest,
+    COALESCE(s.index_digest, '')::text        AS index_digest,
     COALESCE(s.subject_version, '')::text     AS subject_version,
     COALESCE(a.type, '')::text                AS artifact_type,
     COALESCE(a.name, '')::text                AS artifact_name

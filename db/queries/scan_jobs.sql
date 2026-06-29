@@ -2,8 +2,8 @@
 -- On conflict with a terminal row (succeeded/failed), reset it to queued so
 -- ad-hoc re-scans work. On conflict with an active row (queued/running), leave
 -- it unchanged — the existing job is still being processed.
-INSERT INTO scan_jobs (registry_id, repository, digest, tag, nats_msg_id)
-VALUES (sqlc.narg('registry_id')::uuid, @repository, @digest, sqlc.narg('tag'), sqlc.narg('nats_msg_id'))
+INSERT INTO scan_jobs (registry_id, repository, digest, index_digest, tag, nats_msg_id)
+VALUES (sqlc.narg('registry_id')::uuid, @repository, @digest, sqlc.narg('index_digest'), sqlc.narg('tag'), sqlc.narg('nats_msg_id'))
 ON CONFLICT (nats_msg_id) DO UPDATE
     SET state           = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN 'queued'::text ELSE scan_jobs.state           END,
         attempts        = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN 0              ELSE scan_jobs.attempts        END,
@@ -12,6 +12,7 @@ ON CONFLICT (nats_msg_id) DO UPDATE
         started_at      = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.started_at      END,
         last_attempt_at = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.last_attempt_at END,
         sbom_id         = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.sbom_id         END,
+        index_digest    = EXCLUDED.index_digest,
         tag             = EXCLUDED.tag
 RETURNING *;
 
@@ -86,13 +87,14 @@ WITH claimed AS (
         attempts        = attempts + 1
     WHERE id = @id::uuid
       AND state = 'queued'
-    RETURNING id, registry_id, repository, digest, tag, attempts
+    RETURNING id, registry_id, repository, digest, index_digest, tag, attempts
 )
 SELECT
     c.id,
     COALESCE(c.registry_id::text, '')::text     AS registry_id,
     c.repository,
     c.digest,
+    COALESCE(c.index_digest, '')::text          AS index_digest,
     COALESCE(c.tag, '')::text                   AS tag,
     COALESCE(r.url, '')::text                   AS registry_url,
     COALESCE(r.insecure, false)::bool           AS insecure,
@@ -118,13 +120,14 @@ claimed AS (
         worker_id       = @worker_id::text,
         attempts        = attempts + 1
     WHERE id IN (SELECT id FROM next_id)
-    RETURNING id, registry_id, repository, digest, tag, attempts
+    RETURNING id, registry_id, repository, digest, index_digest, tag, attempts
 )
 SELECT
     c.id,
     COALESCE(c.registry_id::text, '')::text     AS registry_id,
     c.repository,
     c.digest,
+    COALESCE(c.index_digest, '')::text          AS index_digest,
     COALESCE(c.tag, '')::text                   AS tag,
     COALESCE(r.url, '')::text                   AS registry_url,
     COALESCE(r.insecure, false)::bool           AS insecure,

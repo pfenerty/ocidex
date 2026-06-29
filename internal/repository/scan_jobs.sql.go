@@ -27,13 +27,14 @@ claimed AS (
         worker_id       = $1::text,
         attempts        = attempts + 1
     WHERE id IN (SELECT id FROM next_id)
-    RETURNING id, registry_id, repository, digest, tag, attempts
+    RETURNING id, registry_id, repository, digest, index_digest, tag, attempts
 )
 SELECT
     c.id,
     COALESCE(c.registry_id::text, '')::text     AS registry_id,
     c.repository,
     c.digest,
+    COALESCE(c.index_digest, '')::text          AS index_digest,
     COALESCE(c.tag, '')::text                   AS tag,
     COALESCE(r.url, '')::text                   AS registry_url,
     COALESCE(r.insecure, false)::bool           AS insecure,
@@ -49,6 +50,7 @@ type ClaimNextQueuedJobRow struct {
 	RegistryID   string      `json:"registry_id"`
 	Repository   string      `json:"repository"`
 	Digest       string      `json:"digest"`
+	IndexDigest  string      `json:"index_digest"`
 	Tag          string      `json:"tag"`
 	RegistryUrl  string      `json:"registry_url"`
 	Insecure     bool        `json:"insecure"`
@@ -65,6 +67,7 @@ func (q *Queries) ClaimNextQueuedJob(ctx context.Context, workerID string) (Clai
 		&i.RegistryID,
 		&i.Repository,
 		&i.Digest,
+		&i.IndexDigest,
 		&i.Tag,
 		&i.RegistryUrl,
 		&i.Insecure,
@@ -86,13 +89,14 @@ WITH claimed AS (
         attempts        = attempts + 1
     WHERE id = $2::uuid
       AND state = 'queued'
-    RETURNING id, registry_id, repository, digest, tag, attempts
+    RETURNING id, registry_id, repository, digest, index_digest, tag, attempts
 )
 SELECT
     c.id,
     COALESCE(c.registry_id::text, '')::text     AS registry_id,
     c.repository,
     c.digest,
+    COALESCE(c.index_digest, '')::text          AS index_digest,
     COALESCE(c.tag, '')::text                   AS tag,
     COALESCE(r.url, '')::text                   AS registry_url,
     COALESCE(r.insecure, false)::bool           AS insecure,
@@ -113,6 +117,7 @@ type ClaimScanJobByIDRow struct {
 	RegistryID   string      `json:"registry_id"`
 	Repository   string      `json:"repository"`
 	Digest       string      `json:"digest"`
+	IndexDigest  string      `json:"index_digest"`
 	Tag          string      `json:"tag"`
 	RegistryUrl  string      `json:"registry_url"`
 	Insecure     bool        `json:"insecure"`
@@ -137,6 +142,7 @@ func (q *Queries) ClaimScanJobByID(ctx context.Context, arg ClaimScanJobByIDPara
 		&i.RegistryID,
 		&i.Repository,
 		&i.Digest,
+		&i.IndexDigest,
 		&i.Tag,
 		&i.RegistryUrl,
 		&i.Insecure,
@@ -257,7 +263,7 @@ func (q *Queries) FinishScanJobByID(ctx context.Context, arg FinishScanJobByIDPa
 }
 
 const getScanJob = `-- name: GetScanJob :one
-SELECT id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id FROM scan_jobs WHERE id = $1
+SELECT id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id, index_digest FROM scan_jobs WHERE id = $1
 `
 
 func (q *Queries) GetScanJob(ctx context.Context, id pgtype.UUID) (ScanJob, error) {
@@ -279,13 +285,14 @@ func (q *Queries) GetScanJob(ctx context.Context, id pgtype.UUID) (ScanJob, erro
 		&i.FinishedAt,
 		&i.LastAttemptAt,
 		&i.WorkerID,
+		&i.IndexDigest,
 	)
 	return i, err
 }
 
 const insertScanJob = `-- name: InsertScanJob :one
-INSERT INTO scan_jobs (registry_id, repository, digest, tag, nats_msg_id)
-VALUES ($1::uuid, $2, $3, $4, $5)
+INSERT INTO scan_jobs (registry_id, repository, digest, index_digest, tag, nats_msg_id)
+VALUES ($1::uuid, $2, $3, $4, $5, $6)
 ON CONFLICT (nats_msg_id) DO UPDATE
     SET state           = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN 'queued'::text ELSE scan_jobs.state           END,
         attempts        = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN 0              ELSE scan_jobs.attempts        END,
@@ -294,16 +301,18 @@ ON CONFLICT (nats_msg_id) DO UPDATE
         started_at      = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.started_at      END,
         last_attempt_at = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.last_attempt_at END,
         sbom_id         = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.sbom_id         END,
+        index_digest    = EXCLUDED.index_digest,
         tag             = EXCLUDED.tag
-RETURNING id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id
+RETURNING id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id, index_digest
 `
 
 type InsertScanJobParams struct {
-	RegistryID pgtype.UUID `json:"registry_id"`
-	Repository string      `json:"repository"`
-	Digest     string      `json:"digest"`
-	Tag        pgtype.Text `json:"tag"`
-	NatsMsgID  pgtype.Text `json:"nats_msg_id"`
+	RegistryID  pgtype.UUID `json:"registry_id"`
+	Repository  string      `json:"repository"`
+	Digest      string      `json:"digest"`
+	IndexDigest pgtype.Text `json:"index_digest"`
+	Tag         pgtype.Text `json:"tag"`
+	NatsMsgID   pgtype.Text `json:"nats_msg_id"`
 }
 
 // On conflict with a terminal row (succeeded/failed), reset it to queued so
@@ -314,6 +323,7 @@ func (q *Queries) InsertScanJob(ctx context.Context, arg InsertScanJobParams) (S
 		arg.RegistryID,
 		arg.Repository,
 		arg.Digest,
+		arg.IndexDigest,
 		arg.Tag,
 		arg.NatsMsgID,
 	)
@@ -334,12 +344,13 @@ func (q *Queries) InsertScanJob(ctx context.Context, arg InsertScanJobParams) (S
 		&i.FinishedAt,
 		&i.LastAttemptAt,
 		&i.WorkerID,
+		&i.IndexDigest,
 	)
 	return i, err
 }
 
 const listScanJobs = `-- name: ListScanJobs :many
-SELECT id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id FROM scan_jobs
+SELECT id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id, index_digest FROM scan_jobs
 WHERE ($1::text IS NULL OR state = $1::text)
 ORDER BY
     CASE state
@@ -384,6 +395,7 @@ func (q *Queries) ListScanJobs(ctx context.Context, arg ListScanJobsParams) ([]S
 			&i.FinishedAt,
 			&i.LastAttemptAt,
 			&i.WorkerID,
+			&i.IndexDigest,
 		); err != nil {
 			return nil, err
 		}

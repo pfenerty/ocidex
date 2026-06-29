@@ -56,6 +56,7 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (p
 		Architecture: req.Architecture,
 		BuildDate:    req.BuildDate,
 		RegistryID:   registryID,
+		IndexDigest:  req.IndexDigest,
 	})
 	if err != nil {
 		return pgtype.UUID{}, fmt.Errorf("ingest: %w", err)
