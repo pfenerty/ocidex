@@ -1092,6 +1092,17 @@ export interface components {
             webhook_secret?: string;
             webhook_url: string;
         };
+        CursorMeta: {
+            /** @description Whether more results exist after this page */
+            hasMore: boolean;
+            /**
+             * Format: int32
+             * @description The limit that was applied
+             */
+            limit: number;
+            /** @description Opaque cursor to fetch the next page; null when hasMore is false */
+            nextCursor?: string;
+        };
         DBStatus: {
             /** Format: int64 */
             latency_ms: number;
@@ -1460,7 +1471,7 @@ export interface components {
              */
             readonly $schema?: string;
             data: components["schemas"]["SBOMSummary"][] | null;
-            pagination: components["schemas"]["PaginationMeta"];
+            pagination: components["schemas"]["CursorMeta"];
         };
         ListScanJobsOutputBody: {
             /**
@@ -3126,8 +3137,8 @@ export interface operations {
             query?: {
                 /** @description Maximum number of results per page */
                 limit?: number;
-                /** @description Number of results to skip */
-                offset?: number;
+                /** @description Opaque cursor from a previous response's nextCursor; omit for the first page */
+                cursor?: string;
                 /** @description Filter by serial number */
                 serial_number?: string;
                 /** @description Filter by image digest */

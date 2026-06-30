@@ -2,11 +2,11 @@ import type { Accessor } from "solid-js";
 import { createQuery } from "@tanstack/solid-query";
 import { client, unwrap } from "~/api/client";
 
-/** List SBOMs with optional filters and pagination. */
+/** List SBOMs with optional filters and keyset (cursor) pagination. */
 export function useSBOMs(
     params: Accessor<{
         limit?: number;
-        offset?: number;
+        cursor?: string;
         serial_number?: string;
         digest?: string;
     }>,
@@ -19,7 +19,7 @@ export function useSBOMs(
                 p.serial_number,
                 p.digest,
                 p.limit,
-                p.offset,
+                p.cursor,
             ] as const,
             queryFn: () =>
                 unwrap(

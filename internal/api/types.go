@@ -23,6 +23,22 @@ type PaginationMeta struct {
 	Offset int32 `json:"offset" doc:"The offset that was applied"`
 }
 
+// CursorParams is embedded in input structs for keyset-paginated endpoints.
+// Keyset paging replaces OFFSET (which scans-and-discards on deep pages) and
+// drops the per-page COUNT(*) total; the client pages forward with an opaque
+// cursor and stops when hasMore is false.
+type CursorParams struct {
+	Limit  int32  `query:"limit" default:"50" minimum:"1" maximum:"200" doc:"Maximum number of results per page"`
+	Cursor string `query:"cursor" doc:"Opaque cursor from a previous response's nextCursor; omit for the first page"`
+}
+
+// CursorMeta contains keyset-pagination metadata in response bodies.
+type CursorMeta struct {
+	Limit      int32   `json:"limit" doc:"The limit that was applied"`
+	HasMore    bool    `json:"hasMore" doc:"Whether more results exist after this page"`
+	NextCursor *string `json:"nextCursor,omitempty" doc:"Opaque cursor to fetch the next page; null when hasMore is false"`
+}
+
 // ---------------------------------------------------------------------------
 // Health
 // ---------------------------------------------------------------------------
@@ -82,7 +98,7 @@ type IngestSBOMOutput struct {
 
 // ListSBOMsInput is the request for GET /api/v1/sbom.
 type ListSBOMsInput struct {
-	PaginationParams
+	CursorParams
 	SerialNumber string `query:"serial_number" doc:"Filter by serial number"`
 	Digest       string `query:"digest" doc:"Filter by image digest"`
 }
@@ -91,7 +107,7 @@ type ListSBOMsInput struct {
 type ListSBOMsOutput struct {
 	Body struct {
 		Data       []service.SBOMSummary `json:"data"`
-		Pagination PaginationMeta        `json:"pagination"`
+		Pagination CursorMeta            `json:"pagination"`
 	}
 }
 

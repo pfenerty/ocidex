@@ -13,7 +13,7 @@ import (
 // SearchService defines read-only operations for SBOM search and retrieval.
 type SearchService interface {
 	GetSBOM(ctx context.Context, id pgtype.UUID, includeRaw bool, vis VisibilityFilter) (SBOMDetail, error)
-	ListSBOMs(ctx context.Context, filter SBOMFilter) (PagedResult[SBOMSummary], error)
+	ListSBOMs(ctx context.Context, filter SBOMFilter) (CursorPage[SBOMSummary], error)
 	SearchComponents(ctx context.Context, filter ComponentFilter) (PagedResult[ComponentSummary], error)
 	SearchDistinctComponents(ctx context.Context, filter ComponentFilter) (PagedResult[DistinctComponentSummary], error)
 	GetComponentVersions(ctx context.Context, name, group, version, compType string, vis VisibilityFilter) ([]ComponentVersionEntry, error)
@@ -78,13 +78,24 @@ type PagedResult[T any] struct {
 	Offset int32 `json:"offset"`
 }
 
-// SBOMFilter holds parameters for listing SBOMs.
+// CursorPage wraps a keyset-paginated result set. The caller derives the next
+// cursor from the last item; HasMore reports whether further rows exist.
+type CursorPage[T any] struct {
+	Data    []T
+	HasMore bool
+}
+
+// SBOMFilter holds parameters for listing SBOMs. Pagination is keyset-based:
+// Cursor* point just past the last row of the previous page (ordered by
+// created_at DESC, id DESC); HasCursor is false for the first page.
 type SBOMFilter struct {
-	SerialNumber string
-	Digest       string
-	Limit        int32
-	Offset       int32
-	Visibility   VisibilityFilter
+	SerialNumber    string
+	Digest          string
+	Limit           int32
+	CursorCreatedAt time.Time
+	CursorID        string
+	HasCursor       bool
+	Visibility      VisibilityFilter
 }
 
 // ComponentFilter holds parameters for searching components.
@@ -338,6 +349,19 @@ func uuidToPtr(u pgtype.UUID) *string {
 	}
 	s := uuidToString(u)
 	return &s
+}
+
+// uuidOrNull parses a UUID string into a pgtype.UUID, yielding an invalid
+// (NULL) value for an empty or unparseable string.
+func uuidOrNull(s string) pgtype.UUID {
+	if s == "" {
+		return pgtype.UUID{}
+	}
+	parsed, err := uuid.Parse(s)
+	if err != nil {
+		return pgtype.UUID{}
+	}
+	return pgtype.UUID{Bytes: parsed, Valid: true}
 }
 
 func toComponentSummary(id, sbomID pgtype.UUID, bomRef pgtype.Text, typ, name string, group, version, purl pgtype.Text) ComponentSummary {

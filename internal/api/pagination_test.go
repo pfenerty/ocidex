@@ -20,26 +20,25 @@ func TestPaginationDefaults(t *testing.T) {
 
 	is.Equal(w.Code, http.StatusOK)
 
-	var resp pagedBody
+	var resp cursorBody
 	is.NoErr(json.Unmarshal(w.Body.Bytes(), &resp))
 	is.Equal(resp.Pagination.Limit, int32(50))
-	is.Equal(resp.Pagination.Offset, int32(0))
+	is.Equal(resp.Pagination.HasMore, false)
 }
 
 func TestPaginationCustomValues(t *testing.T) {
 	is := is.New(t)
 	router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
 
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/sboms?limit=25&offset=100", nil)
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/sboms?limit=25", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, r)
 
 	is.Equal(w.Code, http.StatusOK)
 
-	var resp pagedBody
+	var resp cursorBody
 	is.NoErr(json.Unmarshal(w.Body.Bytes(), &resp))
 	is.Equal(resp.Pagination.Limit, int32(25))
-	is.Equal(resp.Pagination.Offset, int32(100))
 }
 
 func TestPaginationCapAtMax(t *testing.T) {
