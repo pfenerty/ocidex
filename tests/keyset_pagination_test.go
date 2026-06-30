@@ -40,6 +40,42 @@ func keysetSBOM(name, digest, version string, components []string) string {
 	}`, name, digest, version, comps.String())
 }
 
+// fileDominatedSBOM builds a container SBOM with many file components and a few
+// real packages, mirroring a typical syft image scan where files vastly
+// outnumber packages.
+func fileDominatedSBOM(name, digest string, files, packages int) string {
+	var comps strings.Builder
+	for i := 0; i < files; i++ {
+		if comps.Len() > 0 {
+			comps.WriteString(",")
+		}
+		// Files sort first alphabetically (leading "/") so they would fill the
+		// first keyset pages if not excluded server-side.
+		fmt.Fprintf(&comps, `{"type":"file","name":"/usr/lib/file-%04d.so"}`, i)
+	}
+	for i := 0; i < packages; i++ {
+		comps.WriteString(",")
+		fmt.Fprintf(&comps, `{"type":"library","name":"zpkg-%03d","version":"1.0.0","purl":"pkg:generic/zpkg-%03d@1.0.0"}`, i, i)
+	}
+	return fmt.Sprintf(`{
+		"bomFormat": "CycloneDX",
+		"specVersion": "1.6",
+		"version": 1,
+		"metadata": {
+			"component": {
+				"type": "container",
+				"name": "%s@%s",
+				"version": "1.0.0",
+				"properties": [
+					{"name": "syft:image:labels:org.opencontainers.image.architecture", "value": "amd64"},
+					{"name": "syft:image:labels:org.opencontainers.image.created", "value": "2024-01-01T00:00:00Z"}
+				]
+			}
+		},
+		"components": [%s]
+	}`, name, digest, comps.String())
+}
+
 // pageAll walks a cursor-paginated endpoint, following nextCursor until
 // exhausted, and returns the concatenated id list. dataKey is "data" or
 // "components". idField is the JSON field holding each row's id.
@@ -154,4 +190,50 @@ func TestKeysetPagination_NoGapsOrDupes(t *testing.T) {
 	sbomIDs := pageAll(t, srv.URL, fmt.Sprintf("/api/v1/artifacts/%s/sboms?", multiID), "data")
 	is.Equal(len(sbomIDs), 3)
 	assertUnique(t, sbomIDs)
+}
+
+// TestSBOMComponents_ExcludesFiles is a regression test: the packages tab shows
+// non-file components, so the keyset endpoint must exclude files — otherwise a
+// file-dominated SBOM pages through hundreds of files before any package
+// appears and the list looks empty.
+func TestSBOMComponents_ExcludesFiles(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireDocker(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+
+	is := is.New(t)
+	memberID := seedUser(t, pool, 7402, "files-member", "member")
+	key, err := authSvc.CreateAPIKey(t.Context(), memberID, "files-test", "read-write")
+	is.NoErr(err)
+
+	// 120 files + 5 packages: with a page size of 50, an unfiltered endpoint
+	// would return only files on the first pages.
+	body := fileDominatedSBOM("docker.io/files", "sha256:"+strings.Repeat("f", 64), 120, 5)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", body, key)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	var r map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&r))
+	resp.Body.Close()
+	sbomID := r["id"].(string)
+
+	// First page must contain packages, not be empty.
+	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s/components?limit=50", srv.URL, sbomID))
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var page map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&page))
+	resp.Body.Close()
+	comps := page["components"].([]any)
+	is.Equal(len(comps), 5) // all 5 packages fit in one page; files excluded
+	for _, c := range comps {
+		is.True(c.(map[string]any)["type"] != "file") // never a file
+	}
+	is.Equal(page["pagination"].(map[string]any)["hasMore"], false)
 }

@@ -173,13 +173,17 @@ WHERE sbom_id = $1
 ORDER BY name, group_name;
 
 -- name: ListSBOMComponentsPage :many
--- Keyset variant of ListSBOMComponents for the HTTP endpoint. Ordered by
--- (name, group_name, id) with NULL group_name folded to '' so the cursor tuple
--- comparison matches the ORDER BY. Access is gated by the service before this
--- runs. The caller fetches row_limit+1 to detect a further page.
+-- Keyset variant of ListSBOMComponents for the HTTP endpoint. Files are
+-- excluded: the packages tab (the only consumer) shows packages only, and
+-- including file components — which can vastly outnumber packages — would fill
+-- whole pages with rows the client then filters out, leaving the list empty.
+-- Ordered by (name, group_name, id) with NULL group_name folded to '' so the
+-- cursor tuple comparison matches the ORDER BY. Access is gated by the service
+-- before this runs. The caller fetches row_limit+1 to detect a further page.
 SELECT id, bom_ref, type, name, group_name, version, purl
 FROM component
 WHERE sbom_id = @sbom_id
+  AND type != 'file'
   AND (
     NOT sqlc.narg('has_cursor')::boolean
     OR (name, COALESCE(group_name, ''), id) > (sqlc.narg('cursor_name')::text, sqlc.narg('cursor_group')::text, sqlc.narg('cursor_id')::uuid)
