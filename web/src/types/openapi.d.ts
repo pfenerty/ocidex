@@ -3020,7 +3020,10 @@ export interface operations {
     };
     "scan-registry": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Re-scan every image, including digests already ingested. Default false: already-scanned digests are skipped. */
+                force?: boolean;
+            };
             header?: never;
             path: {
                 /** @description Registry UUID */

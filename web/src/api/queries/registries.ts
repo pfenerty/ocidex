@@ -85,8 +85,10 @@ export function useDeleteRegistry() {
 
 export function useScanRegistry() {
     return createMutation(() => ({
-        mutationFn: (id: string) =>
-            unwrap(client.POST("/api/v1/registries/{id}/scan", { params: { path: { id } } })),
+        mutationFn: ({ id, force }: { id: string; force?: boolean }) =>
+            unwrap(client.POST("/api/v1/registries/{id}/scan", {
+                params: { path: { id }, query: force === true ? { force: true } : {} },
+            })),
     }));
 }
 
