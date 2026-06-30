@@ -88,6 +88,7 @@ ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST,
          s.created_at DESC
+LIMIT 200
 `
 
 type GetComponentVersionsParams struct {
@@ -115,6 +116,7 @@ type GetComponentVersionsRow struct {
 	Architecture   interface{}        `json:"architecture"`
 }
 
+// Safety cap: bound a component's version history to the most recent rows.
 func (q *Queries) GetComponentVersions(ctx context.Context, arg GetComponentVersionsParams) ([]GetComponentVersionsRow, error) {
 	rows, err := q.db.Query(ctx, getComponentVersions,
 		arg.Name,
@@ -454,6 +456,7 @@ WHERE purl IS NOT NULL
       AND sbom_visible(s.registry_id, $1::uuid, $2::boolean)
   )
 ORDER BY 1
+LIMIT 200
 `
 
 type ListComponentPurlTypesParams struct {
@@ -461,6 +464,7 @@ type ListComponentPurlTypesParams struct {
 	IsAdmin pgtype.Bool `json:"is_admin"`
 }
 
+// Safety cap: purl types are a small, fixed vocabulary; bound the scan.
 func (q *Queries) ListComponentPurlTypes(ctx context.Context, arg ListComponentPurlTypesParams) ([]string, error) {
 	rows, err := q.db.Query(ctx, listComponentPurlTypes, arg.UserID, arg.IsAdmin)
 	if err != nil {
