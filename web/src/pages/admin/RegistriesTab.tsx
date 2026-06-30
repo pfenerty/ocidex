@@ -541,14 +541,28 @@ export function RegistriesTab() {
                                                     </button>
                                                     <button
                                                         class="btn"
-                                                        title="Scan all matching images in this registry"
-                                                        onClick={() => scanReg.mutate(reg.id, {
+                                                        title="Scan new/changed images; already-scanned digests are skipped"
+                                                        onClick={() => scanReg.mutate({ id: reg.id }, {
                                                             onSuccess: (data) => toast(data.message, "success"),
                                                             onError: () => toast("Failed to start scan", "error"),
                                                         })}
                                                         disabled={scanReg.isPending}
                                                     >
                                                         Scan
+                                                    </button>
+                                                    <button
+                                                        class="btn"
+                                                        title="Re-scan every image, including already-scanned digests (repopulates enrichment)"
+                                                        onClick={() => {
+                                                            if (!confirm("Force a full re-scan of every image in this registry, including digests already ingested? This re-pulls and re-scans everything.")) return;
+                                                            scanReg.mutate({ id: reg.id, force: true }, {
+                                                                onSuccess: (data) => toast(data.message, "success"),
+                                                                onError: () => toast("Failed to start scan", "error"),
+                                                            });
+                                                        }}
+                                                        disabled={scanReg.isPending}
+                                                    >
+                                                        Force
                                                     </button>
                                                     <Show when={(activeByRegistry().get(reg.id) ?? 0) > 0}>
                                                         <span class="badge" style={{ background: "var(--color-primary)", color: "#fff", "font-size": "0.75rem" }}>

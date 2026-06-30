@@ -326,18 +326,24 @@ func (h *Handler) ScanRegistry(ctx context.Context, in *ScanRegistryInput) (*Sca
 	if h.scanSubmitter == nil {
 		return nil, huma.Error503ServiceUnavailable("scanner not enabled")
 	}
+	force := in.Force
 	go func() { //nolint:gosec
 		walkCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
-		// Pass nil knownDigests so that already-scanned images are re-queued
-		// by the upsert in InsertScanJob. The scheduled scanner uses
-		// FetchKnownDigests to skip known images at the walk level.
-		queued, err := scanner.WalkRegistry(walkCtx, reg, h.scanSubmitter, nil, slog.Default())
+		// Skip already-scanned digests at the walk level (same as the scheduled
+		// scanner) so a re-scan only re-pulls new/changed images. force=true passes
+		// nil so every digest is re-walked and re-queued via the InsertScanJob upsert
+		// — used to repopulate enrichment for already-ingested images.
+		var known map[string]bool
+		if !force {
+			known = scanner.FetchKnownDigests(walkCtx, h.sbomService, reg.ID)
+		}
+		queued, err := scanner.WalkRegistry(walkCtx, reg, h.scanSubmitter, known, slog.Default())
 		if err != nil {
 			slog.Error("ad-hoc registry scan failed", "registry", reg.Name, "err", err)
 			return
 		}
-		slog.Info("ad-hoc registry scan complete", "registry", reg.Name, "queued", queued)
+		slog.Info("ad-hoc registry scan complete", "registry", reg.Name, "queued", queued, "force", force)
 	}()
 	out := &ScanRegistryOutput{}
 	out.Body.Message = fmt.Sprintf("scan started for registry %q", reg.Name)
