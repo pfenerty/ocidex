@@ -7,7 +7,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -18,8 +17,6 @@ import (
 	"syscall"
 	"time"
 
-	cdx "github.com/CycloneDX/cyclonedx-go"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pfenerty/ocidex/internal/config"
@@ -82,10 +79,6 @@ func run() error {
 	}
 	slog.Info("database connected")
 
-	if *once {
-		return runOnce(ctx, pool)
-	}
-
 	natsClient, err := natspkg.Connect(natspkg.Config{
 		URL:           cfg.NATSURL,
 		StreamName:    cfg.NATSStreamName,
@@ -97,6 +90,10 @@ func run() error {
 	}
 	defer natsClient.Close()
 	slog.Info("NATS connected", "url", cfg.NATSURL, "stream", cfg.NATSStreamName)
+
+	if *once {
+		return runOnce(ctx, pool, natsClient, cfg)
+	}
 
 	logger := slog.Default()
 	bus := event.NewBus(logger)
@@ -188,7 +185,7 @@ func run() error {
 
 // runOnce scans a single image (from env vars) and ingests the resulting SBOM.
 // Env vars: SCAN_IMAGE (required), SCAN_REGISTRY_ID, SCAN_INSECURE, SCAN_AUTH_USERNAME, SCAN_AUTH_TOKEN.
-func runOnce(ctx context.Context, pool *pgxpool.Pool) error {
+func runOnce(ctx context.Context, pool *pgxpool.Pool, natsClient *natspkg.Client, cfg *config.Config) error {
 	imageRef := os.Getenv("SCAN_IMAGE")
 	if imageRef == "" {
 		return fmt.Errorf("SCAN_IMAGE is required in --once mode")
@@ -211,6 +208,15 @@ func runOnce(ctx context.Context, pool *pgxpool.Pool) error {
 	sbomSvc := service.NewSBOMService(pool, bus, nil)
 	sc := engine.NewSyftScanner(logger)
 
+	// Wire the enrichment submitter onto the bus before ingest so the synchronous
+	// SBOMIngested event enqueues per-enricher jobs (and the enrich.hint) — same
+	// mechanism as the long-running worker. Without this, ephemeral K8s Job scans
+	// (ADR-027) would ingest an SBOM that never gets enriched.
+	enrichJobSvc := service.NewEnrichJobService(pool, "all")
+	if err := enrichment.NewNATSSubmitter(natsClient, cfg.NATSStreamName, enrichJobSvc, logger).Init(bus); err != nil {
+		return fmt.Errorf("wiring enrichment submitter: %w", err)
+	}
+
 	req := scanner.ScanRequest{
 		RegistryURL:  registryURL,
 		Repository:   repo,
@@ -222,27 +228,13 @@ func runOnce(ctx context.Context, pool *pgxpool.Pool) error {
 		RegistryID:   registryIDStr,
 	}
 
-	raw, err := sc.Scan(ctx, req)
-	if err != nil {
-		return fmt.Errorf("scanning image: %w", err)
-	}
-	slog.Info("scan complete", "image", imageRef, "duration_ms", time.Since(start).Milliseconds()) //nolint:gosec // G706: imageRef is a trusted env var
-
-	bom := new(cdx.BOM)
-	if err := cdx.NewBOMDecoder(bytes.NewReader(raw), cdx.BOMFileFormatJSON).Decode(bom); err != nil {
-		return fmt.Errorf("decoding SBOM: %w", err)
-	}
-
-	var registryID pgtype.UUID
-	if registryIDStr != "" {
-		_ = registryID.Scan(registryIDStr)
-	}
-
-	if _, err := sbomSvc.Ingest(ctx, bom, raw, service.IngestParams{
-		Version:    tag,
-		RegistryID: registryID,
-	}); err != nil {
-		return fmt.Errorf("ingesting SBOM: %w", err)
+	// Use the same dispatcher path as the long-running worker: it fills image
+	// metadata (architecture/build_date/version) from the manifest before scanning
+	// — required by container-SBOM validation — and publishes SBOMIngested on the
+	// bus, which the submitter wired above turns into enrichment jobs.
+	dispatcher := engine.NewDispatcher(sc, sbomSvc, logger)
+	if _, err := dispatcher.ProcessOne(ctx, req); err != nil {
+		return fmt.Errorf("processing scan: %w", err)
 	}
 
 	slog.Info("ingest complete", "image", imageRef, "total_duration_ms", time.Since(start).Milliseconds()) //nolint:gosec // G706: imageRef is a trusted env var
