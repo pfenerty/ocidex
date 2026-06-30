@@ -757,6 +757,56 @@ func (q *Queries) ListSBOMPackages(ctx context.Context, sbomID pgtype.UUID) ([]L
 	return items, nil
 }
 
+const listSBOMPackagesBySBOMIDs = `-- name: ListSBOMPackagesBySBOMIDs :many
+SELECT sbom_id, id, bom_ref, type, name, group_name, version, purl
+FROM component
+WHERE sbom_id = ANY($1::uuid[]) AND type != 'file'
+ORDER BY sbom_id, name, group_name
+`
+
+type ListSBOMPackagesBySBOMIDsRow struct {
+	SbomID    pgtype.UUID `json:"sbom_id"`
+	ID        pgtype.UUID `json:"id"`
+	BomRef    pgtype.Text `json:"bom_ref"`
+	Type      string      `json:"type"`
+	Name      string      `json:"name"`
+	GroupName pgtype.Text `json:"group_name"`
+	Version   pgtype.Text `json:"version"`
+	Purl      pgtype.Text `json:"purl"`
+}
+
+// Batched variant of ListSBOMPackages: fetches packages for many SBOMs in one
+// round-trip (avoids the per-version N+1 in changelog generation). The caller
+// groups the rows by sbom_id.
+func (q *Queries) ListSBOMPackagesBySBOMIDs(ctx context.Context, sbomIds []pgtype.UUID) ([]ListSBOMPackagesBySBOMIDsRow, error) {
+	rows, err := q.db.Query(ctx, listSBOMPackagesBySBOMIDs, sbomIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSBOMPackagesBySBOMIDsRow{}
+	for rows.Next() {
+		var i ListSBOMPackagesBySBOMIDsRow
+		if err := rows.Scan(
+			&i.SbomID,
+			&i.ID,
+			&i.BomRef,
+			&i.Type,
+			&i.Name,
+			&i.GroupName,
+			&i.Version,
+			&i.Purl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSBOMs = `-- name: ListSBOMs :many
 SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subject_version, s.digest, s.created_at
 FROM sbom s

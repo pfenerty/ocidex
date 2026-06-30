@@ -178,6 +178,15 @@ FROM component
 WHERE sbom_id = $1 AND type != 'file'
 ORDER BY name, group_name;
 
+-- name: ListSBOMPackagesBySBOMIDs :many
+-- Batched variant of ListSBOMPackages: fetches packages for many SBOMs in one
+-- round-trip (avoids the per-version N+1 in changelog generation). The caller
+-- groups the rows by sbom_id.
+SELECT sbom_id, id, bom_ref, type, name, group_name, version, purl
+FROM component
+WHERE sbom_id = ANY(@sbom_ids::uuid[]) AND type != 'file'
+ORDER BY sbom_id, name, group_name;
+
 -- name: ListComponentPurlTypes :many
 SELECT DISTINCT split_part(replace(purl, 'pkg:', ''), '/', 1)::text AS purl_type
 FROM component
