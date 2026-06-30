@@ -1,0 +1,35 @@
+.fact-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0 1rem 0.75rem;
+}
+
+.fact-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    border: 1px solid var(--color-border);
+}
+
+.fact-present {
+    color: var(--color-success);
+    background: var(--color-success-bg);
+    border-color: transparent;
+}
+
+.fact-absent {
+    color: var(--color-text-muted);
+}
+
+.subjects-list {
+    margin: 0.5rem 0 0;
+    padding-left: 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    word-break: break-all;
+}
