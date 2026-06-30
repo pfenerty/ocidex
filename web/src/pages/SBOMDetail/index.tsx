@@ -159,7 +159,7 @@ export default function SBOMDetail() {
                             <SummaryBand
                                 provenance={provenance()}
                                 metadata={metadata()}
-                                componentCount={s.componentCount}
+                                packageCount={s.packageCount}
                                 ecosystems={ecosystems()}
                                 specVersion={s.specVersion}
                                 ingestedAt={s.createdAt}
@@ -170,7 +170,7 @@ export default function SBOMDetail() {
                             {/* --- Tabs --- */}
                             <div class="tab-bar">
                                 <button class={tab() === "packages" ? "active" : ""} onClick={() => setTab("packages")}>
-                                    Packages{s.componentCount !== undefined ? ` (${s.componentCount})` : ""}
+                                    Packages ({s.packageCount})
                                 </button>
                                 <button class={tab() === "provenance" ? "active" : ""} onClick={() => setTab("provenance")}>Provenance</button>
                                 <button class={tab() === "image" ? "active" : ""} onClick={() => setTab("image")}>Image</button>

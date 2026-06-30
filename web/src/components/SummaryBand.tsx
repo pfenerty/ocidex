@@ -18,7 +18,7 @@ function shortBuilder(id: string | undefined): string | undefined {
 export default function SummaryBand(props: {
     provenance: Provenance | undefined;
     metadata: OCIMetadata | undefined;
-    componentCount: number | undefined;
+    packageCount: number | undefined;
     ecosystems: string[];
     specVersion: string;
     ingestedAt: string;
@@ -83,7 +83,7 @@ export default function SummaryBand(props: {
                 onClick={() => props.onSelect("packages")}
             >
                 <span class="summary-tile-head">Packages</span>
-                <span class="summary-tile-value">{props.componentCount ?? "—"}</span>
+                <span class="summary-tile-value">{props.packageCount ?? "—"}</span>
                 <span class="summary-tile-sub">
                     {props.ecosystems.length > 0 ? props.ecosystems.join(" · ") : "components"}
                 </span>

@@ -44,6 +44,11 @@ func (s *searchService) GetSBOM(ctx context.Context, id pgtype.UUID, includeRaw 
 		return SBOMDetail{}, fmt.Errorf("counting components: %w", err)
 	}
 
+	pkgCount, err := q.CountSBOMPackages(ctx, id)
+	if err != nil {
+		return SBOMDetail{}, fmt.Errorf("counting packages: %w", err)
+	}
+
 	detail := SBOMDetail{
 		SBOMSummary: SBOMSummary{
 			ID:             uuidToString(row.ID),
@@ -56,6 +61,7 @@ func (s *searchService) GetSBOM(ctx context.Context, id pgtype.UUID, includeRaw 
 			CreatedAt:      row.CreatedAt.Time,
 			ComponentCount: count,
 		},
+		PackageCount: pkgCount,
 	}
 
 	if includeRaw {

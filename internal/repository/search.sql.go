@@ -22,6 +22,19 @@ func (q *Queries) CountSBOMComponents(ctx context.Context, sbomID pgtype.UUID) (
 	return count, err
 }
 
+const countSBOMPackages = `-- name: CountSBOMPackages :one
+SELECT COUNT(*) FROM component WHERE sbom_id = $1 AND type != 'file'
+`
+
+// Counts package components (excludes file entries), matching what the packages
+// tab displays.
+func (q *Queries) CountSBOMPackages(ctx context.Context, sbomID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countSBOMPackages, sbomID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getComponent = `-- name: GetComponent :one
 SELECT id, sbom_id, parent_id, bom_ref, type, name, group_name,
        version, purl, cpe, description, scope, publisher, copyright
