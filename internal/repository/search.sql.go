@@ -720,6 +720,7 @@ const listSBOMComponentsPage = `-- name: ListSBOMComponentsPage :many
 SELECT id, bom_ref, type, name, group_name, version, purl
 FROM component
 WHERE sbom_id = $1
+  AND type != 'file'
   AND (
     NOT $2::boolean
     OR (name, COALESCE(group_name, ''), id) > ($3::text, $4::text, $5::uuid)
@@ -747,10 +748,13 @@ type ListSBOMComponentsPageRow struct {
 	Purl      pgtype.Text `json:"purl"`
 }
 
-// Keyset variant of ListSBOMComponents for the HTTP endpoint. Ordered by
-// (name, group_name, id) with NULL group_name folded to ” so the cursor tuple
-// comparison matches the ORDER BY. Access is gated by the service before this
-// runs. The caller fetches row_limit+1 to detect a further page.
+// Keyset variant of ListSBOMComponents for the HTTP endpoint. Files are
+// excluded: the packages tab (the only consumer) shows packages only, and
+// including file components — which can vastly outnumber packages — would fill
+// whole pages with rows the client then filters out, leaving the list empty.
+// Ordered by (name, group_name, id) with NULL group_name folded to ” so the
+// cursor tuple comparison matches the ORDER BY. Access is gated by the service
+// before this runs. The caller fetches row_limit+1 to detect a further page.
 func (q *Queries) ListSBOMComponentsPage(ctx context.Context, arg ListSBOMComponentsPageParams) ([]ListSBOMComponentsPageRow, error) {
 	rows, err := q.db.Query(ctx, listSBOMComponentsPage,
 		arg.SbomID,
