@@ -33,14 +33,19 @@ FROM sbom s WHERE s.id = $1;
 SELECT artifact_visible($1, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean) AS visible;
 
 -- name: ListSBOMs :many
-SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subject_version, s.digest, s.created_at,
-       COUNT(*) OVER() AS total_count
+-- Keyset pagination on (created_at DESC, id DESC); backed by idx_sbom_created_at_id.
+-- The caller fetches row_limit+1 to detect whether a further page exists.
+SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subject_version, s.digest, s.created_at
 FROM sbom s
 WHERE (sqlc.narg('serial_number')::text IS NULL OR s.serial_number = sqlc.narg('serial_number'))
   AND (sqlc.narg('digest')::text IS NULL OR s.digest = sqlc.narg('digest'))
   AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
-ORDER BY s.created_at DESC
-LIMIT @row_limit OFFSET @row_offset;
+  AND (
+    NOT sqlc.narg('has_cursor')::boolean
+    OR (s.created_at, s.id) < (sqlc.narg('cursor_created_at')::timestamptz, sqlc.narg('cursor_id')::uuid)
+  )
+ORDER BY s.created_at DESC, s.id DESC
+LIMIT @row_limit;
 
 -- name: ListSBOMsByDigest :many
 SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subject_version, s.digest, s.created_at,

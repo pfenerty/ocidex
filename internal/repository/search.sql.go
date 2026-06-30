@@ -758,23 +758,28 @@ func (q *Queries) ListSBOMPackages(ctx context.Context, sbomID pgtype.UUID) ([]L
 }
 
 const listSBOMs = `-- name: ListSBOMs :many
-SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subject_version, s.digest, s.created_at,
-       COUNT(*) OVER() AS total_count
+SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subject_version, s.digest, s.created_at
 FROM sbom s
 WHERE ($1::text IS NULL OR s.serial_number = $1)
   AND ($2::text IS NULL OR s.digest = $2)
   AND sbom_visible(s.registry_id, $3::uuid, $4::boolean)
-ORDER BY s.created_at DESC
-LIMIT $6 OFFSET $5
+  AND (
+    NOT $5::boolean
+    OR (s.created_at, s.id) < ($6::timestamptz, $7::uuid)
+  )
+ORDER BY s.created_at DESC, s.id DESC
+LIMIT $8
 `
 
 type ListSBOMsParams struct {
-	SerialNumber pgtype.Text `json:"serial_number"`
-	Digest       pgtype.Text `json:"digest"`
-	UserID       pgtype.UUID `json:"user_id"`
-	IsAdmin      pgtype.Bool `json:"is_admin"`
-	RowOffset    int32       `json:"row_offset"`
-	RowLimit     int32       `json:"row_limit"`
+	SerialNumber    pgtype.Text        `json:"serial_number"`
+	Digest          pgtype.Text        `json:"digest"`
+	UserID          pgtype.UUID        `json:"user_id"`
+	IsAdmin         pgtype.Bool        `json:"is_admin"`
+	HasCursor       pgtype.Bool        `json:"has_cursor"`
+	CursorCreatedAt pgtype.Timestamptz `json:"cursor_created_at"`
+	CursorID        pgtype.UUID        `json:"cursor_id"`
+	RowLimit        int32              `json:"row_limit"`
 }
 
 type ListSBOMsRow struct {
@@ -786,16 +791,19 @@ type ListSBOMsRow struct {
 	SubjectVersion pgtype.Text        `json:"subject_version"`
 	Digest         pgtype.Text        `json:"digest"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	TotalCount     int64              `json:"total_count"`
 }
 
+// Keyset pagination on (created_at DESC, id DESC); backed by idx_sbom_created_at_id.
+// The caller fetches row_limit+1 to detect whether a further page exists.
 func (q *Queries) ListSBOMs(ctx context.Context, arg ListSBOMsParams) ([]ListSBOMsRow, error) {
 	rows, err := q.db.Query(ctx, listSBOMs,
 		arg.SerialNumber,
 		arg.Digest,
 		arg.UserID,
 		arg.IsAdmin,
-		arg.RowOffset,
+		arg.HasCursor,
+		arg.CursorCreatedAt,
+		arg.CursorID,
 		arg.RowLimit,
 	)
 	if err != nil {
@@ -814,7 +822,6 @@ func (q *Queries) ListSBOMs(ctx context.Context, arg ListSBOMsParams) ([]ListSBO
 			&i.SubjectVersion,
 			&i.Digest,
 			&i.CreatedAt,
-			&i.TotalCount,
 		); err != nil {
 			return nil, err
 		}

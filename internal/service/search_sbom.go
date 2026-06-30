@@ -84,25 +84,31 @@ func (s *searchService) GetSBOM(ctx context.Context, id pgtype.UUID, includeRaw 
 	return detail, nil
 }
 
-func (s *searchService) ListSBOMs(ctx context.Context, filter SBOMFilter) (PagedResult[SBOMSummary], error) {
+func (s *searchService) ListSBOMs(ctx context.Context, filter SBOMFilter) (CursorPage[SBOMSummary], error) {
 	q := repository.New(s.db)
 
+	// Fetch one extra row to detect whether a further page exists.
 	rows, err := q.ListSBOMs(ctx, repository.ListSBOMsParams{
-		SerialNumber: textOrNull(filter.SerialNumber),
-		Digest:       textOrNull(filter.Digest),
-		UserID:       filter.Visibility.UserID,
-		IsAdmin:      visAdminBool(filter.Visibility),
-		RowLimit:     filter.Limit,
-		RowOffset:    filter.Offset,
+		SerialNumber:    textOrNull(filter.SerialNumber),
+		Digest:          textOrNull(filter.Digest),
+		UserID:          filter.Visibility.UserID,
+		IsAdmin:         visAdminBool(filter.Visibility),
+		HasCursor:       pgtype.Bool{Bool: filter.HasCursor, Valid: true},
+		CursorCreatedAt: pgtype.Timestamptz{Time: filter.CursorCreatedAt, Valid: filter.HasCursor},
+		CursorID:        uuidOrNull(filter.CursorID),
+		RowLimit:        filter.Limit + 1,
 	})
 	if err != nil {
-		return PagedResult[SBOMSummary]{}, fmt.Errorf("listing sboms: %w", err)
+		return CursorPage[SBOMSummary]{}, fmt.Errorf("listing sboms: %w", err)
 	}
 
-	var total int64
+	hasMore := len(rows) > int(filter.Limit)
+	if hasMore {
+		rows = rows[:filter.Limit]
+	}
+
 	items := make([]SBOMSummary, 0, len(rows))
 	for _, row := range rows {
-		total = row.TotalCount
 		items = append(items, SBOMSummary{
 			ID:             uuidToString(row.ID),
 			SerialNumber:   textToPtr(row.SerialNumber),
@@ -115,12 +121,7 @@ func (s *searchService) ListSBOMs(ctx context.Context, filter SBOMFilter) (Paged
 		})
 	}
 
-	return PagedResult[SBOMSummary]{
-		Data:   items,
-		Total:  total,
-		Limit:  filter.Limit,
-		Offset: filter.Offset,
-	}, nil
+	return CursorPage[SBOMSummary]{Data: items, HasMore: hasMore}, nil
 }
 
 func (s *searchService) ListSBOMsByArtifact(ctx context.Context, artifactID pgtype.UUID, subjectVersion, imageVersion string, limit, offset int32, vis VisibilityFilter) (PagedResult[SBOMSummary], error) {

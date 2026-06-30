@@ -3,11 +3,23 @@ package api
 import (
 	"context"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
 func paginationMeta[T any](r service.PagedResult[T]) PaginationMeta {
 	return PaginationMeta{Total: r.Total, Limit: r.Limit, Offset: r.Offset}
+}
+
+// cursorMeta builds keyset-pagination metadata, deriving nextCursor from the
+// last item via cursorFn when further results exist.
+func cursorMeta[T any](data []T, hasMore bool, limit int32, cursorFn func(T) string) CursorMeta {
+	meta := CursorMeta{Limit: limit, HasMore: hasMore}
+	if hasMore && len(data) > 0 {
+		next := cursorFn(data[len(data)-1])
+		meta.NextCursor = &next
+	}
+	return meta
 }
 
 // visibilityFilterFromContext builds a VisibilityFilter from the authenticated
@@ -96,13 +108,20 @@ func (h *Handler) ListSBOMComponents(ctx context.Context, input *ListSBOMCompone
 
 // ListSBOMs handles GET /api/v1/sbom.
 func (h *Handler) ListSBOMs(ctx context.Context, input *ListSBOMsInput) (*ListSBOMsOutput, error) {
+	cur, hasCursor, err := decodeTimeIDCursor(input.Cursor)
+	if err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
+	}
+
 	vis := visibilityFilterFromContext(ctx)
 	filter := service.SBOMFilter{
-		SerialNumber: input.SerialNumber,
-		Digest:       input.Digest,
-		Limit:        input.Limit,
-		Offset:       input.Offset,
-		Visibility:   vis,
+		SerialNumber:    input.SerialNumber,
+		Digest:          input.Digest,
+		Limit:           input.Limit,
+		HasCursor:       hasCursor,
+		CursorCreatedAt: cur.CreatedAt,
+		CursorID:        cur.ID,
+		Visibility:      vis,
 	}
 
 	result, err := h.searchService.ListSBOMs(ctx, filter)
@@ -112,7 +131,9 @@ func (h *Handler) ListSBOMs(ctx context.Context, input *ListSBOMsInput) (*ListSB
 
 	out := &ListSBOMsOutput{}
 	out.Body.Data = result.Data
-	out.Body.Pagination = paginationMeta(result)
+	out.Body.Pagination = cursorMeta(result.Data, result.HasMore, input.Limit, func(s service.SBOMSummary) string {
+		return encodeTimeIDCursor(s.CreatedAt, s.ID)
+	})
 	return out, nil
 }
 

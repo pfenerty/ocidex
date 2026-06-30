@@ -26,12 +26,10 @@ func (f *fakeSearchService) GetSBOM(_ context.Context, _ pgtype.UUID, _ bool, _ 
 	}, nil
 }
 
-func (f *fakeSearchService) ListSBOMs(_ context.Context, filter service.SBOMFilter) (service.PagedResult[service.SBOMSummary], error) {
-	return service.PagedResult[service.SBOMSummary]{
-		Data:   []service.SBOMSummary{{ID: "abc", SpecVersion: "1.5", Version: 1, CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)}},
-		Total:  1,
-		Limit:  filter.Limit,
-		Offset: filter.Offset,
+func (f *fakeSearchService) ListSBOMs(_ context.Context, _ service.SBOMFilter) (service.CursorPage[service.SBOMSummary], error) {
+	return service.CursorPage[service.SBOMSummary]{
+		Data:    []service.SBOMSummary{{ID: "abc", SpecVersion: "1.5", Version: 1, CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)}},
+		HasMore: false,
 	}, nil
 }
 
@@ -201,13 +199,23 @@ func (f *notFoundSearchService) GetArtifact(_ context.Context, _ pgtype.UUID, _ 
 	return service.ArtifactDetail{}, service.ErrNotFound
 }
 
-// pagedBody is a helper for decoding paginated JSON responses.
+// pagedBody is a helper for decoding offset-paginated JSON responses.
 type pagedBody struct {
 	Data       json.RawMessage `json:"data"`
 	Pagination struct {
 		Total  int64 `json:"total"`
 		Limit  int32 `json:"limit"`
 		Offset int32 `json:"offset"`
+	} `json:"pagination"`
+}
+
+// cursorBody is a helper for decoding keyset-paginated JSON responses.
+type cursorBody struct {
+	Data       json.RawMessage `json:"data"`
+	Pagination struct {
+		Limit      int32   `json:"limit"`
+		HasMore    bool    `json:"hasMore"`
+		NextCursor *string `json:"nextCursor"`
 	} `json:"pagination"`
 }
 
@@ -221,10 +229,10 @@ func TestListSBOMs(t *testing.T) {
 
 	is.Equal(w.Code, http.StatusOK)
 
-	var resp pagedBody
+	var resp cursorBody
 	is.NoErr(json.Unmarshal(w.Body.Bytes(), &resp))
-	is.Equal(resp.Pagination.Total, int64(1))
 	is.Equal(resp.Pagination.Limit, int32(10))
+	is.Equal(resp.Pagination.HasMore, false)
 }
 
 func TestGetSBOM(t *testing.T) {
