@@ -66,12 +66,20 @@ func (db *fakeDB) Begin(ctx context.Context) (pgx.Tx, error) {
 	return nil, errors.New("fakeDB: beginFn not configured")
 }
 
-// fakeTx implements pgx.Tx. Only DBTX methods + Commit/Rollback are functional;
-// the rest panic to catch unexpected calls during tests.
+// copyCall records a single CopyFrom invocation against fakeTx.
+type copyCall struct {
+	table pgx.Identifier
+	cols  []string
+	rows  [][]any
+}
+
+// fakeTx implements pgx.Tx. Only DBTX methods + Commit/Rollback + CopyFrom are
+// functional; the rest panic to catch unexpected calls during tests.
 type fakeTx struct {
 	fakeDB
 	commitFn   func(ctx context.Context) error
 	rollbackFn func(ctx context.Context) error
+	copied     []copyCall
 }
 
 func (tx *fakeTx) Commit(ctx context.Context) error {
@@ -92,8 +100,28 @@ func (tx *fakeTx) Begin(ctx context.Context) (pgx.Tx, error) {
 	panic("fakeTx: nested Begin not expected")
 }
 
-func (tx *fakeTx) CopyFrom(_ context.Context, _ pgx.Identifier, _ []string, _ pgx.CopyFromSource) (int64, error) {
-	panic("fakeTx: CopyFrom not expected")
+func (tx *fakeTx) CopyFrom(_ context.Context, ident pgx.Identifier, cols []string, src pgx.CopyFromSource) (int64, error) {
+	call := copyCall{table: ident, cols: cols}
+	for src.Next() {
+		vals, err := src.Values()
+		if err != nil {
+			return int64(len(call.rows)), err
+		}
+		call.rows = append(call.rows, vals)
+	}
+	tx.copied = append(tx.copied, call)
+	return int64(len(call.rows)), src.Err()
+}
+
+// copiedRows returns the total number of rows copied into the named table.
+func (tx *fakeTx) copiedRows(table string) int {
+	n := 0
+	for _, c := range tx.copied {
+		if len(c.table) > 0 && c.table[0] == table {
+			n += len(c.rows)
+		}
+	}
+	return n
 }
 
 func (tx *fakeTx) SendBatch(_ context.Context, _ *pgx.Batch) pgx.BatchResults {
@@ -209,13 +237,13 @@ func TestIngest_HappyPath_ContainerSBOM(t *testing.T) {
 	is := is.New(t)
 	artifactID := newUUID(t)
 	sbomID := newUUID2(t)
-	compID := newUUID(t)
 	licenseID := newUUID(t)
 
 	publisher := &fakePublisher{}
 
-	// queryRowFn is called by: GetSBOMByDigest (returns no rows), UpsertArtifact,
-	// InsertSBOM, InsertComponent, UpsertLicenseBySPDX (in tx via fakeTx).
+	// queryRowFn is called by: GetSBOMByDigest (returns no rows), then in-tx:
+	// UpsertArtifact, InsertSBOM, UpsertLicenseBySPDX. Components are written via
+	// CopyFrom, not QueryRow.
 	callCount := 0
 	txQueryRow := func(_ context.Context, _ string, args ...any) pgx.Row {
 		callCount++
@@ -231,12 +259,7 @@ func TestIngest_HappyPath_ContainerSBOM(t *testing.T) {
 				*(dest[2].(*string)) = "1.4"
 				return nil
 			}}
-		case 3: // InsertComponent
-			return &fakeRow{scanFn: func(dest ...any) error {
-				*(dest[0].(*pgtype.UUID)) = compID
-				return nil
-			}}
-		case 4: // UpsertLicenseBySPDX
+		case 3: // UpsertLicenseBySPDX
 			return &fakeRow{scanFn: func(dest ...any) error {
 				*(dest[0].(*pgtype.UUID)) = licenseID
 				return nil
@@ -270,6 +293,8 @@ func TestIngest_HappyPath_ContainerSBOM(t *testing.T) {
 	is.True(db.beginCalled)
 	is.Equal(len(publisher.events), 1)
 	is.Equal(publisher.events[0], event.SBOMIngested)
+	is.Equal(tx.copiedRows("component"), 1)         // one component copied
+	is.Equal(tx.copiedRows("component_license"), 1) // one join row copied
 }
 
 // TestResolveArtifact_ContainerDigestInName verifies that a digest embedded in
@@ -374,77 +399,98 @@ func TestResolveArtifact_NonContainer(t *testing.T) {
 	is.True(!info.digest.Valid) // no digest for non-container
 }
 
-// TestInsertComponentLicenses_SPDXPath verifies that a license with an SPDX ID
-// routes through UpsertLicenseBySPDX (deduplication by SPDX key at DB level).
-func TestInsertComponentLicenses_SPDXPath(t *testing.T) {
-	is := is.New(t)
-	licenseID := newUUID(t)
-	compID := newUUID(t)
-
-	var spdxCalled, nameCalled bool
-	db := &fakeDB{
+// licenseTx builds a fakeTx whose QueryRow records which upsert path was hit and
+// always returns licenseID.
+func licenseTx(licenseID pgtype.UUID, spdxCalled, nameCalled *bool) *fakeTx {
+	return &fakeTx{fakeDB: fakeDB{
 		queryRowFn: func(_ context.Context, sql string, _ ...any) pgx.Row {
 			if contains(sql, "UpsertLicenseBySPDX") {
-				spdxCalled = true
+				*spdxCalled = true
 			} else {
-				nameCalled = true
+				*nameCalled = true
 			}
 			return &fakeRow{scanFn: func(dest ...any) error {
 				*(dest[0].(*pgtype.UUID)) = licenseID
 				return nil
 			}}
 		},
-	}
-	q := repository.New(db)
-	svc := &sbomService{}
+	}}
+}
 
-	licenses := &cdx.Licenses{{License: &cdx.License{ID: "MIT", Name: "MIT License"}}}
-	err := svc.insertComponentLicenses(context.Background(), q, compID, licenses)
+// TestCopyComponentLicenses_SPDXPath verifies that a license with an SPDX ID
+// routes through UpsertLicenseBySPDX and produces one join row.
+func TestCopyComponentLicenses_SPDXPath(t *testing.T) {
+	is := is.New(t)
+	var spdxCalled, nameCalled bool
+	tx := licenseTx(newUUID(t), &spdxCalled, &nameCalled)
+	q := repository.New(tx)
+
+	flat := []flatComponent{{id: newUUID(t), comp: &cdx.Component{
+		Licenses: &cdx.Licenses{{License: &cdx.License{ID: "MIT", Name: "MIT License"}}},
+	}}}
+	err := copyComponentLicenses(context.Background(), tx, q, flat)
 	is.NoErr(err)
 	is.True(spdxCalled)
 	is.True(!nameCalled)
+	is.Equal(tx.copiedRows("component_license"), 1)
 }
 
-// TestInsertComponentLicenses_NonSPDXPath verifies that a license without an
-// SPDX ID routes through UpsertLicenseByName.
-func TestInsertComponentLicenses_NonSPDXPath(t *testing.T) {
+// TestCopyComponentLicenses_NonSPDXPath verifies that a license without an SPDX
+// ID routes through UpsertLicenseByName.
+func TestCopyComponentLicenses_NonSPDXPath(t *testing.T) {
 	is := is.New(t)
-	licenseID := newUUID(t)
-	compID := newUUID(t)
-
 	var spdxCalled, nameCalled bool
-	db := &fakeDB{
-		queryRowFn: func(_ context.Context, sql string, _ ...any) pgx.Row {
-			if contains(sql, "UpsertLicenseBySPDX") {
-				spdxCalled = true
-			} else {
-				nameCalled = true
-			}
-			return &fakeRow{scanFn: func(dest ...any) error {
-				*(dest[0].(*pgtype.UUID)) = licenseID
-				return nil
-			}}
-		},
-	}
-	q := repository.New(db)
-	svc := &sbomService{}
+	tx := licenseTx(newUUID(t), &spdxCalled, &nameCalled)
+	q := repository.New(tx)
 
-	licenses := &cdx.Licenses{{License: &cdx.License{Name: "Proprietary"}}}
-	err := svc.insertComponentLicenses(context.Background(), q, compID, licenses)
+	flat := []flatComponent{{id: newUUID(t), comp: &cdx.Component{
+		Licenses: &cdx.Licenses{{License: &cdx.License{Name: "Proprietary"}}},
+	}}}
+	err := copyComponentLicenses(context.Background(), tx, q, flat)
 	is.NoErr(err)
 	is.True(!spdxCalled)
 	is.True(nameCalled)
+	is.Equal(tx.copiedRows("component_license"), 1)
 }
 
-// TestInsertComponentLicenses_NilLicenses verifies that nil input is a no-op.
-func TestInsertComponentLicenses_NilLicenses(t *testing.T) {
+// TestCopyComponentLicenses_DedupesDistinctLicenses verifies that the same SPDX
+// license across two components is upserted only once but yields a join row per
+// component.
+func TestCopyComponentLicenses_DedupesDistinctLicenses(t *testing.T) {
 	is := is.New(t)
-	db := &fakeDB{}
-	q := repository.New(db)
-	svc := &sbomService{}
+	upsertCount := 0
+	tx := &fakeTx{fakeDB: fakeDB{
+		queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
+			upsertCount++
+			return &fakeRow{scanFn: func(dest ...any) error {
+				*(dest[0].(*pgtype.UUID)) = newUUID(t)
+				return nil
+			}}
+		},
+	}}
+	q := repository.New(tx)
 
-	err := svc.insertComponentLicenses(context.Background(), q, newUUID(t), nil)
+	mit := cdx.Licenses{{License: &cdx.License{ID: "MIT", Name: "MIT License"}}}
+	flat := []flatComponent{
+		{id: newUUID(t), comp: &cdx.Component{Licenses: &mit}},
+		{id: newUUID2(t), comp: &cdx.Component{Licenses: &mit}},
+	}
+	err := copyComponentLicenses(context.Background(), tx, q, flat)
 	is.NoErr(err)
+	is.Equal(upsertCount, 1)                        // license resolved once
+	is.Equal(tx.copiedRows("component_license"), 2) // one join row per component
+}
+
+// TestCopyComponentLicenses_NilLicenses verifies that nil input is a no-op.
+func TestCopyComponentLicenses_NilLicenses(t *testing.T) {
+	is := is.New(t)
+	tx := &fakeTx{}
+	q := repository.New(tx)
+
+	flat := []flatComponent{{id: newUUID(t), comp: &cdx.Component{}}}
+	err := copyComponentLicenses(context.Background(), tx, q, flat)
+	is.NoErr(err)
+	is.Equal(len(tx.copied), 0)
 }
 
 // TestInsertDependencies_GraphEdges verifies that all dependency edges from the
@@ -723,70 +769,76 @@ func TestDeleteArtifact_Success(t *testing.T) {
 	is.Equal(publisher.events[0], event.ArtifactDeleted)
 }
 
-// TestInsertComponentHashes verifies that component hashes are written for non-nil input.
-func TestInsertComponentHashes(t *testing.T) {
+// TestCopyComponentHashes verifies that component hashes are copied for non-nil input.
+func TestCopyComponentHashes(t *testing.T) {
 	is := is.New(t)
-	var recorded []string
-	db := &fakeDB{
-		execFn: func(_ context.Context, _ string, args ...any) (pgconn.CommandTag, error) {
-			if len(args) >= 3 {
-				recorded = append(recorded, args[2].(string))
-			}
-			return pgconn.CommandTag{}, nil
+	tx := &fakeTx{}
+	flat := []flatComponent{{id: newUUID(t), comp: &cdx.Component{
+		Hashes: &[]cdx.Hash{
+			{Algorithm: cdx.HashAlgoSHA256, Value: "abc123"},
+			{Algorithm: cdx.HashAlgoMD5, Value: "def456"},
 		},
-	}
-	q := repository.New(db)
-	svc := &sbomService{}
-
-	hashes := &[]cdx.Hash{
-		{Algorithm: cdx.HashAlgoSHA256, Value: "abc123"},
-		{Algorithm: cdx.HashAlgoMD5, Value: "def456"},
-	}
-	err := svc.insertComponentHashes(context.Background(), q, newUUID(t), hashes)
+	}}}
+	err := copyComponentHashes(context.Background(), tx, flat)
 	is.NoErr(err)
-	is.Equal(len(recorded), 2)
+	is.Equal(tx.copiedRows("component_hash"), 2)
 }
 
-// TestInsertComponentHashes_Nil verifies that nil hashes is a no-op.
-func TestInsertComponentHashes_Nil(t *testing.T) {
+// TestCopyComponentHashes_Nil verifies that a component with nil hashes copies nothing.
+func TestCopyComponentHashes_Nil(t *testing.T) {
 	is := is.New(t)
-	svc := &sbomService{}
-	err := svc.insertComponentHashes(context.Background(), repository.New(&fakeDB{}), newUUID(t), nil)
+	tx := &fakeTx{}
+	flat := []flatComponent{{id: newUUID(t), comp: &cdx.Component{}}}
+	err := copyComponentHashes(context.Background(), tx, flat)
 	is.NoErr(err)
+	is.Equal(len(tx.copied), 0)
 }
 
-// TestInsertComponentExtRefs verifies that external references are written for non-nil input.
-func TestInsertComponentExtRefs(t *testing.T) {
+// TestCopyComponentExtRefs verifies that external references are copied for non-nil input.
+func TestCopyComponentExtRefs(t *testing.T) {
 	is := is.New(t)
-	var recordedURLs []string
-	db := &fakeDB{
-		execFn: func(_ context.Context, _ string, args ...any) (pgconn.CommandTag, error) {
-			if len(args) >= 3 {
-				if url, ok := args[2].(string); ok {
-					recordedURLs = append(recordedURLs, url)
-				}
-			}
-			return pgconn.CommandTag{}, nil
+	tx := &fakeTx{}
+	flat := []flatComponent{{id: newUUID(t), comp: &cdx.Component{
+		ExternalReferences: &[]cdx.ExternalReference{
+			{Type: cdx.ERTypeWebsite, URL: "https://example.com"},
+			{Type: cdx.ERTypeIssueTracker, URL: "https://issues.example.com"},
 		},
-	}
-	q := repository.New(db)
-	svc := &sbomService{}
-
-	refs := &[]cdx.ExternalReference{
-		{Type: cdx.ERTypeWebsite, URL: "https://example.com"},
-		{Type: cdx.ERTypeIssueTracker, URL: "https://issues.example.com"},
-	}
-	err := svc.insertComponentExtRefs(context.Background(), q, newUUID(t), refs)
+	}}}
+	err := copyComponentExtRefs(context.Background(), tx, flat)
 	is.NoErr(err)
-	is.Equal(len(recordedURLs), 2)
+	is.Equal(tx.copiedRows("external_reference"), 2)
 }
 
-// TestInsertComponentExtRefs_Nil verifies that nil refs is a no-op.
-func TestInsertComponentExtRefs_Nil(t *testing.T) {
+// TestCopyComponentExtRefs_Nil verifies that a component with nil refs copies nothing.
+func TestCopyComponentExtRefs_Nil(t *testing.T) {
 	is := is.New(t)
-	svc := &sbomService{}
-	err := svc.insertComponentExtRefs(context.Background(), repository.New(&fakeDB{}), newUUID(t), nil)
+	tx := &fakeTx{}
+	flat := []flatComponent{{id: newUUID(t), comp: &cdx.Component{}}}
+	err := copyComponentExtRefs(context.Background(), tx, flat)
 	is.NoErr(err)
+	is.Equal(len(tx.copied), 0)
+}
+
+// TestFlattenComponents_NestedTreeWiresParentIDs verifies that the flatten pass
+// assigns each component a unique ID and wires children to their parent's ID.
+func TestFlattenComponents_NestedTreeWiresParentIDs(t *testing.T) {
+	is := is.New(t)
+	child := []cdx.Component{{Name: "child", Type: cdx.ComponentTypeLibrary}}
+	components := []cdx.Component{
+		{Name: "parent", Type: cdx.ComponentTypeLibrary, Components: &child},
+		{Name: "sibling", Type: cdx.ComponentTypeLibrary},
+	}
+	flat := flattenComponents(components, pgtype.UUID{}, "", "")
+	is.Equal(len(flat), 3) // parent, child, sibling
+
+	byName := map[string]flatComponent{}
+	for _, fc := range flat {
+		byName[fc.comp.Name] = fc
+	}
+	is.True(!byName["parent"].parentID.Valid)  // top-level → NULL parent
+	is.True(!byName["sibling"].parentID.Valid) // top-level → NULL parent
+	is.True(byName["child"].parentID.Valid)    // nested → has parent
+	is.Equal(byName["child"].parentID, byName["parent"].id)
 }
 
 // TestValidateContainerDigest_NilValidator verifies that digest validation is
