@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -21,6 +22,12 @@ import (
 type dbPool interface {
 	repository.DBTX
 	Begin(ctx context.Context) (pgx.Tx, error)
+}
+
+// copyFromer is the subset of pgx.Tx used for bulk COPY inserts during
+// ingestion. Extracted to allow unit-test injection.
+type copyFromer interface {
+	CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error)
 }
 
 // IngestParams carries supplemental metadata for SBOM ingestion.
@@ -191,7 +198,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		return pgtype.UUID{}, err
 	}
 
-	if err := s.insertBOMContent(ctx, q, sbomRow.ID, bom, info.subjectVersion.String); err != nil {
+	if err := s.insertBOMContent(ctx, tx, q, sbomRow.ID, bom, info.subjectVersion.String); err != nil {
 		return pgtype.UUID{}, err
 	}
 
@@ -241,10 +248,10 @@ func validateContainerRequired(bom *cdx.BOM, info artifactInfo, arch, bd string)
 }
 
 // insertBOMContent inserts components and dependencies for an SBOM within a transaction.
-func (s *sbomService) insertBOMContent(ctx context.Context, q *repository.Queries, sbomID pgtype.UUID, bom *cdx.BOM, subjectVersion string) error {
+func (s *sbomService) insertBOMContent(ctx context.Context, tx copyFromer, q *repository.Queries, sbomID pgtype.UUID, bom *cdx.BOM, subjectVersion string) error {
 	mainModule := extractMainModulePath(bom)
 	if bom.Components != nil {
-		if err := s.insertComponents(ctx, q, sbomID, pgtype.UUID{}, *bom.Components, mainModule, subjectVersion); err != nil {
+		if err := s.insertComponentsBatch(ctx, tx, q, sbomID, *bom.Components, mainModule, subjectVersion); err != nil {
 			return err
 		}
 	}
@@ -366,151 +373,223 @@ func (s *sbomService) GetArtifactOwnerID(ctx context.Context, id pgtype.UUID) (p
 	return ownerID, nil
 }
 
-func (s *sbomService) insertComponents(
-	ctx context.Context,
-	q *repository.Queries,
-	sbomID pgtype.UUID,
-	parentID pgtype.UUID,
-	components []cdx.Component,
-	mainModule, subjectVersion string,
-) error {
-	for i := range components {
-		comp := &components[i]
-		version := effectiveComponentVersion(comp.Version, comp.Name, comp.PackageURL, mainModule, subjectVersion)
-		major, minor, patch := parseSemver(version)
+// flatComponent pairs a pre-generated component ID with its source BOM
+// component. IDs are generated in Go rather than by the database default
+// (gen_random_uuid()) so that parent_id self-references and child FK rows
+// (hashes, licenses, ext-refs) can be wired before insertion — which is what
+// makes batched CopyFrom possible (CopyFrom supports neither RETURNING nor a
+// per-row sequential dependency on the previous row's generated id).
+type flatComponent struct {
+	id       pgtype.UUID
+	parentID pgtype.UUID
+	comp     *cdx.Component
+	version  string
+}
 
-		compID, err := q.InsertComponent(ctx, repository.InsertComponentParams{
-			SbomID:       sbomID,
-			ParentID:     parentID,
-			BomRef:       textOrNull(comp.BOMRef),
-			Type:         string(comp.Type),
-			Name:         comp.Name,
-			GroupName:    textOrNull(comp.Group),
-			Version:      textOrNull(version),
-			VersionMajor: intOrNull(major),
-			VersionMinor: intOrNull(minor),
-			VersionPatch: intOrNull(patch),
-			Purl:         textOrNull(comp.PackageURL),
-			Cpe:          textOrNull(comp.CPE),
-			Description:  textOrNull(comp.Description),
-			Scope:        textOrNull(string(comp.Scope)),
-			Publisher:    textOrNull(comp.Publisher),
-			Copyright:    textOrNull(comp.Copyright),
-		})
-		if err != nil {
-			return fmt.Errorf("inserting component %q: %w", comp.Name, err)
-		}
-
-		if err := s.insertComponentHashes(ctx, q, compID, comp.Hashes); err != nil {
-			return err
-		}
-
-		if err := s.insertComponentLicenses(ctx, q, compID, comp.Licenses); err != nil {
-			return err
-		}
-
-		if err := s.insertComponentExtRefs(ctx, q, compID, comp.ExternalReferences); err != nil {
-			return err
-		}
-
-		// Recurse into nested components.
-		if comp.Components != nil {
-			if err := s.insertComponents(ctx, q, sbomID, compID, *comp.Components, mainModule, subjectVersion); err != nil {
-				return err
+// flattenComponents walks the recursive component tree depth-first, assigning a
+// fresh UUID to each component and recording its parent's assigned UUID.
+func flattenComponents(components []cdx.Component, parentID pgtype.UUID, mainModule, subjectVersion string) []flatComponent {
+	var flat []flatComponent
+	var walk func(comps []cdx.Component, parent pgtype.UUID)
+	walk = func(comps []cdx.Component, parent pgtype.UUID) {
+		for i := range comps {
+			comp := &comps[i]
+			fc := flatComponent{
+				id:       newComponentID(),
+				parentID: parent,
+				comp:     comp,
+				version:  effectiveComponentVersion(comp.Version, comp.Name, comp.PackageURL, mainModule, subjectVersion),
+			}
+			flat = append(flat, fc)
+			if comp.Components != nil {
+				walk(*comp.Components, fc.id)
 			}
 		}
 	}
-	return nil
+	walk(components, parentID)
+	return flat
 }
 
-func (s *sbomService) insertComponentHashes(
+// newComponentID returns a fresh, valid pgtype.UUID for a component row.
+func newComponentID() pgtype.UUID {
+	return pgtype.UUID{Bytes: uuid.New(), Valid: true}
+}
+
+// insertComponentsBatch flattens the component tree and bulk-inserts components
+// and their hashes, external references, and licenses via pgx.CopyFrom.
+func (s *sbomService) insertComponentsBatch(
 	ctx context.Context,
+	tx copyFromer,
 	q *repository.Queries,
-	compID pgtype.UUID,
-	hashes *[]cdx.Hash,
+	sbomID pgtype.UUID,
+	components []cdx.Component,
+	mainModule, subjectVersion string,
 ) error {
-	if hashes == nil {
+	flat := flattenComponents(components, pgtype.UUID{}, mainModule, subjectVersion)
+	if len(flat) == 0 {
 		return nil
 	}
-	for _, h := range *hashes {
-		if err := q.InsertComponentHash(ctx, repository.InsertComponentHashParams{
-			ComponentID: compID,
-			Algorithm:   string(h.Algorithm),
-			Value:       h.Value,
-		}); err != nil {
-			return fmt.Errorf("inserting hash: %w", err)
+
+	if err := copyComponents(ctx, tx, sbomID, flat); err != nil {
+		return err
+	}
+	if err := copyComponentHashes(ctx, tx, flat); err != nil {
+		return err
+	}
+	if err := copyComponentExtRefs(ctx, tx, flat); err != nil {
+		return err
+	}
+	return copyComponentLicenses(ctx, tx, q, flat)
+}
+
+// colComponentID is the FK column name shared by the component child tables.
+const colComponentID = "component_id"
+
+// componentColumns is the column order used by copyComponents; it must match the
+// row tuples it builds.
+var componentColumns = []string{
+	"id", "sbom_id", "parent_id", "bom_ref", "type", "name", "group_name",
+	"version", "version_major", "version_minor", "version_patch",
+	"purl", "cpe", "description", "scope", "publisher", "copyright",
+}
+
+func copyComponents(ctx context.Context, tx copyFromer, sbomID pgtype.UUID, flat []flatComponent) error {
+	rows := make([][]any, len(flat))
+	for i, fc := range flat {
+		c := fc.comp
+		major, minor, patch := parseSemver(fc.version)
+		rows[i] = []any{
+			fc.id, sbomID, fc.parentID, textOrNull(c.BOMRef), string(c.Type), c.Name, textOrNull(c.Group),
+			textOrNull(fc.version), intOrNull(major), intOrNull(minor), intOrNull(patch),
+			textOrNull(c.PackageURL), textOrNull(c.CPE), textOrNull(c.Description), textOrNull(string(c.Scope)),
+			textOrNull(c.Publisher), textOrNull(c.Copyright),
 		}
 	}
+	if _, err := tx.CopyFrom(ctx, pgx.Identifier{"component"}, componentColumns, pgx.CopyFromRows(rows)); err != nil {
+		return fmt.Errorf("copying components: %w", err)
+	}
 	return nil
 }
 
-func (s *sbomService) insertComponentLicenses(
-	ctx context.Context,
-	q *repository.Queries,
-	compID pgtype.UUID,
-	licenses *cdx.Licenses,
-) error {
-	if licenses == nil {
-		return nil
-	}
-	for _, choice := range *licenses {
-		if choice.License == nil {
+func copyComponentHashes(ctx context.Context, tx copyFromer, flat []flatComponent) error {
+	var rows [][]any
+	for _, fc := range flat {
+		if fc.comp.Hashes == nil {
 			continue
 		}
-		lic := choice.License
-		var licenseID pgtype.UUID
-		var err error
-
-		spdxID, displayName := NormalizeLicense(lic.ID, lic.Name)
-
-		if spdxID != "" {
-			// SPDX license (original or normalized from alias)
-			licenseID, err = q.UpsertLicenseBySPDX(ctx, repository.UpsertLicenseBySPDXParams{
-				SpdxID: pgtype.Text{String: spdxID, Valid: true},
-				Name:   displayName,
-				Url:    textOrNull(lic.URL),
-			})
-		} else {
-			// Non-SPDX license
-			licenseID, err = q.UpsertLicenseByName(ctx, repository.UpsertLicenseByNameParams{
-				Name: displayName,
-				Url:  textOrNull(lic.URL),
-			})
+		for _, h := range *fc.comp.Hashes {
+			rows = append(rows, []any{fc.id, string(h.Algorithm), h.Value})
 		}
-		if err != nil {
-			return fmt.Errorf("upserting license: %w", err)
-		}
-
-		if err := q.InsertComponentLicense(ctx, repository.InsertComponentLicenseParams{
-			ComponentID: compID,
-			LicenseID:   licenseID,
-		}); err != nil {
-			return fmt.Errorf("inserting component license: %w", err)
-		}
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	if _, err := tx.CopyFrom(ctx, pgx.Identifier{"component_hash"},
+		[]string{colComponentID, "algorithm", "value"}, pgx.CopyFromRows(rows)); err != nil {
+		return fmt.Errorf("copying component hashes: %w", err)
 	}
 	return nil
 }
 
-func (s *sbomService) insertComponentExtRefs(
-	ctx context.Context,
-	q *repository.Queries,
-	compID pgtype.UUID,
-	refs *[]cdx.ExternalReference,
-) error {
-	if refs == nil {
-		return nil
-	}
-	for _, ref := range *refs {
-		if err := q.InsertExternalReference(ctx, repository.InsertExternalReferenceParams{
-			ComponentID: compID,
-			Type:        string(ref.Type),
-			Url:         ref.URL,
-			Comment:     textOrNull(ref.Comment),
-		}); err != nil {
-			return fmt.Errorf("inserting external reference: %w", err)
+func copyComponentExtRefs(ctx context.Context, tx copyFromer, flat []flatComponent) error {
+	var rows [][]any
+	for _, fc := range flat {
+		if fc.comp.ExternalReferences == nil {
+			continue
+		}
+		for _, ref := range *fc.comp.ExternalReferences {
+			rows = append(rows, []any{fc.id, string(ref.Type), ref.URL, textOrNull(ref.Comment)})
 		}
 	}
+	if len(rows) == 0 {
+		return nil
+	}
+	if _, err := tx.CopyFrom(ctx, pgx.Identifier{"external_reference"},
+		[]string{colComponentID, "type", "url", "comment"}, pgx.CopyFromRows(rows)); err != nil {
+		return fmt.Errorf("copying external references: %w", err)
+	}
 	return nil
+}
+
+// copyComponentLicenses resolves each distinct license once (the upsert can't be
+// expressed as a COPY because it needs ON CONFLICT) and then bulk-inserts the
+// component_license join rows.
+func copyComponentLicenses(ctx context.Context, tx copyFromer, q *repository.Queries, flat []flatComponent) error {
+	licenseIDs := make(map[string]pgtype.UUID)
+	var joinRows [][]any
+
+	for _, fc := range flat {
+		if fc.comp.Licenses == nil {
+			continue
+		}
+		seen := make(map[string]struct{})
+		for _, choice := range *fc.comp.Licenses {
+			if choice.License == nil {
+				continue
+			}
+			lic := choice.License
+			spdxID, displayName := NormalizeLicense(lic.ID, lic.Name)
+			key := licenseKey(spdxID, displayName)
+
+			licenseID, ok := licenseIDs[key]
+			if !ok {
+				var err error
+				licenseID, err = upsertLicense(ctx, q, spdxID, displayName, lic.URL)
+				if err != nil {
+					return err
+				}
+				licenseIDs[key] = licenseID
+			}
+
+			// Skip duplicate (component, license) pairs; the join table PK
+			// would otherwise reject them (CopyFrom has no ON CONFLICT).
+			if _, dup := seen[key]; dup {
+				continue
+			}
+			seen[key] = struct{}{}
+			joinRows = append(joinRows, []any{fc.id, licenseID})
+		}
+	}
+
+	if len(joinRows) == 0 {
+		return nil
+	}
+	if _, err := tx.CopyFrom(ctx, pgx.Identifier{"component_license"},
+		[]string{colComponentID, "license_id"}, pgx.CopyFromRows(joinRows)); err != nil {
+		return fmt.Errorf("copying component licenses: %w", err)
+	}
+	return nil
+}
+
+// licenseKey derives a stable dedup key for a normalized license.
+func licenseKey(spdxID, displayName string) string {
+	if spdxID != "" {
+		return "spdx:" + spdxID
+	}
+	return "name:" + displayName
+}
+
+// upsertLicense resolves a license to its ID, inserting it if new.
+func upsertLicense(ctx context.Context, q *repository.Queries, spdxID, displayName, url string) (pgtype.UUID, error) {
+	if spdxID != "" {
+		id, err := q.UpsertLicenseBySPDX(ctx, repository.UpsertLicenseBySPDXParams{
+			SpdxID: pgtype.Text{String: spdxID, Valid: true},
+			Name:   displayName,
+			Url:    textOrNull(url),
+		})
+		if err != nil {
+			return pgtype.UUID{}, fmt.Errorf("upserting license: %w", err)
+		}
+		return id, nil
+	}
+	id, err := q.UpsertLicenseByName(ctx, repository.UpsertLicenseByNameParams{
+		Name: displayName,
+		Url:  textOrNull(url),
+	})
+	if err != nil {
+		return pgtype.UUID{}, fmt.Errorf("upserting license: %w", err)
+	}
+	return id, nil
 }
 
 func (s *sbomService) insertDependencies(
