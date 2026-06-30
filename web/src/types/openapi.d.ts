@@ -1667,6 +1667,8 @@ export interface components {
             flavor?: string;
             id: string;
             imageVersion?: string;
+            /** Format: int64 */
+            packageCount: number;
             rawBom?: unknown;
             revision?: string;
             serialNumber?: string;

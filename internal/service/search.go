@@ -216,8 +216,11 @@ type SBOMSummary struct {
 // SBOMDetail extends SBOMSummary with optional raw BOM data and enrichments.
 type SBOMDetail struct {
 	SBOMSummary
-	RawBOM      json.RawMessage            `json:"rawBom,omitempty"`
-	Enrichments map[string]json.RawMessage `json:"enrichments,omitempty"`
+	// PackageCount is the number of non-file components (what the packages tab
+	// shows); ComponentCount counts all components including files.
+	PackageCount int64                      `json:"packageCount"`
+	RawBOM       json.RawMessage            `json:"rawBom,omitempty"`
+	Enrichments  map[string]json.RawMessage `json:"enrichments,omitempty"`
 }
 
 // ChangeCounts is a per-direction breakdown of component changes.

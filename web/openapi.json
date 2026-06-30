@@ -2495,6 +2495,10 @@
           "imageVersion": {
             "type": "string"
           },
+          "packageCount": {
+            "format": "int64",
+            "type": "integer"
+          },
           "rawBom": {},
           "revision": {
             "type": "string"
@@ -2520,6 +2524,7 @@
           }
         },
         "required": [
+          "packageCount",
           "id",
           "specVersion",
           "version",

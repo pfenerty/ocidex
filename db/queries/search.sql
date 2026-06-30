@@ -166,6 +166,11 @@ WHERE id = $1;
 -- name: CountSBOMComponents :one
 SELECT COUNT(*) FROM component WHERE sbom_id = $1;
 
+-- name: CountSBOMPackages :one
+-- Counts package components (excludes file entries), matching what the packages
+-- tab displays.
+SELECT COUNT(*) FROM component WHERE sbom_id = $1 AND type != 'file';
+
 -- name: ListSBOMComponents :many
 SELECT id, bom_ref, type, name, group_name, version, purl
 FROM component
