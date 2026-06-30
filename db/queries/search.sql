@@ -195,7 +195,9 @@ WHERE purl IS NOT NULL
     SELECT 1 FROM sbom s WHERE s.id = component.sbom_id
       AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
   )
-ORDER BY 1;
+ORDER BY 1
+-- Safety cap: purl types are a small, fixed vocabulary; bound the scan.
+LIMIT 200;
 
 -- name: SearchDistinctComponents :many
 SELECT c.name, c.group_name, c.type,
@@ -240,4 +242,6 @@ WHERE c.name = @name
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST,
-         s.created_at DESC;
+         s.created_at DESC
+-- Safety cap: bound a component's version history to the most recent rows.
+LIMIT 200;
