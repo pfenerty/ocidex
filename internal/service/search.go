@@ -316,12 +316,13 @@ type DependencyEdge struct {
 }
 
 type searchService struct {
-	db repository.DBTX
+	db         repository.DBTX
+	statsCache *statsCache
 }
 
 // NewSearchService creates a new SearchService.
 func NewSearchService(db repository.DBTX) SearchService {
-	return &searchService{db: db}
+	return &searchService{db: db, statsCache: newStatsCache(statsCacheTTL)}
 }
 
 // Ensure *Queries satisfies SearchRepository.

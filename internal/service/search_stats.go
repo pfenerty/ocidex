@@ -9,8 +9,17 @@ import (
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
-// GetDashboardStats returns aggregated metrics for the home dashboard.
+// GetDashboardStats returns aggregated metrics for the home dashboard. Results
+// are TTL-cached per visibility scope because the underlying aggregates scan the
+// whole component table; recomputing on every dashboard load does not scale.
 func (s *searchService) GetDashboardStats(ctx context.Context, vis VisibilityFilter) (*DashboardStats, error) {
+	cacheKey := statsCacheKey(vis)
+	if s.statsCache != nil {
+		if cached := s.statsCache.get(cacheKey); cached != nil {
+			return cached, nil
+		}
+	}
+
 	q := repository.New(s.db)
 	isAdmin := visAdminBool(vis)
 
@@ -85,6 +94,24 @@ func (s *searchService) GetDashboardStats(ctx context.Context, vis VisibilityFil
 		return nil, err
 	}
 
+	stats := buildDashboardStats(counts, cats, timeline, pkgGrowth, verGrowth, topRows)
+
+	if s.statsCache != nil {
+		s.statsCache.set(cacheKey, stats)
+	}
+
+	return stats, nil
+}
+
+// buildDashboardStats maps the raw aggregate rows into the DashboardStats DTO.
+func buildDashboardStats(
+	counts repository.GetSummaryCountsRow,
+	cats []repository.GetLicenseCategoryCountsRow,
+	timeline []repository.GetSBOMIngestionTimelineRow,
+	pkgGrowth []repository.GetPackageGrowthTimelineRow,
+	verGrowth []repository.GetVersionGrowthTimelineRow,
+	topRows []repository.GetTopPackagesByVersionCountRow,
+) *DashboardStats {
 	catItems := make([]CategoryCount, 0, len(cats))
 	for _, c := range cats {
 		catItems = append(catItems, CategoryCount{Category: c.Category, ComponentCount: c.ComponentCount})
@@ -129,5 +156,5 @@ func (s *searchService) GetDashboardStats(ctx context.Context, vis VisibilityFil
 		PackageGrowthTimeline: pkgGrowthItems,
 		VersionGrowthTimeline: verGrowthItems,
 		TopPackages:           topItems,
-	}, nil
+	}
 }
