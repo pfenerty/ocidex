@@ -21,8 +21,8 @@ type SearchService interface {
 	ListLicenses(ctx context.Context, filter LicenseFilter) (PagedResult[LicenseCount], error)
 	ListComponentsByLicense(ctx context.Context, licenseID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ComponentSummary], error)
 	GetArtifact(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ArtifactDetail, error)
-	ListArtifacts(ctx context.Context, filter ArtifactFilter) (PagedResult[ArtifactSummary], error)
-	ListSBOMsByArtifact(ctx context.Context, artifactID pgtype.UUID, subjectVersion, imageVersion string, limit, offset int32, vis VisibilityFilter) (PagedResult[SBOMSummary], error)
+	ListArtifacts(ctx context.Context, filter ArtifactFilter) (CursorPage[ArtifactSummary], error)
+	ListSBOMsByArtifact(ctx context.Context, artifactID pgtype.UUID, subjectVersion, imageVersion string, page SBOMByArtifactPage, vis VisibilityFilter) (CursorPage[SBOMSummary], error)
 	ListVersionsByArtifact(ctx context.Context, artifactID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ArtifactVersion], error)
 	GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch, flavor string, vis VisibilityFilter) (Changelog, error)
 	DiffSBOMs(ctx context.Context, fromID, toID pgtype.UUID, vis VisibilityFilter) (ChangelogEntry, error)
@@ -31,6 +31,7 @@ type SearchService interface {
 	GetArtifactLicenseSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]LicenseCount, error)
 	GetSBOMDependencies(ctx context.Context, sbomID pgtype.UUID, vis VisibilityFilter) (DependencyGraph, error)
 	ListSBOMComponents(ctx context.Context, sbomID pgtype.UUID, vis VisibilityFilter) ([]ComponentSummary, error)
+	ListSBOMComponentsPage(ctx context.Context, sbomID pgtype.UUID, page ComponentPage, vis VisibilityFilter) (CursorPage[ComponentSummary], error)
 	ListComponentPurlTypes(ctx context.Context, vis VisibilityFilter) ([]string, error)
 	GetDashboardStats(ctx context.Context, vis VisibilityFilter) (*DashboardStats, error)
 }
@@ -122,14 +123,39 @@ type LicenseFilter struct {
 	Visibility VisibilityFilter
 }
 
-// ArtifactFilter holds parameters for listing artifacts.
+// ArtifactFilter holds parameters for listing artifacts. Pagination is
+// keyset-based on (name, type, id); Cursor* point just past the last row of the
+// previous page and HasCursor is false for the first page.
 type ArtifactFilter struct {
 	Type              string
 	Name              string
 	RequireSufficient bool
 	Limit             int32
-	Offset            int32
+	CursorName        string
+	CursorType        string
+	CursorID          string
+	HasCursor         bool
 	Visibility        VisibilityFilter
+}
+
+// SBOMByArtifactPage carries keyset pagination state for ListSBOMsByArtifact,
+// ordered by (created_at DESC, id DESC).
+type SBOMByArtifactPage struct {
+	Limit           int32
+	CursorCreatedAt time.Time
+	CursorID        string
+	HasCursor       bool
+}
+
+// ComponentPage carries keyset pagination state for ListSBOMComponentsPage,
+// ordered by (name, group_name, id).
+type ComponentPage struct {
+	Limit      int32
+	CursorName string
+	// CursorGroup is the folded group key (NULL group_name compares as "").
+	CursorGroup string
+	CursorID    string
+	HasCursor   bool
 }
 
 // ArtifactSummary is a lightweight artifact representation for list views.

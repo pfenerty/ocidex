@@ -1,12 +1,12 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render } from "@solidjs/testing-library";
-import { useArtifacts } from "~/api/queries";
+import { useArtifactsInfinite } from "~/api/queries";
 import Artifacts from "~/pages/Artifacts";
 import type { JSX } from "solid-js";
 
 vi.mock("~/api/queries", () => ({
-    useArtifacts: vi.fn(),
+    useArtifactsInfinite: vi.fn(),
 }));
 
 vi.mock("~/api/client", () => ({
@@ -30,14 +30,7 @@ vi.mock("@solidjs/router", () => ({
     ),
 }));
 
-const mockUseArtifacts = vi.mocked(useArtifacts);
-
-interface MockQuery {
-    isLoading: boolean;
-    isError: boolean;
-    error: unknown;
-    data: { data: ArtifactRow[]; pagination: Pagination } | undefined;
-}
+const mockUseArtifacts = vi.mocked(useArtifactsInfinite);
 
 interface ArtifactRow {
     id: string;
@@ -48,17 +41,37 @@ interface ArtifactRow {
     group?: string;
 }
 
-interface Pagination { total: number; limit: number; offset: number }
+interface InfiniteQuery {
+    isLoading: boolean;
+    isError: boolean;
+    error: unknown;
+    data: { pages: { data: ArtifactRow[] }[] } | undefined;
+    hasNextPage: boolean;
+    isFetchingNextPage: boolean;
+    fetchNextPage: () => void;
+}
 
-function makeQuery(overrides: Partial<MockQuery>): MockQuery {
-    return { isLoading: false, isError: false, error: null, data: undefined, ...overrides };
+function makeQuery(overrides: Partial<InfiniteQuery>): InfiniteQuery {
+    return {
+        isLoading: false,
+        isError: false,
+        error: null,
+        data: undefined,
+        hasNextPage: false,
+        isFetchingNextPage: false,
+        fetchNextPage: vi.fn(),
+        ...overrides,
+    };
 }
 
 function makeArtifact(overrides?: Partial<ArtifactRow>): ArtifactRow {
     return { id: "artifact-uuid-1", name: "myapp", type: "container", sbomCount: 3, sufficientSbomCount: 2, ...overrides };
 }
 
-const defaultPagination: Pagination = { total: 1, limit: 50, offset: 0 };
+// page wraps artifact rows in the single-page shape returned by the infinite query.
+function page(rows: ArtifactRow[]): { pages: { data: ArtifactRow[] }[] } {
+    return { pages: [{ data: rows }] };
+}
 
 function renderArtifacts() {
     return render(() => <Artifacts />);
@@ -84,17 +97,13 @@ describe("Artifacts", () => {
     });
 
     it("shows empty state when no artifacts returned", () => {
-        mockUseArtifacts.mockReturnValue(
-            makeQuery({ data: { data: [], pagination: { total: 0, limit: 50, offset: 0 } } }) as never
-        );
+        mockUseArtifacts.mockReturnValue(makeQuery({ data: page([]) }) as never);
         const { getByText } = renderArtifacts();
         expect(getByText("No artifacts found")).toBeDefined();
     });
 
     it("renders artifact rows with links to detail pages", () => {
-        mockUseArtifacts.mockReturnValue(
-            makeQuery({ data: { data: [makeArtifact()], pagination: defaultPagination } }) as never
-        );
+        mockUseArtifacts.mockReturnValue(makeQuery({ data: page([makeArtifact()]) }) as never);
         const { getByRole } = renderArtifacts();
         const link = getByRole("link", { name: /myapp/i });
         expect(link.getAttribute("href")).toBe("/artifacts/artifact-uuid-1");
@@ -102,7 +111,7 @@ describe("Artifacts", () => {
 
     it("renders artifact type badge", () => {
         mockUseArtifacts.mockReturnValue(
-            makeQuery({ data: { data: [makeArtifact({ type: "library" })], pagination: defaultPagination } }) as never
+            makeQuery({ data: page([makeArtifact({ type: "library" })]) }) as never
         );
         const { getByText } = renderArtifacts();
         expect(getByText("library")).toBeDefined();
@@ -110,7 +119,7 @@ describe("Artifacts", () => {
 
     it("renders SBOM count", () => {
         mockUseArtifacts.mockReturnValue(
-            makeQuery({ data: { data: [makeArtifact({ sbomCount: 5 })], pagination: defaultPagination } }) as never
+            makeQuery({ data: page([makeArtifact({ sbomCount: 5 })]) }) as never
         );
         const { getByText } = renderArtifacts();
         expect(getByText("5 SBOMs")).toBeDefined();
@@ -118,9 +127,7 @@ describe("Artifacts", () => {
 
     it("renders display name with group prefix", () => {
         mockUseArtifacts.mockReturnValue(
-            makeQuery({
-                data: { data: [makeArtifact({ name: "mylib", group: "org.example" })], pagination: defaultPagination },
-            }) as never
+            makeQuery({ data: page([makeArtifact({ name: "mylib", group: "org.example" })]) }) as never
         );
         const { getByText } = renderArtifacts();
         expect(getByText("org.example/mylib")).toBeDefined();

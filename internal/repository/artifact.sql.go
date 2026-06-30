@@ -37,6 +37,28 @@ func (q *Queries) CountArtifactVersions(ctx context.Context, arg CountArtifactVe
 	return version_count, err
 }
 
+const countSBOMsByArtifact = `-- name: CountSBOMsByArtifact :one
+SELECT COUNT(*)
+FROM sbom s
+WHERE s.artifact_id = $1
+  AND sbom_visible(s.registry_id, $2::uuid, $3::boolean)
+`
+
+type CountSBOMsByArtifactParams struct {
+	ArtifactID pgtype.UUID `json:"artifact_id"`
+	UserID     pgtype.UUID `json:"user_id"`
+	IsAdmin    pgtype.Bool `json:"is_admin"`
+}
+
+// Counts visible SBOMs for an artifact. Replaces the prior trick of reading
+// COUNT(*) OVER() off ListSBOMsByArtifact, which is now keyset-paginated.
+func (q *Queries) CountSBOMsByArtifact(ctx context.Context, arg CountSBOMsByArtifactParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countSBOMsByArtifact, arg.ArtifactID, arg.UserID, arg.IsAdmin)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteArtifact = `-- name: DeleteArtifact :execrows
 DELETE FROM artifact WHERE id = $1
 `
@@ -229,7 +251,6 @@ const listArtifacts = `-- name: ListArtifacts :many
 SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
        COUNT(s.id) AS sbom_count,
        COUNT(s.id) FILTER (WHERE s.enrichment_sufficient) AS sufficient_sbom_count,
-       COUNT(*) OVER() AS total_count,
        (SELECT CASE
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
@@ -258,9 +279,13 @@ WHERE ($1::text IS NULL OR a.type = $1)
        OR NOT $3::boolean
        OR EXISTS (SELECT 1 FROM sbom s2 WHERE s2.artifact_id = a.id AND s2.enrichment_sufficient))
   AND artifact_visible(a.id, $4::uuid, $5::boolean)
+  AND (
+    NOT $6::boolean
+    OR (a.name, a.type, a.id) > ($7::text, $8::text, $9::uuid)
+  )
 GROUP BY a.id
-ORDER BY a.name, a.type
-LIMIT $7 OFFSET $6
+ORDER BY a.name, a.type, a.id
+LIMIT $10
 `
 
 type ListArtifactsParams struct {
@@ -269,7 +294,10 @@ type ListArtifactsParams struct {
 	RequireSufficient pgtype.Bool `json:"require_sufficient"`
 	UserID            pgtype.UUID `json:"user_id"`
 	IsAdmin           pgtype.Bool `json:"is_admin"`
-	RowOffset         int32       `json:"row_offset"`
+	HasCursor         pgtype.Bool `json:"has_cursor"`
+	CursorName        pgtype.Text `json:"cursor_name"`
+	CursorType        pgtype.Text `json:"cursor_type"`
+	CursorID          pgtype.UUID `json:"cursor_id"`
 	RowLimit          int32       `json:"row_limit"`
 }
 
@@ -283,7 +311,6 @@ type ListArtifactsRow struct {
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 	SbomCount           int64              `json:"sbom_count"`
 	SufficientSbomCount int64              `json:"sufficient_sbom_count"`
-	TotalCount          int64              `json:"total_count"`
 	SigningStatus       string             `json:"signing_status"`
 }
 
@@ -294,7 +321,10 @@ func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([
 		arg.RequireSufficient,
 		arg.UserID,
 		arg.IsAdmin,
-		arg.RowOffset,
+		arg.HasCursor,
+		arg.CursorName,
+		arg.CursorType,
+		arg.CursorID,
 		arg.RowLimit,
 	)
 	if err != nil {
@@ -314,7 +344,6 @@ func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([
 			&i.CreatedAt,
 			&i.SbomCount,
 			&i.SufficientSbomCount,
-			&i.TotalCount,
 			&i.SigningStatus,
 		); err != nil {
 			return nil, err
@@ -336,8 +365,7 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.subject_version, s.di
        COALESCE(e.data->>'revision', u.data->>'revision') AS revision,
        COALESCE(e.data->>'sourceUrl', u.data->>'sourceUrl') AS source_url,
        s.enrichment_sufficient,
-       s.flavor,
-       COUNT(*) OVER() AS total_count
+       s.flavor
 FROM sbom s
 LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
 LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user' AND u.status = 'success'
@@ -346,18 +374,24 @@ WHERE s.artifact_id = $1
   AND ($3::text IS NULL
        OR COALESCE(e.data->>'imageVersion', u.data->>'imageVersion') = $3)
   AND sbom_visible(s.registry_id, $4::uuid, $5::boolean)
-ORDER BY s.created_at DESC
-LIMIT $7 OFFSET $6
+  AND (
+    NOT $6::boolean
+    OR (s.created_at, s.id) < ($7::timestamptz, $8::uuid)
+  )
+ORDER BY s.created_at DESC, s.id DESC
+LIMIT $9
 `
 
 type ListSBOMsByArtifactParams struct {
-	ArtifactID     pgtype.UUID `json:"artifact_id"`
-	SubjectVersion pgtype.Text `json:"subject_version"`
-	ImageVersion   pgtype.Text `json:"image_version"`
-	UserID         pgtype.UUID `json:"user_id"`
-	IsAdmin        pgtype.Bool `json:"is_admin"`
-	RowOffset      int32       `json:"row_offset"`
-	RowLimit       int32       `json:"row_limit"`
+	ArtifactID      pgtype.UUID        `json:"artifact_id"`
+	SubjectVersion  pgtype.Text        `json:"subject_version"`
+	ImageVersion    pgtype.Text        `json:"image_version"`
+	UserID          pgtype.UUID        `json:"user_id"`
+	IsAdmin         pgtype.Bool        `json:"is_admin"`
+	HasCursor       pgtype.Bool        `json:"has_cursor"`
+	CursorCreatedAt pgtype.Timestamptz `json:"cursor_created_at"`
+	CursorID        pgtype.UUID        `json:"cursor_id"`
+	RowLimit        int32              `json:"row_limit"`
 }
 
 type ListSBOMsByArtifactRow struct {
@@ -376,7 +410,6 @@ type ListSBOMsByArtifactRow struct {
 	SourceUrl            interface{}        `json:"source_url"`
 	EnrichmentSufficient bool               `json:"enrichment_sufficient"`
 	Flavor               pgtype.Text        `json:"flavor"`
-	TotalCount           int64              `json:"total_count"`
 }
 
 func (q *Queries) ListSBOMsByArtifact(ctx context.Context, arg ListSBOMsByArtifactParams) ([]ListSBOMsByArtifactRow, error) {
@@ -386,7 +419,9 @@ func (q *Queries) ListSBOMsByArtifact(ctx context.Context, arg ListSBOMsByArtifa
 		arg.ImageVersion,
 		arg.UserID,
 		arg.IsAdmin,
-		arg.RowOffset,
+		arg.HasCursor,
+		arg.CursorCreatedAt,
+		arg.CursorID,
 		arg.RowLimit,
 	)
 	if err != nil {
@@ -412,7 +447,6 @@ func (q *Queries) ListSBOMsByArtifact(ctx context.Context, arg ListSBOMsByArtifa
 			&i.SourceUrl,
 			&i.EnrichmentSufficient,
 			&i.Flavor,
-			&i.TotalCount,
 		); err != nil {
 			return nil, err
 		}

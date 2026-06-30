@@ -1383,7 +1383,7 @@ export interface components {
              */
             readonly $schema?: string;
             data: components["schemas"]["SBOMSummary"][] | null;
-            pagination: components["schemas"]["PaginationMeta"];
+            pagination: components["schemas"]["CursorMeta"];
         };
         ListArtifactVersionsOutputBody: {
             /**
@@ -1403,7 +1403,7 @@ export interface components {
              */
             readonly $schema?: string;
             data: components["schemas"]["ArtifactSummary"][] | null;
-            pagination: components["schemas"]["PaginationMeta"];
+            pagination: components["schemas"]["CursorMeta"];
         };
         ListComponentPurlTypesOutputBody: {
             /**
@@ -1462,6 +1462,7 @@ export interface components {
              */
             readonly $schema?: string;
             components: components["schemas"]["ComponentSummary"][] | null;
+            pagination: components["schemas"]["CursorMeta"];
         };
         ListSBOMsOutputBody: {
             /**
@@ -2096,8 +2097,8 @@ export interface operations {
             query?: {
                 /** @description Maximum number of results per page */
                 limit?: number;
-                /** @description Number of results to skip */
-                offset?: number;
+                /** @description Opaque cursor from a previous response's nextCursor; omit for the first page */
+                cursor?: string;
                 /** @description Filter by artifact type */
                 type?: string;
                 /** @description Filter by artifact name */
@@ -2269,8 +2270,8 @@ export interface operations {
             query?: {
                 /** @description Maximum number of results per page */
                 limit?: number;
-                /** @description Number of results to skip */
-                offset?: number;
+                /** @description Opaque cursor from a previous response's nextCursor; omit for the first page */
+                cursor?: string;
                 /** @description Filter by subject version */
                 subject_version?: string;
                 /** @description Filter by image version */
@@ -3345,7 +3346,12 @@ export interface operations {
     };
     "list-sbom-components": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Opaque cursor from a previous response's nextCursor; omit for the first page */
+                cursor?: string;
+            };
             header?: never;
             path: {
                 /** @description SBOM UUID */

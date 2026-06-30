@@ -36,23 +36,14 @@ func (s *searchService) GetArtifact(ctx context.Context, id pgtype.UUID, vis Vis
 		return ArtifactDetail{}, fmt.Errorf("getting artifact: %w", err)
 	}
 
-	// Get SBOM count via ListSBOMsByArtifact (only visible SBOMs).
-	sbomRows, err := q.ListSBOMsByArtifact(ctx, repository.ListSBOMsByArtifactParams{
-		ArtifactID:     id,
-		SubjectVersion: pgtype.Text{},
-		ImageVersion:   pgtype.Text{},
-		UserID:         vis.UserID,
-		IsAdmin:        visAdminBool(vis),
-		RowLimit:       1,
-		RowOffset:      0,
+	// Count visible SBOMs for this artifact.
+	sbomCount, err := q.CountSBOMsByArtifact(ctx, repository.CountSBOMsByArtifactParams{
+		ArtifactID: id,
+		UserID:     vis.UserID,
+		IsAdmin:    visAdminBool(vis),
 	})
 	if err != nil {
 		return ArtifactDetail{}, fmt.Errorf("counting sboms: %w", err)
-	}
-
-	var sbomCount int64
-	if len(sbomRows) > 0 {
-		sbomCount = sbomRows[0].TotalCount
 	}
 
 	versionCount, err := q.CountArtifactVersions(ctx, repository.CountArtifactVersionsParams{
@@ -139,26 +130,33 @@ func (s *searchService) ListVersionsByArtifact(ctx context.Context, artifactID p
 	}, nil
 }
 
-func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter) (PagedResult[ArtifactSummary], error) {
+func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter) (CursorPage[ArtifactSummary], error) {
 	q := repository.New(s.db)
 
+	// Fetch one extra row to detect whether a further page exists.
 	rows, err := q.ListArtifacts(ctx, repository.ListArtifactsParams{
 		Type:              textOrNull(filter.Type),
 		Name:              textOrNull(filter.Name),
 		RequireSufficient: boolOrNull(filter.RequireSufficient),
 		IsAdmin:           visAdminBool(filter.Visibility),
 		UserID:            filter.Visibility.UserID,
-		RowLimit:          filter.Limit,
-		RowOffset:         filter.Offset,
+		HasCursor:         pgtype.Bool{Bool: filter.HasCursor, Valid: true},
+		CursorName:        textOrNull(filter.CursorName),
+		CursorType:        textOrNull(filter.CursorType),
+		CursorID:          uuidOrNull(filter.CursorID),
+		RowLimit:          filter.Limit + 1,
 	})
 	if err != nil {
-		return PagedResult[ArtifactSummary]{}, fmt.Errorf("listing artifacts: %w", err)
+		return CursorPage[ArtifactSummary]{}, fmt.Errorf("listing artifacts: %w", err)
 	}
 
-	var total int64
+	hasMore := len(rows) > int(filter.Limit)
+	if hasMore {
+		rows = rows[:filter.Limit]
+	}
+
 	items := make([]ArtifactSummary, 0, len(rows))
 	for _, row := range rows {
-		total = row.TotalCount
 		items = append(items, ArtifactSummary{
 			ID:                  uuidToString(row.ID),
 			Type:                row.Type,
@@ -170,12 +168,7 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 		})
 	}
 
-	return PagedResult[ArtifactSummary]{
-		Data:   items,
-		Total:  total,
-		Limit:  filter.Limit,
-		Offset: filter.Offset,
-	}, nil
+	return CursorPage[ArtifactSummary]{Data: items, HasMore: hasMore}, nil
 }
 
 // GetArtifactLicenseSummary returns aggregated license counts for an artifact's latest SBOM.

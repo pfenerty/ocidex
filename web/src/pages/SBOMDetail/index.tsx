@@ -1,7 +1,7 @@
 import "~/components/DetailSection.css";
 import { Show, For, createSignal, createMemo } from "solid-js";
 import { A, useParams, useNavigate } from "@solidjs/router";
-import { useSBOM, useSBOMComponents, useSBOMDependencies, useArtifactSBOMs } from "~/api/queries";
+import { useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies, useArtifactSBOMs } from "~/api/queries";
 import { useArtifactNames } from "~/api/queries";
 import type { OCIMetadata, Provenance } from "~/api/client";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
@@ -27,6 +27,7 @@ export default function SBOMDetail() {
 
     const sbomQuery = useSBOM(() => params.id);
     const componentsQuery = useSBOMComponents(() => params.id);
+    const loadedComponents = () => sbomComponents(componentsQuery.data?.pages);
     const depsQuery = useSBOMDependencies(() => params.id);
 
     const siblingsQuery = useArtifactSBOMs(
@@ -51,7 +52,7 @@ export default function SBOMDetail() {
     // Top package ecosystems (purl types) for the Packages summary tile.
     const ecosystems = createMemo(() => {
         const counts = new Map<string, number>();
-        for (const c of componentsQuery.data?.components ?? []) {
+        for (const c of loadedComponents()) {
             if (c.type === "file") continue;
             const t = parsePurl(c.purl ?? "")?.type ?? c.type;
             if (t === "") continue;
@@ -180,16 +181,16 @@ export default function SBOMDetail() {
                             <Show when={tab() === "packages"}>
                                 <Show when={!componentsQuery.isLoading} fallback={<Loading />}>
                                     <Show
-                                        when={!componentsQuery.isError && componentsQuery.data !== undefined ? componentsQuery.data : undefined}
-                                        keyed
+                                        when={!componentsQuery.isError}
                                         fallback={<ErrorBox error={componentsQuery.error} />}
                                     >
-                                        {(data) => (
-                                            <PackagesTab
-                                                components={data.components}
-                                                depsGraph={(depsQuery.data?.edges.length ?? 0) > 0 ? depsQuery.data : undefined}
-                                            />
-                                        )}
+                                        <PackagesTab
+                                            components={loadedComponents()}
+                                            depsGraph={(depsQuery.data?.edges.length ?? 0) > 0 ? depsQuery.data : undefined}
+                                            hasMore={componentsQuery.hasNextPage}
+                                            loadingMore={componentsQuery.isFetchingNextPage}
+                                            onLoadMore={() => void componentsQuery.fetchNextPage()}
+                                        />
                                     </Show>
                                 </Show>
                             </Show>

@@ -146,6 +146,7 @@ type GetSBOMDependenciesOutput struct {
 
 // ListSBOMComponentsInput is the request for GET /api/v1/sbom/{id}/components.
 type ListSBOMComponentsInput struct {
+	CursorParams
 	ID string `path:"id" doc:"SBOM UUID" format:"uuid"`
 }
 
@@ -153,6 +154,7 @@ type ListSBOMComponentsInput struct {
 type ListSBOMComponentsOutput struct {
 	Body struct {
 		Components []service.ComponentSummary `json:"components"`
+		Pagination CursorMeta                 `json:"pagination"`
 	}
 }
 
@@ -322,7 +324,7 @@ type ListComponentsByLicenseOutput struct {
 
 // ListArtifactsInput is the request for GET /api/v1/artifacts.
 type ListArtifactsInput struct {
-	PaginationParams
+	CursorParams
 	Type       string `query:"type" doc:"Filter by artifact type"`
 	Name       string `query:"name" doc:"Filter by artifact name"`
 	Sufficient string `query:"sufficient" doc:"Filter to artifacts with sufficiently enriched SBOMs; pass 'false' to include all (default: true)"`
@@ -332,7 +334,7 @@ type ListArtifactsInput struct {
 type ListArtifactsOutput struct {
 	Body struct {
 		Data       []service.ArtifactSummary `json:"data"`
-		Pagination PaginationMeta            `json:"pagination"`
+		Pagination CursorMeta                `json:"pagination"`
 	}
 }
 
@@ -365,7 +367,7 @@ type DeleteArtifactInput struct {
 
 // ListArtifactSBOMsInput is the request for GET /api/v1/artifacts/{id}/sboms.
 type ListArtifactSBOMsInput struct {
-	PaginationParams
+	CursorParams
 	ID             string `path:"id" doc:"Artifact UUID" format:"uuid"`
 	SubjectVersion string `query:"subject_version" doc:"Filter by subject version"`
 	ImageVersion   string `query:"image_version"   doc:"Filter by image version"`
@@ -375,7 +377,7 @@ type ListArtifactSBOMsInput struct {
 type ListArtifactSBOMsOutput struct {
 	Body struct {
 		Data       []service.SBOMSummary `json:"data"`
-		Pagination PaginationMeta        `json:"pagination"`
+		Pagination CursorMeta            `json:"pagination"`
 	}
 }
 

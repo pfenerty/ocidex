@@ -16,7 +16,6 @@ WHERE id = $1;
 SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
        COUNT(s.id) AS sbom_count,
        COUNT(s.id) FILTER (WHERE s.enrichment_sufficient) AS sufficient_sbom_count,
-       COUNT(*) OVER() AS total_count,
        (SELECT CASE
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
@@ -45,9 +44,21 @@ WHERE (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))
        OR NOT sqlc.narg('require_sufficient')::boolean
        OR EXISTS (SELECT 1 FROM sbom s2 WHERE s2.artifact_id = a.id AND s2.enrichment_sufficient))
   AND artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+  AND (
+    NOT sqlc.narg('has_cursor')::boolean
+    OR (a.name, a.type, a.id) > (sqlc.narg('cursor_name')::text, sqlc.narg('cursor_type')::text, sqlc.narg('cursor_id')::uuid)
+  )
 GROUP BY a.id
-ORDER BY a.name, a.type
-LIMIT @row_limit OFFSET @row_offset;
+ORDER BY a.name, a.type, a.id
+LIMIT @row_limit;
+
+-- name: CountSBOMsByArtifact :one
+-- Counts visible SBOMs for an artifact. Replaces the prior trick of reading
+-- COUNT(*) OVER() off ListSBOMsByArtifact, which is now keyset-paginated.
+SELECT COUNT(*)
+FROM sbom s
+WHERE s.artifact_id = $1
+  AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
 
 -- name: GetArtifactOwnerID :one
 SELECT r.owner_id
@@ -76,8 +87,7 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.subject_version, s.di
        COALESCE(e.data->>'revision', u.data->>'revision') AS revision,
        COALESCE(e.data->>'sourceUrl', u.data->>'sourceUrl') AS source_url,
        s.enrichment_sufficient,
-       s.flavor,
-       COUNT(*) OVER() AS total_count
+       s.flavor
 FROM sbom s
 LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
 LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user' AND u.status = 'success'
@@ -86,8 +96,12 @@ WHERE s.artifact_id = $1
   AND (sqlc.narg('image_version')::text IS NULL
        OR COALESCE(e.data->>'imageVersion', u.data->>'imageVersion') = sqlc.narg('image_version'))
   AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
-ORDER BY s.created_at DESC
-LIMIT @row_limit OFFSET @row_offset;
+  AND (
+    NOT sqlc.narg('has_cursor')::boolean
+    OR (s.created_at, s.id) < (sqlc.narg('cursor_created_at')::timestamptz, sqlc.narg('cursor_id')::uuid)
+  )
+ORDER BY s.created_at DESC, s.id DESC
+LIMIT @row_limit;
 
 -- name: ListArtifactVersions :many
 WITH sboms_meta AS (
