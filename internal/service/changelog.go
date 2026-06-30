@@ -244,6 +244,34 @@ func (s *searchService) DiffSBOMsWithTree(ctx context.Context, fromID, toID pgty
 }
 
 // buildPackageMap creates a component identity map from ListSBOMPackages rows.
+// packagesForSBOMs fetches the packages for all candidate SBOMs in a single
+// query and groups them by SBOM id, replacing a per-version N+1.
+func (s *searchService) packagesForSBOMs(ctx context.Context, q *repository.Queries, candidates []changelogCandidate) (map[pgtype.UUID][]repository.ListSBOMPackagesRow, error) {
+	ids := make([]pgtype.UUID, 0, len(candidates))
+	for _, c := range candidates {
+		ids = append(ids, c.sbom.ID)
+	}
+
+	rows, err := q.ListSBOMPackagesBySBOMIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("listing components for sboms: %w", err)
+	}
+
+	bySBOM := make(map[pgtype.UUID][]repository.ListSBOMPackagesRow, len(candidates))
+	for _, r := range rows {
+		bySBOM[r.SbomID] = append(bySBOM[r.SbomID], repository.ListSBOMPackagesRow{
+			ID:        r.ID,
+			BomRef:    r.BomRef,
+			Type:      r.Type,
+			Name:      r.Name,
+			GroupName: r.GroupName,
+			Version:   r.Version,
+			Purl:      r.Purl,
+		})
+	}
+	return bySBOM, nil
+}
+
 func buildPackageMap(rows []repository.ListSBOMPackagesRow) map[string]componentIdentity {
 	m := make(map[string]componentIdentity, len(rows))
 	for _, row := range rows {
@@ -328,18 +356,17 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgt
 		return changelog, nil
 	}
 
-	prevComps, err := q.ListSBOMPackages(ctx, candidates[0].sbom.ID)
+	// Fetch packages for every candidate SBOM in a single round-trip rather than
+	// one query per version (the old N+1).
+	pkgsBySBOM, err := s.packagesForSBOMs(ctx, q, candidates)
 	if err != nil {
-		return Changelog{}, fmt.Errorf("listing components for sbom %s: %w", uuidToString(candidates[0].sbom.ID), err)
+		return Changelog{}, err
 	}
-	prevMap := buildPackageMap(prevComps)
+
+	prevMap := buildPackageMap(pkgsBySBOM[candidates[0].sbom.ID])
 
 	for i := 1; i < len(candidates); i++ {
-		currComps, err := q.ListSBOMPackages(ctx, candidates[i].sbom.ID)
-		if err != nil {
-			return Changelog{}, fmt.Errorf("listing components for sbom %s: %w", uuidToString(candidates[i].sbom.ID), err)
-		}
-		currMap := buildPackageMap(currComps)
+		currMap := buildPackageMap(pkgsBySBOM[candidates[i].sbom.ID])
 
 		fromRef := sbomToRef(candidates[i-1].sbom)
 		fromRef.BuildDate = candidates[i-1].buildDate
