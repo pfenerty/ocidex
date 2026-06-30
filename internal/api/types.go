@@ -728,7 +728,8 @@ type UpdateRegistryInput struct {
 
 // ScanRegistryInput is the request for POST /api/v1/registries/{id}/scan.
 type ScanRegistryInput struct {
-	ID string `path:"id" doc:"Registry UUID" format:"uuid"`
+	ID    string `path:"id" doc:"Registry UUID" format:"uuid"`
+	Force bool   `query:"force" doc:"Re-scan every image, including digests already ingested. Default false: already-scanned digests are skipped."`
 }
 
 // ScanRegistryOutput is the response for POST /api/v1/registries/{id}/scan.

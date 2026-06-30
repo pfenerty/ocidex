@@ -4957,6 +4957,16 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "Re-scan every image, including digests already ingested. Default false: already-scanned digests are skipped.",
+            "explode": false,
+            "in": "query",
+            "name": "force",
+            "schema": {
+              "description": "Re-scan every image, including digests already ingested. Default false: already-scanned digests are skipped.",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
