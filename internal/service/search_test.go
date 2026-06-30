@@ -166,7 +166,7 @@ func TestListSBOMsByArtifact_DBError(t *testing.T) {
 	svc := &searchService{db: db}
 	uid := pgtype.UUID{Bytes: [16]byte{7}, Valid: true}
 
-	_, err := svc.ListSBOMsByArtifact(context.Background(), uid, "", "", 10, 0, VisibilityFilter{})
+	_, err := svc.ListSBOMsByArtifact(context.Background(), uid, "", "", SBOMByArtifactPage{Limit: 10}, VisibilityFilter{})
 	is.True(err != nil)
 }
 

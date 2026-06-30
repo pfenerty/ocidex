@@ -1,6 +1,7 @@
 import type { Accessor } from "solid-js";
-import { createQuery } from "@tanstack/solid-query";
+import { createQuery, createInfiniteQuery } from "@tanstack/solid-query";
 import { client, unwrap } from "~/api/client";
+import type { ComponentSummary } from "~/api/client";
 
 /** List SBOMs with optional filters and keyset (cursor) pagination. */
 export function useSBOMs(
@@ -52,18 +53,31 @@ export function useSBOM(
     }));
 }
 
-/** List components belonging to an SBOM. */
+/** List components belonging to an SBOM with keyset (load-more) pagination.
+ *  Pages accumulate in data.pages; flatten with sbomComponents(). */
 export function useSBOMComponents(id: Accessor<string>) {
-    return createQuery(() => ({
+    return createInfiniteQuery(() => ({
         queryKey: ["sbom", id(), "components"] as const,
-        queryFn: () =>
+        queryFn: ({ pageParam }: { pageParam: string }) =>
             unwrap(
                 client.GET("/api/v1/sboms/{id}/components", {
-                    params: { path: { id: id() } },
+                    params: {
+                        path: { id: id() },
+                        query: { limit: 200, cursor: pageParam !== "" ? pageParam : undefined },
+                    },
                 }),
             ),
-        select: (resp) => ({ ...resp, components: resp.components ?? [] }),
+        initialPageParam: "",
+        getNextPageParam: (last: { pagination?: { hasMore?: boolean; nextCursor?: string | null } }) =>
+            last.pagination?.hasMore === true ? (last.pagination.nextCursor ?? undefined) : undefined,
     }));
+}
+
+/** Flatten the accumulated component pages from useSBOMComponents. */
+export function sbomComponents(
+    pages: { components?: ComponentSummary[] | null }[] | undefined,
+): ComponentSummary[] {
+    return (pages ?? []).flatMap((p) => p.components ?? []);
 }
 
 /** Get the dependency graph for an SBOM. */

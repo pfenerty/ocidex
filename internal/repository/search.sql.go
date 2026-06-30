@@ -716,6 +716,76 @@ func (q *Queries) ListSBOMComponents(ctx context.Context, sbomID pgtype.UUID) ([
 	return items, nil
 }
 
+const listSBOMComponentsPage = `-- name: ListSBOMComponentsPage :many
+SELECT id, bom_ref, type, name, group_name, version, purl
+FROM component
+WHERE sbom_id = $1
+  AND (
+    NOT $2::boolean
+    OR (name, COALESCE(group_name, ''), id) > ($3::text, $4::text, $5::uuid)
+  )
+ORDER BY name, COALESCE(group_name, ''), id
+LIMIT $6
+`
+
+type ListSBOMComponentsPageParams struct {
+	SbomID      pgtype.UUID `json:"sbom_id"`
+	HasCursor   pgtype.Bool `json:"has_cursor"`
+	CursorName  pgtype.Text `json:"cursor_name"`
+	CursorGroup pgtype.Text `json:"cursor_group"`
+	CursorID    pgtype.UUID `json:"cursor_id"`
+	RowLimit    int32       `json:"row_limit"`
+}
+
+type ListSBOMComponentsPageRow struct {
+	ID        pgtype.UUID `json:"id"`
+	BomRef    pgtype.Text `json:"bom_ref"`
+	Type      string      `json:"type"`
+	Name      string      `json:"name"`
+	GroupName pgtype.Text `json:"group_name"`
+	Version   pgtype.Text `json:"version"`
+	Purl      pgtype.Text `json:"purl"`
+}
+
+// Keyset variant of ListSBOMComponents for the HTTP endpoint. Ordered by
+// (name, group_name, id) with NULL group_name folded to ” so the cursor tuple
+// comparison matches the ORDER BY. Access is gated by the service before this
+// runs. The caller fetches row_limit+1 to detect a further page.
+func (q *Queries) ListSBOMComponentsPage(ctx context.Context, arg ListSBOMComponentsPageParams) ([]ListSBOMComponentsPageRow, error) {
+	rows, err := q.db.Query(ctx, listSBOMComponentsPage,
+		arg.SbomID,
+		arg.HasCursor,
+		arg.CursorName,
+		arg.CursorGroup,
+		arg.CursorID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSBOMComponentsPageRow{}
+	for rows.Next() {
+		var i ListSBOMComponentsPageRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.BomRef,
+			&i.Type,
+			&i.Name,
+			&i.GroupName,
+			&i.Version,
+			&i.Purl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSBOMPackages = `-- name: ListSBOMPackages :many
 SELECT id, bom_ref, type, name, group_name, version, purl
 FROM component

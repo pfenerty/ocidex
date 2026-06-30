@@ -124,27 +124,33 @@ func (s *searchService) ListSBOMs(ctx context.Context, filter SBOMFilter) (Curso
 	return CursorPage[SBOMSummary]{Data: items, HasMore: hasMore}, nil
 }
 
-func (s *searchService) ListSBOMsByArtifact(ctx context.Context, artifactID pgtype.UUID, subjectVersion, imageVersion string, limit, offset int32, vis VisibilityFilter) (PagedResult[SBOMSummary], error) {
+func (s *searchService) ListSBOMsByArtifact(ctx context.Context, artifactID pgtype.UUID, subjectVersion, imageVersion string, page SBOMByArtifactPage, vis VisibilityFilter) (CursorPage[SBOMSummary], error) {
 	q := repository.New(s.db)
 
+	// Fetch one extra row to detect whether a further page exists.
 	rows, err := q.ListSBOMsByArtifact(ctx, repository.ListSBOMsByArtifactParams{
-		ArtifactID:     artifactID,
-		SubjectVersion: textOrNull(subjectVersion),
-		ImageVersion:   textOrNull(imageVersion),
-		UserID:         vis.UserID,
-		IsAdmin:        visAdminBool(vis),
-		RowLimit:       limit,
-		RowOffset:      offset,
+		ArtifactID:      artifactID,
+		SubjectVersion:  textOrNull(subjectVersion),
+		ImageVersion:    textOrNull(imageVersion),
+		UserID:          vis.UserID,
+		IsAdmin:         visAdminBool(vis),
+		HasCursor:       pgtype.Bool{Bool: page.HasCursor, Valid: true},
+		CursorCreatedAt: pgtype.Timestamptz{Time: page.CursorCreatedAt, Valid: page.HasCursor},
+		CursorID:        uuidOrNull(page.CursorID),
+		RowLimit:        page.Limit + 1,
 	})
 	if err != nil {
-		return PagedResult[SBOMSummary]{}, fmt.Errorf("listing sboms by artifact: %w", err)
+		return CursorPage[SBOMSummary]{}, fmt.Errorf("listing sboms by artifact: %w", err)
+	}
+
+	hasMore := len(rows) > int(page.Limit)
+	if hasMore {
+		rows = rows[:page.Limit]
 	}
 
 	artifactIDStr := uuidToString(artifactID)
-	var total int64
 	items := make([]SBOMSummary, 0, len(rows))
 	for _, row := range rows {
-		total = row.TotalCount
 		summary := SBOMSummary{
 			ID:             uuidToString(row.ID),
 			SerialNumber:   textToPtr(row.SerialNumber),
@@ -179,12 +185,7 @@ func (s *searchService) ListSBOMsByArtifact(ctx context.Context, artifactID pgty
 		items = append(items, summary)
 	}
 
-	return PagedResult[SBOMSummary]{
-		Data:   items,
-		Total:  total,
-		Limit:  limit,
-		Offset: offset,
-	}, nil
+	return CursorPage[SBOMSummary]{Data: items, HasMore: hasMore}, nil
 }
 
 // ListSBOMsByDigest returns SBOMs matching the given container image digest.
@@ -331,4 +332,51 @@ func (s *searchService) ListSBOMComponents(ctx context.Context, sbomID pgtype.UU
 	}
 
 	return items, nil
+}
+
+// ListSBOMComponentsPage returns a keyset page of an SBOM's components, ordered
+// by (name, group_name, id). Access is gated the same way as ListSBOMComponents.
+func (s *searchService) ListSBOMComponentsPage(ctx context.Context, sbomID pgtype.UUID, page ComponentPage, vis VisibilityFilter) (CursorPage[ComponentSummary], error) {
+	q := repository.New(s.db)
+
+	// Access check.
+	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
+		ID:      sbomID,
+		UserID:  vis.UserID,
+		IsAdmin: visAdminBool(vis),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return CursorPage[ComponentSummary]{}, ErrNotFound
+		}
+		return CursorPage[ComponentSummary]{}, fmt.Errorf("checking sbom visibility: %w", err)
+	}
+	if !visible {
+		return CursorPage[ComponentSummary]{}, ErrNotFound
+	}
+
+	// Fetch one extra row to detect whether a further page exists.
+	rows, err := q.ListSBOMComponentsPage(ctx, repository.ListSBOMComponentsPageParams{
+		SbomID:      sbomID,
+		HasCursor:   pgtype.Bool{Bool: page.HasCursor, Valid: true},
+		CursorName:  textOrNull(page.CursorName),
+		CursorGroup: pgtype.Text{String: page.CursorGroup, Valid: page.HasCursor},
+		CursorID:    uuidOrNull(page.CursorID),
+		RowLimit:    page.Limit + 1,
+	})
+	if err != nil {
+		return CursorPage[ComponentSummary]{}, fmt.Errorf("listing sbom components: %w", err)
+	}
+
+	hasMore := len(rows) > int(page.Limit)
+	if hasMore {
+		rows = rows[:page.Limit]
+	}
+
+	items := make([]ComponentSummary, 0, len(rows))
+	for _, c := range rows {
+		items = append(items, toComponentSummary(c.ID, sbomID, c.BomRef, c.Type, c.Name, c.GroupName, c.Version, c.Purl))
+	}
+
+	return CursorPage[ComponentSummary]{Data: items, HasMore: hasMore}, nil
 }

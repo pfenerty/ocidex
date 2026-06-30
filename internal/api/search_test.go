@@ -77,21 +77,15 @@ func (f *fakeSearchService) GetArtifact(_ context.Context, _ pgtype.UUID, _ serv
 	}, nil
 }
 
-func (f *fakeSearchService) ListArtifacts(_ context.Context, filter service.ArtifactFilter) (service.PagedResult[service.ArtifactSummary], error) {
-	return service.PagedResult[service.ArtifactSummary]{
-		Data:   []service.ArtifactSummary{{ID: "art1", Type: "container", Name: "ubuntu", SbomCount: 2}},
-		Total:  1,
-		Limit:  filter.Limit,
-		Offset: filter.Offset,
+func (f *fakeSearchService) ListArtifacts(_ context.Context, _ service.ArtifactFilter) (service.CursorPage[service.ArtifactSummary], error) {
+	return service.CursorPage[service.ArtifactSummary]{
+		Data: []service.ArtifactSummary{{ID: "art1", Type: "container", Name: "ubuntu", SbomCount: 2}},
 	}, nil
 }
 
-func (f *fakeSearchService) ListSBOMsByArtifact(_ context.Context, _ pgtype.UUID, _, _ string, limit, offset int32, _ service.VisibilityFilter) (service.PagedResult[service.SBOMSummary], error) {
-	return service.PagedResult[service.SBOMSummary]{
-		Data:   []service.SBOMSummary{{ID: "sbom1", SpecVersion: "1.5", Version: 1, CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)}},
-		Total:  1,
-		Limit:  limit,
-		Offset: offset,
+func (f *fakeSearchService) ListSBOMsByArtifact(_ context.Context, _ pgtype.UUID, _, _ string, _ service.SBOMByArtifactPage, _ service.VisibilityFilter) (service.CursorPage[service.SBOMSummary], error) {
+	return service.CursorPage[service.SBOMSummary]{
+		Data: []service.SBOMSummary{{ID: "sbom1", SpecVersion: "1.5", Version: 1, CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)}},
 	}, nil
 }
 
@@ -164,6 +158,12 @@ func (f *fakeSearchService) GetComponentVersions(_ context.Context, name, _, _, 
 func (f *fakeSearchService) ListSBOMComponents(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) ([]service.ComponentSummary, error) {
 	return []service.ComponentSummary{
 		{ID: "comp1", SbomID: "sbom1", Name: "test-lib", Type: "library"},
+	}, nil
+}
+
+func (f *fakeSearchService) ListSBOMComponentsPage(_ context.Context, _ pgtype.UUID, _ service.ComponentPage, _ service.VisibilityFilter) (service.CursorPage[service.ComponentSummary], error) {
+	return service.CursorPage[service.ComponentSummary]{
+		Data: []service.ComponentSummary{{ID: "comp1", SbomID: "sbom1", Name: "test-lib", Type: "library"}},
 	}, nil
 }
 
@@ -343,9 +343,10 @@ func TestListArtifacts(t *testing.T) {
 
 	is.Equal(w.Code, http.StatusOK)
 
-	var resp pagedBody
+	var resp cursorBody
 	is.NoErr(json.Unmarshal(w.Body.Bytes(), &resp))
-	is.Equal(resp.Pagination.Total, int64(1))
+	is.Equal(resp.Pagination.HasMore, false)
+	is.Equal(string(resp.Data), `[{"id":"art1","type":"container","name":"ubuntu","sbomCount":2,"sufficientSbomCount":0,"signingStatus":""}]`)
 }
 
 func TestGetArtifact(t *testing.T) {
@@ -384,9 +385,9 @@ func TestListArtifactSBOMs(t *testing.T) {
 
 	is.Equal(w.Code, http.StatusOK)
 
-	var resp pagedBody
+	var resp cursorBody
 	is.NoErr(json.Unmarshal(w.Body.Bytes(), &resp))
-	is.Equal(resp.Pagination.Total, int64(1))
+	is.Equal(resp.Pagination.HasMore, false)
 }
 
 func TestGetArtifactChangelog(t *testing.T) {

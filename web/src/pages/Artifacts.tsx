@@ -1,8 +1,8 @@
-import { createSignal, For } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import { A } from "@solidjs/router";
-import { useArtifacts } from "~/api/queries";
-import { QueryResult, EmptyState } from "~/components/Feedback";
-import Pagination from "~/components/Pagination";
+import { useArtifactsInfinite } from "~/api/queries";
+import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
+import LoadMore from "~/components/LoadMore";
 import { artifactDisplayName, plural } from "~/utils/format";
 
 const signingBadge = (status: string) => {
@@ -13,23 +13,21 @@ const signingBadge = (status: string) => {
 };
 
 export default function Artifacts() {
-    const [offset, setOffset] = createSignal(0);
     const [nameFilter, setNameFilter] = createSignal("");
     const [typeFilter, setTypeFilter] = createSignal("");
     const [showAll, setShowAll] = createSignal(false);
-    const limit = 50;
 
-    const query = useArtifacts(() => ({
+    const query = useArtifactsInfinite(() => ({
         name: nameFilter(),
         type: typeFilter(),
-        limit,
-        offset: offset(),
+        limit: 50,
         sufficient: showAll() ? false : true,
     }));
 
+    const artifacts = () => query.data?.pages.flatMap((p) => p.data ?? []) ?? [];
+
     const handleSearch = (e: Event) => {
         e.preventDefault();
-        setOffset(0);
     };
 
     return (
@@ -69,77 +67,72 @@ export default function Artifacts() {
                     <input
                         type="checkbox"
                         checked={showAll()}
-                        onChange={(e) => {
-                            setShowAll(e.currentTarget.checked);
-                            setOffset(0);
-                        }}
+                        onChange={(e) => setShowAll(e.currentTarget.checked)}
                     />
                     Show insufficiently enriched artifacts
                 </label>
             </div>
 
-            <QueryResult
-                query={query}
-                when={(d) => (d.data.length > 0 ? d : undefined)}
-                empty={
-                    <EmptyState
-                        title="No artifacts found"
-                        message="Ingest an SBOM to get started."
-                    />
-                }
-            >
-                {(d) => (
-                    <div class="card">
-                        <div class="table-wrapper">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Artifact</th>
-                                        <th>Type</th>
-                                        <th>Signing</th>
-                                        <th>SBOMs</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <For each={d().data}>
-                                        {(artifact) => (
-                                            <tr>
-                                                <td>
-                                                    <A
-                                                        href={`/artifacts/${artifact.id}`}
-                                                    >
-                                                        {artifactDisplayName(
-                                                            artifact,
-                                                        )}
-                                                    </A>
-                                                </td>
-                                                <td>
-                                                    <span class="badge">
-                                                        {artifact.type}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    {signingBadge(artifact.signingStatus)}
-                                                </td>
-                                                <td>
-                                                    {plural(
-                                                        artifact.sbomCount,
-                                                        "SBOM",
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </For>
-                                </tbody>
-                            </table>
+            <Show when={!query.isLoading} fallback={<Loading />}>
+                <Show
+                    when={!query.isError}
+                    fallback={<ErrorBox error={query.error} />}
+                >
+                    <Show
+                        when={artifacts().length > 0}
+                        fallback={
+                            <EmptyState
+                                title="No artifacts found"
+                                message="Ingest an SBOM to get started."
+                            />
+                        }
+                    >
+                        <div class="card">
+                            <div class="table-wrapper">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Artifact</th>
+                                            <th>Type</th>
+                                            <th>Signing</th>
+                                            <th>SBOMs</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <For each={artifacts()}>
+                                            {(artifact) => (
+                                                <tr>
+                                                    <td>
+                                                        <A href={`/artifacts/${artifact.id}`}>
+                                                            {artifactDisplayName(artifact)}
+                                                        </A>
+                                                    </td>
+                                                    <td>
+                                                        <span class="badge">
+                                                            {artifact.type}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        {signingBadge(artifact.signingStatus)}
+                                                    </td>
+                                                    <td>
+                                                        {plural(artifact.sbomCount, "SBOM")}
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </For>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <LoadMore
+                                hasMore={query.hasNextPage}
+                                loading={query.isFetchingNextPage}
+                                onClick={() => void query.fetchNextPage()}
+                            />
                         </div>
-                        <Pagination
-                            pagination={d().pagination}
-                            onPageChange={setOffset}
-                        />
-                    </div>
-                )}
-            </QueryResult>
+                    </Show>
+                </Show>
+            </Show>
         </>
     );
 }

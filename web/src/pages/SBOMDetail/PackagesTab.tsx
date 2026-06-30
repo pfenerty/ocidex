@@ -3,6 +3,7 @@ import { createSignal, createMemo, Show, For } from "solid-js";
 import { A } from "@solidjs/router";
 import type { ComponentSummary, DependencyEdge } from "~/api/client";
 import { EmptyState } from "~/components/Feedback";
+import LoadMore from "~/components/LoadMore";
 import PurlLink from "~/components/PurlLink";
 import { plural } from "~/utils/format";
 import { parsePurl } from "~/utils/purl";
@@ -14,12 +15,15 @@ import { parsePurl } from "~/utils/purl";
 export function PackagesTab(props: {
     components: ComponentSummary[];
     depsGraph?: { edges: DependencyEdge[]; nodes: ComponentSummary[] };
+    // Keyset load-more over the (server-paginated) component list. The text and
+    // type filters apply only to already-loaded packages.
+    hasMore?: boolean;
+    loadingMore?: boolean;
+    onLoadMore?: () => void;
 }) {
     const [filter, setFilter] = createSignal("");
     const [typeFilter, setTypeFilter] = createSignal("all");
-    const [page, setPage] = createSignal(0);
     const [viewMode, setViewMode] = createSignal<"tree" | "list">("tree");
-    const pageSize = 50;
 
     const ecoType = (c: ComponentSummary) =>
         parsePurl(c.purl ?? "")?.type ?? c.type;
@@ -52,19 +56,8 @@ export function PackagesTab(props: {
         });
     });
 
-    const pageCount = () =>
-        Math.max(1, Math.ceil(filtered().length / pageSize));
-    const paged = () =>
-        filtered().slice(page() * pageSize, (page() + 1) * pageSize);
-
-    const updateFilter = (v: string) => {
-        setFilter(v);
-        setPage(0);
-    };
-    const updateType = (v: string) => {
-        setTypeFilter(v);
-        setPage(0);
-    };
+    const updateFilter = (v: string) => setFilter(v);
+    const updateType = (v: string) => setTypeFilter(v);
 
     const hasTree = () => (props.depsGraph?.edges.length ?? 0) > 0;
     const effectiveMode = () => (hasTree() ? viewMode() : "list");
@@ -142,7 +135,7 @@ export function PackagesTab(props: {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <For each={paged()}>
+                                        <For each={filtered()}>
                                             {(c) => (
                                                 <tr>
                                                     <td>
@@ -188,27 +181,11 @@ export function PackagesTab(props: {
                                 </table>
                             </div>
 
-                            <Show when={pageCount() > 1}>
-                                <div class="pagination">
-                                    <span>
-                                        Page {page() + 1} of {pageCount()}
-                                    </span>
-                                    <div class="pagination-controls">
-                                        <button
-                                            disabled={page() === 0}
-                                            onClick={() => setPage(page() - 1)}
-                                        >
-                                            ← Prev
-                                        </button>
-                                        <button
-                                            disabled={page() >= pageCount() - 1}
-                                            onClick={() => setPage(page() + 1)}
-                                        >
-                                            Next →
-                                        </button>
-                                    </div>
-                                </div>
-                            </Show>
+                            <LoadMore
+                                hasMore={props.hasMore ?? false}
+                                loading={props.loadingMore ?? false}
+                                onClick={() => props.onLoadMore?.()}
+                            />
                         </>
                     }
                 >

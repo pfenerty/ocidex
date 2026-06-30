@@ -1,5 +1,5 @@
 import { createMemo, type Accessor } from "solid-js";
-import { createQuery } from "@tanstack/solid-query";
+import { createQuery, createInfiniteQuery } from "@tanstack/solid-query";
 import { client, unwrap } from "~/api/client";
 import type { ArtifactSummary } from "~/api/client";
 
@@ -9,24 +9,24 @@ import type { ArtifactSummary } from "~/api/client";
 
 export interface UseArtifactsParams {
     limit?: number;
-    offset?: number;
     name?: string;
     type?: string;
     sufficient?: boolean;
 }
 
+/** Single-page artifact fetch (first keyset page). Used where the full bounded
+ *  list is wanted without paging UI (e.g. the diff picker). */
 export function useArtifacts(params: Accessor<UseArtifactsParams>) {
     return createQuery(() => {
         const p = params();
         return {
-            queryKey: ["artifacts", p.name, p.type, p.limit, p.offset, p.sufficient] as const,
+            queryKey: ["artifacts", p.name, p.type, p.limit, p.sufficient] as const,
             queryFn: () =>
                 unwrap(
                     client.GET("/api/v1/artifacts", {
                         params: {
                             query: {
                                 limit: p.limit,
-                                offset: p.offset,
                                 name: p.name !== "" ? p.name : undefined,
                                 type: p.type !== "" ? p.type : undefined,
                                 sufficient: p.sufficient !== undefined ? String(p.sufficient) : undefined,
@@ -36,6 +36,33 @@ export function useArtifacts(params: Accessor<UseArtifactsParams>) {
                 ),
             keepPreviousData: true,
             select: (resp) => ({ ...resp, data: resp.data ?? [] }),
+        };
+    });
+}
+
+/** Keyset (load-more) artifact list. Pages accumulate; follow nextCursor. */
+export function useArtifactsInfinite(params: Accessor<UseArtifactsParams>) {
+    return createInfiniteQuery(() => {
+        const p = params();
+        return {
+            queryKey: ["artifacts-infinite", p.name, p.type, p.limit, p.sufficient] as const,
+            queryFn: ({ pageParam }: { pageParam: string }) =>
+                unwrap(
+                    client.GET("/api/v1/artifacts", {
+                        params: {
+                            query: {
+                                limit: p.limit,
+                                cursor: pageParam !== "" ? pageParam : undefined,
+                                name: p.name !== "" ? p.name : undefined,
+                                type: p.type !== "" ? p.type : undefined,
+                                sufficient: p.sufficient !== undefined ? String(p.sufficient) : undefined,
+                            },
+                        },
+                    }),
+                ),
+            initialPageParam: "",
+            getNextPageParam: (last: { pagination?: { hasMore?: boolean; nextCursor?: string | null } }) =>
+                last.pagination?.hasMore === true ? (last.pagination.nextCursor ?? undefined) : undefined,
         };
     });
 }
@@ -62,11 +89,12 @@ export function useArtifact(id: Accessor<string>) {
 
 export interface UseArtifactSBOMsParams {
     limit?: number;
-    offset?: number;
     subject_version?: string;
     image_version?: string;
 }
 
+/** First keyset page of an artifact's SBOMs. Consumers (diff picker, version
+ *  history, arch siblings) want a single bounded page, so no cursor is paged. */
 export function useArtifactSBOMs(
     id: Accessor<string>,
     params: Accessor<UseArtifactSBOMsParams>,
@@ -82,7 +110,6 @@ export function useArtifactSBOMs(
                 p.subject_version,
                 p.image_version,
                 p.limit,
-                p.offset,
             ] as const,
             queryFn: () =>
                 unwrap(
@@ -91,7 +118,6 @@ export function useArtifactSBOMs(
                             path: { id: id() },
                             query: {
                                 limit: p.limit,
-                                offset: p.offset,
                                 subject_version: p.subject_version !== "" ? p.subject_version : undefined,
                                 image_version: p.image_version !== "" ? p.image_version : undefined,
                             },

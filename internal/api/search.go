@@ -95,14 +95,26 @@ func (h *Handler) ListSBOMComponents(ctx context.Context, input *ListSBOMCompone
 		return nil, err
 	}
 
+	parts, hasCursor, err := decodeStringCursor(input.Cursor, 3)
+	if err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
+	}
+	page := service.ComponentPage{Limit: input.Limit, HasCursor: hasCursor}
+	if hasCursor {
+		page.CursorName, page.CursorGroup, page.CursorID = parts[0], parts[1], parts[2]
+	}
+
 	vis := visibilityFilterFromContext(ctx)
-	components, err := h.searchService.ListSBOMComponents(ctx, id, vis)
+	result, err := h.searchService.ListSBOMComponentsPage(ctx, id, page, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
 
 	out := &ListSBOMComponentsOutput{}
-	out.Body.Components = components
+	out.Body.Components = result.Data
+	out.Body.Pagination = cursorMeta(result.Data, result.HasMore, input.Limit, func(c service.ComponentSummary) string {
+		return encodeStringCursor(c.Name, derefOr(c.Group, ""), c.ID)
+	})
 	return out, nil
 }
 
@@ -260,6 +272,11 @@ func (h *Handler) ListComponentsByLicense(ctx context.Context, input *ListCompon
 
 // ListArtifacts handles GET /api/v1/artifacts.
 func (h *Handler) ListArtifacts(ctx context.Context, input *ListArtifactsInput) (*ListArtifactsOutput, error) {
+	parts, hasCursor, err := decodeStringCursor(input.Cursor, 3)
+	if err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
+	}
+
 	// Default to showing only sufficiently enriched artifacts; opt out with ?sufficient=false.
 	requireSufficient := input.Sufficient != "false"
 	filter := service.ArtifactFilter{
@@ -267,8 +284,11 @@ func (h *Handler) ListArtifacts(ctx context.Context, input *ListArtifactsInput) 
 		Name:              input.Name,
 		RequireSufficient: requireSufficient,
 		Limit:             input.Limit,
-		Offset:            input.Offset,
+		HasCursor:         hasCursor,
 		Visibility:        visibilityFilterFromContext(ctx),
+	}
+	if hasCursor {
+		filter.CursorName, filter.CursorType, filter.CursorID = parts[0], parts[1], parts[2]
 	}
 
 	result, err := h.searchService.ListArtifacts(ctx, filter)
@@ -278,7 +298,9 @@ func (h *Handler) ListArtifacts(ctx context.Context, input *ListArtifactsInput) 
 
 	out := &ListArtifactsOutput{}
 	out.Body.Data = result.Data
-	out.Body.Pagination = paginationMeta(result)
+	out.Body.Pagination = cursorMeta(result.Data, result.HasMore, input.Limit, func(a service.ArtifactSummary) string {
+		return encodeStringCursor(a.Name, a.Type, a.ID)
+	})
 	return out, nil
 }
 
@@ -307,15 +329,28 @@ func (h *Handler) ListArtifactSBOMs(ctx context.Context, input *ListArtifactSBOM
 		return nil, err
 	}
 
+	cur, hasCursor, err := decodeTimeIDCursor(input.Cursor)
+	if err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
+	}
+	page := service.SBOMByArtifactPage{
+		Limit:           input.Limit,
+		HasCursor:       hasCursor,
+		CursorCreatedAt: cur.CreatedAt,
+		CursorID:        cur.ID,
+	}
+
 	vis := visibilityFilterFromContext(ctx)
-	result, err := h.searchService.ListSBOMsByArtifact(ctx, id, input.SubjectVersion, input.ImageVersion, input.Limit, input.Offset, vis)
+	result, err := h.searchService.ListSBOMsByArtifact(ctx, id, input.SubjectVersion, input.ImageVersion, page, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
 
 	out := &ListArtifactSBOMsOutput{}
 	out.Body.Data = result.Data
-	out.Body.Pagination = paginationMeta(result)
+	out.Body.Pagination = cursorMeta(result.Data, result.HasMore, input.Limit, func(s service.SBOMSummary) string {
+		return encodeTimeIDCursor(s.CreatedAt, s.ID)
+	})
 	return out, nil
 }
 
