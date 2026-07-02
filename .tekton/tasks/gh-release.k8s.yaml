@@ -91,5 +91,6 @@ spec:
         } catch { |e|
           log $"report-status [gh-release]: error: ($e.msg)"
         }
+        exit $exit_code
   workspaces:
     - name: workspace

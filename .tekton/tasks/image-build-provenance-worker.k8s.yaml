@@ -182,6 +182,7 @@ spec:
         } catch { |e|
           log $"report-status [image-build-provenance-worker]: error: ($e.msg)"
         }
+        exit $exit_code
   volumes:
     - name: docker-config
       secret:
