@@ -7,6 +7,10 @@ image:
   # Override with --set image.tag=<tag> to pin a specific version.
   tag: ""
   pullPolicy: IfNotPresent
+  # digest pins the operator image to an immutable sha256 digest and is baked in at
+  # release-package time by the helm-release CI task (release builds only; empty for
+  # main/dev sha builds). An explicit image.tag takes precedence over digest.
+  digest: ""
 
 # server.url is the base URL of the OCIDex API server (OCIDEX_SERVER).
 # Example: "http://ocidex-api.ocidex.svc.cluster.local:8080"
