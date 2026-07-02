@@ -10,6 +10,9 @@ export const helmRelease = new Task({
   volumes: [dockerConfigVolume],
   steps: [
     {
+      // Single step: resolve image digests, bake them into chart values, package,
+      // and push — all under `set -e`, so a failed digest resolve aborts before any
+      // chart is published (never ship a partially-pinned chart).
       name: "package-and-push",
       image: "alpine/helm:3",
       workingDir: "$(workspaces.workspace.path)",
