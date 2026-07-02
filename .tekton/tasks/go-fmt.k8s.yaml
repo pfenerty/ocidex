@@ -76,5 +76,6 @@ spec:
         } catch { |e|
           log $"report-status [go-fmt]: error: ($e.msg)"
         }
+        exit $exit_code
   workspaces:
     - name: workspace

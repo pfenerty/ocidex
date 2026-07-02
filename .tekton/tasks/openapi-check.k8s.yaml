@@ -117,5 +117,6 @@ spec:
         } catch { |e|
           log $"report-status [openapi-check]: error: ($e.msg)"
         }
+        exit $exit_code
   workspaces:
     - name: workspace
