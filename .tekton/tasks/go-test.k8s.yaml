@@ -155,6 +155,7 @@ spec:
         } catch { |e|
           log $"report-status [go-test]: error: ($e.msg)"
         }
+        exit $exit_code
   workspaces:
     - name: go-cache
     - name: workspace

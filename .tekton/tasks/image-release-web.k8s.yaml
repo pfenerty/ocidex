@@ -189,6 +189,7 @@ spec:
         } catch { |e|
           log $"report-status [image-release-web]: error: ($e.msg)"
         }
+        exit $exit_code
   volumes:
     - name: docker-config
       secret:
