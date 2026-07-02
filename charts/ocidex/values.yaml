@@ -15,6 +15,12 @@ image:
   # Override with --set image.tag=<tag> to pin a specific version.
   tag: ""
   pullPolicy: IfNotPresent
+  # digests pins each component to an immutable sha256 digest and is baked in at
+  # release-package time by the helm-release CI task (release builds only; empty for
+  # main/dev sha builds). An explicit image.tag takes precedence over digests.
+  # Keys are the component names: api, scanner-worker, enrichment-worker,
+  # oci-metadata-worker, user-enricher-worker, provenance-worker, web.
+  digests: {}
 
 # --- Secrets -----------------------------------------------------------------
 # Name of a pre-created Secret containing DATABASE_URL, GITHUB_CLIENT_ID,

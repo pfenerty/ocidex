@@ -58,12 +58,25 @@ Usage: {{ include "ocidex.imageTag" . }}
 
 {{/*
 Full image reference for a named component.
+Precedence: explicit .Values.image.tag > per-component .Values.image.digests.<name> >
+Chart.AppVersion. The digest form (populated at release-package time) pins releases to an
+immutable ...@sha256:... ref; an explicit tag still wins so dev can override with :main.
 Usage: {{ include "ocidex.image" (dict "root" . "name" "api") }}
 */}}
 {{- define "ocidex.image" -}}
+{{- $base := printf "ocidex-%s" .name -}}
 {{- if .root.Values.image.registry -}}
-{{ .root.Values.image.registry }}/ocidex-{{ .name }}:{{ include "ocidex.imageTag" .root }}
+{{- $base = printf "%s/%s" .root.Values.image.registry $base -}}
+{{- end -}}
+{{- $digest := "" -}}
+{{- if .root.Values.image.digests -}}
+{{- $digest = index .root.Values.image.digests .name -}}
+{{- end -}}
+{{- if .root.Values.image.tag -}}
+{{ $base }}:{{ .root.Values.image.tag }}
+{{- else if $digest -}}
+{{ $base }}@{{ $digest }}
 {{- else -}}
-ocidex-{{ .name }}:{{ include "ocidex.imageTag" .root }}
+{{ $base }}:{{ .root.Chart.AppVersion }}
 {{- end -}}
 {{- end }}
