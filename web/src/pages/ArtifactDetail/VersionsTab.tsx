@@ -3,13 +3,7 @@ import { A } from "@solidjs/router";
 import type { ArtifactVersionSummary, PaginationMeta } from "~/api/client";
 import Pagination from "~/components/Pagination";
 import { relativeDate } from "~/utils/format";
-
-const signingBadge = (status: string) => {
-    if (status === "verified") return <span class="badge badge-success">Verified</span>;
-    if (status === "verification_failed") return <span class="badge badge-danger">Verification failed</span>;
-    if (status === "signed")   return <span class="badge badge-warning">Signed</span>;
-    return <span class="badge">Unsigned</span>;
-};
+import { SigningBadge } from "~/components/ui";
 
 export function VersionsTab(props: {
     artifactId: string;
@@ -104,7 +98,7 @@ export function VersionsTab(props: {
                                         </Show>
                                     </td>
                                     <td>
-                                        {signingBadge(version.signingStatus)}
+                                        <SigningBadge status={version.signingStatus} />
                                     </td>
                                     <td>
                                         <Show

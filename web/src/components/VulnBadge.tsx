@@ -1,19 +1,25 @@
 import "./VulnBadge.css";
 import { Show, For } from "solid-js";
 import type { VulnSummary } from "~/api/client";
+import { StatusPill } from "~/components/ui/Badge";
+import type { BadgeVariant } from "~/components/ui/Badge";
 
-// severityBadgeClass maps a severity label to a badge variant from the design
-// system. CRITICAL/HIGH read as danger, MEDIUM as warning, everything else muted.
-export function severityBadgeClass(severity: string | undefined): string {
+export function severityVariant(severity: string | undefined): BadgeVariant {
     switch ((severity ?? "").toUpperCase()) {
         case "CRITICAL":
         case "HIGH":
-            return "badge-danger";
+            return "danger";
         case "MEDIUM":
-            return "badge-warning";
+            return "warning";
         default:
-            return "badge";
+            return "default";
     }
+}
+
+// severityBadgeClass is kept for backward compatibility.
+export function severityBadgeClass(severity: string | undefined): string {
+    const v = severityVariant(severity);
+    return v === "default" ? "badge" : `badge-${v}`;
 }
 
 // VulnBadge renders a per-component vulnerability indicator: the count coloured
@@ -21,12 +27,12 @@ export function severityBadgeClass(severity: string | undefined): string {
 export function VulnBadge(props: { count: number | undefined; maxSeverity: string | undefined }) {
     return (
         <Show when={(props.count ?? 0) > 0} fallback={<span class="text-muted">—</span>}>
-            <span
-                class={`badge badge-sm ${severityBadgeClass(props.maxSeverity)}`}
+            <StatusPill
+                variant={severityVariant(props.maxSeverity)}
                 title={`${props.count} known ${props.count === 1 ? "vulnerability" : "vulnerabilities"} (max ${(props.maxSeverity ?? "unknown").toLowerCase()})`}
             >
                 {props.count} {(props.maxSeverity ?? "").toLowerCase() || "vuln"}
-            </span>
+            </StatusPill>
         </Show>
     );
 }
@@ -54,9 +60,9 @@ export function VulnSummaryBar(props: { summary: VulnSummary | undefined }) {
                 </span>
                 <For each={cells()}>
                     {(c) => (
-                        <span class={`badge badge-sm ${severityBadgeClass(c.severity)}`}>
+                        <StatusPill variant={severityVariant(c.severity)}>
                             {c.count} {c.label.toLowerCase()}
-                        </span>
+                        </StatusPill>
                     )}
                 </For>
             </div>

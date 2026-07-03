@@ -4,13 +4,7 @@ import { useArtifactsInfinite } from "~/api/queries";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
 import LoadMore from "~/components/LoadMore";
 import { artifactDisplayName, plural } from "~/utils/format";
-
-const signingBadge = (status: string) => {
-    if (status === "verified") return <span class="badge badge-success">Verified</span>;
-    if (status === "verification_failed") return <span class="badge badge-danger">Verification failed</span>;
-    if (status === "signed")   return <span class="badge badge-warning">Signed</span>;
-    return <span class="badge">Unsigned</span>;
-};
+import { SigningBadge, TypeBadge } from "~/components/ui";
 
 export default function Artifacts() {
     const [nameFilter, setNameFilter] = createSignal("");
@@ -108,12 +102,10 @@ export default function Artifacts() {
                                                         </A>
                                                     </td>
                                                     <td>
-                                                        <span class="badge">
-                                                            {artifact.type}
-                                                        </span>
+                                                        <TypeBadge type={artifact.type} />
                                                     </td>
                                                     <td>
-                                                        {signingBadge(artifact.signingStatus)}
+                                                        <SigningBadge status={artifact.signingStatus} />
                                                     </td>
                                                     <td>
                                                         {plural(artifact.sbomCount, "SBOM")}
