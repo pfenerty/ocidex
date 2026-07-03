@@ -9,6 +9,20 @@ import (
 	"github.com/caarlos0/env/v11"
 )
 
+// parseSlogLevel maps a log-level string to its slog.Level (default Info).
+func parseSlogLevel(level string) slog.Level {
+	switch level {
+	case "debug":
+		return slog.LevelDebug
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
+
 // Config holds all application configuration.
 type Config struct {
 	Port               int    `env:"PORT"            envDefault:"8080"`
@@ -83,6 +97,42 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
+// VulnWorkerConfig holds configuration for the vulnerability refresh worker
+// (cmd/vuln-worker). It talks only to Postgres and OSV.dev — no NATS — so it has
+// its own loader rather than the NATS-requiring Config.
+type VulnWorkerConfig struct {
+	LogLevel         string `env:"LOG_LEVEL"    envDefault:"info"`
+	Environment      string `env:"ENVIRONMENT"  envDefault:"development"`
+	DatabaseURL      string `env:"DATABASE_URL,required"`
+	DatabaseMaxConns int    `env:"DATABASE_MAX_CONNECTIONS" envDefault:"5"`
+
+	// OSVBaseURL is the OSV.dev API base URL.
+	OSVBaseURL string `env:"OSV_BASE_URL" envDefault:"https://api.osv.dev"`
+	// OSVTimeout bounds a single OSV HTTP request.
+	OSVTimeout time.Duration `env:"OSV_TIMEOUT" envDefault:"30s"`
+	// OSVBatchSize is the querybatch chunk size (OSV allows up to 1000).
+	OSVBatchSize int `env:"OSV_BATCH_SIZE" envDefault:"1000"`
+
+	// RefreshEnabled gates the scheduled refresh loop.
+	RefreshEnabled bool `env:"VULN_REFRESH_ENABLED" envDefault:"true"`
+	// RefreshInterval is the minimum time between full refreshes.
+	RefreshInterval time.Duration `env:"VULN_REFRESH_INTERVAL" envDefault:"6h"`
+}
+
+// LoadVulnWorker reads vuln-worker configuration from environment variables.
+func LoadVulnWorker() (*VulnWorkerConfig, error) {
+	cfg := &VulnWorkerConfig{}
+	if err := env.Parse(cfg); err != nil {
+		return nil, fmt.Errorf("parsing config: %w", err)
+	}
+	return cfg, nil
+}
+
+// SlogLevel returns the slog.Level for a VulnWorkerConfig.
+func (c *VulnWorkerConfig) SlogLevel() slog.Level {
+	return parseSlogLevel(c.LogLevel)
+}
+
 // OperatorConfig holds the subset of configuration needed by the K8s operator.
 // The operator communicates only with the OCIDex API — it does not require a
 // database connection or NATS.
@@ -102,16 +152,7 @@ func LoadOperator() (*OperatorConfig, error) {
 
 // SlogLevel returns the slog.Level for an OperatorConfig.
 func (c *OperatorConfig) SlogLevel() slog.Level {
-	switch c.LogLevel {
-	case "debug":
-		return slog.LevelDebug
-	case "warn":
-		return slog.LevelWarn
-	case "error":
-		return slog.LevelError
-	default:
-		return slog.LevelInfo
-	}
+	return parseSlogLevel(c.LogLevel)
 }
 
 func (c *Config) validate() error {
@@ -123,14 +164,5 @@ func (c *Config) validate() error {
 
 // LogLevel returns the slog.Level corresponding to the configured log level string.
 func (c *Config) SlogLevel() slog.Level {
-	switch c.LogLevel {
-	case "debug":
-		return slog.LevelDebug
-	case "warn":
-		return slog.LevelWarn
-	case "error":
-		return slog.LevelError
-	default:
-		return slog.LevelInfo
-	}
+	return parseSlogLevel(c.LogLevel)
 }

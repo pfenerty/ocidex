@@ -1,0 +1,73 @@
+{{- /*
+Vulnerability worker Deployment. Runs cmd/vuln-worker, which refreshes the
+package-keyed vulnerability store from OSV.dev on a schedule. Singleton by design:
+service.LeaderElect (a Postgres advisory lock) ensures only one replica refreshes
+at a time, so this never needs KEDA and carries no NATS config.
+*/ -}}
+{{- if .Values.vulnWorker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ocidex.fullname" . }}-vuln-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ocidex.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vuln-worker
+spec:
+  replicas: {{ .Values.vulnWorker.replicas }}
+  selector:
+    matchLabels:
+      {{- include "ocidex.selectorLabels" (dict "root" . "component" "vuln-worker") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ocidex.podLabels" (dict "root" . "component" "vuln-worker") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "ocidex.fullname" . }}
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: vuln-worker
+          image: {{ include "ocidex.image" (dict "root" . "name" "vuln-worker") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: health
+              containerPort: 9090
+          resources:
+            {{- toYaml .Values.vulnWorker.resources | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.existingSecret }}
+          env:
+            - name: DATABASE_MAX_CONNECTIONS
+              value: {{ .Values.vulnWorker.env.databaseMaxConnections | quote }}
+            - name: ENVIRONMENT
+              value: {{ .Values.vulnWorker.env.environment | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.vulnWorker.env.logLevel | quote }}
+            - name: VULN_REFRESH_ENABLED
+              value: {{ .Values.vulnWorker.env.refreshEnabled | quote }}
+            - name: VULN_REFRESH_INTERVAL
+              value: {{ .Values.vulnWorker.env.refreshInterval | quote }}
+            - name: OSV_BASE_URL
+              value: {{ .Values.vulnWorker.env.osvBaseURL | quote }}
+            - name: OSV_TIMEOUT
+              value: {{ .Values.vulnWorker.env.osvTimeout | quote }}
+            - name: OSV_BATCH_SIZE
+              value: {{ .Values.vulnWorker.env.osvBatchSize | quote }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+{{- end }}

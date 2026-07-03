@@ -108,6 +108,7 @@ const imageSpecs: ImageSpec[] = [
   ["oci-metadata-worker", "docker/Dockerfile", "OCIDex OCI Metadata Worker", "OCI image metadata enricher", "oci-metadata-worker"],
   ["user-enricher-worker", "docker/Dockerfile", "OCIDex User Enricher Worker", "User-defined enrichment worker", "user-enricher-worker"],
   ["provenance-worker", "docker/Dockerfile", "OCIDex Provenance Worker", "OCI image provenance verification worker", "provenance-worker"],
+  ["vuln-worker", "docker/Dockerfile", "OCIDex Vulnerability Worker", "Scheduled OSV.dev vulnerability store refresher", "vuln-worker"],
   ["web", "docker/web/Dockerfile", "OCIDex Web UI", "SolidJS frontend for OCIDex"],
   ["operator", "docker/Dockerfile", "OCIDex Operator", "Kubernetes operator for OCIDex CRDs", "operator"],
 ];
