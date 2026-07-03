@@ -29,9 +29,15 @@ func (s *PGStore) ListDistinctComponentPurls(ctx context.Context) ([]string, err
 
 // UpsertVulnerability inserts or updates one vulnerability record.
 func (s *PGStore) UpsertVulnerability(ctx context.Context, v Row) error {
+	// aliases is NOT NULL: a nil slice encodes as SQL NULL (the column DEFAULT
+	// only applies when the column is omitted), so coalesce to an empty array.
+	aliases := v.Aliases
+	if aliases == nil {
+		aliases = []string{}
+	}
 	return s.q.UpsertVulnerability(ctx, repository.UpsertVulnerabilityParams{
 		ID:          v.ID,
-		Aliases:     v.Aliases,
+		Aliases:     aliases,
 		Summary:     text(v.Summary),
 		Details:     text(v.Details),
 		Severity:    text(v.Severity),
