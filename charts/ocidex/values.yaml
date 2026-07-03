@@ -95,6 +95,30 @@ enrichmentWorker:
       cpu: "250m"
       memory: "128Mi"
 
+# --- Vulnerability worker ----------------------------------------------------
+# Scheduled OSV.dev refresh of the package-keyed vulnerability store. Singleton:
+# a Postgres advisory lock (service.LeaderElect) makes >1 replica safe, but 1 is
+# sufficient. Talks only to Postgres and OSV.dev — no NATS, no KEDA.
+vulnWorker:
+  enabled: true
+  replicas: 1
+  env:
+    databaseMaxConnections: "3"
+    logLevel: info
+    environment: production
+    refreshEnabled: "true"
+    refreshInterval: "6h"
+    osvBaseURL: "https://api.osv.dev"
+    osvTimeout: "30s"
+    osvBatchSize: "1000"
+  resources:
+    requests:
+      cpu: "20m"
+      memory: "32Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+
 # --- Web frontend ------------------------------------------------------------
 web:
   replicas: 1
