@@ -447,6 +447,18 @@ type GetArtifactLicenseSummaryOutput struct {
 	}
 }
 
+// GetArtifactVulnSummaryInput is the request for GET /api/v1/artifacts/{id}/vuln-summary.
+type GetArtifactVulnSummaryInput struct {
+	ID string `path:"id" doc:"Artifact UUID" format:"uuid"`
+}
+
+// GetArtifactVulnSummaryOutput is the response for GET /api/v1/artifacts/{id}/vuln-summary.
+type GetArtifactVulnSummaryOutput struct {
+	Body struct {
+		Summary *service.VulnSummary `json:"summary"`
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Stats — Dashboard Summary
 // ---------------------------------------------------------------------------

@@ -35,6 +35,7 @@ type SearchService interface {
 	ListComponentPurlTypes(ctx context.Context, vis VisibilityFilter) ([]string, error)
 	GetDashboardStats(ctx context.Context, vis VisibilityFilter) (*DashboardStats, error)
 	ListTopVulnerabilities(ctx context.Context, filter TopVulnFilter) (PagedResult[TopVulnEntry], error)
+	GetArtifactVulnSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (*VulnSummary, error)
 }
 
 // DashboardStats holds aggregated metrics for the dashboard.

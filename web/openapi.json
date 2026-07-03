@@ -1500,6 +1500,27 @@
         ],
         "type": "object"
       },
+      "GetArtifactVulnSummaryOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/GetArtifactVulnSummaryOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/VulnSummary"
+          }
+        },
+        "required": [
+          "summary"
+        ],
+        "type": "object"
+      },
       "GetComponentVersionsOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -3994,6 +4015,50 @@
           }
         },
         "summary": "List versions for an artifact",
+        "tags": [
+          "Artifacts"
+        ]
+      }
+    },
+    "/api/v1/artifacts/{id}/vuln-summary": {
+      "get": {
+        "operationId": "get-artifact-vuln-summary",
+        "parameters": [
+          {
+            "description": "Artifact UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Artifact UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetArtifactVulnSummaryOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get artifact vulnerability summary",
         "tags": [
           "Artifacts"
         ]

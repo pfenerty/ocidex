@@ -326,6 +326,14 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Summary:     "Get artifact license summary",
 		Tags:        []string{"Artifacts"},
 	}, h.GetArtifactLicenseSummary)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-artifact-vuln-summary",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/artifacts/{id}/vuln-summary",
+		Summary:     "Get artifact vulnerability summary",
+		Tags:        []string{"Artifacts"},
+	}, h.GetArtifactVulnSummary)
 }
 
 // ---------------------------------------------------------------------------
