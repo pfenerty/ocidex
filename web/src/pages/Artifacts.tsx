@@ -1,10 +1,16 @@
-import { createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For, Show } from "solid-js";
 import { A } from "@solidjs/router";
 import { useArtifactsInfinite } from "~/api/queries";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
 import LoadMore from "~/components/LoadMore";
 import { artifactDisplayName, plural } from "~/utils/format";
 import { SigningBadge, TypeBadge } from "~/components/ui";
+import type { ArtifactSummary } from "~/api/client";
+
+function extractNamespace(name: string): string {
+    const parts = name.split("/");
+    return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : parts[0];
+}
 
 export default function Artifacts() {
     const [nameFilter, setNameFilter] = createSignal("");
@@ -19,6 +25,20 @@ export default function Artifacts() {
     }));
 
     const artifacts = () => query.data?.pages.flatMap((p) => p.data ?? []) ?? [];
+
+    const grouped = createMemo(() => {
+        const map = new Map<string, ArtifactSummary[]>();
+        for (const a of artifacts()) {
+            const ns = extractNamespace(a.name);
+            const bucket = map.get(ns);
+            if (bucket) {
+                bucket.push(a);
+            } else {
+                map.set(ns, [a]);
+            }
+        }
+        return [...map.entries()];
+    });
 
     const handleSearch = (e: Event) => {
         e.preventDefault();
@@ -81,41 +101,51 @@ export default function Artifacts() {
                             />
                         }
                     >
-                        <div class="card">
-                            <div class="table-wrapper">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Artifact</th>
-                                            <th>Type</th>
-                                            <th>Signing</th>
-                                            <th>SBOMs</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <For each={artifacts()}>
-                                            {(artifact) => (
-                                                <tr>
-                                                    <td>
-                                                        <A href={`/artifacts/${artifact.id}`}>
-                                                            {artifactDisplayName(artifact)}
-                                                        </A>
-                                                    </td>
-                                                    <td>
-                                                        <TypeBadge type={artifact.type} />
-                                                    </td>
-                                                    <td>
-                                                        <SigningBadge status={artifact.signingStatus} />
-                                                    </td>
-                                                    <td>
-                                                        {plural(artifact.sbomCount, "SBOM")}
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </For>
-                                    </tbody>
-                                </table>
-                            </div>
+                        <div style={{ display: "flex", "flex-direction": "column", gap: "1rem" }}>
+                            <For each={grouped()}>
+                                {([ns, items]) => (
+                                    <details class="card" open>
+                                        <summary class="card-summary">
+                                            <span style={{ "font-weight": "600", "margin-right": "0.5rem" }}>{ns}</span>
+                                            <span class="badge">{items.length}</span>
+                                        </summary>
+                                        <div class="table-wrapper">
+                                            <table>
+                                                <thead>
+                                                    <tr>
+                                                        <th>Artifact</th>
+                                                        <th>Type</th>
+                                                        <th>Signing</th>
+                                                        <th>SBOMs</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <For each={items}>
+                                                        {(artifact) => (
+                                                            <tr>
+                                                                <td>
+                                                                    <A href={`/artifacts/${artifact.id}`}>
+                                                                        {artifactDisplayName(artifact)}
+                                                                    </A>
+                                                                </td>
+                                                                <td>
+                                                                    <TypeBadge type={artifact.type} />
+                                                                </td>
+                                                                <td>
+                                                                    <SigningBadge status={artifact.signingStatus} />
+                                                                </td>
+                                                                <td>
+                                                                    {plural(artifact.sbomCount, "SBOM")}
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                    </For>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </details>
+                                )}
+                            </For>
                             <LoadMore
                                 hasMore={query.hasNextPage}
                                 loading={query.isFetchingNextPage}
