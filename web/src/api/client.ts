@@ -72,6 +72,7 @@ export type DashboardStats = components["schemas"]["DashboardStatsOutputBody"];
 export type CategoryCountEntry = components["schemas"]["CategoryCountEntry"];
 export type DailyCountEntry = components["schemas"]["DailyCountEntry"];
 export type PackageSummaryEntry = components["schemas"]["PackageSummaryEntry"];
+export type TopVulnEntry = components["schemas"]["TopVulnEntry"];
 
 /**
  * Client-side type for OCI image metadata stored in SBOM enrichments.
