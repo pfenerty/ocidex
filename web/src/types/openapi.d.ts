@@ -221,6 +221,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/artifacts/{id}/vuln-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get artifact vulnerability summary */
+        get: operations["get-artifact-vuln-summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/keys": {
         parameters: {
             query?: never;
@@ -1310,6 +1327,15 @@ export interface components {
              */
             readonly $schema?: string;
             licenses: components["schemas"]["LicenseCount"][] | null;
+        };
+        GetArtifactVulnSummaryOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/GetArtifactVulnSummaryOutputBody.json
+             */
+            readonly $schema?: string;
+            summary: components["schemas"]["VulnSummary"];
         };
         GetComponentVersionsOutputBody: {
             /**
@@ -2409,6 +2435,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListArtifactVersionsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-artifact-vuln-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Artifact UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetArtifactVulnSummaryOutputBody"];
                 };
             };
             /** @description Error */

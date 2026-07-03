@@ -453,6 +453,24 @@ func (h *Handler) GetArtifactLicenseSummary(ctx context.Context, input *GetArtif
 	return out, nil
 }
 
+// GetArtifactVulnSummary handles GET /api/v1/artifacts/{id}/vuln-summary.
+func (h *Handler) GetArtifactVulnSummary(ctx context.Context, input *GetArtifactVulnSummaryInput) (*GetArtifactVulnSummaryOutput, error) {
+	id, err := parseUUID(input.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	vis := visibilityFilterFromContext(ctx)
+	summary, err := h.searchService.GetArtifactVulnSummary(ctx, id, vis)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	out := &GetArtifactVulnSummaryOutput{}
+	out.Body.Summary = summary
+	return out, nil
+}
+
 // GetDashboardStats handles GET /api/v1/stats/summary.
 func (h *Handler) GetDashboardStats(ctx context.Context, _ *struct{}) (*DashboardStatsOutput, error) {
 	vis := visibilityFilterFromContext(ctx)

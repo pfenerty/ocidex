@@ -208,3 +208,50 @@ func (s *searchService) GetArtifactLicenseSummary(ctx context.Context, artifactI
 
 	return items, nil
 }
+
+// GetArtifactVulnSummary returns per-severity vuln counts for an artifact's latest SBOM.
+func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (*VulnSummary, error) {
+	q := repository.New(s.db)
+
+	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
+		AID:     artifactID,
+		UserID:  vis.UserID,
+		IsAdmin: visAdminBool(vis),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("checking artifact visibility: %w", err)
+	}
+	if !visible {
+		return nil, ErrNotFound
+	}
+
+	rows, err := q.GetArtifactVulnSummary(ctx, artifactID)
+	if err != nil {
+		return nil, fmt.Errorf("querying artifact vuln summary: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+
+	var vs VulnSummary
+	for _, r := range rows {
+		n := int(r.Count)
+		vs.Total += n
+		switch r.Severity.String {
+		case sevCritical:
+			vs.Critical += n
+		case sevHigh:
+			vs.High += n
+		case sevMedium:
+			vs.Medium += n
+		case sevLow:
+			vs.Low += n
+		default:
+			vs.Unknown += n
+		}
+	}
+	if vs.Total == 0 {
+		return nil, nil
+	}
+	return &vs, nil
+}

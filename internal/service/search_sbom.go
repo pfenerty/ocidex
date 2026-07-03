@@ -12,6 +12,13 @@ import (
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
+const (
+	sevCritical = "CRITICAL"
+	sevHigh     = "HIGH"
+	sevMedium   = "MEDIUM"
+	sevLow      = "LOW"
+)
+
 func (s *searchService) GetSBOM(ctx context.Context, id pgtype.UUID, includeRaw bool, vis VisibilityFilter) (SBOMDetail, error) {
 	q := repository.New(s.db)
 
@@ -108,13 +115,13 @@ func buildVulnSummary(rows []repository.GetSBOMVulnSummaryRow) *VulnSummary {
 		n := int(r.Count)
 		vs.Total += n
 		switch r.Severity.String {
-		case "CRITICAL":
+		case sevCritical:
 			vs.Critical += n
-		case "HIGH":
+		case sevHigh:
 			vs.High += n
-		case "MEDIUM":
+		case sevMedium:
 			vs.Medium += n
-		case "LOW":
+		case sevLow:
 			vs.Low += n
 		default:
 			vs.Unknown += n
@@ -167,13 +174,13 @@ func decorateComponentVulns(ctx context.Context, q *repository.Queries, sbomID p
 // severityRank orders severity labels for max comparison.
 func severityRank(s string) int {
 	switch s {
-	case "CRITICAL":
+	case sevCritical:
 		return 4
-	case "HIGH":
+	case sevHigh:
 		return 3
-	case "MEDIUM":
+	case sevMedium:
 		return 2
-	case "LOW":
+	case sevLow:
 		return 1
 	default:
 		return 0
