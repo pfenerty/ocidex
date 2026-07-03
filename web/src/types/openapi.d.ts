@@ -1141,6 +1141,9 @@ export interface components {
             /** Format: int64 */
             version_count: number;
             version_growth_timeline: components["schemas"]["DailyCountEntry"][] | null;
+            /** Format: int64 */
+            vuln_count: number;
+            vuln_severity: components["schemas"]["VulnSeverityEntry"];
         };
         DependencyEdge: {
             from: string;
@@ -1912,6 +1915,18 @@ export interface components {
              * @example v1
              */
             version: string;
+        };
+        VulnSeverityEntry: {
+            /** Format: int64 */
+            critical: number;
+            /** Format: int64 */
+            high: number;
+            /** Format: int64 */
+            low: number;
+            /** Format: int64 */
+            medium: number;
+            /** Format: int64 */
+            unknown: number;
         };
         VulnSummary: {
             /** Format: int64 */

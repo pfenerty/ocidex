@@ -464,7 +464,18 @@ type DashboardStatsOutput struct {
 		PackageGrowthTimeline []DailyCountEntry     `json:"package_growth_timeline"`
 		VersionGrowthTimeline []DailyCountEntry     `json:"version_growth_timeline"`
 		TopPackages           []PackageSummaryEntry `json:"top_packages"`
+		VulnCount             int64                 `json:"vuln_count"`
+		VulnSeverity          VulnSeverityEntry     `json:"vuln_severity"`
 	}
+}
+
+// VulnSeverityEntry is a per-severity count of distinct tracked vulnerabilities.
+type VulnSeverityEntry struct {
+	Critical int64 `json:"critical"`
+	High     int64 `json:"high"`
+	Medium   int64 `json:"medium"`
+	Low      int64 `json:"low"`
+	Unknown  int64 `json:"unknown"`
 }
 
 // CategoryCountEntry is a license compliance category with component count.

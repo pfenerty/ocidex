@@ -438,6 +438,36 @@ func TestGetSBOMDependencies(t *testing.T) {
 	}
 }
 
+func TestGetDashboardStats(t *testing.T) {
+	is := is.New(t)
+	router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
+
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/stats", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, r)
+
+	is.Equal(w.Code, http.StatusOK)
+
+	var body struct {
+		VulnCount    int64 `json:"vuln_count"`
+		VulnSeverity struct {
+			Critical int64 `json:"critical"`
+			High     int64 `json:"high"`
+			Medium   int64 `json:"medium"`
+			Low      int64 `json:"low"`
+			Unknown  int64 `json:"unknown"`
+		} `json:"vuln_severity"`
+	}
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &body))
+	// fakeSearchService returns zero-valued DashboardStats; fields must be present
+	is.Equal(body.VulnCount, int64(0))
+	is.Equal(body.VulnSeverity.Critical, int64(0))
+	is.Equal(body.VulnSeverity.High, int64(0))
+	is.Equal(body.VulnSeverity.Medium, int64(0))
+	is.Equal(body.VulnSeverity.Low, int64(0))
+	is.Equal(body.VulnSeverity.Unknown, int64(0))
+}
+
 func TestGetArtifactLicenseSummary(t *testing.T) {
 	tests := []struct {
 		name       string
