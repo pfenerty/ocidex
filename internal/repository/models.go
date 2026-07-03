@@ -126,6 +126,13 @@ type OcidexUser struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
+type PackageVulnerability struct {
+	Purl            string             `json:"purl"`
+	VulnerabilityID string             `json:"vulnerability_id"`
+	FixedVersion    pgtype.Text        `json:"fixed_version"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Registry struct {
 	ID                  pgtype.UUID        `json:"id"`
 	Name                string             `json:"name"`
@@ -194,4 +201,22 @@ type Session struct {
 	TokenHash string             `json:"token_hash"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type VulnRefreshState struct {
+	ID              bool               `json:"id"`
+	LastRefreshedAt pgtype.Timestamptz `json:"last_refreshed_at"`
+}
+
+type Vulnerability struct {
+	ID          string             `json:"id"`
+	Aliases     []string           `json:"aliases"`
+	Summary     pgtype.Text        `json:"summary"`
+	Details     pgtype.Text        `json:"details"`
+	Severity    pgtype.Text        `json:"severity"`
+	CvssScore   pgtype.Float4      `json:"cvss_score"`
+	PublishedAt pgtype.Timestamptz `json:"published_at"`
+	ModifiedAt  pgtype.Timestamptz `json:"modified_at"`
+	Raw         []byte             `json:"raw"`
+	RefreshedAt pgtype.Timestamptz `json:"refreshed_at"`
 }
