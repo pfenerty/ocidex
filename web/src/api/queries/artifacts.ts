@@ -227,6 +227,22 @@ export function useArtifactLicenseSummary(
 }
 
 // ---------------------------------------------------------------------------
+// useArtifactVulnSummary — GET /api/v1/artifacts/{id}/vuln-summary
+// ---------------------------------------------------------------------------
+
+export function useArtifactVulnSummary(id: Accessor<string>) {
+    return createQuery(() => ({
+        queryKey: ["artifact", id(), "vuln-summary"] as const,
+        queryFn: () =>
+            unwrap(
+                client.GET("/api/v1/artifacts/{id}/vuln-summary", {
+                    params: { path: { id: id() } },
+                }),
+            ),
+    }));
+}
+
+// ---------------------------------------------------------------------------
 // useArtifactNames — bulk-fetch artifacts for ID → artifact lookup
 // ---------------------------------------------------------------------------
 

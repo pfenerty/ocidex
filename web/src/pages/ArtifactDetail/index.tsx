@@ -6,9 +6,12 @@ import {
     useArtifactVersions,
     useArtifactChangelog,
     useArtifactLicenseSummary,
+    useArtifactVulnSummary,
 } from "~/api/queries";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
 import PurlLink from "~/components/PurlLink";
+import { VulnSummaryBar } from "~/components/VulnBadge";
+import { TypeBadge, SigningBadge } from "~/components/ui";
 import { purlToRegistryUrl, purlTypeLabel } from "~/utils/purl";
 import {
     artifactDisplayName,
@@ -49,6 +52,8 @@ export default function ArtifactDetail() {
     const licenseQuery = useArtifactLicenseSummary(() => params.id, {
         enabled: () => tab() === "licenses",
     });
+
+    const vulnSummaryQuery = useArtifactVulnSummary(() => params.id);
 
     return (
         <>
@@ -96,9 +101,7 @@ export default function ArtifactDetail() {
                                                 </Show>
                                             </h2>
                                             <p class="text-muted">
-                                                <span class="badge">
-                                                    {a().type}
-                                                </span>{" "}
+                                                <TypeBadge type={a().type} />{" "}
                                                 {plural(a().sbomCount, "SBOM")}
                                                 {" · First tracked "}
                                                 {relativeDate(a().createdAt)}
@@ -161,7 +164,15 @@ export default function ArtifactDetail() {
                                                 Type
                                             </span>
                                             <span class="detail-value">
-                                                {a().type}
+                                                <TypeBadge type={a().type} />
+                                            </span>
+                                        </div>
+                                        <div class="detail-field">
+                                            <span class="detail-label">
+                                                Signing
+                                            </span>
+                                            <span class="detail-value">
+                                                <SigningBadge status={a().signingStatus} />
                                             </span>
                                         </div>
                                         <Show when={a().group}>
@@ -225,6 +236,8 @@ export default function ArtifactDetail() {
                                         </p>
                                     </details>
                                 </div>
+
+                                <VulnSummaryBar summary={vulnSummaryQuery.data?.summary ?? undefined} />
 
                                 <div class="tab-bar">
                                     <button
