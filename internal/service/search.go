@@ -369,6 +369,8 @@ type ComponentVersionEntry struct {
 	ArtifactName   *string `json:"artifactName,omitempty"`
 	SbomCreatedAt  string  `json:"sbomCreatedAt"`
 	Architecture   *string `json:"architecture,omitempty"`
+	VulnCount      int     `json:"vulnCount"`
+	MaxSeverity    string  `json:"maxSeverity,omitempty"`
 }
 
 // DependencyGraph represents the dependency structure of an SBOM.

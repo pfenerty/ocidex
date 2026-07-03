@@ -545,6 +545,9 @@
           "id": {
             "type": "string"
           },
+          "maxSeverity": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
@@ -568,6 +571,10 @@
           },
           "version": {
             "type": "string"
+          },
+          "vulnCount": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "required": [
@@ -575,7 +582,8 @@
           "sbomId",
           "type",
           "name",
-          "sbomCreatedAt"
+          "sbomCreatedAt",
+          "vulnCount"
         ],
         "type": "object"
       },

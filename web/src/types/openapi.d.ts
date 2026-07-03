@@ -995,6 +995,7 @@ export interface components {
             artifactName?: string;
             group?: string;
             id: string;
+            maxSeverity?: string;
             name: string;
             purl?: string;
             sbomCreatedAt: string;
@@ -1003,6 +1004,8 @@ export interface components {
             subjectVersion?: string;
             type: string;
             version?: string;
+            /** Format: int64 */
+            vulnCount: number;
         };
         CreateAPIKeyInputBody: {
             /**
