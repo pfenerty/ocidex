@@ -1,7 +1,7 @@
 import "./Layout.css";
 import { A, useNavigate, useLocation } from "@solidjs/router";
 import { createEffect, Show, type ParentProps } from "solid-js";
-import { Home, Package, Layers, ShieldCheck, ArrowUpDown, Settings, LogOut } from "lucide-solid";
+import { Home, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Settings, LogOut } from "lucide-solid";
 import ThemeToggle from "~/components/ThemeToggle";
 import { useAuth } from "~/context/auth";
 import { API_BASE_URL } from "~/api/client";
@@ -52,6 +52,10 @@ export default function Layout(props: ParentProps) {
                     <A href="/licenses">
                         <ShieldCheck size={16} />
                         <span>Licenses</span>
+                    </A>
+                    <A href="/vulnerabilities">
+                        <ShieldAlert size={16} />
+                        <span>Vulnerabilities</span>
                     </A>
                     <A href="/diff">
                         <ArrowUpDown size={16} />

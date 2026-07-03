@@ -1,5 +1,5 @@
 import { A } from "@solidjs/router";
-import { Package, Layers, ShieldCheck, ArrowUpDown, ExternalLink } from "lucide-solid";
+import { Package, Layers, ShieldCheck, ArrowUpDown, ExternalLink, ShieldAlert } from "lucide-solid";
 import { Show } from "solid-js";
 import { useDashboardStats } from "~/api/queries";
 import "./Home.css";
@@ -27,6 +27,8 @@ export default function Home() {
                             <span>{data().package_count.toLocaleString()} packages</span>
                             <span class="landing-stats-sep">·</span>
                             <span>{data().license_count.toLocaleString()} licenses</span>
+                            <span class="landing-stats-sep">·</span>
+                            <span>{data().vuln_count.toLocaleString()} vulnerabilities</span>
                         </div>
                     )}
                 </Show>
@@ -97,6 +99,19 @@ export default function Home() {
                         <p class="landing-card-desc">
                             Diff two SBOMs side-by-side — understand what changed between builds in
                             seconds.
+                        </p>
+                    </A>
+
+                    <A href="/vulnerabilities" class="card entry-card landing-feature-card">
+                        <div class="landing-card-header">
+                            <span class="entry-number">#005</span>
+                            <span class="badge badge-danger">vulnerabilities</span>
+                        </div>
+                        <ShieldAlert size={28} class="landing-card-icon" />
+                        <h3 class="landing-card-title">Vulnerabilities</h3>
+                        <p class="landing-card-desc">
+                            See which CVEs affect your catalog — ranked by how many artifacts carry
+                            them.
                         </p>
                     </A>
                 </div>
