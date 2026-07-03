@@ -478,6 +478,20 @@ type VulnSeverityEntry struct {
 	Unknown  int64 `json:"unknown"`
 }
 
+// ListTopVulnerabilitiesInput is the request for GET /api/v1/vulns.
+type ListTopVulnerabilitiesInput struct {
+	PaginationParams
+	Severity string `query:"severity" enum:"CRITICAL,HIGH,MEDIUM,LOW" doc:"Filter by severity"`
+}
+
+// ListTopVulnerabilitiesOutput is the response for GET /api/v1/vulns.
+type ListTopVulnerabilitiesOutput struct {
+	Body struct {
+		Data       []service.TopVulnEntry `json:"data"`
+		Pagination PaginationMeta         `json:"pagination"`
+	}
+}
+
 // CategoryCountEntry is a license compliance category with component count.
 type CategoryCountEntry struct {
 	Category       string `json:"category"`

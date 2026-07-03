@@ -184,6 +184,10 @@ func (f *fakeSearchService) ListVersionsByArtifact(_ context.Context, _ pgtype.U
 	}, nil
 }
 
+func (f *fakeSearchService) ListTopVulnerabilities(_ context.Context, filter service.TopVulnFilter) (service.PagedResult[service.TopVulnEntry], error) {
+	return service.PagedResult[service.TopVulnEntry]{Data: []service.TopVulnEntry{}, Limit: filter.Limit, Offset: filter.Offset}, nil
+}
+
 // notFoundSearchService returns ErrNotFound for single-item lookups.
 type notFoundSearchService struct{ fakeSearchService }
 

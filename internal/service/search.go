@@ -34,6 +34,7 @@ type SearchService interface {
 	ListSBOMComponentsPage(ctx context.Context, sbomID pgtype.UUID, page ComponentPage, vis VisibilityFilter) (CursorPage[ComponentSummary], error)
 	ListComponentPurlTypes(ctx context.Context, vis VisibilityFilter) ([]string, error)
 	GetDashboardStats(ctx context.Context, vis VisibilityFilter) (*DashboardStats, error)
+	ListTopVulnerabilities(ctx context.Context, filter TopVulnFilter) (PagedResult[TopVulnEntry], error)
 }
 
 // DashboardStats holds aggregated metrics for the dashboard.
@@ -59,6 +60,26 @@ type VulnSeverityBreakdown struct {
 	Medium   int64
 	Low      int64
 	Unknown  int64
+}
+
+// TopVulnEntry is one item in the top-vulnerabilities list.
+type TopVulnEntry struct {
+	ID                string     `json:"id"`
+	Severity          string     `json:"severity"`
+	CvssScore         *float32   `json:"cvssScore,omitempty"`
+	Summary           *string    `json:"summary,omitempty"`
+	Aliases           []string   `json:"aliases"`
+	PublishedAt       *time.Time `json:"publishedAt,omitempty"`
+	AffectedSbomCount int64      `json:"affectedSbomCount"`
+	AffectedPurlCount int64      `json:"affectedPurlCount"`
+}
+
+// TopVulnFilter holds parameters for listing top vulnerabilities.
+type TopVulnFilter struct {
+	Limit      int32
+	Offset     int32
+	Severity   string
+	Visibility VisibilityFilter
 }
 
 // PackageSummary is a distinct package with version and SBOM counts.
