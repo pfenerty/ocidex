@@ -13,6 +13,7 @@ import ComponentOverview from "~/pages/ComponentOverview";
 import ComponentDetail from "~/pages/ComponentDetail";
 import Licenses from "~/pages/Licenses";
 import LicenseComponents from "~/pages/LicenseComponents";
+import Vulnerabilities from "~/pages/Vulnerabilities";
 import Diff from "~/pages/Diff";
 import Login from "~/pages/Login";
 import Admin from "~/pages/Admin";
@@ -50,6 +51,7 @@ export default function App() {
                     path="/licenses/:id/components"
                     component={LicenseComponents}
                 />
+                <Route path="/vulnerabilities" component={Vulnerabilities} />
                 <Route path="/diff" component={Diff} />
                 <Route path="/admin" component={Admin} />
                 <Route path="/admin/keys" component={Admin} />
