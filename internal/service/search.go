@@ -221,6 +221,21 @@ type SBOMDetail struct {
 	PackageCount int64                      `json:"packageCount"`
 	RawBOM       json.RawMessage            `json:"rawBom,omitempty"`
 	Enrichments  map[string]json.RawMessage `json:"enrichments,omitempty"`
+	// VulnSummary is the per-severity count of vulnerability findings across the
+	// SBOM's packages, derived by joining component.purl against the vulnerability
+	// store. Nil when the SBOM has no known vulnerabilities.
+	VulnSummary *VulnSummary `json:"vulnSummary,omitempty"`
+}
+
+// VulnSummary is the per-severity vulnerability finding count for an SBOM. A
+// finding is one (package purl, vulnerability) pair.
+type VulnSummary struct {
+	Critical int `json:"critical"`
+	High     int `json:"high"`
+	Medium   int `json:"medium"`
+	Low      int `json:"low"`
+	Unknown  int `json:"unknown"`
+	Total    int `json:"total"`
 }
 
 // ChangeCounts is a per-direction breakdown of component changes.
@@ -244,6 +259,11 @@ type ComponentSummary struct {
 	Purl              *string       `json:"purl,omitempty"`
 	IsDirect          bool          `json:"isDirect"`
 	DescendantChanges *ChangeCounts `json:"descendantChanges,omitempty"`
+	// VulnCount is the number of known vulnerabilities affecting this component's
+	// purl; MaxSeverity is the highest severity among them. Both zero-valued when
+	// the component has no known vulnerabilities.
+	VulnCount   int    `json:"vulnCount,omitempty"`
+	MaxSeverity string `json:"maxSeverity,omitempty"`
 }
 
 // ComponentDetail extends ComponentSummary with full metadata.

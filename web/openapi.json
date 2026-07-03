@@ -401,6 +401,9 @@
               "null"
             ]
           },
+          "maxSeverity": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
@@ -421,6 +424,10 @@
           },
           "version": {
             "type": "string"
+          },
+          "vulnCount": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "required": [
@@ -488,6 +495,9 @@
           "isDirect": {
             "type": "boolean"
           },
+          "maxSeverity": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
@@ -502,6 +512,10 @@
           },
           "version": {
             "type": "string"
+          },
+          "vulnCount": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "required": [
@@ -2521,6 +2535,9 @@
           "version": {
             "format": "int32",
             "type": "integer"
+          },
+          "vulnSummary": {
+            "$ref": "#/components/schemas/VulnSummary"
           }
         },
         "required": [
@@ -3133,6 +3150,44 @@
         },
         "required": [
           "version"
+        ],
+        "type": "object"
+      },
+      "VulnSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "critical": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "high": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "low": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "medium": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unknown": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "critical",
+          "high",
+          "medium",
+          "low",
+          "unknown",
+          "total"
         ],
         "type": "object"
       }

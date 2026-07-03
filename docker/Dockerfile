@@ -90,6 +90,19 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       -X github.com/pfenerty/ocidex/internal/version.Date=${DATE}" && \
     CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "${LDFLAGS}" -o /app/bin/provenance-worker ./cmd/provenance-worker
 
+FROM builder-base AS build-vuln-worker
+ARG TARGETARCH
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG DATE=unknown
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    LDFLAGS="-s -w \
+      -X github.com/pfenerty/ocidex/internal/version.Version=${VERSION} \
+      -X github.com/pfenerty/ocidex/internal/version.Commit=${COMMIT} \
+      -X github.com/pfenerty/ocidex/internal/version.Date=${DATE}" && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "${LDFLAGS}" -o /app/bin/vuln-worker ./cmd/vuln-worker
+
 FROM builder-base AS build-operator
 ARG TARGETARCH
 ARG VERSION=dev
@@ -129,6 +142,10 @@ ENTRYPOINT ["/user-enricher-worker"]
 FROM gcr.io/distroless/static-debian12:nonroot AS provenance-worker
 COPY --from=build-provenance-worker /app/bin/provenance-worker /provenance-worker
 ENTRYPOINT ["/provenance-worker"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS vuln-worker
+COPY --from=build-vuln-worker /app/bin/vuln-worker /vuln-worker
+ENTRYPOINT ["/vuln-worker"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS operator
 COPY --from=build-operator /app/bin/operator /operator

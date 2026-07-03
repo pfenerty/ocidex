@@ -5,6 +5,7 @@ import type { ComponentSummary, DependencyEdge } from "~/api/client";
 import { EmptyState } from "~/components/Feedback";
 import LoadMore from "~/components/LoadMore";
 import PurlLink from "~/components/PurlLink";
+import { VulnBadge } from "~/components/VulnBadge";
 import { plural } from "~/utils/format";
 import { parsePurl } from "~/utils/purl";
 
@@ -131,6 +132,7 @@ export function PackagesTab(props: {
                                             <th>Name</th>
                                             <th>Version</th>
                                             <th>Type</th>
+                                            <th>Vulns</th>
                                             <th>Package URL</th>
                                         </tr>
                                     </thead>
@@ -155,6 +157,9 @@ export function PackagesTab(props: {
                                                         <span class="badge">
                                                             {parsePurl(c.purl ?? "")?.type ?? c.type}
                                                         </span>
+                                                    </td>
+                                                    <td>
+                                                        <VulnBadge count={c.vulnCount} maxSeverity={c.maxSeverity} />
                                                     </td>
                                                     <td class="truncate">
                                                         <Show

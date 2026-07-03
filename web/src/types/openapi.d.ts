@@ -919,6 +919,7 @@ export interface components {
             id: string;
             isDirect: boolean;
             licenses: components["schemas"]["LicenseSummary"][] | null;
+            maxSeverity?: string;
             name: string;
             publisher?: string;
             purl?: string;
@@ -926,6 +927,8 @@ export interface components {
             scope?: string;
             type: string;
             version?: string;
+            /** Format: int64 */
+            vulnCount?: number;
         };
         ComponentDiff: {
             direction: string;
@@ -943,11 +946,14 @@ export interface components {
             group?: string;
             id: string;
             isDirect: boolean;
+            maxSeverity?: string;
             name: string;
             purl?: string;
             sbomId: string;
             type: string;
             version?: string;
+            /** Format: int64 */
+            vulnCount?: number;
         };
         ComponentVersionEntry: {
             architecture?: string;
@@ -1678,6 +1684,7 @@ export interface components {
             sufficient: boolean;
             /** Format: int32 */
             version: number;
+            vulnSummary?: components["schemas"]["VulnSummary"];
         };
         SBOMRef: {
             architecture?: string;
@@ -1905,6 +1912,20 @@ export interface components {
              * @example v1
              */
             version: string;
+        };
+        VulnSummary: {
+            /** Format: int64 */
+            critical: number;
+            /** Format: int64 */
+            high: number;
+            /** Format: int64 */
+            low: number;
+            /** Format: int64 */
+            medium: number;
+            /** Format: int64 */
+            total: number;
+            /** Format: int64 */
+            unknown: number;
         };
     };
     responses: never;

@@ -87,7 +87,97 @@ func (s *searchService) GetSBOM(ctx context.Context, id pgtype.UUID, includeRaw 
 		detail.Enrichments[e.EnricherName] = json.RawMessage(e.Data)
 	}
 
+	// Vulnerability summary (joins component.purl against the vulnerability store).
+	vsRows, err := q.GetSBOMVulnSummary(ctx, id)
+	if err != nil {
+		return SBOMDetail{}, fmt.Errorf("getting vuln summary: %w", err)
+	}
+	detail.VulnSummary = buildVulnSummary(vsRows)
+
 	return detail, nil
+}
+
+// buildVulnSummary folds per-severity counts into a VulnSummary, or nil when
+// there are no findings.
+func buildVulnSummary(rows []repository.GetSBOMVulnSummaryRow) *VulnSummary {
+	if len(rows) == 0 {
+		return nil
+	}
+	var vs VulnSummary
+	for _, r := range rows {
+		n := int(r.Count)
+		vs.Total += n
+		switch r.Severity.String {
+		case "CRITICAL":
+			vs.Critical += n
+		case "HIGH":
+			vs.High += n
+		case "MEDIUM":
+			vs.Medium += n
+		case "LOW":
+			vs.Low += n
+		default:
+			vs.Unknown += n
+		}
+	}
+	if vs.Total == 0 {
+		return nil
+	}
+	return &vs
+}
+
+// decorateComponentVulns sets VulnCount/MaxSeverity on each component from the
+// SBOM's (purl → vulnerability) findings.
+func decorateComponentVulns(ctx context.Context, q *repository.Queries, sbomID pgtype.UUID, items []ComponentSummary) error {
+	rows, err := q.ListSBOMComponentVulns(ctx, sbomID)
+	if err != nil {
+		return fmt.Errorf("listing component vulns: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	type agg struct {
+		count       int
+		maxSeverity string
+	}
+	byPurl := make(map[string]*agg, len(rows))
+	for _, r := range rows {
+		a := byPurl[r.Purl]
+		if a == nil {
+			a = &agg{}
+			byPurl[r.Purl] = a
+		}
+		a.count++
+		if severityRank(r.Severity.String) > severityRank(a.maxSeverity) {
+			a.maxSeverity = r.Severity.String
+		}
+	}
+	for i := range items {
+		if items[i].Purl == nil {
+			continue
+		}
+		if a := byPurl[*items[i].Purl]; a != nil {
+			items[i].VulnCount = a.count
+			items[i].MaxSeverity = a.maxSeverity
+		}
+	}
+	return nil
+}
+
+// severityRank orders severity labels for max comparison.
+func severityRank(s string) int {
+	switch s {
+	case "CRITICAL":
+		return 4
+	case "HIGH":
+		return 3
+	case "MEDIUM":
+		return 2
+	case "LOW":
+		return 1
+	default:
+		return 0
+	}
 }
 
 func (s *searchService) ListSBOMs(ctx context.Context, filter SBOMFilter) (CursorPage[SBOMSummary], error) {
@@ -337,6 +427,10 @@ func (s *searchService) ListSBOMComponents(ctx context.Context, sbomID pgtype.UU
 		items = append(items, toComponentSummary(c.ID, sbomID, c.BomRef, c.Type, c.Name, c.GroupName, c.Version, c.Purl))
 	}
 
+	if err := decorateComponentVulns(ctx, q, sbomID, items); err != nil {
+		return nil, err
+	}
+
 	return items, nil
 }
 
@@ -382,6 +476,10 @@ func (s *searchService) ListSBOMComponentsPage(ctx context.Context, sbomID pgtyp
 	items := make([]ComponentSummary, 0, len(rows))
 	for _, c := range rows {
 		items = append(items, toComponentSummary(c.ID, sbomID, c.BomRef, c.Type, c.Name, c.GroupName, c.Version, c.Purl))
+	}
+
+	if err := decorateComponentVulns(ctx, q, sbomID, items); err != nil {
+		return CursorPage[ComponentSummary]{}, err
 	}
 
 	return CursorPage[ComponentSummary]{Data: items, HasMore: hasMore}, nil
