@@ -15,6 +15,7 @@ require (
 	github.com/matryer/is v1.4.1
 	github.com/nats-io/nats.go v1.49.0
 	github.com/oapi-codegen/runtime v1.4.1
+	github.com/pandatix/go-cvss v0.6.2
 	github.com/pressly/goose/v3 v3.27.0
 	github.com/testcontainers/testcontainers-go v0.40.0
 	github.com/testcontainers/testcontainers-go/modules/nats v0.40.0
@@ -187,7 +188,7 @@ require (
 	github.com/go-git/go-billy/v5 v5.8.0 // indirect
 	github.com/go-git/go-git/v5 v5.17.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
-	github.com/go-logr/logr v1.4.3 // indirect
+	github.com/go-logr/logr v1.4.3
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-restruct/restruct v1.2.0-alpha // indirect

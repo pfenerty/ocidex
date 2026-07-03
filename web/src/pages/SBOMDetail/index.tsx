@@ -9,6 +9,7 @@ import CopyDigest from "~/components/CopyDigest";
 import ImageMetadataCard from "~/components/ImageMetadataCard";
 import ProvenanceCard from "~/components/ProvenanceCard";
 import SummaryBand, { type SbomTab } from "~/components/SummaryBand";
+import { VulnSummaryBar } from "~/components/VulnBadge";
 import { trustStatus, trustBadgeClass } from "~/utils/trust";
 import { parsePurl } from "~/utils/purl";
 import { artifactDisplayName, formatDateTime, plural } from "~/utils/format";
@@ -166,6 +167,9 @@ export default function SBOMDetail() {
                                 active={tab()}
                                 onSelect={setTab}
                             />
+
+                            {/* --- Vulnerability summary --- */}
+                            <VulnSummaryBar summary={s.vulnSummary} />
 
                             {/* --- Tabs --- */}
                             <div class="tab-bar">
