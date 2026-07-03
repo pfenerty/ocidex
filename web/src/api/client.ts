@@ -48,6 +48,7 @@ export type SBOMSummary = components["schemas"]["SBOMSummary"];
 export type SBOMDetail = components["schemas"]["SBOMDetail"];
 export type ComponentSummary = components["schemas"]["ComponentSummary"];
 export type ComponentDetail = components["schemas"]["ComponentDetail"];
+export type VulnSummary = components["schemas"]["VulnSummary"];
 export type DistinctComponentSummary =
     components["schemas"]["DistinctComponentSummary"];
 export type ComponentVersionEntry =
