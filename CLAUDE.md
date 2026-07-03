@@ -353,8 +353,12 @@ Verify epic IDs with `bd list --type=epic`; child IDs with `bd show <epic>`.
 bd ready                              # Find unblocked work
 bd ready --priority=1                 # Top-priority ready work
 bd show <id>                          # Inspect an issue
-git checkout main && git pull         # Start from latest main
-git checkout -b <branch-name>         # New branch per issue
+
+# --- Starting an epic (once per epic) ---
+git checkout main && git pull
+git checkout -b <epic-id>             # One branch per epic — name = epic ID (e.g. ocidex-hfi)
+
+# --- Each story within the epic ---
 bd update <id> --status=in_progress   # Claim it before coding
 # → explore codebase with repomix before implementing (see "Codebase Exploration with Repomix")
 # → implement the change
@@ -364,18 +368,24 @@ bd update <id> --notes "Files: ...\nApproach: ..."  # Document implementation
 bd close <id>                         # Close AFTER committing
 bd close <id1> <id2> ...              # Close multiple at once
 bd close <id> --reason "..."          # Close with a brief one-liner (simple changes only)
+
+# --- When the entire epic is complete ---
+git checkout main && git pull --rebase
+git merge <epic-id> --no-ff -m "feat: complete <epic-title> (<epic-id>)"
+git push
+bd close <epic-id>
 ```
 
 **Conventions:**
 - Create the issue *before* writing code; mark `in_progress` when starting.
-- Always branch from `main` before starting work on an issue (`git checkout main && git pull && git checkout -b <branch-name>`).
+- **One branch per epic**, named after the epic ID (e.g. `ocidex-hfi`). Branch from `main` once at the start of the epic; work all child stories on that branch. Do **not** push to remote mid-epic — push only when the epic is complete and merged.
 - **Commit code before closing the issue.** `bd close` without a prior `git commit` leaves changes stranded. The commit message should include the issue ID (e.g. `feat(tekton): add release tasks (ocidex-avi)`).
 - Priority is `0`–`4` (or `P0`–`P4`), where `0` is critical. Don't use `high`/`medium`/`low`.
 - Hierarchical IDs (`<epic>.<n>`) come from the `--parent` flag at create time.
 - Cross-issue dependencies via `bd dep add <issue> <depends-on>`.
 - **Never** use `bd edit` — it opens `$EDITOR` and blocks. Use `bd update --title/--description/--notes` instead.
 - Before closing an issue, always record how it was resolved: `bd update <id> --notes "Files: <key files>\nApproach: <what was done and why>"`. For trivial changes, `bd close <id> --reason "..."` is sufficient. Never close without recording something.
-- Beads auto-commits its database to Dolt; run `git push` at session end to push code changes.
+- Beads auto-commits its database to Dolt; `git push` to remote happens only on epic completion.
 
 ## ADR Summary
 
@@ -438,27 +448,33 @@ bd close <id>         # Complete work
 
 ## Session Completion
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+**When ending a work session**, commit all work locally. Push to remote only when an epic is complete.
+
+This project uses an **epic-branch model**: work accumulates on a local branch named after the epic (e.g. `ocidex-hfi`) and is pushed once when the epic is fully done. Pushing mid-epic triggers CI unnecessarily. The beads session-close protocol's default `git push` step is superseded by this rule.
 
 **MANDATORY WORKFLOW:**
 
 1. **File issues for remaining work** - Create issues for anything that needs follow-up
 2. **Run quality gates** (if code changed) - Tests, linters, builds
 3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
+4. **COMMIT all changes** - Uncommitted work is at risk if the session ends:
    ```bash
-   git pull --rebase
-   bd dolt push
-   git push
-   git status  # MUST show "up to date with origin"
+   git add <changed files>
+   git commit -m "..."      # Proper commit or wip: if mid-story
+   bd dolt push             # Always safe — beads has no remote CI impact
    ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+5. **Push only when the epic is complete:**
+   ```bash
+   git checkout main && git pull --rebase
+   git merge <epic-id> --no-ff -m "feat: complete <epic-title> (<epic-id>)"
+   git push
+   bd close <epic-id>
+   ```
+6. **Hand off** - Provide context for next session
 
 **CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
+- All changes MUST be committed at session end — uncommitted work can be lost
+- Do NOT push the epic branch mid-epic — this triggers CI unnecessarily
+- Push to `main` only when the entire epic is merged and complete
+- `bd dolt push` is always safe and should run at session end regardless
 <!-- END BEADS INTEGRATION -->
