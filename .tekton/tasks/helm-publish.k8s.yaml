@@ -44,7 +44,14 @@ spec:
         set -e
 
         SHORT_SHA=$(echo "$(params.revision)" | cut -c1-8)
-        VERSION="0.1.0-${SHORT_SHA}"
+        # Monotonic prerelease so Flux's ">=0.0.0-0" range always selects the newest
+        # build. A bare 0.1.0-<sha> ordered by sha string, not time, so Flux stuck on
+        # whichever sha sorted highest and dev never updated. The "main" identifier keeps
+        # these above any legacy 0.1.0-<hexsha> chart (letters outrank hex digits), and
+        # the build epoch (numeric identifier) orders builds chronologically; the sha
+        # stays for traceability.
+        BUILD_EPOCH=$(date -u +%s)
+        VERSION="0.1.0-main.${BUILD_EPOCH}.${SHORT_SHA}"
 
         helm package charts/ocidex \
           --version "${VERSION}" \
