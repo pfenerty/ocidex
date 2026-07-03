@@ -122,6 +122,7 @@ func (s *searchService) GetComponentVersions(ctx context.Context, name, group, v
 	}
 
 	items := make([]ComponentVersionEntry, 0, len(rows))
+	var purls []string
 	for _, row := range rows {
 		entry := ComponentVersionEntry{
 			ID:             uuidToString(row.ID),
@@ -140,10 +141,52 @@ func (s *searchService) GetComponentVersions(ctx context.Context, name, group, v
 		if s, ok := row.Architecture.(string); ok && s != "" {
 			entry.Architecture = &s
 		}
+		if p := entry.Purl; p != nil && *p != "" {
+			purls = append(purls, *p)
+		}
 		items = append(items, entry)
 	}
 
+	if len(purls) > 0 {
+		if err := decorateVersionVulns(ctx, q, purls, items); err != nil {
+			return nil, err
+		}
+	}
+
 	return items, nil
+}
+
+func decorateVersionVulns(ctx context.Context, q *repository.Queries, purls []string, items []ComponentVersionEntry) error {
+	vulnRows, err := q.ListVulnsByPurls(ctx, purls)
+	if err != nil {
+		return fmt.Errorf("listing vulns by purls: %w", err)
+	}
+	type agg struct {
+		count       int
+		maxSeverity string
+	}
+	byPurl := make(map[string]*agg, len(purls))
+	for _, r := range vulnRows {
+		a := byPurl[r.Purl]
+		if a == nil {
+			a = &agg{}
+			byPurl[r.Purl] = a
+		}
+		a.count++
+		if severityRank(r.Severity.String) > severityRank(a.maxSeverity) {
+			a.maxSeverity = r.Severity.String
+		}
+	}
+	for i := range items {
+		if items[i].Purl == nil {
+			continue
+		}
+		if a := byPurl[*items[i].Purl]; a != nil {
+			items[i].VulnCount = a.count
+			items[i].MaxSeverity = a.maxSeverity
+		}
+	}
+	return nil
 }
 
 func (s *searchService) GetComponent(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ComponentDetail, error) {
