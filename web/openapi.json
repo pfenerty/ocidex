@@ -1038,6 +1038,13 @@
               "array",
               "null"
             ]
+          },
+          "vuln_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "vuln_severity": {
+            "$ref": "#/components/schemas/VulnSeverityEntry"
           }
         },
         "required": [
@@ -1050,7 +1057,9 @@
           "ingestion_timeline",
           "package_growth_timeline",
           "version_growth_timeline",
-          "top_packages"
+          "top_packages",
+          "vuln_count",
+          "vuln_severity"
         ],
         "type": "object"
       },
@@ -3150,6 +3159,39 @@
         },
         "required": [
           "version"
+        ],
+        "type": "object"
+      },
+      "VulnSeverityEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "critical": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "high": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "low": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "medium": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unknown": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "critical",
+          "high",
+          "medium",
+          "low",
+          "unknown"
         ],
         "type": "object"
       },

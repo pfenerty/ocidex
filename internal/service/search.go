@@ -48,6 +48,17 @@ type DashboardStats struct {
 	PackageGrowthTimeline []DailyCount
 	VersionGrowthTimeline []DailyCount
 	TopPackages           []PackageSummary
+	VulnCount             int64
+	VulnSeverity          VulnSeverityBreakdown
+}
+
+// VulnSeverityBreakdown is a per-severity count of distinct tracked vulnerabilities.
+type VulnSeverityBreakdown struct {
+	Critical int64
+	High     int64
+	Medium   int64
+	Low      int64
+	Unknown  int64
 }
 
 // PackageSummary is a distinct package with version and SBOM counts.

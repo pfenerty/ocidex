@@ -503,6 +503,14 @@ func (h *Handler) GetDashboardStats(ctx context.Context, _ *struct{}) (*Dashboar
 	out.Body.PackageGrowthTimeline = pkgGrowth
 	out.Body.VersionGrowthTimeline = verGrowth
 	out.Body.TopPackages = pkgs
+	out.Body.VulnCount = stats.VulnCount
+	out.Body.VulnSeverity = VulnSeverityEntry{
+		Critical: stats.VulnSeverity.Critical,
+		High:     stats.VulnSeverity.High,
+		Medium:   stats.VulnSeverity.Medium,
+		Low:      stats.VulnSeverity.Low,
+		Unknown:  stats.VulnSeverity.Unknown,
+	}
 	return out, nil
 }
 

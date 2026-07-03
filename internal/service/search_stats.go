@@ -29,6 +29,7 @@ func (s *searchService) GetDashboardStats(ctx context.Context, vis VisibilityFil
 	pkgP := repository.GetPackageGrowthTimelineParams{UserID: vis.UserID, IsAdmin: isAdmin}
 	verP := repository.GetVersionGrowthTimelineParams{UserID: vis.UserID, IsAdmin: isAdmin}
 	topP := repository.GetTopPackagesByVersionCountParams{TopN: 10, UserID: vis.UserID, IsAdmin: isAdmin}
+	vulnP := repository.GetVulnStatsParams{UserID: vis.UserID, IsAdmin: isAdmin}
 
 	var (
 		counts    repository.GetSummaryCountsRow
@@ -37,6 +38,7 @@ func (s *searchService) GetDashboardStats(ctx context.Context, vis VisibilityFil
 		pkgGrowth []repository.GetPackageGrowthTimelineRow
 		verGrowth []repository.GetVersionGrowthTimelineRow
 		topRows   []repository.GetTopPackagesByVersionCountRow
+		vulnStats repository.GetVulnStatsRow
 	)
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -89,12 +91,20 @@ func (s *searchService) GetDashboardStats(ctx context.Context, vis VisibilityFil
 		}
 		return nil
 	})
+	g.Go(func() error {
+		var err error
+		vulnStats, err = q.GetVulnStats(gctx, vulnP)
+		if err != nil {
+			return fmt.Errorf("getting vuln stats: %w", err)
+		}
+		return nil
+	})
 
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}
 
-	stats := buildDashboardStats(counts, cats, timeline, pkgGrowth, verGrowth, topRows)
+	stats := buildDashboardStats(counts, cats, timeline, pkgGrowth, verGrowth, topRows, vulnStats)
 
 	if s.statsCache != nil {
 		s.statsCache.set(cacheKey, stats)
@@ -111,6 +121,7 @@ func buildDashboardStats(
 	pkgGrowth []repository.GetPackageGrowthTimelineRow,
 	verGrowth []repository.GetVersionGrowthTimelineRow,
 	topRows []repository.GetTopPackagesByVersionCountRow,
+	vulnStats repository.GetVulnStatsRow,
 ) *DashboardStats {
 	catItems := make([]CategoryCount, 0, len(cats))
 	for _, c := range cats {
@@ -156,5 +167,13 @@ func buildDashboardStats(
 		PackageGrowthTimeline: pkgGrowthItems,
 		VersionGrowthTimeline: verGrowthItems,
 		TopPackages:           topItems,
+		VulnCount:             vulnStats.TotalVulns,
+		VulnSeverity: VulnSeverityBreakdown{
+			Critical: vulnStats.CriticalCount,
+			High:     vulnStats.HighCount,
+			Medium:   vulnStats.MediumCount,
+			Low:      vulnStats.LowCount,
+			Unknown:  vulnStats.UnknownCount,
+		},
 	}
 }

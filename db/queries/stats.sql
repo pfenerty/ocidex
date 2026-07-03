@@ -98,3 +98,22 @@ WHERE EXISTS (SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
 GROUP BY c.name, c.group_name, c.type
 ORDER BY version_count DESC
 LIMIT @top_n::int;
+
+-- name: GetVulnStats :one
+-- Distinct tracked vulnerabilities reachable from any visible SBOM, with per-severity breakdown.
+-- Join uses the package_vulnerability(purl, vulnerability_id) PK for the purl lookup.
+SELECT
+    COUNT(DISTINCT pv.vulnerability_id)::bigint AS total_vulns,
+    COUNT(DISTINCT pv.vulnerability_id) FILTER (WHERE v.severity = 'CRITICAL')::bigint AS critical_count,
+    COUNT(DISTINCT pv.vulnerability_id) FILTER (WHERE v.severity = 'HIGH')::bigint     AS high_count,
+    COUNT(DISTINCT pv.vulnerability_id) FILTER (WHERE v.severity = 'MEDIUM')::bigint   AS medium_count,
+    COUNT(DISTINCT pv.vulnerability_id) FILTER (WHERE v.severity = 'LOW')::bigint      AS low_count,
+    COUNT(DISTINCT pv.vulnerability_id) FILTER (
+        WHERE v.severity IS NULL OR v.severity NOT IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW')
+    )::bigint AS unknown_count
+FROM component c
+JOIN sbom s ON s.id = c.sbom_id
+JOIN package_vulnerability pv ON pv.purl = c.purl
+JOIN vulnerability v ON v.id = pv.vulnerability_id
+WHERE c.purl IS NOT NULL
+  AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
