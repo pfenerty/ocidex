@@ -159,6 +159,29 @@ services:
       LOG_LEVEL: info
       ENVIRONMENT: development
 
+  # Vulnerability worker: refreshes the package-keyed OSV vulnerability store on a
+  # schedule (no NATS). Talks to Postgres and api.osv.dev. Singleton via a Postgres
+  # advisory lock, so scaling to >1 is safe. A short refresh interval is set here so
+  # newly ingested SBOMs light up quickly during local exploration.
+  vuln-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: vuln-worker
+    container_name: ocidex-vuln-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgres://ocidex:ocidex@postgres:5432/ocidex?sslmode=disable
+      LOG_LEVEL: info
+      ENVIRONMENT: development
+      VULN_REFRESH_ENABLED: "true"
+      VULN_REFRESH_INTERVAL: "10m"
+
   web:
     build:
       context: .
