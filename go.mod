@@ -15,6 +15,7 @@ require (
 	github.com/matryer/is v1.4.1
 	github.com/nats-io/nats.go v1.49.0
 	github.com/oapi-codegen/runtime v1.4.1
+	github.com/pandatix/go-cvss v0.6.2
 	github.com/pressly/goose/v3 v3.27.0
 	github.com/testcontainers/testcontainers-go v0.40.0
 	github.com/testcontainers/testcontainers-go/modules/nats v0.40.0
