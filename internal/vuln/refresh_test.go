@@ -2,11 +2,14 @@ package vuln
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/matryer/is"
 )
+
+var errFakeUpsert = errors.New("simulated upsert failure")
 
 // fakeOSV is an in-memory OSVQuerier.
 type fakeOSV struct {
@@ -36,6 +39,7 @@ type fakeStore struct {
 	purls     []string
 	vulns     map[string]Row
 	mappings  map[string][]PackageVulnRef
+	upsertErr map[string]error // per-vuln-ID upsert failure to simulate bad records
 	refreshed bool
 	last      time.Time
 	lastOK    bool
@@ -49,6 +53,9 @@ func (s *fakeStore) ListDistinctComponentPurls(context.Context) ([]string, error
 	return s.purls, nil
 }
 func (s *fakeStore) UpsertVulnerability(_ context.Context, v Row) error {
+	if err := s.upsertErr[v.ID]; err != nil {
+		return err
+	}
 	s.vulns[v.ID] = v
 	return nil
 }
@@ -97,6 +104,38 @@ func TestRefreshMapsPurlsAndDedupesHydration(t *testing.T) {
 	is.Equal(store.mappings["pkg:npm/a@1.0.0"][0].FixedVersion, "1.0.1")
 	// Clean purl got an empty mapping set (prunes any stale rows).
 	is.Equal(len(store.mappings["pkg:npm/c@1.0.0"]), 0)
+	is.True(store.refreshed)
+}
+
+func TestRefreshSkipsUnstorableVulnWithoutAborting(t *testing.T) {
+	is := is.New(t)
+
+	osv := &fakeOSV{
+		purlToIDs: map[string][]string{
+			"pkg:npm/a@1.0.0": {"CVE-GOOD", "RHSA-BAD"}, // one good, one that fails to store
+			"pkg:npm/b@1.0.0": {"CVE-GOOD"},
+		},
+		records: map[string]*Record{
+			"CVE-GOOD": {ID: "CVE-GOOD"},
+			"RHSA-BAD": {ID: "RHSA-BAD"},
+		},
+	}
+	store := newFakeStore("pkg:npm/a@1.0.0", "pkg:npm/b@1.0.0")
+	store.upsertErr = map[string]error{"RHSA-BAD": errFakeUpsert}
+
+	svc := NewRefreshService(store, osv, nil)
+	is.NoErr(svc.Refresh(context.Background())) // one bad record must not abort the run
+
+	// Good vuln stored; bad one skipped.
+	_, goodStored := store.vulns["CVE-GOOD"]
+	is.True(goodStored)
+	_, badStored := store.vulns["RHSA-BAD"]
+	is.True(!badStored)
+
+	// Mapping for the affected purl includes only the stored vuln (no dangling FK ref).
+	refs := store.mappings["pkg:npm/a@1.0.0"]
+	is.Equal(len(refs), 1)
+	is.Equal(refs[0].VulnerabilityID, "CVE-GOOD")
 	is.True(store.refreshed)
 }
 

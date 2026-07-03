@@ -82,10 +82,7 @@ func (s *RefreshService) Refresh(ctx context.Context) error {
 	}
 
 	// Hydrate each referenced vuln once (a popular CVE appears under many purls).
-	records, err := s.hydrate(ctx, purlToIDs)
-	if err != nil {
-		return err
-	}
+	records := s.hydrate(ctx, purlToIDs)
 
 	// Replace per-purl mappings. Delete-then-insert prunes fixed/withdrawn vulns.
 	var affected int
@@ -93,9 +90,15 @@ func (s *RefreshService) Refresh(ctx context.Context) error {
 		ids := purlToIDs[purl]
 		refs := make([]PackageVulnRef, 0, len(ids))
 		for _, id := range ids {
+			rec, ok := records[id]
+			if !ok {
+				// Vuln wasn't stored (hydration or upsert failed); skip its mapping
+				// so the insert can't violate the foreign key.
+				continue
+			}
 			refs = append(refs, PackageVulnRef{
 				VulnerabilityID: id,
-				FixedVersion:    firstFixedVersion(records[id]),
+				FixedVersion:    firstFixedVersion(rec),
 			})
 		}
 		if err := s.store.ReplacePackageVulns(ctx, purl, refs); err != nil {
@@ -118,8 +121,10 @@ func (s *RefreshService) Refresh(ctx context.Context) error {
 	return nil
 }
 
-// hydrate fetches and upserts each unique vulnerability ID once.
-func (s *RefreshService) hydrate(ctx context.Context, purlToIDs map[string][]string) (map[string]*Record, error) {
+// hydrate fetches and upserts each unique vulnerability ID once. Records that
+// fail to fetch or store are skipped (logged) rather than aborting the refresh,
+// and are omitted from the returned map so callers never map to an unstored vuln.
+func (s *RefreshService) hydrate(ctx context.Context, purlToIDs map[string][]string) map[string]*Record {
 	unique := make(map[string]struct{})
 	for _, ids := range purlToIDs {
 		for _, id := range ids {
@@ -134,12 +139,16 @@ func (s *RefreshService) hydrate(ctx context.Context, purlToIDs map[string][]str
 			s.logger.Warn("vuln refresh: hydrating record failed", "id", id, "err", err)
 			continue
 		}
-		records[id] = rec
 		if err := s.store.UpsertVulnerability(ctx, toRow(rec)); err != nil {
-			return nil, fmt.Errorf("upserting vuln %s: %w", id, err)
+			// Skip records we can't store rather than aborting the whole refresh.
+			// Only stored vulns are recorded so phase 2 never emits a mapping that
+			// would violate the package_vulnerability -> vulnerability foreign key.
+			s.logger.Warn("vuln refresh: upserting record failed", "id", id, "err", err)
+			continue
 		}
+		records[id] = rec
 	}
-	return records, nil
+	return records
 }
 
 func toRow(rec *Record) Row {
