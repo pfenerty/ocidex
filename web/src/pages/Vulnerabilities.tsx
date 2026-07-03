@@ -70,7 +70,7 @@ export default function Vulnerabilities() {
                     <Show
                         when={query.data && (query.data.data?.length ?? 0) > 0}
                         fallback={
-                            <EmptyState message="No vulnerabilities found." />
+                            <EmptyState title="No vulnerabilities found." />
                         }
                     >
                         {(_) => {
