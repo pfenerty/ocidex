@@ -514,6 +514,25 @@ func (h *Handler) GetDashboardStats(ctx context.Context, _ *struct{}) (*Dashboar
 	return out, nil
 }
 
+// ListTopVulnerabilities handles GET /api/v1/vulns.
+func (h *Handler) ListTopVulnerabilities(ctx context.Context, input *ListTopVulnerabilitiesInput) (*ListTopVulnerabilitiesOutput, error) {
+	vis := visibilityFilterFromContext(ctx)
+	filter := service.TopVulnFilter{
+		Limit:      input.Limit,
+		Offset:     input.Offset,
+		Severity:   input.Severity,
+		Visibility: vis,
+	}
+	result, err := h.searchService.ListTopVulnerabilities(ctx, filter)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	out := &ListTopVulnerabilitiesOutput{}
+	out.Body.Data = result.Data
+	out.Body.Pagination = paginationMeta(result)
+	return out, nil
+}
+
 // GetArtifactChangelog handles GET /api/v1/artifacts/{id}/changelog.
 func (h *Handler) GetArtifactChangelog(ctx context.Context, input *GetArtifactChangelogInput) (*GetArtifactChangelogOutput, error) {
 	id, err := parseUUID(input.ID)

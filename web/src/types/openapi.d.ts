@@ -750,6 +750,23 @@ export interface paths {
         patch: operations["update-user-role"];
         trace?: never;
     };
+    "/api/v1/vulns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List top vulnerabilities */
+        get: operations["list-top-vulnerabilities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -1493,6 +1510,16 @@ export interface components {
             data: components["schemas"]["ScanJobResponse"][] | null;
             pagination: components["schemas"]["PaginationMeta"];
         };
+        ListTopVulnerabilitiesOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListTopVulnerabilitiesOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["TopVulnEntry"][] | null;
+            pagination: components["schemas"]["PaginationMeta"];
+        };
         ListUsersOutputBody: {
             /**
              * Format: uri
@@ -1835,6 +1862,20 @@ export interface components {
             message: string;
             /** @description Whether the registry responded */
             reachable: boolean;
+        };
+        TopVulnEntry: {
+            /** Format: int64 */
+            affectedPurlCount: number;
+            /** Format: int64 */
+            affectedSbomCount: number;
+            aliases: string[] | null;
+            /** Format: float */
+            cvssScore?: number;
+            id: string;
+            /** Format: date-time */
+            publishedAt?: string;
+            severity: string;
+            summary?: string;
         };
         UpdateRegistryInputBody: {
             /**
@@ -3561,6 +3602,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-top-vulnerabilities": {
+        parameters: {
+            query?: {
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Number of results to skip */
+                offset?: number;
+                /** @description Filter by severity */
+                severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListTopVulnerabilitiesOutputBody"];
                 };
             };
             /** @description Error */

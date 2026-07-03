@@ -83,6 +83,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	registerWebhookOps(api, h)
 	registerRegistryOps(api, h)
 	registerStatsOps(api, h)
+	registerVulnOps(api, h)
 	registerJobOps(api, h)
 	registerAuthOps(r, api, h)
 
@@ -463,6 +464,20 @@ func registerStatsOps(api huma.API, h *Handler) {
 		Summary:     "Get dashboard summary statistics",
 		Tags:        []string{"Stats"},
 	}, h.GetDashboardStats)
+}
+
+// ---------------------------------------------------------------------------
+// Vulnerabilities
+// ---------------------------------------------------------------------------
+
+func registerVulnOps(api huma.API, h *Handler) {
+	huma.Register(api, huma.Operation{
+		OperationID: "list-top-vulnerabilities",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/vulns",
+		Summary:     "List top vulnerabilities",
+		Tags:        []string{"Vulnerabilities"},
+	}, h.ListTopVulnerabilities)
 }
 
 // ---------------------------------------------------------------------------
