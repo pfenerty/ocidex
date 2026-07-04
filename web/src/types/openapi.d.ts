@@ -2082,6 +2082,7 @@ export interface components {
             canonicalId: string;
             /** Format: float */
             cvssScore?: number;
+            cvssVector?: string;
             details?: string;
             id: string;
             /** Format: date-time */
