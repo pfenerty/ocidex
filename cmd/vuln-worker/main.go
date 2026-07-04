@@ -76,7 +76,14 @@ func run() error {
 		vuln.WithHTTPClient(&http.Client{Timeout: cfg.OSVTimeout}),
 		vuln.WithBatchSize(cfg.OSVBatchSize),
 	)
-	refresher := vuln.NewRefreshService(store, osvClient, slog.Default())
+
+	var refreshOpts []vuln.RefreshOption
+	if cfg.IncrementalRefreshEnabled {
+		csvFetcher := vuln.NewModifiedCSVFetcher(cfg.OSVBucketBaseURL, &http.Client{Timeout: cfg.OSVTimeout})
+		refreshOpts = append(refreshOpts, vuln.WithCSVFetcher(csvFetcher))
+		slog.Info("vuln incremental refresh enabled", "bucket_base_url", cfg.OSVBucketBaseURL)
+	}
+	refresher := vuln.NewRefreshService(store, osvClient, slog.Default(), refreshOpts...)
 
 	if *once {
 		return refresher.Refresh(ctx)

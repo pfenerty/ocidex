@@ -2,9 +2,11 @@ package vuln
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -25,6 +27,16 @@ func NewPGStore(pool *pgxpool.Pool) *PGStore {
 // ListDistinctComponentPurls returns every purl present in any SBOM.
 func (s *PGStore) ListDistinctComponentPurls(ctx context.Context) ([]string, error) {
 	return s.q.ListDistinctComponentPurls(ctx)
+}
+
+// ListDistinctPurlTypes returns the distinct purl type tokens (e.g. "npm", "pypi").
+func (s *PGStore) ListDistinctPurlTypes(ctx context.Context) ([]string, error) {
+	return s.q.ListDistinctPurlTypes(ctx)
+}
+
+// ListDistinctComponentPurlsByTypes returns purls whose purl type matches any entry in types.
+func (s *PGStore) ListDistinctComponentPurlsByTypes(ctx context.Context, types []string) ([]string, error) {
+	return s.q.ListDistinctComponentPurlsByTypes(ctx, types)
 }
 
 // ListUnknownPurlsForSBOM returns purls from the given SBOM not yet in package_vulnerability.
@@ -94,6 +106,30 @@ func (s *PGStore) LastRefreshedAt(ctx context.Context) (time.Time, bool, error) 
 // MarkRefreshed stamps the refresh as complete now.
 func (s *PGStore) MarkRefreshed(ctx context.Context) error {
 	return s.q.SetVulnRefreshedAt(ctx)
+}
+
+// GetEcosystemState returns the stored CSV max-modified timestamp for an ecosystem.
+// ok=false if no state has been recorded yet (first run).
+func (s *PGStore) GetEcosystemState(ctx context.Context, ecosystem string) (time.Time, bool, error) {
+	row, err := s.q.GetEcosystemState(ctx, ecosystem)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return time.Time{}, false, nil
+		}
+		return time.Time{}, false, err
+	}
+	if !row.LastModifiedAt.Valid {
+		return time.Time{}, false, nil
+	}
+	return row.LastModifiedAt.Time, true, nil
+}
+
+// UpsertEcosystemState persists the latest CSV modified timestamp for an ecosystem.
+func (s *PGStore) UpsertEcosystemState(ctx context.Context, ecosystem string, lastModifiedAt time.Time) error {
+	return s.q.UpsertEcosystemState(ctx, repository.UpsertEcosystemStateParams{
+		Ecosystem:      ecosystem,
+		LastModifiedAt: timestamptz(lastModifiedAt),
+	})
 }
 
 func text(s string) pgtype.Text {

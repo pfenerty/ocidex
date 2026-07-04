@@ -39,6 +39,10 @@ type PackageVulnRef struct {
 type Store interface {
 	// ListDistinctComponentPurls returns every purl present in any SBOM.
 	ListDistinctComponentPurls(ctx context.Context) ([]string, error)
+	// ListDistinctPurlTypes returns the distinct purl type tokens (e.g. "npm", "pypi").
+	ListDistinctPurlTypes(ctx context.Context) ([]string, error)
+	// ListDistinctComponentPurlsByTypes returns purls whose type matches any entry in types.
+	ListDistinctComponentPurlsByTypes(ctx context.Context, types []string) ([]string, error)
 	// ListUnknownPurlsForSBOM returns purls from the given SBOM not yet in package_vulnerability.
 	ListUnknownPurlsForSBOM(ctx context.Context, sbomID pgtype.UUID) ([]string, error)
 	// UpsertVulnerability inserts or updates one vulnerability record.
@@ -49,35 +53,79 @@ type Store interface {
 	LastRefreshedAt(ctx context.Context) (t time.Time, ok bool, err error)
 	// MarkRefreshed stamps the refresh as complete now.
 	MarkRefreshed(ctx context.Context) error
+	// GetEcosystemState returns the last CSV modified timestamp stored for an ecosystem.
+	// ok=false means no state has been recorded yet (first run for that ecosystem).
+	GetEcosystemState(ctx context.Context, ecosystem string) (t time.Time, ok bool, err error)
+	// UpsertEcosystemState persists the latest CSV modified timestamp for an ecosystem.
+	UpsertEcosystemState(ctx context.Context, ecosystem string, lastModifiedAt time.Time) error
+}
+
+// csvModifiedFetcher is the interface consumed by RefreshService for fetching
+// per-ecosystem modified timestamps from the OSV bucket.
+type csvModifiedFetcher interface {
+	FetchMaxModifiedAt(ctx context.Context, ecosystem string) (time.Time, error)
 }
 
 // RefreshService rebuilds the package-keyed vulnerability store from OSV.
 type RefreshService struct {
-	store  Store
-	osv    OSVQuerier
-	logger *slog.Logger
+	store      Store
+	osv        OSVQuerier
+	logger     *slog.Logger
+	csvFetcher csvModifiedFetcher // nil → full refresh (no incremental check)
 }
 
-// NewRefreshService constructs a RefreshService.
-func NewRefreshService(store Store, osv OSVQuerier, logger *slog.Logger) *RefreshService {
+// RefreshOption configures a RefreshService.
+type RefreshOption func(*RefreshService)
+
+// WithCSVFetcher enables incremental refresh: only ecosystems whose
+// modified_id.csv has advanced since the last recorded state are re-queried.
+func WithCSVFetcher(f csvModifiedFetcher) RefreshOption {
+	return func(s *RefreshService) { s.csvFetcher = f }
+}
+
+// NewRefreshService constructs a RefreshService. Pass WithCSVFetcher to enable
+// incremental refresh; without it every cycle re-queries all purls.
+func NewRefreshService(store Store, osv OSVQuerier, logger *slog.Logger, opts ...RefreshOption) *RefreshService {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &RefreshService{store: store, osv: osv, logger: logger}
+	svc := &RefreshService{store: store, osv: osv, logger: logger}
+	for _, o := range opts {
+		o(svc)
+	}
+	return svc
 }
 
-// Refresh runs one full refresh cycle: query every distinct purl against OSV,
-// hydrate each referenced vulnerability once (deduped across purls), and
-// replace the per-purl mappings. On success it stamps the refresh time.
+// Refresh runs one refresh cycle. When a csvFetcher is configured it uses
+// incremental mode: only purls from ecosystems whose modified_id.csv has
+// advanced since the last recorded state are re-queried. Otherwise it
+// re-queries every distinct purl. On success it stamps the refresh time.
 func (s *RefreshService) Refresh(ctx context.Context) error {
 	start := time.Now()
-	purls, err := s.store.ListDistinctComponentPurls(ctx)
-	if err != nil {
-		return fmt.Errorf("listing purls: %w", err)
-	}
-	if len(purls) == 0 {
-		s.logger.Info("vuln refresh: no purls to scan")
-		return s.store.MarkRefreshed(ctx)
+
+	var purls []string
+	var ecosystemStates map[string]time.Time // populated only in incremental mode
+
+	if s.csvFetcher != nil {
+		var err error
+		purls, ecosystemStates, err = s.selectChangedPurls(ctx)
+		if err != nil {
+			return err
+		}
+		if len(purls) == 0 {
+			s.logger.Info("vuln refresh: all ecosystems up-to-date")
+			return s.store.MarkRefreshed(ctx)
+		}
+	} else {
+		var err error
+		purls, err = s.store.ListDistinctComponentPurls(ctx)
+		if err != nil {
+			return fmt.Errorf("listing purls: %w", err)
+		}
+		if len(purls) == 0 {
+			s.logger.Info("vuln refresh: no purls to scan")
+			return s.store.MarkRefreshed(ctx)
+		}
 	}
 
 	purlToIDs, err := s.osv.QueryPurls(ctx, purls)
@@ -88,7 +136,28 @@ func (s *RefreshService) Refresh(ctx context.Context) error {
 	// Hydrate each referenced vuln once (a popular CVE appears under many purls).
 	records := s.hydrate(ctx, purlToIDs)
 
-	// Replace per-purl mappings. Delete-then-insert prunes fixed/withdrawn vulns.
+	affected, err := s.replaceMappings(ctx, purls, purlToIDs, records)
+	if err != nil {
+		return err
+	}
+
+	s.saveEcosystemStates(ctx, ecosystemStates)
+
+	if err := s.store.MarkRefreshed(ctx); err != nil {
+		return fmt.Errorf("marking refreshed: %w", err)
+	}
+	s.logger.Info("vuln refresh complete",
+		"purls", len(purls),
+		"affected_purls", affected,
+		"vulns", len(records),
+		"duration_ms", time.Since(start).Milliseconds(),
+	)
+	return nil
+}
+
+// replaceMappings performs the delete-then-insert cycle for each purl and
+// returns the number of purls that had at least one vulnerability mapping.
+func (s *RefreshService) replaceMappings(ctx context.Context, purls []string, purlToIDs map[string][]string, records map[string]*Record) (int, error) {
 	var affected int
 	for _, purl := range purls {
 		ids := purlToIDs[purl]
@@ -106,23 +175,90 @@ func (s *RefreshService) Refresh(ctx context.Context) error {
 			})
 		}
 		if err := s.store.ReplacePackageVulns(ctx, purl, refs); err != nil {
-			return fmt.Errorf("replacing mappings for %s: %w", purl, err)
+			return 0, fmt.Errorf("replacing mappings for %s: %w", purl, err)
 		}
 		if len(refs) > 0 {
 			affected++
 		}
 	}
+	return affected, nil
+}
 
-	if err := s.store.MarkRefreshed(ctx); err != nil {
-		return fmt.Errorf("marking refreshed: %w", err)
+// saveEcosystemStates persists per-ecosystem CSV modified timestamps so the
+// next cycle can skip unchanged ecosystems. A zero time means the CSV fetch
+// failed; that ecosystem is skipped so it retries on the next cycle.
+func (s *RefreshService) saveEcosystemStates(ctx context.Context, ecosystemStates map[string]time.Time) {
+	for eco, csvMax := range ecosystemStates {
+		if csvMax.IsZero() {
+			continue
+		}
+		if err := s.store.UpsertEcosystemState(ctx, eco, csvMax); err != nil {
+			s.logger.Warn("vuln refresh: failed to save ecosystem state", "ecosystem", eco, "err", err)
+		}
 	}
-	s.logger.Info("vuln refresh complete",
-		"purls", len(purls),
-		"affected_purls", affected,
-		"vulns", len(records),
-		"duration_ms", time.Since(start).Milliseconds(),
-	)
-	return nil
+}
+
+// selectChangedPurls identifies which purls need refreshing based on
+// per-ecosystem modified_id.csv timestamps. Returns the purls to refresh and a
+// map of ecosystem → CSV max-modified-time for ecosystems that changed (used to
+// update state after a successful cycle). A zero time in the map means the CSV
+// fetch failed and state should not be updated.
+func (s *RefreshService) selectChangedPurls(ctx context.Context) ([]string, map[string]time.Time, error) {
+	purlTypes, err := s.store.ListDistinctPurlTypes(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("listing purl types: %w", err)
+	}
+
+	type pair struct{ purlType, ecosystem string }
+	var known []pair
+	var unknownTypes []string
+	for _, typ := range purlTypes {
+		if eco, ok := PurlTypeToOSVEcosystem(typ); ok {
+			known = append(known, pair{typ, eco})
+		} else {
+			unknownTypes = append(unknownTypes, typ)
+		}
+	}
+
+	ecosystemStates := make(map[string]time.Time)
+	var changedTypes []string
+
+	for _, te := range known {
+		csvMax, err := s.csvFetcher.FetchMaxModifiedAt(ctx, te.ecosystem)
+		if err != nil {
+			// On CSV fetch error include the ecosystem so we don't silently skip it.
+			s.logger.Warn("vuln refresh: CSV fetch failed, including ecosystem", "ecosystem", te.ecosystem, "err", err)
+			changedTypes = append(changedTypes, te.purlType)
+			// Zero time → state not updated → retried next cycle.
+			ecosystemStates[te.ecosystem] = time.Time{}
+			continue
+		}
+
+		stored, found, err := s.store.GetEcosystemState(ctx, te.ecosystem)
+		if err != nil {
+			s.logger.Warn("vuln refresh: ecosystem state lookup failed, including", "ecosystem", te.ecosystem, "err", err)
+			changedTypes = append(changedTypes, te.purlType)
+			continue
+		}
+
+		if !found || csvMax.After(stored) {
+			changedTypes = append(changedTypes, te.purlType)
+			ecosystemStates[te.ecosystem] = csvMax
+		}
+	}
+
+	// Unknown purl types have no modified_id.csv; always include them.
+	changedTypes = append(changedTypes, unknownTypes...)
+
+	if len(changedTypes) == 0 {
+		return nil, ecosystemStates, nil
+	}
+
+	purls, err := s.store.ListDistinctComponentPurlsByTypes(ctx, changedTypes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("listing purls by changed types: %w", err)
+	}
+	return purls, ecosystemStates, nil
 }
 
 // LookupPurls runs the hydrate+replace cycle for a specific purl set without

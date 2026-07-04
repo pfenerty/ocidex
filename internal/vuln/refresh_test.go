@@ -3,6 +3,7 @@ package vuln
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,22 +38,70 @@ func (f *fakeOSV) GetVuln(_ context.Context, id string) (*Record, error) {
 
 // fakeStore records what the refresh persisted.
 type fakeStore struct {
-	purls     []string
-	vulns     map[string]Row
-	mappings  map[string][]PackageVulnRef
-	upsertErr map[string]error // per-vuln-ID upsert failure to simulate bad records
-	refreshed bool
-	last      time.Time
-	lastOK    bool
+	purls          []string
+	vulns          map[string]Row
+	mappings       map[string][]PackageVulnRef
+	upsertErr      map[string]error // per-vuln-ID upsert failure to simulate bad records
+	refreshed      bool
+	last           time.Time
+	lastOK         bool
+	ecosystemState map[string]time.Time // ecosystem → stored last_modified_at
+	upsertedEcos   map[string]time.Time // ecosystem → value written by UpsertEcosystemState
 }
 
 func newFakeStore(purls ...string) *fakeStore {
-	return &fakeStore{purls: purls, vulns: map[string]Row{}, mappings: map[string][]PackageVulnRef{}}
+	return &fakeStore{
+		purls:          purls,
+		vulns:          map[string]Row{},
+		mappings:       map[string][]PackageVulnRef{},
+		ecosystemState: map[string]time.Time{},
+		upsertedEcos:   map[string]time.Time{},
+	}
 }
 
 func (s *fakeStore) ListDistinctComponentPurls(context.Context) ([]string, error) {
 	return s.purls, nil
 }
+
+// ListDistinctPurlTypes extracts the type token from each stored purl.
+func (s *fakeStore) ListDistinctPurlTypes(context.Context) ([]string, error) {
+	seen := map[string]struct{}{}
+	for _, p := range s.purls {
+		// pkg:<type>/...
+		after, ok := strings.CutPrefix(p, "pkg:")
+		if !ok {
+			continue
+		}
+		typ, _, _ := strings.Cut(after, "/")
+		seen[typ] = struct{}{}
+	}
+	out := make([]string, 0, len(seen))
+	for t := range seen {
+		out = append(out, t)
+	}
+	return out, nil
+}
+
+// ListDistinctComponentPurlsByTypes filters stored purls to those matching the types.
+func (s *fakeStore) ListDistinctComponentPurlsByTypes(_ context.Context, types []string) ([]string, error) {
+	want := map[string]struct{}{}
+	for _, t := range types {
+		want[t] = struct{}{}
+	}
+	var out []string
+	for _, p := range s.purls {
+		after, ok := strings.CutPrefix(p, "pkg:")
+		if !ok {
+			continue
+		}
+		typ, _, _ := strings.Cut(after, "/")
+		if _, ok := want[typ]; ok {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}
+
 func (s *fakeStore) UpsertVulnerability(_ context.Context, v Row) error {
 	if err := s.upsertErr[v.ID]; err != nil {
 		return err
@@ -73,6 +122,29 @@ func (s *fakeStore) LastRefreshedAt(context.Context) (time.Time, bool, error) {
 func (s *fakeStore) MarkRefreshed(context.Context) error {
 	s.refreshed = true
 	return nil
+}
+func (s *fakeStore) GetEcosystemState(_ context.Context, ecosystem string) (time.Time, bool, error) {
+	t, ok := s.ecosystemState[ecosystem]
+	return t, ok, nil
+}
+func (s *fakeStore) UpsertEcosystemState(_ context.Context, ecosystem string, lastModifiedAt time.Time) error {
+	s.upsertedEcos[ecosystem] = lastModifiedAt
+	return nil
+}
+
+// fakeCSVFetcher is a configurable csvModifiedFetcher for tests.
+type fakeCSVFetcher struct {
+	times map[string]time.Time // ecosystem → CSV max modified time
+	err   map[string]error
+	calls []string // ecosystems fetched
+}
+
+func (f *fakeCSVFetcher) FetchMaxModifiedAt(_ context.Context, ecosystem string) (time.Time, error) {
+	f.calls = append(f.calls, ecosystem)
+	if err, ok := f.err[ecosystem]; ok {
+		return time.Time{}, err
+	}
+	return f.times[ecosystem], nil
 }
 
 func TestRefreshMapsPurlsAndDedupesHydration(t *testing.T) {
@@ -174,4 +246,110 @@ func TestSchedulerDue(t *testing.T) {
 	due, err = sch.due(context.Background())
 	is.NoErr(err)
 	is.True(due)
+}
+
+// Incremental refresh tests.
+
+func TestIncrementalRefreshSkipsUnchangedEcosystem(t *testing.T) {
+	is := is.New(t)
+
+	csvTime := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
+	store := newFakeStore("pkg:npm/a@1.0.0", "pkg:npm/b@1.0.0")
+	// Stored state matches CSV time → no change.
+	store.ecosystemState["npm"] = csvTime
+
+	fetcher := &fakeCSVFetcher{times: map[string]time.Time{"npm": csvTime}}
+	osv := &fakeOSV{purlToIDs: map[string][]string{}}
+
+	svc := NewRefreshService(store, osv, nil, WithCSVFetcher(fetcher))
+	is.NoErr(svc.Refresh(context.Background()))
+
+	// No purls queried.
+	is.Equal(len(store.mappings), 0)
+	// Ecosystem state not updated (no change).
+	is.Equal(len(store.upsertedEcos), 0)
+	// Global refresh still marked.
+	is.True(store.refreshed)
+}
+
+func TestIncrementalRefreshOnlyQueriesChangedEcosystem(t *testing.T) {
+	is := is.New(t)
+
+	oldTime := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	newTime := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
+
+	// npm has changed, pypi has not.
+	store := newFakeStore("pkg:npm/a@1.0.0", "pkg:pypi/requests@2.0.0")
+	store.ecosystemState["npm"] = oldTime
+	store.ecosystemState["PyPI"] = newTime // PyPI is current
+
+	fetcher := &fakeCSVFetcher{times: map[string]time.Time{
+		"npm":  newTime, // advanced → changed
+		"PyPI": newTime, // same → no change
+	}}
+	osv := &fakeOSV{
+		purlToIDs: map[string][]string{
+			"pkg:npm/a@1.0.0": {"CVE-1"},
+		},
+		records: map[string]*Record{"CVE-1": {ID: "CVE-1"}},
+	}
+
+	svc := NewRefreshService(store, osv, nil, WithCSVFetcher(fetcher))
+	is.NoErr(svc.Refresh(context.Background()))
+
+	// npm purl was refreshed.
+	is.True(len(store.mappings["pkg:npm/a@1.0.0"]) > 0)
+	// pypi purl was NOT touched.
+	_, pypiMapped := store.mappings["pkg:pypi/requests@2.0.0"]
+	is.True(!pypiMapped)
+
+	// npm ecosystem state updated; PyPI not (unchanged).
+	is.Equal(store.upsertedEcos["npm"], newTime)
+	_, pypiUpdated := store.upsertedEcos["PyPI"]
+	is.True(!pypiUpdated)
+	is.True(store.refreshed)
+}
+
+func TestIncrementalRefreshFirstRunIncludesAllEcosystems(t *testing.T) {
+	is := is.New(t)
+
+	csvTime := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
+	// No stored state → first run → all ecosystems treated as changed.
+	store := newFakeStore("pkg:npm/a@1.0.0")
+
+	fetcher := &fakeCSVFetcher{times: map[string]time.Time{"npm": csvTime}}
+	osv := &fakeOSV{
+		purlToIDs: map[string][]string{"pkg:npm/a@1.0.0": {"CVE-1"}},
+		records:   map[string]*Record{"CVE-1": {ID: "CVE-1"}},
+	}
+
+	svc := NewRefreshService(store, osv, nil, WithCSVFetcher(fetcher))
+	is.NoErr(svc.Refresh(context.Background()))
+
+	is.True(len(store.mappings["pkg:npm/a@1.0.0"]) > 0)
+	is.Equal(store.upsertedEcos["npm"], csvTime)
+	is.True(store.refreshed)
+}
+
+func TestIncrementalRefreshUnknownPurlTypeAlwaysIncluded(t *testing.T) {
+	is := is.New(t)
+
+	// "oci" is not a known purl type in our ecosystem map.
+	store := newFakeStore("pkg:oci/myimage@sha256:abc")
+
+	// fetcher will not be called for "oci" (unknown type has no CSV URL).
+	fetcher := &fakeCSVFetcher{times: map[string]time.Time{}}
+	osv := &fakeOSV{
+		purlToIDs: map[string][]string{"pkg:oci/myimage@sha256:abc": {}},
+	}
+
+	svc := NewRefreshService(store, osv, nil, WithCSVFetcher(fetcher))
+	is.NoErr(svc.Refresh(context.Background()))
+
+	// Unknown type was included → mappings replaced.
+	_, touched := store.mappings["pkg:oci/myimage@sha256:abc"]
+	is.True(touched)
+	// No CSV was fetched for "oci".
+	is.Equal(len(fetcher.calls), 0)
+	is.True(store.refreshed)
 }
