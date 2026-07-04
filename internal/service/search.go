@@ -36,7 +36,7 @@ type SearchService interface {
 	GetDashboardStats(ctx context.Context, vis VisibilityFilter) (*DashboardStats, error)
 	ListTopVulnerabilities(ctx context.Context, filter TopVulnFilter) (PagedResult[TopVulnEntry], error)
 	GetArtifactVulnSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (*VulnSummary, error)
-	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (*VulnDetail, PagedResult[AffectedArtifact], error)
+	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (*VulnDetail, PagedResult[AffectedArtifact], []AffectedComponent, error)
 	GetComponentVulns(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) ([]ComponentVulnEntry, error)
 }
 
@@ -104,6 +104,14 @@ type AffectedArtifact struct {
 	Group             *string `json:"group,omitempty"`
 	AffectedSbomCount int64   `json:"affectedSbomCount"`
 	AffectedPurlCount int64   `json:"affectedPurlCount"`
+}
+
+// AffectedComponent is a distinct component (by name+group) affected by a vulnerability.
+type AffectedComponent struct {
+	Name                 string  `json:"name"`
+	Group                *string `json:"group,omitempty"`
+	FixedVersion         *string `json:"fixedVersion,omitempty"`
+	AffectedVersionCount int64   `json:"affectedVersionCount"`
 }
 
 // ComponentVulnEntry is one vulnerability finding for a specific component purl.

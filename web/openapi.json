@@ -30,6 +30,29 @@
         ],
         "type": "object"
       },
+      "AffectedComponent": {
+        "additionalProperties": false,
+        "properties": {
+          "affectedVersionCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "fixedVersion": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "affectedVersionCount"
+        ],
+        "type": "object"
+      },
       "ArtifactDetail": {
         "additionalProperties": false,
         "properties": {
@@ -1679,6 +1702,15 @@
               "null"
             ]
           },
+          "affectedComponents": {
+            "items": {
+              "$ref": "#/components/schemas/AffectedComponent"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "pagination": {
             "$ref": "#/components/schemas/PaginationMeta"
           },
@@ -1688,6 +1720,7 @@
         },
         "required": [
           "vulnerability",
+          "affectedComponents",
           "affectedArtifacts",
           "pagination"
         ],

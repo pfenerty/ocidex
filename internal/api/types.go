@@ -525,9 +525,10 @@ type GetVulnerabilityInput struct {
 // GetVulnerabilityOutput is the response for GET /api/v1/vulns/{id}.
 type GetVulnerabilityOutput struct {
 	Body struct {
-		Vulnerability     service.VulnDetail         `json:"vulnerability"`
-		AffectedArtifacts []service.AffectedArtifact `json:"affectedArtifacts"`
-		Pagination        PaginationMeta             `json:"pagination"`
+		Vulnerability      service.VulnDetail          `json:"vulnerability"`
+		AffectedComponents []service.AffectedComponent `json:"affectedComponents"`
+		AffectedArtifacts  []service.AffectedArtifact  `json:"affectedArtifacts"`
+		Pagination         PaginationMeta              `json:"pagination"`
 	}
 }
 
