@@ -324,6 +324,11 @@ func (s *RefreshService) hydrate(ctx context.Context, purlToIDs map[string][]str
 
 func toRow(rec *Record) Row {
 	label, score := DeriveSeverity(rec.Severity)
+	if label == SeverityUnknown {
+		// Fall back to plain-text severity present in database_specific blocks.
+		// The Go security database uses this pattern instead of CVSS vectors.
+		label = databaseSpecificSeverity(rec)
+	}
 	return Row{
 		ID:        rec.ID,
 		Aliases:   rec.Aliases,
@@ -335,6 +340,21 @@ func toRow(rec *Record) Row {
 		Modified:  parseTime(rec.Modified),
 		Raw:       rec.Raw,
 	}
+}
+
+// databaseSpecificSeverity checks the record-level and then per-affected
+// database_specific blocks for a plain-text severity label. Returns UNKNOWN
+// when none is found.
+func databaseSpecificSeverity(rec *Record) string {
+	if s := normalizeSeverityLabel(rec.DatabaseSpecific.Severity); s != "" {
+		return s
+	}
+	for _, aff := range rec.Affected {
+		if s := normalizeSeverityLabel(aff.DatabaseSpecific.Severity); s != "" {
+			return s
+		}
+	}
+	return SeverityUnknown
 }
 
 // firstFixedVersion returns the first "fixed" event across a record's ranges.
