@@ -2085,8 +2085,13 @@ export interface components {
             modifiedAt?: string;
             /** Format: date-time */
             publishedAt?: string;
+            references?: components["schemas"]["VulnReference"][] | null;
             severity: string;
             summary?: string;
+        };
+        VulnReference: {
+            type: string;
+            url: string;
         };
         VulnSeverityEntry: {
             /** Format: int64 */

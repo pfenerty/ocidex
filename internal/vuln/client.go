@@ -35,8 +35,15 @@ type Record struct {
 	Withdrawn        string           `json:"withdrawn"`
 	Severity         []Severity       `json:"severity"`
 	Affected         []Affected       `json:"affected"`
+	References       []Reference      `json:"references"`
 	DatabaseSpecific DatabaseSpecific `json:"database_specific"`
 	Raw              json.RawMessage  `json:"-"`
+}
+
+// Reference is one entry in an OSV record's references list.
+type Reference struct {
+	Type string `json:"type"`
+	URL  string `json:"url"`
 }
 
 // Severity is one OSV severity entry, e.g. {Type: "CVSS_V3", Score: "CVSS:3.1/AV:N/..."}.
