@@ -238,6 +238,14 @@ func registerComponentOps(api huma.API, h *Handler) {
 		Summary:     "Get a component",
 		Tags:        []string{"Components"},
 	}, h.GetComponent)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-component-vulns",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/components/{id}/vulns",
+		Summary:     "List vulnerabilities for a component",
+		Tags:        []string{"Components"},
+	}, h.GetComponentVulns)
 }
 
 // ---------------------------------------------------------------------------

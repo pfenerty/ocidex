@@ -1,6 +1,6 @@
 export { useArtifacts, useArtifactsInfinite, useArtifact, useArtifactSBOMs, useArtifactVersions, useArtifactChangelog, useArtifactLicenseSummary, useArtifactVulnSummary, useArtifactNames } from "./artifacts";
 export { useSBOMs, useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies } from "./sboms";
-export { useDistinctComponents, useComponentPurlTypes, useComponentVersions, useComponent } from "./components";
+export { useDistinctComponents, useComponentPurlTypes, useComponentVersions, useComponent, useComponentVulns } from "./components";
 export { useLicenses, useLicenseComponents } from "./licenses";
 export { useDiff, useDiffTree } from "./diff";
 export { useDashboardStats } from "./stats";

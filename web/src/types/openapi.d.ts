@@ -358,6 +358,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/components/{id}/vulns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List vulnerabilities for a component */
+        get: operations["get-component-vulns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/enrichment-jobs": {
         parameters: {
             query?: never;
@@ -1033,6 +1050,14 @@ export interface components {
             /** Format: int64 */
             vulnCount: number;
         };
+        ComponentVulnEntry: {
+            /** Format: float */
+            cvssScore?: number;
+            fixedVersion?: string;
+            id: string;
+            severity: string;
+            summary?: string;
+        };
         CreateAPIKeyInputBody: {
             /**
              * Format: uri
@@ -1374,6 +1399,15 @@ export interface components {
              */
             readonly $schema?: string;
             versions: components["schemas"]["ComponentVersionEntry"][] | null;
+        };
+        GetComponentVulnsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/GetComponentVulnsOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["ComponentVulnEntry"][] | null;
         };
         GetVulnerabilityOutputBody: {
             /**
@@ -2797,6 +2831,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ComponentDetail"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-component-vulns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Component UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetComponentVulnsOutputBody"];
                 };
             };
             /** @description Error */

@@ -212,6 +212,8 @@ interface TreeNode {
     type?: string;
     id?: string;
     purl?: string;
+    vulnCount?: number;
+    maxSeverity?: string;
     children: string[];
 }
 
@@ -227,7 +229,7 @@ export function DependencyTreeView(props: {
     const treeData = createMemo(() => {
         const nameMap = new Map<
             string,
-            { name: string; version?: string; type?: string; id?: string; purl?: string }
+            { name: string; version?: string; type?: string; id?: string; purl?: string; vulnCount?: number; maxSeverity?: string }
         >();
         for (const node of props.graph.nodes) {
             const name =
@@ -239,7 +241,7 @@ export function DependencyTreeView(props: {
                     ? node.version
                     : undefined;
             const type = parsePurl(node.purl ?? "")?.type ?? node.type;
-            const info = { name, version, type, id: node.id, purl: node.purl };
+            const info = { name, version, type, id: node.id, purl: node.purl, vulnCount: node.vulnCount, maxSeverity: node.maxSeverity };
             nameMap.set(node.id, info);
             nameMap.set(node.name, info);
             if (node.purl !== undefined) nameMap.set(node.purl, info);
@@ -274,6 +276,8 @@ export function DependencyTreeView(props: {
                 type: info?.type,
                 id: info?.id,
                 purl: info?.purl,
+                vulnCount: info?.vulnCount,
+                maxSeverity: info?.maxSeverity,
                 children: adj.get(ref) ?? [],
             });
         }
@@ -348,6 +352,7 @@ export function DependencyTreeView(props: {
                             <th>Version</th>
                             <th>Type</th>
                             <th>Package URL</th>
+                            <th>Vulns</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -436,6 +441,9 @@ export function DependencyTreeView(props: {
                                             >
                                                 {(purl) => <PurlLink purl={purl} showBadge />}
                                             </Show>
+                                        </td>
+                                        <td>
+                                            <VulnBadge count={row.node.vulnCount} maxSeverity={row.node.maxSeverity} />
                                         </td>
                                     </tr>
                                 );

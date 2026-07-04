@@ -37,6 +37,7 @@ type SearchService interface {
 	ListTopVulnerabilities(ctx context.Context, filter TopVulnFilter) (PagedResult[TopVulnEntry], error)
 	GetArtifactVulnSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (*VulnSummary, error)
 	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (*VulnDetail, PagedResult[AffectedArtifact], error)
+	GetComponentVulns(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) ([]ComponentVulnEntry, error)
 }
 
 // DashboardStats holds aggregated metrics for the dashboard.
@@ -103,6 +104,15 @@ type AffectedArtifact struct {
 	Group             *string `json:"group,omitempty"`
 	AffectedSbomCount int64   `json:"affectedSbomCount"`
 	AffectedPurlCount int64   `json:"affectedPurlCount"`
+}
+
+// ComponentVulnEntry is one vulnerability finding for a specific component purl.
+type ComponentVulnEntry struct {
+	ID           string   `json:"id"`
+	Severity     string   `json:"severity"`
+	CvssScore    *float32 `json:"cvssScore,omitempty"`
+	Summary      *string  `json:"summary,omitempty"`
+	FixedVersion *string  `json:"fixedVersion,omitempty"`
 }
 
 // PackageSummary is a distinct package with version and SBOM counts.

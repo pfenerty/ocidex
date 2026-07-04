@@ -1,12 +1,13 @@
 import "~/components/DetailSection.css";
 import { Show, For, createSignal } from "solid-js";
 import { A, useParams } from "@solidjs/router";
-import { useComponent, useComponentVersions } from "~/api/queries";
+import { useComponent, useComponentVersions, useComponentVulns } from "~/api/queries";
 import type { ComponentVersionEntry } from "~/api/client";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
 import CopyDigest from "~/components/CopyDigest";
 import PurlLink from "~/components/PurlLink";
-import { VulnBadge } from "~/components/VulnBadge";
+import { VulnBadge, severityVariant } from "~/components/VulnBadge";
+import { StatusPill } from "~/components/ui/Badge";
 import { purlToRegistryUrl, purlTypeLabel } from "~/utils/purl";
 import { relativeDate, formatDateTime, plural, hasText } from "~/utils/format";
 
@@ -33,6 +34,8 @@ export default function ComponentDetail() {
                 : undefined,
         { enabled: () => query.data?.name !== undefined },
     );
+
+    const vulnsQuery = useComponentVulns(() => params.id);
 
     return (
         <>
@@ -837,6 +840,91 @@ export default function ComponentDetail() {
                                             </div>
                                         </Show>
                                     </div>
+
+                                    <Show when={hasText(c.purl)}>
+                                        <div class="card">
+                                            <div class="card-header">
+                                                <h3>Vulnerabilities</h3>
+                                                <Show when={vulnsQuery.data} keyed>
+                                                    {(d) => (
+                                                        <span class="badge">
+                                                            {d.data.length}
+                                                        </span>
+                                                    )}
+                                                </Show>
+                                            </div>
+                                            <Show
+                                                when={
+                                                    vulnsQuery.data &&
+                                                    vulnsQuery.data.data.length > 0
+                                                }
+                                                fallback={
+                                                    <EmptyState
+                                                        title="No known vulnerabilities"
+                                                        message="No vulnerabilities are currently recorded for this package."
+                                                    />
+                                                }
+                                            >
+                                                <div class="table-wrapper">
+                                                    <table>
+                                                        <thead>
+                                                            <tr>
+                                                                <th>CVE ID</th>
+                                                                <th>Severity</th>
+                                                                <th>CVSS</th>
+                                                                <th>Summary</th>
+                                                                <th>Fixed In</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <For
+                                                                each={
+                                                                    vulnsQuery.data
+                                                                        ?.data ?? []
+                                                                }
+                                                            >
+                                                                {(v) => (
+                                                                    <tr>
+                                                                        <td class="font-mono text-sm">
+                                                                            <A
+                                                                                href={`/vulns/${v.id}`}
+                                                                            >
+                                                                                {v.id}
+                                                                            </A>
+                                                                        </td>
+                                                                        <td>
+                                                                            <StatusPill
+                                                                                variant={severityVariant(
+                                                                                    v.severity,
+                                                                                )}
+                                                                            >
+                                                                                {
+                                                                                    v.severity
+                                                                                }
+                                                                            </StatusPill>
+                                                                        </td>
+                                                                        <td>
+                                                                            {v.cvssScore?.toFixed(
+                                                                                1,
+                                                                            ) ?? "—"}
+                                                                        </td>
+                                                                        <td class="text-muted">
+                                                                            {v.summary ??
+                                                                                "—"}
+                                                                        </td>
+                                                                        <td class="font-mono text-sm">
+                                                                            {v.fixedVersion ??
+                                                                                "—"}
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </For>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </Show>
+                                        </div>
+                                    </Show>
                                 </>
                             );
                         }}

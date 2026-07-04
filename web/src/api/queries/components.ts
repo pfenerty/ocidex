@@ -92,6 +92,20 @@ export function useComponent(id: Accessor<string>) {
     }));
 }
 
+/** List vulnerability findings for a single component by ID. */
+export function useComponentVulns(id: Accessor<string>) {
+    return createQuery(() => ({
+        queryKey: ["component-vulns", id()] as const,
+        queryFn: () =>
+            unwrap(
+                client.GET("/api/v1/components/{id}/vulns", {
+                    params: { path: { id: id() } },
+                }),
+            ),
+        select: (resp) => ({ ...resp, data: resp.data ?? [] }),
+    }));
+}
+
 /** Get the version history for a component by name/group/version/type. */
 export function useComponentVersions(
     params: Accessor<ComponentVersionParams | undefined>,
