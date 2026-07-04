@@ -124,6 +124,13 @@ type VulnWorkerConfig struct {
 	RefreshEnabled bool `env:"VULN_REFRESH_ENABLED" envDefault:"true"`
 	// RefreshInterval is the minimum time between full refreshes.
 	RefreshInterval time.Duration `env:"VULN_REFRESH_INTERVAL" envDefault:"6h"`
+
+	// IncrementalRefreshEnabled enables per-ecosystem modified_id.csv checks so
+	// only changed ecosystems are re-queried each cycle. Set to false to revert
+	// to a full-scan on every cycle.
+	IncrementalRefreshEnabled bool `env:"VULN_INCREMENTAL_ENABLED" envDefault:"true"`
+	// OSVBucketBaseURL is the base URL for OSV's per-ecosystem modified_id.csv files.
+	OSVBucketBaseURL string `env:"OSV_BUCKET_BASE_URL" envDefault:"https://storage.googleapis.com/osv-vulnerabilities"`
 }
 
 // LoadVulnWorker reads vuln-worker configuration from environment variables.

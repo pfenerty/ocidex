@@ -203,6 +203,12 @@ type Session struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type VulnEcosystemState struct {
+	Ecosystem      string             `json:"ecosystem"`
+	LastModifiedAt pgtype.Timestamptz `json:"last_modified_at"`
+	CheckedAt      pgtype.Timestamptz `json:"checked_at"`
+}
+
 type VulnRefreshState struct {
 	ID              bool               `json:"id"`
 	LastRefreshedAt pgtype.Timestamptz `json:"last_refreshed_at"`
