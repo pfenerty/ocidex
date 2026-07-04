@@ -315,7 +315,7 @@ export default function ComponentOverview() {
                                                                         <tr>
                                                                             <td class="font-mono text-sm">
                                                                                 <A
-                                                                                    href={`/vulns/${v.id}`}
+                                                                                    href={`/vulnerabilities/${v.id}`}
                                                                                 >
                                                                                     {v.id}
                                                                                 </A>
