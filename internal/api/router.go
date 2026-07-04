@@ -486,6 +486,13 @@ func registerVulnOps(api huma.API, h *Handler) {
 		Summary:     "List top vulnerabilities",
 		Tags:        []string{"Vulnerabilities"},
 	}, h.ListTopVulnerabilities)
+	huma.Register(api, huma.Operation{
+		OperationID: "get-vulnerability",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/vulns/{id}",
+		Summary:     "Get vulnerability detail",
+		Tags:        []string{"Vulnerabilities"},
+	}, h.GetVulnerability)
 }
 
 // ---------------------------------------------------------------------------

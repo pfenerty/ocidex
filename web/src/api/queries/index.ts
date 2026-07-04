@@ -4,7 +4,7 @@ export { useDistinctComponents, useComponentPurlTypes, useComponentVersions, use
 export { useLicenses, useLicenseComponents } from "./licenses";
 export { useDiff, useDiffTree } from "./diff";
 export { useDashboardStats } from "./stats";
-export { useTopVulnerabilities } from "./vulns";
+export { useTopVulnerabilities, useVulnerabilityDetail } from "./vulns";
 export { useListAPIKeys, useCreateAPIKey, useDeleteAPIKey, useListUsers, useUpdateUserRole, useGetSystemStatus } from "./auth";
 export { useListRegistries, useCreateRegistry, useUpdateRegistry, useDeleteRegistry, useTestRegistryConnection, useScanRegistry, useRegenerateWebhookSecret } from "./registries";
 export { useListScanJobs, useGetScanJob, useRetryScanJob, useRetryAllFailedScanJobs, useListEnrichmentJobs, useEnrichmentJobsSummary, useRetryEnrichmentJob, useRetryAllFailedEnrichmentJobs } from "./jobs";

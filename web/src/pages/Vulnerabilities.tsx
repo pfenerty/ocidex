@@ -1,4 +1,5 @@
 import { createSignal, Show, For } from "solid-js";
+import { A } from "@solidjs/router";
 import { useTopVulnerabilities } from "~/api/queries";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
 import Pagination from "~/components/Pagination";
@@ -107,9 +108,15 @@ export default function Vulnerabilities() {
                                                     {(row) => (
                                                         <tr>
                                                             <td>
-                                                                <code>
-                                                                    {row.id}
-                                                                </code>
+                                                                <A
+                                                                    href={`/vulnerabilities/${row.id}`}
+                                                                >
+                                                                    <code>
+                                                                        {
+                                                                            row.id
+                                                                        }
+                                                                    </code>
+                                                                </A>
                                                             </td>
                                                             <td>
                                                                 <StatusPill

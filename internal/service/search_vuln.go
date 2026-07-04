@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"errors"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
@@ -56,6 +58,74 @@ func (s *searchService) ListTopVulnerabilities(ctx context.Context, filter TopVu
 		Total:  total,
 		Limit:  filter.Limit,
 		Offset: filter.Offset,
+	}, nil
+}
+
+func (s *searchService) GetVulnerabilityDetail(
+	ctx context.Context, id string,
+	limit, offset int32, vis VisibilityFilter,
+) (*VulnDetail, PagedResult[AffectedArtifact], error) {
+	q := repository.New(s.db)
+
+	row, err := q.GetVulnerabilityByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, PagedResult[AffectedArtifact]{}, nil
+		}
+		return nil, PagedResult[AffectedArtifact]{}, err
+	}
+
+	detail := &VulnDetail{
+		ID:        row.ID,
+		Severity:  severityOrUnknown(row.Severity),
+		CvssScore: float4ToPtr(row.CvssScore),
+		Summary:   textToPtr(row.Summary),
+		Details:   textToPtr(row.Details),
+		Aliases:   row.Aliases,
+	}
+	if row.PublishedAt.Valid {
+		t := row.PublishedAt.Time
+		detail.PublishedAt = &t
+	}
+	if row.ModifiedAt.Valid {
+		t := row.ModifiedAt.Time
+		detail.ModifiedAt = &t
+	}
+
+	artifactRows, err := q.ListAffectedArtifactsByVuln(ctx, repository.ListAffectedArtifactsByVulnParams{
+		VulnerabilityID: id,
+		UserID:          vis.UserID,
+		IsAdmin:         visAdminBool(vis),
+		RowLimit:        pgtype.Int4{Int32: limit, Valid: true},
+		RowOffset:       pgtype.Int4{Int32: offset, Valid: true},
+	})
+	if err != nil {
+		return nil, PagedResult[AffectedArtifact]{}, err
+	}
+
+	var total int64
+	items := make([]AffectedArtifact, 0, len(artifactRows))
+	for _, r := range artifactRows {
+		if total == 0 {
+			total = r.TotalCount
+		}
+		a := AffectedArtifact{
+			ID:                r.ID,
+			Name:              r.Name,
+			AffectedSbomCount: r.AffectedSbomCount,
+			AffectedPurlCount: r.AffectedPurlCount,
+		}
+		if r.GroupName.Valid {
+			a.Group = &r.GroupName.String
+		}
+		items = append(items, a)
+	}
+
+	return detail, PagedResult[AffectedArtifact]{
+		Data:   items,
+		Total:  total,
+		Limit:  limit,
+		Offset: offset,
 	}, nil
 }
 
