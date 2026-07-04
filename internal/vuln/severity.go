@@ -61,6 +61,24 @@ func scoreFromVector(vector string) (float64, bool) {
 	return 0, false
 }
 
+// normalizeSeverityLabel converts a plain-text severity string (e.g. from
+// database_specific.severity in Go advisories) to a canonical label. Returns ""
+// for unrecognised values so callers can distinguish "not present" from UNKNOWN.
+func normalizeSeverityLabel(s string) string {
+	switch strings.ToUpper(strings.TrimSpace(s)) {
+	case SeverityCritical:
+		return SeverityCritical
+	case SeverityHigh:
+		return SeverityHigh
+	case SeverityMedium:
+		return SeverityMedium
+	case SeverityLow:
+		return SeverityLow
+	default:
+		return ""
+	}
+}
+
 // severityLabel maps a CVSS base score to the qualitative rating used by the
 // v3/v4 spec.
 func severityLabel(score float64) string {

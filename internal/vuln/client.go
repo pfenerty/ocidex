@@ -26,16 +26,17 @@ const (
 // the full JSON body for fidelity; the typed fields drive display and the derived
 // severity/fixed-version columns.
 type Record struct {
-	ID        string          `json:"id"`
-	Aliases   []string        `json:"aliases"`
-	Summary   string          `json:"summary"`
-	Details   string          `json:"details"`
-	Published string          `json:"published"`
-	Modified  string          `json:"modified"`
-	Withdrawn string          `json:"withdrawn"`
-	Severity  []Severity      `json:"severity"`
-	Affected  []Affected      `json:"affected"`
-	Raw       json.RawMessage `json:"-"`
+	ID               string           `json:"id"`
+	Aliases          []string         `json:"aliases"`
+	Summary          string           `json:"summary"`
+	Details          string           `json:"details"`
+	Published        string           `json:"published"`
+	Modified         string           `json:"modified"`
+	Withdrawn        string           `json:"withdrawn"`
+	Severity         []Severity       `json:"severity"`
+	Affected         []Affected       `json:"affected"`
+	DatabaseSpecific DatabaseSpecific `json:"database_specific"`
+	Raw              json.RawMessage  `json:"-"`
 }
 
 // Severity is one OSV severity entry, e.g. {Type: "CVSS_V3", Score: "CVSS:3.1/AV:N/..."}.
@@ -44,11 +45,19 @@ type Severity struct {
 	Score string `json:"score"`
 }
 
+// DatabaseSpecific holds the ecosystem-specific metadata block present on both
+// top-level OSV records and per-affected entries. The Go security database uses
+// this to carry a plain-text severity label when no CVSS vector is available.
+type DatabaseSpecific struct {
+	Severity string `json:"severity"`
+}
+
 // Affected describes one affected package and its version ranges.
 type Affected struct {
-	Package  AffectedPackage `json:"package"`
-	Ranges   []Range         `json:"ranges"`
-	Versions []string        `json:"versions"`
+	Package          AffectedPackage  `json:"package"`
+	Ranges           []Range          `json:"ranges"`
+	Versions         []string         `json:"versions"`
+	DatabaseSpecific DatabaseSpecific `json:"database_specific"`
 }
 
 // AffectedPackage identifies the affected package.

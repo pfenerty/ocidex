@@ -353,3 +353,53 @@ func TestIncrementalRefreshUnknownPurlTypeAlwaysIncluded(t *testing.T) {
 	is.Equal(len(fetcher.calls), 0)
 	is.True(store.refreshed)
 }
+
+// TestToRowDatabaseSpecificSeverityFallback verifies that records without a
+// CVSS vector (e.g. Go security database advisories) pick up severity from
+// database_specific.severity instead of falling through to UNKNOWN.
+func TestToRowDatabaseSpecificSeverityFallback(t *testing.T) {
+	is := is.New(t)
+
+	// Record-level database_specific (some ecosystems use this).
+	recLevel := &Record{
+		ID:               "GO-2024-0001",
+		DatabaseSpecific: DatabaseSpecific{Severity: "HIGH"},
+	}
+	row := toRow(recLevel)
+	is.Equal(row.Severity, SeverityHigh)
+
+	// Per-affected database_specific — used by the Go security database.
+	affLevel := &Record{
+		ID: "GO-2024-0002",
+		Affected: []Affected{
+			{DatabaseSpecific: DatabaseSpecific{Severity: "medium"}},
+		},
+	}
+	row = toRow(affLevel)
+	is.Equal(row.Severity, SeverityMedium)
+
+	// Record-level wins over affected-level when both are present.
+	both := &Record{
+		ID:               "GO-2024-0003",
+		DatabaseSpecific: DatabaseSpecific{Severity: "CRITICAL"},
+		Affected: []Affected{
+			{DatabaseSpecific: DatabaseSpecific{Severity: "LOW"}},
+		},
+	}
+	row = toRow(both)
+	is.Equal(row.Severity, SeverityCritical)
+
+	// CVSS vector still wins when present; database_specific not consulted.
+	withCVSS := &Record{
+		ID:               "CVE-2024-9999",
+		Severity:         []Severity{{Type: "CVSS_V3", Score: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}},
+		DatabaseSpecific: DatabaseSpecific{Severity: "LOW"},
+	}
+	row = toRow(withCVSS)
+	is.Equal(row.Severity, SeverityCritical) // CVSS 9.8 → CRITICAL, not LOW
+
+	// Truly unknown (no CVSS, no database_specific) still returns UNKNOWN.
+	unknown := &Record{ID: "GO-2024-0004"}
+	row = toRow(unknown)
+	is.Equal(row.Severity, SeverityUnknown)
+}

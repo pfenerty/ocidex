@@ -6,6 +6,28 @@ import (
 	"github.com/matryer/is"
 )
 
+func TestNormalizeSeverityLabel(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"HIGH", "HIGH"},
+		{"high", "HIGH"},
+		{"Medium", "MEDIUM"},
+		{"CRITICAL", "CRITICAL"},
+		{"low", "LOW"},
+		{"", ""},
+		{"unknown", ""},
+		{"moderate", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			is := is.New(t)
+			is.Equal(normalizeSeverityLabel(tt.in), tt.want)
+		})
+	}
+}
+
 func TestDeriveSeverity(t *testing.T) {
 	tests := []struct {
 		name     string
