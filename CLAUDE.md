@@ -352,17 +352,23 @@ Verify epic IDs with `bd list --type=epic`; child IDs with `bd show <epic>`.
 ```bash
 bd ready                              # Find unblocked work
 bd ready --priority=1                 # Top-priority ready work
-bd show <id>                          # Inspect an issue
+bd show <id>                          # Inspect an issue — note the parent epic ID
 
-# --- Starting an epic (once per epic) ---
+# --- Switch to the epic branch BEFORE touching any code ---
+# Every story belongs to an epic. Always work on the epic's branch, not main.
+#
+# If the branch already exists (resuming an epic across sessions):
+git checkout <epic-id>
+#
+# If this is the first session for this epic:
 git checkout main && git pull
-git checkout -b <epic-id>             # One branch per epic — name = epic ID (e.g. ocidex-hfi)
+git checkout -b <epic-id>
 
 # --- Each story within the epic ---
 bd update <id> --status=in_progress   # Claim it before coding
 # → explore codebase with repomix before implementing (see "Codebase Exploration with Repomix")
 # → implement the change
-git add <changed files>               # Stage only the relevant files
+git add <changed files> .beads/issues.jsonl  # Stage code AND beads state together
 git commit -m "feat/fix: description (<issue-id>)"  # Commit before closing
 bd update <id> --notes "Files: ...\nApproach: ..."  # Document implementation
 bd close <id>                         # Close AFTER committing
@@ -378,7 +384,7 @@ bd close <epic-id>
 
 **Conventions:**
 - Create the issue *before* writing code; mark `in_progress` when starting.
-- **One branch per epic**, named after the epic ID (e.g. `ocidex-hfi`). Branch from `main` once at the start of the epic; work all child stories on that branch. Do **not** push to remote mid-epic — push only when the epic is complete and merged.
+- **One branch per epic**, named after the epic ID (e.g. `ocidex-hfi`). Branch from `main` once at the start of the epic; work all child stories on that branch. In a new session, always `git checkout <epic-id>` before touching code — never work directly on `main`. Do **not** push to remote mid-epic — push only when the epic is complete and merged.
 - **Commit code before closing the issue.** `bd close` without a prior `git commit` leaves changes stranded. The commit message should include the issue ID (e.g. `feat(tekton): add release tasks (ocidex-avi)`).
 - Priority is `0`–`4` (or `P0`–`P4`), where `0` is critical. Don't use `high`/`medium`/`low`.
 - Hierarchical IDs (`<epic>.<n>`) come from the `--parent` flag at create time.
@@ -459,7 +465,7 @@ This project uses an **epic-branch model**: work accumulates on a local branch n
 3. **Update issue status** - Close finished work, update in-progress items
 4. **COMMIT all changes** - Uncommitted work is at risk if the session ends:
    ```bash
-   git add <changed files>
+   git add <changed files> .beads/issues.jsonl   # always include beads state
    git commit -m "..."      # Proper commit or wip: if mid-story
    bd dolt push             # Always safe — beads has no remote CI impact
    ```
