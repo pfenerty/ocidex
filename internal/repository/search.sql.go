@@ -101,7 +101,7 @@ ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST,
          s.created_at DESC
-LIMIT 200
+LIMIT 5000
 `
 
 type GetComponentVersionsParams struct {
