@@ -27,6 +27,11 @@ func (s *PGStore) ListDistinctComponentPurls(ctx context.Context) ([]string, err
 	return s.q.ListDistinctComponentPurls(ctx)
 }
 
+// ListUnknownPurlsForSBOM returns purls from the given SBOM not yet in package_vulnerability.
+func (s *PGStore) ListUnknownPurlsForSBOM(ctx context.Context, sbomID pgtype.UUID) ([]string, error) {
+	return s.q.ListUnknownSBOMComponentPurls(ctx, sbomID)
+}
+
 // UpsertVulnerability inserts or updates one vulnerability record.
 func (s *PGStore) UpsertVulnerability(ctx context.Context, v Row) error {
 	// aliases is NOT NULL: a nil slice encodes as SQL NULL (the column DEFAULT

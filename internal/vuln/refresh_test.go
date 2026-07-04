@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
 )
 
@@ -62,6 +63,9 @@ func (s *fakeStore) UpsertVulnerability(_ context.Context, v Row) error {
 func (s *fakeStore) ReplacePackageVulns(_ context.Context, purl string, refs []PackageVulnRef) error {
 	s.mappings[purl] = refs
 	return nil
+}
+func (s *fakeStore) ListUnknownPurlsForSBOM(_ context.Context, _ pgtype.UUID) ([]string, error) {
+	return nil, nil
 }
 func (s *fakeStore) LastRefreshedAt(context.Context) (time.Time, bool, error) {
 	return s.last, s.lastOK, nil
