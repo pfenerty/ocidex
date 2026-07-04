@@ -6,7 +6,7 @@ import type { ComponentVersionEntry } from "~/api/client";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
 import CopyDigest from "~/components/CopyDigest";
 import PurlLink from "~/components/PurlLink";
-import { VulnBadge, severityVariant } from "~/components/VulnBadge";
+import { VulnCountBadges, severityVariant } from "~/components/VulnBadge";
 import { StatusPill } from "~/components/ui/Badge";
 import { purlToRegistryUrl, purlTypeLabel } from "~/utils/purl";
 import { relativeDate, formatDateTime, plural, hasText } from "~/utils/format";
@@ -420,9 +420,12 @@ export default function ComponentDetail() {
                                                                                                 )}
                                                                                             </td>
                                                                                             <td>
-                                                                                                <VulnBadge
-                                                                                                    count={entry.vulnCount}
-                                                                                                    maxSeverity={entry.maxSeverity}
+                                                                                                <VulnCountBadges
+                                                                                                    criticalCount={entry.criticalCount}
+                                                                                                    highCount={entry.highCount}
+                                                                                                    mediumCount={entry.mediumCount}
+                                                                                                    lowCount={entry.lowCount}
+                                                                                                    unknownCount={entry.unknownCount}
                                                                                                 />
                                                                                             </td>
                                                                                         </tr>
@@ -556,9 +559,12 @@ export default function ComponentDetail() {
                                                                                                     )}
                                                                                                 </td>
                                                                                                 <td>
-                                                                                                    <VulnBadge
-                                                                                                        count={preferred.vulnCount}
-                                                                                                        maxSeverity={preferred.maxSeverity}
+                                                                                                    <VulnCountBadges
+                                                                                                        criticalCount={preferred.criticalCount}
+                                                                                                        highCount={preferred.highCount}
+                                                                                                        mediumCount={preferred.mediumCount}
+                                                                                                        lowCount={preferred.lowCount}
+                                                                                                        unknownCount={preferred.unknownCount}
                                                                                                     />
                                                                                                 </td>
                                                                                             </tr>
