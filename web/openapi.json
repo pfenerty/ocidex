@@ -3466,6 +3466,9 @@
             "format": "float",
             "type": "number"
           },
+          "cvssVector": {
+            "type": "string"
+          },
           "details": {
             "type": "string"
           },

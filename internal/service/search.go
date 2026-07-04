@@ -92,6 +92,7 @@ type VulnDetail struct {
 	CanonicalID string          `json:"canonicalId"`
 	Severity    string          `json:"severity"`
 	CvssScore   *float32        `json:"cvssScore,omitempty"`
+	CvssVector  *string         `json:"cvssVector,omitempty"`
 	Summary     *string         `json:"summary,omitempty"`
 	Details     *string         `json:"details,omitempty"`
 	Aliases     []string        `json:"aliases"`
