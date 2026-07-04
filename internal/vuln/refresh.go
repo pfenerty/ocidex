@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -295,6 +296,10 @@ func (s *RefreshService) LookupPurls(ctx context.Context, purls []string) error 
 // hydrate fetches and upserts each unique vulnerability ID once. Records that
 // fail to fetch or store are skipped (logged) rather than aborting the refresh,
 // and are omitted from the returned map so callers never map to an unstored vuln.
+//
+// When a record yields UNKNOWN severity (e.g. Go security database advisories
+// which carry no CVSS vectors), hydrate attempts to resolve severity from the
+// record's GHSA or CVE aliases, which typically do carry CVSS data.
 func (s *RefreshService) hydrate(ctx context.Context, purlToIDs map[string][]string) map[string]*Record {
 	unique := make(map[string]struct{})
 	for _, ids := range purlToIDs {
@@ -302,6 +307,9 @@ func (s *RefreshService) hydrate(ctx context.Context, purlToIDs map[string][]str
 			unique[id] = struct{}{}
 		}
 	}
+	// aliasCache avoids re-fetching alias records when several primary records
+	// share the same GHSA/CVE alias.
+	aliasCache := make(map[string]*Record)
 	records := make(map[string]*Record, len(unique))
 	for id := range unique {
 		rec, err := s.osv.GetVuln(ctx, id)
@@ -309,6 +317,9 @@ func (s *RefreshService) hydrate(ctx context.Context, purlToIDs map[string][]str
 			// A single bad record shouldn't abort the whole cycle; skip it.
 			s.logger.Warn("vuln refresh: hydrating record failed", "id", id, "err", err)
 			continue
+		}
+		if toRow(rec).Severity == SeverityUnknown {
+			rec = s.resolveAliasSeverity(ctx, rec, aliasCache)
 		}
 		if err := s.store.UpsertVulnerability(ctx, toRow(rec)); err != nil {
 			// Skip records we can't store rather than aborting the whole refresh.
@@ -320,6 +331,37 @@ func (s *RefreshService) hydrate(ctx context.Context, purlToIDs map[string][]str
 		records[id] = rec
 	}
 	return records
+}
+
+// resolveAliasSeverity attempts to find a CVSS vector by fetching GHSA then
+// CVE aliases from OSV. When found it copies the alias's severity entries onto
+// rec so that toRow derives the correct label. aliasCache prevents duplicate
+// fetches when multiple primary records share an alias.
+func (s *RefreshService) resolveAliasSeverity(ctx context.Context, rec *Record, aliasCache map[string]*Record) *Record {
+	for _, prefix := range []string{"GHSA-", "CVE-"} {
+		for _, alias := range rec.Aliases {
+			if !strings.HasPrefix(alias, prefix) {
+				continue
+			}
+			aliasRec, ok := aliasCache[alias]
+			if !ok {
+				var err error
+				aliasRec, err = s.osv.GetVuln(ctx, alias)
+				if err != nil || aliasRec == nil {
+					if err != nil {
+						s.logger.Debug("vuln refresh: alias fetch failed", "alias", alias, "err", err)
+					}
+					continue
+				}
+				aliasCache[alias] = aliasRec
+			}
+			if label, _ := DeriveSeverity(aliasRec.Severity); label != SeverityUnknown {
+				rec.Severity = aliasRec.Severity
+				return rec
+			}
+		}
+	}
+	return rec
 }
 
 func toRow(rec *Record) Row {

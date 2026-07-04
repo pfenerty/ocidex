@@ -354,6 +354,90 @@ func TestIncrementalRefreshUnknownPurlTypeAlwaysIncluded(t *testing.T) {
 	is.True(store.refreshed)
 }
 
+// TestResolveAliasSeverity verifies that records without CVSS data (e.g. Go
+// security database advisories) resolve severity from GHSA or CVE aliases.
+func TestResolveAliasSeverity(t *testing.T) {
+	is := is.New(t)
+
+	ghsaRec := &Record{
+		ID:       "GHSA-xx11-yy22-zz33",
+		Severity: []Severity{{Type: "CVSS_V3", Score: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"}},
+	}
+	cveRec := &Record{
+		ID:       "CVE-2024-9999",
+		Severity: []Severity{{Type: "CVSS_V3", Score: "CVSS:3.1/AV:N/AC:H/PR:L/UI:R/S:U/C:L/I:L/A:N"}},
+	}
+	osv := &fakeOSV{
+		records: map[string]*Record{
+			"GHSA-xx11-yy22-zz33": ghsaRec,
+			"CVE-2024-9999":       cveRec,
+		},
+	}
+	svc := NewRefreshService(newFakeStore(), osv, nil)
+	aliasCache := map[string]*Record{}
+
+	// GO- record with no CVSS, GHSA alias available → should borrow GHSA severity.
+	goRec := &Record{
+		ID:      "GO-2024-1234",
+		Aliases: []string{"GHSA-xx11-yy22-zz33", "CVE-2024-9999"},
+	}
+	resolved := svc.resolveAliasSeverity(context.Background(), goRec, aliasCache)
+	label, _ := DeriveSeverity(resolved.Severity)
+	is.Equal(label, "HIGH") // CVSS 7.5 → HIGH
+
+	// GHSA alias should be cached; no second fetch.
+	is.Equal(osv.getCalls["GHSA-xx11-yy22-zz33"], 1)
+	is.Equal(osv.getCalls["CVE-2024-9999"], 0) // GHSA resolved first; CVE not fetched
+
+	// Second call reuses alias cache for the same GHSA.
+	goRec2 := &Record{
+		ID:      "GO-2024-5678",
+		Aliases: []string{"GHSA-xx11-yy22-zz33"},
+	}
+	svc.resolveAliasSeverity(context.Background(), goRec2, aliasCache)
+	is.Equal(osv.getCalls["GHSA-xx11-yy22-zz33"], 1) // still 1 — cache hit
+
+	// Record with no useful aliases stays UNKNOWN.
+	noAliasRec := &Record{ID: "GO-2024-0000", Aliases: []string{"GHSA-missing"}}
+	resolved2 := svc.resolveAliasSeverity(context.Background(), noAliasRec, map[string]*Record{})
+	label2, _ := DeriveSeverity(resolved2.Severity)
+	is.Equal(label2, SeverityUnknown)
+}
+
+// TestRefreshAliasSeverityIntegration verifies that a full refresh cycle resolves
+// severity from aliases when the primary record lacks CVSS.
+func TestRefreshAliasSeverityIntegration(t *testing.T) {
+	is := is.New(t)
+
+	osv := &fakeOSV{
+		purlToIDs: map[string][]string{
+			"pkg:golang/stdlib@1.21.0": {"GO-2024-0001"},
+		},
+		records: map[string]*Record{
+			"GO-2024-0001": {
+				ID:      "GO-2024-0001",
+				Aliases: []string{"GHSA-aa11-bb22-cc33", "CVE-2024-1111"},
+			},
+			"GHSA-aa11-bb22-cc33": {
+				ID:       "GHSA-aa11-bb22-cc33",
+				Severity: []Severity{{Type: "CVSS_V3", Score: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}},
+			},
+		},
+	}
+	store := newFakeStore("pkg:golang/stdlib@1.21.0")
+
+	svc := NewRefreshService(store, osv, nil)
+	is.NoErr(svc.Refresh(context.Background()))
+
+	// Primary record stored with severity resolved from GHSA alias.
+	row, ok := store.vulns["GO-2024-0001"]
+	is.True(ok)
+	is.Equal(row.Severity, SeverityCritical) // CVSS 9.8 → CRITICAL
+
+	// CVE alias was never fetched (GHSA resolved first).
+	is.Equal(osv.getCalls["CVE-2024-1111"], 0)
+}
+
 // TestToRowDatabaseSpecificSeverityFallback verifies that records without a
 // CVSS vector (e.g. Go security database advisories) pick up severity from
 // database_specific.severity instead of falling through to UNKNOWN.
