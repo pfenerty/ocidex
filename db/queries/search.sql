@@ -268,4 +268,4 @@ ORDER BY c.version_major DESC NULLS LAST,
          c.version_patch DESC NULLS LAST,
          s.created_at DESC
 -- Safety cap: bound a component's version history to the most recent rows.
-LIMIT 200;
+LIMIT 5000;
