@@ -278,6 +278,96 @@ func TestVulnAliasDedup(t *testing.T) {
 	is.Equal(statsResp["vuln_count"], float64(1))
 }
 
+// TestVulnAliasDetailResolution verifies that GET /api/v1/vulns/{id} resolves by
+// canonical_id and surfaces affected artifacts/components across aliased records.
+//
+// Scenario: addUserPurl is mapped to GO-2024-0001 only. Visiting the GHSA alias
+// or the canonical CVE id must still return the affected component and artifact.
+func TestVulnAliasDetailResolution(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireDocker(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+
+	is := is.New(t)
+	store := vuln.NewPGStore(pool)
+
+	memberID := seedUser(t, pool, 8004, "alias-detail-member", "member")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "alias-detail-test", "read-write")
+	is.NoErr(err)
+
+	// Ingest SBOM to create artifact + component rows.
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", minimalSBOM, memberKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	resp.Body.Close()
+
+	// Two aliased vuln records sharing canonical_id=CVE-2024-0001.
+	// The purl is mapped to the GO record only — the GHSA and CVE paths must still resolve.
+	err = store.UpsertVulnerability(t.Context(), vuln.Row{
+		ID:          "GO-2024-0001",
+		CanonicalID: "CVE-2024-0001",
+		Summary:     "alias detail test GO record",
+		Severity:    "HIGH",
+		Aliases:     []string{"CVE-2024-0001", "GHSA-2024-0001"},
+		Raw:         []byte("{}"),
+	})
+	is.NoErr(err)
+	err = store.UpsertVulnerability(t.Context(), vuln.Row{
+		ID:          "GHSA-2024-0001",
+		CanonicalID: "CVE-2024-0001",
+		Summary:     "alias detail test GHSA record",
+		Severity:    "HIGH",
+		Aliases:     []string{"CVE-2024-0001", "GO-2024-0001"},
+		Raw:         []byte("{}"),
+	})
+	is.NoErr(err)
+	err = store.ReplacePackageVulns(t.Context(), addUserPurl, []vuln.PackageVulnRef{
+		{VulnerabilityID: "GO-2024-0001"},
+	})
+	is.NoErr(err)
+
+	// GET by native GO id — baseline, must always work.
+	resp, err = doGet(t, srv.URL+"/api/v1/vulns/GO-2024-0001")
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var detail map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&detail))
+	resp.Body.Close()
+	is.Equal(detail["vulnerability"].(map[string]any)["id"], "GO-2024-0001")
+	goComponents := detail["affectedComponents"].([]any)
+	is.True(len(goComponents) == 1)
+	is.Equal(goComponents[0].(map[string]any)["name"], "adduser")
+
+	// GET by GHSA alias — affected components must aggregate via canonical_id.
+	resp, err = doGet(t, srv.URL+"/api/v1/vulns/GHSA-2024-0001")
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&detail))
+	resp.Body.Close()
+	is.Equal(detail["vulnerability"].(map[string]any)["id"], "GHSA-2024-0001")
+	ghsaComponents := detail["affectedComponents"].([]any)
+	is.True(len(ghsaComponents) == 1)
+	is.Equal(ghsaComponents[0].(map[string]any)["name"], "adduser")
+
+	// GET by canonical CVE id — was 404 before fix.
+	resp, err = doGet(t, srv.URL+"/api/v1/vulns/CVE-2024-0001")
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&detail))
+	resp.Body.Close()
+	is.Equal(detail["vulnerability"].(map[string]any)["canonicalId"], "CVE-2024-0001")
+	cveComponents := detail["affectedComponents"].([]any)
+	is.True(len(cveComponents) == 1)
+	is.Equal(cveComponents[0].(map[string]any)["name"], "adduser")
+}
+
 // TestVulnLiveJoinSemantics proves the vuln join is live: a CVE seeded after
 // SBOM ingest appears immediately in the SBOM's vuln summary without re-ingest.
 func TestVulnLiveJoinSemantics(t *testing.T) {
