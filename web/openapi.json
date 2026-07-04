@@ -3469,6 +3469,15 @@
             "format": "date-time",
             "type": "string"
           },
+          "references": {
+            "items": {
+              "$ref": "#/components/schemas/VulnReference"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "severity": {
             "type": "string"
           },
@@ -3480,6 +3489,22 @@
           "id",
           "severity",
           "aliases"
+        ],
+        "type": "object"
+      },
+      "VulnReference": {
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "url"
         ],
         "type": "object"
       },

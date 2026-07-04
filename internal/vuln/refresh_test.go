@@ -109,6 +109,9 @@ func (s *fakeStore) UpsertVulnerability(_ context.Context, v Row) error {
 	s.vulns[v.ID] = v
 	return nil
 }
+func (s *fakeStore) ReplaceVulnerabilityRefs(_ context.Context, _ string, _ []Reference) error {
+	return nil
+}
 func (s *fakeStore) ReplacePackageVulns(_ context.Context, purl string, refs []PackageVulnRef) error {
 	s.mappings[purl] = refs
 	return nil

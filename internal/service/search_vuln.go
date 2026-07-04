@@ -92,6 +92,16 @@ func (s *searchService) GetVulnerabilityDetail(
 		detail.ModifiedAt = &t
 	}
 
+	refRows, err := q.ListVulnerabilityRefs(ctx, id)
+	if err != nil {
+		return nil, PagedResult[AffectedArtifact]{}, nil, err
+	}
+	refs := make([]VulnReference, 0, len(refRows))
+	for _, r := range refRows {
+		refs = append(refs, VulnReference{Type: r.Type, URL: r.Url})
+	}
+	detail.References = refs
+
 	artifactRows, err := q.ListAffectedArtifactsByVuln(ctx, repository.ListAffectedArtifactsByVulnParams{
 		VulnerabilityID: id,
 		UserID:          vis.UserID,

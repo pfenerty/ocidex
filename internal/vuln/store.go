@@ -65,6 +65,34 @@ func (s *PGStore) UpsertVulnerability(ctx context.Context, v Row) error {
 	})
 }
 
+// ReplaceVulnerabilityRefs atomically replaces all references for a vulnerability
+// (delete then insert in one transaction).
+func (s *PGStore) ReplaceVulnerabilityRefs(ctx context.Context, vulnID string, refs []Reference) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	qtx := s.q.WithTx(tx)
+	if err := qtx.DeleteVulnerabilityRefs(ctx, vulnID); err != nil {
+		return fmt.Errorf("delete refs: %w", err)
+	}
+	for _, ref := range refs {
+		if ref.URL == "" {
+			continue
+		}
+		if err := qtx.InsertVulnerabilityRef(ctx, repository.InsertVulnerabilityRefParams{
+			VulnerabilityID: vulnID,
+			Type:            ref.Type,
+			Url:             ref.URL,
+		}); err != nil {
+			return fmt.Errorf("insert ref: %w", err)
+		}
+	}
+	return tx.Commit(ctx)
+}
+
 // ReplacePackageVulns atomically replaces all mappings for a purl (delete then
 // insert in one transaction) so a reader never sees a purl with no vulns
 // mid-refresh.

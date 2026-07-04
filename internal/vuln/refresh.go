@@ -19,15 +19,16 @@ type OSVQuerier interface {
 // Row is a vulnerability ready to persist (domain shape; the store adapter
 // translates it to repository params).
 type Row struct {
-	ID        string
-	Aliases   []string
-	Summary   string
-	Details   string
-	Severity  string
-	CVSSScore *float32
-	Published time.Time
-	Modified  time.Time
-	Raw       []byte
+	ID         string
+	Aliases    []string
+	Summary    string
+	Details    string
+	Severity   string
+	CVSSScore  *float32
+	Published  time.Time
+	Modified   time.Time
+	Raw        []byte
+	References []Reference
 }
 
 // PackageVulnRef is one (purl → vulnerability) mapping row.
@@ -48,6 +49,8 @@ type Store interface {
 	ListUnknownPurlsForSBOM(ctx context.Context, sbomID pgtype.UUID) ([]string, error)
 	// UpsertVulnerability inserts or updates one vulnerability record.
 	UpsertVulnerability(ctx context.Context, v Row) error
+	// ReplaceVulnerabilityRefs atomically replaces all references for a vulnerability.
+	ReplaceVulnerabilityRefs(ctx context.Context, vulnID string, refs []Reference) error
 	// ReplacePackageVulns atomically replaces all mappings for a purl.
 	ReplacePackageVulns(ctx context.Context, purl string, refs []PackageVulnRef) error
 	// LastRefreshedAt returns the last successful refresh time (ok=false if never).
@@ -321,12 +324,16 @@ func (s *RefreshService) hydrate(ctx context.Context, purlToIDs map[string][]str
 		if toRow(rec).Severity == SeverityUnknown {
 			rec = s.resolveAliasSeverity(ctx, rec, aliasCache)
 		}
-		if err := s.store.UpsertVulnerability(ctx, toRow(rec)); err != nil {
+		row := toRow(rec)
+		if err := s.store.UpsertVulnerability(ctx, row); err != nil {
 			// Skip records we can't store rather than aborting the whole refresh.
 			// Only stored vulns are recorded so phase 2 never emits a mapping that
 			// would violate the package_vulnerability -> vulnerability foreign key.
 			s.logger.Warn("vuln refresh: upserting record failed", "id", id, "err", err)
 			continue
+		}
+		if err := s.store.ReplaceVulnerabilityRefs(ctx, id, row.References); err != nil {
+			s.logger.Warn("vuln refresh: replacing refs failed", "id", id, "err", err)
 		}
 		records[id] = rec
 	}
@@ -372,15 +379,16 @@ func toRow(rec *Record) Row {
 		label = databaseSpecificSeverity(rec)
 	}
 	return Row{
-		ID:        rec.ID,
-		Aliases:   rec.Aliases,
-		Summary:   rec.Summary,
-		Details:   rec.Details,
-		Severity:  label,
-		CVSSScore: score,
-		Published: parseTime(rec.Published),
-		Modified:  parseTime(rec.Modified),
-		Raw:       rec.Raw,
+		ID:         rec.ID,
+		Aliases:    rec.Aliases,
+		Summary:    rec.Summary,
+		Details:    rec.Details,
+		Severity:   label,
+		CVSSScore:  score,
+		Published:  parseTime(rec.Published),
+		Modified:   parseTime(rec.Modified),
+		Raw:        rec.Raw,
+		References: rec.References,
 	}
 }
 
