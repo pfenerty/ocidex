@@ -10,6 +10,7 @@ import { VulnCountBadges, severityVariant } from "~/components/VulnBadge";
 import { StatusPill } from "~/components/ui/Badge";
 import { purlToRegistryUrl, purlTypeLabel } from "~/utils/purl";
 import { relativeDate, formatDateTime, plural, hasText } from "~/utils/format";
+import { VulnId } from "~/components/VulnId";
 
 export default function ComponentDetail() {
     const params = useParams<{ id: string }>();
@@ -875,7 +876,7 @@ export default function ComponentDetail() {
                                                     <table>
                                                         <thead>
                                                             <tr>
-                                                                <th>CVE ID</th>
+                                                                <th>Vulnerability</th>
                                                                 <th>Severity</th>
                                                                 <th>CVSS</th>
                                                                 <th>Summary</th>
@@ -891,12 +892,11 @@ export default function ComponentDetail() {
                                                             >
                                                                 {(v) => (
                                                                     <tr>
-                                                                        <td class="font-mono text-sm">
-                                                                            <A
-                                                                                href={`/vulnerabilities/${v.id}`}
-                                                                            >
-                                                                                {v.id}
-                                                                            </A>
+                                                                        <td>
+                                                                            <VulnId
+                                                                                canonicalId={v.canonicalId}
+                                                                                nativeId={v.id}
+                                                                            />
                                                                         </td>
                                                                         <td>
                                                                             <StatusPill

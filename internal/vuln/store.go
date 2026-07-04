@@ -55,6 +55,7 @@ func (s *PGStore) UpsertVulnerability(ctx context.Context, v Row) error {
 	return s.q.UpsertVulnerability(ctx, repository.UpsertVulnerabilityParams{
 		ID:          v.ID,
 		Aliases:     aliases,
+		CanonicalID: v.CanonicalID,
 		Summary:     text(v.Summary),
 		Details:     text(v.Details),
 		Severity:    text(v.Severity),

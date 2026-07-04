@@ -298,8 +298,9 @@ func (s *searchService) GetComponentVulns(ctx context.Context, id pgtype.UUID, v
 	out := make([]ComponentVulnEntry, 0, len(rows))
 	for _, r := range rows {
 		e := ComponentVulnEntry{
-			ID:       r.ID,
-			Severity: r.Severity.String,
+			ID:          r.ID,
+			CanonicalID: r.CanonicalID,
+			Severity:    r.Severity.String,
 		}
 		if r.CvssScore.Valid {
 			v := r.CvssScore.Float32

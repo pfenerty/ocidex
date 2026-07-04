@@ -662,6 +662,9 @@
       "ComponentVulnEntry": {
         "additionalProperties": false,
         "properties": {
+          "canonicalId": {
+            "type": "string"
+          },
           "cvssScore": {
             "format": "float",
             "type": "number"
@@ -681,6 +684,7 @@
         },
         "required": [
           "id",
+          "canonicalId",
           "severity"
         ],
         "type": "object"
@@ -3212,6 +3216,9 @@
               "null"
             ]
           },
+          "canonicalId": {
+            "type": "string"
+          },
           "cvssScore": {
             "format": "float",
             "type": "number"
@@ -3232,6 +3239,7 @@
         },
         "required": [
           "id",
+          "canonicalId",
           "severity",
           "aliases",
           "affectedSbomCount",
@@ -3451,6 +3459,9 @@
               "null"
             ]
           },
+          "canonicalId": {
+            "type": "string"
+          },
           "cvssScore": {
             "format": "float",
             "type": "number"
@@ -3487,6 +3498,7 @@
         },
         "required": [
           "id",
+          "canonicalId",
           "severity",
           "aliases"
         ],
