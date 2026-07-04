@@ -106,11 +106,11 @@ func (s *searchService) GetVulnerabilityDetail(
 	detail.References = refs
 
 	artifactRows, err := q.ListAffectedArtifactsByVuln(ctx, repository.ListAffectedArtifactsByVulnParams{
-		VulnerabilityID: id,
-		UserID:          vis.UserID,
-		IsAdmin:         visAdminBool(vis),
-		RowLimit:        pgtype.Int4{Int32: limit, Valid: true},
-		RowOffset:       pgtype.Int4{Int32: offset, Valid: true},
+		CanonicalID: row.CanonicalID,
+		UserID:      vis.UserID,
+		IsAdmin:     visAdminBool(vis),
+		RowLimit:    pgtype.Int4{Int32: limit, Valid: true},
+		RowOffset:   pgtype.Int4{Int32: offset, Valid: true},
 	})
 	if err != nil {
 		return nil, PagedResult[AffectedArtifact]{}, nil, err
@@ -135,9 +135,9 @@ func (s *searchService) GetVulnerabilityDetail(
 	}
 
 	componentRows, err := q.ListAffectedComponentsByVuln(ctx, repository.ListAffectedComponentsByVulnParams{
-		VulnerabilityID: id,
-		UserID:          vis.UserID,
-		IsAdmin:         visAdminBool(vis),
+		CanonicalID: row.CanonicalID,
+		UserID:      vis.UserID,
+		IsAdmin:     visAdminBool(vis),
 	})
 	if err != nil {
 		return nil, PagedResult[AffectedArtifact]{}, nil, err
