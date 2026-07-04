@@ -101,14 +101,15 @@ LIMIT @top_n::int;
 
 -- name: GetVulnStats :one
 -- Distinct tracked vulnerabilities reachable from any visible SBOM, with per-severity breakdown.
--- Join uses the package_vulnerability(purl, vulnerability_id) PK for the purl lookup.
+-- Deduplicates aliased OSV records (e.g. GO-xxxx + GHSA-yyyy) by canonical_id so each
+-- real-world CVE is counted once.
 SELECT
-    COUNT(DISTINCT pv.vulnerability_id)::bigint AS total_vulns,
-    COUNT(DISTINCT pv.vulnerability_id) FILTER (WHERE v.severity = 'CRITICAL')::bigint AS critical_count,
-    COUNT(DISTINCT pv.vulnerability_id) FILTER (WHERE v.severity = 'HIGH')::bigint     AS high_count,
-    COUNT(DISTINCT pv.vulnerability_id) FILTER (WHERE v.severity = 'MEDIUM')::bigint   AS medium_count,
-    COUNT(DISTINCT pv.vulnerability_id) FILTER (WHERE v.severity = 'LOW')::bigint      AS low_count,
-    COUNT(DISTINCT pv.vulnerability_id) FILTER (
+    COUNT(DISTINCT v.canonical_id)::bigint AS total_vulns,
+    COUNT(DISTINCT v.canonical_id) FILTER (WHERE v.severity = 'CRITICAL')::bigint AS critical_count,
+    COUNT(DISTINCT v.canonical_id) FILTER (WHERE v.severity = 'HIGH')::bigint     AS high_count,
+    COUNT(DISTINCT v.canonical_id) FILTER (WHERE v.severity = 'MEDIUM')::bigint   AS medium_count,
+    COUNT(DISTINCT v.canonical_id) FILTER (WHERE v.severity = 'LOW')::bigint      AS low_count,
+    COUNT(DISTINCT v.canonical_id) FILTER (
         WHERE v.severity IS NULL OR v.severity NOT IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW')
     )::bigint AS unknown_count
 FROM component c
