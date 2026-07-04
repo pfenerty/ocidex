@@ -225,4 +225,11 @@ type Vulnerability struct {
 	ModifiedAt  pgtype.Timestamptz `json:"modified_at"`
 	Raw         []byte             `json:"raw"`
 	RefreshedAt pgtype.Timestamptz `json:"refreshed_at"`
+	CanonicalID string             `json:"canonical_id"`
+}
+
+type VulnerabilityReference struct {
+	VulnerabilityID string `json:"vulnerability_id"`
+	Type            string `json:"type"`
+	Url             string `json:"url"`
 }

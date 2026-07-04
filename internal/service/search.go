@@ -68,6 +68,7 @@ type VulnSeverityBreakdown struct {
 // TopVulnEntry is one item in the top-vulnerabilities list.
 type TopVulnEntry struct {
 	ID                string     `json:"id"`
+	CanonicalID       string     `json:"canonicalId"`
 	Severity          string     `json:"severity"`
 	CvssScore         *float32   `json:"cvssScore,omitempty"`
 	Summary           *string    `json:"summary,omitempty"`
@@ -87,15 +88,16 @@ type TopVulnFilter struct {
 
 // VulnDetail is full vulnerability detail returned by GET /api/v1/vulns/{id}.
 type VulnDetail struct {
-	ID          string           `json:"id"`
-	Severity    string           `json:"severity"`
-	CvssScore   *float32         `json:"cvssScore,omitempty"`
-	Summary     *string          `json:"summary,omitempty"`
-	Details     *string          `json:"details,omitempty"`
-	Aliases     []string         `json:"aliases"`
-	References  []VulnReference  `json:"references,omitempty"`
-	PublishedAt *time.Time       `json:"publishedAt,omitempty"`
-	ModifiedAt  *time.Time       `json:"modifiedAt,omitempty"`
+	ID          string          `json:"id"`
+	CanonicalID string          `json:"canonicalId"`
+	Severity    string          `json:"severity"`
+	CvssScore   *float32        `json:"cvssScore,omitempty"`
+	Summary     *string         `json:"summary,omitempty"`
+	Details     *string         `json:"details,omitempty"`
+	Aliases     []string        `json:"aliases"`
+	References  []VulnReference `json:"references,omitempty"`
+	PublishedAt *time.Time      `json:"publishedAt,omitempty"`
+	ModifiedAt  *time.Time      `json:"modifiedAt,omitempty"`
 }
 
 // VulnReference is one external link associated with a vulnerability.
@@ -123,11 +125,12 @@ type AffectedComponent struct {
 
 // ComponentVulnEntry is one vulnerability finding for a specific component purl.
 type ComponentVulnEntry struct {
-	ID           string   `json:"id"`
-	Severity     string   `json:"severity"`
-	CvssScore    *float32 `json:"cvssScore,omitempty"`
-	Summary      *string  `json:"summary,omitempty"`
-	FixedVersion *string  `json:"fixedVersion,omitempty"`
+	ID          string   `json:"id"`
+	CanonicalID string   `json:"canonicalId"`
+	Severity    string   `json:"severity"`
+	CvssScore   *float32 `json:"cvssScore,omitempty"`
+	Summary     *string  `json:"summary,omitempty"`
+	FixedVersion *string `json:"fixedVersion,omitempty"`
 }
 
 // PackageSummary is a distinct package with version and SBOM counts.

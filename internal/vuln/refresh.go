@@ -19,16 +19,17 @@ type OSVQuerier interface {
 // Row is a vulnerability ready to persist (domain shape; the store adapter
 // translates it to repository params).
 type Row struct {
-	ID         string
-	Aliases    []string
-	Summary    string
-	Details    string
-	Severity   string
-	CVSSScore  *float32
-	Published  time.Time
-	Modified   time.Time
-	Raw        []byte
-	References []Reference
+	ID          string
+	Aliases     []string
+	CanonicalID string
+	Summary     string
+	Details     string
+	Severity    string
+	CVSSScore   *float32
+	Published   time.Time
+	Modified    time.Time
+	Raw         []byte
+	References  []Reference
 }
 
 // PackageVulnRef is one (purl → vulnerability) mapping row.
@@ -379,17 +380,34 @@ func toRow(rec *Record) Row {
 		label = databaseSpecificSeverity(rec)
 	}
 	return Row{
-		ID:         rec.ID,
-		Aliases:    rec.Aliases,
-		Summary:    rec.Summary,
-		Details:    rec.Details,
-		Severity:   label,
-		CVSSScore:  score,
-		Published:  parseTime(rec.Published),
-		Modified:   parseTime(rec.Modified),
-		Raw:        rec.Raw,
-		References: rec.References,
+		ID:          rec.ID,
+		Aliases:     rec.Aliases,
+		CanonicalID: canonicalID(rec.ID, rec.Aliases),
+		Summary:     rec.Summary,
+		Details:     rec.Details,
+		Severity:    label,
+		CVSSScore:   score,
+		Published:   parseTime(rec.Published),
+		Modified:    parseTime(rec.Modified),
+		Raw:         rec.Raw,
+		References:  rec.References,
 	}
+}
+
+// canonicalID returns the best stable public identifier for a vulnerability:
+// prefers CVE- alias, then GHSA-, then falls back to the native OSV ID.
+func canonicalID(id string, aliases []string) string {
+	for _, a := range aliases {
+		if strings.HasPrefix(a, "CVE-") {
+			return a
+		}
+	}
+	for _, a := range aliases {
+		if strings.HasPrefix(a, "GHSA-") {
+			return a
+		}
+	}
+	return id
 }
 
 // databaseSpecificSeverity checks the record-level and then per-affected

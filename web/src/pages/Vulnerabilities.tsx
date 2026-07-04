@@ -1,10 +1,10 @@
 import { createSignal, Show, For } from "solid-js";
-import { A } from "@solidjs/router";
 import { useTopVulnerabilities } from "~/api/queries";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
 import Pagination from "~/components/Pagination";
 import { StatusPill } from "~/components/ui/Badge";
 import { severityVariant } from "~/components/VulnBadge";
+import { VulnId } from "~/components/VulnId";
 
 const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW"] as const;
 const limit = 50;
@@ -82,7 +82,7 @@ export default function Vulnerabilities() {
                                         <table>
                                             <thead>
                                                 <tr>
-                                                    <th>CVE ID</th>
+                                                    <th>Vulnerability</th>
                                                     <th>Severity</th>
                                                     <th class="text-right">
                                                         CVSS
@@ -108,15 +108,10 @@ export default function Vulnerabilities() {
                                                     {(row) => (
                                                         <tr>
                                                             <td>
-                                                                <A
-                                                                    href={`/vulnerabilities/${row.id}`}
-                                                                >
-                                                                    <code>
-                                                                        {
-                                                                            row.id
-                                                                        }
-                                                                    </code>
-                                                                </A>
+                                                                <VulnId
+                                                                    canonicalId={row.canonicalId}
+                                                                    nativeId={row.id}
+                                                                />
                                                             </td>
                                                             <td>
                                                                 <StatusPill

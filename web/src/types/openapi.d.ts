@@ -1068,6 +1068,7 @@ export interface components {
             vulnCount: number;
         };
         ComponentVulnEntry: {
+            canonicalId: string;
             /** Format: float */
             cvssScore?: number;
             fixedVersion?: string;
@@ -1987,6 +1988,7 @@ export interface components {
             /** Format: int64 */
             affectedSbomCount: number;
             aliases: string[] | null;
+            canonicalId: string;
             /** Format: float */
             cvssScore?: number;
             id: string;
@@ -2077,6 +2079,7 @@ export interface components {
         };
         VulnDetail: {
             aliases: string[] | null;
+            canonicalId: string;
             /** Format: float */
             cvssScore?: number;
             details?: string;

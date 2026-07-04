@@ -39,6 +39,7 @@ func (s *searchService) ListTopVulnerabilities(ctx context.Context, filter TopVu
 		}
 		entry := TopVulnEntry{
 			ID:                r.ID,
+			CanonicalID:       r.CanonicalID,
 			Severity:          severityOrUnknown(r.Severity),
 			CvssScore:         float4ToPtr(r.CvssScore),
 			Summary:           textToPtr(r.Summary),
@@ -76,12 +77,13 @@ func (s *searchService) GetVulnerabilityDetail(
 	}
 
 	detail := &VulnDetail{
-		ID:        row.ID,
-		Severity:  severityOrUnknown(row.Severity),
-		CvssScore: float4ToPtr(row.CvssScore),
-		Summary:   textToPtr(row.Summary),
-		Details:   textToPtr(row.Details),
-		Aliases:   row.Aliases,
+		ID:          row.ID,
+		CanonicalID: row.CanonicalID,
+		Severity:    severityOrUnknown(row.Severity),
+		CvssScore:   float4ToPtr(row.CvssScore),
+		Summary:     textToPtr(row.Summary),
+		Details:     textToPtr(row.Details),
+		Aliases:     row.Aliases,
 	}
 	if row.PublishedAt.Valid {
 		t := row.PublishedAt.Time
