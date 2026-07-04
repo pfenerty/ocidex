@@ -39,7 +39,7 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
 FROM artifact a
 LEFT JOIN sbom s ON s.artifact_id = a.id
 WHERE (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))
-  AND (sqlc.narg('name')::text IS NULL OR a.name = sqlc.narg('name'))
+  AND (sqlc.narg('name')::text IS NULL OR a.name ILIKE '%' || sqlc.narg('name')::text || '%')
   AND (sqlc.narg('require_sufficient')::boolean IS NULL
        OR NOT sqlc.narg('require_sufficient')::boolean
        OR EXISTS (SELECT 1 FROM sbom s2 WHERE s2.artifact_id = a.id AND s2.enrichment_sufficient))

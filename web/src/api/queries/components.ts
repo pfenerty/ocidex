@@ -80,7 +80,7 @@ export function useComponentPurlTypes() {
 }
 
 /** Get a single component by ID. */
-export function useComponent(id: Accessor<string>) {
+export function useComponent(id: Accessor<string>, options?: { enabled?: Accessor<boolean> }) {
     return createQuery(() => ({
         queryKey: ["component", id()] as const,
         queryFn: () =>
@@ -89,6 +89,7 @@ export function useComponent(id: Accessor<string>) {
                     params: { path: { id: id() } },
                 }),
             ),
+        enabled: options?.enabled?.() ?? true,
     }));
 }
 
