@@ -1,6 +1,7 @@
+import "~/components/DetailSection.css";
 import { Show, For, createMemo, createSignal } from "solid-js";
 import { A, useSearchParams } from "@solidjs/router";
-import { useComponentVersions, useComponentVulns } from "~/api/queries";
+import { useComponent, useComponentVersions, useComponentVulns } from "~/api/queries";
 import type { ComponentVersionEntry } from "~/api/client";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
 import CopyDigest from "~/components/CopyDigest";
@@ -41,11 +42,14 @@ export default function ComponentOverview() {
         { enabled: () => params.name !== undefined },
     );
 
-    // Vuln data for the drill-down: use the first entry's id (all entries for the same
-    // purl share the same vulnerability profile).
     const firstVersionId = () => query.data?.versions[0]?.id ?? "";
     const firstVersionPurl = () =>
         query.data?.versions.find((v) => v.purl !== undefined && v.purl !== "")?.purl ?? "";
+
+    const detailQuery = useComponent(
+        () => firstVersionId(),
+        { enabled: () => hasVersion() && firstVersionId() !== "" },
+    );
 
     const vulnsQuery = useComponentVulns(() => firstVersionId(), {
         enabled: () => hasVersion() && firstVersionId() !== "" && hasText(firstVersionPurl()),
@@ -58,7 +62,6 @@ export default function ComponentOverview() {
             : params.name;
     };
 
-    // Version summary grouping (used in the top-level compact table).
     const grouped = createMemo<VersionGroup[]>(() => {
         if (hasVersion()) return [];
         const versions = query.data?.versions;
@@ -77,7 +80,6 @@ export default function ComponentOverview() {
         return Array.from(map.values());
     });
 
-    // Artifact grouping for the drill-down hierarchical table.
     const artifactGroups = createMemo<ArtifactGroup[]>(() => {
         if (!hasVersion()) return [];
         const versions = query.data?.versions;
@@ -261,19 +263,75 @@ export default function ComponentOverview() {
 
                                     {/* ── Drill-down: specific version selected ── */}
                                     <Show when={hasVersion()}>
-                                        {/* Vulnerability table */}
+                                        {/* Component metadata */}
+                                        <Show when={detailQuery.data} keyed>
+                                            {(detail) => (
+                                                <>
+                                                    <div class="detail-grid">
+                                                        <div class="detail-field">
+                                                            <span class="detail-label">Type</span>
+                                                            <span class="detail-value">{detail.type}</span>
+                                                        </div>
+                                                        <Show when={hasText(detail.group)}>
+                                                            <div class="detail-field">
+                                                                <span class="detail-label">Group</span>
+                                                                <span class="detail-value">{detail.group}</span>
+                                                            </div>
+                                                        </Show>
+                                                        <Show when={hasText(detail.purl)}>
+                                                            <div class="detail-field">
+                                                                <span class="detail-label">PURL</span>
+                                                                <span class="detail-value">
+                                                                    <PurlLink purl={detail.purl ?? ""} showBadge />
+                                                                </span>
+                                                            </div>
+                                                        </Show>
+                                                        <Show when={hasText(detail.cpe)}>
+                                                            <div class="detail-field">
+                                                                <span class="detail-label">CPE</span>
+                                                                <span class="detail-value font-mono text-sm">{detail.cpe}</span>
+                                                            </div>
+                                                        </Show>
+                                                        <Show when={hasText(detail.scope)}>
+                                                            <div class="detail-field">
+                                                                <span class="detail-label">Scope</span>
+                                                                <span class="detail-value">{detail.scope}</span>
+                                                            </div>
+                                                        </Show>
+                                                        <Show when={hasText(detail.publisher)}>
+                                                            <div class="detail-field">
+                                                                <span class="detail-label">Publisher</span>
+                                                                <span class="detail-value">{detail.publisher}</span>
+                                                            </div>
+                                                        </Show>
+                                                        <Show when={hasText(detail.copyright)}>
+                                                            <div class="detail-field">
+                                                                <span class="detail-label">Copyright</span>
+                                                                <span class="detail-value">{detail.copyright}</span>
+                                                            </div>
+                                                        </Show>
+                                                    </div>
+
+                                                    <Show when={hasText(detail.description)}>
+                                                        <div class="card mb-4">
+                                                            <div class="card-header">
+                                                                <h3>Description</h3>
+                                                            </div>
+                                                            <p class="text-sm">{detail.description}</p>
+                                                        </div>
+                                                    </Show>
+                                                </>
+                                            )}
+                                        </Show>
+
+                                        {/* Vulnerabilities */}
                                         <Show when={hasText(firstVersionPurl())}>
-                                            <div class="card">
+                                            <div class="card mb-4">
                                                 <div class="card-header">
                                                     <h3>Vulnerabilities</h3>
-                                                    <Show
-                                                        when={vulnsQuery.data}
-                                                        keyed
-                                                    >
+                                                    <Show when={vulnsQuery.data} keyed>
                                                         {(d) => (
-                                                            <span class="badge">
-                                                                {d.data.length}
-                                                            </span>
+                                                            <span class="badge">{d.data.length}</span>
                                                         )}
                                                     </Show>
                                                 </div>
@@ -306,12 +364,7 @@ export default function ComponentOverview() {
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
-                                                                <For
-                                                                    each={
-                                                                        vulnsQuery.data
-                                                                            ?.data ?? []
-                                                                    }
-                                                                >
+                                                                <For each={vulnsQuery.data?.data ?? []}>
                                                                     {(v) => (
                                                                         <tr>
                                                                             <td>
@@ -321,26 +374,13 @@ export default function ComponentOverview() {
                                                                                 />
                                                                             </td>
                                                                             <td>
-                                                                                <StatusPill
-                                                                                    variant={severityVariant(
-                                                                                        v.severity,
-                                                                                    )}
-                                                                                >
+                                                                                <StatusPill variant={severityVariant(v.severity)}>
                                                                                     {v.severity}
                                                                                 </StatusPill>
                                                                             </td>
-                                                                            <td>
-                                                                                {v.cvssScore?.toFixed(
-                                                                                    1,
-                                                                                ) ?? "—"}
-                                                                            </td>
-                                                                            <td class="text-muted">
-                                                                                {v.summary ?? "—"}
-                                                                            </td>
-                                                                            <td class="font-mono text-sm">
-                                                                                {v.fixedVersion ??
-                                                                                    "—"}
-                                                                            </td>
+                                                                            <td>{v.cvssScore?.toFixed(1) ?? "—"}</td>
+                                                                            <td class="text-muted">{v.summary ?? "—"}</td>
+                                                                            <td class="font-mono text-sm">{v.fixedVersion ?? "—"}</td>
                                                                         </tr>
                                                                     )}
                                                                 </For>
@@ -351,23 +391,149 @@ export default function ComponentOverview() {
                                             </div>
                                         </Show>
 
-                                        {/* Hierarchical collapsible artifact table */}
+                                        {/* Licenses */}
+                                        <Show when={(detailQuery.data?.licenses ?? []).length > 0}>
+                                            <div class="card mb-4">
+                                                <div class="card-header">
+                                                    <h3>Licenses</h3>
+                                                    <span class="badge">{(detailQuery.data?.licenses ?? []).length}</span>
+                                                </div>
+                                                <div class="table-wrapper">
+                                                    <table>
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Name</th>
+                                                                <th>SPDX ID</th>
+                                                                <th>URL</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <For each={detailQuery.data?.licenses ?? []}>
+                                                                {(license) => (
+                                                                    <tr>
+                                                                        <td>
+                                                                            <A href={`/licenses/${license.id}/components`}>
+                                                                                {license.name}
+                                                                            </A>
+                                                                        </td>
+                                                                        <td>
+                                                                            <Show
+                                                                                when={license.spdxId}
+                                                                                fallback={<span class="text-muted">—</span>}
+                                                                            >
+                                                                                <span class="badge badge-primary">{license.spdxId}</span>
+                                                                            </Show>
+                                                                        </td>
+                                                                        <td>
+                                                                            <Show
+                                                                                when={license.url}
+                                                                                fallback={<span class="text-muted">—</span>}
+                                                                            >
+                                                                                <a
+                                                                                    href={license.url}
+                                                                                    target="_blank"
+                                                                                    rel="noopener noreferrer"
+                                                                                    class="text-sm"
+                                                                                >
+                                                                                    {license.url}
+                                                                                </a>
+                                                                            </Show>
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </For>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </Show>
+
+                                        {/* Hashes */}
+                                        <Show when={(detailQuery.data?.hashes ?? []).length > 0}>
+                                            <div class="card mb-4">
+                                                <div class="card-header">
+                                                    <h3>Hashes</h3>
+                                                    <span class="badge">{(detailQuery.data?.hashes ?? []).length}</span>
+                                                </div>
+                                                <div class="table-wrapper">
+                                                    <table>
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Algorithm</th>
+                                                                <th>Value</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <For each={detailQuery.data?.hashes ?? []}>
+                                                                {(hash) => (
+                                                                    <tr>
+                                                                        <td>
+                                                                            <span class="badge">{hash.algorithm}</span>
+                                                                        </td>
+                                                                        <td class="font-mono text-sm">{hash.value}</td>
+                                                                    </tr>
+                                                                )}
+                                                            </For>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </Show>
+
+                                        {/* External References */}
+                                        <Show when={(detailQuery.data?.externalReferences ?? []).length > 0}>
+                                            <div class="card mb-4">
+                                                <div class="card-header">
+                                                    <h3>External References</h3>
+                                                    <span class="badge">{(detailQuery.data?.externalReferences ?? []).length}</span>
+                                                </div>
+                                                <div class="table-wrapper">
+                                                    <table>
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Type</th>
+                                                                <th>URL</th>
+                                                                <th>Comment</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <For each={detailQuery.data?.externalReferences ?? []}>
+                                                                {(ref) => (
+                                                                    <tr>
+                                                                        <td>
+                                                                            <span class="badge">{ref.type}</span>
+                                                                        </td>
+                                                                        <td>
+                                                                            <a
+                                                                                href={ref.url}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                class="font-mono text-sm"
+                                                                            >
+                                                                                {ref.url}
+                                                                            </a>
+                                                                        </td>
+                                                                        <td class="text-muted">{ref.comment ?? "—"}</td>
+                                                                    </tr>
+                                                                )}
+                                                            </For>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </Show>
+
+                                        {/* Artifacts */}
                                         <div class="card">
                                             <div class="card-header">
                                                 <h3>Artifacts</h3>
-                                                <span class="badge">
-                                                    {artifactGroups().length}
-                                                </span>
+                                                <span class="badge">{artifactGroups().length}</span>
                                             </div>
                                             <div class="table-wrapper">
                                                 <table>
                                                     <thead>
                                                         <tr>
-                                                            <th
-                                                                style={{
-                                                                    width: "24px",
-                                                                }}
-                                                            />
+                                                            <th style={{ width: "24px" }} />
                                                             <th>Artifact</th>
                                                             <th>SBOMs</th>
                                                         </tr>
@@ -377,151 +543,65 @@ export default function ComponentOverview() {
                                                             {(ag) => (
                                                                 <>
                                                                     <tr
-                                                                        style={{
-                                                                            cursor: "pointer",
-                                                                        }}
-                                                                        onClick={() =>
-                                                                            toggleArtifact(
-                                                                                ag.key,
-                                                                            )
-                                                                        }
+                                                                        style={{ cursor: "pointer" }}
+                                                                        onClick={() => toggleArtifact(ag.key)}
                                                                     >
                                                                         <td
                                                                             class="text-muted"
-                                                                            style={{
-                                                                                "font-size":
-                                                                                    "0.7em",
-                                                                                "user-select":
-                                                                                    "none",
-                                                                            }}
+                                                                            style={{ "font-size": "0.7em", "user-select": "none" }}
                                                                         >
-                                                                            {expandedArtifacts().has(
-                                                                                ag.key,
-                                                                            )
-                                                                                ? "▼"
-                                                                                : "▶"}
+                                                                            {expandedArtifacts().has(ag.key) ? "▼" : "▶"}
                                                                         </td>
                                                                         <td>
                                                                             <Show
-                                                                                when={
-                                                                                    ag.artifactId
-                                                                                }
+                                                                                when={ag.artifactId}
                                                                                 fallback={
                                                                                     <span>
-                                                                                        {ag.artifactName ??
-                                                                                            ag.key.slice(
-                                                                                                0,
-                                                                                                8,
-                                                                                            )}
+                                                                                        {ag.artifactName ?? ag.key.slice(0, 8)}
                                                                                     </span>
                                                                                 }
                                                                                 keyed
                                                                             >
-                                                                                {(
-                                                                                    artifactId,
-                                                                                ) => (
+                                                                                {(artifactId) => (
                                                                                     <A
                                                                                         href={`/artifacts/${artifactId}`}
-                                                                                        onClick={(
-                                                                                            e,
-                                                                                        ) =>
-                                                                                            e.stopPropagation()
-                                                                                        }
+                                                                                        onClick={(e) => e.stopPropagation()}
                                                                                     >
-                                                                                        {ag.artifactName ??
-                                                                                            artifactId.slice(
-                                                                                                0,
-                                                                                                8,
-                                                                                            )}
+                                                                                        {ag.artifactName ?? artifactId.slice(0, 8)}
                                                                                     </A>
                                                                                 )}
                                                                             </Show>
                                                                         </td>
                                                                         <td class="text-muted">
-                                                                            {plural(
-                                                                                ag.entries
-                                                                                    .length,
-                                                                                "SBOM",
-                                                                            )}
+                                                                            {plural(ag.entries.length, "SBOM")}
                                                                         </td>
                                                                     </tr>
-                                                                    <Show
-                                                                        when={expandedArtifacts().has(
-                                                                            ag.key,
-                                                                        )}
-                                                                    >
-                                                                        <For
-                                                                            each={
-                                                                                ag.entries
-                                                                            }
-                                                                        >
+                                                                    <Show when={expandedArtifacts().has(ag.key)}>
+                                                                        <For each={ag.entries}>
                                                                             {(e) => (
-                                                                                <tr
-                                                                                    style={{
-                                                                                        background:
-                                                                                            "var(--color-surface-hover)",
-                                                                                    }}
-                                                                                >
+                                                                                <tr style={{ background: "var(--color-surface-hover)" }}>
                                                                                     <td />
-                                                                                    <td
-                                                                                        style={{
-                                                                                            "padding-left":
-                                                                                                "2rem",
-                                                                                        }}
-                                                                                    >
-                                                                                        <A
-                                                                                            href={`/sboms/${e.sbomId}`}
-                                                                                        >
+                                                                                    <td style={{ "padding-left": "2rem" }}>
+                                                                                        <A href={`/sboms/${e.sbomId}`}>
                                                                                             {e.subjectVersion ??
-                                                                                                formatDateTime(
-                                                                                                    e.sbomCreatedAt,
-                                                                                                )}
+                                                                                                formatDateTime(e.sbomCreatedAt)}
                                                                                         </A>
-                                                                                        <Show
-                                                                                            when={
-                                                                                                e.architecture
-                                                                                            }
-                                                                                            keyed
-                                                                                        >
-                                                                                            {(
-                                                                                                arch,
-                                                                                            ) => (
+                                                                                        <Show when={e.architecture} keyed>
+                                                                                            {(arch) => (
                                                                                                 <span
                                                                                                     class="badge badge-primary"
-                                                                                                    style={{
-                                                                                                        "margin-left":
-                                                                                                            "8px",
-                                                                                                    }}
+                                                                                                    style={{ "margin-left": "8px" }}
                                                                                                 >
-                                                                                                    {
-                                                                                                        arch
-                                                                                                    }
+                                                                                                    {arch}
                                                                                                 </span>
                                                                                             )}
                                                                                         </Show>
-                                                                                        <Show
-                                                                                            when={
-                                                                                                e.sbomDigest
-                                                                                            }
-                                                                                            keyed
-                                                                                        >
-                                                                                            {(
-                                                                                                digest,
-                                                                                            ) => (
-                                                                                                <span
-                                                                                                    style={{
-                                                                                                        "margin-left":
-                                                                                                            "12px",
-                                                                                                    }}
-                                                                                                >
+                                                                                        <Show when={e.sbomDigest} keyed>
+                                                                                            {(digest) => (
+                                                                                                <span style={{ "margin-left": "12px" }}>
                                                                                                     <CopyDigest
-                                                                                                        digest={
-                                                                                                            digest
-                                                                                                        }
-                                                                                                        artifactName={
-                                                                                                            e.artifactName ??
-                                                                                                            undefined
-                                                                                                        }
+                                                                                                        digest={digest}
+                                                                                                        artifactName={e.artifactName ?? undefined}
                                                                                                     />
                                                                                                 </span>
                                                                                             )}
@@ -529,13 +609,9 @@ export default function ComponentOverview() {
                                                                                     </td>
                                                                                     <td
                                                                                         class="whitespace-nowrap text-muted"
-                                                                                        title={new Date(
-                                                                                            e.sbomCreatedAt,
-                                                                                        ).toLocaleString()}
+                                                                                        title={new Date(e.sbomCreatedAt).toLocaleString()}
                                                                                     >
-                                                                                        {relativeDate(
-                                                                                            e.sbomCreatedAt,
-                                                                                        )}
+                                                                                        {relativeDate(e.sbomCreatedAt)}
                                                                                     </td>
                                                                                 </tr>
                                                                             )}
@@ -565,71 +641,34 @@ export default function ComponentOverview() {
                                                     <tbody>
                                                         <For each={grouped()}>
                                                             {(group) => {
-                                                                const rep =
-                                                                    group.entries[0];
+                                                                const rep = group.entries[0];
                                                                 return (
                                                                     <tr>
                                                                         <td>
                                                                             <A
-                                                                                href={versionHref(
-                                                                                    group.version,
-                                                                                )}
+                                                                                href={versionHref(group.version)}
                                                                                 class="font-mono"
                                                                             >
-                                                                                {
-                                                                                    group.version
-                                                                                }
+                                                                                {group.version}
                                                                             </A>
-                                                                            <Show
-                                                                                when={
-                                                                                    group.purl
-                                                                                }
-                                                                                keyed
-                                                                            >
-                                                                                {(
-                                                                                    purl,
-                                                                                ) => (
-                                                                                    <span
-                                                                                        style={{
-                                                                                            "margin-left":
-                                                                                                "8px",
-                                                                                        }}
-                                                                                    >
-                                                                                        <PurlLink
-                                                                                            purl={
-                                                                                                purl
-                                                                                            }
-                                                                                            showBadge
-                                                                                        />
+                                                                            <Show when={group.purl} keyed>
+                                                                                {(purl) => (
+                                                                                    <span style={{ "margin-left": "8px" }}>
+                                                                                        <PurlLink purl={purl} showBadge />
                                                                                     </span>
                                                                                 )}
                                                                             </Show>
                                                                         </td>
                                                                         <td class="text-muted">
-                                                                            {plural(
-                                                                                group
-                                                                                    .entries
-                                                                                    .length,
-                                                                                "artifact",
-                                                                            )}
+                                                                            {plural(group.entries.length, "artifact")}
                                                                         </td>
                                                                         <td>
                                                                             <VulnCountBadges
-                                                                                criticalCount={
-                                                                                    rep.criticalCount
-                                                                                }
-                                                                                highCount={
-                                                                                    rep.highCount
-                                                                                }
-                                                                                mediumCount={
-                                                                                    rep.mediumCount
-                                                                                }
-                                                                                lowCount={
-                                                                                    rep.lowCount
-                                                                                }
-                                                                                unknownCount={
-                                                                                    rep.unknownCount
-                                                                                }
+                                                                                criticalCount={rep.criticalCount}
+                                                                                highCount={rep.highCount}
+                                                                                mediumCount={rep.mediumCount}
+                                                                                lowCount={rep.lowCount}
+                                                                                unknownCount={rep.unknownCount}
                                                                             />
                                                                         </td>
                                                                     </tr>

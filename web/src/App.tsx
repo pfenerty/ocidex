@@ -10,7 +10,6 @@ import ArtifactVersionHistory from "~/pages/ArtifactVersionHistory";
 import SBOMDetail from "~/pages/SBOMDetail";
 import Components from "~/pages/Components";
 import ComponentOverview from "~/pages/ComponentOverview";
-import ComponentDetail from "~/pages/ComponentDetail";
 import Licenses from "~/pages/Licenses";
 import LicenseComponents from "~/pages/LicenseComponents";
 import Vulnerabilities from "~/pages/Vulnerabilities";
@@ -46,7 +45,6 @@ export default function App() {
                     path="/components/overview"
                     component={ComponentOverview}
                 />
-                <Route path="/components/:id" component={ComponentDetail} />
                 <Route path="/licenses" component={Licenses} />
                 <Route
                     path="/licenses/:id/components"

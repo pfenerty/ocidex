@@ -7,6 +7,22 @@ import { artifactDisplayName, plural } from "~/utils/format";
 import { SigningBadge, TypeBadge } from "~/components/ui";
 import type { ArtifactSummary } from "~/api/client";
 
+const ARTIFACT_TYPES = [
+    "application",
+    "container",
+    "cryptographic-asset",
+    "data",
+    "device",
+    "device-driver",
+    "file",
+    "firmware",
+    "framework",
+    "library",
+    "machine-learning-model",
+    "operating-system",
+    "platform",
+];
+
 function extractNamespace(name: string): string {
     const parts = name.split("/");
     return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : parts[0];
@@ -16,6 +32,12 @@ export default function Artifacts() {
     const [nameFilter, setNameFilter] = createSignal("");
     const [typeFilter, setTypeFilter] = createSignal("");
     const [showAll, setShowAll] = createSignal(false);
+
+    let nameDebounce: ReturnType<typeof setTimeout>;
+    const handleNameInput = (val: string) => {
+        clearTimeout(nameDebounce);
+        nameDebounce = setTimeout(() => setNameFilter(val), 300);
+    };
 
     const query = useArtifactsInfinite(() => ({
         name: nameFilter(),
@@ -40,10 +62,6 @@ export default function Artifacts() {
         return [...map.entries()];
     });
 
-    const handleSearch = (e: Event) => {
-        e.preventDefault();
-    };
-
     return (
         <>
             <div class="page-header">
@@ -58,32 +76,28 @@ export default function Artifacts() {
                 </div>
             </div>
 
-            <form class="search-bar mb-4" onSubmit={handleSearch}>
+            <div class="search-bar mb-4">
                 <input
                     type="text"
                     placeholder="Filter by name…"
-                    value={nameFilter()}
-                    onInput={(e) => setNameFilter(e.currentTarget.value)}
+                    onInput={(e) => handleNameInput(e.currentTarget.value)}
                 />
-                <input
-                    type="text"
-                    placeholder="Filter by type…"
+                <select
                     value={typeFilter()}
-                    onInput={(e) => setTypeFilter(e.currentTarget.value)}
-                />
-                <button type="submit" class="btn-primary">
-                    Search
-                </button>
-            </form>
-
-            <div class="mb-4" style={{ display: "flex", "align-items": "center", gap: "0.5rem" }}>
-                <label style={{ display: "flex", "align-items": "center", gap: "0.5rem", cursor: "pointer" }}>
+                    onChange={(e) => setTypeFilter(e.currentTarget.value)}
+                >
+                    <option value="">All types</option>
+                    <For each={ARTIFACT_TYPES}>
+                        {(t) => <option value={t}>{t}</option>}
+                    </For>
+                </select>
+                <label style={{ display: "flex", "align-items": "center", gap: "0.5rem", cursor: "pointer", "white-space": "nowrap" }}>
                     <input
                         type="checkbox"
                         checked={showAll()}
                         onChange={(e) => setShowAll(e.currentTarget.checked)}
                     />
-                    Show insufficiently enriched artifacts
+                    Show all
                 </label>
             </div>
 

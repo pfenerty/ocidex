@@ -162,8 +162,8 @@ func decorateVersionVulns(ctx context.Context, q *repository.Queries, purls []st
 		return fmt.Errorf("listing vulns by purls: %w", err)
 	}
 	type agg struct {
-		count                              int
-		maxSeverity                        string
+		count                                int
+		maxSeverity                          string
 		critical, high, medium, low, unknown int
 	}
 	byPurl := make(map[string]*agg, len(purls))
