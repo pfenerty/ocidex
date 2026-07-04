@@ -568,14 +568,30 @@
           "artifactName": {
             "type": "string"
           },
+          "criticalCount": {
+            "format": "int64",
+            "type": "integer"
+          },
           "group": {
             "type": "string"
+          },
+          "highCount": {
+            "format": "int64",
+            "type": "integer"
           },
           "id": {
             "type": "string"
           },
+          "lowCount": {
+            "format": "int64",
+            "type": "integer"
+          },
           "maxSeverity": {
             "type": "string"
+          },
+          "mediumCount": {
+            "format": "int64",
+            "type": "integer"
           },
           "name": {
             "type": "string"
@@ -597,6 +613,10 @@
           },
           "type": {
             "type": "string"
+          },
+          "unknownCount": {
+            "format": "int64",
+            "type": "integer"
           },
           "version": {
             "type": "string"

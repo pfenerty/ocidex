@@ -162,8 +162,9 @@ func decorateVersionVulns(ctx context.Context, q *repository.Queries, purls []st
 		return fmt.Errorf("listing vulns by purls: %w", err)
 	}
 	type agg struct {
-		count       int
-		maxSeverity string
+		count                              int
+		maxSeverity                        string
+		critical, high, medium, low, unknown int
 	}
 	byPurl := make(map[string]*agg, len(purls))
 	for _, r := range vulnRows {
@@ -176,6 +177,18 @@ func decorateVersionVulns(ctx context.Context, q *repository.Queries, purls []st
 		if severityRank(r.Severity.String) > severityRank(a.maxSeverity) {
 			a.maxSeverity = r.Severity.String
 		}
+		switch strings.ToUpper(r.Severity.String) {
+		case "CRITICAL":
+			a.critical++
+		case "HIGH":
+			a.high++
+		case "MEDIUM":
+			a.medium++
+		case "LOW":
+			a.low++
+		default:
+			a.unknown++
+		}
 	}
 	for i := range items {
 		if items[i].Purl == nil {
@@ -184,6 +197,11 @@ func decorateVersionVulns(ctx context.Context, q *repository.Queries, purls []st
 		if a := byPurl[*items[i].Purl]; a != nil {
 			items[i].VulnCount = a.count
 			items[i].MaxSeverity = a.maxSeverity
+			items[i].CriticalCount = a.critical
+			items[i].HighCount = a.high
+			items[i].MediumCount = a.medium
+			items[i].LowCount = a.low
+			items[i].UnknownCount = a.unknown
 		}
 	}
 	return nil

@@ -403,6 +403,11 @@ type ComponentVersionEntry struct {
 	Architecture   *string `json:"architecture,omitempty"`
 	VulnCount      int     `json:"vulnCount"`
 	MaxSeverity    string  `json:"maxSeverity,omitempty"`
+	CriticalCount  int     `json:"criticalCount,omitempty"`
+	HighCount      int     `json:"highCount,omitempty"`
+	MediumCount    int     `json:"mediumCount,omitempty"`
+	LowCount       int     `json:"lowCount,omitempty"`
+	UnknownCount   int     `json:"unknownCount,omitempty"`
 }
 
 // DependencyGraph represents the dependency structure of an SBOM.

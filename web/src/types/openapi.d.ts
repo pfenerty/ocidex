@@ -1036,9 +1036,17 @@ export interface components {
             architecture?: string;
             artifactId?: string;
             artifactName?: string;
+            /** Format: int64 */
+            criticalCount?: number;
             group?: string;
+            /** Format: int64 */
+            highCount?: number;
             id: string;
+            /** Format: int64 */
+            lowCount?: number;
             maxSeverity?: string;
+            /** Format: int64 */
+            mediumCount?: number;
             name: string;
             purl?: string;
             sbomCreatedAt: string;
@@ -1046,6 +1054,8 @@ export interface components {
             sbomId: string;
             subjectVersion?: string;
             type: string;
+            /** Format: int64 */
+            unknownCount?: number;
             version?: string;
             /** Format: int64 */
             vulnCount: number;

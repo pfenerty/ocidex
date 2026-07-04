@@ -37,6 +37,47 @@ export function VulnBadge(props: { count: number | undefined; maxSeverity: strin
     );
 }
 
+// VulnCountBadges renders a compact per-severity breakdown using individual count
+// pills. Renders "—" when all counts are zero. Suitable for table cells and
+// version summary rows across the app.
+export function VulnCountBadges(props: {
+    criticalCount?: number;
+    highCount?: number;
+    mediumCount?: number;
+    lowCount?: number;
+    unknownCount?: number;
+}) {
+    const cells = (): { label: string; severity: string; count: number }[] =>
+        [
+            { label: "critical", severity: "CRITICAL", count: props.criticalCount ?? 0 },
+            { label: "high", severity: "HIGH", count: props.highCount ?? 0 },
+            { label: "medium", severity: "MEDIUM", count: props.mediumCount ?? 0 },
+            { label: "low", severity: "LOW", count: props.lowCount ?? 0 },
+            { label: "unknown", severity: "UNKNOWN", count: props.unknownCount ?? 0 },
+        ].filter((c) => c.count > 0);
+
+    const total = () =>
+        (props.criticalCount ?? 0) +
+        (props.highCount ?? 0) +
+        (props.mediumCount ?? 0) +
+        (props.lowCount ?? 0) +
+        (props.unknownCount ?? 0);
+
+    return (
+        <Show when={total() > 0} fallback={<span class="text-muted">—</span>}>
+            <div style={{ display: "inline-flex", gap: "4px", "flex-wrap": "wrap" }}>
+                <For each={cells()}>
+                    {(c) => (
+                        <StatusPill variant={severityVariant(c.severity)}>
+                            {c.count} {c.label}
+                        </StatusPill>
+                    )}
+                </For>
+            </div>
+        </Show>
+    );
+}
+
 // VulnSummaryBar renders the per-severity breakdown for an SBOM. Renders nothing
 // when the SBOM has no known vulnerabilities.
 export function VulnSummaryBar(props: { summary: VulnSummary | undefined }) {
