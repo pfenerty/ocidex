@@ -1,11 +1,12 @@
 import "~/components/DetailSection.css";
-import { Show, For } from "solid-js";
+import { Show, For, createSignal } from "solid-js";
 import { A, useParams } from "@solidjs/router";
 import { useComponent, useComponentVersions } from "~/api/queries";
 import type { ComponentVersionEntry } from "~/api/client";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
 import CopyDigest from "~/components/CopyDigest";
 import PurlLink from "~/components/PurlLink";
+import { VulnBadge } from "~/components/VulnBadge";
 import { purlToRegistryUrl, purlTypeLabel } from "~/utils/purl";
 import { relativeDate, formatDateTime, plural, hasText } from "~/utils/format";
 
@@ -256,6 +257,14 @@ export default function ComponentDetail() {
                                                                     v.architecture !==
                                                                     undefined,
                                                             );
+                                                        const [expandedKeys, setExpandedKeys] = createSignal<Set<string>>(new Set());
+                                                        const toggle = (key: string) =>
+                                                            setExpandedKeys((prev) => {
+                                                                const next = new Set(prev);
+                                                                if (next.has(key)) next.delete(key);
+                                                                else next.add(key);
+                                                                return next;
+                                                            });
                                                         const groups = () => {
                                                             if (!hasArch())
                                                                 return null;
@@ -311,6 +320,9 @@ export default function ComponentDetail() {
                                                                                     </th>
                                                                                     <th>
                                                                                         Ingested
+                                                                                    </th>
+                                                                                    <th>
+                                                                                        Vulns
                                                                                     </th>
                                                                                 </tr>
                                                                             </thead>
@@ -404,6 +416,12 @@ export default function ComponentDetail() {
                                                                                                     entry.sbomCreatedAt,
                                                                                                 )}
                                                                                             </td>
+                                                                                            <td>
+                                                                                                <VulnBadge
+                                                                                                    count={entry.vulnCount}
+                                                                                                    maxSeverity={entry.maxSeverity}
+                                                                                                />
+                                                                                            </td>
                                                                                         </tr>
                                                                                     )}
                                                                                 </For>
@@ -425,6 +443,9 @@ export default function ComponentDetail() {
                                                                                 </th>
                                                                                 <th>
                                                                                     Ingested
+                                                                                </th>
+                                                                                <th>
+                                                                                    Vulns
                                                                                 </th>
                                                                             </tr>
                                                                         </thead>
@@ -459,7 +480,9 @@ export default function ComponentDetail() {
                                                                                                 style={{
                                                                                                     "font-weight":
                                                                                                         "600",
+                                                                                                    cursor: "pointer",
                                                                                                 }}
+                                                                                                onClick={() => toggle(key)}
                                                                                             >
                                                                                                 <td>
                                                                                                     <Show
@@ -529,7 +552,14 @@ export default function ComponentDetail() {
                                                                                                         preferred.sbomCreatedAt,
                                                                                                     )}
                                                                                                 </td>
+                                                                                                <td>
+                                                                                                    <VulnBadge
+                                                                                                        count={preferred.vulnCount}
+                                                                                                        maxSeverity={preferred.maxSeverity}
+                                                                                                    />
+                                                                                                </td>
                                                                                             </tr>
+                                                                                            <Show when={expandedKeys().has(key)}>
                                                                                             <For
                                                                                                 each={
                                                                                                     entries
@@ -541,7 +571,7 @@ export default function ComponentDetail() {
                                                                                                     <tr
                                                                                                         style={{
                                                                                                             background:
-                                                                                                                "var(--color-bg-alt, #f8f9fa)",
+                                                                                                                "var(--color-surface-hover)",
                                                                                                         }}
                                                                                                     >
                                                                                                         <td
@@ -550,7 +580,7 @@ export default function ComponentDetail() {
                                                                                                                     "2rem",
                                                                                                             }}
                                                                                                             colspan={
-                                                                                                                4
+                                                                                                                5
                                                                                                             }
                                                                                                         >
                                                                                                             <span
@@ -588,6 +618,7 @@ export default function ComponentDetail() {
                                                                                                     </tr>
                                                                                                 )}
                                                                                             </For>
+                                                                                            </Show>
                                                                                         </>
                                                                                     );
                                                                                 }}

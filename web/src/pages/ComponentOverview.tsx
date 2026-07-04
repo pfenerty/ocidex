@@ -449,7 +449,7 @@ export default function ComponentOverview() {
                                                                                             <tr
                                                                                                 style={{
                                                                                                     background:
-                                                                                                        "var(--color-bg-alt, #f8f9fa)",
+                                                                                                        "var(--color-surface-hover)",
                                                                                                 }}
                                                                                             >
                                                                                                 <td
