@@ -261,6 +261,43 @@ func (s *searchService) GetComponent(ctx context.Context, id pgtype.UUID, vis Vi
 	}, nil
 }
 
+// GetComponentVulns returns all vulnerability findings for the component's purl.
+// The visibility check is delegated to GetComponent — if the component is not
+// visible the call returns ErrNotFound before any vuln query is made.
+func (s *searchService) GetComponentVulns(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) ([]ComponentVulnEntry, error) {
+	detail, err := s.GetComponent(ctx, id, vis)
+	if err != nil {
+		return nil, err
+	}
+	if detail.Purl == nil || *detail.Purl == "" {
+		return nil, nil
+	}
+	q := repository.New(s.db)
+	rows, err := q.ListVulnsByPurl(ctx, *detail.Purl)
+	if err != nil {
+		return nil, fmt.Errorf("listing component vulns: %w", err)
+	}
+	out := make([]ComponentVulnEntry, 0, len(rows))
+	for _, r := range rows {
+		e := ComponentVulnEntry{
+			ID:       r.ID,
+			Severity: r.Severity.String,
+		}
+		if r.CvssScore.Valid {
+			v := r.CvssScore.Float32
+			e.CvssScore = &v
+		}
+		if r.Summary.Valid {
+			e.Summary = &r.Summary.String
+		}
+		if r.FixedVersion.Valid {
+			e.FixedVersion = &r.FixedVersion.String
+		}
+		out = append(out, e)
+	}
+	return out, nil
+}
+
 // ListComponentPurlTypes returns distinct PURL types across all visible components.
 func (s *searchService) ListComponentPurlTypes(ctx context.Context, vis VisibilityFilter) ([]string, error) {
 	q := repository.New(s.db)

@@ -616,6 +616,32 @@
         ],
         "type": "object"
       },
+      "ComponentVulnEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "cvssScore": {
+            "format": "float",
+            "type": "number"
+          },
+          "fixedVersion": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "severity"
+        ],
+        "type": "object"
+      },
       "CreateAPIKeyInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -1582,6 +1608,33 @@
         },
         "required": [
           "versions"
+        ],
+        "type": "object"
+      },
+      "GetComponentVulnsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/GetComponentVulnsOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentVulnEntry"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data"
         ],
         "type": "object"
       },
@@ -4642,6 +4695,50 @@
           }
         },
         "summary": "Get a component",
+        "tags": [
+          "Components"
+        ]
+      }
+    },
+    "/api/v1/components/{id}/vulns": {
+      "get": {
+        "operationId": "get-component-vulns",
+        "parameters": [
+          {
+            "description": "Component UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Component UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetComponentVulnsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List vulnerabilities for a component",
         "tags": [
           "Components"
         ]

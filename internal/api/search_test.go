@@ -196,6 +196,10 @@ func (f *fakeSearchService) GetVulnerabilityDetail(_ context.Context, _ string, 
 	return &service.VulnDetail{ID: "CVE-2021-0001", Severity: "HIGH", Aliases: []string{}}, service.PagedResult[service.AffectedArtifact]{Limit: limit, Offset: offset}, nil
 }
 
+func (f *fakeSearchService) GetComponentVulns(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) ([]service.ComponentVulnEntry, error) {
+	return []service.ComponentVulnEntry{}, nil
+}
+
 // notFoundSearchService returns ErrNotFound for single-item lookups.
 type notFoundSearchService struct{ fakeSearchService }
 
@@ -209,6 +213,10 @@ func (f *notFoundSearchService) GetComponent(_ context.Context, _ pgtype.UUID, _
 
 func (f *notFoundSearchService) GetArtifact(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) (service.ArtifactDetail, error) {
 	return service.ArtifactDetail{}, service.ErrNotFound
+}
+
+func (f *notFoundSearchService) GetComponentVulns(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) ([]service.ComponentVulnEntry, error) {
+	return nil, service.ErrNotFound
 }
 
 // pagedBody is a helper for decoding offset-paginated JSON responses.

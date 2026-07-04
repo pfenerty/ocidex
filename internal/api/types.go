@@ -280,6 +280,18 @@ type GetComponentOutput struct {
 	Body service.ComponentDetail
 }
 
+// GetComponentVulnsInput is the request for GET /api/v1/components/{id}/vulns.
+type GetComponentVulnsInput struct {
+	ID string `path:"id" doc:"Component UUID" format:"uuid"`
+}
+
+// GetComponentVulnsOutput is the response for GET /api/v1/components/{id}/vulns.
+type GetComponentVulnsOutput struct {
+	Body struct {
+		Data []service.ComponentVulnEntry `json:"data"`
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Licenses — List
 // ---------------------------------------------------------------------------

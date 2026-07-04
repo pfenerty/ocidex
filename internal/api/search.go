@@ -228,6 +228,22 @@ func (h *Handler) GetComponent(ctx context.Context, input *GetComponentInput) (*
 	return out, nil
 }
 
+// GetComponentVulns handles GET /api/v1/components/{id}/vulns.
+func (h *Handler) GetComponentVulns(ctx context.Context, input *GetComponentVulnsInput) (*GetComponentVulnsOutput, error) {
+	id, err := parseUUID(input.ID)
+	if err != nil {
+		return nil, err
+	}
+	vis := visibilityFilterFromContext(ctx)
+	vulns, err := h.searchService.GetComponentVulns(ctx, id, vis)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	out := &GetComponentVulnsOutput{}
+	out.Body.Data = vulns
+	return out, nil
+}
+
 // ListLicenses handles GET /api/v1/licenses.
 func (h *Handler) ListLicenses(ctx context.Context, input *ListLicensesInput) (*ListLicensesOutput, error) {
 	vis := visibilityFilterFromContext(ctx)
