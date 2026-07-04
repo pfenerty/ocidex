@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // OSVQuerier is the OSV client surface the refresh needs. *Client satisfies it.
@@ -37,6 +39,8 @@ type PackageVulnRef struct {
 type Store interface {
 	// ListDistinctComponentPurls returns every purl present in any SBOM.
 	ListDistinctComponentPurls(ctx context.Context) ([]string, error)
+	// ListUnknownPurlsForSBOM returns purls from the given SBOM not yet in package_vulnerability.
+	ListUnknownPurlsForSBOM(ctx context.Context, sbomID pgtype.UUID) ([]string, error)
 	// UpsertVulnerability inserts or updates one vulnerability record.
 	UpsertVulnerability(ctx context.Context, v Row) error
 	// ReplacePackageVulns atomically replaces all mappings for a purl.
@@ -118,6 +122,37 @@ func (s *RefreshService) Refresh(ctx context.Context) error {
 		"vulns", len(records),
 		"duration_ms", time.Since(start).Milliseconds(),
 	)
+	return nil
+}
+
+// LookupPurls runs the hydrate+replace cycle for a specific purl set without
+// marking a global refresh. Used for ingest-time gap-filling.
+func (s *RefreshService) LookupPurls(ctx context.Context, purls []string) error {
+	if len(purls) == 0 {
+		return nil
+	}
+	purlToIDs, err := s.osv.QueryPurls(ctx, purls)
+	if err != nil {
+		return fmt.Errorf("osv querybatch: %w", err)
+	}
+	records := s.hydrate(ctx, purlToIDs)
+	for _, purl := range purls {
+		ids := purlToIDs[purl]
+		refs := make([]PackageVulnRef, 0, len(ids))
+		for _, id := range ids {
+			rec, ok := records[id]
+			if !ok {
+				continue
+			}
+			refs = append(refs, PackageVulnRef{
+				VulnerabilityID: id,
+				FixedVersion:    firstFixedVersion(rec),
+			})
+		}
+		if err := s.store.ReplacePackageVulns(ctx, purl, refs); err != nil {
+			return fmt.Errorf("replacing mappings for %s: %w", purl, err)
+		}
+	}
 	return nil
 }
 

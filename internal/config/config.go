@@ -83,6 +83,13 @@ type Config struct {
 
 	// RegistryPollerEnabled starts the background poller for poll-mode registries.
 	RegistryPollerEnabled bool `env:"REGISTRY_POLLER_ENABLED" envDefault:"false"`
+
+	// Ingest-time vuln lookup — queries OSV for purls from newly ingested SBOMs
+	// that are not yet in package_vulnerability. Shares env var names with VulnWorkerConfig.
+	IngestVulnLookupEnabled bool          `env:"INGEST_VULN_LOOKUP_ENABLED" envDefault:"true"`
+	OSVBaseURL              string        `env:"OSV_BASE_URL"               envDefault:"https://api.osv.dev"`
+	OSVTimeout              time.Duration `env:"OSV_TIMEOUT"                envDefault:"30s"`
+	OSVBatchSize            int           `env:"OSV_BATCH_SIZE"             envDefault:"1000"`
 }
 
 // Load reads configuration from environment variables.
