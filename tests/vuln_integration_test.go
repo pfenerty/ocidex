@@ -20,11 +20,12 @@ const (
 func seedVuln(t *testing.T, store *vuln.PGStore, id, severity, purl string) {
 	t.Helper()
 	err := store.UpsertVulnerability(t.Context(), vuln.Row{
-		ID:       id,
-		Summary:  "test vulnerability " + id,
-		Severity: severity,
-		Aliases:  []string{},
-		Raw:      []byte("{}"),
+		ID:          id,
+		CanonicalID: id,
+		Summary:     "test vulnerability " + id,
+		Severity:    severity,
+		Aliases:     []string{},
+		Raw:         []byte("{}"),
 	})
 	if err != nil {
 		t.Fatalf("upsert vulnerability %s: %v", id, err)
@@ -80,12 +81,12 @@ func TestVulnSBOMSummaryJoin(t *testing.T) {
 	// adduser has 2 separate CVEs → ReplacePackageVulns is called once per CVE
 	// because each call replaces the full purl mapping. We must set both in one call.
 	err = store.UpsertVulnerability(t.Context(), vuln.Row{
-		ID: "CVE-2021-0001", Summary: "critical vuln 1", Severity: "CRITICAL",
+		ID: "CVE-2021-0001", CanonicalID: "CVE-2021-0001", Summary: "critical vuln 1", Severity: "CRITICAL",
 		Aliases: []string{}, Raw: []byte("{}"),
 	})
 	is.NoErr(err)
 	err = store.UpsertVulnerability(t.Context(), vuln.Row{
-		ID: "CVE-2021-0002", Summary: "critical vuln 2", Severity: "CRITICAL",
+		ID: "CVE-2021-0002", CanonicalID: "CVE-2021-0002", Summary: "critical vuln 2", Severity: "CRITICAL",
 		Aliases: []string{}, Raw: []byte("{}"),
 	})
 	is.NoErr(err)
@@ -117,7 +118,7 @@ func TestVulnSBOMSummaryJoin(t *testing.T) {
 	is.NoErr(json.NewDecoder(resp.Body).Decode(&compResp))
 	resp.Body.Close()
 
-	components := compResp["data"].([]any)
+	components := compResp["components"].([]any)
 	is.True(len(components) == 2)
 
 	byName := map[string]map[string]any{}
@@ -168,6 +169,113 @@ func TestVulnSBOMSummaryJoin(t *testing.T) {
 	is.Equal(artSummary["critical"], float64(2))
 	is.Equal(artSummary["high"], float64(1))
 	is.Equal(artSummary["total"], float64(3))
+}
+
+// TestVulnAliasDedup asserts that two OSV records sharing a canonical_id (e.g.
+// GO-2024-xxxx + GHSA-yyyy both aliasing CVE-2024-0001) are counted as one finding
+// in SBOM/artifact summaries, dashboard stats, and the top-vulns list.
+func TestVulnAliasDedup(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireDocker(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+
+	is := is.New(t)
+	store := vuln.NewPGStore(pool)
+
+	memberID := seedUser(t, pool, 8003, "alias-dedup-member", "member")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "alias-dedup-test", "read-write")
+	is.NoErr(err)
+
+	// Ingest SBOM.
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", minimalSBOM, memberKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	var ingestResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingestResp))
+	resp.Body.Close()
+	sbomID := ingestResp["id"].(string)
+
+	// Seed two aliased records for the same real-world CVE, both mapped to addUserPurl.
+	// GO-2024-alias and GHSA-alias are different OSV IDs sharing canonical_id=CVE-2024-0042.
+	err = store.UpsertVulnerability(t.Context(), vuln.Row{
+		ID:          "GO-2024-alias",
+		CanonicalID: "CVE-2024-0042",
+		Summary:     "alias vuln GO record",
+		Severity:    "CRITICAL",
+		Aliases:     []string{"CVE-2024-0042", "GHSA-alias"},
+		Raw:         []byte("{}"),
+	})
+	is.NoErr(err)
+	err = store.UpsertVulnerability(t.Context(), vuln.Row{
+		ID:          "GHSA-alias",
+		CanonicalID: "CVE-2024-0042",
+		Summary:     "alias vuln GHSA record",
+		Severity:    "CRITICAL",
+		Aliases:     []string{"CVE-2024-0042", "GO-2024-alias"},
+		Raw:         []byte("{}"),
+	})
+	is.NoErr(err)
+	err = store.ReplacePackageVulns(t.Context(), addUserPurl, []vuln.PackageVulnRef{
+		{VulnerabilityID: "GO-2024-alias"},
+		{VulnerabilityID: "GHSA-alias"},
+	})
+	is.NoErr(err)
+
+	// SBOM vuln summary must show critical=1, total=1 (not 2).
+	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomID))
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var sbomDetail map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&sbomDetail))
+	resp.Body.Close()
+	vs := sbomDetail["vulnSummary"].(map[string]any)
+	is.Equal(vs["critical"], float64(1))
+	is.Equal(vs["total"], float64(1))
+	artifactID := sbomDetail["artifactId"].(string)
+
+	// Artifact vuln summary must also show critical=1.
+	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/artifacts/%s/vuln-summary", srv.URL, artifactID))
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var artVulnResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&artVulnResp))
+	resp.Body.Close()
+	artSummary := artVulnResp["summary"].(map[string]any)
+	is.Equal(artSummary["critical"], float64(1))
+	is.Equal(artSummary["total"], float64(1))
+
+	// Top-vulns list must show exactly 1 row for this canonical_id (not 2 alias rows).
+	resp, err = doGet(t, srv.URL+"/api/v1/vulns")
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var vulnsResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&vulnsResp))
+	resp.Body.Close()
+	rows := vulnsResp["data"].([]any)
+	canonicalCount := 0
+	for _, r := range rows {
+		rm := r.(map[string]any)
+		if rm["canonicalId"] == "CVE-2024-0042" {
+			canonicalCount++
+		}
+	}
+	is.Equal(canonicalCount, 1)
+
+	// Dashboard stats must count 1 vuln (not 2 alias rows).
+	resp, err = doGet(t, srv.URL+"/api/v1/stats")
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var statsResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&statsResp))
+	resp.Body.Close()
+	is.Equal(statsResp["vuln_count"], float64(1))
 }
 
 // TestVulnLiveJoinSemantics proves the vuln join is live: a CVE seeded after
