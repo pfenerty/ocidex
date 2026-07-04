@@ -1,13 +1,14 @@
-import { Show, For, createMemo } from "solid-js";
+import { Show, For, createMemo, createSignal } from "solid-js";
 import { A, useSearchParams } from "@solidjs/router";
-import { useComponentVersions } from "~/api/queries";
+import { useComponentVersions, useComponentVulns } from "~/api/queries";
 import type { ComponentVersionEntry } from "~/api/client";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
 import CopyDigest from "~/components/CopyDigest";
 import PurlLink from "~/components/PurlLink";
-import { VulnCountBadges } from "~/components/VulnBadge";
+import { VulnCountBadges, severityVariant } from "~/components/VulnBadge";
+import { StatusPill } from "~/components/ui/Badge";
 import { purlToRegistryUrl, purlTypeLabel } from "~/utils/purl";
-import { relativeDate, formatDateTime, plural } from "~/utils/format";
+import { relativeDate, formatDateTime, plural, hasText } from "~/utils/format";
 
 interface VersionGroup {
     version: string;
@@ -15,8 +16,17 @@ interface VersionGroup {
     entries: ComponentVersionEntry[];
 }
 
+interface ArtifactGroup {
+    key: string;
+    artifactId?: string;
+    artifactName?: string;
+    entries: ComponentVersionEntry[];
+}
+
 export default function ComponentOverview() {
     const [params] = useSearchParams<{ name: string; group?: string; version?: string }>();
+
+    const hasVersion = () => params.version !== undefined && params.version !== "";
 
     const query = useComponentVersions(
         () =>
@@ -30,6 +40,16 @@ export default function ComponentOverview() {
         { enabled: () => params.name !== undefined },
     );
 
+    // Vuln data for the drill-down: use the first entry's id (all entries for the same
+    // purl share the same vulnerability profile).
+    const firstVersionId = () => query.data?.versions[0]?.id ?? "";
+    const firstVersionPurl = () =>
+        query.data?.versions.find((v) => v.purl !== undefined && v.purl !== "")?.purl ?? "";
+
+    const vulnsQuery = useComponentVulns(() => firstVersionId(), {
+        enabled: () => hasVersion() && firstVersionId() !== "" && hasText(firstVersionPurl()),
+    });
+
     const displayName = () => {
         if (params.name === undefined) return "Unknown";
         return params.group !== undefined && params.group !== ""
@@ -37,7 +57,9 @@ export default function ComponentOverview() {
             : params.name;
     };
 
+    // Version summary grouping (used in the top-level compact table).
     const grouped = createMemo<VersionGroup[]>(() => {
+        if (hasVersion()) return [];
         const versions = query.data?.versions;
         if (!versions || versions.length === 0) return [];
 
@@ -54,6 +76,43 @@ export default function ComponentOverview() {
         return Array.from(map.values());
     });
 
+    // Artifact grouping for the drill-down hierarchical table.
+    const artifactGroups = createMemo<ArtifactGroup[]>(() => {
+        if (!hasVersion()) return [];
+        const versions = query.data?.versions;
+        if (!versions || versions.length === 0) return [];
+
+        const order: string[] = [];
+        const map = new Map<string, ArtifactGroup>();
+        for (const e of versions) {
+            const key = e.artifactId ?? e.sbomId;
+            if (!map.has(key)) {
+                order.push(key);
+                map.set(key, {
+                    key,
+                    artifactId: e.artifactId ?? undefined,
+                    artifactName: e.artifactName ?? undefined,
+                    entries: [],
+                });
+            }
+            map.get(key)?.entries.push(e);
+        }
+        return order.flatMap((k) => {
+            const v = map.get(k);
+            return v !== undefined ? [v] : [];
+        });
+    });
+
+    const [expandedArtifacts, setExpandedArtifacts] = createSignal<Set<string>>(new Set());
+    const toggleArtifact = (key: string) => {
+        setExpandedArtifacts((prev) => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    };
+
     const componentType = () => query.data?.versions[0]?.type ?? "library";
 
     const firstPurl = () => {
@@ -62,190 +121,22 @@ export default function ComponentOverview() {
         return versions.find((v) => v.purl !== undefined)?.purl;
     };
 
-    const hasVersion = () => params.version !== undefined && params.version !== "";
-
     const versionHref = (version: string) => {
         const base = `/components/overview?name=${encodeURIComponent(params.name ?? "")}`;
-        const group = params.group !== undefined && params.group !== "" ? `&group=${encodeURIComponent(params.group)}` : "";
+        const group =
+            params.group !== undefined && params.group !== ""
+                ? `&group=${encodeURIComponent(params.group)}`
+                : "";
         return `${base}${group}&version=${encodeURIComponent(version)}`;
     };
 
     const allVersionsHref = () => {
         const base = `/components/overview?name=${encodeURIComponent(params.name ?? "")}`;
-        const group = params.group !== undefined && params.group !== "" ? `&group=${encodeURIComponent(params.group)}` : "";
+        const group =
+            params.group !== undefined && params.group !== ""
+                ? `&group=${encodeURIComponent(params.group)}`
+                : "";
         return `${base}${group}`;
-    };
-
-    // Render an artifact row for a single entry (no arch).
-    const ArtifactRow = (entry: ComponentVersionEntry) => (
-        <tr>
-            <td>
-                <Show
-                    when={entry.artifactId}
-                    fallback={
-                        <A href={`/sboms/${entry.sbomId}`}>
-                            {entry.subjectVersion ?? formatDateTime(entry.sbomCreatedAt)}
-                        </A>
-                    }
-                    keyed
-                >
-                    {(artifactId) => (
-                        <>
-                            <A href={`/artifacts/${artifactId}`}>
-                                {entry.artifactName ?? artifactId.slice(0, 8)}
-                            </A>
-                            <Show when={entry.subjectVersion}>
-                                <span class="text-muted">:{entry.subjectVersion}</span>
-                            </Show>
-                        </>
-                    )}
-                </Show>
-            </td>
-            <td>
-                <Show
-                    when={entry.sbomDigest}
-                    fallback={<span class="text-muted">—</span>}
-                    keyed
-                >
-                    {(digest) => (
-                        <CopyDigest
-                            digest={digest}
-                            artifactName={entry.artifactName ?? undefined}
-                        />
-                    )}
-                </Show>
-            </td>
-            <td
-                class="whitespace-nowrap text-muted"
-                title={new Date(entry.sbomCreatedAt).toLocaleString()}
-            >
-                {relativeDate(entry.sbomCreatedAt)}
-            </td>
-        </tr>
-    );
-
-    // Render arch-grouped artifact rows for a version group.
-    const ArchArtifactTable = (entries: ComponentVersionEntry[]) => {
-        const order: string[] = [];
-        const map = new Map<string, ComponentVersionEntry[]>();
-        for (const e of entries) {
-            const key = e.subjectVersion ?? e.sbomId;
-            if (!map.has(key)) {
-                order.push(key);
-                map.set(key, []);
-            }
-            map.get(key)?.push(e);
-        }
-        return (
-            <table>
-                <thead>
-                    <tr>
-                        <th>Artifact</th>
-                        <th>Architectures</th>
-                        <th>Ingested</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <For each={order}>
-                        {(key) => {
-                            const archEntries = map.get(key) ?? [];
-                            const preferred =
-                                archEntries.find((e) => e.architecture === "amd64") ??
-                                archEntries[0];
-                            return (
-                                <>
-                                    <tr style={{ "font-weight": "600" }}>
-                                        <td>
-                                            <Show
-                                                when={preferred.artifactId}
-                                                fallback={
-                                                    <A href={`/sboms/${preferred.sbomId}`}>
-                                                        {preferred.subjectVersion ??
-                                                            formatDateTime(preferred.sbomCreatedAt)}
-                                                    </A>
-                                                }
-                                                keyed
-                                            >
-                                                {(artifactId) => (
-                                                    <>
-                                                        <A href={`/artifacts/${artifactId}`}>
-                                                            {preferred.artifactName ??
-                                                                artifactId.slice(0, 8)}
-                                                        </A>
-                                                        <Show when={preferred.subjectVersion}>
-                                                            <span class="text-muted">
-                                                                :{preferred.subjectVersion}
-                                                            </span>
-                                                        </Show>
-                                                    </>
-                                                )}
-                                            </Show>
-                                        </td>
-                                        <td>
-                                            <For each={archEntries}>
-                                                {(e) => (
-                                                    <span
-                                                        class="badge badge-primary"
-                                                        style={{ "margin-right": "4px" }}
-                                                    >
-                                                        {e.architecture}
-                                                    </span>
-                                                )}
-                                            </For>
-                                        </td>
-                                        <td
-                                            class="whitespace-nowrap text-muted"
-                                            title={new Date(
-                                                preferred.sbomCreatedAt,
-                                            ).toLocaleString()}
-                                        >
-                                            {relativeDate(preferred.sbomCreatedAt)}
-                                        </td>
-                                    </tr>
-                                    <For each={archEntries}>
-                                        {(e) => (
-                                            <tr
-                                                style={{
-                                                    background: "var(--color-surface-hover)",
-                                                }}
-                                            >
-                                                <td
-                                                    style={{ "padding-left": "2rem" }}
-                                                    colspan={3}
-                                                >
-                                                    <span
-                                                        class="badge badge-primary"
-                                                        style={{ "margin-right": "8px" }}
-                                                    >
-                                                        {e.architecture}
-                                                    </span>
-                                                    <A
-                                                        href={`/sboms/${e.sbomId}`}
-                                                        style={{ "margin-right": "12px" }}
-                                                    >
-                                                        SBOM
-                                                    </A>
-                                                    <Show when={e.sbomDigest} keyed>
-                                                        {(digest) => (
-                                                            <CopyDigest
-                                                                digest={digest}
-                                                                artifactName={
-                                                                    e.artifactName ?? undefined
-                                                                }
-                                                            />
-                                                        )}
-                                                    </Show>
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </For>
-                                </>
-                            );
-                        }}
-                    </For>
-                </tbody>
-            </table>
-        );
     };
 
     return (
@@ -324,7 +215,10 @@ export default function ComponentOverview() {
                                                             </>
                                                         }
                                                     >
-                                                        {plural(qd.versions.length, "artifact")}
+                                                        {plural(
+                                                            artifactGroups().length,
+                                                            "artifact",
+                                                        )}
                                                     </Show>
                                                 </p>
                                             </div>
@@ -364,40 +258,299 @@ export default function ComponentOverview() {
                                         </div>
                                     </div>
 
-                                    {/* Drill-down: artifact table for a specific version */}
+                                    {/* ── Drill-down: specific version selected ── */}
                                     <Show when={hasVersion()}>
-                                        <div class="card">
-                                            <div class="table-wrapper">
+                                        {/* Vulnerability table */}
+                                        <Show when={hasText(firstVersionPurl())}>
+                                            <div class="card">
+                                                <div class="card-header">
+                                                    <h3>Vulnerabilities</h3>
+                                                    <Show
+                                                        when={vulnsQuery.data}
+                                                        keyed
+                                                    >
+                                                        {(d) => (
+                                                            <span class="badge">
+                                                                {d.data.length}
+                                                            </span>
+                                                        )}
+                                                    </Show>
+                                                </div>
                                                 <Show
                                                     when={
-                                                        qd.versions.some(
-                                                            (e) => e.architecture !== undefined,
-                                                        )
+                                                        vulnsQuery.data &&
+                                                        vulnsQuery.data.data.length > 0
                                                     }
                                                     fallback={
+                                                        <Show
+                                                            when={!vulnsQuery.isLoading}
+                                                            fallback={<Loading />}
+                                                        >
+                                                            <EmptyState
+                                                                title="No known vulnerabilities"
+                                                                message="No vulnerabilities are currently recorded for this package."
+                                                            />
+                                                        </Show>
+                                                    }
+                                                >
+                                                    <div class="table-wrapper">
                                                         <table>
                                                             <thead>
                                                                 <tr>
-                                                                    <th>Artifact</th>
-                                                                    <th>Digest</th>
-                                                                    <th>Ingested</th>
+                                                                    <th>CVE ID</th>
+                                                                    <th>Severity</th>
+                                                                    <th>CVSS</th>
+                                                                    <th>Summary</th>
+                                                                    <th>Fixed In</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
-                                                                <For each={qd.versions}>
-                                                                    {(entry) => ArtifactRow(entry)}
+                                                                <For
+                                                                    each={
+                                                                        vulnsQuery.data
+                                                                            ?.data ?? []
+                                                                    }
+                                                                >
+                                                                    {(v) => (
+                                                                        <tr>
+                                                                            <td class="font-mono text-sm">
+                                                                                <A
+                                                                                    href={`/vulns/${v.id}`}
+                                                                                >
+                                                                                    {v.id}
+                                                                                </A>
+                                                                            </td>
+                                                                            <td>
+                                                                                <StatusPill
+                                                                                    variant={severityVariant(
+                                                                                        v.severity,
+                                                                                    )}
+                                                                                >
+                                                                                    {v.severity}
+                                                                                </StatusPill>
+                                                                            </td>
+                                                                            <td>
+                                                                                {v.cvssScore?.toFixed(
+                                                                                    1,
+                                                                                ) ?? "—"}
+                                                                            </td>
+                                                                            <td class="text-muted">
+                                                                                {v.summary ?? "—"}
+                                                                            </td>
+                                                                            <td class="font-mono text-sm">
+                                                                                {v.fixedVersion ??
+                                                                                    "—"}
+                                                                            </td>
+                                                                        </tr>
+                                                                    )}
                                                                 </For>
                                                             </tbody>
                                                         </table>
-                                                    }
-                                                >
-                                                    {ArchArtifactTable(qd.versions)}
+                                                    </div>
                                                 </Show>
+                                            </div>
+                                        </Show>
+
+                                        {/* Hierarchical collapsible artifact table */}
+                                        <div class="card">
+                                            <div class="card-header">
+                                                <h3>Artifacts</h3>
+                                                <span class="badge">
+                                                    {artifactGroups().length}
+                                                </span>
+                                            </div>
+                                            <div class="table-wrapper">
+                                                <table>
+                                                    <thead>
+                                                        <tr>
+                                                            <th
+                                                                style={{
+                                                                    width: "24px",
+                                                                }}
+                                                            />
+                                                            <th>Artifact</th>
+                                                            <th>SBOMs</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <For each={artifactGroups()}>
+                                                            {(ag) => (
+                                                                <>
+                                                                    <tr
+                                                                        style={{
+                                                                            cursor: "pointer",
+                                                                        }}
+                                                                        onClick={() =>
+                                                                            toggleArtifact(
+                                                                                ag.key,
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <td
+                                                                            class="text-muted"
+                                                                            style={{
+                                                                                "font-size":
+                                                                                    "0.7em",
+                                                                                "user-select":
+                                                                                    "none",
+                                                                            }}
+                                                                        >
+                                                                            {expandedArtifacts().has(
+                                                                                ag.key,
+                                                                            )
+                                                                                ? "▼"
+                                                                                : "▶"}
+                                                                        </td>
+                                                                        <td>
+                                                                            <Show
+                                                                                when={
+                                                                                    ag.artifactId
+                                                                                }
+                                                                                fallback={
+                                                                                    <span>
+                                                                                        {ag.artifactName ??
+                                                                                            ag.key.slice(
+                                                                                                0,
+                                                                                                8,
+                                                                                            )}
+                                                                                    </span>
+                                                                                }
+                                                                                keyed
+                                                                            >
+                                                                                {(
+                                                                                    artifactId,
+                                                                                ) => (
+                                                                                    <A
+                                                                                        href={`/artifacts/${artifactId}`}
+                                                                                        onClick={(
+                                                                                            e,
+                                                                                        ) =>
+                                                                                            e.stopPropagation()
+                                                                                        }
+                                                                                    >
+                                                                                        {ag.artifactName ??
+                                                                                            artifactId.slice(
+                                                                                                0,
+                                                                                                8,
+                                                                                            )}
+                                                                                    </A>
+                                                                                )}
+                                                                            </Show>
+                                                                        </td>
+                                                                        <td class="text-muted">
+                                                                            {plural(
+                                                                                ag.entries
+                                                                                    .length,
+                                                                                "SBOM",
+                                                                            )}
+                                                                        </td>
+                                                                    </tr>
+                                                                    <Show
+                                                                        when={expandedArtifacts().has(
+                                                                            ag.key,
+                                                                        )}
+                                                                    >
+                                                                        <For
+                                                                            each={
+                                                                                ag.entries
+                                                                            }
+                                                                        >
+                                                                            {(e) => (
+                                                                                <tr
+                                                                                    style={{
+                                                                                        background:
+                                                                                            "var(--color-surface-hover)",
+                                                                                    }}
+                                                                                >
+                                                                                    <td />
+                                                                                    <td
+                                                                                        style={{
+                                                                                            "padding-left":
+                                                                                                "2rem",
+                                                                                        }}
+                                                                                    >
+                                                                                        <A
+                                                                                            href={`/sboms/${e.sbomId}`}
+                                                                                        >
+                                                                                            {e.subjectVersion ??
+                                                                                                formatDateTime(
+                                                                                                    e.sbomCreatedAt,
+                                                                                                )}
+                                                                                        </A>
+                                                                                        <Show
+                                                                                            when={
+                                                                                                e.architecture
+                                                                                            }
+                                                                                            keyed
+                                                                                        >
+                                                                                            {(
+                                                                                                arch,
+                                                                                            ) => (
+                                                                                                <span
+                                                                                                    class="badge badge-primary"
+                                                                                                    style={{
+                                                                                                        "margin-left":
+                                                                                                            "8px",
+                                                                                                    }}
+                                                                                                >
+                                                                                                    {
+                                                                                                        arch
+                                                                                                    }
+                                                                                                </span>
+                                                                                            )}
+                                                                                        </Show>
+                                                                                        <Show
+                                                                                            when={
+                                                                                                e.sbomDigest
+                                                                                            }
+                                                                                            keyed
+                                                                                        >
+                                                                                            {(
+                                                                                                digest,
+                                                                                            ) => (
+                                                                                                <span
+                                                                                                    style={{
+                                                                                                        "margin-left":
+                                                                                                            "12px",
+                                                                                                    }}
+                                                                                                >
+                                                                                                    <CopyDigest
+                                                                                                        digest={
+                                                                                                            digest
+                                                                                                        }
+                                                                                                        artifactName={
+                                                                                                            e.artifactName ??
+                                                                                                            undefined
+                                                                                                        }
+                                                                                                    />
+                                                                                                </span>
+                                                                                            )}
+                                                                                        </Show>
+                                                                                    </td>
+                                                                                    <td
+                                                                                        class="whitespace-nowrap text-muted"
+                                                                                        title={new Date(
+                                                                                            e.sbomCreatedAt,
+                                                                                        ).toLocaleString()}
+                                                                                    >
+                                                                                        {relativeDate(
+                                                                                            e.sbomCreatedAt,
+                                                                                        )}
+                                                                                    </td>
+                                                                                </tr>
+                                                                            )}
+                                                                        </For>
+                                                                    </Show>
+                                                                </>
+                                                            )}
+                                                        </For>
+                                                    </tbody>
+                                                </table>
                                             </div>
                                         </div>
                                     </Show>
 
-                                    {/* Summary: compact version list */}
+                                    {/* ── Summary: compact version list ── */}
                                     <Show when={!hasVersion()}>
                                         <div class="card">
                                             <div class="table-wrapper">
@@ -412,7 +565,8 @@ export default function ComponentOverview() {
                                                     <tbody>
                                                         <For each={grouped()}>
                                                             {(group) => {
-                                                                const rep = group.entries[0];
+                                                                const rep =
+                                                                    group.entries[0];
                                                                 return (
                                                                     <tr>
                                                                         <td>
@@ -422,13 +576,19 @@ export default function ComponentOverview() {
                                                                                 )}
                                                                                 class="font-mono"
                                                                             >
-                                                                                {group.version}
+                                                                                {
+                                                                                    group.version
+                                                                                }
                                                                             </A>
                                                                             <Show
-                                                                                when={group.purl}
+                                                                                when={
+                                                                                    group.purl
+                                                                                }
                                                                                 keyed
                                                                             >
-                                                                                {(purl) => (
+                                                                                {(
+                                                                                    purl,
+                                                                                ) => (
                                                                                     <span
                                                                                         style={{
                                                                                             "margin-left":
@@ -447,7 +607,8 @@ export default function ComponentOverview() {
                                                                         </td>
                                                                         <td class="text-muted">
                                                                             {plural(
-                                                                                group.entries
+                                                                                group
+                                                                                    .entries
                                                                                     .length,
                                                                                 "artifact",
                                                                             )}

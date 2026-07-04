@@ -93,7 +93,7 @@ export function useComponent(id: Accessor<string>) {
 }
 
 /** List vulnerability findings for a single component by ID. */
-export function useComponentVulns(id: Accessor<string>) {
+export function useComponentVulns(id: Accessor<string>, options?: { enabled?: Accessor<boolean> }) {
     return createQuery(() => ({
         queryKey: ["component-vulns", id()] as const,
         queryFn: () =>
@@ -102,6 +102,7 @@ export function useComponentVulns(id: Accessor<string>) {
                     params: { path: { id: id() } },
                 }),
             ),
+        enabled: options?.enabled?.() ?? true,
         select: (resp) => ({ ...resp, data: resp.data ?? [] }),
     }));
 }
