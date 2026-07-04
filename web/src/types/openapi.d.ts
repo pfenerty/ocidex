@@ -868,6 +868,13 @@ export interface components {
             id: string;
             name: string;
         };
+        AffectedComponent: {
+            /** Format: int64 */
+            affectedVersionCount: number;
+            fixedVersion?: string;
+            group?: string;
+            name: string;
+        };
         ArtifactDetail: {
             /**
              * Format: uri
@@ -1427,6 +1434,7 @@ export interface components {
              */
             readonly $schema?: string;
             affectedArtifacts: components["schemas"]["AffectedArtifact"][] | null;
+            affectedComponents: components["schemas"]["AffectedComponent"][] | null;
             pagination: components["schemas"]["PaginationMeta"];
             vulnerability: components["schemas"]["VulnDetail"];
         };

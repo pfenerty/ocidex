@@ -64,15 +64,15 @@ func (s *searchService) ListTopVulnerabilities(ctx context.Context, filter TopVu
 func (s *searchService) GetVulnerabilityDetail(
 	ctx context.Context, id string,
 	limit, offset int32, vis VisibilityFilter,
-) (*VulnDetail, PagedResult[AffectedArtifact], error) {
+) (*VulnDetail, PagedResult[AffectedArtifact], []AffectedComponent, error) {
 	q := repository.New(s.db)
 
 	row, err := q.GetVulnerabilityByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, PagedResult[AffectedArtifact]{}, nil
+			return nil, PagedResult[AffectedArtifact]{}, nil, nil
 		}
-		return nil, PagedResult[AffectedArtifact]{}, err
+		return nil, PagedResult[AffectedArtifact]{}, nil, err
 	}
 
 	detail := &VulnDetail{
@@ -100,7 +100,7 @@ func (s *searchService) GetVulnerabilityDetail(
 		RowOffset:       pgtype.Int4{Int32: offset, Valid: true},
 	})
 	if err != nil {
-		return nil, PagedResult[AffectedArtifact]{}, err
+		return nil, PagedResult[AffectedArtifact]{}, nil, err
 	}
 
 	var total int64
@@ -121,12 +121,36 @@ func (s *searchService) GetVulnerabilityDetail(
 		items = append(items, a)
 	}
 
+	componentRows, err := q.ListAffectedComponentsByVuln(ctx, repository.ListAffectedComponentsByVulnParams{
+		VulnerabilityID: id,
+		UserID:          vis.UserID,
+		IsAdmin:         visAdminBool(vis),
+	})
+	if err != nil {
+		return nil, PagedResult[AffectedArtifact]{}, nil, err
+	}
+
+	components := make([]AffectedComponent, 0, len(componentRows))
+	for _, r := range componentRows {
+		c := AffectedComponent{
+			Name:                 r.Name,
+			AffectedVersionCount: r.AffectedVersionCount,
+		}
+		if r.GroupName.Valid {
+			c.Group = &r.GroupName.String
+		}
+		if r.FixedVersion.Valid {
+			c.FixedVersion = &r.FixedVersion.String
+		}
+		components = append(components, c)
+	}
+
 	return detail, PagedResult[AffectedArtifact]{
 		Data:   items,
 		Total:  total,
 		Limit:  limit,
 		Offset: offset,
-	}, nil
+	}, components, nil
 }
 
 func severityOrUnknown(t pgtype.Text) string {
