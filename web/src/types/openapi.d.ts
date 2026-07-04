@@ -784,6 +784,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/vulns/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get vulnerability detail */
+        get: operations["get-vulnerability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -825,6 +842,15 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AffectedArtifact: {
+            /** Format: int64 */
+            affectedPurlCount: number;
+            /** Format: int64 */
+            affectedSbomCount: number;
+            group?: string;
+            id: string;
+            name: string;
+        };
         ArtifactDetail: {
             /**
              * Format: uri
@@ -1348,6 +1374,17 @@ export interface components {
              */
             readonly $schema?: string;
             versions: components["schemas"]["ComponentVersionEntry"][] | null;
+        };
+        GetVulnerabilityOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/GetVulnerabilityOutputBody.json
+             */
+            readonly $schema?: string;
+            affectedArtifacts: components["schemas"]["AffectedArtifact"][] | null;
+            pagination: components["schemas"]["PaginationMeta"];
+            vulnerability: components["schemas"]["VulnDetail"];
         };
         HashEntry: {
             algorithm: string;
@@ -1985,6 +2022,19 @@ export interface components {
              * @example v1
              */
             version: string;
+        };
+        VulnDetail: {
+            aliases: string[] | null;
+            /** Format: float */
+            cvssScore?: number;
+            details?: string;
+            id: string;
+            /** Format: date-time */
+            modifiedAt?: string;
+            /** Format: date-time */
+            publishedAt?: string;
+            severity: string;
+            summary?: string;
         };
         VulnSeverityEntry: {
             /** Format: int64 */
@@ -3699,6 +3749,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListTopVulnerabilitiesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-vulnerability": {
+        parameters: {
+            query?: {
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Number of results to skip */
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Vulnerability ID (CVE or GHSA ID) */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetVulnerabilityOutputBody"];
                 };
             };
             /** @description Error */

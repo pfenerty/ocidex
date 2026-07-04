@@ -1,6 +1,35 @@
 {
   "components": {
     "schemas": {
+      "AffectedArtifact": {
+        "additionalProperties": false,
+        "properties": {
+          "affectedPurlCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "affectedSbomCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "group": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "affectedSbomCount",
+          "affectedPurlCount"
+        ],
+        "type": "object"
+      },
       "ArtifactDetail": {
         "additionalProperties": false,
         "properties": {
@@ -1553,6 +1582,41 @@
         },
         "required": [
           "versions"
+        ],
+        "type": "object"
+      },
+      "GetVulnerabilityOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/GetVulnerabilityOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "affectedArtifacts": {
+            "items": {
+              "$ref": "#/components/schemas/AffectedArtifact"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          },
+          "vulnerability": {
+            "$ref": "#/components/schemas/VulnDetail"
+          }
+        },
+        "required": [
+          "vulnerability",
+          "affectedArtifacts",
+          "pagination"
         ],
         "type": "object"
       },
@@ -3266,6 +3330,50 @@
         },
         "required": [
           "version"
+        ],
+        "type": "object"
+      },
+      "VulnDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "cvssScore": {
+            "format": "float",
+            "type": "number"
+          },
+          "details": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "modifiedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "severity",
+          "aliases"
         ],
         "type": "object"
       },
@@ -6058,6 +6166,76 @@
           }
         },
         "summary": "List top vulnerabilities",
+        "tags": [
+          "Vulnerabilities"
+        ]
+      }
+    },
+    "/api/v1/vulns/{id}": {
+      "get": {
+        "operationId": "get-vulnerability",
+        "parameters": [
+          {
+            "description": "Vulnerability ID (CVE or GHSA ID)",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Vulnerability ID (CVE or GHSA ID)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of results to skip",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Number of results to skip",
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetVulnerabilityOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get vulnerability detail",
         "tags": [
           "Vulnerabilities"
         ]

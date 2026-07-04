@@ -504,6 +504,21 @@ type ListTopVulnerabilitiesOutput struct {
 	}
 }
 
+// GetVulnerabilityInput is the request for GET /api/v1/vulns/{id}.
+type GetVulnerabilityInput struct {
+	ID string `path:"id" doc:"Vulnerability ID (CVE or GHSA ID)"`
+	PaginationParams
+}
+
+// GetVulnerabilityOutput is the response for GET /api/v1/vulns/{id}.
+type GetVulnerabilityOutput struct {
+	Body struct {
+		Vulnerability     service.VulnDetail         `json:"vulnerability"`
+		AffectedArtifacts []service.AffectedArtifact `json:"affectedArtifacts"`
+		Pagination        PaginationMeta             `json:"pagination"`
+	}
+}
+
 // CategoryCountEntry is a license compliance category with component count.
 type CategoryCountEntry struct {
 	Category       string `json:"category"`

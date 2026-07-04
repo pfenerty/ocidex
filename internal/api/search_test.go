@@ -192,6 +192,10 @@ func (f *fakeSearchService) GetArtifactVulnSummary(_ context.Context, _ pgtype.U
 	return nil, nil
 }
 
+func (f *fakeSearchService) GetVulnerabilityDetail(_ context.Context, _ string, limit, offset int32, _ service.VisibilityFilter) (*service.VulnDetail, service.PagedResult[service.AffectedArtifact], error) {
+	return &service.VulnDetail{ID: "CVE-2021-0001", Severity: "HIGH", Aliases: []string{}}, service.PagedResult[service.AffectedArtifact]{Limit: limit, Offset: offset}, nil
+}
+
 // notFoundSearchService returns ErrNotFound for single-item lookups.
 type notFoundSearchService struct{ fakeSearchService }
 

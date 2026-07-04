@@ -36,6 +36,7 @@ type SearchService interface {
 	GetDashboardStats(ctx context.Context, vis VisibilityFilter) (*DashboardStats, error)
 	ListTopVulnerabilities(ctx context.Context, filter TopVulnFilter) (PagedResult[TopVulnEntry], error)
 	GetArtifactVulnSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (*VulnSummary, error)
+	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (*VulnDetail, PagedResult[AffectedArtifact], error)
 }
 
 // DashboardStats holds aggregated metrics for the dashboard.
@@ -81,6 +82,27 @@ type TopVulnFilter struct {
 	Offset     int32
 	Severity   string
 	Visibility VisibilityFilter
+}
+
+// VulnDetail is full vulnerability detail returned by GET /api/v1/vulns/{id}.
+type VulnDetail struct {
+	ID          string     `json:"id"`
+	Severity    string     `json:"severity"`
+	CvssScore   *float32   `json:"cvssScore,omitempty"`
+	Summary     *string    `json:"summary,omitempty"`
+	Details     *string    `json:"details,omitempty"`
+	Aliases     []string   `json:"aliases"`
+	PublishedAt *time.Time `json:"publishedAt,omitempty"`
+	ModifiedAt  *time.Time `json:"modifiedAt,omitempty"`
+}
+
+// AffectedArtifact is an artifact that contains a component affected by a vulnerability.
+type AffectedArtifact struct {
+	ID                string  `json:"id"`
+	Name              string  `json:"name"`
+	Group             *string `json:"group,omitempty"`
+	AffectedSbomCount int64   `json:"affectedSbomCount"`
+	AffectedPurlCount int64   `json:"affectedPurlCount"`
 }
 
 // PackageSummary is a distinct package with version and SBOM counts.

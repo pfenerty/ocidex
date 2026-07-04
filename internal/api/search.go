@@ -551,6 +551,23 @@ func (h *Handler) ListTopVulnerabilities(ctx context.Context, input *ListTopVuln
 	return out, nil
 }
 
+// GetVulnerability handles GET /api/v1/vulns/{id}.
+func (h *Handler) GetVulnerability(ctx context.Context, input *GetVulnerabilityInput) (*GetVulnerabilityOutput, error) {
+	vis := visibilityFilterFromContext(ctx)
+	detail, artifacts, err := h.searchService.GetVulnerabilityDetail(ctx, input.ID, input.Limit, input.Offset, vis)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	if detail == nil {
+		return nil, huma.Error404NotFound("vulnerability not found")
+	}
+	out := &GetVulnerabilityOutput{}
+	out.Body.Vulnerability = *detail
+	out.Body.AffectedArtifacts = artifacts.Data
+	out.Body.Pagination = paginationMeta(artifacts)
+	return out, nil
+}
+
 // GetArtifactChangelog handles GET /api/v1/artifacts/{id}/changelog.
 func (h *Handler) GetArtifactChangelog(ctx context.Context, input *GetArtifactChangelogInput) (*GetArtifactChangelogOutput, error) {
 	id, err := parseUUID(input.ID)
