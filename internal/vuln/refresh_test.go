@@ -490,3 +490,93 @@ func TestToRowDatabaseSpecificSeverityFallback(t *testing.T) {
 	row = toRow(unknown)
 	is.Equal(row.Severity, SeverityUnknown)
 }
+
+func TestMatchedFixed(t *testing.T) {
+	is := is.New(t)
+
+	// Multi-interval events: [0, 1.24.13), [1.25.0-0, 1.25.7), [1.26.0-rc.1, 1.26.0-rc.3)
+	events := []Event{
+		{Introduced: "0"},
+		{Fixed: "1.24.13"},
+		{Introduced: "1.25.0-0"},
+		{Fixed: "1.25.7"},
+		{Introduced: "1.26.0-rc.1"},
+		{Fixed: "1.26.0-rc.3"},
+	}
+
+	// 1.25.x purl → should match the [1.25.0-0, 1.25.7) interval
+	is.Equal(matchedFixed(events, "v1.25.4"), "1.25.7")
+
+	// Old version in [0, 1.24.13)
+	is.Equal(matchedFixed(events, "v1.14.8"), "1.24.13")
+
+	// Pre-release in [1.26.0-rc.1, 1.26.0-rc.3)
+	is.Equal(matchedFixed(events, "v1.26.0-rc.2"), "1.26.0-rc.3")
+
+	// Version at exact fix boundary is NOT in range (interval is half-open)
+	is.Equal(matchedFixed(events, "v1.25.7"), "")
+
+	// Version past all intervals → no match
+	is.Equal(matchedFixed(events, "v2.0.0"), "")
+}
+
+func TestFixedVersionForPurl(t *testing.T) {
+	is := is.New(t)
+
+	rec := &Record{
+		ID: "GO-2026-4337",
+		Affected: []Affected{
+			{
+				Ranges: []Range{
+					{
+						Type: "SEMVER",
+						Events: []Event{
+							{Introduced: "0"},
+							{Fixed: "1.24.13"},
+							{Introduced: "1.25.0-0"},
+							{Fixed: "1.25.7"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// 1.25.x purl gets the 1.25.x fix
+	is.Equal(fixedVersionForPurl(rec, "pkg:golang/stdlib@1.25.4"), "1.25.7")
+
+	// Old purl gets the 1.24.x fix
+	is.Equal(fixedVersionForPurl(rec, "pkg:golang/stdlib@1.14.8"), "1.24.13")
+
+	// "go" prefix in purl version (some purls carry it)
+	is.Equal(fixedVersionForPurl(rec, "pkg:golang/stdlib@go1.25.4"), "1.25.7")
+
+	// Purl with no @ → falls back to firstFixedVersion (returns "1.24.13")
+	is.Equal(fixedVersionForPurl(rec, "pkg:golang/stdlib"), "1.24.13")
+
+	// Purl with non-semver version → falls back
+	is.Equal(fixedVersionForPurl(rec, "pkg:golang/stdlib@abc123commit"), "1.24.13")
+
+	// nil record
+	is.Equal(fixedVersionForPurl(nil, "pkg:golang/stdlib@1.25.4"), "")
+
+	// Non-SEMVER range → no SEMVER interval found, falls back to firstFixedVersion which
+	// picks the first fixed event regardless of type.
+	gitRec := &Record{
+		ID: "GO-2026-9999",
+		Affected: []Affected{
+			{
+				Ranges: []Range{
+					{
+						Type: "GIT",
+						Events: []Event{
+							{Introduced: "abc"},
+							{Fixed: "def"},
+						},
+					},
+				},
+			},
+		},
+	}
+	is.Equal(fixedVersionForPurl(gitRec, "pkg:golang/stdlib@1.25.4"), "def")
+}

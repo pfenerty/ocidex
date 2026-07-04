@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/mod/semver"
 )
 
 // OSVQuerier is the OSV client surface the refresh needs. *Client satisfies it.
@@ -176,7 +177,7 @@ func (s *RefreshService) replaceMappings(ctx context.Context, purls []string, pu
 			}
 			refs = append(refs, PackageVulnRef{
 				VulnerabilityID: id,
-				FixedVersion:    firstFixedVersion(rec),
+				FixedVersion:    fixedVersionForPurl(rec, purl),
 			})
 		}
 		if err := s.store.ReplacePackageVulns(ctx, purl, refs); err != nil {
@@ -287,7 +288,7 @@ func (s *RefreshService) LookupPurls(ctx context.Context, purls []string) error 
 			}
 			refs = append(refs, PackageVulnRef{
 				VulnerabilityID: id,
-				FixedVersion:    firstFixedVersion(rec),
+				FixedVersion:    fixedVersionForPurl(rec, purl),
 			})
 		}
 		if err := s.store.ReplacePackageVulns(ctx, purl, refs); err != nil {
@@ -423,6 +424,77 @@ func databaseSpecificSeverity(rec *Record) string {
 		}
 	}
 	return SeverityUnknown
+}
+
+// fixedVersionForPurl returns the fixed version from the SEMVER interval that
+// contains the installed version encoded in purl. For advisories that patch
+// multiple release branches in a single range (e.g. Go stdlib), this picks the
+// correct branch's fix rather than the first one in document order. Falls back
+// to firstFixedVersion when the version cannot be parsed or no SEMVER range
+// contains it.
+func fixedVersionForPurl(rec *Record, purl string) string {
+	if rec == nil {
+		return ""
+	}
+	installed := purlVersion(purl)
+	if installed == "" {
+		return firstFixedVersion(rec)
+	}
+	installedSV := normalizeSemver(installed)
+	if !semver.IsValid(installedSV) {
+		return firstFixedVersion(rec)
+	}
+	for _, aff := range rec.Affected {
+		for _, rng := range aff.Ranges {
+			if rng.Type != "SEMVER" {
+				continue
+			}
+			if fixed := matchedFixed(rng.Events, installedSV); fixed != "" {
+				return fixed
+			}
+		}
+	}
+	return firstFixedVersion(rec)
+}
+
+// matchedFixed walks the interleaved introduced/fixed event sequence for one
+// SEMVER range and returns the original fixed version string from the interval
+// that contains installedSV, or "" if installedSV is not in any interval.
+func matchedFixed(events []Event, installedSV string) string {
+	inRange := false
+	for _, ev := range events {
+		if ev.Introduced != "" {
+			intro := normalizeSemver(ev.Introduced)
+			inRange = semver.IsValid(intro) && semver.Compare(installedSV, intro) >= 0
+		}
+		if ev.Fixed != "" && inRange {
+			fixedSV := normalizeSemver(ev.Fixed)
+			if semver.IsValid(fixedSV) && semver.Compare(installedSV, fixedSV) < 0 {
+				return ev.Fixed
+			}
+			inRange = false
+		}
+	}
+	return ""
+}
+
+// purlVersion extracts the version component after "@" in a package URL.
+func purlVersion(purl string) string {
+	at := strings.LastIndex(purl, "@")
+	if at < 0 {
+		return ""
+	}
+	return purl[at+1:]
+}
+
+// normalizeSemver converts a bare version string to the "vX.Y.Z" form required
+// by golang.org/x/mod/semver. Strips a leading "go" prefix and adds "v" if absent.
+func normalizeSemver(v string) string {
+	v = strings.TrimPrefix(v, "go")
+	if !strings.HasPrefix(v, "v") {
+		v = "v" + v
+	}
+	return v
 }
 
 // firstFixedVersion returns the first "fixed" event across a record's ranges.
