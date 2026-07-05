@@ -642,3 +642,79 @@ func TestRefresh_WithdrawnPreviouslyStoredRemoved(t *testing.T) {
 
 	is.Equal(len(store.mappings[purl]), 0) // no purl mapping either
 }
+
+// TestIncrementalRefreshApkIncludedWhenWolfiAdvanced verifies that apk purls are included
+// in a refresh cycle when the Wolfi CSV advances even if the Alpine CSV has not changed.
+func TestIncrementalRefreshApkIncludedWhenWolfiAdvanced(t *testing.T) {
+	is := is.New(t)
+
+	purl := "pkg:apk/wolfi/curl@7.88.1"
+	store := newFakeStore(purl)
+
+	base := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	advanced := base.Add(time.Hour)
+
+	// Alpine and Chainguard unchanged; Wolfi advanced.
+	store.ecosystemState = map[string]time.Time{
+		"Alpine":     base,
+		"Wolfi":      base,
+		"Chainguard": base,
+	}
+	csv := &fakeCSVFetcher{
+		times: map[string]time.Time{
+			"Alpine":     base,     // same as stored — not changed
+			"Wolfi":      advanced, // newer than stored — triggers refresh
+			"Chainguard": base,     // same as stored — not changed
+		},
+	}
+
+	osv := &fakeOSV{purlToIDs: map[string][]string{purl: {}}}
+	svc := NewRefreshService(store, osv, nil, WithCSVFetcher(csv))
+	is.NoErr(svc.Refresh(context.Background()))
+
+	// apk purl must have been included (QueryPurls received it).
+	// We can verify indirectly: ReplacePackageVulns is called for included purls.
+	_, queried := store.mappings[purl]
+	is.True(queried) // apk purl must be in the refresh set when Wolfi advances
+
+	// Wolfi state must be upserted; Alpine must not (it did not advance).
+	_, alpineUpserted := store.upsertedEcos["Alpine"]
+	is.True(!alpineUpserted)
+	wolfiTime, wolfiUpserted := store.upsertedEcos["Wolfi"]
+	is.True(wolfiUpserted)
+	is.Equal(wolfiTime, advanced)
+}
+
+// TestIncrementalRefreshApkSkippedWhenAllEcosystemsUnchanged verifies that apk purls are
+// excluded when all three ecosystems (Alpine, Wolfi, Chainguard) report no CSV change.
+func TestIncrementalRefreshApkSkippedWhenAllEcosystemsUnchanged(t *testing.T) {
+	is := is.New(t)
+
+	purl := "pkg:apk/alpine/musl@1.2.4"
+	store := newFakeStore(purl)
+
+	base := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	store.ecosystemState = map[string]time.Time{
+		"Alpine":     base,
+		"Wolfi":      base,
+		"Chainguard": base,
+	}
+	csv := &fakeCSVFetcher{
+		times: map[string]time.Time{
+			"Alpine":     base,
+			"Wolfi":      base,
+			"Chainguard": base,
+		},
+	}
+
+	osv := &fakeOSV{purlToIDs: map[string][]string{}}
+	svc := NewRefreshService(store, osv, nil, WithCSVFetcher(csv))
+	is.NoErr(svc.Refresh(context.Background()))
+
+	// No purl was queried and no ecosystem state was updated.
+	_, queried := store.mappings[purl]
+	is.True(!queried)
+	is.Equal(len(store.upsertedEcos), 0)
+	is.True(store.refreshed) // MarkRefreshed still called
+}
