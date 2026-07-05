@@ -420,3 +420,65 @@ func TestVulnLiveJoinSemantics(t *testing.T) {
 	is.Equal(vs["critical"], float64(1))
 	is.Equal(vs["total"], float64(1))
 }
+
+// TestVulnDuplicatePurlSummaryParity verifies that GetSBOMVulnSummary and
+// GetArtifactVulnSummary return identical counts when the same purl appears in
+// multiple component rows of one SBOM (regression for ocidex-0le.3).
+func TestVulnDuplicatePurlSummaryParity(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireDocker(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+
+	is := is.New(t)
+	store := vuln.NewPGStore(pool)
+
+	memberID := seedUser(t, pool, 8005, "dup-purl-member", "member")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "dup-purl-test", "read-write")
+	is.NoErr(err)
+
+	// Ingest SBOM with two components sharing addUserPurl.
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", duplicatePurlSBOM, memberKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	var ingestResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingestResp))
+	resp.Body.Close()
+	sbomID := ingestResp["id"].(string)
+
+	// Seed one CRITICAL vuln for the duplicate purl.
+	seedVuln(t, store, "CVE-2024-dup-0001", "CRITICAL", addUserPurl)
+
+	// --- SBOM summary (GetSBOMVulnSummary) ---
+	resp, err = doWithAuth(t, http.MethodGet, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomID), "", memberKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var sbomDetail map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&sbomDetail))
+	resp.Body.Close()
+	sbomSummary := sbomDetail["vulnSummary"].(map[string]any)
+	is.Equal(sbomSummary["critical"], float64(1))
+	is.Equal(sbomSummary["total"], float64(1))
+
+	// --- Artifact summary (GetArtifactVulnSummary) ---
+	artifactID := sbomDetail["artifactId"].(string)
+	resp, err = doWithAuth(t, http.MethodGet, fmt.Sprintf("%s/api/v1/artifacts/%s/vuln-summary", srv.URL, artifactID), "", memberKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var artResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&artResp))
+	resp.Body.Close()
+	artSummary := artResp["summary"].(map[string]any)
+
+	// Both queries must agree: one purl → one finding, not two.
+	is.Equal(artSummary["critical"], sbomSummary["critical"])
+	is.Equal(artSummary["total"], sbomSummary["total"])
+	is.Equal(artSummary["critical"], float64(1))
+	is.Equal(artSummary["total"], float64(1))
+}
