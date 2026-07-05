@@ -102,6 +102,10 @@ func (s *fakeStore) ListDistinctComponentPurlsByTypes(_ context.Context, types [
 	return out, nil
 }
 
+func (s *fakeStore) DeleteVulnerabilityByID(_ context.Context, id string) error {
+	delete(s.vulns, id)
+	return nil
+}
 func (s *fakeStore) UpsertVulnerability(_ context.Context, v Row) error {
 	if err := s.upsertErr[v.ID]; err != nil {
 		return err
@@ -579,4 +583,62 @@ func TestFixedVersionForPurl(t *testing.T) {
 		},
 	}
 	is.Equal(fixedVersionForPurl(gitRec, "pkg:golang/stdlib@1.25.4"), "def")
+}
+
+func TestRefresh_WithdrawnSkipped(t *testing.T) {
+	is := is.New(t)
+	purl := "pkg:npm/example@1.0.0"
+	store := newFakeStore()
+	osv := &fakeOSV{
+		purlToIDs: map[string][]string{purl: {"VULN-1", "VULN-2-WITHDRAWN"}},
+		records: map[string]*Record{
+			"VULN-1": {
+				ID:       "VULN-1",
+				Summary:  "Normal vuln",
+				Severity: []Severity{{Type: "CVSS_V3", Score: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}},
+			},
+			"VULN-2-WITHDRAWN": {
+				ID:        "VULN-2-WITHDRAWN",
+				Summary:   "Withdrawn vuln",
+				Withdrawn: "2024-01-01T00:00:00Z",
+			},
+		},
+	}
+	svc := NewRefreshService(store, osv, nil)
+	is.NoErr(svc.LookupPurls(context.Background(), []string{purl}))
+
+	_, hasVuln1 := store.vulns["VULN-1"]
+	is.True(hasVuln1) // normal record upserted
+	_, hasWithdrawn := store.vulns["VULN-2-WITHDRAWN"]
+	is.True(!hasWithdrawn) // withdrawn record must NOT be stored
+
+	refs := store.mappings[purl]
+	is.Equal(len(refs), 1)
+	is.Equal(refs[0].VulnerabilityID, "VULN-1")
+}
+
+func TestRefresh_WithdrawnPreviouslyStoredRemoved(t *testing.T) {
+	is := is.New(t)
+	purl := "pkg:npm/example@1.0.0"
+	store := newFakeStore()
+	// Pre-seed: simulate a prior cycle that stored the withdrawn record.
+	store.vulns["VULN-W"] = Row{ID: "VULN-W"}
+
+	osv := &fakeOSV{
+		purlToIDs: map[string][]string{purl: {"VULN-W"}},
+		records: map[string]*Record{
+			"VULN-W": {
+				ID:        "VULN-W",
+				Summary:   "Now withdrawn",
+				Withdrawn: "2024-06-01T00:00:00Z",
+			},
+		},
+	}
+	svc := NewRefreshService(store, osv, nil)
+	is.NoErr(svc.LookupPurls(context.Background(), []string{purl}))
+
+	_, stillPresent := store.vulns["VULN-W"]
+	is.True(!stillPresent) // DeleteVulnerabilityByID must have removed it
+
+	is.Equal(len(store.mappings[purl]), 0) // no purl mapping either
 }

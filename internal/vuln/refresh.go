@@ -51,6 +51,9 @@ type Store interface {
 	ListUnknownPurlsForSBOM(ctx context.Context, sbomID pgtype.UUID) ([]string, error)
 	// UpsertVulnerability inserts or updates one vulnerability record.
 	UpsertVulnerability(ctx context.Context, v Row) error
+	// DeleteVulnerabilityByID removes a withdrawn vulnerability and its cascade-linked rows.
+	// No-op if the record does not exist.
+	DeleteVulnerabilityByID(ctx context.Context, id string) error
 	// ReplaceVulnerabilityRefs atomically replaces all references for a vulnerability.
 	ReplaceVulnerabilityRefs(ctx context.Context, vulnID string, refs []Reference) error
 	// ReplacePackageVulns atomically replaces all mappings for a purl.
@@ -321,6 +324,13 @@ func (s *RefreshService) hydrate(ctx context.Context, purlToIDs map[string][]str
 		if err != nil {
 			// A single bad record shouldn't abort the whole cycle; skip it.
 			s.logger.Warn("vuln refresh: hydrating record failed", "id", id, "err", err)
+			continue
+		}
+		if rec.Withdrawn != "" {
+			s.logger.Debug("vuln refresh: skipping withdrawn record", "id", id, "withdrawn", rec.Withdrawn)
+			if err := s.store.DeleteVulnerabilityByID(ctx, id); err != nil {
+				s.logger.Warn("vuln refresh: failed to delete withdrawn record", "id", id, "err", err)
+			}
 			continue
 		}
 		if toRow(rec).Severity == SeverityUnknown {

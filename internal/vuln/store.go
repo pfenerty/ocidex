@@ -66,6 +66,12 @@ func (s *PGStore) UpsertVulnerability(ctx context.Context, v Row) error {
 	})
 }
 
+// DeleteVulnerabilityByID deletes a withdrawn vulnerability; FK cascades clean
+// up package_vulnerability and vulnerability_reference rows.
+func (s *PGStore) DeleteVulnerabilityByID(ctx context.Context, id string) error {
+	return s.q.DeleteVulnerabilityByID(ctx, id)
+}
+
 // ReplaceVulnerabilityRefs atomically replaces all references for a vulnerability
 // (delete then insert in one transaction).
 func (s *PGStore) ReplaceVulnerabilityRefs(ctx context.Context, vulnID string, refs []Reference) error {
