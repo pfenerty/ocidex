@@ -11,6 +11,8 @@ import (
 	"golang.org/x/mod/semver"
 )
 
+const semverRangeType = "SEMVER"
+
 // OSVQuerier is the OSV client surface the refresh needs. *Client satisfies it.
 type OSVQuerier interface {
 	QueryPurls(ctx context.Context, purls []string) (map[string][]string, error)
@@ -445,27 +447,54 @@ func databaseSpecificSeverity(rec *Record) string {
 	return SeverityUnknown
 }
 
-// fixedVersionForPurl returns the fixed version from the SEMVER interval that
-// contains the installed version encoded in purl. For advisories that patch
-// multiple release branches in a single range (e.g. Go stdlib), this picks the
-// correct branch's fix rather than the first one in document order. Falls back
-// to firstFixedVersion when the version cannot be parsed or no SEMVER range
-// contains it.
+// purlBase returns the purl with the version (and any qualifiers/subpath)
+// stripped — everything before the last '@'.
+func purlBase(purl string) string {
+	at := strings.LastIndex(purl, "@")
+	if at < 0 {
+		return purl
+	}
+	return purl[:at]
+}
+
+// filteredAffected returns the subset of affected entries whose Package.Purl
+// matches the base (version-stripped) of the queried purl. Returns nil when no
+// entries carry a Package.Purl, meaning no confident package match is possible.
+func filteredAffected(affected []Affected, purl string) []Affected {
+	base := purlBase(purl)
+	var matched []Affected
+	for _, aff := range affected {
+		if aff.Package.Purl != "" && strings.EqualFold(aff.Package.Purl, base) {
+			matched = append(matched, aff)
+		}
+	}
+	return matched
+}
+
+// fixedVersionForPurl returns the fixed version for the specific package
+// identified by purl. It filters affected[] entries to those matching the
+// queried package before searching ranges, so multi-package advisories (e.g.
+// GHSA monorepos) cannot return another package's fixed version. Returns ""
+// when no confident package match exists in the record.
 func fixedVersionForPurl(rec *Record, purl string) string {
 	if rec == nil {
 		return ""
 	}
+	candidates := filteredAffected(rec.Affected, purl)
+	if len(candidates) == 0 {
+		return ""
+	}
 	installed := purlVersion(purl)
 	if installed == "" {
-		return firstFixedVersion(rec)
+		return firstFixedVersionFrom(candidates)
 	}
 	installedSV := normalizeSemver(installed)
 	if !semver.IsValid(installedSV) {
-		return firstFixedVersion(rec)
+		return firstFixedVersionFrom(candidates)
 	}
-	for _, aff := range rec.Affected {
+	for _, aff := range candidates {
 		for _, rng := range aff.Ranges {
-			if rng.Type != "SEMVER" {
+			if rng.Type != semverRangeType {
 				continue
 			}
 			if fixed := matchedFixed(rng.Events, installedSV); fixed != "" {
@@ -473,7 +502,7 @@ func fixedVersionForPurl(rec *Record, purl string) string {
 			}
 		}
 	}
-	return firstFixedVersion(rec)
+	return firstFixedVersionFrom(candidates)
 }
 
 // matchedFixed walks the interleaved introduced/fixed event sequence for one
@@ -516,14 +545,11 @@ func normalizeSemver(v string) string {
 	return v
 }
 
-// firstFixedVersion returns the first "fixed" event across a record's ranges.
-// Best-effort: the fixed version is the same for a package regardless of which
-// affected version pulled it in, so this is adequate for display.
-func firstFixedVersion(rec *Record) string {
-	if rec == nil {
-		return ""
-	}
-	for _, aff := range rec.Affected {
+// firstFixedVersionFrom returns the first "fixed" event across a slice of
+// affected entries. Callers are expected to pre-filter the slice to the
+// relevant package before calling.
+func firstFixedVersionFrom(affected []Affected) string {
+	for _, aff := range affected {
 		for _, rng := range aff.Ranges {
 			for _, ev := range rng.Events {
 				if ev.Fixed != "" {
