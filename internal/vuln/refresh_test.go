@@ -167,7 +167,10 @@ func TestRefreshMapsPurlsAndDedupesHydration(t *testing.T) {
 			"CVE-1": {
 				ID:       "CVE-1",
 				Severity: []Severity{{Type: "CVSS_V3", Score: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}},
-				Affected: []Affected{{Ranges: []Range{{Events: []Event{{Fixed: "1.0.1"}}}}}},
+				Affected: []Affected{{
+					Package: AffectedPackage{Purl: "pkg:npm/a"},
+					Ranges:  []Range{{Events: []Event{{Fixed: "1.0.1"}}}},
+				}},
 			},
 			"CVE-2": {ID: "CVE-2"},
 		},
@@ -531,9 +534,10 @@ func TestFixedVersionForPurl(t *testing.T) {
 		ID: "GO-2026-4337",
 		Affected: []Affected{
 			{
+				Package: AffectedPackage{Purl: "pkg:golang/stdlib"},
 				Ranges: []Range{
 					{
-						Type: "SEMVER",
+						Type: semverRangeType,
 						Events: []Event{
 							{Introduced: "0"},
 							{Fixed: "1.24.13"},
@@ -555,21 +559,21 @@ func TestFixedVersionForPurl(t *testing.T) {
 	// "go" prefix in purl version (some purls carry it)
 	is.Equal(fixedVersionForPurl(rec, "pkg:golang/stdlib@go1.25.4"), "1.25.7")
 
-	// Purl with no @ → falls back to firstFixedVersion (returns "1.24.13")
+	// Purl with no @ → purlBase == "pkg:golang/stdlib", matched; no version → firstFixedVersionFrom
 	is.Equal(fixedVersionForPurl(rec, "pkg:golang/stdlib"), "1.24.13")
 
-	// Purl with non-semver version → falls back
+	// Purl with non-semver version → no SEMVER match → firstFixedVersionFrom
 	is.Equal(fixedVersionForPurl(rec, "pkg:golang/stdlib@abc123commit"), "1.24.13")
 
 	// nil record
 	is.Equal(fixedVersionForPurl(nil, "pkg:golang/stdlib@1.25.4"), "")
 
-	// Non-SEMVER range → no SEMVER interval found, falls back to firstFixedVersion which
-	// picks the first fixed event regardless of type.
+	// Non-SEMVER range → no SEMVER interval found, falls back to firstFixedVersionFrom.
 	gitRec := &Record{
 		ID: "GO-2026-9999",
 		Affected: []Affected{
 			{
+				Package: AffectedPackage{Purl: "pkg:golang/stdlib"},
 				Ranges: []Range{
 					{
 						Type: "GIT",
@@ -717,4 +721,91 @@ func TestIncrementalRefreshApkSkippedWhenAllEcosystemsUnchanged(t *testing.T) {
 	is.True(!queried)
 	is.Equal(len(store.upsertedEcos), 0)
 	is.True(store.refreshed) // MarkRefreshed still called
+}
+
+func TestFixedVersionForPurlFiltersAffectedByPackage(t *testing.T) {
+	is := is.New(t)
+
+	npmA := AffectedPackage{Purl: "pkg:npm/pkg-a"}
+	npmB := AffectedPackage{Purl: "pkg:npm/pkg-b"}
+
+	tests := []struct {
+		name     string
+		rec      *Record
+		purl     string
+		expected string
+	}{
+		{
+			name: "single-package match returns fixed version",
+			rec: &Record{
+				ID:       "GHSA-single",
+				Affected: []Affected{{Package: npmA, Ranges: []Range{{Events: []Event{{Fixed: "2.0.0"}}}}}},
+			},
+			purl:     "pkg:npm/pkg-a@1.5.0",
+			expected: "2.0.0",
+		},
+		{
+			name: "multi-package advisory returns only the matching package fixed version",
+			rec: &Record{
+				ID: "GHSA-multi",
+				Affected: []Affected{
+					{Package: npmA, Ranges: []Range{{Events: []Event{{Fixed: "1.0.0"}}}}},
+					{Package: npmB, Ranges: []Range{{Events: []Event{{Fixed: "2.0.0"}}}}},
+				},
+			},
+			purl:     "pkg:npm/pkg-b@1.5.0",
+			expected: "2.0.0",
+		},
+		{
+			name: "multi-package advisory no match returns empty",
+			rec: &Record{
+				ID: "GHSA-multi",
+				Affected: []Affected{
+					{Package: npmA, Ranges: []Range{{Events: []Event{{Fixed: "1.0.0"}}}}},
+					{Package: npmB, Ranges: []Range{{Events: []Event{{Fixed: "2.0.0"}}}}},
+				},
+			},
+			purl:     "pkg:npm/pkg-c@1.5.0",
+			expected: "",
+		},
+		{
+			name: "no Package.Purl on any affected entry returns empty",
+			rec: &Record{
+				ID:       "GO-2024-1234",
+				Affected: []Affected{{Ranges: []Range{{Events: []Event{{Fixed: "1.0.0"}}}}}},
+			},
+			purl:     "pkg:golang/github.com/example/lib@0.9.0",
+			expected: "",
+		},
+		{
+			name: "SEMVER range within matched entry is applied",
+			rec: &Record{
+				ID: "GHSA-semver",
+				Affected: []Affected{
+					{
+						Package: npmA,
+						Ranges: []Range{{
+							Type: semverRangeType,
+							Events: []Event{
+								{Introduced: "0"},
+								{Fixed: "1.2.0"},
+								{Introduced: "2.0.0"},
+								{Fixed: "2.1.0"},
+							},
+						}},
+					},
+					{Package: npmB, Ranges: []Range{{Events: []Event{{Fixed: "3.0.0"}}}}},
+				},
+			},
+			purl:     "pkg:npm/pkg-a@2.0.5",
+			expected: "2.1.0",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			is := is.New(t)
+			is.Equal(fixedVersionForPurl(tc.rec, tc.purl), tc.expected)
+		})
+	}
 }
