@@ -39,6 +39,7 @@ func (f *fakeOSV) GetVuln(_ context.Context, id string) (*Record, error) {
 // fakeStore records what the refresh persisted.
 type fakeStore struct {
 	purls          []string
+	unknownPurls   []string // purls with no package_vulnerability rows
 	vulns          map[string]Row
 	mappings       map[string][]PackageVulnRef
 	upsertErr      map[string]error // per-vuln-ID upsert failure to simulate bad records
@@ -120,6 +121,10 @@ func (s *fakeStore) ReplacePackageVulns(_ context.Context, purl string, refs []P
 	s.mappings[purl] = refs
 	return nil
 }
+func (s *fakeStore) ListUnknownComponentPurls(_ context.Context) ([]string, error) {
+	return s.unknownPurls, nil
+}
+
 func (s *fakeStore) ListUnknownPurlsForSBOM(_ context.Context, _ pgtype.UUID) ([]string, error) {
 	return nil, nil
 }
@@ -362,6 +367,24 @@ func TestIncrementalRefreshUnknownPurlTypeAlwaysIncluded(t *testing.T) {
 	// No CSV was fetched for "oci".
 	is.Equal(len(fetcher.calls), 0)
 	is.True(store.refreshed)
+}
+
+func TestSelectChangedPurls_IncludesUnknownPurls(t *testing.T) {
+	is := is.New(t)
+
+	store := newFakeStore("pkg:npm/new@1.0.0")
+	store.unknownPurls = []string{"pkg:npm/new@1.0.0"}
+	// npm CSV unchanged: same timestamp stored and returned by fake fetcher.
+	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	store.ecosystemState = map[string]time.Time{"npm": now}
+	fetcher := &fakeCSVFetcher{times: map[string]time.Time{"npm": now}}
+
+	svc := NewRefreshService(store, &fakeOSV{purlToIDs: map[string][]string{}}, nil, WithCSVFetcher(fetcher))
+
+	purls, _, err := svc.selectChangedPurls(context.Background())
+	is.NoErr(err)
+	is.Equal(len(purls), 1)
+	is.Equal(purls[0], "pkg:npm/new@1.0.0")
 }
 
 // TestResolveAliasSeverity verifies that records without CVSS data (e.g. Go
