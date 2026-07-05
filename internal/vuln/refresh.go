@@ -218,12 +218,15 @@ func (s *RefreshService) selectChangedPurls(ctx context.Context) ([]string, map[
 		return nil, nil, fmt.Errorf("listing purl types: %w", err)
 	}
 
-	type pair struct{ purlType, ecosystem string }
-	var known []pair
+	type purlEcosystems struct {
+		purlType   string
+		ecosystems []string
+	}
+	var known []purlEcosystems
 	var unknownTypes []string
 	for _, typ := range purlTypes {
-		if eco, ok := PurlTypeToOSVEcosystem(typ); ok {
-			known = append(known, pair{typ, eco})
+		if ecos, ok := PurlTypeToOSVEcosystems(typ); ok {
+			known = append(known, purlEcosystems{typ, ecos})
 		} else {
 			unknownTypes = append(unknownTypes, typ)
 		}
@@ -233,26 +236,32 @@ func (s *RefreshService) selectChangedPurls(ctx context.Context) ([]string, map[
 	var changedTypes []string
 
 	for _, te := range known {
-		csvMax, err := s.csvFetcher.FetchMaxModifiedAt(ctx, te.ecosystem)
-		if err != nil {
-			// On CSV fetch error include the ecosystem so we don't silently skip it.
-			s.logger.Warn("vuln refresh: CSV fetch failed, including ecosystem", "ecosystem", te.ecosystem, "err", err)
-			changedTypes = append(changedTypes, te.purlType)
-			// Zero time → state not updated → retried next cycle.
-			ecosystemStates[te.ecosystem] = time.Time{}
-			continue
-		}
+		anyChanged := false
+		for _, eco := range te.ecosystems {
+			csvMax, err := s.csvFetcher.FetchMaxModifiedAt(ctx, eco)
+			if err != nil {
+				// On CSV fetch error include the ecosystem so we don't silently skip it.
+				s.logger.Warn("vuln refresh: CSV fetch failed, including ecosystem", "ecosystem", eco, "err", err)
+				anyChanged = true
+				// Zero time → state not updated → retried next cycle.
+				ecosystemStates[eco] = time.Time{}
+				continue
+			}
 
-		stored, found, err := s.store.GetEcosystemState(ctx, te.ecosystem)
-		if err != nil {
-			s.logger.Warn("vuln refresh: ecosystem state lookup failed, including", "ecosystem", te.ecosystem, "err", err)
-			changedTypes = append(changedTypes, te.purlType)
-			continue
-		}
+			stored, found, err := s.store.GetEcosystemState(ctx, eco)
+			if err != nil {
+				s.logger.Warn("vuln refresh: ecosystem state lookup failed, including", "ecosystem", eco, "err", err)
+				anyChanged = true
+				continue
+			}
 
-		if !found || csvMax.After(stored) {
+			if !found || csvMax.After(stored) {
+				anyChanged = true
+				ecosystemStates[eco] = csvMax
+			}
+		}
+		if anyChanged {
 			changedTypes = append(changedTypes, te.purlType)
-			ecosystemStates[te.ecosystem] = csvMax
 		}
 	}
 
