@@ -49,6 +49,9 @@ type Store interface {
 	ListDistinctPurlTypes(ctx context.Context) ([]string, error)
 	// ListDistinctComponentPurlsByTypes returns purls whose type matches any entry in types.
 	ListDistinctComponentPurlsByTypes(ctx context.Context, types []string) ([]string, error)
+	// ListUnknownComponentPurls returns all distinct component purls globally that
+	// have no package_vulnerability entry (never successfully queried).
+	ListUnknownComponentPurls(ctx context.Context) ([]string, error)
 	// ListUnknownPurlsForSBOM returns purls from the given SBOM not yet in package_vulnerability.
 	ListUnknownPurlsForSBOM(ctx context.Context, sbomID pgtype.UUID) ([]string, error)
 	// UpsertVulnerability inserts or updates one vulnerability record.
@@ -270,15 +273,43 @@ func (s *RefreshService) selectChangedPurls(ctx context.Context) ([]string, map[
 	// Unknown purl types have no modified_id.csv; always include them.
 	changedTypes = append(changedTypes, unknownTypes...)
 
-	if len(changedTypes) == 0 {
-		return nil, ecosystemStates, nil
+	// Always include purls with no vulnerability data (unknown state).
+	unknownPurls, err := s.store.ListUnknownComponentPurls(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("listing unknown purls: %w", err)
 	}
 
-	purls, err := s.store.ListDistinctComponentPurlsByTypes(ctx, changedTypes)
+	if len(changedTypes) == 0 {
+		if len(unknownPurls) == 0 {
+			return nil, ecosystemStates, nil
+		}
+		return unknownPurls, ecosystemStates, nil
+	}
+
+	changedPurls, err := s.store.ListDistinctComponentPurlsByTypes(ctx, changedTypes)
 	if err != nil {
 		return nil, nil, fmt.Errorf("listing purls by changed types: %w", err)
 	}
-	return purls, ecosystemStates, nil
+	return mergePurls(changedPurls, unknownPurls), ecosystemStates, nil
+}
+
+// mergePurls returns a deduplicated slice containing all entries from a followed by unique entries from b.
+func mergePurls(a, b []string) []string {
+	seen := make(map[string]struct{}, len(a)+len(b))
+	out := make([]string, 0, len(a)+len(b))
+	for _, p := range a {
+		if _, ok := seen[p]; !ok {
+			seen[p] = struct{}{}
+			out = append(out, p)
+		}
+	}
+	for _, p := range b {
+		if _, ok := seen[p]; !ok {
+			seen[p] = struct{}{}
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // LookupPurls runs the hydrate+replace cycle for a specific purl set without

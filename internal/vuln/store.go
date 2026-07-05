@@ -39,6 +39,11 @@ func (s *PGStore) ListDistinctComponentPurlsByTypes(ctx context.Context, types [
 	return s.q.ListDistinctComponentPurlsByTypes(ctx, types)
 }
 
+// ListUnknownComponentPurls returns all distinct component purls with no package_vulnerability entry.
+func (s *PGStore) ListUnknownComponentPurls(ctx context.Context) ([]string, error) {
+	return s.q.ListUnknownComponentPurls(ctx)
+}
+
 // ListUnknownPurlsForSBOM returns purls from the given SBOM not yet in package_vulnerability.
 func (s *PGStore) ListUnknownPurlsForSBOM(ctx context.Context, sbomID pgtype.UUID) ([]string, error) {
 	return s.q.ListUnknownSBOMComponentPurls(ctx, sbomID)
