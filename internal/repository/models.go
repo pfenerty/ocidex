@@ -226,6 +226,7 @@ type Vulnerability struct {
 	Raw         []byte             `json:"raw"`
 	RefreshedAt pgtype.Timestamptz `json:"refreshed_at"`
 	CanonicalID string             `json:"canonical_id"`
+	CvssVector  pgtype.Text        `json:"cvss_vector"`
 }
 
 type VulnerabilityReference struct {

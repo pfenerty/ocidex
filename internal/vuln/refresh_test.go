@@ -445,8 +445,9 @@ func TestResolveAliasSeverity(t *testing.T) {
 		Aliases: []string{"GHSA-xx11-yy22-zz33", "CVE-2024-9999"},
 	}
 	resolved := svc.resolveAliasSeverity(context.Background(), goRec, aliasCache)
-	label, _ := DeriveSeverity(resolved.Severity)
+	label, _, vector := DeriveSeverity(resolved.Severity)
 	is.Equal(label, "HIGH") // CVSS 7.5 → HIGH
+	is.Equal(vector, "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N")
 
 	// GHSA alias should be cached; no second fetch.
 	is.Equal(osv.getCalls["GHSA-xx11-yy22-zz33"], 1)
@@ -463,7 +464,7 @@ func TestResolveAliasSeverity(t *testing.T) {
 	// Record with no useful aliases stays UNKNOWN.
 	noAliasRec := &Record{ID: "GO-2024-0000", Aliases: []string{"GHSA-missing"}}
 	resolved2 := svc.resolveAliasSeverity(context.Background(), noAliasRec, map[string]*Record{})
-	label2, _ := DeriveSeverity(resolved2.Severity)
+	label2, _, _ := DeriveSeverity(resolved2.Severity)
 	is.Equal(label2, SeverityUnknown)
 }
 
@@ -496,6 +497,9 @@ func TestRefreshAliasSeverityIntegration(t *testing.T) {
 	row, ok := store.vulns["GO-2024-0001"]
 	is.True(ok)
 	is.Equal(row.Severity, SeverityCritical) // CVSS 9.8 → CRITICAL
+	// Vector persisted from the GHSA alias, not re-derived from the primary
+	// record's raw JSON (which has no CVSS block of its own).
+	is.Equal(row.CVSSVector, "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H")
 
 	// CVE alias was never fetched (GHSA resolved first).
 	is.Equal(osv.getCalls["CVE-2024-1111"], 0)
@@ -544,11 +548,13 @@ func TestToRowDatabaseSpecificSeverityFallback(t *testing.T) {
 	}
 	row = toRow(withCVSS)
 	is.Equal(row.Severity, SeverityCritical) // CVSS 9.8 → CRITICAL, not LOW
+	is.Equal(row.CVSSVector, "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H")
 
 	// Truly unknown (no CVSS, no database_specific) still returns UNKNOWN.
 	unknown := &Record{ID: "GO-2024-0004"}
 	row = toRow(unknown)
 	is.Equal(row.Severity, SeverityUnknown)
+	is.Equal(row.CVSSVector, "")
 }
 
 func TestMatchedFixed(t *testing.T) {

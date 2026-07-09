@@ -66,6 +66,7 @@ func (s *PGStore) UpsertVulnerability(ctx context.Context, v Row) error {
 		Details:     text(v.Details),
 		Severity:    text(v.Severity),
 		CvssScore:   float4(v.CVSSScore),
+		CvssVector:  text(v.CVSSVector),
 		PublishedAt: timestamptz(v.Published),
 		ModifiedAt:  timestamptz(v.Modified),
 		Raw:         v.Raw,

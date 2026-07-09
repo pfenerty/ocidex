@@ -30,25 +30,29 @@ func TestNormalizeSeverityLabel(t *testing.T) {
 
 func TestDeriveSeverity(t *testing.T) {
 	tests := []struct {
-		name     string
-		sevs     []Severity
-		wantName string
-		wantNil  bool
+		name       string
+		sevs       []Severity
+		wantName   string
+		wantNil    bool
+		wantVector string
 	}{
 		{
-			name:     "cvss v3.1 critical",
-			sevs:     []Severity{{Type: "CVSS_V3", Score: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}},
-			wantName: "CRITICAL",
+			name:       "cvss v3.1 critical",
+			sevs:       []Severity{{Type: "CVSS_V3", Score: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}},
+			wantName:   "CRITICAL",
+			wantVector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
 		},
 		{
-			name:     "cvss v3.1 medium",
-			sevs:     []Severity{{Type: "CVSS_V3", Score: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"}},
-			wantName: "MEDIUM",
+			name:       "cvss v3.1 medium",
+			sevs:       []Severity{{Type: "CVSS_V3", Score: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"}},
+			wantName:   "MEDIUM",
+			wantVector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
 		},
 		{
-			name:     "picks highest across entries",
-			sevs:     []Severity{{Score: "CVSS:3.1/AV:N/AC:H/PR:L/UI:R/S:U/C:L/I:L/A:N"}, {Score: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}},
-			wantName: "CRITICAL",
+			name:       "picks highest across entries",
+			sevs:       []Severity{{Score: "CVSS:3.1/AV:N/AC:H/PR:L/UI:R/S:U/C:L/I:L/A:N"}, {Score: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}},
+			wantName:   "CRITICAL",
+			wantVector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
 		},
 		{
 			name:     "no cvss vector",
@@ -67,9 +71,10 @@ func TestDeriveSeverity(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			is := is.New(t)
-			label, score := DeriveSeverity(tt.sevs)
+			label, score, vector := DeriveSeverity(tt.sevs)
 			is.Equal(label, tt.wantName)
 			is.Equal(score == nil, tt.wantNil)
+			is.Equal(vector, tt.wantVector)
 		})
 	}
 }

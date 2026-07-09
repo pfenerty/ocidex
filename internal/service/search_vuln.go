@@ -81,7 +81,7 @@ func (s *searchService) GetVulnerabilityDetail(
 		CanonicalID: row.CanonicalID,
 		Severity:    severityOrUnknown(row.Severity),
 		CvssScore:   float4ToPtr(row.CvssScore),
-		CvssVector:  interfaceToStringPtr(row.CvssVector),
+		CvssVector:  textToPtr(row.CvssVector),
 		Summary:     textToPtr(row.Summary),
 		Details:     textToPtr(row.Details),
 		Aliases:     row.Aliases,
