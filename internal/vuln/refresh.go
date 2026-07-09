@@ -30,6 +30,7 @@ type Row struct {
 	Details     string
 	Severity    string
 	CVSSScore   *float32
+	CVSSVector  string
 	Published   time.Time
 	Modified    time.Time
 	Raw         []byte
@@ -493,7 +494,7 @@ func (s *RefreshService) resolveAliasSeverity(ctx context.Context, rec *Record, 
 				}
 				aliasCache[alias] = aliasRec
 			}
-			if label, _ := DeriveSeverity(aliasRec.Severity); label != SeverityUnknown {
+			if label, _, _ := DeriveSeverity(aliasRec.Severity); label != SeverityUnknown {
 				rec.Severity = aliasRec.Severity
 				return rec
 			}
@@ -503,7 +504,7 @@ func (s *RefreshService) resolveAliasSeverity(ctx context.Context, rec *Record, 
 }
 
 func toRow(rec *Record) Row {
-	label, score := DeriveSeverity(rec.Severity)
+	label, score, vector := DeriveSeverity(rec.Severity)
 	if label == SeverityUnknown {
 		// Fall back to plain-text severity present in database_specific blocks.
 		// The Go security database uses this pattern instead of CVSS vectors.
@@ -517,6 +518,7 @@ func toRow(rec *Record) Row {
 		Details:     rec.Details,
 		Severity:    label,
 		CVSSScore:   score,
+		CVSSVector:  vector,
 		Published:   parseTime(rec.Published),
 		Modified:    parseTime(rec.Modified),
 		Raw:         rec.Raw,
