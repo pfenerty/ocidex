@@ -69,6 +69,66 @@ func TestQueryPurlsChunksLargeInput(t *testing.T) {
 	is.Equal(len(got), 5) // every purl present in the map
 }
 
+func TestQueryPurlsFollowsPagination(t *testing.T) {
+	is := is.New(t)
+
+	var calls int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		var req struct {
+			Queries []batchQuery `json:"queries"`
+		}
+		body, _ := io.ReadAll(r.Body)
+		is.NoErr(json.Unmarshal(body, &req))
+
+		switch calls {
+		case 1:
+			is.Equal(len(req.Queries), 2)
+			is.Equal(req.Queries[0].Package.Purl, "pkg:npm/paginated@1.0.0")
+			is.Equal(req.Queries[0].PageToken, "")
+			is.Equal(req.Queries[1].Package.Purl, "pkg:npm/single@1.0.0")
+			_, _ = w.Write([]byte(`{"results":[
+				{"vulns":[{"id":"CVE-1","modified":"2026-01-01T00:00:00Z"}],"next_page_token":"tok1"},
+				{"vulns":[{"id":"CVE-2","modified":"2026-01-02T00:00:00Z"}]}
+			]}`))
+		case 2:
+			// Only the still-pending purl should be re-queried, with its token.
+			is.Equal(len(req.Queries), 1)
+			is.Equal(req.Queries[0].Package.Purl, "pkg:npm/paginated@1.0.0")
+			is.Equal(req.Queries[0].PageToken, "tok1")
+			_, _ = w.Write([]byte(`{"results":[
+				{"vulns":[{"id":"CVE-3","modified":"2026-01-03T00:00:00Z"}]}
+			]}`))
+		default:
+			t.Fatalf("unexpected call %d", calls)
+		}
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL))
+	got, err := c.QueryPurls(context.Background(), []string{"pkg:npm/paginated@1.0.0", "pkg:npm/single@1.0.0"})
+	is.NoErr(err)
+	is.Equal(calls, 2)
+	is.Equal(got["pkg:npm/paginated@1.0.0"], []QueryRef{
+		{ID: "CVE-1", Modified: "2026-01-01T00:00:00Z"},
+		{ID: "CVE-3", Modified: "2026-01-03T00:00:00Z"},
+	})
+	is.Equal(got["pkg:npm/single@1.0.0"], []QueryRef{{ID: "CVE-2", Modified: "2026-01-02T00:00:00Z"}})
+}
+
+func TestQueryPurlsPaginationExceedsPageCap(t *testing.T) {
+	is := is.New(t)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"results":[{"vulns":[],"next_page_token":"always-more"}]}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient(WithBaseURL(srv.URL))
+	_, err := c.QueryPurls(context.Background(), []string{"pkg:npm/looping@1.0.0"})
+	is.True(err != nil)
+}
+
 func TestQueryPurlsResultCountMismatch(t *testing.T) {
 	is := is.New(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
