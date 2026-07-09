@@ -279,10 +279,12 @@ func TestVulnAliasDedup(t *testing.T) {
 }
 
 // TestVulnAliasDetailResolution verifies that GET /api/v1/vulns/{id} resolves by
-// canonical_id and surfaces affected artifacts/components across aliased records.
+// canonical_id and by an alias-only id, surfacing affected artifacts/components
+// across aliased records.
 //
-// Scenario: addUserPurl is mapped to GO-2024-0001 only. Visiting the GHSA alias
-// or the canonical CVE id must still return the affected component and artifact.
+// Scenario: addUserPurl is mapped to GO-2024-0001 only. Visiting the GHSA alias,
+// the canonical CVE id, or a pure alias-only id (never its own id or canonical_id,
+// only present inside another record's aliases array) must still resolve.
 func TestVulnAliasDetailResolution(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -315,7 +317,7 @@ func TestVulnAliasDetailResolution(t *testing.T) {
 		CanonicalID: "CVE-2024-0001",
 		Summary:     "alias detail test GO record",
 		Severity:    "HIGH",
-		Aliases:     []string{"CVE-2024-0001", "GHSA-2024-0001"},
+		Aliases:     []string{"CVE-2024-0001", "GHSA-2024-0001", "SNYK-2024-0001"},
 		Raw:         []byte("{}"),
 	})
 	is.NoErr(err)
@@ -366,6 +368,18 @@ func TestVulnAliasDetailResolution(t *testing.T) {
 	cveComponents := detail["affectedComponents"].([]any)
 	is.True(len(cveComponents) == 1)
 	is.Equal(cveComponents[0].(map[string]any)["name"], "adduser")
+
+	// GET by a pure alias-only id — never its own id or canonical_id, present
+	// only inside GO-2024-0001's aliases array. 404 before the ANY(aliases) fix.
+	resp, err = doGet(t, srv.URL+"/api/v1/vulns/SNYK-2024-0001")
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&detail))
+	resp.Body.Close()
+	is.Equal(detail["vulnerability"].(map[string]any)["id"], "GO-2024-0001")
+	snykComponents := detail["affectedComponents"].([]any)
+	is.True(len(snykComponents) == 1)
+	is.Equal(snykComponents[0].(map[string]any)["name"], "adduser")
 }
 
 // TestVulnLiveJoinSemantics proves the vuln join is live: a CVE seeded after
