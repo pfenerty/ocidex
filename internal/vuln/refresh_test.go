@@ -2,6 +2,7 @@ package vuln
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -15,15 +16,15 @@ var errFakeUpsert = errors.New("simulated upsert failure")
 
 // fakeOSV is an in-memory OSVQuerier.
 type fakeOSV struct {
-	purlToIDs map[string][]string
-	records   map[string]*Record
-	getCalls  map[string]int
+	purlToRefs map[string][]QueryRef
+	records    map[string]*Record
+	getCalls   map[string]int
 }
 
-func (f *fakeOSV) QueryPurls(_ context.Context, purls []string) (map[string][]string, error) {
-	out := make(map[string][]string, len(purls))
+func (f *fakeOSV) QueryPurls(_ context.Context, purls []string) (map[string][]QueryRef, error) {
+	out := make(map[string][]QueryRef, len(purls))
 	for _, p := range purls {
-		out[p] = f.purlToIDs[p]
+		out[p] = f.purlToRefs[p]
 	}
 	return out, nil
 }
@@ -38,25 +39,29 @@ func (f *fakeOSV) GetVuln(_ context.Context, id string) (*Record, error) {
 
 // fakeStore records what the refresh persisted.
 type fakeStore struct {
-	purls          []string
-	unknownPurls   []string // purls with no package_vulnerability rows
-	vulns          map[string]Row
-	mappings       map[string][]PackageVulnRef
-	upsertErr      map[string]error // per-vuln-ID upsert failure to simulate bad records
-	refreshed      bool
-	last           time.Time
-	lastOK         bool
-	ecosystemState map[string]time.Time // ecosystem → stored last_modified_at
-	upsertedEcos   map[string]time.Time // ecosystem → value written by UpsertEcosystemState
+	purls             []string
+	unknownPurls      []string // purls with no package_vulnerability rows
+	vulns             map[string]Row
+	mappings          map[string][]PackageVulnRef
+	upsertErr         map[string]error // per-vuln-ID upsert failure to simulate bad records
+	refreshed         bool
+	last              time.Time
+	lastOK            bool
+	ecosystemState    map[string]time.Time       // ecosystem → stored last_modified_at
+	upsertedEcos      map[string]time.Time       // ecosystem → value written by UpsertEcosystemState
+	storedModifiedAts map[string]time.Time       // id → stored modified_at (for skip logic)
+	storedRaw         map[string]json.RawMessage // id → stored raw JSON (for cache load)
 }
 
 func newFakeStore(purls ...string) *fakeStore {
 	return &fakeStore{
-		purls:          purls,
-		vulns:          map[string]Row{},
-		mappings:       map[string][]PackageVulnRef{},
-		ecosystemState: map[string]time.Time{},
-		upsertedEcos:   map[string]time.Time{},
+		purls:             purls,
+		vulns:             map[string]Row{},
+		mappings:          map[string][]PackageVulnRef{},
+		ecosystemState:    map[string]time.Time{},
+		upsertedEcos:      map[string]time.Time{},
+		storedModifiedAts: map[string]time.Time{},
+		storedRaw:         map[string]json.RawMessage{},
 	}
 }
 
@@ -143,6 +148,24 @@ func (s *fakeStore) UpsertEcosystemState(_ context.Context, ecosystem string, la
 	s.upsertedEcos[ecosystem] = lastModifiedAt
 	return nil
 }
+func (s *fakeStore) GetVulnerabilityModifiedAts(_ context.Context, ids []string) (map[string]time.Time, error) {
+	out := make(map[string]time.Time, len(ids))
+	for _, id := range ids {
+		if t, ok := s.storedModifiedAts[id]; ok {
+			out[id] = t
+		}
+	}
+	return out, nil
+}
+func (s *fakeStore) GetVulnerabilitiesRaw(_ context.Context, ids []string) (map[string]json.RawMessage, error) {
+	out := make(map[string]json.RawMessage, len(ids))
+	for _, id := range ids {
+		if raw, ok := s.storedRaw[id]; ok {
+			out[id] = raw
+		}
+	}
+	return out, nil
+}
 
 // fakeCSVFetcher is a configurable csvModifiedFetcher for tests.
 type fakeCSVFetcher struct {
@@ -163,10 +186,10 @@ func TestRefreshMapsPurlsAndDedupesHydration(t *testing.T) {
 	is := is.New(t)
 
 	osv := &fakeOSV{
-		purlToIDs: map[string][]string{
-			"pkg:npm/a@1.0.0": {"CVE-1", "CVE-2"},
-			"pkg:npm/b@1.0.0": {"CVE-1"}, // shares CVE-1 with a
-			"pkg:npm/c@1.0.0": {},        // clean
+		purlToRefs: map[string][]QueryRef{
+			"pkg:npm/a@1.0.0": {{ID: "CVE-1"}, {ID: "CVE-2"}},
+			"pkg:npm/b@1.0.0": {{ID: "CVE-1"}}, // shares CVE-1 with a
+			"pkg:npm/c@1.0.0": {},              // clean
 		},
 		records: map[string]*Record{
 			"CVE-1": {
@@ -202,9 +225,9 @@ func TestRefreshSkipsUnstorableVulnWithoutAborting(t *testing.T) {
 	is := is.New(t)
 
 	osv := &fakeOSV{
-		purlToIDs: map[string][]string{
-			"pkg:npm/a@1.0.0": {"CVE-GOOD", "RHSA-BAD"}, // one good, one that fails to store
-			"pkg:npm/b@1.0.0": {"CVE-GOOD"},
+		purlToRefs: map[string][]QueryRef{
+			"pkg:npm/a@1.0.0": {{ID: "CVE-GOOD"}, {ID: "RHSA-BAD"}}, // one good, one that fails to store
+			"pkg:npm/b@1.0.0": {{ID: "CVE-GOOD"}},
 		},
 		records: map[string]*Record{
 			"CVE-GOOD": {ID: "CVE-GOOD"},
@@ -233,7 +256,7 @@ func TestRefreshSkipsUnstorableVulnWithoutAborting(t *testing.T) {
 func TestRefreshNoPurlsStillMarks(t *testing.T) {
 	is := is.New(t)
 	store := newFakeStore()
-	svc := NewRefreshService(store, &fakeOSV{}, nil)
+	svc := NewRefreshService(store, &fakeOSV{purlToRefs: map[string][]QueryRef{}}, nil)
 	is.NoErr(svc.Refresh(context.Background()))
 	is.True(store.refreshed)
 }
@@ -274,7 +297,7 @@ func TestIncrementalRefreshSkipsUnchangedEcosystem(t *testing.T) {
 	store.ecosystemState["npm"] = csvTime
 
 	fetcher := &fakeCSVFetcher{times: map[string]time.Time{"npm": csvTime}}
-	osv := &fakeOSV{purlToIDs: map[string][]string{}}
+	osv := &fakeOSV{purlToRefs: map[string][]QueryRef{}}
 
 	svc := NewRefreshService(store, osv, nil, WithCSVFetcher(fetcher))
 	is.NoErr(svc.Refresh(context.Background()))
@@ -303,8 +326,8 @@ func TestIncrementalRefreshOnlyQueriesChangedEcosystem(t *testing.T) {
 		"PyPI": newTime, // same → no change
 	}}
 	osv := &fakeOSV{
-		purlToIDs: map[string][]string{
-			"pkg:npm/a@1.0.0": {"CVE-1"},
+		purlToRefs: map[string][]QueryRef{
+			"pkg:npm/a@1.0.0": {{ID: "CVE-1"}},
 		},
 		records: map[string]*Record{"CVE-1": {ID: "CVE-1"}},
 	}
@@ -334,8 +357,8 @@ func TestIncrementalRefreshFirstRunIncludesAllEcosystems(t *testing.T) {
 
 	fetcher := &fakeCSVFetcher{times: map[string]time.Time{"npm": csvTime}}
 	osv := &fakeOSV{
-		purlToIDs: map[string][]string{"pkg:npm/a@1.0.0": {"CVE-1"}},
-		records:   map[string]*Record{"CVE-1": {ID: "CVE-1"}},
+		purlToRefs: map[string][]QueryRef{"pkg:npm/a@1.0.0": {{ID: "CVE-1"}}},
+		records:    map[string]*Record{"CVE-1": {ID: "CVE-1"}},
 	}
 
 	svc := NewRefreshService(store, osv, nil, WithCSVFetcher(fetcher))
@@ -355,7 +378,7 @@ func TestIncrementalRefreshUnknownPurlTypeAlwaysIncluded(t *testing.T) {
 	// fetcher will not be called for "oci" (unknown type has no CSV URL).
 	fetcher := &fakeCSVFetcher{times: map[string]time.Time{}}
 	osv := &fakeOSV{
-		purlToIDs: map[string][]string{"pkg:oci/myimage@sha256:abc": {}},
+		purlToRefs: map[string][]QueryRef{"pkg:oci/myimage@sha256:abc": {}},
 	}
 
 	svc := NewRefreshService(store, osv, nil, WithCSVFetcher(fetcher))
@@ -379,7 +402,7 @@ func TestSelectChangedPurls_IncludesUnknownPurls(t *testing.T) {
 	store.ecosystemState = map[string]time.Time{"npm": now}
 	fetcher := &fakeCSVFetcher{times: map[string]time.Time{"npm": now}}
 
-	svc := NewRefreshService(store, &fakeOSV{purlToIDs: map[string][]string{}}, nil, WithCSVFetcher(fetcher))
+	svc := NewRefreshService(store, &fakeOSV{purlToRefs: map[string][]QueryRef{}}, nil, WithCSVFetcher(fetcher))
 
 	purls, _, err := svc.selectChangedPurls(context.Background())
 	is.NoErr(err)
@@ -443,8 +466,8 @@ func TestRefreshAliasSeverityIntegration(t *testing.T) {
 	is := is.New(t)
 
 	osv := &fakeOSV{
-		purlToIDs: map[string][]string{
-			"pkg:golang/stdlib@1.21.0": {"GO-2024-0001"},
+		purlToRefs: map[string][]QueryRef{
+			"pkg:golang/stdlib@1.21.0": {{ID: "GO-2024-0001"}},
 		},
 		records: map[string]*Record{
 			"GO-2024-0001": {
@@ -617,7 +640,7 @@ func TestRefresh_WithdrawnSkipped(t *testing.T) {
 	purl := "pkg:npm/example@1.0.0"
 	store := newFakeStore()
 	osv := &fakeOSV{
-		purlToIDs: map[string][]string{purl: {"VULN-1", "VULN-2-WITHDRAWN"}},
+		purlToRefs: map[string][]QueryRef{purl: {{ID: "VULN-1"}, {ID: "VULN-2-WITHDRAWN"}}},
 		records: map[string]*Record{
 			"VULN-1": {
 				ID:       "VULN-1",
@@ -652,7 +675,7 @@ func TestRefresh_WithdrawnPreviouslyStoredRemoved(t *testing.T) {
 	store.vulns["VULN-W"] = Row{ID: "VULN-W"}
 
 	osv := &fakeOSV{
-		purlToIDs: map[string][]string{purl: {"VULN-W"}},
+		purlToRefs: map[string][]QueryRef{purl: {{ID: "VULN-W"}}},
 		records: map[string]*Record{
 			"VULN-W": {
 				ID:        "VULN-W",
@@ -695,7 +718,7 @@ func TestIncrementalRefreshApkIncludedWhenWolfiAdvanced(t *testing.T) {
 		},
 	}
 
-	osv := &fakeOSV{purlToIDs: map[string][]string{purl: {}}}
+	osv := &fakeOSV{purlToRefs: map[string][]QueryRef{purl: {}}}
 	svc := NewRefreshService(store, osv, nil, WithCSVFetcher(csv))
 	is.NoErr(svc.Refresh(context.Background()))
 
@@ -735,7 +758,7 @@ func TestIncrementalRefreshApkSkippedWhenAllEcosystemsUnchanged(t *testing.T) {
 		},
 	}
 
-	osv := &fakeOSV{purlToIDs: map[string][]string{}}
+	osv := &fakeOSV{purlToRefs: map[string][]QueryRef{}}
 	svc := NewRefreshService(store, osv, nil, WithCSVFetcher(csv))
 	is.NoErr(svc.Refresh(context.Background()))
 
@@ -831,4 +854,81 @@ func TestFixedVersionForPurlFiltersAffectedByPackage(t *testing.T) {
 			is.Equal(fixedVersionForPurl(tc.rec, tc.purl), tc.expected)
 		})
 	}
+}
+
+// TestHydrateSkipsUnchangedRecords asserts the acceptance criterion for
+// ocidex-0le.8: when all vuln records are unchanged (stored modified_at ==
+// querybatch Modified), zero GetVuln network calls are made and purl mappings
+// remain correct.
+func TestHydrateSkipsUnchangedRecords(t *testing.T) {
+	is := is.New(t)
+
+	const (
+		purlA = "pkg:npm/a@1.0.0"
+		purlB = "pkg:npm/b@2.0.0"
+		modA  = "2025-01-15T10:00:00Z"
+		modB  = "2025-02-20T12:30:00Z"
+	)
+
+	// Build two Records with a fixed version derivable from their Affected arrays.
+	// Package.Purl must be version-stripped (purlBase) for filteredAffected to match.
+	recCVE1 := &Record{
+		ID: "CVE-2025-0001",
+		Affected: []Affected{
+			{
+				Package: AffectedPackage{Purl: "pkg:npm/a"},
+				Ranges: []Range{{
+					Events: []Event{{Introduced: "1.0.0"}, {Fixed: "1.0.5"}},
+				}},
+			},
+		},
+	}
+	recCVE2 := &Record{
+		ID: "CVE-2025-0002",
+		Affected: []Affected{
+			{
+				Package: AffectedPackage{Purl: "pkg:npm/b"},
+				Ranges: []Range{{
+					Events: []Event{{Introduced: "2.0.0"}, {Fixed: "2.1.0"}},
+				}},
+			},
+		},
+	}
+
+	rawCVE1, err := json.Marshal(recCVE1)
+	is.NoErr(err)
+	rawCVE2, err := json.Marshal(recCVE2)
+	is.NoErr(err)
+
+	modTimeCVE1, _ := time.Parse(time.RFC3339, modA)
+	modTimeCVE2, _ := time.Parse(time.RFC3339, modB)
+
+	store := newFakeStore(purlA, purlB)
+	store.storedModifiedAts["CVE-2025-0001"] = modTimeCVE1
+	store.storedModifiedAts["CVE-2025-0002"] = modTimeCVE2
+	store.storedRaw["CVE-2025-0001"] = json.RawMessage(rawCVE1)
+	store.storedRaw["CVE-2025-0002"] = json.RawMessage(rawCVE2)
+
+	osv := &fakeOSV{
+		purlToRefs: map[string][]QueryRef{
+			purlA: {{ID: "CVE-2025-0001", Modified: modA}},
+			purlB: {{ID: "CVE-2025-0002", Modified: modB}},
+		},
+		// records intentionally empty — GetVuln must NOT be called
+	}
+
+	svc := NewRefreshService(store, osv, nil)
+	is.NoErr(svc.Refresh(context.Background()))
+
+	// Zero network calls were made.
+	is.Equal(len(osv.getCalls), 0)
+
+	// Purl mappings are populated with correct fixed versions.
+	is.True(len(store.mappings[purlA]) == 1)
+	is.Equal(store.mappings[purlA][0].VulnerabilityID, "CVE-2025-0001")
+	is.Equal(store.mappings[purlA][0].FixedVersion, "1.0.5")
+
+	is.True(len(store.mappings[purlB]) == 1)
+	is.Equal(store.mappings[purlB][0].VulnerabilityID, "CVE-2025-0002")
+	is.Equal(store.mappings[purlB][0].FixedVersion, "2.1.0")
 }

@@ -34,8 +34,8 @@ func TestQueryPurlsMapsResultsByIndex(t *testing.T) {
 	c := NewClient(WithBaseURL(srv.URL))
 	got, err := c.QueryPurls(context.Background(), []string{"pkg:npm/lodash@4.17.20", "pkg:npm/clean@1.0.0"})
 	is.NoErr(err)
-	is.Equal(got["pkg:npm/lodash@4.17.20"], []string{"CVE-1", "GHSA-2"})
-	is.Equal(got["pkg:npm/clean@1.0.0"], []string{})
+	is.Equal(got["pkg:npm/lodash@4.17.20"], []QueryRef{{ID: "CVE-1", Modified: "2026-01-01T00:00:00Z"}, {ID: "GHSA-2", Modified: "2026-01-02T00:00:00Z"}})
+	is.Equal(got["pkg:npm/clean@1.0.0"], []QueryRef{})
 }
 
 func TestQueryPurlsChunksLargeInput(t *testing.T) {

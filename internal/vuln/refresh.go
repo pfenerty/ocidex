@@ -2,6 +2,7 @@ package vuln
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -15,7 +16,7 @@ const semverRangeType = "SEMVER"
 
 // OSVQuerier is the OSV client surface the refresh needs. *Client satisfies it.
 type OSVQuerier interface {
-	QueryPurls(ctx context.Context, purls []string) (map[string][]string, error)
+	QueryPurls(ctx context.Context, purls []string) (map[string][]QueryRef, error)
 	GetVuln(ctx context.Context, id string) (*Record, error)
 }
 
@@ -72,6 +73,12 @@ type Store interface {
 	GetEcosystemState(ctx context.Context, ecosystem string) (t time.Time, ok bool, err error)
 	// UpsertEcosystemState persists the latest CSV modified timestamp for an ecosystem.
 	UpsertEcosystemState(ctx context.Context, ecosystem string, lastModifiedAt time.Time) error
+	// GetVulnerabilityModifiedAts bulk-fetches stored modified_at timestamps for
+	// the given IDs. Returns only IDs that exist in the DB.
+	GetVulnerabilityModifiedAts(ctx context.Context, ids []string) (map[string]time.Time, error)
+	// GetVulnerabilitiesRaw bulk-fetches stored raw OSV JSON for the given IDs.
+	// Returns only IDs that exist in the DB.
+	GetVulnerabilitiesRaw(ctx context.Context, ids []string) (map[string]json.RawMessage, error)
 }
 
 // csvModifiedFetcher is the interface consumed by RefreshService for fetching
@@ -142,13 +149,14 @@ func (s *RefreshService) Refresh(ctx context.Context) error {
 		}
 	}
 
-	purlToIDs, err := s.osv.QueryPurls(ctx, purls)
+	purlToRefs, err := s.osv.QueryPurls(ctx, purls)
 	if err != nil {
 		return fmt.Errorf("osv querybatch: %w", err)
 	}
+	purlToIDs := extractIDs(purlToRefs)
 
 	// Hydrate each referenced vuln once (a popular CVE appears under many purls).
-	records := s.hydrate(ctx, purlToIDs)
+	records := s.hydrate(ctx, purlToRefs)
 
 	affected, err := s.replaceMappings(ctx, purls, purlToIDs, records)
 	if err != nil {
@@ -318,11 +326,12 @@ func (s *RefreshService) LookupPurls(ctx context.Context, purls []string) error 
 	if len(purls) == 0 {
 		return nil
 	}
-	purlToIDs, err := s.osv.QueryPurls(ctx, purls)
+	purlToRefs, err := s.osv.QueryPurls(ctx, purls)
 	if err != nil {
 		return fmt.Errorf("osv querybatch: %w", err)
 	}
-	records := s.hydrate(ctx, purlToIDs)
+	purlToIDs := extractIDs(purlToRefs)
+	records := s.hydrate(ctx, purlToRefs)
 	for _, purl := range purls {
 		ids := purlToIDs[purl]
 		refs := make([]PackageVulnRef, 0, len(ids))
@@ -343,28 +352,79 @@ func (s *RefreshService) LookupPurls(ctx context.Context, purls []string) error 
 	return nil
 }
 
+// extractIDs strips the Modified field from querybatch results, producing the
+// plain purl→IDs map used by replaceMappings.
+func extractIDs(purlToRefs map[string][]QueryRef) map[string][]string {
+	out := make(map[string][]string, len(purlToRefs))
+	for purl, refs := range purlToRefs {
+		ids := make([]string, len(refs))
+		for i, r := range refs {
+			ids[i] = r.ID
+		}
+		out[purl] = ids
+	}
+	return out
+}
+
 // hydrate fetches and upserts each unique vulnerability ID once. Records that
 // fail to fetch or store are skipped (logged) rather than aborting the refresh,
 // and are omitted from the returned map so callers never map to an unstored vuln.
 //
+// Records whose stored modified_at matches the querybatch-reported Modified
+// timestamp are skipped for network fetches; their raw JSON is loaded from the
+// DB instead, saving one GetVuln call per unchanged record per cycle.
+//
 // When a record yields UNKNOWN severity (e.g. Go security database advisories
 // which carry no CVSS vectors), hydrate attempts to resolve severity from the
 // record's GHSA or CVE aliases, which typically do carry CVSS data.
-func (s *RefreshService) hydrate(ctx context.Context, purlToIDs map[string][]string) map[string]*Record {
-	unique := make(map[string]struct{})
-	for _, ids := range purlToIDs {
-		for _, id := range ids {
-			unique[id] = struct{}{}
+func (s *RefreshService) hydrate(ctx context.Context, purlToRefs map[string][]QueryRef) map[string]*Record {
+	// Build unique ID set and record the querybatch-reported modified timestamp.
+	modifiedByID := make(map[string]string)
+	for _, refs := range purlToRefs {
+		for _, r := range refs {
+			modifiedByID[r.ID] = r.Modified
 		}
 	}
-	// aliasCache avoids re-fetching alias records when several primary records
-	// share the same GHSA/CVE alias.
+
+	toFetch, toLoad := s.partitionIDs(ctx, modifiedByID)
+
 	aliasCache := make(map[string]*Record)
-	records := make(map[string]*Record, len(unique))
-	for id := range unique {
+	records := make(map[string]*Record, len(modifiedByID))
+
+	s.fetchVulns(ctx, toFetch, aliasCache, records)
+	s.loadCachedVulns(ctx, toLoad, records)
+
+	return records
+}
+
+// partitionIDs splits IDs into those that need a network fetch (new or changed)
+// and those that can be reloaded from the DB (unchanged).
+func (s *RefreshService) partitionIDs(ctx context.Context, modifiedByID map[string]string) (toFetch, toLoad []string) {
+	ids := make([]string, 0, len(modifiedByID))
+	for id := range modifiedByID {
+		ids = append(ids, id)
+	}
+	storedAt, err := s.store.GetVulnerabilityModifiedAts(ctx, ids)
+	if err != nil {
+		s.logger.Warn("vuln refresh: modified_at bulk lookup failed, fetching all", "err", err)
+		return ids, nil
+	}
+	for id, reported := range modifiedByID {
+		stored, ok := storedAt[id]
+		if ok && !stored.IsZero() && stored.UTC().Format(time.RFC3339) >= reported {
+			toLoad = append(toLoad, id)
+		} else {
+			toFetch = append(toFetch, id)
+		}
+	}
+	return toFetch, toLoad
+}
+
+// fetchVulns calls GetVuln for each ID, upserts, and populates records.
+func (s *RefreshService) fetchVulns(ctx context.Context, ids []string, aliasCache map[string]*Record, records map[string]*Record) {
+	for _, id := range ids {
 		rec, err := s.osv.GetVuln(ctx, id)
 		if err != nil {
-			// A single bad record shouldn't abort the whole cycle; skip it.
 			s.logger.Warn("vuln refresh: hydrating record failed", "id", id, "err", err)
 			continue
 		}
@@ -380,9 +440,6 @@ func (s *RefreshService) hydrate(ctx context.Context, purlToIDs map[string][]str
 		}
 		row := toRow(rec)
 		if err := s.store.UpsertVulnerability(ctx, row); err != nil {
-			// Skip records we can't store rather than aborting the whole refresh.
-			// Only stored vulns are recorded so phase 2 never emits a mapping that
-			// would violate the package_vulnerability -> vulnerability foreign key.
 			s.logger.Warn("vuln refresh: upserting record failed", "id", id, "err", err)
 			continue
 		}
@@ -391,7 +448,27 @@ func (s *RefreshService) hydrate(ctx context.Context, purlToIDs map[string][]str
 		}
 		records[id] = rec
 	}
-	return records
+}
+
+// loadCachedVulns reads raw OSV JSON from the DB for IDs whose stored
+// modified_at matches the querybatch timestamp, avoiding a network call.
+func (s *RefreshService) loadCachedVulns(ctx context.Context, ids []string, records map[string]*Record) {
+	if len(ids) == 0 {
+		return
+	}
+	raws, err := s.store.GetVulnerabilitiesRaw(ctx, ids)
+	if err != nil {
+		s.logger.Warn("vuln refresh: bulk raw load failed, skipping cached entries", "err", err)
+		return
+	}
+	for id, raw := range raws {
+		var rec Record
+		if err := json.Unmarshal(raw, &rec); err != nil {
+			s.logger.Warn("vuln refresh: failed to unmarshal cached record", "id", id, "err", err)
+			continue
+		}
+		records[id] = &rec
+	}
 }
 
 // resolveAliasSeverity attempts to find a CVSS vector by fetching GHSA then

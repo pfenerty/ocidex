@@ -152,15 +152,23 @@ type batchResult struct {
 	} `json:"results"`
 }
 
-// QueryPurls returns, for each input purl, the IDs of vulnerabilities affecting
-// it. OSV performs the version matching server-side (the purl carries the
-// version), so no local range matching is needed. purls with no vulns map to an
-// empty slice. Input is chunked to respect the OSV batch limit.
+// QueryRef is a (ID, Modified) pair from an OSV querybatch response. Modified is
+// the RFC3339 timestamp string as returned by the API; it is compared against the
+// stored modified_at to detect unchanged records and skip unnecessary GETs.
+type QueryRef struct {
+	ID       string
+	Modified string
+}
+
+// QueryPurls returns, for each input purl, the QueryRefs (ID + Modified) of
+// vulnerabilities affecting it. OSV performs version matching server-side.
+// Purls with no vulns map to an empty slice. Input is chunked to respect the
+// OSV batch limit.
 //
-// Per-query pagination (a package with more vulns than one page) is not followed;
-// OSV returns up to 1000 vulns per query, which comfortably covers real packages.
-func (c *Client) QueryPurls(ctx context.Context, purls []string) (map[string][]string, error) {
-	out := make(map[string][]string, len(purls))
+// Per-query pagination is not followed; OSV returns up to 1000 vulns per query,
+// which comfortably covers real packages.
+func (c *Client) QueryPurls(ctx context.Context, purls []string) (map[string][]QueryRef, error) {
+	out := make(map[string][]QueryRef, len(purls))
 	for start := 0; start < len(purls); start += c.batchSize {
 		end := start + c.batchSize
 		if end > len(purls) {
@@ -174,7 +182,7 @@ func (c *Client) QueryPurls(ctx context.Context, purls []string) (map[string][]s
 	return out, nil
 }
 
-func (c *Client) queryChunk(ctx context.Context, purls []string, out map[string][]string) error {
+func (c *Client) queryChunk(ctx context.Context, purls []string, out map[string][]QueryRef) error {
 	body := struct {
 		Queries []batchQuery `json:"queries"`
 	}{Queries: make([]batchQuery, len(purls))}
@@ -190,11 +198,11 @@ func (c *Client) queryChunk(ctx context.Context, purls []string, out map[string]
 		return fmt.Errorf("osv querybatch: got %d results for %d queries", len(res.Results), len(purls))
 	}
 	for i, r := range res.Results {
-		ids := make([]string, 0, len(r.Vulns))
+		refs := make([]QueryRef, 0, len(r.Vulns))
 		for _, v := range r.Vulns {
-			ids = append(ids, v.ID)
+			refs = append(refs, QueryRef{ID: v.ID, Modified: v.Modified})
 		}
-		out[purls[i]] = ids
+		out[purls[i]] = refs
 	}
 	return nil
 }
