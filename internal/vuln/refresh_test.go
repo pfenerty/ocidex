@@ -561,7 +561,7 @@ func TestMatchedFixed(t *testing.T) {
 	is := is.New(t)
 
 	// Multi-interval events: [0, 1.24.13), [1.25.0-0, 1.25.7), [1.26.0-rc.1, 1.26.0-rc.3)
-	events := []Event{
+	sortedEvents := []Event{
 		{Introduced: "0"},
 		{Fixed: "1.24.13"},
 		{Introduced: "1.25.0-0"},
@@ -570,20 +570,68 @@ func TestMatchedFixed(t *testing.T) {
 		{Fixed: "1.26.0-rc.3"},
 	}
 
-	// 1.25.x purl → should match the [1.25.0-0, 1.25.7) interval
-	is.Equal(matchedFixed(events, "v1.25.4"), "1.25.7")
+	// Same intervals, shuffled: OSV does not guarantee event order.
+	unsortedEvents := []Event{
+		{Fixed: "1.26.0-rc.3"},
+		{Introduced: "0"},
+		{Fixed: "1.25.7"},
+		{Introduced: "1.26.0-rc.1"},
+		{Introduced: "1.25.0-0"},
+		{Fixed: "1.24.13"},
+	}
 
-	// Old version in [0, 1.24.13)
-	is.Equal(matchedFixed(events, "v1.14.8"), "1.24.13")
+	lastAffectedEvents := []Event{
+		{Introduced: "1.0.0"},
+		{LastAffected: "1.5.0"},
+	}
 
-	// Pre-release in [1.26.0-rc.1, 1.26.0-rc.3)
-	is.Equal(matchedFixed(events, "v1.26.0-rc.2"), "1.26.0-rc.3")
+	// Mixed record: one last_affected interval with no fix, and a separate
+	// interval in the same events slice with a real fixed version. Precedence
+	// must be decided per matched interval, not by falling through to any
+	// fixed version found elsewhere in the slice.
+	mixedEvents := []Event{
+		{Introduced: "1.0.0"},
+		{LastAffected: "1.5.0"},
+		{Introduced: "2.0.0"},
+		{Fixed: "2.3.0"},
+	}
 
-	// Version at exact fix boundary is NOT in range (interval is half-open)
-	is.Equal(matchedFixed(events, "v1.25.7"), "")
+	tests := []struct {
+		name        string
+		events      []Event
+		installedSV string
+		wantFixed   string
+		wantMatched bool
+	}{
+		{"sorted mid interval", sortedEvents, "v1.25.4", "1.25.7", true},
+		{"sorted first interval", sortedEvents, "v1.14.8", "1.24.13", true},
+		{"sorted prerelease interval", sortedEvents, "v1.26.0-rc.2", "1.26.0-rc.3", true},
+		{"sorted at fix boundary not in range", sortedEvents, "v1.25.7", "", false},
+		{"sorted past all intervals", sortedEvents, "v2.0.0", "", false},
 
-	// Version past all intervals → no match
-	is.Equal(matchedFixed(events, "v2.0.0"), "")
+		{"unsorted mid interval", unsortedEvents, "v1.25.4", "1.25.7", true},
+		{"unsorted first interval", unsortedEvents, "v1.14.8", "1.24.13", true},
+		{"unsorted prerelease interval", unsortedEvents, "v1.26.0-rc.2", "1.26.0-rc.3", true},
+		{"unsorted at fix boundary not in range", unsortedEvents, "v1.25.7", "", false},
+		{"unsorted past all intervals", unsortedEvents, "v2.0.0", "", false},
+
+		{"last_affected inclusive upper bound in range", lastAffectedEvents, "v1.5.0", "", true},
+		{"last_affected mid range", lastAffectedEvents, "v1.2.0", "", true},
+		{"last_affected below introduced not matched", lastAffectedEvents, "v0.9.0", "", false},
+		{"last_affected past last_affected not matched", lastAffectedEvents, "v1.6.0", "", false},
+
+		{"mixed: version in last_affected interval returns no fix, not the other interval's fix", mixedEvents, "v1.2.0", "", true},
+		{"mixed: version in fixed interval returns its fix", mixedEvents, "v2.1.0", "2.3.0", true},
+		{"mixed: version between intervals not matched", mixedEvents, "v1.8.0", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotFixed, gotMatched := matchedFixed(tt.events, tt.installedSV)
+			is.Equal(gotFixed, tt.wantFixed)
+			is.Equal(gotMatched, tt.wantMatched)
+		})
+	}
 }
 
 func TestFixedVersionForPurl(t *testing.T) {
@@ -649,6 +697,30 @@ func TestFixedVersionForPurl(t *testing.T) {
 		},
 	}
 	is.Equal(fixedVersionForPurl(gitRec, "pkg:golang/stdlib@1.25.4"), "def")
+}
+
+func TestFixedVersionForPurlLastAffectedNoFix(t *testing.T) {
+	is := is.New(t)
+
+	rec := &Record{
+		ID: "GHSA-last-affected",
+		Affected: []Affected{
+			{
+				Package: AffectedPackage{Purl: "pkg:npm/pkg-c"},
+				Ranges: []Range{
+					{
+						Type: semverRangeType,
+						Events: []Event{
+							{Introduced: "1.0.0"},
+							{LastAffected: "1.5.0"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	is.Equal(fixedVersionForPurl(rec, "pkg:npm/pkg-c@1.2.0"), "")
 }
 
 func TestPurlVersion(t *testing.T) {

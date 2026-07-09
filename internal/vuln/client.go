@@ -81,11 +81,16 @@ type Range struct {
 	Events []Event `json:"events"`
 }
 
-// Event is one boundary in a Range; exactly one field is set.
+// Event is one boundary in a Range; exactly one field is set. Introduced marks
+// the start of an affected interval. Fixed marks the first unaffected version
+// (exclusive upper bound). LastAffected marks the last known affected version
+// (inclusive upper bound) for advisories where no fixed version is known yet.
+// Limit is not currently interpreted by matchedFixed.
 type Event struct {
-	Introduced string `json:"introduced"`
-	Fixed      string `json:"fixed"`
-	Limit      string `json:"limit"`
+	Introduced   string `json:"introduced"`
+	Fixed        string `json:"fixed"`
+	LastAffected string `json:"last_affected"`
+	Limit        string `json:"limit"`
 }
 
 // Client talks to the OSV.dev REST API.

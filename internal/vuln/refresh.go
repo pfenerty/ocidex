@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -608,7 +609,7 @@ func fixedVersionForPurl(rec *Record, purl string) string {
 			if rng.Type != semverRangeType {
 				continue
 			}
-			if fixed := matchedFixed(rng.Events, installedSV); fixed != "" {
+			if fixed, matched := matchedFixed(rng.Events, installedSV); matched {
 				return fixed
 			}
 		}
@@ -616,25 +617,80 @@ func fixedVersionForPurl(rec *Record, purl string) string {
 	return firstFixedVersionFrom(candidates)
 }
 
-// matchedFixed walks the interleaved introduced/fixed event sequence for one
+// matchedFixed walks the introduced/fixed/last_affected boundaries for one
 // SEMVER range and returns the original fixed version string from the interval
-// that contains installedSV, or "" if installedSV is not in any interval.
-func matchedFixed(events []Event, installedSV string) string {
-	inRange := false
+// that contains installedSV, and whether any interval contained it at all.
+//
+// OSV does not guarantee events[] arrives in sorted order in practice, so
+// introduced and upper-bound (fixed/last_affected) events are each sorted by
+// normalized version independently before being paired positionally into
+// intervals. A last_affected upper bound is inclusive (unlike the exclusive
+// fixed bound) and indicates the vulnerability is unresolved: matched is true
+// but the returned fixed version is "".
+func matchedFixed(events []Event, installedSV string) (fixed string, matched bool) {
+	var introduced, upper []Event
 	for _, ev := range events {
-		if ev.Introduced != "" {
-			intro := normalizeSemver(ev.Introduced)
-			inRange = semver.IsValid(intro) && semver.Compare(installedSV, intro) >= 0
-		}
-		if ev.Fixed != "" && inRange {
-			fixedSV := normalizeSemver(ev.Fixed)
-			if semver.IsValid(fixedSV) && semver.Compare(installedSV, fixedSV) < 0 {
-				return ev.Fixed
-			}
-			inRange = false
+		switch {
+		case ev.Introduced != "":
+			introduced = append(introduced, ev)
+		case ev.Fixed != "" || ev.LastAffected != "":
+			upper = append(upper, ev)
 		}
 	}
-	return ""
+
+	sortByVersionKey(introduced, func(ev Event) string { return ev.Introduced })
+	sortByVersionKey(upper, func(ev Event) string {
+		if ev.Fixed != "" {
+			return ev.Fixed
+		}
+		return ev.LastAffected
+	})
+
+	for i, intro := range introduced {
+		introSV := normalizeSemver(intro.Introduced)
+		if !semver.IsValid(introSV) || semver.Compare(installedSV, introSV) < 0 {
+			continue
+		}
+
+		if i >= len(upper) {
+			return "", true // trailing introduced, no upper bound: still affected, open-ended
+		}
+
+		up := upper[i]
+		upSV := normalizeSemver(upperVersion(up))
+		if !semver.IsValid(upSV) {
+			continue
+		}
+
+		switch {
+		case up.Fixed != "" && semver.Compare(installedSV, upSV) < 0:
+			return up.Fixed, true
+		case up.LastAffected != "" && semver.Compare(installedSV, upSV) <= 0:
+			return "", true
+		}
+	}
+	return "", false
+}
+
+// upperVersion returns the version string carried by an upper-bound event
+// (fixed or last_affected — exactly one is set per the OSV schema).
+func upperVersion(ev Event) string {
+	if ev.Fixed != "" {
+		return ev.Fixed
+	}
+	return ev.LastAffected
+}
+
+// sortByVersionKey stable-sorts events ascending by the normalized semver
+// extracted via key, leaving events with an unparseable version in place.
+func sortByVersionKey(events []Event, key func(Event) string) {
+	sort.SliceStable(events, func(i, j int) bool {
+		a, b := normalizeSemver(key(events[i])), normalizeSemver(key(events[j]))
+		if !semver.IsValid(a) || !semver.IsValid(b) {
+			return false
+		}
+		return semver.Compare(a, b) < 0
+	})
 }
 
 // purlVersion extracts the version component after "@" in a package URL,
