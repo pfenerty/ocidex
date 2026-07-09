@@ -1,4 +1,5 @@
 import { createSignal, Show, For } from "solid-js";
+import { useNavigate } from "@solidjs/router";
 import { useTopVulnerabilities } from "~/api/queries";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
 import Pagination from "~/components/Pagination";
@@ -10,8 +11,10 @@ const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW"] as const;
 const limit = 50;
 
 export default function Vulnerabilities() {
+    const navigate = useNavigate();
     const [offset, setOffset] = createSignal(0);
     const [severityFilter, setSeverityFilter] = createSignal("");
+    const [idQuery, setIdQuery] = createSignal("");
 
     const query = useTopVulnerabilities(() => ({
         limit,
@@ -22,6 +25,12 @@ export default function Vulnerabilities() {
     const handleTabChange = (tab: string) => {
         setSeverityFilter(tab === "All" ? "" : tab);
         setOffset(0);
+    };
+
+    const submitIdSearch = (e: Event) => {
+        e.preventDefault();
+        const q = idQuery().trim();
+        if (q) navigate(`/vulnerabilities/${encodeURIComponent(q)}`);
     };
 
     const formatDate = (iso: string | undefined) =>
@@ -61,6 +70,18 @@ export default function Vulnerabilities() {
                         )}
                     </For>
                 </div>
+
+                <form class="search-bar mb-4" onSubmit={submitIdSearch}>
+                    <input
+                        type="text"
+                        placeholder="Jump to CVE / GHSA / OSV id…"
+                        value={idQuery()}
+                        onInput={(e) => setIdQuery(e.currentTarget.value)}
+                    />
+                    <button type="submit" class="btn-primary">
+                        Go
+                    </button>
+                </form>
             </div>
 
             <Show when={!query.isLoading} fallback={<Loading />}>
