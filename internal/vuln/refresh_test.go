@@ -19,9 +19,16 @@ type fakeOSV struct {
 	purlToRefs map[string][]QueryRef
 	records    map[string]*Record
 	getCalls   map[string]int
+
+	err        error // when set, QueryPurls fails instead of returning results
+	queryCalls int
 }
 
 func (f *fakeOSV) QueryPurls(_ context.Context, purls []string) (map[string][]QueryRef, error) {
+	f.queryCalls++
+	if f.err != nil {
+		return nil, f.err
+	}
 	out := make(map[string][]QueryRef, len(purls))
 	for _, p := range purls {
 		out[p] = f.purlToRefs[p]
