@@ -2,6 +2,7 @@ package vuln
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -170,6 +171,38 @@ func (s *PGStore) UpsertEcosystemState(ctx context.Context, ecosystem string, la
 		Ecosystem:      ecosystem,
 		LastModifiedAt: timestamptz(lastModifiedAt),
 	})
+}
+
+// GetVulnerabilityModifiedAts bulk-fetches stored modified_at timestamps for the
+// given vulnerability IDs. Returns only IDs that exist in the DB.
+func (s *PGStore) GetVulnerabilityModifiedAts(ctx context.Context, ids []string) (map[string]time.Time, error) {
+	rows, err := s.q.GetVulnerabilityModifiedAts(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("bulk modified_at lookup: %w", err)
+	}
+	out := make(map[string]time.Time, len(rows))
+	for _, r := range rows {
+		if r.ModifiedAt.Valid {
+			out[r.ID] = r.ModifiedAt.Time
+		}
+	}
+	return out, nil
+}
+
+// GetVulnerabilitiesRaw bulk-fetches stored raw OSV JSON for the given IDs.
+// Returns only IDs that exist in the DB.
+func (s *PGStore) GetVulnerabilitiesRaw(ctx context.Context, ids []string) (map[string]json.RawMessage, error) {
+	rows, err := s.q.GetVulnerabilitiesRaw(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("bulk raw fetch: %w", err)
+	}
+	out := make(map[string]json.RawMessage, len(rows))
+	for _, r := range rows {
+		if len(r.Raw) > 0 {
+			out[r.ID] = json.RawMessage(r.Raw)
+		}
+	}
+	return out, nil
 }
 
 func text(s string) pgtype.Text {
