@@ -612,6 +612,9 @@ func TestFixedVersionForPurl(t *testing.T) {
 	// 1.25.x purl gets the 1.25.x fix
 	is.Equal(fixedVersionForPurl(rec, "pkg:golang/stdlib@1.25.4"), "1.25.7")
 
+	// Qualifiers after the version must not break SEMVER matching
+	is.Equal(fixedVersionForPurl(rec, "pkg:golang/stdlib@1.25.4?os=linux"), "1.25.7")
+
 	// Old purl gets the 1.24.x fix
 	is.Equal(fixedVersionForPurl(rec, "pkg:golang/stdlib@1.14.8"), "1.24.13")
 
@@ -646,6 +649,27 @@ func TestFixedVersionForPurl(t *testing.T) {
 		},
 	}
 	is.Equal(fixedVersionForPurl(gitRec, "pkg:golang/stdlib@1.25.4"), "def")
+}
+
+func TestPurlVersion(t *testing.T) {
+	is := is.New(t)
+
+	cases := []struct {
+		name string
+		purl string
+		want string
+	}{
+		{"no @", "pkg:golang/stdlib", ""},
+		{"plain version", "pkg:golang/stdlib@1.25.4", "1.25.4"},
+		{"qualifiers", "pkg:deb/debian/curl@1.2.3?arch=amd64", "1.2.3"},
+		{"subpath", "pkg:golang/stdlib@1.25.4#internal/foo", "1.25.4"},
+		{"qualifiers and subpath", "pkg:deb/debian/curl@1.2.3?arch=amd64#sub", "1.2.3"},
+		{"percent-encoded plus", "pkg:generic/foo@1.2.3%2Bbuild.1", "1.2.3+build.1"},
+		{"percent-encoded in qualifiers", "pkg:deb/debian/curl@1.2.3%2Bbuild?arch=amd64", "1.2.3+build"},
+	}
+	for _, tc := range cases {
+		is.Equal(purlVersion(tc.purl), tc.want) // tc.name
+	}
 }
 
 func TestRefresh_WithdrawnSkipped(t *testing.T) {
