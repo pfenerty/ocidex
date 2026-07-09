@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 	"time"
 
@@ -636,13 +637,22 @@ func matchedFixed(events []Event, installedSV string) string {
 	return ""
 }
 
-// purlVersion extracts the version component after "@" in a package URL.
+// purlVersion extracts the version component after "@" in a package URL,
+// stripping any qualifiers ("?...") or subpath ("#...") suffix and
+// percent-decoding the result per the purl spec.
 func purlVersion(purl string) string {
 	at := strings.LastIndex(purl, "@")
 	if at < 0 {
 		return ""
 	}
-	return purl[at+1:]
+	version := purl[at+1:]
+	if end := strings.IndexAny(version, "?#"); end >= 0 {
+		version = version[:end]
+	}
+	if decoded, err := url.PathUnescape(version); err == nil {
+		version = decoded
+	}
+	return version
 }
 
 // normalizeSemver converts a bare version string to the "vX.Y.Z" form required
