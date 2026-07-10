@@ -2,6 +2,7 @@ package vuln
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -39,6 +40,11 @@ func (s *PGStore) ListDistinctComponentPurlsByTypes(ctx context.Context, types [
 	return s.q.ListDistinctComponentPurlsByTypes(ctx, types)
 }
 
+// ListUnknownComponentPurls returns all distinct component purls with no package_vulnerability entry.
+func (s *PGStore) ListUnknownComponentPurls(ctx context.Context) ([]string, error) {
+	return s.q.ListUnknownComponentPurls(ctx)
+}
+
 // ListUnknownPurlsForSBOM returns purls from the given SBOM not yet in package_vulnerability.
 func (s *PGStore) ListUnknownPurlsForSBOM(ctx context.Context, sbomID pgtype.UUID) ([]string, error) {
 	return s.q.ListUnknownSBOMComponentPurls(ctx, sbomID)
@@ -60,10 +66,17 @@ func (s *PGStore) UpsertVulnerability(ctx context.Context, v Row) error {
 		Details:     text(v.Details),
 		Severity:    text(v.Severity),
 		CvssScore:   float4(v.CVSSScore),
+		CvssVector:  text(v.CVSSVector),
 		PublishedAt: timestamptz(v.Published),
 		ModifiedAt:  timestamptz(v.Modified),
 		Raw:         v.Raw,
 	})
+}
+
+// DeleteVulnerabilityByID deletes a withdrawn vulnerability; FK cascades clean
+// up package_vulnerability and vulnerability_reference rows.
+func (s *PGStore) DeleteVulnerabilityByID(ctx context.Context, id string) error {
+	return s.q.DeleteVulnerabilityByID(ctx, id)
 }
 
 // ReplaceVulnerabilityRefs atomically replaces all references for a vulnerability
@@ -117,6 +130,9 @@ func (s *PGStore) ReplacePackageVulns(ctx context.Context, purl string, refs []P
 			return fmt.Errorf("insert mapping: %w", err)
 		}
 	}
+	if err := qtx.UpsertPurlVulnState(ctx, purl); err != nil {
+		return fmt.Errorf("upsert purl state: %w", err)
+	}
 	return tx.Commit(ctx)
 }
 
@@ -159,6 +175,38 @@ func (s *PGStore) UpsertEcosystemState(ctx context.Context, ecosystem string, la
 		Ecosystem:      ecosystem,
 		LastModifiedAt: timestamptz(lastModifiedAt),
 	})
+}
+
+// GetVulnerabilityModifiedAts bulk-fetches stored modified_at timestamps for the
+// given vulnerability IDs. Returns only IDs that exist in the DB.
+func (s *PGStore) GetVulnerabilityModifiedAts(ctx context.Context, ids []string) (map[string]time.Time, error) {
+	rows, err := s.q.GetVulnerabilityModifiedAts(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("bulk modified_at lookup: %w", err)
+	}
+	out := make(map[string]time.Time, len(rows))
+	for _, r := range rows {
+		if r.ModifiedAt.Valid {
+			out[r.ID] = r.ModifiedAt.Time
+		}
+	}
+	return out, nil
+}
+
+// GetVulnerabilitiesRaw bulk-fetches stored raw OSV JSON for the given IDs.
+// Returns only IDs that exist in the DB.
+func (s *PGStore) GetVulnerabilitiesRaw(ctx context.Context, ids []string) (map[string]json.RawMessage, error) {
+	rows, err := s.q.GetVulnerabilitiesRaw(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("bulk raw fetch: %w", err)
+	}
+	out := make(map[string]json.RawMessage, len(rows))
+	for _, r := range rows {
+		if len(r.Raw) > 0 {
+			out[r.ID] = json.RawMessage(r.Raw)
+		}
+	}
+	return out, nil
 }
 
 func text(s string) pgtype.Text {

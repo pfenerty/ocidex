@@ -2,8 +2,11 @@ package vuln
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -11,9 +14,11 @@ import (
 	"golang.org/x/mod/semver"
 )
 
+const semverRangeType = "SEMVER"
+
 // OSVQuerier is the OSV client surface the refresh needs. *Client satisfies it.
 type OSVQuerier interface {
-	QueryPurls(ctx context.Context, purls []string) (map[string][]string, error)
+	QueryPurls(ctx context.Context, purls []string) (map[string][]QueryRef, error)
 	GetVuln(ctx context.Context, id string) (*Record, error)
 }
 
@@ -27,6 +32,7 @@ type Row struct {
 	Details     string
 	Severity    string
 	CVSSScore   *float32
+	CVSSVector  string
 	Published   time.Time
 	Modified    time.Time
 	Raw         []byte
@@ -47,10 +53,16 @@ type Store interface {
 	ListDistinctPurlTypes(ctx context.Context) ([]string, error)
 	// ListDistinctComponentPurlsByTypes returns purls whose type matches any entry in types.
 	ListDistinctComponentPurlsByTypes(ctx context.Context, types []string) ([]string, error)
+	// ListUnknownComponentPurls returns all distinct component purls globally that
+	// have no package_vulnerability entry (never successfully queried).
+	ListUnknownComponentPurls(ctx context.Context) ([]string, error)
 	// ListUnknownPurlsForSBOM returns purls from the given SBOM not yet in package_vulnerability.
 	ListUnknownPurlsForSBOM(ctx context.Context, sbomID pgtype.UUID) ([]string, error)
 	// UpsertVulnerability inserts or updates one vulnerability record.
 	UpsertVulnerability(ctx context.Context, v Row) error
+	// DeleteVulnerabilityByID removes a withdrawn vulnerability and its cascade-linked rows.
+	// No-op if the record does not exist.
+	DeleteVulnerabilityByID(ctx context.Context, id string) error
 	// ReplaceVulnerabilityRefs atomically replaces all references for a vulnerability.
 	ReplaceVulnerabilityRefs(ctx context.Context, vulnID string, refs []Reference) error
 	// ReplacePackageVulns atomically replaces all mappings for a purl.
@@ -64,6 +76,12 @@ type Store interface {
 	GetEcosystemState(ctx context.Context, ecosystem string) (t time.Time, ok bool, err error)
 	// UpsertEcosystemState persists the latest CSV modified timestamp for an ecosystem.
 	UpsertEcosystemState(ctx context.Context, ecosystem string, lastModifiedAt time.Time) error
+	// GetVulnerabilityModifiedAts bulk-fetches stored modified_at timestamps for
+	// the given IDs. Returns only IDs that exist in the DB.
+	GetVulnerabilityModifiedAts(ctx context.Context, ids []string) (map[string]time.Time, error)
+	// GetVulnerabilitiesRaw bulk-fetches stored raw OSV JSON for the given IDs.
+	// Returns only IDs that exist in the DB.
+	GetVulnerabilitiesRaw(ctx context.Context, ids []string) (map[string]json.RawMessage, error)
 }
 
 // csvModifiedFetcher is the interface consumed by RefreshService for fetching
@@ -134,13 +152,14 @@ func (s *RefreshService) Refresh(ctx context.Context) error {
 		}
 	}
 
-	purlToIDs, err := s.osv.QueryPurls(ctx, purls)
+	purlToRefs, err := s.osv.QueryPurls(ctx, purls)
 	if err != nil {
 		return fmt.Errorf("osv querybatch: %w", err)
 	}
+	purlToIDs := extractIDs(purlToRefs)
 
 	// Hydrate each referenced vuln once (a popular CVE appears under many purls).
-	records := s.hydrate(ctx, purlToIDs)
+	records := s.hydrate(ctx, purlToRefs)
 
 	affected, err := s.replaceMappings(ctx, purls, purlToIDs, records)
 	if err != nil {
@@ -215,12 +234,15 @@ func (s *RefreshService) selectChangedPurls(ctx context.Context) ([]string, map[
 		return nil, nil, fmt.Errorf("listing purl types: %w", err)
 	}
 
-	type pair struct{ purlType, ecosystem string }
-	var known []pair
+	type purlEcosystems struct {
+		purlType   string
+		ecosystems []string
+	}
+	var known []purlEcosystems
 	var unknownTypes []string
 	for _, typ := range purlTypes {
-		if eco, ok := PurlTypeToOSVEcosystem(typ); ok {
-			known = append(known, pair{typ, eco})
+		if ecos, ok := PurlTypeToOSVEcosystems(typ); ok {
+			known = append(known, purlEcosystems{typ, ecos})
 		} else {
 			unknownTypes = append(unknownTypes, typ)
 		}
@@ -230,41 +252,75 @@ func (s *RefreshService) selectChangedPurls(ctx context.Context) ([]string, map[
 	var changedTypes []string
 
 	for _, te := range known {
-		csvMax, err := s.csvFetcher.FetchMaxModifiedAt(ctx, te.ecosystem)
-		if err != nil {
-			// On CSV fetch error include the ecosystem so we don't silently skip it.
-			s.logger.Warn("vuln refresh: CSV fetch failed, including ecosystem", "ecosystem", te.ecosystem, "err", err)
-			changedTypes = append(changedTypes, te.purlType)
-			// Zero time → state not updated → retried next cycle.
-			ecosystemStates[te.ecosystem] = time.Time{}
-			continue
-		}
+		anyChanged := false
+		for _, eco := range te.ecosystems {
+			csvMax, err := s.csvFetcher.FetchMaxModifiedAt(ctx, eco)
+			if err != nil {
+				// On CSV fetch error include the ecosystem so we don't silently skip it.
+				s.logger.Warn("vuln refresh: CSV fetch failed, including ecosystem", "ecosystem", eco, "err", err)
+				anyChanged = true
+				// Zero time → state not updated → retried next cycle.
+				ecosystemStates[eco] = time.Time{}
+				continue
+			}
 
-		stored, found, err := s.store.GetEcosystemState(ctx, te.ecosystem)
-		if err != nil {
-			s.logger.Warn("vuln refresh: ecosystem state lookup failed, including", "ecosystem", te.ecosystem, "err", err)
-			changedTypes = append(changedTypes, te.purlType)
-			continue
-		}
+			stored, found, err := s.store.GetEcosystemState(ctx, eco)
+			if err != nil {
+				s.logger.Warn("vuln refresh: ecosystem state lookup failed, including", "ecosystem", eco, "err", err)
+				anyChanged = true
+				continue
+			}
 
-		if !found || csvMax.After(stored) {
+			if !found || csvMax.After(stored) {
+				anyChanged = true
+				ecosystemStates[eco] = csvMax
+			}
+		}
+		if anyChanged {
 			changedTypes = append(changedTypes, te.purlType)
-			ecosystemStates[te.ecosystem] = csvMax
 		}
 	}
 
 	// Unknown purl types have no modified_id.csv; always include them.
 	changedTypes = append(changedTypes, unknownTypes...)
 
-	if len(changedTypes) == 0 {
-		return nil, ecosystemStates, nil
+	// Always include purls with no vulnerability data (unknown state).
+	unknownPurls, err := s.store.ListUnknownComponentPurls(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("listing unknown purls: %w", err)
 	}
 
-	purls, err := s.store.ListDistinctComponentPurlsByTypes(ctx, changedTypes)
+	if len(changedTypes) == 0 {
+		if len(unknownPurls) == 0 {
+			return nil, ecosystemStates, nil
+		}
+		return unknownPurls, ecosystemStates, nil
+	}
+
+	changedPurls, err := s.store.ListDistinctComponentPurlsByTypes(ctx, changedTypes)
 	if err != nil {
 		return nil, nil, fmt.Errorf("listing purls by changed types: %w", err)
 	}
-	return purls, ecosystemStates, nil
+	return mergePurls(changedPurls, unknownPurls), ecosystemStates, nil
+}
+
+// mergePurls returns a deduplicated slice containing all entries from a followed by unique entries from b.
+func mergePurls(a, b []string) []string {
+	seen := make(map[string]struct{}, len(a)+len(b))
+	out := make([]string, 0, len(a)+len(b))
+	for _, p := range a {
+		if _, ok := seen[p]; !ok {
+			seen[p] = struct{}{}
+			out = append(out, p)
+		}
+	}
+	for _, p := range b {
+		if _, ok := seen[p]; !ok {
+			seen[p] = struct{}{}
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // LookupPurls runs the hydrate+replace cycle for a specific purl set without
@@ -273,11 +329,12 @@ func (s *RefreshService) LookupPurls(ctx context.Context, purls []string) error 
 	if len(purls) == 0 {
 		return nil
 	}
-	purlToIDs, err := s.osv.QueryPurls(ctx, purls)
+	purlToRefs, err := s.osv.QueryPurls(ctx, purls)
 	if err != nil {
 		return fmt.Errorf("osv querybatch: %w", err)
 	}
-	records := s.hydrate(ctx, purlToIDs)
+	purlToIDs := extractIDs(purlToRefs)
+	records := s.hydrate(ctx, purlToRefs)
 	for _, purl := range purls {
 		ids := purlToIDs[purl]
 		refs := make([]PackageVulnRef, 0, len(ids))
@@ -298,29 +355,87 @@ func (s *RefreshService) LookupPurls(ctx context.Context, purls []string) error 
 	return nil
 }
 
+// extractIDs strips the Modified field from querybatch results, producing the
+// plain purl→IDs map used by replaceMappings.
+func extractIDs(purlToRefs map[string][]QueryRef) map[string][]string {
+	out := make(map[string][]string, len(purlToRefs))
+	for purl, refs := range purlToRefs {
+		ids := make([]string, len(refs))
+		for i, r := range refs {
+			ids[i] = r.ID
+		}
+		out[purl] = ids
+	}
+	return out
+}
+
 // hydrate fetches and upserts each unique vulnerability ID once. Records that
 // fail to fetch or store are skipped (logged) rather than aborting the refresh,
 // and are omitted from the returned map so callers never map to an unstored vuln.
 //
+// Records whose stored modified_at matches the querybatch-reported Modified
+// timestamp are skipped for network fetches; their raw JSON is loaded from the
+// DB instead, saving one GetVuln call per unchanged record per cycle.
+//
 // When a record yields UNKNOWN severity (e.g. Go security database advisories
 // which carry no CVSS vectors), hydrate attempts to resolve severity from the
 // record's GHSA or CVE aliases, which typically do carry CVSS data.
-func (s *RefreshService) hydrate(ctx context.Context, purlToIDs map[string][]string) map[string]*Record {
-	unique := make(map[string]struct{})
-	for _, ids := range purlToIDs {
-		for _, id := range ids {
-			unique[id] = struct{}{}
+func (s *RefreshService) hydrate(ctx context.Context, purlToRefs map[string][]QueryRef) map[string]*Record {
+	// Build unique ID set and record the querybatch-reported modified timestamp.
+	modifiedByID := make(map[string]string)
+	for _, refs := range purlToRefs {
+		for _, r := range refs {
+			modifiedByID[r.ID] = r.Modified
 		}
 	}
-	// aliasCache avoids re-fetching alias records when several primary records
-	// share the same GHSA/CVE alias.
+
+	toFetch, toLoad := s.partitionIDs(ctx, modifiedByID)
+
 	aliasCache := make(map[string]*Record)
-	records := make(map[string]*Record, len(unique))
-	for id := range unique {
+	records := make(map[string]*Record, len(modifiedByID))
+
+	s.fetchVulns(ctx, toFetch, aliasCache, records)
+	s.loadCachedVulns(ctx, toLoad, records)
+
+	return records
+}
+
+// partitionIDs splits IDs into those that need a network fetch (new or changed)
+// and those that can be reloaded from the DB (unchanged).
+func (s *RefreshService) partitionIDs(ctx context.Context, modifiedByID map[string]string) (toFetch, toLoad []string) {
+	ids := make([]string, 0, len(modifiedByID))
+	for id := range modifiedByID {
+		ids = append(ids, id)
+	}
+	storedAt, err := s.store.GetVulnerabilityModifiedAts(ctx, ids)
+	if err != nil {
+		s.logger.Warn("vuln refresh: modified_at bulk lookup failed, fetching all", "err", err)
+		return ids, nil
+	}
+	for id, reported := range modifiedByID {
+		stored, ok := storedAt[id]
+		if ok && !stored.IsZero() && stored.UTC().Format(time.RFC3339) >= reported {
+			toLoad = append(toLoad, id)
+		} else {
+			toFetch = append(toFetch, id)
+		}
+	}
+	return toFetch, toLoad
+}
+
+// fetchVulns calls GetVuln for each ID, upserts, and populates records.
+func (s *RefreshService) fetchVulns(ctx context.Context, ids []string, aliasCache map[string]*Record, records map[string]*Record) {
+	for _, id := range ids {
 		rec, err := s.osv.GetVuln(ctx, id)
 		if err != nil {
-			// A single bad record shouldn't abort the whole cycle; skip it.
 			s.logger.Warn("vuln refresh: hydrating record failed", "id", id, "err", err)
+			continue
+		}
+		if rec.Withdrawn != "" {
+			s.logger.Debug("vuln refresh: skipping withdrawn record", "id", id, "withdrawn", rec.Withdrawn)
+			if err := s.store.DeleteVulnerabilityByID(ctx, id); err != nil {
+				s.logger.Warn("vuln refresh: failed to delete withdrawn record", "id", id, "err", err)
+			}
 			continue
 		}
 		if toRow(rec).Severity == SeverityUnknown {
@@ -328,9 +443,6 @@ func (s *RefreshService) hydrate(ctx context.Context, purlToIDs map[string][]str
 		}
 		row := toRow(rec)
 		if err := s.store.UpsertVulnerability(ctx, row); err != nil {
-			// Skip records we can't store rather than aborting the whole refresh.
-			// Only stored vulns are recorded so phase 2 never emits a mapping that
-			// would violate the package_vulnerability -> vulnerability foreign key.
 			s.logger.Warn("vuln refresh: upserting record failed", "id", id, "err", err)
 			continue
 		}
@@ -339,7 +451,27 @@ func (s *RefreshService) hydrate(ctx context.Context, purlToIDs map[string][]str
 		}
 		records[id] = rec
 	}
-	return records
+}
+
+// loadCachedVulns reads raw OSV JSON from the DB for IDs whose stored
+// modified_at matches the querybatch timestamp, avoiding a network call.
+func (s *RefreshService) loadCachedVulns(ctx context.Context, ids []string, records map[string]*Record) {
+	if len(ids) == 0 {
+		return
+	}
+	raws, err := s.store.GetVulnerabilitiesRaw(ctx, ids)
+	if err != nil {
+		s.logger.Warn("vuln refresh: bulk raw load failed, skipping cached entries", "err", err)
+		return
+	}
+	for id, raw := range raws {
+		var rec Record
+		if err := json.Unmarshal(raw, &rec); err != nil {
+			s.logger.Warn("vuln refresh: failed to unmarshal cached record", "id", id, "err", err)
+			continue
+		}
+		records[id] = &rec
+	}
 }
 
 // resolveAliasSeverity attempts to find a CVSS vector by fetching GHSA then
@@ -364,7 +496,7 @@ func (s *RefreshService) resolveAliasSeverity(ctx context.Context, rec *Record, 
 				}
 				aliasCache[alias] = aliasRec
 			}
-			if label, _ := DeriveSeverity(aliasRec.Severity); label != SeverityUnknown {
+			if label, _, _ := DeriveSeverity(aliasRec.Severity); label != SeverityUnknown {
 				rec.Severity = aliasRec.Severity
 				return rec
 			}
@@ -374,7 +506,7 @@ func (s *RefreshService) resolveAliasSeverity(ctx context.Context, rec *Record, 
 }
 
 func toRow(rec *Record) Row {
-	label, score := DeriveSeverity(rec.Severity)
+	label, score, vector := DeriveSeverity(rec.Severity)
 	if label == SeverityUnknown {
 		// Fall back to plain-text severity present in database_specific blocks.
 		// The Go security database uses this pattern instead of CVSS vectors.
@@ -388,6 +520,7 @@ func toRow(rec *Record) Row {
 		Details:     rec.Details,
 		Severity:    label,
 		CVSSScore:   score,
+		CVSSVector:  vector,
 		Published:   parseTime(rec.Published),
 		Modified:    parseTime(rec.Modified),
 		Raw:         rec.Raw,
@@ -426,65 +559,156 @@ func databaseSpecificSeverity(rec *Record) string {
 	return SeverityUnknown
 }
 
-// fixedVersionForPurl returns the fixed version from the SEMVER interval that
-// contains the installed version encoded in purl. For advisories that patch
-// multiple release branches in a single range (e.g. Go stdlib), this picks the
-// correct branch's fix rather than the first one in document order. Falls back
-// to firstFixedVersion when the version cannot be parsed or no SEMVER range
-// contains it.
+// purlBase returns the purl with the version (and any qualifiers/subpath)
+// stripped — everything before the last '@'.
+func purlBase(purl string) string {
+	at := strings.LastIndex(purl, "@")
+	if at < 0 {
+		return purl
+	}
+	return purl[:at]
+}
+
+// filteredAffected returns the subset of affected entries whose Package.Purl
+// matches the base (version-stripped) of the queried purl. Returns nil when no
+// entries carry a Package.Purl, meaning no confident package match is possible.
+func filteredAffected(affected []Affected, purl string) []Affected {
+	base := purlBase(purl)
+	var matched []Affected
+	for _, aff := range affected {
+		if aff.Package.Purl != "" && strings.EqualFold(aff.Package.Purl, base) {
+			matched = append(matched, aff)
+		}
+	}
+	return matched
+}
+
+// fixedVersionForPurl returns the fixed version for the specific package
+// identified by purl. It filters affected[] entries to those matching the
+// queried package before searching ranges, so multi-package advisories (e.g.
+// GHSA monorepos) cannot return another package's fixed version. Returns ""
+// when no confident package match exists in the record.
 func fixedVersionForPurl(rec *Record, purl string) string {
 	if rec == nil {
 		return ""
 	}
+	candidates := filteredAffected(rec.Affected, purl)
+	if len(candidates) == 0 {
+		return ""
+	}
 	installed := purlVersion(purl)
 	if installed == "" {
-		return firstFixedVersion(rec)
+		return firstFixedVersionFrom(candidates)
 	}
 	installedSV := normalizeSemver(installed)
 	if !semver.IsValid(installedSV) {
-		return firstFixedVersion(rec)
+		return firstFixedVersionFrom(candidates)
 	}
-	for _, aff := range rec.Affected {
+	for _, aff := range candidates {
 		for _, rng := range aff.Ranges {
-			if rng.Type != "SEMVER" {
+			if rng.Type != semverRangeType {
 				continue
 			}
-			if fixed := matchedFixed(rng.Events, installedSV); fixed != "" {
+			if fixed, matched := matchedFixed(rng.Events, installedSV); matched {
 				return fixed
 			}
 		}
 	}
-	return firstFixedVersion(rec)
+	return firstFixedVersionFrom(candidates)
 }
 
-// matchedFixed walks the interleaved introduced/fixed event sequence for one
+// matchedFixed walks the introduced/fixed/last_affected boundaries for one
 // SEMVER range and returns the original fixed version string from the interval
-// that contains installedSV, or "" if installedSV is not in any interval.
-func matchedFixed(events []Event, installedSV string) string {
-	inRange := false
+// that contains installedSV, and whether any interval contained it at all.
+//
+// OSV does not guarantee events[] arrives in sorted order in practice, so
+// introduced and upper-bound (fixed/last_affected) events are each sorted by
+// normalized version independently before being paired positionally into
+// intervals. A last_affected upper bound is inclusive (unlike the exclusive
+// fixed bound) and indicates the vulnerability is unresolved: matched is true
+// but the returned fixed version is "".
+func matchedFixed(events []Event, installedSV string) (fixed string, matched bool) {
+	var introduced, upper []Event
 	for _, ev := range events {
-		if ev.Introduced != "" {
-			intro := normalizeSemver(ev.Introduced)
-			inRange = semver.IsValid(intro) && semver.Compare(installedSV, intro) >= 0
-		}
-		if ev.Fixed != "" && inRange {
-			fixedSV := normalizeSemver(ev.Fixed)
-			if semver.IsValid(fixedSV) && semver.Compare(installedSV, fixedSV) < 0 {
-				return ev.Fixed
-			}
-			inRange = false
+		switch {
+		case ev.Introduced != "":
+			introduced = append(introduced, ev)
+		case ev.Fixed != "" || ev.LastAffected != "":
+			upper = append(upper, ev)
 		}
 	}
-	return ""
+
+	sortByVersionKey(introduced, func(ev Event) string { return ev.Introduced })
+	sortByVersionKey(upper, func(ev Event) string {
+		if ev.Fixed != "" {
+			return ev.Fixed
+		}
+		return ev.LastAffected
+	})
+
+	for i, intro := range introduced {
+		introSV := normalizeSemver(intro.Introduced)
+		if !semver.IsValid(introSV) || semver.Compare(installedSV, introSV) < 0 {
+			continue
+		}
+
+		if i >= len(upper) {
+			return "", true // trailing introduced, no upper bound: still affected, open-ended
+		}
+
+		up := upper[i]
+		upSV := normalizeSemver(upperVersion(up))
+		if !semver.IsValid(upSV) {
+			continue
+		}
+
+		switch {
+		case up.Fixed != "" && semver.Compare(installedSV, upSV) < 0:
+			return up.Fixed, true
+		case up.LastAffected != "" && semver.Compare(installedSV, upSV) <= 0:
+			return "", true
+		}
+	}
+	return "", false
 }
 
-// purlVersion extracts the version component after "@" in a package URL.
+// upperVersion returns the version string carried by an upper-bound event
+// (fixed or last_affected — exactly one is set per the OSV schema).
+func upperVersion(ev Event) string {
+	if ev.Fixed != "" {
+		return ev.Fixed
+	}
+	return ev.LastAffected
+}
+
+// sortByVersionKey stable-sorts events ascending by the normalized semver
+// extracted via key, leaving events with an unparseable version in place.
+func sortByVersionKey(events []Event, key func(Event) string) {
+	sort.SliceStable(events, func(i, j int) bool {
+		a, b := normalizeSemver(key(events[i])), normalizeSemver(key(events[j]))
+		if !semver.IsValid(a) || !semver.IsValid(b) {
+			return false
+		}
+		return semver.Compare(a, b) < 0
+	})
+}
+
+// purlVersion extracts the version component after "@" in a package URL,
+// stripping any qualifiers ("?...") or subpath ("#...") suffix and
+// percent-decoding the result per the purl spec.
 func purlVersion(purl string) string {
 	at := strings.LastIndex(purl, "@")
 	if at < 0 {
 		return ""
 	}
-	return purl[at+1:]
+	version := purl[at+1:]
+	if end := strings.IndexAny(version, "?#"); end >= 0 {
+		version = version[:end]
+	}
+	if decoded, err := url.PathUnescape(version); err == nil {
+		version = decoded
+	}
+	return version
 }
 
 // normalizeSemver converts a bare version string to the "vX.Y.Z" form required
@@ -497,14 +721,11 @@ func normalizeSemver(v string) string {
 	return v
 }
 
-// firstFixedVersion returns the first "fixed" event across a record's ranges.
-// Best-effort: the fixed version is the same for a package regardless of which
-// affected version pulled it in, so this is adequate for display.
-func firstFixedVersion(rec *Record) string {
-	if rec == nil {
-		return ""
-	}
-	for _, aff := range rec.Affected {
+// firstFixedVersionFrom returns the first "fixed" event across a slice of
+// affected entries. Callers are expected to pre-filter the slice to the
+// relevant package before calling.
+func firstFixedVersionFrom(affected []Affected) string {
+	for _, aff := range affected {
 		for _, rng := range aff.Ranges {
 			for _, ev := range rng.Events {
 				if ev.Fixed != "" {

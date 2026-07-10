@@ -133,6 +133,11 @@ type PackageVulnerability struct {
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
+type PurlVulnState struct {
+	Purl      string             `json:"purl"`
+	CheckedAt pgtype.Timestamptz `json:"checked_at"`
+}
+
 type Registry struct {
 	ID                  pgtype.UUID        `json:"id"`
 	Name                string             `json:"name"`
@@ -226,6 +231,7 @@ type Vulnerability struct {
 	Raw         []byte             `json:"raw"`
 	RefreshedAt pgtype.Timestamptz `json:"refreshed_at"`
 	CanonicalID string             `json:"canonical_id"`
+	CvssVector  pgtype.Text        `json:"cvss_vector"`
 }
 
 type VulnerabilityReference struct {

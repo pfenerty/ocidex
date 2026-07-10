@@ -11,6 +11,13 @@ import (
 // short tick just lets a freshly elected leader pick up promptly.
 const schedulerTick = time.Minute
 
+// Backoff bounds applied after a failed refresh attempt, so an OSV outage
+// doesn't get hammered on every schedulerTick.
+const (
+	backoffFloor = 5 * time.Minute
+	backoffCap   = 30 * time.Minute
+)
+
 // Scheduler runs a RefreshService on an interval. It is designed to be passed to
 // service.LeaderElect so exactly one replica refreshes at a time; on each tick it
 // gates on the persisted last-refresh time so a leader change does not re-run
@@ -20,6 +27,11 @@ type Scheduler struct {
 	store    Store
 	interval time.Duration
 	logger   *slog.Logger
+
+	// lastAttempt/backoff track failed refresh attempts in-memory. They are
+	// separate from store.LastRefreshedAt, which only reflects successes.
+	lastAttempt time.Time
+	backoff     time.Duration
 }
 
 // NewScheduler constructs a Scheduler. interval is the minimum time between
@@ -57,9 +69,20 @@ func (s *Scheduler) runIfDue(ctx context.Context) {
 	if !due {
 		return
 	}
+	if !s.lastAttempt.IsZero() && time.Since(s.lastAttempt) < s.backoff {
+		return
+	}
+	s.lastAttempt = time.Now()
 	if err := s.svc.Refresh(ctx); err != nil {
 		s.logger.Error("vuln scheduler: refresh failed", "err", err)
+		if s.backoff == 0 {
+			s.backoff = backoffFloor
+		} else if s.backoff *= 2; s.backoff > backoffCap {
+			s.backoff = backoffCap
+		}
+		return
 	}
+	s.backoff = 0
 }
 
 func (s *Scheduler) due(ctx context.Context) (bool, error) {

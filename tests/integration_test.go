@@ -147,6 +147,36 @@ const secondSBOM = `{
 	]
 }`
 
+// duplicatePurlSBOM has two components with the same purl — used to verify
+// vuln summary queries deduplicate before counting.
+const duplicatePurlSBOM = `{
+	"bomFormat": "CycloneDX",
+	"specVersion": "1.6",
+	"serialNumber": "urn:uuid:33333333-3333-3333-3333-333333333333",
+	"version": 1,
+	"metadata": {
+		"component": {
+			"type": "container",
+			"name": "docker.io/ubuntu@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+			"version": "24.04"
+		}
+	},
+	"components": [
+		{
+			"type": "library",
+			"name": "adduser",
+			"version": "3.118ubuntu2",
+			"purl": "pkg:deb/ubuntu/adduser@3.118ubuntu2?arch=all&distro=ubuntu-24.04"
+		},
+		{
+			"type": "library",
+			"name": "adduser-alias",
+			"version": "3.118ubuntu2",
+			"purl": "pkg:deb/ubuntu/adduser@3.118ubuntu2?arch=all&distro=ubuntu-24.04"
+		}
+	]
+}`
+
 func TestFullLifecycle(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")

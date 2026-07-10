@@ -18,24 +18,27 @@ const (
 	SeverityUnknown  = "UNKNOWN"
 )
 
-// DeriveSeverity returns the highest severity label and CVSS base score across a
-// record's CVSS severity entries. It returns ("UNKNOWN", nil) when no entry
-// carries a parseable CVSS vector (e.g. records that only ship a distro severity
-// string). The vector's own prefix selects the CVSS version.
-func DeriveSeverity(sevs []Severity) (string, *float32) {
+// DeriveSeverity returns the highest severity label, CVSS base score, and the
+// winning entry's vector string across a record's CVSS severity entries. It
+// returns ("UNKNOWN", nil, "") when no entry carries a parseable CVSS vector
+// (e.g. records that only ship a distro severity string). The vector's own
+// prefix selects the CVSS version.
+func DeriveSeverity(sevs []Severity) (string, *float32, string) {
 	var best float64
 	var found bool
+	var vector string
 	for _, s := range sevs {
 		if score, ok := scoreFromVector(s.Score); ok && score >= best {
 			best = score
 			found = true
+			vector = s.Score
 		}
 	}
 	if !found {
-		return SeverityUnknown, nil
+		return SeverityUnknown, nil, ""
 	}
 	f := float32(best)
-	return severityLabel(best), &f
+	return severityLabel(best), &f, vector
 }
 
 func scoreFromVector(vector string) (float64, bool) {

@@ -36,7 +36,7 @@ type SearchService interface {
 	GetDashboardStats(ctx context.Context, vis VisibilityFilter) (*DashboardStats, error)
 	ListTopVulnerabilities(ctx context.Context, filter TopVulnFilter) (PagedResult[TopVulnEntry], error)
 	GetArtifactVulnSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (*VulnSummary, error)
-	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (*VulnDetail, PagedResult[AffectedArtifact], []AffectedComponent, error)
+	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (*VulnDetail, PagedResult[AffectedArtifact], PagedResult[AffectedComponent], error)
 	GetComponentVulns(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) ([]ComponentVulnEntry, error)
 }
 
