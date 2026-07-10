@@ -10,11 +10,13 @@ UPDATE sbom SET flavor = $2 WHERE id = $1;
 INSERT INTO component (
     sbom_id, parent_id, bom_ref, type, name, group_name,
     version, version_major, version_minor, version_patch,
-    purl, cpe, description, scope, publisher, copyright
+    purl, cpe, description, scope, publisher, copyright,
+    layer_id, found_by, source_package, source_version, source_purl
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10,
-    $11, $12, $13, $14, $15, $16
+    $11, $12, $13, $14, $15, $16,
+    $17, $18, $19, $20, $21
 )
 RETURNING id;
 

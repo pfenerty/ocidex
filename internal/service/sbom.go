@@ -198,7 +198,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		return pgtype.UUID{}, err
 	}
 
-	if err := s.insertBOMContent(ctx, tx, q, sbomRow.ID, bom, info.subjectVersion.String); err != nil {
+	if err := s.insertBOMContent(ctx, tx, q, sbomRow.ID, bom, info.subjectVersion.String, flavor); err != nil {
 		return pgtype.UUID{}, err
 	}
 
@@ -248,10 +248,10 @@ func validateContainerRequired(bom *cdx.BOM, info artifactInfo, arch, bd string)
 }
 
 // insertBOMContent inserts components and dependencies for an SBOM within a transaction.
-func (s *sbomService) insertBOMContent(ctx context.Context, tx copyFromer, q *repository.Queries, sbomID pgtype.UUID, bom *cdx.BOM, subjectVersion string) error {
+func (s *sbomService) insertBOMContent(ctx context.Context, tx copyFromer, q *repository.Queries, sbomID pgtype.UUID, bom *cdx.BOM, subjectVersion, flavor string) error {
 	mainModule := extractMainModulePath(bom)
 	if bom.Components != nil {
-		if err := s.insertComponentsBatch(ctx, tx, q, sbomID, *bom.Components, mainModule, subjectVersion); err != nil {
+		if err := s.insertComponentsBatch(ctx, tx, q, sbomID, *bom.Components, mainModule, subjectVersion, flavor); err != nil {
 			return err
 		}
 	}
@@ -423,14 +423,14 @@ func (s *sbomService) insertComponentsBatch(
 	q *repository.Queries,
 	sbomID pgtype.UUID,
 	components []cdx.Component,
-	mainModule, subjectVersion string,
+	mainModule, subjectVersion, flavor string,
 ) error {
 	flat := flattenComponents(components, pgtype.UUID{}, mainModule, subjectVersion)
 	if len(flat) == 0 {
 		return nil
 	}
 
-	if err := copyComponents(ctx, tx, sbomID, flat); err != nil {
+	if err := copyComponents(ctx, tx, sbomID, flat, flavor); err != nil {
 		return err
 	}
 	if err := copyComponentHashes(ctx, tx, flat); err != nil {
@@ -451,24 +451,122 @@ var componentColumns = []string{
 	"id", "sbom_id", "parent_id", "bom_ref", "type", "name", "group_name",
 	"version", "version_major", "version_minor", "version_patch",
 	"purl", "cpe", "description", "scope", "publisher", "copyright",
+	"layer_id", "found_by", "source_package", "source_version", "source_purl",
 }
 
-func copyComponents(ctx context.Context, tx copyFromer, sbomID pgtype.UUID, flat []flatComponent) error {
+func copyComponents(ctx context.Context, tx copyFromer, sbomID pgtype.UUID, flat []flatComponent, flavor string) error {
 	rows := make([][]any, len(flat))
 	for i, fc := range flat {
 		c := fc.comp
 		major, minor, patch := parseSemver(fc.version)
+		prov := extractComponentProvenance(c.Properties, c.PackageURL, flavor)
 		rows[i] = []any{
 			fc.id, sbomID, fc.parentID, textOrNull(c.BOMRef), string(c.Type), c.Name, textOrNull(c.Group),
 			textOrNull(fc.version), intOrNull(major), intOrNull(minor), intOrNull(patch),
 			textOrNull(c.PackageURL), textOrNull(c.CPE), textOrNull(c.Description), textOrNull(string(c.Scope)),
 			textOrNull(c.Publisher), textOrNull(c.Copyright),
+			prov.layerID, prov.foundBy, prov.sourcePackage, prov.sourceVersion, prov.sourcePurl,
 		}
 	}
 	if _, err := tx.CopyFrom(ctx, pgx.Identifier{"component"}, componentColumns, pgx.CopyFromRows(rows)); err != nil {
 		return fmt.Errorf("copying components: %w", err)
 	}
 	return nil
+}
+
+// componentProvenance holds syft-derived provenance fields extracted from a
+// component's CycloneDX properties, normalized across package ecosystems.
+type componentProvenance struct {
+	layerID       pgtype.Text
+	foundBy       pgtype.Text
+	sourcePackage pgtype.Text
+	sourceVersion pgtype.Text
+	sourcePurl    pgtype.Text
+}
+
+// extractComponentProvenance reads syft-emitted properties (layer, discovery
+// tool, and origin/source package) from a component and normalizes the
+// upstream "source package" concept across deb/apk/rpm ecosystems. flavor is
+// the image flavor string (e.g. "debian-12"), used to build source_purl.
+func extractComponentProvenance(props *[]cdx.Property, purl, flavor string) componentProvenance {
+	propSets := [][]cdx.Property{propertySlice(props)}
+
+	layerID := findPropValue(propSets, []string{"syft:location:0:layerID"})
+	foundBy := findPropValue(propSets, []string{"syft:package:foundBy"})
+
+	var srcPkg, srcVersion string
+	switch purlType(purl) {
+	case "deb":
+		srcPkg = findPropValue(propSets, []string{"syft:metadata:source"})
+		srcVersion = findPropValue(propSets, []string{"syft:metadata:sourceVersion"})
+	case "apk":
+		srcPkg = findPropValue(propSets, []string{"syft:metadata:originPackage"})
+	case "rpm":
+		if sourceRpm := findPropValue(propSets, []string{"syft:metadata:sourceRpm"}); sourceRpm != "" {
+			srcPkg, srcVersion = parseSourceRpm(sourceRpm)
+		}
+	}
+
+	var sourcePurl string
+	if srcPkg != "" {
+		sourcePurl = buildSourcePurl(purlType(purl), srcPkg, srcVersion, flavor)
+	}
+
+	return componentProvenance{
+		layerID:       textOrNull(layerID),
+		foundBy:       textOrNull(foundBy),
+		sourcePackage: textOrNull(srcPkg),
+		sourceVersion: textOrNull(srcVersion),
+		sourcePurl:    textOrNull(sourcePurl),
+	}
+}
+
+// parseSourceRpm splits an rpm "sourceRpm" property (e.g.
+// "openssl-libs-1.1.1k-7.el8.src.rpm") into source package name and
+// version. The package name may itself contain hyphens, so the split is
+// anchored from the right: the last two hyphen-separated segments are
+// version and release. source_version is reported as "version-release"
+// (e.g. "1.1.1k-7.el8"), matching the conventional rpm NVR version string.
+func parseSourceRpm(sourceRpm string) (name, version string) {
+	s := strings.TrimSuffix(sourceRpm, ".src.rpm")
+	if s == sourceRpm {
+		return "", "" // unexpected suffix; nothing reliable to parse
+	}
+	idx2 := strings.LastIndex(s, "-")
+	if idx2 < 0 {
+		return s, ""
+	}
+	release := s[idx2+1:]
+	rest := s[:idx2]
+	idx1 := strings.LastIndex(rest, "-")
+	if idx1 < 0 {
+		return rest, release
+	}
+	return rest[:idx1], rest[idx1+1:] + "-" + release
+}
+
+// buildSourcePurl constructs a purl for the normalized upstream source
+// package, mirroring the purl conventions syft itself uses: type matches
+// the binary package's ecosystem, namespace is the OS name, and a
+// distro=<flavor> qualifier records the OS/version the artifact was built
+// against. Returns "" if pkgType or pkg is empty.
+func buildSourcePurl(pkgType, pkg, version, flavor string) string {
+	if pkgType == "" || pkg == "" {
+		return ""
+	}
+	var p string
+	if namespace, _, ok := strings.Cut(flavor, "-"); ok && namespace != "" {
+		p = fmt.Sprintf("pkg:%s/%s/%s", pkgType, namespace, pkg)
+	} else {
+		p = fmt.Sprintf("pkg:%s/%s", pkgType, pkg)
+	}
+	if version != "" {
+		p += "@" + version
+	}
+	if flavor != "" && flavor != flavorUnknown {
+		p += "?distro=" + flavor
+	}
+	return p
 }
 
 func copyComponentHashes(ctx context.Context, tx copyFromer, flat []flatComponent) error {
