@@ -1715,6 +1715,9 @@
               "null"
             ]
           },
+          "componentsPagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          },
           "pagination": {
             "$ref": "#/components/schemas/PaginationMeta"
           },
@@ -1725,6 +1728,7 @@
         "required": [
           "vulnerability",
           "affectedComponents",
+          "componentsPagination",
           "affectedArtifacts",
           "pagination"
         ],
