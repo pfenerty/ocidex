@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
 
 	"github.com/pfenerty/ocidex/internal/vuln"
@@ -495,4 +497,75 @@ func TestVulnDuplicatePurlSummaryParity(t *testing.T) {
 	is.Equal(artSummary["total"], sbomSummary["total"])
 	is.Equal(artSummary["critical"], float64(1))
 	is.Equal(artSummary["total"], float64(1))
+}
+
+// TestPurlVulnStateSkipsCleanPurls verifies a purl checked-and-clean against
+// OSV (ReplacePackageVulns called with no refs) is excluded from the
+// "unknown" purl queries used to drive further OSV lookups, but reappears
+// once its checked_at falls outside the staleness horizon (regression
+// ocidex-0le.17: clean purls were indistinguishable from never-checked ones).
+func TestPurlVulnStateSkipsCleanPurls(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireDocker(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+
+	is := is.New(t)
+	store := vuln.NewPGStore(pool)
+
+	memberID := seedUser(t, pool, 8006, "purl-state-member", "member")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "purl-state-test", "read-write")
+	is.NoErr(err)
+
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", minimalSBOM, memberKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	var ingestResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingestResp))
+	resp.Body.Close()
+	var sbomID pgtype.UUID
+	is.NoErr(sbomID.Scan(ingestResp["id"].(string)))
+
+	// Before any OSV check, addUserPurl is unknown both per-SBOM and globally.
+	unknownForSBOM, err := store.ListUnknownPurlsForSBOM(t.Context(), sbomID)
+	is.NoErr(err)
+	is.True(slices.Contains(unknownForSBOM, addUserPurl))
+
+	unknownGlobal, err := store.ListUnknownComponentPurls(t.Context())
+	is.NoErr(err)
+	is.True(slices.Contains(unknownGlobal, addUserPurl))
+
+	// Simulate an OSV lookup that came back clean.
+	err = store.ReplacePackageVulns(t.Context(), addUserPurl, nil)
+	is.NoErr(err)
+
+	// The purl is now checked-clean: it must drop out of both unknown lists.
+	unknownForSBOM, err = store.ListUnknownPurlsForSBOM(t.Context(), sbomID)
+	is.NoErr(err)
+	is.True(!slices.Contains(unknownForSBOM, addUserPurl))
+
+	unknownGlobal, err = store.ListUnknownComponentPurls(t.Context())
+	is.NoErr(err)
+	is.True(!slices.Contains(unknownGlobal, addUserPurl))
+
+	// Age the checked_at past the staleness horizon (24h) to simulate a
+	// clean purl that's due for re-verification.
+	_, err = pool.Exec(t.Context(),
+		"UPDATE purl_vuln_state SET checked_at = now() - interval '25 hours' WHERE purl = $1",
+		addUserPurl)
+	is.NoErr(err)
+
+	unknownForSBOM, err = store.ListUnknownPurlsForSBOM(t.Context(), sbomID)
+	is.NoErr(err)
+	is.True(slices.Contains(unknownForSBOM, addUserPurl))
+
+	unknownGlobal, err = store.ListUnknownComponentPurls(t.Context())
+	is.NoErr(err)
+	is.True(slices.Contains(unknownGlobal, addUserPurl))
 }
