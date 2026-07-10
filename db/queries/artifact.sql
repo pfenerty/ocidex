@@ -8,9 +8,29 @@ DO UPDATE SET
 RETURNING id;
 
 -- name: GetArtifact :one
-SELECT id, type, name, group_name, purl, cpe, created_at
-FROM artifact
-WHERE id = $1;
+SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
+       (SELECT CASE
+           WHEN EXISTS (
+               SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
+               WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND pe.status = 'success' AND (pe.data->>'verified')::boolean = true
+           ) THEN 'verified'
+           WHEN EXISTS (
+               SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
+               WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND pe.status = 'success' AND (pe.data->>'verified')::boolean = false
+           ) THEN 'verification_failed'
+           WHEN EXISTS (
+               SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
+               WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND pe.status = 'success'
+                 AND ((pe.data->>'signaturePresent')::boolean = true
+                      OR (pe.data->>'attestationPresent')::boolean = true)
+           ) THEN 'signed'
+           ELSE 'unsigned'
+       END)::text AS signing_status
+FROM artifact a
+WHERE a.id = $1;
 
 -- name: ListArtifacts :many
 SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
