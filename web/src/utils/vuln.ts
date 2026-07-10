@@ -47,6 +47,29 @@ const V3_METRICS: Record<string, Record<string, CvssMetric>> = { AV, AC, PR, UI,
 // Human-readable prefix for impact chips: "High C" not just "High"
 const IMPACT_SUFFIX: Record<string, string> = { C: " C", I: " I", A: " A" };
 
+// Metric decode tables for CVSS v4.0. AV/AC/PR share v3's semantics and tables;
+// AT is new (no v3 equivalent), UI's values differ from v3, Scope (S) is gone,
+// and C/I/A are split into Vulnerable-system (VC/VI/VA) and Subsequent-system (SC/SI/SA).
+const AT: Record<string, CvssMetric> = {
+    N: { label: "",                    variant: "" }, // None — omit
+    P: { label: "Attack Requirements", variant: "warning" },
+};
+const UI_V4: Record<string, CvssMetric> = {
+    N: { label: "No Interaction",      variant: "warning" },
+    P: { label: "Passive Interaction", variant: "" },
+    A: { label: "Active Interaction",  variant: "" },
+};
+
+const V4_METRICS: Record<string, Record<string, CvssMetric>> = {
+    AV, AC, PR, AT, UI: UI_V4,
+    VC: IMPACT, VI: IMPACT, VA: IMPACT,
+    SC: IMPACT, SI: IMPACT, SA: IMPACT,
+};
+const V4_IMPACT_SUFFIX: Record<string, string> = {
+    VC: " VC", VI: " VI", VA: " VA",
+    SC: " SC", SI: " SI", SA: " SA",
+};
+
 export function parseCvssVector(vector: string): { version: string; metrics: CvssMetric[] } | null {
     if (!vector) return null;
     const parts = vector.split("/");
@@ -54,9 +77,11 @@ export function parseCvssVector(vector: string): { version: string; metrics: Cvs
 
     const prefix = parts[0]; // e.g. "CVSS:3.1" or "CVSS:4.0"
     const version = prefix.startsWith("CVSS:") ? `CVSSv${prefix.slice(5)}` : "CVSS";
+    const isV4 = prefix.startsWith("CVSS:4");
 
     const metrics: CvssMetric[] = [];
-    const lookup = V3_METRICS as Partial<Record<string, Partial<Record<string, CvssMetric>>>>;
+    const lookup = (isV4 ? V4_METRICS : V3_METRICS) as Partial<Record<string, Partial<Record<string, CvssMetric>>>>;
+    const suffixes = isV4 ? V4_IMPACT_SUFFIX : IMPACT_SUFFIX;
     for (const part of parts.slice(1)) {
         const colon = part.indexOf(":");
         if (colon < 0) continue;
@@ -66,7 +91,7 @@ export function parseCvssVector(vector: string): { version: string; metrics: Cvs
         if (table === undefined) continue;
         const decoded = table[val];
         if (!decoded?.label) continue; // skip omitted metrics (empty label = hide chip)
-        const suffix = IMPACT_SUFFIX[key] ?? "";
+        const suffix = suffixes[key] ?? "";
         metrics.push({ label: decoded.label + suffix, variant: decoded.variant });
     }
 
