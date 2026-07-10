@@ -57,11 +57,12 @@ func (s *searchService) GetArtifact(ctx context.Context, id pgtype.UUID, vis Vis
 
 	return ArtifactDetail{
 		ArtifactSummary: ArtifactSummary{
-			ID:        uuidToString(row.ID),
-			Type:      row.Type,
-			Name:      row.Name,
-			Group:     textToPtr(row.GroupName),
-			SbomCount: sbomCount,
+			ID:            uuidToString(row.ID),
+			Type:          row.Type,
+			Name:          row.Name,
+			Group:         textToPtr(row.GroupName),
+			SbomCount:     sbomCount,
+			SigningStatus: row.SigningStatus,
 		},
 		Purl:         textToPtr(row.Purl),
 		Cpe:          textToPtr(row.Cpe),

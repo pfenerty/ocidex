@@ -431,3 +431,78 @@ func doGet(t *testing.T, url string) (*http.Response, error) {
 	}
 	return http.DefaultClient.Do(req)
 }
+
+// TestArtifactDetailSigningStatusParity verifies the artifact detail endpoint
+// (GET /api/v1/artifacts/{id}) reports the same aggregated signingStatus as the
+// list endpoint (GET /api/v1/artifacts). Regression for ocidex-vbe: the detail
+// query omitted signing_status entirely and always returned "".
+func TestArtifactDetailSigningStatusParity(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireDocker(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+
+	is := is.New(t)
+
+	memberID := seedUser(t, pool, 8100, "signing-parity-member", "member")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "signing-parity-test", "read-write")
+	is.NoErr(err)
+
+	// Ingest an SBOM.
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", minimalSBOM, memberKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	var ingestResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingestResp))
+	resp.Body.Close()
+	sbomID := ingestResp["id"].(string)
+
+	// Resolve the artifact ID via the list endpoint; before enrichment both
+	// surfaces should agree on "unsigned".
+	listArtifact := firstArtifact(t, srv.URL, memberKey)
+	artifactID := listArtifact["id"].(string)
+	is.Equal(listArtifact["signingStatus"], "unsigned")
+
+	// Seed a verified provenance enrichment for the ingested SBOM.
+	_, err = pool.Exec(t.Context(),
+		`INSERT INTO enrichment (sbom_id, enricher_name, status, data)
+		 VALUES ($1::uuid, 'provenance', 'success', $2::jsonb)`,
+		sbomID, `{"verified": true, "signaturePresent": true}`)
+	is.NoErr(err)
+
+	// List endpoint must now report "verified".
+	listArtifact = firstArtifact(t, srv.URL, memberKey)
+	is.Equal(listArtifact["signingStatus"], "verified")
+
+	// Detail endpoint must report the SAME value (regression: was "").
+	resp, err = doWithAuth(t, http.MethodGet, fmt.Sprintf("%s/api/v1/artifacts/%s", srv.URL, artifactID), "", memberKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var detailResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&detailResp))
+	resp.Body.Close()
+	is.Equal(detailResp["signingStatus"], "verified")
+	is.Equal(detailResp["signingStatus"], listArtifact["signingStatus"])
+}
+
+// firstArtifact fetches the artifact list (all visibility) and returns the sole
+// artifact map, failing if there is not exactly one.
+func firstArtifact(t *testing.T, baseURL, apiKey string) map[string]any {
+	t.Helper()
+	is := is.New(t)
+	resp, err := doWithAuth(t, http.MethodGet, baseURL+"/api/v1/artifacts?sufficient=false", "", apiKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var listResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&listResp))
+	resp.Body.Close()
+	data := listResp["data"].([]any)
+	is.Equal(len(data), 1)
+	return data[0].(map[string]any)
+}
