@@ -27,32 +27,39 @@ const insertComponent = `-- name: InsertComponent :one
 INSERT INTO component (
     sbom_id, parent_id, bom_ref, type, name, group_name,
     version, version_major, version_minor, version_patch,
-    purl, cpe, description, scope, publisher, copyright
+    purl, cpe, description, scope, publisher, copyright,
+    layer_id, found_by, source_package, source_version, source_purl
 ) VALUES (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10,
-    $11, $12, $13, $14, $15, $16
+    $11, $12, $13, $14, $15, $16,
+    $17, $18, $19, $20, $21
 )
 RETURNING id
 `
 
 type InsertComponentParams struct {
-	SbomID       pgtype.UUID `json:"sbom_id"`
-	ParentID     pgtype.UUID `json:"parent_id"`
-	BomRef       pgtype.Text `json:"bom_ref"`
-	Type         string      `json:"type"`
-	Name         string      `json:"name"`
-	GroupName    pgtype.Text `json:"group_name"`
-	Version      pgtype.Text `json:"version"`
-	VersionMajor pgtype.Int4 `json:"version_major"`
-	VersionMinor pgtype.Int4 `json:"version_minor"`
-	VersionPatch pgtype.Int4 `json:"version_patch"`
-	Purl         pgtype.Text `json:"purl"`
-	Cpe          pgtype.Text `json:"cpe"`
-	Description  pgtype.Text `json:"description"`
-	Scope        pgtype.Text `json:"scope"`
-	Publisher    pgtype.Text `json:"publisher"`
-	Copyright    pgtype.Text `json:"copyright"`
+	SbomID        pgtype.UUID `json:"sbom_id"`
+	ParentID      pgtype.UUID `json:"parent_id"`
+	BomRef        pgtype.Text `json:"bom_ref"`
+	Type          string      `json:"type"`
+	Name          string      `json:"name"`
+	GroupName     pgtype.Text `json:"group_name"`
+	Version       pgtype.Text `json:"version"`
+	VersionMajor  pgtype.Int4 `json:"version_major"`
+	VersionMinor  pgtype.Int4 `json:"version_minor"`
+	VersionPatch  pgtype.Int4 `json:"version_patch"`
+	Purl          pgtype.Text `json:"purl"`
+	Cpe           pgtype.Text `json:"cpe"`
+	Description   pgtype.Text `json:"description"`
+	Scope         pgtype.Text `json:"scope"`
+	Publisher     pgtype.Text `json:"publisher"`
+	Copyright     pgtype.Text `json:"copyright"`
+	LayerID       pgtype.Text `json:"layer_id"`
+	FoundBy       pgtype.Text `json:"found_by"`
+	SourcePackage pgtype.Text `json:"source_package"`
+	SourceVersion pgtype.Text `json:"source_version"`
+	SourcePurl    pgtype.Text `json:"source_purl"`
 }
 
 func (q *Queries) InsertComponent(ctx context.Context, arg InsertComponentParams) (pgtype.UUID, error) {
@@ -73,6 +80,11 @@ func (q *Queries) InsertComponent(ctx context.Context, arg InsertComponentParams
 		arg.Scope,
 		arg.Publisher,
 		arg.Copyright,
+		arg.LayerID,
+		arg.FoundBy,
+		arg.SourcePackage,
+		arg.SourceVersion,
+		arg.SourcePurl,
 	)
 	var id pgtype.UUID
 	err := row.Scan(&id)
