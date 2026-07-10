@@ -65,15 +65,15 @@ func (s *searchService) ListTopVulnerabilities(ctx context.Context, filter TopVu
 func (s *searchService) GetVulnerabilityDetail(
 	ctx context.Context, id string,
 	limit, offset int32, vis VisibilityFilter,
-) (*VulnDetail, PagedResult[AffectedArtifact], []AffectedComponent, error) {
+) (*VulnDetail, PagedResult[AffectedArtifact], PagedResult[AffectedComponent], error) {
 	q := repository.New(s.db)
 
 	row, err := q.GetVulnerabilityByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, PagedResult[AffectedArtifact]{}, nil, nil
+			return nil, PagedResult[AffectedArtifact]{}, PagedResult[AffectedComponent]{}, nil
 		}
-		return nil, PagedResult[AffectedArtifact]{}, nil, err
+		return nil, PagedResult[AffectedArtifact]{}, PagedResult[AffectedComponent]{}, err
 	}
 
 	detail := &VulnDetail{
@@ -97,7 +97,7 @@ func (s *searchService) GetVulnerabilityDetail(
 
 	refRows, err := q.ListVulnerabilityRefs(ctx, id)
 	if err != nil {
-		return nil, PagedResult[AffectedArtifact]{}, nil, err
+		return nil, PagedResult[AffectedArtifact]{}, PagedResult[AffectedComponent]{}, err
 	}
 	refs := make([]VulnReference, 0, len(refRows))
 	for _, r := range refRows {
@@ -113,7 +113,7 @@ func (s *searchService) GetVulnerabilityDetail(
 		RowOffset:   pgtype.Int4{Int32: offset, Valid: true},
 	})
 	if err != nil {
-		return nil, PagedResult[AffectedArtifact]{}, nil, err
+		return nil, PagedResult[AffectedArtifact]{}, PagedResult[AffectedComponent]{}, err
 	}
 
 	var total int64
@@ -140,11 +140,33 @@ func (s *searchService) GetVulnerabilityDetail(
 		IsAdmin:     visAdminBool(vis),
 	})
 	if err != nil {
-		return nil, PagedResult[AffectedArtifact]{}, nil, err
+		return nil, PagedResult[AffectedArtifact]{}, PagedResult[AffectedComponent]{}, err
 	}
+	components, componentsTotal := buildAffectedComponents(componentRows)
 
-	components := make([]AffectedComponent, 0, len(componentRows))
-	for _, r := range componentRows {
+	return detail, PagedResult[AffectedArtifact]{
+			Data:   items,
+			Total:  total,
+			Limit:  limit,
+			Offset: offset,
+		}, PagedResult[AffectedComponent]{
+			Data:   components,
+			Total:  componentsTotal,
+			Limit:  affectedComponentsLimit,
+			Offset: 0,
+		}, nil
+}
+
+// affectedComponentsLimit mirrors the LIMIT in ListAffectedComponentsByVuln.
+const affectedComponentsLimit = 100
+
+func buildAffectedComponents(rows []repository.ListAffectedComponentsByVulnRow) ([]AffectedComponent, int64) {
+	var total int64
+	components := make([]AffectedComponent, 0, len(rows))
+	for _, r := range rows {
+		if total == 0 {
+			total = r.TotalCount
+		}
 		c := AffectedComponent{
 			Name:                 r.Name,
 			AffectedVersionCount: r.AffectedVersionCount,
@@ -157,13 +179,7 @@ func (s *searchService) GetVulnerabilityDetail(
 		}
 		components = append(components, c)
 	}
-
-	return detail, PagedResult[AffectedArtifact]{
-		Data:   items,
-		Total:  total,
-		Limit:  limit,
-		Offset: offset,
-	}, components, nil
+	return components, total
 }
 
 func severityOrUnknown(t pgtype.Text) string {

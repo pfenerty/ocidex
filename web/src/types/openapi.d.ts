@@ -1436,6 +1436,7 @@ export interface components {
             readonly $schema?: string;
             affectedArtifacts: components["schemas"]["AffectedArtifact"][] | null;
             affectedComponents: components["schemas"]["AffectedComponent"][] | null;
+            componentsPagination: components["schemas"]["PaginationMeta"];
             pagination: components["schemas"]["PaginationMeta"];
             vulnerability: components["schemas"]["VulnDetail"];
         };

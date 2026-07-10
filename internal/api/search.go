@@ -579,7 +579,8 @@ func (h *Handler) GetVulnerability(ctx context.Context, input *GetVulnerabilityI
 	}
 	out := &GetVulnerabilityOutput{}
 	out.Body.Vulnerability = *detail
-	out.Body.AffectedComponents = components
+	out.Body.AffectedComponents = components.Data
+	out.Body.ComponentsPagination = paginationMeta(components)
 	out.Body.AffectedArtifacts = artifacts.Data
 	out.Body.Pagination = paginationMeta(artifacts)
 	return out, nil
