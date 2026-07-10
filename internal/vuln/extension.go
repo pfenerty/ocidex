@@ -16,14 +16,25 @@ type IngestVulnExtension struct {
 	refresher *RefreshService
 	logger    *slog.Logger
 	enabled   bool
+	sem       chan struct{}
 }
 
-// NewIngestVulnExtension constructs an IngestVulnExtension.
-func NewIngestVulnExtension(store Store, refresher *RefreshService, logger *slog.Logger, enabled bool) *IngestVulnExtension {
+// NewIngestVulnExtension constructs an IngestVulnExtension. maxConcurrency caps
+// how many OSV lookups can run at once; values below 1 are treated as 1.
+func NewIngestVulnExtension(store Store, refresher *RefreshService, logger *slog.Logger, enabled bool, maxConcurrency int) *IngestVulnExtension {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &IngestVulnExtension{store: store, refresher: refresher, logger: logger, enabled: enabled}
+	if maxConcurrency < 1 {
+		maxConcurrency = 1
+	}
+	return &IngestVulnExtension{
+		store:     store,
+		refresher: refresher,
+		logger:    logger,
+		enabled:   enabled,
+		sem:       make(chan struct{}, maxConcurrency),
+	}
 }
 
 func (e *IngestVulnExtension) Name() string { return "vuln-ingest-lookup" }
@@ -40,6 +51,9 @@ func (e *IngestVulnExtension) Init(bus *event.Bus) error {
 			return
 		}
 		go func() { //nolint:gosec // G118: intentionally fresh context — goroutine outlives the event handler
+			e.sem <- struct{}{}
+			defer func() { <-e.sem }()
+
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
 
