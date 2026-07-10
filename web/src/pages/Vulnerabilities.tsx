@@ -7,7 +7,7 @@ import { StatusPill } from "~/components/ui/Badge";
 import { severityVariant } from "~/components/VulnBadge";
 import { VulnId } from "~/components/VulnId";
 
-const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW"] as const;
+const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"] as const;
 const limit = 50;
 
 export default function Vulnerabilities() {
