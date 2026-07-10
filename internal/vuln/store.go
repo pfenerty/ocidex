@@ -130,6 +130,9 @@ func (s *PGStore) ReplacePackageVulns(ctx context.Context, purl string, refs []P
 			return fmt.Errorf("insert mapping: %w", err)
 		}
 	}
+	if err := qtx.UpsertPurlVulnState(ctx, purl); err != nil {
+		return fmt.Errorf("upsert purl state: %w", err)
+	}
 	return tx.Commit(ctx)
 }
 
