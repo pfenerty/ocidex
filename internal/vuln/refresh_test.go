@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -58,6 +59,8 @@ type fakeStore struct {
 	upsertedEcos      map[string]time.Time       // ecosystem → value written by UpsertEcosystemState
 	storedModifiedAts map[string]time.Time       // id → stored modified_at (for skip logic)
 	storedRaw         map[string]json.RawMessage // id → stored raw JSON (for cache load)
+	unknownForSBOM    []string                   // purls returned by ListUnknownPurlsForSBOM
+	mu                sync.Mutex                 // guards mappings against concurrent ReplacePackageVulns calls
 }
 
 func newFakeStore(purls ...string) *fakeStore {
@@ -130,6 +133,8 @@ func (s *fakeStore) ReplaceVulnerabilityRefs(_ context.Context, _ string, _ []Re
 	return nil
 }
 func (s *fakeStore) ReplacePackageVulns(_ context.Context, purl string, refs []PackageVulnRef) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.mappings[purl] = refs
 	return nil
 }
@@ -138,7 +143,7 @@ func (s *fakeStore) ListUnknownComponentPurls(_ context.Context) ([]string, erro
 }
 
 func (s *fakeStore) ListUnknownPurlsForSBOM(_ context.Context, _ pgtype.UUID) ([]string, error) {
-	return nil, nil
+	return s.unknownForSBOM, nil
 }
 func (s *fakeStore) LastRefreshedAt(context.Context) (time.Time, bool, error) {
 	return s.last, s.lastOK, nil
