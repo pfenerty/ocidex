@@ -20,6 +20,7 @@ const (
 	defaultBaseURL   = "https://api.osv.dev"
 	defaultBatchSize = 1000 // OSV querybatch accepts up to 1000 queries per request
 	defaultTimeout   = 30 * time.Second
+	maxQueryPages    = 20 // guard against an unbounded page_token loop
 )
 
 // Record is the subset of an OSV vulnerability record that we persist. Raw holds
@@ -80,11 +81,16 @@ type Range struct {
 	Events []Event `json:"events"`
 }
 
-// Event is one boundary in a Range; exactly one field is set.
+// Event is one boundary in a Range; exactly one field is set. Introduced marks
+// the start of an affected interval. Fixed marks the first unaffected version
+// (exclusive upper bound). LastAffected marks the last known affected version
+// (inclusive upper bound) for advisories where no fixed version is known yet.
+// Limit is not currently interpreted by matchedFixed.
 type Event struct {
-	Introduced string `json:"introduced"`
-	Fixed      string `json:"fixed"`
-	Limit      string `json:"limit"`
+	Introduced   string `json:"introduced"`
+	Fixed        string `json:"fixed"`
+	LastAffected string `json:"last_affected"`
+	Limit        string `json:"limit"`
 }
 
 // Client talks to the OSV.dev REST API.
@@ -139,7 +145,8 @@ func NewClient(opts ...Option) *Client {
 
 // batchQuery / batchResult mirror the OSV /v1/querybatch request and response.
 type batchQuery struct {
-	Package AffectedPackage `json:"package"`
+	Package   AffectedPackage `json:"package"`
+	PageToken string          `json:"page_token,omitempty"`
 }
 
 type batchResult struct {
@@ -152,15 +159,21 @@ type batchResult struct {
 	} `json:"results"`
 }
 
-// QueryPurls returns, for each input purl, the IDs of vulnerabilities affecting
-// it. OSV performs the version matching server-side (the purl carries the
-// version), so no local range matching is needed. purls with no vulns map to an
-// empty slice. Input is chunked to respect the OSV batch limit.
-//
-// Per-query pagination (a package with more vulns than one page) is not followed;
-// OSV returns up to 1000 vulns per query, which comfortably covers real packages.
-func (c *Client) QueryPurls(ctx context.Context, purls []string) (map[string][]string, error) {
-	out := make(map[string][]string, len(purls))
+// QueryRef is a (ID, Modified) pair from an OSV querybatch response. Modified is
+// the RFC3339 timestamp string as returned by the API; it is compared against the
+// stored modified_at to detect unchanged records and skip unnecessary GETs.
+type QueryRef struct {
+	ID       string
+	Modified string
+}
+
+// QueryPurls returns, for each input purl, the QueryRefs (ID + Modified) of
+// vulnerabilities affecting it. OSV performs version matching server-side.
+// Purls with no vulns map to an empty slice. Input is chunked to respect the
+// OSV batch limit; per-purl pagination (next_page_token) is followed until
+// exhausted or maxQueryPages is reached.
+func (c *Client) QueryPurls(ctx context.Context, purls []string) (map[string][]QueryRef, error) {
+	out := make(map[string][]QueryRef, len(purls))
 	for start := 0; start < len(purls); start += c.batchSize {
 		end := start + c.batchSize
 		if end > len(purls) {
@@ -174,27 +187,51 @@ func (c *Client) QueryPurls(ctx context.Context, purls []string) (map[string][]s
 	return out, nil
 }
 
-func (c *Client) queryChunk(ctx context.Context, purls []string, out map[string][]string) error {
-	body := struct {
-		Queries []batchQuery `json:"queries"`
-	}{Queries: make([]batchQuery, len(purls))}
-	for i, p := range purls {
-		body.Queries[i] = batchQuery{Package: AffectedPackage{Purl: p}}
+func (c *Client) queryChunk(ctx context.Context, purls []string, out map[string][]QueryRef) error {
+	acc := make(map[string][]QueryRef, len(purls))
+
+	pending := purls
+	tokens := make(map[string]string, len(purls))
+	for page := 0; len(pending) > 0; page++ {
+		if page >= maxQueryPages {
+			return fmt.Errorf("osv querybatch: exceeded %d pages", maxQueryPages)
+		}
+
+		body := struct {
+			Queries []batchQuery `json:"queries"`
+		}{Queries: make([]batchQuery, len(pending))}
+		for i, p := range pending {
+			body.Queries[i] = batchQuery{Package: AffectedPackage{Purl: p}, PageToken: tokens[p]}
+		}
+
+		var res batchResult
+		if err := c.postJSON(ctx, "/v1/querybatch", body, &res); err != nil {
+			return err
+		}
+		if len(res.Results) != len(pending) {
+			return fmt.Errorf("osv querybatch: got %d results for %d queries", len(res.Results), len(pending))
+		}
+
+		next := make([]string, 0)
+		for i, r := range res.Results {
+			p := pending[i]
+			for _, v := range r.Vulns {
+				acc[p] = append(acc[p], QueryRef{ID: v.ID, Modified: v.Modified})
+			}
+			if r.NextPageToken != "" {
+				tokens[p] = r.NextPageToken
+				next = append(next, p)
+			}
+		}
+		pending = next
 	}
 
-	var res batchResult
-	if err := c.postJSON(ctx, "/v1/querybatch", body, &res); err != nil {
-		return err
-	}
-	if len(res.Results) != len(purls) {
-		return fmt.Errorf("osv querybatch: got %d results for %d queries", len(res.Results), len(purls))
-	}
-	for i, r := range res.Results {
-		ids := make([]string, 0, len(r.Vulns))
-		for _, v := range r.Vulns {
-			ids = append(ids, v.ID)
+	for _, p := range purls {
+		refs := acc[p]
+		if refs == nil {
+			refs = []QueryRef{}
 		}
-		out[purls[i]] = ids
+		out[p] = refs
 	}
 	return nil
 }

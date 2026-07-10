@@ -221,7 +221,7 @@ func setupIngestVulnLookup(cfg *config.Config, pool *pgxpool.Pool, reg *extensio
 		vuln.WithBatchSize(cfg.OSVBatchSize),
 	)
 	refresher := vuln.NewRefreshService(store, client, logger)
-	reg.Register(vuln.NewIngestVulnExtension(store, refresher, logger, cfg.IngestVulnLookupEnabled))
+	reg.Register(vuln.NewIngestVulnExtension(store, refresher, logger, cfg.IngestVulnLookupEnabled, cfg.IngestVulnLookupMaxConcurrency))
 }
 
 func setupOptionalExts(cfg *config.Config, reg *extension.Manager, natsClient *natspkg.Client, logger *slog.Logger) {

@@ -1,28 +1,33 @@
 package vuln
 
-// purlTypeToEcosystem maps purl type tokens to OSV ecosystem names used in
-// the modified_id.csv URL path (e.g. "npm" → "npm", "pypi" → "PyPI").
+// purlTypeToEcosystems maps purl type tokens to one or more OSV ecosystem names used in
+// the modified_id.csv URL path (e.g. "npm" → ["npm"], "apk" → ["Alpine","Wolfi","Chainguard"]).
+// Multi-value types (apk, deb) include all ecosystems that share the purl type so that a
+// Wolfi or Ubuntu advisory advancing its CSV is detected even if Alpine/Debian did not change.
 // Types absent from this map are treated as unknown and always refreshed.
-var purlTypeToEcosystem = map[string]string{
-	"npm":      "npm", //nolint:goconst // "npm" key+value string appears >3x across test files
-	"pypi":     "PyPI",
-	"maven":    "Maven",
-	"golang":   "Go",
-	"go":       "Go",
-	"cargo":    "crates.io",
-	"gem":      "RubyGems",
-	"nuget":    "NuGet",
-	"composer": "Packagist",
-	"apk":      "Alpine",
-	"deb":      "Debian",
-	"hex":      "Hex",
-	"pub":      "Pub",
-	"swift":    "SwiftURL",
+var purlTypeToEcosystems = map[string][]string{
+	"npm":      {"npm"}, //nolint:goconst // "npm" appears as both key and value; test files add ≥3 more occurrences
+	"pypi":     {"PyPI"},
+	"maven":    {"Maven"},
+	"golang":   {"Go"},
+	"go":       {"Go"},
+	"cargo":    {"crates.io"},
+	"gem":      {"RubyGems"},
+	"nuget":    {"NuGet"},
+	"composer": {"Packagist"},
+	"apk":      {"Alpine", "Wolfi", "Chainguard"}, //nolint:goconst // "Alpine" threshold crossed by test-file ecosystem-state maps
+	"deb":      {"Debian", "Ubuntu"},
+	"hex":      {"Hex"},
+	"pub":      {"Pub"},
+	"swift":    {"SwiftURL"},
+	"cran":     {"CRAN"},
+	"conan":    {"ConanCenter"},
+	"bitnami":  {"Bitnami"},
 }
 
-// PurlTypeToOSVEcosystem maps a purl type token to its OSV ecosystem name.
-// Returns ("", false) for unknown types.
-func PurlTypeToOSVEcosystem(purlType string) (string, bool) {
-	eco, ok := purlTypeToEcosystem[purlType]
-	return eco, ok
+// PurlTypeToOSVEcosystems returns the OSV ecosystem names for the given purl type.
+// Returns (nil, false) for unknown types.
+func PurlTypeToOSVEcosystems(purlType string) ([]string, bool) {
+	ecos, ok := purlTypeToEcosystems[purlType]
+	return ecos, ok
 }
