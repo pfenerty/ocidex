@@ -331,6 +331,24 @@ export default function ComponentOverview() {
                                                                 <span class="detail-value">{detail.sourcePackage}</span>
                                                             </div>
                                                         </Show>
+                                                        <Show when={detail.layer !== undefined}>
+                                                            <div class="detail-field">
+                                                                <span class="detail-label">Layer</span>
+                                                                <span class="detail-value">
+                                                                    {detail.layer}
+                                                                    <Show when={detail.fromBaseImage}>
+                                                                        <span style={{ "margin-left": "8px" }}>
+                                                                            <StatusPill
+                                                                                variant="primary"
+                                                                                title="Introduced by the image's base layer"
+                                                                            >
+                                                                                base image
+                                                                            </StatusPill>
+                                                                        </span>
+                                                                    </Show>
+                                                                </span>
+                                                            </div>
+                                                        </Show>
                                                     </div>
 
                                                     <Show when={hasText(detail.description)}>
