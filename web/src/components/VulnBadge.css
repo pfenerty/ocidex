@@ -28,27 +28,30 @@
     text-align: center;
 }
 
-.vuln-chip-n.vuln-chip-critical {
+/* Shared de-escalating redscale — one definition, applied to both the
+   compact VulnCountBadges chip segments (.vuln-chip-n) and full-size
+   SeverityPill badges (.badge.badge-sm) across the app. */
+.sev-critical {
     background: var(--color-primary);
     color: #fff;
 }
 
-.vuln-chip-n.vuln-chip-high {
+.sev-high {
     background: var(--color-danger);
     color: #fff;
 }
 
-.vuln-chip-n.vuln-chip-medium {
+.sev-medium {
     background: color-mix(in srgb, var(--color-danger) 60%, white 40%);
     color: rgba(0, 0, 0, 0.75);
 }
 
-.vuln-chip-n.vuln-chip-low {
+.sev-low {
     background: color-mix(in srgb, var(--color-danger) 30%, white 70%);
     color: rgba(0, 0, 0, 0.75);
 }
 
-.vuln-chip-n.vuln-chip-default {
+.sev-default {
     background: var(--color-surface-hover);
     color: var(--color-text-muted);
 }
