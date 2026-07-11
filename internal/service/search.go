@@ -362,6 +362,13 @@ type ComponentDetail struct {
 	Hashes       []HashEntry        `json:"hashes"`
 	Licenses     []LicenseSummary   `json:"licenses"`
 	ExternalRefs []ExternalRefEntry `json:"externalReferences"`
+	// FoundBy is the syft cataloger that detected this component (e.g.
+	// "deb-db-cataloger", "binary-cataloger").
+	FoundBy *string `json:"foundBy,omitempty"`
+	// Confidence is derived at read time from FoundBy, not stored. Only set
+	// to "low" for binary-cataloger detections (no package-manager DB behind
+	// them); nil otherwise.
+	Confidence *string `json:"confidence,omitempty"`
 }
 
 // HashEntry represents a component hash.

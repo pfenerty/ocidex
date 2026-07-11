@@ -43,9 +43,15 @@ func scanVisible(v bool) func(...any) error {
 	}
 }
 
-// scanComponentRow returns a scan function for GetComponentRow (14 fields).
-// Only sets ID, SbomID, Type, and Name; remaining fields stay zero.
+// scanComponentRow returns a scan function for GetComponentRow (15 fields).
+// Only sets ID, SbomID, Type, Name, and FoundBy; remaining fields stay zero.
 func scanComponentRow(id, sbomID pgtype.UUID, typ, name string) func(...any) error {
+	return scanComponentRowWithFoundBy(id, sbomID, typ, name, "")
+}
+
+// scanComponentRowWithFoundBy is scanComponentRow with an explicit found_by
+// value, for exercising GetComponent's derived Confidence mapping.
+func scanComponentRowWithFoundBy(id, sbomID pgtype.UUID, typ, name, foundBy string) func(...any) error {
 	return func(dest ...any) error {
 		*(dest[0].(*pgtype.UUID)) = id
 		*(dest[1].(*pgtype.UUID)) = sbomID
@@ -54,6 +60,9 @@ func scanComponentRow(id, sbomID pgtype.UUID, typ, name string) func(...any) err
 		*(dest[4].(*string)) = typ
 		*(dest[5].(*string)) = name
 		// dest[6..13] GroupName, Version, Purl, Cpe, Description, Scope, Publisher, Copyright — zero
+		if foundBy != "" {
+			*(dest[14].(*pgtype.Text)) = pgtype.Text{String: foundBy, Valid: true}
+		}
 		return nil
 	}
 }
@@ -305,4 +314,64 @@ func TestGetComponent_Success(t *testing.T) {
 	is.Equal(len(detail.Hashes), 0)
 	is.Equal(len(detail.Licenses), 0)
 	is.Equal(len(detail.ExternalRefs), 0)
+	is.True(detail.FoundBy == nil)
+	is.True(detail.Confidence == nil)
+}
+
+// TestGetComponent_FoundByAndConfidence verifies FoundBy is passed through
+// and Confidence is derived at read time: nil for any cataloger except
+// binary-cataloger, which maps to "low".
+func TestGetComponent_FoundByAndConfidence(t *testing.T) {
+	tests := []struct {
+		name           string
+		foundBy        string
+		wantFoundBy    *string
+		wantConfidence *string
+	}{
+		{name: "db-backed cataloger", foundBy: "deb-db-cataloger", wantFoundBy: strPtr("deb-db-cataloger"), wantConfidence: nil},
+		{name: "binary cataloger", foundBy: "binary-cataloger", wantFoundBy: strPtr("binary-cataloger"), wantConfidence: strPtr("low")},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			is := is.New(t)
+
+			compID := newUUID(t)
+			sbomID := newUUID2(t)
+			callIdx := 0
+
+			db := &fakeDB{
+				queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
+					callIdx++
+					switch callIdx {
+					case 1: // GetComponent
+						return &fakeRow{scanFn: scanComponentRowWithFoundBy(compID, sbomID, "library", "openssl", tc.foundBy)}
+					case 2: // IsSBOMVisible
+						return &fakeRow{scanFn: scanVisible(true)}
+					default:
+						return noRowsRow{}
+					}
+				},
+				queryFn: func(_ context.Context, _ string, _ ...any) (pgx.Rows, error) {
+					return emptyRows(), nil
+				},
+			}
+
+			svc := NewSearchService(db)
+			detail, err := svc.GetComponent(context.Background(), compID, VisibilityFilter{})
+
+			is.NoErr(err)
+			is.Equal(deref(detail.FoundBy), deref(tc.wantFoundBy))
+			is.Equal(deref(detail.Confidence), deref(tc.wantConfidence))
+		})
+	}
+}
+
+func strPtr(s string) *string { return &s }
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

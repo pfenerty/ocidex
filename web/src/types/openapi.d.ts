@@ -993,11 +993,13 @@ export interface components {
              */
             readonly $schema?: string;
             bomRef?: string;
+            confidence?: string;
             copyright?: string;
             cpe?: string;
             descendantChanges?: components["schemas"]["ChangeCounts"];
             description?: string;
             externalReferences: components["schemas"]["ExternalRefEntry"][] | null;
+            foundBy?: string;
             group?: string;
             hashes: components["schemas"]["HashEntry"][] | null;
             id: string;

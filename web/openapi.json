@@ -405,6 +405,9 @@
           "bomRef": {
             "type": "string"
           },
+          "confidence": {
+            "type": "string"
+          },
           "copyright": {
             "type": "string"
           },
@@ -425,6 +428,9 @@
               "array",
               "null"
             ]
+          },
+          "foundBy": {
+            "type": "string"
           },
           "group": {
             "type": "string"

@@ -37,7 +37,7 @@ func (q *Queries) CountSBOMPackages(ctx context.Context, sbomID pgtype.UUID) (in
 
 const getComponent = `-- name: GetComponent :one
 SELECT id, sbom_id, parent_id, bom_ref, type, name, group_name,
-       version, purl, cpe, description, scope, publisher, copyright
+       version, purl, cpe, description, scope, publisher, copyright, found_by
 FROM component
 WHERE id = $1
 `
@@ -57,6 +57,7 @@ type GetComponentRow struct {
 	Scope       pgtype.Text `json:"scope"`
 	Publisher   pgtype.Text `json:"publisher"`
 	Copyright   pgtype.Text `json:"copyright"`
+	FoundBy     pgtype.Text `json:"found_by"`
 }
 
 func (q *Queries) GetComponent(ctx context.Context, id pgtype.UUID) (GetComponentRow, error) {
@@ -77,6 +78,7 @@ func (q *Queries) GetComponent(ctx context.Context, id pgtype.UUID) (GetComponen
 		&i.Scope,
 		&i.Publisher,
 		&i.Copyright,
+		&i.FoundBy,
 	)
 	return i, err
 }
