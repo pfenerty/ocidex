@@ -38,6 +38,11 @@
     color: rgba(0, 0, 0, 0.75);
 }
 
+.vuln-chip-n.vuln-chip-low {
+    background: var(--color-secondary);
+    color: #fff;
+}
+
 .vuln-chip-n.vuln-chip-default {
     background: var(--color-surface-hover);
     color: var(--color-text-muted);
