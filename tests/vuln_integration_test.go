@@ -569,3 +569,84 @@ func TestPurlVulnStateSkipsCleanPurls(t *testing.T) {
 	is.NoErr(err)
 	is.True(slices.Contains(unknownGlobal, addUserPurl))
 }
+
+// TestSourcePurlIncludedInGatherQueries verifies a component's derived
+// source_purl (e.g. a source RPM/deb purl) is picked up alongside its
+// binary purl by every purl-gathering query the OSV refresh pipeline uses,
+// and that a source purl coinciding with an existing binary purl doesn't
+// produce a duplicate entry (ocidex-5ur.7).
+func TestSourcePurlIncludedInGatherQueries(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireDocker(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+
+	is := is.New(t)
+	store := vuln.NewPGStore(pool)
+
+	memberID := seedUser(t, pool, 8007, "source-purl-member", "member")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "source-purl-test", "read-write")
+	is.NoErr(err)
+
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", minimalSBOM, memberKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	var ingestResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingestResp))
+	resp.Body.Close()
+	var sbomID pgtype.UUID
+	is.NoErr(sbomID.Scan(ingestResp["id"].(string)))
+
+	// Give adduser a derived source purl distinct from its binary purl.
+	const addUserSourcePurl = "pkg:deb/ubuntu/adduser@3.118ubuntu2?arch=src&distro=ubuntu-24.04"
+	_, err = pool.Exec(t.Context(),
+		"UPDATE component SET source_purl = $1 WHERE sbom_id = $2 AND purl = $3",
+		addUserSourcePurl, sbomID, addUserPurl)
+	is.NoErr(err)
+
+	// Give apt a source purl that happens to coincide with adduser's binary
+	// purl — the union must not produce a duplicate entry for addUserPurl.
+	_, err = pool.Exec(t.Context(),
+		"UPDATE component SET source_purl = $1 WHERE sbom_id = $2 AND purl = $3",
+		addUserPurl, sbomID, aptPurl)
+	is.NoErr(err)
+
+	// Full-refresh feed includes the new source purl, with no duplicate for
+	// the coinciding purl.
+	all, err := store.ListDistinctComponentPurls(t.Context())
+	is.NoErr(err)
+	is.True(slices.Contains(all, addUserSourcePurl))
+	is.Equal(countOccurrences(all, addUserPurl), 1)
+
+	// Ecosystem-type filtered feed (incremental refresh) also includes it.
+	byType, err := store.ListDistinctComponentPurlsByTypes(t.Context(), []string{"deb"})
+	is.NoErr(err)
+	is.True(slices.Contains(byType, addUserSourcePurl))
+	is.Equal(countOccurrences(byType, addUserPurl), 1)
+
+	// Never checked against OSV yet, so it's "unknown" both per-SBOM and
+	// globally.
+	unknownForSBOM, err := store.ListUnknownPurlsForSBOM(t.Context(), sbomID)
+	is.NoErr(err)
+	is.True(slices.Contains(unknownForSBOM, addUserSourcePurl))
+
+	unknownGlobal, err := store.ListUnknownComponentPurls(t.Context())
+	is.NoErr(err)
+	is.True(slices.Contains(unknownGlobal, addUserSourcePurl))
+}
+
+func countOccurrences(s []string, target string) int {
+	n := 0
+	for _, v := range s {
+		if v == target {
+			n++
+		}
+	}
+	return n
+}
