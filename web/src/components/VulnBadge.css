@@ -11,3 +11,34 @@
     font-weight: 600;
     color: var(--color-text-muted);
 }
+
+.vuln-chip {
+    display: inline-flex;
+    align-items: baseline;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.vuln-chip-sep {
+    color: var(--color-text-muted);
+    opacity: 0.4;
+    margin: 0 0.2em;
+}
+
+.vuln-chip-n {
+    min-width: 1ch;
+    text-align: center;
+}
+
+.vuln-chip-n.vuln-chip-danger {
+    color: var(--color-danger);
+}
+
+.vuln-chip-n.vuln-chip-warning {
+    color: var(--color-warning);
+}
+
+.vuln-chip-n.vuln-chip-default {
+    color: var(--color-text-muted);
+}
