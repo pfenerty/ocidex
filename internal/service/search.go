@@ -132,6 +132,9 @@ type ComponentVulnEntry struct {
 	CvssScore    *float32 `json:"cvssScore,omitempty"`
 	Summary      *string  `json:"summary,omitempty"`
 	FixedVersion *string  `json:"fixedVersion,omitempty"`
+	// MatchedViaSource is true when this finding matched the component's
+	// source package purl rather than the component's own purl.
+	MatchedViaSource bool `json:"matchedViaSource"`
 }
 
 // PackageSummary is a distinct package with version and SBOM counts.
@@ -369,6 +372,9 @@ type ComponentDetail struct {
 	// to "low" for binary-cataloger detections (no package-manager DB behind
 	// them); nil otherwise.
 	Confidence *string `json:"confidence,omitempty"`
+	// SourcePackage is the name of the source package this component was
+	// built from (e.g. a Debian source package), when known.
+	SourcePackage *string `json:"sourcePackage,omitempty"`
 }
 
 // HashEntry represents a component hash.
