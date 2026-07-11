@@ -1000,10 +1000,14 @@ export interface components {
             description?: string;
             externalReferences: components["schemas"]["ExternalRefEntry"][] | null;
             foundBy?: string;
+            fromBaseImage?: boolean;
             group?: string;
             hashes: components["schemas"]["HashEntry"][] | null;
             id: string;
             isDirect: boolean;
+            /** Format: int64 */
+            layer?: number;
+            layerId?: string;
             licenses: components["schemas"]["LicenseSummary"][] | null;
             maxSeverity?: string;
             name: string;

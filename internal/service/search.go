@@ -375,6 +375,17 @@ type ComponentDetail struct {
 	// SourcePackage is the name of the source package this component was
 	// built from (e.g. a Debian source package), when known.
 	SourcePackage *string `json:"sourcePackage,omitempty"`
+	// LayerID is the syft-reported content digest of the OCI layer this
+	// component was found in (e.g. "sha256:..."), when known.
+	LayerID *string `json:"layerId,omitempty"`
+	// Layer is LayerID's zero-based position in the image's layer stack,
+	// resolved from the oci-metadata enrichment's layer list. Nil when
+	// LayerID is unset or the enrichment has no matching layer.
+	Layer *int `json:"layer,omitempty"`
+	// FromBaseImage is true when Layer is 0 and the image declares a base
+	// image. Coarse heuristic — only the bottom-most layer is attributed to
+	// the base; multi-layer base images are under-counted. See ADR-0034.
+	FromBaseImage bool `json:"fromBaseImage,omitempty"`
 }
 
 // HashEntry represents a component hash.
