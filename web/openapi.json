@@ -405,6 +405,9 @@
           "bomRef": {
             "type": "string"
           },
+          "confidence": {
+            "type": "string"
+          },
           "copyright": {
             "type": "string"
           },
@@ -426,6 +429,12 @@
               "null"
             ]
           },
+          "foundBy": {
+            "type": "string"
+          },
+          "fromBaseImage": {
+            "type": "boolean"
+          },
           "group": {
             "type": "string"
           },
@@ -443,6 +452,13 @@
           },
           "isDirect": {
             "type": "boolean"
+          },
+          "layer": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "layerId": {
+            "type": "string"
           },
           "licenses": {
             "items": {
@@ -469,6 +485,9 @@
             "type": "string"
           },
           "scope": {
+            "type": "string"
+          },
+          "sourcePackage": {
             "type": "string"
           },
           "type": {
@@ -675,6 +694,9 @@
           "id": {
             "type": "string"
           },
+          "matchedViaSource": {
+            "type": "boolean"
+          },
           "severity": {
             "type": "string"
           },
@@ -685,7 +707,8 @@
         "required": [
           "id",
           "canonicalId",
-          "severity"
+          "severity",
+          "matchedViaSource"
         ],
         "type": "object"
       },

@@ -993,15 +993,21 @@ export interface components {
              */
             readonly $schema?: string;
             bomRef?: string;
+            confidence?: string;
             copyright?: string;
             cpe?: string;
             descendantChanges?: components["schemas"]["ChangeCounts"];
             description?: string;
             externalReferences: components["schemas"]["ExternalRefEntry"][] | null;
+            foundBy?: string;
+            fromBaseImage?: boolean;
             group?: string;
             hashes: components["schemas"]["HashEntry"][] | null;
             id: string;
             isDirect: boolean;
+            /** Format: int64 */
+            layer?: number;
+            layerId?: string;
             licenses: components["schemas"]["LicenseSummary"][] | null;
             maxSeverity?: string;
             name: string;
@@ -1009,6 +1015,7 @@ export interface components {
             purl?: string;
             sbomId: string;
             scope?: string;
+            sourcePackage?: string;
             type: string;
             version?: string;
             /** Format: int64 */
@@ -1073,6 +1080,7 @@ export interface components {
             cvssScore?: number;
             fixedVersion?: string;
             id: string;
+            matchedViaSource: boolean;
             severity: string;
             summary?: string;
         };

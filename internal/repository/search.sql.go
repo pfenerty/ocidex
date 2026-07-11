@@ -37,26 +37,31 @@ func (q *Queries) CountSBOMPackages(ctx context.Context, sbomID pgtype.UUID) (in
 
 const getComponent = `-- name: GetComponent :one
 SELECT id, sbom_id, parent_id, bom_ref, type, name, group_name,
-       version, purl, cpe, description, scope, publisher, copyright
+       version, purl, cpe, description, scope, publisher, copyright, found_by,
+       source_purl, source_package, layer_id
 FROM component
 WHERE id = $1
 `
 
 type GetComponentRow struct {
-	ID          pgtype.UUID `json:"id"`
-	SbomID      pgtype.UUID `json:"sbom_id"`
-	ParentID    pgtype.UUID `json:"parent_id"`
-	BomRef      pgtype.Text `json:"bom_ref"`
-	Type        string      `json:"type"`
-	Name        string      `json:"name"`
-	GroupName   pgtype.Text `json:"group_name"`
-	Version     pgtype.Text `json:"version"`
-	Purl        pgtype.Text `json:"purl"`
-	Cpe         pgtype.Text `json:"cpe"`
-	Description pgtype.Text `json:"description"`
-	Scope       pgtype.Text `json:"scope"`
-	Publisher   pgtype.Text `json:"publisher"`
-	Copyright   pgtype.Text `json:"copyright"`
+	ID            pgtype.UUID `json:"id"`
+	SbomID        pgtype.UUID `json:"sbom_id"`
+	ParentID      pgtype.UUID `json:"parent_id"`
+	BomRef        pgtype.Text `json:"bom_ref"`
+	Type          string      `json:"type"`
+	Name          string      `json:"name"`
+	GroupName     pgtype.Text `json:"group_name"`
+	Version       pgtype.Text `json:"version"`
+	Purl          pgtype.Text `json:"purl"`
+	Cpe           pgtype.Text `json:"cpe"`
+	Description   pgtype.Text `json:"description"`
+	Scope         pgtype.Text `json:"scope"`
+	Publisher     pgtype.Text `json:"publisher"`
+	Copyright     pgtype.Text `json:"copyright"`
+	FoundBy       pgtype.Text `json:"found_by"`
+	SourcePurl    pgtype.Text `json:"source_purl"`
+	SourcePackage pgtype.Text `json:"source_package"`
+	LayerID       pgtype.Text `json:"layer_id"`
 }
 
 func (q *Queries) GetComponent(ctx context.Context, id pgtype.UUID) (GetComponentRow, error) {
@@ -77,6 +82,10 @@ func (q *Queries) GetComponent(ctx context.Context, id pgtype.UUID) (GetComponen
 		&i.Scope,
 		&i.Publisher,
 		&i.Copyright,
+		&i.FoundBy,
+		&i.SourcePurl,
+		&i.SourcePackage,
+		&i.LayerID,
 	)
 	return i, err
 }
