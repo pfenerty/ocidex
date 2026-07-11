@@ -996,6 +996,8 @@ export interface components {
             confidence?: string;
             copyright?: string;
             cpe?: string;
+            /** Format: int64 */
+            criticalCount?: number;
             descendantChanges?: components["schemas"]["ChangeCounts"];
             description?: string;
             externalReferences: components["schemas"]["ExternalRefEntry"][] | null;
@@ -1003,13 +1005,19 @@ export interface components {
             fromBaseImage?: boolean;
             group?: string;
             hashes: components["schemas"]["HashEntry"][] | null;
+            /** Format: int64 */
+            highCount?: number;
             id: string;
             isDirect: boolean;
             /** Format: int64 */
             layer?: number;
             layerId?: string;
             licenses: components["schemas"]["LicenseSummary"][] | null;
+            /** Format: int64 */
+            lowCount?: number;
             maxSeverity?: string;
+            /** Format: int64 */
+            mediumCount?: number;
             name: string;
             publisher?: string;
             purl?: string;
@@ -1017,6 +1025,8 @@ export interface components {
             scope?: string;
             sourcePackage?: string;
             type: string;
+            /** Format: int64 */
+            unknownCount?: number;
             version?: string;
             /** Format: int64 */
             vulnCount?: number;
@@ -1033,15 +1043,25 @@ export interface components {
         };
         ComponentSummary: {
             bomRef?: string;
+            /** Format: int64 */
+            criticalCount?: number;
             descendantChanges?: components["schemas"]["ChangeCounts"];
             group?: string;
+            /** Format: int64 */
+            highCount?: number;
             id: string;
             isDirect: boolean;
+            /** Format: int64 */
+            lowCount?: number;
             maxSeverity?: string;
+            /** Format: int64 */
+            mediumCount?: number;
             name: string;
             purl?: string;
             sbomId: string;
             type: string;
+            /** Format: int64 */
+            unknownCount?: number;
             version?: string;
             /** Format: int64 */
             vulnCount?: number;

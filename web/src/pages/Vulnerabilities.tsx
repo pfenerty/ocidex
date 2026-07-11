@@ -3,8 +3,7 @@ import { useNavigate } from "@solidjs/router";
 import { useTopVulnerabilities } from "~/api/queries";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
 import Pagination from "~/components/Pagination";
-import { StatusPill } from "~/components/ui/Badge";
-import { severityVariant } from "~/components/VulnBadge";
+import { SeverityPill } from "~/components/VulnBadge";
 import { VulnId } from "~/components/VulnId";
 
 const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"] as const;
@@ -135,15 +134,9 @@ export default function Vulnerabilities() {
                                                                 />
                                                             </td>
                                                             <td>
-                                                                <StatusPill
-                                                                    variant={severityVariant(
-                                                                        row.severity,
-                                                                    )}
-                                                                >
-                                                                    {
-                                                                        row.severity
-                                                                    }
-                                                                </StatusPill>
+                                                                <SeverityPill severity={row.severity}>
+                                                                    {row.severity}
+                                                                </SeverityPill>
                                                             </td>
                                                             <td class="text-right">
                                                                 {row.cvssScore !==

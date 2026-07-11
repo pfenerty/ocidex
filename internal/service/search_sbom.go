@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -144,9 +145,10 @@ func decorateComponentVulns(ctx context.Context, q *repository.Queries, sbomID p
 		return nil
 	}
 	type agg struct {
-		count       int
-		maxSeverity string
-		seen        map[string]struct{}
+		count                                int
+		maxSeverity                          string
+		critical, high, medium, low, unknown int
+		seen                                 map[string]struct{}
 	}
 	byPurl := make(map[string]*agg, len(rows))
 	for _, r := range rows {
@@ -167,6 +169,18 @@ func decorateComponentVulns(ctx context.Context, q *repository.Queries, sbomID p
 		if severityRank(r.Severity.String) > severityRank(a.maxSeverity) {
 			a.maxSeverity = r.Severity.String
 		}
+		switch strings.ToUpper(r.Severity.String) {
+		case sevCritical:
+			a.critical++
+		case sevHigh:
+			a.high++
+		case sevMedium:
+			a.medium++
+		case sevLow:
+			a.low++
+		default:
+			a.unknown++
+		}
 	}
 	for i := range items {
 		if items[i].Purl == nil {
@@ -175,6 +189,11 @@ func decorateComponentVulns(ctx context.Context, q *repository.Queries, sbomID p
 		if a := byPurl[*items[i].Purl]; a != nil {
 			items[i].VulnCount = a.count
 			items[i].MaxSeverity = a.maxSeverity
+			items[i].CriticalCount = a.critical
+			items[i].HighCount = a.high
+			items[i].MediumCount = a.medium
+			items[i].LowCount = a.low
+			items[i].UnknownCount = a.unknown
 		}
 	}
 	return nil

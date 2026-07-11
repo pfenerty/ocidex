@@ -11,3 +11,47 @@
     font-weight: 600;
     color: var(--color-text-muted);
 }
+
+.vuln-chip {
+    display: inline-flex;
+    align-items: stretch;
+    border-radius: 3px;
+    overflow: hidden;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.vuln-chip-n {
+    min-width: 1.6em;
+    padding: 0.1rem 0.35rem;
+    text-align: center;
+}
+
+/* Shared de-escalating redscale — one definition, applied to both the
+   compact VulnCountBadges chip segments (.vuln-chip-n) and full-size
+   SeverityPill badges (.badge.badge-sm) across the app. */
+.sev-critical {
+    background: var(--color-primary);
+    color: #fff;
+}
+
+.sev-high {
+    background: var(--color-danger);
+    color: #fff;
+}
+
+.sev-medium {
+    background: color-mix(in srgb, var(--color-danger) 60%, white 40%);
+    color: rgba(0, 0, 0, 0.75);
+}
+
+.sev-low {
+    background: color-mix(in srgb, var(--color-danger) 30%, white 70%);
+    color: rgba(0, 0, 0, 0.75);
+}
+
+.sev-default {
+    background: var(--color-surface-hover);
+    color: var(--color-text-muted);
+}

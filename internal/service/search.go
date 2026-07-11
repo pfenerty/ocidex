@@ -349,8 +349,13 @@ type ComponentSummary struct {
 	// VulnCount is the number of known vulnerabilities affecting this component's
 	// purl; MaxSeverity is the highest severity among them. Both zero-valued when
 	// the component has no known vulnerabilities.
-	VulnCount   int    `json:"vulnCount,omitempty"`
-	MaxSeverity string `json:"maxSeverity,omitempty"`
+	VulnCount     int    `json:"vulnCount,omitempty"`
+	MaxSeverity   string `json:"maxSeverity,omitempty"`
+	CriticalCount int    `json:"criticalCount,omitempty"`
+	HighCount     int    `json:"highCount,omitempty"`
+	MediumCount   int    `json:"mediumCount,omitempty"`
+	LowCount      int    `json:"lowCount,omitempty"`
+	UnknownCount  int    `json:"unknownCount,omitempty"`
 }
 
 // ComponentDetail extends ComponentSummary with full metadata.

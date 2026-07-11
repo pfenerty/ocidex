@@ -1,25 +1,40 @@
 import "./VulnBadge.css";
 import { Show, For } from "solid-js";
+import type { JSX } from "solid-js";
 import type { VulnSummary } from "~/api/client";
-import { StatusPill } from "~/components/ui/Badge";
-import type { BadgeVariant } from "~/components/ui/Badge";
 
-export function severityVariant(severity: string | undefined): BadgeVariant {
+// severityColorClass maps a severity to a de-escalating redscale class,
+// shared by every vulnerability display in the app — compact chips
+// (VulnCountBadges) and full-size pills (SeverityPill) alike. Lightness,
+// not hue, carries the distinction (red vs. green, or red vs. amber vs.
+// blue, can collapse under deuteranopia; lightness contrast within one hue
+// does not). Unknown is intentionally outside the scale — it isn't a
+// severity — and stays neutral gray.
+export function severityColorClass(severity: string | undefined): string {
     switch ((severity ?? "").toUpperCase()) {
         case "CRITICAL":
+            return "sev-critical";
         case "HIGH":
-            return "danger";
+            return "sev-high";
         case "MEDIUM":
-            return "warning";
+            return "sev-medium";
+        case "LOW":
+            return "sev-low";
         default:
-            return "default";
+            return "sev-default";
     }
 }
 
-// severityBadgeClass is kept for backward compatibility.
-export function severityBadgeClass(severity: string | undefined): string {
-    const v = severityVariant(severity);
-    return v === "default" ? "badge" : `badge-${v}`;
+// SeverityPill renders a single full-size severity badge, colored via the
+// shared redscale. Use where a labelled pill fits (detail pages, table
+// cells); use VulnCountBadges for a compact multi-severity breakdown in
+// tight spaces.
+export function SeverityPill(props: { severity: string | undefined; title?: string; children: JSX.Element }) {
+    return (
+        <span class={`badge badge-sm ${severityColorClass(props.severity)}`} title={props.title}>
+            {props.children}
+        </span>
+    );
 }
 
 // VulnBadge renders a per-component vulnerability indicator: the count coloured
@@ -27,18 +42,20 @@ export function severityBadgeClass(severity: string | undefined): string {
 export function VulnBadge(props: { count: number | undefined; maxSeverity: string | undefined }) {
     return (
         <Show when={(props.count ?? 0) > 0} fallback={<span class="text-muted">—</span>}>
-            <StatusPill
-                variant={severityVariant(props.maxSeverity)}
+            <SeverityPill
+                severity={props.maxSeverity}
                 title={`${props.count} known ${props.count === 1 ? "vulnerability" : "vulnerabilities"} (max ${(props.maxSeverity ?? "unknown").toLowerCase()})`}
             >
                 {props.count} {(props.maxSeverity ?? "").toLowerCase() || "vuln"}
-            </StatusPill>
+            </SeverityPill>
         </Show>
     );
 }
 
-// VulnCountBadges renders a compact per-severity breakdown using individual count
-// pills. Renders "—" when all counts are zero. Suitable for table cells and
+// VulnCountBadges renders a compact severity breakdown as a single seamless
+// bar of solid-colored segments (e.g. "5 3 4 1 0" for
+// critical|high|medium|low|unknown), each segment colored by its severity.
+// Renders "—" when all counts are zero. Suitable for table cells and
 // version summary rows across the app.
 export function VulnCountBadges(props: {
     criticalCount?: number;
@@ -47,33 +64,28 @@ export function VulnCountBadges(props: {
     lowCount?: number;
     unknownCount?: number;
 }) {
-    const cells = (): { label: string; severity: string; count: number }[] =>
-        [
-            { label: "critical", severity: "CRITICAL", count: props.criticalCount ?? 0 },
-            { label: "high", severity: "HIGH", count: props.highCount ?? 0 },
-            { label: "medium", severity: "MEDIUM", count: props.mediumCount ?? 0 },
-            { label: "low", severity: "LOW", count: props.lowCount ?? 0 },
-            { label: "unknown", severity: "UNKNOWN", count: props.unknownCount ?? 0 },
-        ].filter((c) => c.count > 0);
+    const counts = (): { label: string; severity: string; count: number }[] => [
+        { label: "critical", severity: "CRITICAL", count: props.criticalCount ?? 0 },
+        { label: "high", severity: "HIGH", count: props.highCount ?? 0 },
+        { label: "medium", severity: "MEDIUM", count: props.mediumCount ?? 0 },
+        { label: "low", severity: "LOW", count: props.lowCount ?? 0 },
+        { label: "unknown", severity: "UNKNOWN", count: props.unknownCount ?? 0 },
+    ];
 
-    const total = () =>
-        (props.criticalCount ?? 0) +
-        (props.highCount ?? 0) +
-        (props.mediumCount ?? 0) +
-        (props.lowCount ?? 0) +
-        (props.unknownCount ?? 0);
+    const total = () => counts().reduce((sum, c) => sum + c.count, 0);
+    const title = () =>
+        counts()
+            .filter((c) => c.count > 0)
+            .map((c) => `${c.count} ${c.label}`)
+            .join(", ");
 
     return (
         <Show when={total() > 0} fallback={<span class="text-muted">—</span>}>
-            <div style={{ display: "inline-flex", gap: "4px", "flex-wrap": "wrap" }}>
-                <For each={cells()}>
-                    {(c) => (
-                        <StatusPill variant={severityVariant(c.severity)}>
-                            {c.count} {c.label}
-                        </StatusPill>
-                    )}
+            <span class="vuln-chip" title={title()}>
+                <For each={counts()}>
+                    {(c) => <span class={`vuln-chip-n ${severityColorClass(c.severity)}`}>{c.count}</span>}
                 </For>
-            </div>
+            </span>
         </Show>
     );
 }
@@ -101,9 +113,9 @@ export function VulnSummaryBar(props: { summary: VulnSummary | undefined }) {
                 </span>
                 <For each={cells()}>
                     {(c) => (
-                        <StatusPill variant={severityVariant(c.severity)}>
+                        <SeverityPill severity={c.severity}>
                             {c.count} {c.label.toLowerCase()}
-                        </StatusPill>
+                        </SeverityPill>
                     )}
                 </For>
             </div>
