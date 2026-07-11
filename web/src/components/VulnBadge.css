@@ -14,33 +14,28 @@
 
 .vuln-chip {
     display: inline-flex;
-    align-items: center;
-    gap: 0.15em;
+    align-items: stretch;
+    border-radius: 3px;
+    overflow: hidden;
     font-family: var(--font-mono);
-    font-size: 0.8rem;
-    font-weight: 600;
-}
-
-.vuln-chip-sep {
-    color: var(--color-text-muted);
-    opacity: 0.3;
+    font-size: 0.75rem;
+    font-weight: 700;
 }
 
 .vuln-chip-n {
-    min-width: 1.4em;
-    padding: 0.05rem 0.3rem;
-    border-radius: 3px;
+    min-width: 1.6em;
+    padding: 0.1rem 0.35rem;
     text-align: center;
 }
 
 .vuln-chip-n.vuln-chip-danger {
-    background: var(--color-danger-bg);
-    color: var(--color-danger);
+    background: var(--color-danger);
+    color: #fff;
 }
 
 .vuln-chip-n.vuln-chip-warning {
-    background: var(--color-warning-bg);
-    color: var(--color-warning);
+    background: var(--color-warning);
+    color: rgba(0, 0, 0, 0.75);
 }
 
 .vuln-chip-n.vuln-chip-default {

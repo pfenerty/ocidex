@@ -37,10 +37,11 @@ export function VulnBadge(props: { count: number | undefined; maxSeverity: strin
     );
 }
 
-// VulnCountBadges renders a compact pipe-separated severity breakdown
-// (e.g. "5|3|4|1|0" for critical|high|medium|low|unknown), each number
-// colored by its severity. Renders "—" when all counts are zero. Suitable
-// for table cells and version summary rows across the app.
+// VulnCountBadges renders a compact severity breakdown as a single seamless
+// bar of solid-colored segments (e.g. "5 3 4 1 0" for
+// critical|high|medium|low|unknown), each segment colored by its severity.
+// Renders "—" when all counts are zero. Suitable for table cells and
+// version summary rows across the app.
 export function VulnCountBadges(props: {
     criticalCount?: number;
     highCount?: number;
@@ -67,14 +68,7 @@ export function VulnCountBadges(props: {
         <Show when={total() > 0} fallback={<span class="text-muted">—</span>}>
             <span class="vuln-chip" title={title()}>
                 <For each={counts()}>
-                    {(c, i) => (
-                        <>
-                            <Show when={i() > 0}>
-                                <span class="vuln-chip-sep">|</span>
-                            </Show>
-                            <span class={`vuln-chip-n vuln-chip-${severityVariant(c.severity)}`}>{c.count}</span>
-                        </>
-                    )}
+                    {(c) => <span class={`vuln-chip-n vuln-chip-${severityVariant(c.severity)}`}>{c.count}</span>}
                 </For>
             </span>
         </Show>
