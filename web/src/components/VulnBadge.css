@@ -33,19 +33,19 @@
     color: #fff;
 }
 
-.vuln-chip-n.vuln-chip-danger {
+.vuln-chip-n.vuln-chip-high {
     background: var(--color-danger);
     color: #fff;
 }
 
-.vuln-chip-n.vuln-chip-warning {
-    background: var(--color-warning);
+.vuln-chip-n.vuln-chip-medium {
+    background: color-mix(in srgb, var(--color-danger) 60%, white 40%);
     color: rgba(0, 0, 0, 0.75);
 }
 
 .vuln-chip-n.vuln-chip-low {
-    background: var(--color-secondary);
-    color: #fff;
+    background: color-mix(in srgb, var(--color-danger) 30%, white 70%);
+    color: rgba(0, 0, 0, 0.75);
 }
 
 .vuln-chip-n.vuln-chip-default {
