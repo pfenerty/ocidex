@@ -414,6 +414,10 @@
           "cpe": {
             "type": "string"
           },
+          "criticalCount": {
+            "format": "int64",
+            "type": "integer"
+          },
           "descendantChanges": {
             "$ref": "#/components/schemas/ChangeCounts"
           },
@@ -447,6 +451,10 @@
               "null"
             ]
           },
+          "highCount": {
+            "format": "int64",
+            "type": "integer"
+          },
           "id": {
             "type": "string"
           },
@@ -469,8 +477,16 @@
               "null"
             ]
           },
+          "lowCount": {
+            "format": "int64",
+            "type": "integer"
+          },
           "maxSeverity": {
             "type": "string"
+          },
+          "mediumCount": {
+            "format": "int64",
+            "type": "integer"
           },
           "name": {
             "type": "string"
@@ -492,6 +508,10 @@
           },
           "type": {
             "type": "string"
+          },
+          "unknownCount": {
+            "format": "int64",
+            "type": "integer"
           },
           "version": {
             "type": "string"
@@ -554,11 +574,19 @@
           "bomRef": {
             "type": "string"
           },
+          "criticalCount": {
+            "format": "int64",
+            "type": "integer"
+          },
           "descendantChanges": {
             "$ref": "#/components/schemas/ChangeCounts"
           },
           "group": {
             "type": "string"
+          },
+          "highCount": {
+            "format": "int64",
+            "type": "integer"
           },
           "id": {
             "type": "string"
@@ -566,8 +594,16 @@
           "isDirect": {
             "type": "boolean"
           },
+          "lowCount": {
+            "format": "int64",
+            "type": "integer"
+          },
           "maxSeverity": {
             "type": "string"
+          },
+          "mediumCount": {
+            "format": "int64",
+            "type": "integer"
           },
           "name": {
             "type": "string"
@@ -580,6 +616,10 @@
           },
           "type": {
             "type": "string"
+          },
+          "unknownCount": {
+            "format": "int64",
+            "type": "integer"
           },
           "version": {
             "type": "string"

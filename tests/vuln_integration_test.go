@@ -134,8 +134,10 @@ func TestVulnSBOMSummaryJoin(t *testing.T) {
 	is.True(aptComp != nil)
 	is.Equal(adduserComp["vulnCount"], float64(2))
 	is.Equal(adduserComp["maxSeverity"], "CRITICAL")
+	is.Equal(adduserComp["criticalCount"], float64(2))
 	is.Equal(aptComp["vulnCount"], float64(1))
 	is.Equal(aptComp["maxSeverity"], "HIGH")
+	is.Equal(aptComp["highCount"], float64(1))
 
 	// --- Assert GET /api/v1/vulns lists all seeded CVEs ---
 	resp, err = doGet(t, srv.URL+"/api/v1/vulns")
@@ -297,6 +299,7 @@ func TestVulnAliasDedup(t *testing.T) {
 			found = true
 			is.Equal(cm["vulnCount"], float64(1))
 			is.Equal(cm["maxSeverity"], "CRITICAL")
+			is.Equal(cm["criticalCount"], float64(1))
 		}
 	}
 	is.True(found)
