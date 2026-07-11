@@ -276,7 +276,21 @@ func (s *searchService) GetComponent(ctx context.Context, id pgtype.UUID, vis Vi
 		Hashes:           hashEntries,
 		Licenses:         licEntries,
 		ExternalRefs:     refEntries,
+		FoundBy:          textToPtr(row.FoundBy),
+		Confidence:       deriveConfidence(row.FoundBy),
 	}, nil
+}
+
+// deriveConfidence derives a cataloger-confidence signal from found_by at
+// read time. Only the binary-cataloger (syft's heuristic binary-signature
+// matcher, with no package-manager DB behind it) warrants a warning; all
+// other catalogers return nil rather than an invented confidence taxonomy.
+func deriveConfidence(foundBy pgtype.Text) *string {
+	if foundBy.Valid && foundBy.String == "binary-cataloger" {
+		low := "low"
+		return &low
+	}
+	return nil
 }
 
 // GetComponentVulns returns all vulnerability findings for the component's purl.
