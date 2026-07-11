@@ -237,6 +237,75 @@ func (q *Queries) ListDigestsByRegistry(ctx context.Context, registryID pgtype.U
 	return items, nil
 }
 
+const listSBOMComponentsMissingProvenance = `-- name: ListSBOMComponentsMissingProvenance :many
+SELECT id, bom_ref, purl FROM component
+WHERE sbom_id = $1
+  AND bom_ref IS NOT NULL AND bom_ref != ''
+  AND layer_id IS NULL AND found_by IS NULL
+  AND source_package IS NULL AND source_version IS NULL AND source_purl IS NULL
+`
+
+type ListSBOMComponentsMissingProvenanceRow struct {
+	ID     pgtype.UUID `json:"id"`
+	BomRef pgtype.Text `json:"bom_ref"`
+	Purl   pgtype.Text `json:"purl"`
+}
+
+func (q *Queries) ListSBOMComponentsMissingProvenance(ctx context.Context, sbomID pgtype.UUID) ([]ListSBOMComponentsMissingProvenanceRow, error) {
+	rows, err := q.db.Query(ctx, listSBOMComponentsMissingProvenance, sbomID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSBOMComponentsMissingProvenanceRow{}
+	for rows.Next() {
+		var i ListSBOMComponentsMissingProvenanceRow
+		if err := rows.Scan(&i.ID, &i.BomRef, &i.Purl); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSBOMsWithMissingProvenance = `-- name: ListSBOMsWithMissingProvenance :many
+SELECT DISTINCT s.id, s.flavor, s.raw_bom
+FROM sbom s
+JOIN component c ON c.sbom_id = s.id
+WHERE c.bom_ref IS NOT NULL AND c.bom_ref != ''
+  AND c.layer_id IS NULL AND c.found_by IS NULL
+  AND c.source_package IS NULL AND c.source_version IS NULL AND c.source_purl IS NULL
+`
+
+type ListSBOMsWithMissingProvenanceRow struct {
+	ID     pgtype.UUID `json:"id"`
+	Flavor pgtype.Text `json:"flavor"`
+	RawBom []byte      `json:"raw_bom"`
+}
+
+func (q *Queries) ListSBOMsWithMissingProvenance(ctx context.Context) ([]ListSBOMsWithMissingProvenanceRow, error) {
+	rows, err := q.db.Query(ctx, listSBOMsWithMissingProvenance)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSBOMsWithMissingProvenanceRow{}
+	for rows.Next() {
+		var i ListSBOMsWithMissingProvenanceRow
+		if err := rows.Scan(&i.ID, &i.Flavor, &i.RawBom); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSBOMsWithoutFlavor = `-- name: ListSBOMsWithoutFlavor :many
 SELECT id, subject_version, raw_bom
 FROM sbom
@@ -267,6 +336,33 @@ func (q *Queries) ListSBOMsWithoutFlavor(ctx context.Context) ([]ListSBOMsWithou
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateComponentProvenance = `-- name: UpdateComponentProvenance :exec
+UPDATE component
+SET layer_id = $2, found_by = $3, source_package = $4, source_version = $5, source_purl = $6
+WHERE id = $1
+`
+
+type UpdateComponentProvenanceParams struct {
+	ID            pgtype.UUID `json:"id"`
+	LayerID       pgtype.Text `json:"layer_id"`
+	FoundBy       pgtype.Text `json:"found_by"`
+	SourcePackage pgtype.Text `json:"source_package"`
+	SourceVersion pgtype.Text `json:"source_version"`
+	SourcePurl    pgtype.Text `json:"source_purl"`
+}
+
+func (q *Queries) UpdateComponentProvenance(ctx context.Context, arg UpdateComponentProvenanceParams) error {
+	_, err := q.db.Exec(ctx, updateComponentProvenance,
+		arg.ID,
+		arg.LayerID,
+		arg.FoundBy,
+		arg.SourcePackage,
+		arg.SourceVersion,
+		arg.SourcePurl,
+	)
+	return err
 }
 
 const updateSBOMFlavor = `-- name: UpdateSBOMFlavor :exec

@@ -56,6 +56,26 @@ SELECT id, subject_version, raw_bom
 FROM sbom
 WHERE flavor IS NULL OR flavor = '';
 
+-- name: ListSBOMsWithMissingProvenance :many
+SELECT DISTINCT s.id, s.flavor, s.raw_bom
+FROM sbom s
+JOIN component c ON c.sbom_id = s.id
+WHERE c.bom_ref IS NOT NULL AND c.bom_ref != ''
+  AND c.layer_id IS NULL AND c.found_by IS NULL
+  AND c.source_package IS NULL AND c.source_version IS NULL AND c.source_purl IS NULL;
+
+-- name: ListSBOMComponentsMissingProvenance :many
+SELECT id, bom_ref, purl FROM component
+WHERE sbom_id = $1
+  AND bom_ref IS NOT NULL AND bom_ref != ''
+  AND layer_id IS NULL AND found_by IS NULL
+  AND source_package IS NULL AND source_version IS NULL AND source_purl IS NULL;
+
+-- name: UpdateComponentProvenance :exec
+UPDATE component
+SET layer_id = $2, found_by = $3, source_package = $4, source_version = $5, source_purl = $6
+WHERE id = $1;
+
 -- name: DeleteSBOM :execrows
 DELETE FROM sbom WHERE id = $1;
 
