@@ -32,6 +32,17 @@ export default function Artifacts() {
     const [nameFilter, setNameFilter] = createSignal("");
     const [typeFilter, setTypeFilter] = createSignal("");
     const [showAll, setShowAll] = createSignal(false);
+    const [collapsed, setCollapsed] = createSignal<Set<string>>(new Set());
+
+    const toggleGroup = (ns: string) => {
+        const next = new Set(collapsed());
+        if (next.has(ns)) {
+            next.delete(ns);
+        } else {
+            next.add(ns);
+        }
+        setCollapsed(next);
+    };
 
     let nameDebounce: ReturnType<typeof setTimeout>;
     const handleNameInput = (val: string) => {
@@ -115,57 +126,67 @@ export default function Artifacts() {
                             />
                         }
                     >
-                        <div style={{ display: "flex", "flex-direction": "column", gap: "1rem" }}>
-                            <For each={grouped()}>
-                                {([ns, items]) => (
-                                    <details class="card" open>
-                                        <summary class="card-summary">
-                                            <span style={{ "font-weight": "600", "margin-right": "0.5rem" }}>{ns}</span>
-                                            <span class="badge">{items.length}</span>
-                                        </summary>
-                                        <div class="table-wrapper">
-                                            <table>
-                                                <thead>
-                                                    <tr>
-                                                        <th>Artifact</th>
-                                                        <th>Type</th>
-                                                        <th>Signing</th>
-                                                        <th>SBOMs</th>
+                        <div class="card">
+                            <div class="table-wrapper">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Artifact</th>
+                                            <th>Type</th>
+                                            <th>Signing</th>
+                                            <th>SBOMs</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <For each={grouped()}>
+                                            {([ns, items]) => (
+                                                <>
+                                                    <tr
+                                                        class="group-header-row"
+                                                        classList={{ collapsed: collapsed().has(ns) }}
+                                                        onClick={() => toggleGroup(ns)}
+                                                    >
+                                                        <td colspan={4}>
+                                                            <div class="group-header-row-content">
+                                                                <span class="group-header-label">{ns}</span>
+                                                                <span class="badge">{items.length}</span>
+                                                            </div>
+                                                        </td>
                                                     </tr>
-                                                </thead>
-                                                <tbody>
-                                                    <For each={items}>
-                                                        {(artifact) => (
-                                                            <tr>
-                                                                <td>
-                                                                    <A href={`/artifacts/${artifact.id}`}>
-                                                                        {artifactDisplayName(artifact)}
-                                                                    </A>
-                                                                </td>
-                                                                <td>
-                                                                    <TypeBadge type={artifact.type} />
-                                                                </td>
-                                                                <td>
-                                                                    <SigningBadge status={artifact.signingStatus} />
-                                                                </td>
-                                                                <td>
-                                                                    {plural(artifact.sbomCount, "SBOM")}
-                                                                </td>
-                                                            </tr>
-                                                        )}
-                                                    </For>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </details>
-                                )}
-                            </For>
-                            <LoadMore
-                                hasMore={query.hasNextPage}
-                                loading={query.isFetchingNextPage}
-                                onClick={() => void query.fetchNextPage()}
-                            />
+                                                    <Show when={!collapsed().has(ns)}>
+                                                        <For each={items}>
+                                                            {(artifact) => (
+                                                                <tr>
+                                                                    <td>
+                                                                        <A href={`/artifacts/${artifact.id}`}>
+                                                                            {artifactDisplayName(artifact)}
+                                                                        </A>
+                                                                    </td>
+                                                                    <td>
+                                                                        <TypeBadge type={artifact.type} />
+                                                                    </td>
+                                                                    <td>
+                                                                        <SigningBadge status={artifact.signingStatus} />
+                                                                    </td>
+                                                                    <td>
+                                                                        {plural(artifact.sbomCount, "SBOM")}
+                                                                    </td>
+                                                                </tr>
+                                                            )}
+                                                        </For>
+                                                    </Show>
+                                                </>
+                                            )}
+                                        </For>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
+                        <LoadMore
+                            hasMore={query.hasNextPage}
+                            loading={query.isFetchingNextPage}
+                            onClick={() => void query.fetchNextPage()}
+                        />
                     </Show>
                 </Show>
             </Show>
