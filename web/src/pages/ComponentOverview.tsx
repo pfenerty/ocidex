@@ -6,7 +6,7 @@ import type { ComponentVersionEntry } from "~/api/client";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
 import CopyDigest from "~/components/CopyDigest";
 import PurlLink from "~/components/PurlLink";
-import { VulnCountBadges, severityVariant } from "~/components/VulnBadge";
+import { VulnCountBadges, SeverityPill } from "~/components/VulnBadge";
 import { StatusPill } from "~/components/ui/Badge";
 import { purlToRegistryUrl, purlTypeLabel } from "~/utils/purl";
 import { relativeDate, formatDateTime, plural, hasText } from "~/utils/format";
@@ -423,9 +423,9 @@ export default function ComponentOverview() {
                                                                                 </Show>
                                                                             </td>
                                                                             <td>
-                                                                                <StatusPill variant={severityVariant(v.severity)}>
+                                                                                <SeverityPill severity={v.severity}>
                                                                                     {v.severity}
-                                                                                </StatusPill>
+                                                                                </SeverityPill>
                                                                             </td>
                                                                             <td>{v.cvssScore?.toFixed(1) ?? "—"}</td>
                                                                             <td class="text-muted">{v.summary ?? "—"}</td>

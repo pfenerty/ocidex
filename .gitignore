@@ -50,3 +50,5 @@ Thumbs.db
 
 # Stray go build artifact from `go build ./cmd/operator` (use -o bin/)
 /operator
+
+.tokensave/
