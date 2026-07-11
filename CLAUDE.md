@@ -424,6 +424,7 @@ bd close <epic-id>
 | 027 | Ephemeral Job Contract | `--once` flag for K8s Job mode; env vars, exit codes, structured lifecycle logs |
 | 032 | Provenance Verification | Tiered trust per registry (display → ECDSA verify); four status values; digest-bound; no cosign SDK |
 | 033 | Per-Enricher Services | Per-enricher `cmd/` binary + Docker image + NATS consumer; `enrichment_jobs.enricher_name` partitions work |
+| 034 | Component Provenance | CycloneDX retained (SPDX is a lateral move, no new capability); capability-driven typed columns (no generic property hoarding); base-vs-app layer caveat (ordinal-0-only, package-DB-layer granularity) |
 
 **When working on diff, dependency-tree, or changelog code, read ADRs 0019–0021 first.** They are the normative contract; the implementation issues (`ocidex-bqh.*`) reference them by section.
 
