@@ -5,9 +5,22 @@ import type { ComponentSummary, DependencyEdge } from "~/api/client";
 import { EmptyState } from "~/components/Feedback";
 import LoadMore from "~/components/LoadMore";
 import PurlLink from "~/components/PurlLink";
-import { VulnBadge } from "~/components/VulnBadge";
+import { VulnCountBadges } from "~/components/VulnBadge";
 import { plural } from "~/utils/format";
 import { parsePurl } from "~/utils/purl";
+
+const componentHref = (name: string, group?: string, version?: string) => {
+    const base = `/components/overview?name=${encodeURIComponent(name)}`;
+    const g =
+        group !== undefined && group !== ""
+            ? `&group=${encodeURIComponent(group)}`
+            : "";
+    const v =
+        version !== undefined && version !== ""
+            ? `&version=${encodeURIComponent(version)}`
+            : "";
+    return `${base}${g}${v}`;
+};
 
 /* ------------------------------------------------------------------ */
 /*  Packages Tab                                                       */
@@ -141,7 +154,7 @@ export function PackagesTab(props: {
                                             {(c) => (
                                                 <tr>
                                                     <td>
-                                                        <A href={`/components/${c.id}`}>
+                                                        <A href={componentHref(c.name, c.group, c.version)}>
                                                             {c.group !== undefined && c.group !== "" ? `${c.group}/` : ""}
                                                             {c.name}
                                                         </A>
@@ -159,7 +172,13 @@ export function PackagesTab(props: {
                                                         </span>
                                                     </td>
                                                     <td>
-                                                        <VulnBadge count={c.vulnCount} maxSeverity={c.maxSeverity} />
+                                                        <VulnCountBadges
+                                                            criticalCount={c.criticalCount}
+                                                            highCount={c.highCount}
+                                                            mediumCount={c.mediumCount}
+                                                            lowCount={c.lowCount}
+                                                            unknownCount={c.unknownCount}
+                                                        />
                                                     </td>
                                                     <td class="truncate">
                                                         <Show
@@ -208,12 +227,18 @@ export function PackagesTab(props: {
 interface TreeNode {
     ref: string;
     name: string;
+    group?: string;
     version?: string;
     type?: string;
     id?: string;
     purl?: string;
     vulnCount?: number;
     maxSeverity?: string;
+    criticalCount?: number;
+    highCount?: number;
+    mediumCount?: number;
+    lowCount?: number;
+    unknownCount?: number;
     children: string[];
 }
 
@@ -229,7 +254,21 @@ export function DependencyTreeView(props: {
     const treeData = createMemo(() => {
         const nameMap = new Map<
             string,
-            { name: string; version?: string; type?: string; id?: string; purl?: string; vulnCount?: number; maxSeverity?: string }
+            {
+                name: string;
+                group?: string;
+                version?: string;
+                type?: string;
+                id?: string;
+                purl?: string;
+                vulnCount?: number;
+                maxSeverity?: string;
+                criticalCount?: number;
+                highCount?: number;
+                mediumCount?: number;
+                lowCount?: number;
+                unknownCount?: number;
+            }
         >();
         for (const node of props.graph.nodes) {
             const name =
@@ -241,7 +280,21 @@ export function DependencyTreeView(props: {
                     ? node.version
                     : undefined;
             const type = parsePurl(node.purl ?? "")?.type ?? node.type;
-            const info = { name, version, type, id: node.id, purl: node.purl, vulnCount: node.vulnCount, maxSeverity: node.maxSeverity };
+            const info = {
+                name,
+                group: node.group,
+                version,
+                type,
+                id: node.id,
+                purl: node.purl,
+                vulnCount: node.vulnCount,
+                maxSeverity: node.maxSeverity,
+                criticalCount: node.criticalCount,
+                highCount: node.highCount,
+                mediumCount: node.mediumCount,
+                lowCount: node.lowCount,
+                unknownCount: node.unknownCount,
+            };
             nameMap.set(node.id, info);
             nameMap.set(node.name, info);
             if (node.purl !== undefined) nameMap.set(node.purl, info);
@@ -272,12 +325,18 @@ export function DependencyTreeView(props: {
             nodes.set(ref, {
                 ref,
                 name: info?.name ?? ref,
+                group: info?.group,
                 version: info?.version,
                 type: info?.type,
                 id: info?.id,
                 purl: info?.purl,
                 vulnCount: info?.vulnCount,
                 maxSeverity: info?.maxSeverity,
+                criticalCount: info?.criticalCount,
+                highCount: info?.highCount,
+                mediumCount: info?.mediumCount,
+                lowCount: info?.lowCount,
+                unknownCount: info?.unknownCount,
                 children: adj.get(ref) ?? [],
             });
         }
@@ -406,9 +465,9 @@ export function DependencyTreeView(props: {
                                                         </span>
                                                     }
                                                 >
-                                                    {(id) => (
+                                                    {(_id) => (
                                                         <A
-                                                            href={`/components/${id}`}
+                                                            href={componentHref(row.node.name, row.node.group, row.node.version)}
                                                             class="font-mono"
                                                             style={{ "font-size": "0.85rem" }}
                                                             onClick={(e: MouseEvent) => e.stopPropagation()}
@@ -443,7 +502,13 @@ export function DependencyTreeView(props: {
                                             </Show>
                                         </td>
                                         <td>
-                                            <VulnBadge count={row.node.vulnCount} maxSeverity={row.node.maxSeverity} />
+                                            <VulnCountBadges
+                                                criticalCount={row.node.criticalCount}
+                                                highCount={row.node.highCount}
+                                                mediumCount={row.node.mediumCount}
+                                                lowCount={row.node.lowCount}
+                                                unknownCount={row.node.unknownCount}
+                                            />
                                         </td>
                                     </tr>
                                 );
