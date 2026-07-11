@@ -39,13 +39,15 @@ export function VulnBadge(props: { count: number | undefined; maxSeverity: strin
 
 // chipSeverityClass maps a severity to the VulnCountBadges chip's own color
 // scale. Distinct from severityVariant/BadgeVariant: red and green read as
-// the same hue under deuteranopia, so — matching the substitution already
-// used for add/remove state in DiffEntry.tsx — this scale never uses green,
-// substituting blue where a plain gray would otherwise collapse two
-// distinct severities (low vs. unknown) into one indistinguishable segment.
+// the same hue under deuteranopia, so this scale never uses green — Critical
+// and High stay in a redscale (distinguished by lightness, which survives
+// deuteranopia, rather than hue), and Low gets blue instead of falling back
+// to the gray shared with Unknown — matching the substitution already used
+// for add/remove state in DiffEntry.tsx.
 function chipSeverityClass(severity: string | undefined): string {
     switch ((severity ?? "").toUpperCase()) {
         case "CRITICAL":
+            return "vuln-chip-critical";
         case "HIGH":
             return "vuln-chip-danger";
         case "MEDIUM":

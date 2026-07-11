@@ -28,6 +28,11 @@
     text-align: center;
 }
 
+.vuln-chip-n.vuln-chip-critical {
+    background: var(--color-primary);
+    color: #fff;
+}
+
 .vuln-chip-n.vuln-chip-danger {
     background: var(--color-danger);
     color: #fff;
