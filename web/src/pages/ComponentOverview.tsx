@@ -310,6 +310,21 @@ export default function ComponentOverview() {
                                                                 <span class="detail-value">{detail.copyright}</span>
                                                             </div>
                                                         </Show>
+                                                        <Show when={hasText(detail.foundBy)}>
+                                                            <div class="detail-field">
+                                                                <span class="detail-label">Detected by</span>
+                                                                <span class="detail-value">
+                                                                    {detail.foundBy}
+                                                                    <Show when={hasText(detail.confidence)}>
+                                                                        <span style={{ "margin-left": "8px" }}>
+                                                                            <StatusPill variant="warning">
+                                                                                {detail.confidence} confidence
+                                                                            </StatusPill>
+                                                                        </span>
+                                                                    </Show>
+                                                                </span>
+                                                            </div>
+                                                        </Show>
                                                     </div>
 
                                                     <Show when={hasText(detail.description)}>
