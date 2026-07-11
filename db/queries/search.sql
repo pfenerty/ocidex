@@ -74,7 +74,8 @@ LIMIT @row_limit OFFSET @row_offset;
 
 -- name: GetComponent :one
 SELECT id, sbom_id, parent_id, bom_ref, type, name, group_name,
-       version, purl, cpe, description, scope, publisher, copyright, found_by
+       version, purl, cpe, description, scope, publisher, copyright, found_by,
+       source_purl
 FROM component
 WHERE id = $1;
 

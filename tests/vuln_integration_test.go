@@ -641,6 +641,115 @@ func TestSourcePurlIncludedInGatherQueries(t *testing.T) {
 	is.True(slices.Contains(unknownGlobal, addUserSourcePurl))
 }
 
+// TestComponentVulnsMatchSourcePurl verifies the per-component CVE panel
+// (GET /api/v1/components/{id}/vulns) matches vulns against a component's
+// source_purl in addition to its binary purl, and dedupes a vuln matched
+// via both to a single entry (ocidex-5ur.8).
+func TestComponentVulnsMatchSourcePurl(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireDocker(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+
+	is := is.New(t)
+	store := vuln.NewPGStore(pool)
+
+	memberID := seedUser(t, pool, 8008, "source-purl-vuln-member", "member")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "source-purl-vuln-test", "read-write")
+	is.NoErr(err)
+
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", minimalSBOM, memberKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	var ingestResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingestResp))
+	resp.Body.Close()
+	var sbomID pgtype.UUID
+	is.NoErr(sbomID.Scan(ingestResp["id"].(string)))
+
+	const addUserSourcePurl = "pkg:deb/ubuntu/adduser@3.118ubuntu2?arch=src&distro=ubuntu-24.04"
+	_, err = pool.Exec(t.Context(),
+		"UPDATE component SET source_purl = $1 WHERE sbom_id = $2 AND purl = $3",
+		addUserSourcePurl, sbomID, addUserPurl)
+	is.NoErr(err)
+
+	var componentID pgtype.UUID
+	is.NoErr(pool.QueryRow(t.Context(),
+		"SELECT id FROM component WHERE sbom_id = $1 AND purl = $2",
+		sbomID, addUserPurl).Scan(&componentID))
+	componentIDStr, err := componentID.Value()
+	is.NoErr(err)
+
+	vulnsURL := fmt.Sprintf("%s/api/v1/components/%s/vulns", srv.URL, componentIDStr)
+
+	// CVE-A: matched via the binary purl only — baseline direct match.
+	seedVuln(t, store, "CVE-2025-src-0001", "HIGH", addUserPurl)
+
+	resp, err = doGet(t, vulnsURL)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var out map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&out))
+	resp.Body.Close()
+	data := out["data"].([]any)
+	is.Equal(len(data), 1)
+
+	// CVE-B: matched via the source purl only — previously invisible to this
+	// endpoint since it only joined on the binary purl.
+	seedVuln(t, store, "CVE-2025-src-0002", "MEDIUM", addUserSourcePurl)
+
+	resp, err = doGet(t, vulnsURL)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&out))
+	resp.Body.Close()
+	data = out["data"].([]any)
+	ids := make([]string, 0, len(data))
+	for _, d := range data {
+		ids = append(ids, d.(map[string]any)["id"].(string))
+	}
+	is.Equal(len(data), 2)
+	is.True(slices.Contains(ids, "CVE-2025-src-0001"))
+	is.True(slices.Contains(ids, "CVE-2025-src-0002"))
+
+	// CVE-C: matched via both the binary and source purl — must dedupe to a
+	// single entry, not appear twice.
+	err = store.UpsertVulnerability(t.Context(), vuln.Row{
+		ID: "CVE-2025-src-0003", CanonicalID: "CVE-2025-src-0003", Summary: "dual-purl vuln", Severity: "CRITICAL",
+		Aliases: []string{}, Raw: []byte("{}"),
+	})
+	is.NoErr(err)
+	err = store.ReplacePackageVulns(t.Context(), addUserPurl, []vuln.PackageVulnRef{
+		{VulnerabilityID: "CVE-2025-src-0001"},
+		{VulnerabilityID: "CVE-2025-src-0003"},
+	})
+	is.NoErr(err)
+	err = store.ReplacePackageVulns(t.Context(), addUserSourcePurl, []vuln.PackageVulnRef{
+		{VulnerabilityID: "CVE-2025-src-0002"},
+		{VulnerabilityID: "CVE-2025-src-0003"},
+	})
+	is.NoErr(err)
+
+	resp, err = doGet(t, vulnsURL)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&out))
+	resp.Body.Close()
+	data = out["data"].([]any)
+	ids = ids[:0]
+	for _, d := range data {
+		ids = append(ids, d.(map[string]any)["id"].(string))
+	}
+	is.Equal(len(data), 3)
+	is.Equal(countOccurrences(ids, "CVE-2025-src-0003"), 1)
+}
+
 func countOccurrences(s []string, target string) int {
 	n := 0
 	for _, v := range s {
