@@ -329,42 +329,25 @@
         white-space: nowrap;
     }
 
-    /* Group header rows (collapsible namespace headers inside a flat table) */
-    tr.group-header-row {
-        background: var(--color-elevated);
-        cursor: pointer;
-        user-select: none;
-    }
-
-    tr.group-header-row:hover {
-        background: var(--color-surface-hover);
-    }
-
+    /* Group header rows (sticky namespace labels inside a flat table) */
     tr.group-header-row td {
-        font-weight: 600;
-        padding: 0.5rem 0.75rem;
-    }
-
-    .group-header-row-content {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
-    .group-header-label {
-        flex: 1;
-    }
-
-    .group-header-row-content::after {
-        content: "\25B8";
+        position: sticky;
+        top: 0;
+        background: var(--color-surface);
         font-size: 0.75rem;
-        color: var(--color-text-dim);
-        transform: rotate(90deg);
-        transition: transform 0.15s;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--color-text-muted);
+        padding: 0.5rem 0.75rem;
+        border-bottom: 1px solid var(--color-border);
     }
 
-    tr.group-header-row.collapsed .group-header-row-content::after {
-        transform: rotate(0deg);
+    .group-header-count {
+        color: var(--color-text-dim);
+        font-weight: 400;
+        text-transform: none;
+        letter-spacing: normal;
     }
 
     /* Badges */

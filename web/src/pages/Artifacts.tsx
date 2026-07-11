@@ -32,17 +32,6 @@ export default function Artifacts() {
     const [nameFilter, setNameFilter] = createSignal("");
     const [typeFilter, setTypeFilter] = createSignal("");
     const [showAll, setShowAll] = createSignal(false);
-    const [collapsed, setCollapsed] = createSignal<Set<string>>(new Set());
-
-    const toggleGroup = (ns: string) => {
-        const next = new Set(collapsed());
-        if (next.has(ns)) {
-            next.delete(ns);
-        } else {
-            next.add(ns);
-        }
-        setCollapsed(next);
-    };
 
     let nameDebounce: ReturnType<typeof setTimeout>;
     const handleNameInput = (val: string) => {
@@ -141,40 +130,31 @@ export default function Artifacts() {
                                         <For each={grouped()}>
                                             {([ns, items]) => (
                                                 <>
-                                                    <tr
-                                                        class="group-header-row"
-                                                        classList={{ collapsed: collapsed().has(ns) }}
-                                                        onClick={() => toggleGroup(ns)}
-                                                    >
+                                                    <tr class="group-header-row">
                                                         <td colspan={4}>
-                                                            <div class="group-header-row-content">
-                                                                <span class="group-header-label">{ns}</span>
-                                                                <span class="badge">{items.length}</span>
-                                                            </div>
+                                                            {ns} <span class="group-header-count">{items.length}</span>
                                                         </td>
                                                     </tr>
-                                                    <Show when={!collapsed().has(ns)}>
-                                                        <For each={items}>
-                                                            {(artifact) => (
-                                                                <tr>
-                                                                    <td>
-                                                                        <A href={`/artifacts/${artifact.id}`}>
-                                                                            {artifactDisplayName(artifact)}
-                                                                        </A>
-                                                                    </td>
-                                                                    <td>
-                                                                        <TypeBadge type={artifact.type} />
-                                                                    </td>
-                                                                    <td>
-                                                                        <SigningBadge status={artifact.signingStatus} />
-                                                                    </td>
-                                                                    <td>
-                                                                        {plural(artifact.sbomCount, "SBOM")}
-                                                                    </td>
-                                                                </tr>
-                                                            )}
-                                                        </For>
-                                                    </Show>
+                                                    <For each={items}>
+                                                        {(artifact) => (
+                                                            <tr>
+                                                                <td>
+                                                                    <A href={`/artifacts/${artifact.id}`}>
+                                                                        {artifactDisplayName(artifact)}
+                                                                    </A>
+                                                                </td>
+                                                                <td>
+                                                                    <TypeBadge type={artifact.type} />
+                                                                </td>
+                                                                <td>
+                                                                    <SigningBadge status={artifact.signingStatus} />
+                                                                </td>
+                                                                <td>
+                                                                    {plural(artifact.sbomCount, "SBOM")}
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                    </For>
                                                 </>
                                             )}
                                         </For>
