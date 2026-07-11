@@ -38,7 +38,7 @@ func (q *Queries) CountSBOMPackages(ctx context.Context, sbomID pgtype.UUID) (in
 const getComponent = `-- name: GetComponent :one
 SELECT id, sbom_id, parent_id, bom_ref, type, name, group_name,
        version, purl, cpe, description, scope, publisher, copyright, found_by,
-       source_purl, source_package
+       source_purl, source_package, layer_id
 FROM component
 WHERE id = $1
 `
@@ -61,6 +61,7 @@ type GetComponentRow struct {
 	FoundBy       pgtype.Text `json:"found_by"`
 	SourcePurl    pgtype.Text `json:"source_purl"`
 	SourcePackage pgtype.Text `json:"source_package"`
+	LayerID       pgtype.Text `json:"layer_id"`
 }
 
 func (q *Queries) GetComponent(ctx context.Context, id pgtype.UUID) (GetComponentRow, error) {
@@ -84,6 +85,7 @@ func (q *Queries) GetComponent(ctx context.Context, id pgtype.UUID) (GetComponen
 		&i.FoundBy,
 		&i.SourcePurl,
 		&i.SourcePackage,
+		&i.LayerID,
 	)
 	return i, err
 }

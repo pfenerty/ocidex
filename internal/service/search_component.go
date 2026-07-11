@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -265,6 +267,11 @@ func (s *searchService) GetComponent(ctx context.Context, id pgtype.UUID, vis Vi
 		})
 	}
 
+	layerID, layer, fromBaseImage, err := s.resolveComponentLayer(ctx, q, row.SbomID, row.LayerID)
+	if err != nil {
+		return ComponentDetail{}, fmt.Errorf("resolving component layer: %w", err)
+	}
+
 	return ComponentDetail{
 		ComponentSummary: toComponentSummary(row.ID, row.SbomID, row.BomRef, row.Type, row.Name, row.GroupName, row.Version, row.Purl),
 		BomRef:           textToPtr(row.BomRef),
@@ -279,7 +286,63 @@ func (s *searchService) GetComponent(ctx context.Context, id pgtype.UUID, vis Vi
 		FoundBy:          textToPtr(row.FoundBy),
 		Confidence:       deriveConfidence(row.FoundBy),
 		SourcePackage:    textToPtr(row.SourcePackage),
+		LayerID:          layerID,
+		Layer:            layer,
+		FromBaseImage:    fromBaseImage,
 	}, nil
+}
+
+// ociLayerMetadata mirrors the subset of oci.Metadata's JSON shape needed to
+// resolve layer ordinals. Duplicated (rather than importing
+// internal/enrichment/oci) because internal/enrichment imports
+// internal/service (for EnrichJobService), so importing any
+// internal/enrichment/* package back from internal/service would create an
+// import cycle.
+type ociLayerMetadata struct {
+	BaseName   string `json:"baseName,omitempty"`
+	BaseDigest string `json:"baseDigest,omitempty"`
+	Layers     []struct {
+		Ordinal int    `json:"ordinal"`
+		DiffID  string `json:"diffId"`
+	} `json:"layers,omitempty"`
+}
+
+// resolveComponentLayer resolves a component's layer_id to its ordinal
+// position using the sbom's oci-metadata enrichment layer list, and derives
+// the FromBaseImage heuristic (see ComponentDetail.FromBaseImage doc).
+// Returns zero values, not an error, when layer_id is unset or no
+// oci-metadata enrichment succeeded — layer attribution is best-effort.
+func (s *searchService) resolveComponentLayer(ctx context.Context, q *repository.Queries, sbomID pgtype.UUID, layerID pgtype.Text) (*string, *int, bool, error) {
+	if !layerID.Valid {
+		return nil, nil, false, nil
+	}
+	id := layerID.String
+
+	enr, err := q.GetEnrichment(ctx, repository.GetEnrichmentParams{SbomID: sbomID, EnricherName: "oci-metadata"})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return &id, nil, false, nil
+		}
+		return nil, nil, false, fmt.Errorf("getting oci-metadata enrichment: %w", err)
+	}
+	if enr.Status != "success" {
+		return &id, nil, false, nil
+	}
+
+	var meta ociLayerMetadata
+	if err := json.Unmarshal(enr.Data, &meta); err != nil {
+		slog.Warn("component: skipping malformed oci-metadata enrichment", "sbom_id", sbomID, "err", err)
+		return &id, nil, false, nil
+	}
+
+	for _, l := range meta.Layers {
+		if l.DiffID == id {
+			ordinal := l.Ordinal
+			hasBase := meta.BaseDigest != "" || meta.BaseName != ""
+			return &id, &ordinal, hasBase && ordinal == 0, nil
+		}
+	}
+	return &id, nil, false, nil
 }
 
 // deriveConfidence derives a cataloger-confidence signal from found_by at

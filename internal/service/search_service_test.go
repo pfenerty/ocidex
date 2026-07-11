@@ -63,6 +63,32 @@ func scanComponentRowWithFoundBy(id, sbomID pgtype.UUID, typ, name, foundBy stri
 		if foundBy != "" {
 			*(dest[14].(*pgtype.Text)) = pgtype.Text{String: foundBy, Valid: true}
 		}
+		// dest[15..16] SourcePurl, SourcePackage — zero
+		return nil
+	}
+}
+
+// scanComponentRowWithLayer is scanComponentRow with an explicit layer_id
+// value, for exercising GetComponent's resolveComponentLayer path.
+func scanComponentRowWithLayer(id, sbomID pgtype.UUID, typ, name, layerID string) func(...any) error {
+	return func(dest ...any) error {
+		*(dest[0].(*pgtype.UUID)) = id
+		*(dest[1].(*pgtype.UUID)) = sbomID
+		*(dest[4].(*string)) = typ
+		*(dest[5].(*string)) = name
+		if layerID != "" {
+			*(dest[17].(*pgtype.Text)) = pgtype.Text{String: layerID, Valid: true}
+		}
+		return nil
+	}
+}
+
+// scanEnrichment returns a scan function for the Enrichment row (8 fields),
+// setting only Status and Data.
+func scanEnrichment(status string, data []byte) func(...any) error {
+	return func(dest ...any) error {
+		*(dest[3].(*string)) = status
+		*(dest[4].(*[]byte)) = data
 		return nil
 	}
 }
@@ -367,7 +393,120 @@ func TestGetComponent_FoundByAndConfidence(t *testing.T) {
 	}
 }
 
+// TestGetComponent_Layer verifies resolveComponentLayer: layer_id resolved
+// to an ordinal via the oci-metadata enrichment's layer list, and the
+// FromBaseImage heuristic (base declared + ordinal 0).
+func TestGetComponent_Layer(t *testing.T) {
+	baseMeta := []byte(`{
+		"baseDigest": "sha256:basedigest",
+		"layers": [
+			{"ordinal": 0, "diffId": "sha256:layer0"},
+			{"ordinal": 1, "diffId": "sha256:layer1"},
+			{"ordinal": 2, "diffId": "sha256:layer2"}
+		]
+	}`)
+
+	tests := []struct {
+		name              string
+		layerID           string
+		enrichmentPresent bool
+		wantLayerID       *string
+		wantLayer         *int
+		wantFromBase      bool
+		wantEnrichmentGet bool
+	}{
+		{
+			name:              "bottom layer of image with declared base",
+			layerID:           "sha256:layer0",
+			enrichmentPresent: true,
+			wantLayerID:       strPtr("sha256:layer0"),
+			wantLayer:         intPtr(0),
+			wantFromBase:      true,
+			wantEnrichmentGet: true,
+		},
+		{
+			name:              "upper layer of image with declared base",
+			layerID:           "sha256:layer2",
+			enrichmentPresent: true,
+			wantLayerID:       strPtr("sha256:layer2"),
+			wantLayer:         intPtr(2),
+			wantFromBase:      false,
+			wantEnrichmentGet: true,
+		},
+		{
+			name:              "layer_id set, no oci-metadata enrichment",
+			layerID:           "sha256:layer0",
+			enrichmentPresent: false,
+			wantLayerID:       strPtr("sha256:layer0"),
+			wantLayer:         nil,
+			wantFromBase:      false,
+			wantEnrichmentGet: true,
+		},
+		{
+			name:              "layer_id unset",
+			layerID:           "",
+			enrichmentPresent: false,
+			wantLayerID:       nil,
+			wantLayer:         nil,
+			wantFromBase:      false,
+			wantEnrichmentGet: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			is := is.New(t)
+
+			compID := newUUID(t)
+			sbomID := newUUID2(t)
+			callIdx := 0
+			enrichmentCalled := false
+
+			db := &fakeDB{
+				queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
+					callIdx++
+					switch callIdx {
+					case 1: // GetComponent
+						return &fakeRow{scanFn: scanComponentRowWithLayer(compID, sbomID, "library", "openssl", tc.layerID)}
+					case 2: // IsSBOMVisible
+						return &fakeRow{scanFn: scanVisible(true)}
+					case 3: // GetEnrichment
+						enrichmentCalled = true
+						if !tc.enrichmentPresent {
+							return noRowsRow{}
+						}
+						return &fakeRow{scanFn: scanEnrichment("success", baseMeta)}
+					default:
+						return noRowsRow{}
+					}
+				},
+				queryFn: func(_ context.Context, _ string, _ ...any) (pgx.Rows, error) {
+					return emptyRows(), nil
+				},
+			}
+
+			svc := NewSearchService(db)
+			detail, err := svc.GetComponent(context.Background(), compID, VisibilityFilter{})
+
+			is.NoErr(err)
+			is.Equal(deref(detail.LayerID), deref(tc.wantLayerID))
+			is.Equal(derefInt(detail.Layer), derefInt(tc.wantLayer))
+			is.Equal(detail.FromBaseImage, tc.wantFromBase)
+			is.Equal(enrichmentCalled, tc.wantEnrichmentGet)
+		})
+	}
+}
+
 func strPtr(s string) *string { return &s }
+
+func intPtr(i int) *int { return &i }
+
+func derefInt(i *int) int {
+	if i == nil {
+		return -1
+	}
+	return *i
+}
 
 func deref(s *string) string {
 	if s == nil {

@@ -432,6 +432,9 @@
           "foundBy": {
             "type": "string"
           },
+          "fromBaseImage": {
+            "type": "boolean"
+          },
           "group": {
             "type": "string"
           },
@@ -449,6 +452,13 @@
           },
           "isDirect": {
             "type": "boolean"
+          },
+          "layer": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "layerId": {
+            "type": "string"
           },
           "licenses": {
             "items": {
