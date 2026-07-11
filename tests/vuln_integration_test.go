@@ -278,6 +278,28 @@ func TestVulnAliasDedup(t *testing.T) {
 	is.NoErr(json.NewDecoder(resp.Body).Decode(&statsResp))
 	resp.Body.Close()
 	is.Equal(statsResp["vuln_count"], float64(1))
+
+	// Per-component decoration (GET /api/v1/sboms/{id}/components) must also
+	// dedupe by canonical_id — regression for the reported bug where a single
+	// package's vulnCount exceeded the SBOM-level total because every aliased
+	// OSV record was counted separately.
+	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s/components", srv.URL, sbomID))
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var compResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&compResp))
+	resp.Body.Close()
+	components := compResp["components"].([]any)
+	found := false
+	for _, c := range components {
+		cm := c.(map[string]any)
+		if cm["purl"] == addUserPurl {
+			found = true
+			is.Equal(cm["vulnCount"], float64(1))
+			is.Equal(cm["maxSeverity"], "CRITICAL")
+		}
+	}
+	is.True(found)
 }
 
 // TestVulnAliasDetailResolution verifies that GET /api/v1/vulns/{id} resolves by
