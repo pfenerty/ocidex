@@ -477,6 +477,9 @@
           "scope": {
             "type": "string"
           },
+          "sourcePackage": {
+            "type": "string"
+          },
           "type": {
             "type": "string"
           },
@@ -681,6 +684,9 @@
           "id": {
             "type": "string"
           },
+          "matchedViaSource": {
+            "type": "boolean"
+          },
           "severity": {
             "type": "string"
           },
@@ -691,7 +697,8 @@
         "required": [
           "id",
           "canonicalId",
-          "severity"
+          "severity",
+          "matchedViaSource"
         ],
         "type": "object"
       },

@@ -1011,6 +1011,7 @@ export interface components {
             purl?: string;
             sbomId: string;
             scope?: string;
+            sourcePackage?: string;
             type: string;
             version?: string;
             /** Format: int64 */
@@ -1075,6 +1076,7 @@ export interface components {
             cvssScore?: number;
             fixedVersion?: string;
             id: string;
+            matchedViaSource: boolean;
             severity: string;
             summary?: string;
         };

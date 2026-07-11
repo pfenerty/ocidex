@@ -278,6 +278,7 @@ func (s *searchService) GetComponent(ctx context.Context, id pgtype.UUID, vis Vi
 		ExternalRefs:     refEntries,
 		FoundBy:          textToPtr(row.FoundBy),
 		Confidence:       deriveConfidence(row.FoundBy),
+		SourcePackage:    textToPtr(row.SourcePackage),
 	}, nil
 }
 
@@ -319,9 +320,10 @@ func (s *searchService) GetComponentVulns(ctx context.Context, id pgtype.UUID, v
 	out := make([]ComponentVulnEntry, 0, len(rows))
 	for _, r := range rows {
 		e := ComponentVulnEntry{
-			ID:          r.ID,
-			CanonicalID: r.CanonicalID,
-			Severity:    r.Severity.String,
+			ID:               r.ID,
+			CanonicalID:      r.CanonicalID,
+			Severity:         r.Severity.String,
+			MatchedViaSource: r.MatchedViaSource.Bool,
 		}
 		if r.CvssScore.Valid {
 			v := r.CvssScore.Float32
