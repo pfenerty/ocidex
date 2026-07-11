@@ -37,9 +37,10 @@ export function VulnBadge(props: { count: number | undefined; maxSeverity: strin
     );
 }
 
-// VulnCountBadges renders a compact per-severity breakdown using individual count
-// pills. Renders "—" when all counts are zero. Suitable for table cells and
-// version summary rows across the app.
+// VulnCountBadges renders a compact pipe-separated severity breakdown
+// (e.g. "5|3|4|1|0" for critical|high|medium|low|unknown), each number
+// colored by its severity. Renders "—" when all counts are zero. Suitable
+// for table cells and version summary rows across the app.
 export function VulnCountBadges(props: {
     criticalCount?: number;
     highCount?: number;
@@ -47,33 +48,35 @@ export function VulnCountBadges(props: {
     lowCount?: number;
     unknownCount?: number;
 }) {
-    const cells = (): { label: string; severity: string; count: number }[] =>
-        [
-            { label: "critical", severity: "CRITICAL", count: props.criticalCount ?? 0 },
-            { label: "high", severity: "HIGH", count: props.highCount ?? 0 },
-            { label: "medium", severity: "MEDIUM", count: props.mediumCount ?? 0 },
-            { label: "low", severity: "LOW", count: props.lowCount ?? 0 },
-            { label: "unknown", severity: "UNKNOWN", count: props.unknownCount ?? 0 },
-        ].filter((c) => c.count > 0);
+    const counts = (): { label: string; severity: string; count: number }[] => [
+        { label: "critical", severity: "CRITICAL", count: props.criticalCount ?? 0 },
+        { label: "high", severity: "HIGH", count: props.highCount ?? 0 },
+        { label: "medium", severity: "MEDIUM", count: props.mediumCount ?? 0 },
+        { label: "low", severity: "LOW", count: props.lowCount ?? 0 },
+        { label: "unknown", severity: "UNKNOWN", count: props.unknownCount ?? 0 },
+    ];
 
-    const total = () =>
-        (props.criticalCount ?? 0) +
-        (props.highCount ?? 0) +
-        (props.mediumCount ?? 0) +
-        (props.lowCount ?? 0) +
-        (props.unknownCount ?? 0);
+    const total = () => counts().reduce((sum, c) => sum + c.count, 0);
+    const title = () =>
+        counts()
+            .filter((c) => c.count > 0)
+            .map((c) => `${c.count} ${c.label}`)
+            .join(", ");
 
     return (
         <Show when={total() > 0} fallback={<span class="text-muted">—</span>}>
-            <div style={{ display: "inline-flex", gap: "4px", "flex-wrap": "wrap" }}>
-                <For each={cells()}>
-                    {(c) => (
-                        <StatusPill variant={severityVariant(c.severity)}>
-                            {c.count} {c.label}
-                        </StatusPill>
+            <span class="vuln-chip" title={title()}>
+                <For each={counts()}>
+                    {(c, i) => (
+                        <>
+                            <Show when={i() > 0}>
+                                <span class="vuln-chip-sep">|</span>
+                            </Show>
+                            <span class={`vuln-chip-n vuln-chip-${severityVariant(c.severity)}`}>{c.count}</span>
+                        </>
                     )}
                 </For>
-            </div>
+            </span>
         </Show>
     );
 }
