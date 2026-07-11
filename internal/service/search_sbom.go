@@ -146,14 +146,23 @@ func decorateComponentVulns(ctx context.Context, q *repository.Queries, sbomID p
 	type agg struct {
 		count       int
 		maxSeverity string
+		seen        map[string]struct{}
 	}
 	byPurl := make(map[string]*agg, len(rows))
 	for _, r := range rows {
 		a := byPurl[r.Purl]
 		if a == nil {
-			a = &agg{}
+			a = &agg{seen: make(map[string]struct{})}
 			byPurl[r.Purl] = a
 		}
+		canonicalID := r.CanonicalID
+		if canonicalID == "" {
+			canonicalID = r.ID
+		}
+		if _, dup := a.seen[canonicalID]; dup {
+			continue
+		}
+		a.seen[canonicalID] = struct{}{}
 		a.count++
 		if severityRank(r.Severity.String) > severityRank(a.maxSeverity) {
 			a.maxSeverity = r.Severity.String

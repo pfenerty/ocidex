@@ -167,14 +167,23 @@ func decorateVersionVulns(ctx context.Context, q *repository.Queries, purls []st
 		count                                int
 		maxSeverity                          string
 		critical, high, medium, low, unknown int
+		seen                                 map[string]struct{}
 	}
 	byPurl := make(map[string]*agg, len(purls))
 	for _, r := range vulnRows {
 		a := byPurl[r.Purl]
 		if a == nil {
-			a = &agg{}
+			a = &agg{seen: make(map[string]struct{})}
 			byPurl[r.Purl] = a
 		}
+		canonicalID := r.CanonicalID
+		if canonicalID == "" {
+			canonicalID = r.ID
+		}
+		if _, dup := a.seen[canonicalID]; dup {
+			continue
+		}
+		a.seen[canonicalID] = struct{}{}
 		a.count++
 		if severityRank(r.Severity.String) > severityRank(a.maxSeverity) {
 			a.maxSeverity = r.Severity.String
