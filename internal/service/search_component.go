@@ -305,7 +305,14 @@ func (s *searchService) GetComponentVulns(ctx context.Context, id pgtype.UUID, v
 		return nil, nil
 	}
 	q := repository.New(s.db)
-	rows, err := q.ListVulnsByPurl(ctx, *detail.Purl)
+	row, err := q.GetComponent(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("getting component: %w", err)
+	}
+	rows, err := q.ListVulnsByPurl(ctx, repository.ListVulnsByPurlParams{
+		Purl:       *detail.Purl,
+		SourcePurl: row.SourcePurl,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("listing component vulns: %w", err)
 	}
@@ -323,8 +330,8 @@ func (s *searchService) GetComponentVulns(ctx context.Context, id pgtype.UUID, v
 		if r.Summary.Valid {
 			e.Summary = &r.Summary.String
 		}
-		if r.FixedVersion.Valid {
-			e.FixedVersion = &r.FixedVersion.String
+		if s, ok := r.FixedVersion.(string); ok && s != "" {
+			e.FixedVersion = &s
 		}
 		out = append(out, e)
 	}
