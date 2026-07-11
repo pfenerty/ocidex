@@ -123,6 +123,38 @@ func TestExtractMetadata_EmptyConfig(t *testing.T) {
 	if meta.Labels != nil {
 		t.Errorf("Labels = %v, want nil", meta.Labels)
 	}
+	if meta.Layers != nil {
+		t.Errorf("Layers = %v, want nil", meta.Layers)
+	}
+}
+
+func TestExtractMetadata_Layers(t *testing.T) {
+	cfg := &v1.ConfigFile{
+		RootFS: v1.RootFS{
+			Type: "layers",
+			DiffIDs: []v1.Hash{
+				{Algorithm: "sha256", Hex: "1111111111111111111111111111111111111111111111111111111111111111"},
+				{Algorithm: "sha256", Hex: "2222222222222222222222222222222222222222222222222222222222222222"},
+				{Algorithm: "sha256", Hex: "3333333333333333333333333333333333333333333333333333333333333333"},
+			},
+		},
+	}
+
+	meta := extractMetadata(cfg, nil, nil)
+
+	want := []LayerInfo{
+		{Ordinal: 0, DiffID: "sha256:1111111111111111111111111111111111111111111111111111111111111111"},
+		{Ordinal: 1, DiffID: "sha256:2222222222222222222222222222222222222222222222222222222222222222"},
+		{Ordinal: 2, DiffID: "sha256:3333333333333333333333333333333333333333333333333333333333333333"},
+	}
+	if len(meta.Layers) != len(want) {
+		t.Fatalf("Layers = %v, want %v", meta.Layers, want)
+	}
+	for i, l := range meta.Layers {
+		if l != want[i] {
+			t.Errorf("Layers[%d] = %+v, want %+v", i, l, want[i])
+		}
+	}
 }
 
 func TestExtractField(t *testing.T) {

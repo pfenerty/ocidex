@@ -30,19 +30,27 @@ type Metadata struct {
 	IndexAnnotations    map[string]string `json:"indexAnnotations,omitempty"`
 	// Convenience fields extracted from well-known OCI annotation keys.
 	// Priority: manifest annotations > config labels > index annotations.
-	ImageVersion  string `json:"imageVersion,omitempty"`
-	SourceURL     string `json:"sourceUrl,omitempty"`
-	Revision      string `json:"revision,omitempty"`
-	Authors       string `json:"authors,omitempty"`
-	Description   string `json:"description,omitempty"`
-	BaseName      string `json:"baseName,omitempty"`
-	URL           string `json:"url,omitempty"`
-	Documentation string `json:"documentation,omitempty"`
-	Vendor        string `json:"vendor,omitempty"`
-	Licenses      string `json:"licenses,omitempty"`
-	Title         string `json:"title,omitempty"`
-	BaseDigest    string `json:"baseDigest,omitempty"`
-	RefName       string `json:"refName,omitempty"`
+	ImageVersion  string      `json:"imageVersion,omitempty"`
+	SourceURL     string      `json:"sourceUrl,omitempty"`
+	Revision      string      `json:"revision,omitempty"`
+	Authors       string      `json:"authors,omitempty"`
+	Description   string      `json:"description,omitempty"`
+	BaseName      string      `json:"baseName,omitempty"`
+	URL           string      `json:"url,omitempty"`
+	Documentation string      `json:"documentation,omitempty"`
+	Vendor        string      `json:"vendor,omitempty"`
+	Licenses      string      `json:"licenses,omitempty"`
+	Title         string      `json:"title,omitempty"`
+	BaseDigest    string      `json:"baseDigest,omitempty"`
+	RefName       string      `json:"refName,omitempty"`
+	Layers        []LayerInfo `json:"layers,omitempty"`
+}
+
+// LayerInfo records the position ordinal and content digest of one image
+// layer, in the order they apply on top of the base (rootfs.diff_ids order).
+type LayerInfo struct {
+	Ordinal int    `json:"ordinal"`
+	DiffID  string `json:"diffId"`
 }
 
 // Enricher fetches OCI image metadata from container registries.
@@ -367,6 +375,14 @@ func extractMetadata(cfg *v1.ConfigFile, manifestAnnotations, indexAnnotations m
 	)
 	meta.BaseDigest = extractField("org.opencontainers.image.base.digest", manifestAnnotations, labels, indexAnnotations)
 	meta.RefName = extractField("org.opencontainers.image.ref.name", manifestAnnotations, labels, indexAnnotations)
+
+	if len(cfg.RootFS.DiffIDs) > 0 {
+		layers := make([]LayerInfo, len(cfg.RootFS.DiffIDs))
+		for i, diffID := range cfg.RootFS.DiffIDs {
+			layers[i] = LayerInfo{Ordinal: i, DiffID: diffID.String()}
+		}
+		meta.Layers = layers
+	}
 
 	return meta
 }
