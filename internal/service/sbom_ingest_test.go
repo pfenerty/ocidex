@@ -925,3 +925,172 @@ func contains(s, sub string) bool {
 			return false
 		}())
 }
+
+// TestExtractComponentProvenance covers syft property extraction and
+// normalization across deb/apk/rpm ecosystems, plus empty-input edge cases.
+func TestExtractComponentProvenance(t *testing.T) {
+	is := is.New(t)
+	cases := []struct {
+		name        string
+		props       []cdx.Property
+		purl        string
+		flavor      string
+		wantLayer   string
+		wantFound   string
+		wantSrcPkg  string
+		wantSrcVer  string
+		wantSrcPurl string
+	}{
+		{
+			name: "deb source package with version",
+			props: []cdx.Property{
+				{Name: "syft:location:0:layerID", Value: "sha256:layer1"},
+				{Name: "syft:package:foundBy", Value: "deb-db-cataloger"},
+				{Name: "syft:metadata:source", Value: "openssl"},
+				{Name: "syft:metadata:sourceVersion", Value: "3.0.11-1~deb12u2"},
+			},
+			purl:        "pkg:deb/debian/libssl3@3.0.11-1~deb12u2",
+			flavor:      "debian-12",
+			wantLayer:   "sha256:layer1",
+			wantFound:   "deb-db-cataloger",
+			wantSrcPkg:  "openssl",
+			wantSrcVer:  "3.0.11-1~deb12u2",
+			wantSrcPurl: "pkg:deb/debian/openssl@3.0.11-1~deb12u2?distro=debian-12",
+		},
+		{
+			name: "apk origin package",
+			props: []cdx.Property{
+				{Name: "syft:metadata:originPackage", Value: "openssl"},
+			},
+			purl:        "pkg:apk/alpine/libcrypto3@3.1.4-r5",
+			flavor:      "alpine-3.19",
+			wantSrcPkg:  "openssl",
+			wantSrcPurl: "pkg:apk/alpine/openssl?distro=alpine-3.19",
+		},
+		{
+			name: "rpm sourceRpm parsed",
+			props: []cdx.Property{
+				{Name: "syft:metadata:sourceRpm", Value: "openssl-libs-1.1.1k-7.el8.src.rpm"},
+			},
+			purl:        "pkg:rpm/centos/openssl-libs@1.1.1k-7.el8",
+			flavor:      "centos-8",
+			wantSrcPkg:  "openssl-libs",
+			wantSrcVer:  "1.1.1k-7.el8",
+			wantSrcPurl: "pkg:rpm/centos/openssl-libs@1.1.1k-7.el8?distro=centos-8",
+		},
+		{
+			name:   "no properties",
+			props:  nil,
+			purl:   "pkg:golang/example.com/foo@v1.0.0",
+			flavor: "unknown",
+		},
+		{
+			name: "rpm sourceRpm with empty flavor omits namespace and distro",
+			props: []cdx.Property{
+				{Name: "syft:metadata:sourceRpm", Value: "bash-4.4.20-4.el8.src.rpm"},
+			},
+			purl:        "pkg:rpm/rhel/bash@4.4.20-4.el8",
+			flavor:      "",
+			wantSrcPkg:  "bash",
+			wantSrcVer:  "4.4.20-4.el8",
+			wantSrcPurl: "pkg:rpm/bash@4.4.20-4.el8",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var propsPtr *[]cdx.Property
+			if tc.props != nil {
+				propsPtr = &tc.props
+			}
+			got := extractComponentProvenance(propsPtr, tc.purl, tc.flavor)
+			is.Equal(got.layerID.String, tc.wantLayer)
+			is.Equal(got.foundBy.String, tc.wantFound)
+			is.Equal(got.sourcePackage.String, tc.wantSrcPkg)
+			is.Equal(got.sourceVersion.String, tc.wantSrcVer)
+			is.Equal(got.sourcePurl.String, tc.wantSrcPurl)
+		})
+	}
+}
+
+// TestParseSourceRpm covers the right-anchored hyphen split, including
+// multi-hyphen package names and a malformed (non-".src.rpm") suffix.
+func TestParseSourceRpm(t *testing.T) {
+	is := is.New(t)
+	cases := []struct {
+		name        string
+		sourceRpm   string
+		wantPkg     string
+		wantVersion string
+	}{
+		{
+			name:        "multi-hyphen package name",
+			sourceRpm:   "openssl-libs-1.1.1k-7.el8.src.rpm",
+			wantPkg:     "openssl-libs",
+			wantVersion: "1.1.1k-7.el8",
+		},
+		{
+			name:        "simple package name",
+			sourceRpm:   "bash-4.4.20-4.el8.src.rpm",
+			wantPkg:     "bash",
+			wantVersion: "4.4.20-4.el8",
+		},
+		{
+			name:        "malformed suffix",
+			sourceRpm:   "openssl-libs-1.1.1k-7.el8.rpm",
+			wantPkg:     "",
+			wantVersion: "",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pkg, version := parseSourceRpm(tc.sourceRpm)
+			is.Equal(pkg, tc.wantPkg)
+			is.Equal(version, tc.wantVersion)
+		})
+	}
+}
+
+// TestCopyComponents_Provenance is a round-trip test: syft properties in,
+// verify the exact CopyFrom row tuple (looked up by column name so the
+// assertion is resilient to future column reordering).
+func TestCopyComponents_Provenance(t *testing.T) {
+	is := is.New(t)
+	tx := &fakeTx{}
+	sbomID := newUUID(t)
+	flat := []flatComponent{{
+		id: newUUID2(t),
+		comp: &cdx.Component{
+			Type:       cdx.ComponentTypeLibrary,
+			Name:       "libssl3",
+			PackageURL: "pkg:deb/debian/libssl3@3.0.11-1~deb12u2",
+			Properties: &[]cdx.Property{
+				{Name: "syft:location:0:layerID", Value: "sha256:layer1"},
+				{Name: "syft:package:foundBy", Value: "deb-db-cataloger"},
+				{Name: "syft:metadata:source", Value: "openssl"},
+				{Name: "syft:metadata:sourceVersion", Value: "3.0.11-1~deb12u2"},
+			},
+		},
+		version: "3.0.11-1~deb12u2",
+	}}
+
+	err := copyComponents(context.Background(), tx, sbomID, flat, "debian-12")
+	is.NoErr(err)
+	is.Equal(tx.copiedRows("component"), 1)
+
+	row := tx.copied[0].rows[0]
+	cols := tx.copied[0].cols
+	idxOf := func(name string) int {
+		for i, c := range cols {
+			if c == name {
+				return i
+			}
+		}
+		t.Fatalf("column %q not found", name)
+		return -1
+	}
+	is.Equal(row[idxOf("layer_id")].(pgtype.Text).String, "sha256:layer1")
+	is.Equal(row[idxOf("found_by")].(pgtype.Text).String, "deb-db-cataloger")
+	is.Equal(row[idxOf("source_package")].(pgtype.Text).String, "openssl")
+	is.Equal(row[idxOf("source_version")].(pgtype.Text).String, "3.0.11-1~deb12u2")
+	is.Equal(row[idxOf("source_purl")].(pgtype.Text).String, "pkg:deb/debian/openssl@3.0.11-1~deb12u2?distro=debian-12")
+}

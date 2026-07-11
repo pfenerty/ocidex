@@ -310,6 +310,45 @@ export default function ComponentOverview() {
                                                                 <span class="detail-value">{detail.copyright}</span>
                                                             </div>
                                                         </Show>
+                                                        <Show when={hasText(detail.foundBy)}>
+                                                            <div class="detail-field">
+                                                                <span class="detail-label">Detected by</span>
+                                                                <span class="detail-value">
+                                                                    {detail.foundBy}
+                                                                    <Show when={hasText(detail.confidence)}>
+                                                                        <span style={{ "margin-left": "8px" }}>
+                                                                            <StatusPill variant="warning">
+                                                                                {detail.confidence} confidence
+                                                                            </StatusPill>
+                                                                        </span>
+                                                                    </Show>
+                                                                </span>
+                                                            </div>
+                                                        </Show>
+                                                        <Show when={hasText(detail.sourcePackage)}>
+                                                            <div class="detail-field">
+                                                                <span class="detail-label">Source package</span>
+                                                                <span class="detail-value">{detail.sourcePackage}</span>
+                                                            </div>
+                                                        </Show>
+                                                        <Show when={detail.layer !== undefined}>
+                                                            <div class="detail-field">
+                                                                <span class="detail-label">Layer</span>
+                                                                <span class="detail-value">
+                                                                    {detail.layer}
+                                                                    <Show when={detail.fromBaseImage}>
+                                                                        <span style={{ "margin-left": "8px" }}>
+                                                                            <StatusPill
+                                                                                variant="primary"
+                                                                                title="Introduced by the image's base layer"
+                                                                            >
+                                                                                base image
+                                                                            </StatusPill>
+                                                                        </span>
+                                                                    </Show>
+                                                                </span>
+                                                            </div>
+                                                        </Show>
                                                     </div>
 
                                                     <Show when={hasText(detail.description)}>
@@ -372,6 +411,16 @@ export default function ComponentOverview() {
                                                                                     canonicalId={v.canonicalId}
                                                                                     nativeId={v.id}
                                                                                 />
+                                                                                <Show when={v.matchedViaSource}>
+                                                                                    <span style={{ "margin-left": "8px" }}>
+                                                                                        <StatusPill
+                                                                                            variant="default"
+                                                                                            title="Matched via the component's source package, not its own purl"
+                                                                                        >
+                                                                                            via source
+                                                                                        </StatusPill>
+                                                                                    </span>
+                                                                                </Show>
                                                                             </td>
                                                                             <td>
                                                                                 <StatusPill variant={severityVariant(v.severity)}>
