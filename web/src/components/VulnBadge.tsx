@@ -37,6 +37,26 @@ export function VulnBadge(props: { count: number | undefined; maxSeverity: strin
     );
 }
 
+// chipSeverityClass maps a severity to the VulnCountBadges chip's own color
+// scale. Distinct from severityVariant/BadgeVariant: red and green read as
+// the same hue under deuteranopia, so — matching the substitution already
+// used for add/remove state in DiffEntry.tsx — this scale never uses green,
+// substituting blue where a plain gray would otherwise collapse two
+// distinct severities (low vs. unknown) into one indistinguishable segment.
+function chipSeverityClass(severity: string | undefined): string {
+    switch ((severity ?? "").toUpperCase()) {
+        case "CRITICAL":
+        case "HIGH":
+            return "vuln-chip-danger";
+        case "MEDIUM":
+            return "vuln-chip-warning";
+        case "LOW":
+            return "vuln-chip-low";
+        default:
+            return "vuln-chip-default";
+    }
+}
+
 // VulnCountBadges renders a compact severity breakdown as a single seamless
 // bar of solid-colored segments (e.g. "5 3 4 1 0" for
 // critical|high|medium|low|unknown), each segment colored by its severity.
@@ -68,7 +88,7 @@ export function VulnCountBadges(props: {
         <Show when={total() > 0} fallback={<span class="text-muted">—</span>}>
             <span class="vuln-chip" title={title()}>
                 <For each={counts()}>
-                    {(c) => <span class={`vuln-chip-n vuln-chip-${severityVariant(c.severity)}`}>{c.count}</span>}
+                    {(c) => <span class={`vuln-chip-n ${chipSeverityClass(c.severity)}`}>{c.count}</span>}
                 </For>
             </span>
         </Show>
