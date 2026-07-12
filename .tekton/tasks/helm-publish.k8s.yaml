@@ -27,7 +27,7 @@ spec:
     - env:
         - name: DOCKER_CONFIG
           value: /tmp/helm-auth
-      image: alpine/helm:3
+      image: alpine/helm:4
       name: package-and-push
       onError: continue
       script: |-
