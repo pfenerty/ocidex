@@ -425,6 +425,7 @@ bd close <epic-id>
 | 032 | Provenance Verification | Tiered trust per registry (display → ECDSA verify); four status values; digest-bound; no cosign SDK |
 | 033 | Per-Enricher Services | Per-enricher `cmd/` binary + Docker image + NATS consumer; `enrichment_jobs.enricher_name` partitions work |
 | 034 | Component Provenance | CycloneDX retained (SPDX is a lateral move, no new capability); capability-driven typed columns (no generic property hoarding); base-vs-app layer caveat (ordinal-0-only, package-DB-layer granularity) |
+| 035 | Enricher Dependency Chaining | Completion-driven dependent enqueue via deps.go graph; reuses enrichment_jobs outbox + `.enrich.hint` doorbell; no new tables/subjects; `--once` mode does not chain |
 
 **When working on diff, dependency-tree, or changelog code, read ADRs 0019–0021 first.** They are the normative contract; the implementation issues (`ocidex-bqh.*`) reference them by section.
 
