@@ -13,7 +13,7 @@
         "generate-api": "openapi-typescript openapi.json -o src/types/openapi.d.ts"
     },
     "dependencies": {
-        "@solidjs/router": "^0.15.3",
+        "@solidjs/router": "^0.16.0",
         "@tailwindcss/vite": "^4.2.1",
         "@tanstack/solid-query": "^5.90.24",
         "@unovis/solid": "^1.6.4",
