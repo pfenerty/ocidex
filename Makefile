@@ -18,6 +18,7 @@ build: ## Build the Go binaries
 	go build -o $(BUILD_DIR)/oci-metadata-worker ./cmd/oci-metadata-worker
 	go build -o $(BUILD_DIR)/user-enricher-worker ./cmd/user-enricher-worker
 	go build -o $(BUILD_DIR)/provenance-worker ./cmd/provenance-worker
+	go build -o $(BUILD_DIR)/git-worker ./cmd/git-worker
 	go build -o $(BUILD_DIR)/operator ./cmd/operator
 
 run: build ## Run the API server
