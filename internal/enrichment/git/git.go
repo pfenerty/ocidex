@@ -228,7 +228,10 @@ func (e *Enricher) fetchCommit(ctx context.Context, host, owner, repo, revision 
 // oci-metadata's sourceUrl field. Host is returned generically (not
 // hardcoded to github.com) so a future GitLab adapter can reuse this parser.
 // Recognized forms: https://host/owner/repo(.git), git+https://host/owner/repo(.git),
-// and bare host/owner/repo. Anything else returns ok=false.
+// bare host/owner/repo, and GitHub web UI URLs with trailing path segments
+// (e.g. https://github.com/owner/repo/blob/<ref>/subdir/ for monorepos that
+// publish org.opencontainers.image.source pointing at a subdirectory).
+// Anything else returns ok=false.
 func parseSourceURL(raw string) (host, owner, repo string, ok bool) {
 	s := strings.TrimSpace(raw)
 	if s == "" {
@@ -244,7 +247,7 @@ func parseSourceURL(raw string) (host, owner, repo string, ok bool) {
 	}
 	path := strings.TrimSuffix(strings.Trim(u.Path, "/"), ".git")
 	parts := strings.Split(path, "/")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
 		return "", "", "", false
 	}
 	return u.Host, parts[0], parts[1], true

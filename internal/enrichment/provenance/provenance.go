@@ -26,6 +26,7 @@ const (
 	sigArtifactType    = "application/vnd.dev.cosign.artifact.sig.v1+json"
 	attArtifactType    = "application/vnd.dsse.envelope.v1+json"
 	inTotoArtifactType = "application/vnd.in-toto+json"
+	bundleArtifactType = "application/vnd.dev.sigstore.bundle.v0.3+json"
 )
 
 // RawArtifacts is the result stored in the enrichment JSONB column for B2.
@@ -213,46 +214,44 @@ func (e *Enricher) extractFromReferrers(idx v1.ImageIndex, repo name.Repository,
 			if result.SigPresent {
 				continue // take first sig only
 			}
-			childRef := repo.Digest(desc.Digest.String())
-			img, err := remote.Image(childRef, opts...)
-			if err != nil {
+			annotations, layerBytes, ok := fetchReferrerLayer(repo, desc, opts)
+			if !ok {
 				continue
 			}
-			result.SigAnnotations = manifestAnnotations(img)
-			result.SigLayerBytes, _ = readFirstLayer(img)
+			result.SigAnnotations = annotations
+			result.SigLayerBytes = layerBytes
 			result.SigPresent = true
 
-		case attArtifactType:
+		case attArtifactType, inTotoArtifactType, bundleArtifactType:
 			if result.AttPresent {
-				continue // take first att only
+				continue // take first att only; prefer earlier-listed match if multiple present
 			}
-			childRef := repo.Digest(desc.Digest.String())
-			img, err := remote.Image(childRef, opts...)
-			if err != nil {
+			annotations, layerBytes, ok := fetchReferrerLayer(repo, desc, opts)
+			if !ok {
 				continue
 			}
-			result.AttAnnotations = manifestAnnotations(img)
-			result.AttLayerBytes, _ = readFirstLayer(img)
+			result.AttAnnotations = annotations
+			result.AttLayerBytes = layerBytes
 			result.AttPresent = true
-			result.AttArtifactType = attArtifactType
-
-		case inTotoArtifactType:
-			if result.AttPresent {
-				continue // take first att only; prefer DSSE if both present
-			}
-			childRef := repo.Digest(desc.Digest.String())
-			img, err := remote.Image(childRef, opts...)
-			if err != nil {
-				continue
-			}
-			result.AttAnnotations = manifestAnnotations(img)
-			result.AttLayerBytes, _ = readFirstLayer(img)
-			result.AttPresent = true
-			result.AttArtifactType = inTotoArtifactType
+			result.AttArtifactType = desc.ArtifactType
 		}
 	}
 
 	return result, result.SigPresent || result.AttPresent
+}
+
+// fetchReferrerLayer fetches a referrer's child image and returns its merged
+// manifest annotations and first-layer bytes. go-containerregistry's
+// remoteIndex.Image() panics when called on a referrers index (the ref field
+// is unset), so child images are fetched directly via remote.Image().
+func fetchReferrerLayer(repo name.Repository, desc v1.Descriptor, opts []remote.Option) (annotations map[string]string, layerBytes []byte, ok bool) {
+	childRef := repo.Digest(desc.Digest.String())
+	img, err := remote.Image(childRef, opts...)
+	if err != nil {
+		return nil, nil, false
+	}
+	layerBytes, _ = readFirstLayer(img)
+	return manifestAnnotations(img), layerBytes, true
 }
 
 // discoverViaTagScheme fetches sha256-<hex>.sig and sha256-<hex>.att tags from the same repo.
