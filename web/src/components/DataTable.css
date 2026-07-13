@@ -8,9 +8,14 @@ th.th-sortable:hover {
     color: var(--color-text);
 }
 
+th.th-sortable:has(.sort-arrow) {
+    color: var(--color-text);
+}
+
 th.th-sortable .sort-arrow {
     margin-left: 0.25rem;
     font-size: 0.65rem;
+    color: var(--color-accent-amber);
 }
 
 .skeleton-cell {
