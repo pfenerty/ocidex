@@ -8,9 +8,21 @@
 - Challenge design decisions when necessary
 - After making frontend changes, run `make frontend-lint-fix` to auto-fix ESLint errors, then `make frontend-lint` to verify no remaining issues
 
-## Codebase Exploration with Repomix
+## Codebase Exploration
 
-Repomix is available two ways — prefer MCP tools when loaded; fall back to the CLI (available in the flox environment) otherwise.
+This project has three code-exploration MCP servers available: **tokensave**, **repomix**, and
+**headroom**. Global guidance (`~/.claude/CLAUDE.md`) already mandates tokensave-first and bans
+Explore agents when tokensave is available — this section adds ocidex-specific detail on top of
+that mandate.
+
+**tokensave first, always** — it's a pre-built code graph over ocidex, not a text search. Use it
+for: "where is X defined," callers/callees, impact radius, "how does enricher dependency
+chaining work" (`tokensave_context`), symbol bodies (`tokensave_body`), signature lookups. Check
+`tokensave_status` if a call errors — a malformed-DB error means the local index needs
+`tokensave wipe && tokensave init && tokensave install`.
+
+**repomix** only when tokensave_context doesn't fully answer — broad, non-symbol-shaped review
+(e.g. "read through all of `.tekton/tasks/` for a security review", full-directory audits).
 
 **MCP tools** (auto-allowed when the MCP server is active):
 ```
@@ -32,11 +44,27 @@ flox activate -- repomix internal/service
 grep -n "pattern" repomix-output.xml
 ```
 
-**When to use repomix (either form):**
-- PR review or security review (pack once, grep many times)
-- "How does X work across the codebase?" questions
-- Finding all callsites/usages of an interface or function
-- Any exploration that would otherwise require 5+ Glob/Grep calls
+**headroom** — compress any tool output over ~2k tokens (Bash output, repomix reads, file
+reads) before it lands in context. Retrieve full content by hash only when actually needed.
+
+**Fall back to plain `Read`/`Grep`** only for files you're about to edit directly, or non-code
+content (docs prose, YAML, config) these tools don't index well.
+
+## Story Planning Workflow
+
+The recurring "identify and plan the next story" routine (context-clear → plan mode → "what's
+next for epic X"):
+
+1. `bd ready` / `bd show <epic>` — identify the epic and its child stories.
+2. `bd show <story>` — read the target story's full description and acceptance criteria.
+3. `mcp__tokensave__tokensave_context(task=..., mode="plan")` as the **first** exploration
+   call — built for implementation planning (extension points, dependency order, test
+   coverage), not just symbol lookup.
+4. Fall back to `Read` only for files you intend to edit directly, or non-code content
+   tokensave can't index.
+5. `headroom_compress` anything over ~2k tokens before it re-enters context.
+6. Soft budget: ~15 research tool calls before falling back to `AskUserQuestion` if still
+   stuck — a proxy for "this needs human input, not more searching."
 
 **When to use Glob/Grep directly:**
 - You already know the file or directory
