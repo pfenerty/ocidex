@@ -45,6 +45,11 @@ Icons use `lucide-solid` (tree-shaken, 1.5px stroke, consistent with the design)
 
 No runtime CSS-in-JS in the bundle. Tailwind utilities cover all layout and typography. `lucide-solid` provides the icon set. `@unovis/solid` provides chart primitives on the dashboard.
 
+**Update (2026-07-12):** the "sort/filter/pagination state is custom-coded" consequence above is
+addressed by ADR-0036, which defines a shared `DataTable` component and cell-renderer catalog on
+top of the plain-`<table>` approach chosen here — it does not revisit the TanStack Table decision,
+just standardizes the custom code across pages.
+
 ## Pros and Cons of the Options
 
 ### Tailwind CSS + Kobalte + TanStack Table
