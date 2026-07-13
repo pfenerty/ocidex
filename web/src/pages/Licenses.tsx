@@ -1,10 +1,13 @@
 import { createSignal } from "solid-js";
-import { Show, For } from "solid-js";
+import { For } from "solid-js";
 import { A } from "@solidjs/router";
 import { useLicenses } from "~/api/queries";
-import { QueryResult, EmptyState } from "~/components/Feedback";
-import Pagination from "~/components/Pagination";
-import { CATEGORY_COLORS } from "~/utils/licenseUtils";
+import type { components } from "~/types/openapi";
+import DataTable from "~/components/DataTable";
+import type { Column } from "~/components/DataTable";
+import { SpdxBadgeCell, LicenseCategoryCell } from "~/components/cells";
+
+type LicenseCount = components["schemas"]["LicenseCount"];
 
 const categoryTabs = [
     { value: "", label: "All" },
@@ -33,6 +36,34 @@ export default function Licenses() {
         e.preventDefault();
         setOffset(0);
     };
+
+    const columns: Column<LicenseCount>[] = [
+        {
+            header: "Name",
+            render: (l) => l.name,
+        },
+        {
+            header: "SPDX ID",
+            render: (l) => <SpdxBadgeCell spdxId={l.spdxId} />,
+        },
+        {
+            header: "Category",
+            render: (l) => <LicenseCategoryCell category={l.category} />,
+        },
+        {
+            header: "Components",
+            align: "right",
+            render: (l) => l.componentCount.toLocaleString(),
+        },
+        {
+            header: "",
+            render: (l) => (
+                <A href={`/licenses/${l.id}/components`} class="btn btn-sm">
+                    View
+                </A>
+            ),
+        },
+    ];
 
     return (
         <>
@@ -79,83 +110,20 @@ export default function Licenses() {
                 </button>
             </form>
 
-            <QueryResult
-                query={query}
-                when={(d) => (d.data.length > 0 ? d : undefined)}
-                empty={
-                    <EmptyState
-                        title="No licenses found"
-                        message="Ingest SBOMs with license data to populate this view."
-                    />
+            <DataTable
+                columns={columns}
+                rows={query.data?.data ?? undefined}
+                loading={query.isFetching}
+                isError={query.isError}
+                error={query.error}
+                emptyTitle="No licenses found"
+                emptyMessage="Ingest SBOMs with license data to populate this view."
+                pagination={
+                    query.data
+                        ? { pagination: query.data.pagination, onPageChange: setOffset }
+                        : undefined
                 }
-            >
-                {(d) => (
-                    <div class="card">
-                        <div class="table-wrapper">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Name</th>
-                                        <th>SPDX ID</th>
-                                        <th>Category</th>
-                                        <th class="text-right">
-                                            Components
-                                        </th>
-                                        <th />
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <For each={d().data}>
-                                        {(license) => (
-                                            <tr>
-                                                <td>{license.name}</td>
-                                                <td>
-                                                    <Show
-                                                        when={
-                                                            license.spdxId !== undefined
-                                                        }
-                                                        fallback={
-                                                            <span class="text-muted">
-                                                                —
-                                                            </span>
-                                                        }
-                                                    >
-                                                        <span class="badge badge-primary">
-                                                            {license.spdxId}
-                                                        </span>
-                                                    </Show>
-                                                </td>
-                                                <td>
-                                                    <span
-                                                        class={`badge ${CATEGORY_COLORS[license.category]?.badge ?? ""}`}
-                                                    >
-                                                        {license.category}
-                                                    </span>
-                                                </td>
-                                                <td class="text-right font-mono text-sm">
-                                                    {license.componentCount}
-                                                </td>
-                                                <td>
-                                                    <A
-                                                        href={`/licenses/${license.id}/components`}
-                                                        class="btn btn-sm"
-                                                    >
-                                                        View
-                                                    </A>
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </For>
-                                </tbody>
-                            </table>
-                        </div>
-                        <Pagination
-                            pagination={d().pagination}
-                            onPageChange={setOffset}
-                        />
-                    </div>
-                )}
-            </QueryResult>
+            />
         </>
     );
 }
