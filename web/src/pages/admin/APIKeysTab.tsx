@@ -1,7 +1,10 @@
-import { For, Show, createSignal } from "solid-js";
+import { Show, createSignal } from "solid-js";
 import { copyText } from "~/utils/clipboard";
 import { useToast } from "~/context/toast";
 import { Loading, ErrorBox } from "~/components/Feedback";
+import DataTable from "~/components/DataTable";
+import type { Column } from "~/components/DataTable";
+import type { APIKey } from "~/api/client";
 import { useListAPIKeys, useCreateAPIKey, useDeleteAPIKey } from "~/api/queries";
 
 export function APIKeysTab() {
@@ -26,6 +29,42 @@ export function APIKeysTab() {
             onError: () => toast("Failed to create API key", "error"),
         });
     }
+
+    const columns: Column<APIKey>[] = [
+        { header: "Name", render: (k) => <>{k.name}</> },
+        { header: "Prefix", render: (k) => <code>{k.prefix}…</code> },
+        {
+            header: "Scope",
+            render: (k) => (
+                <span class={`badge ${k.scope === "read" ? "" : "badge-success"}`}>
+                    {k.scope}
+                </span>
+            ),
+        },
+        { header: "Created", render: (k) => <>{new Date(k.created_at).toLocaleDateString()}</> },
+        {
+            header: "Last Used",
+            render: (k) =>
+                k.last_used_at !== undefined
+                    ? <>{new Date(k.last_used_at).toLocaleDateString()}</>
+                    : <span style={{ color: "var(--color-text-muted)" }}>Never</span>,
+        },
+        {
+            header: "",
+            render: (k) => (
+                <button
+                    class="btn"
+                    onClick={() => deleteKey.mutate(k.id, {
+                        onSuccess: () => toast("API key deleted", "success"),
+                        onError: () => toast("Failed to delete API key", "error"),
+                    })}
+                    disabled={deleteKey.isPending}
+                >
+                    Delete
+                </button>
+            ),
+        },
+    ];
 
     return (
         <>
@@ -79,57 +118,13 @@ export function APIKeysTab() {
 
             <Show when={!query.isLoading} fallback={<Loading />}>
                 <Show when={!query.isError} fallback={<ErrorBox error={query.error} />}>
-                    <div class="card">
-                        <div class="table-wrapper">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Name</th>
-                                        <th>Prefix</th>
-                                        <th>Scope</th>
-                                        <th>Created</th>
-                                        <th>Last Used</th>
-                                        <th />
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <For each={query.data?.keys ?? []}>
-                                        {(k) => (
-                                            <tr>
-                                                <td>{k.name}</td>
-                                                <td>
-                                                    <code>{k.prefix}…</code>
-                                                </td>
-                                                <td>
-                                                    <span class={`badge ${k.scope === "read" ? "" : "badge-success"}`}>
-                                                        {k.scope}
-                                                    </span>
-                                                </td>
-                                                <td>{new Date(k.created_at).toLocaleDateString()}</td>
-                                                <td>
-                                                    {k.last_used_at !== undefined
-                                                        ? new Date(k.last_used_at).toLocaleDateString()
-                                                        : <span style={{ color: "var(--color-text-muted)" }}>Never</span>}
-                                                </td>
-                                                <td>
-                                                    <button
-                                                        class="btn"
-                                                        onClick={() => deleteKey.mutate(k.id, {
-                                                            onSuccess: () => toast("API key deleted", "success"),
-                                                            onError: () => toast("Failed to delete API key", "error"),
-                                                        })}
-                                                        disabled={deleteKey.isPending}
-                                                    >
-                                                        Delete
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </For>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                    <DataTable
+                        columns={columns}
+                        rows={query.data?.keys ?? undefined}
+                        loading={false}
+                        isError={false}
+                        emptyTitle="No API keys found"
+                    />
                 </Show>
             </Show>
         </>

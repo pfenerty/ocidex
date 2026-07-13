@@ -1,65 +1,65 @@
-import { For, Show, createSignal } from "solid-js";
+import { Show, createSignal } from "solid-js";
 import { useAuth } from "~/context/auth";
 import { useToast } from "~/context/toast";
 import { Loading, ErrorBox } from "~/components/Feedback";
+import DataTable from "~/components/DataTable";
+import type { Column } from "~/components/DataTable";
+import type { UserAccount } from "~/api/client";
 import { useListUsers, useUpdateUserRole } from "~/api/queries";
+
+type Role = "admin" | "member" | "viewer";
 
 export function UsersTab() {
     const { user: currentUser } = useAuth();
     const query = useListUsers();
     const updateRole = useUpdateUserRole();
     const toast = useToast();
+    const [overrides, setOverrides] = createSignal<Record<string, Role>>({});
+
+    const roleFor = (u: UserAccount) => overrides()[u.id] ?? (u.role as Role);
+
+    const columns: Column<UserAccount>[] = [
+        { header: "Username", render: (u) => <>{u.github_username}</> },
+        {
+            header: "Role",
+            render: (u) => <span class="badge">{roleFor(u)}</span>,
+        },
+        {
+            header: "Actions",
+            render: (u) => {
+                const isSelf = () => u.id === currentUser()?.id;
+                return (
+                    <select
+                        value={roleFor(u)}
+                        disabled={isSelf() || updateRole.isPending}
+                        onChange={(e) => {
+                            const newRole = e.currentTarget.value as Role;
+                            setOverrides((prev) => ({ ...prev, [u.id]: newRole }));
+                            updateRole.mutate({ id: u.id, role: newRole }, {
+                                onSuccess: () => toast(`Role updated to ${newRole}`, "success"),
+                                onError: () => toast("Failed to update role", "error"),
+                            });
+                        }}
+                    >
+                        <option value="admin">admin</option>
+                        <option value="member">member</option>
+                        <option value="viewer">viewer</option>
+                    </select>
+                );
+            },
+        },
+    ];
 
     return (
         <Show when={!query.isLoading} fallback={<Loading />}>
             <Show when={!query.isError} fallback={<ErrorBox error={query.error} />}>
-                <div class="card">
-                    <div class="table-wrapper">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Username</th>
-                                    <th>Role</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <For each={query.data?.users ?? []}>
-                                    {(u) => {
-                                        const isSelf = () => u.id === currentUser()?.id;
-                                        const [role, setRole] = createSignal(u.role as "admin" | "member" | "viewer");
-                                        return (
-                                            <tr>
-                                                <td>{u.github_username}</td>
-                                                <td>
-                                                    <span class="badge">{role()}</span>
-                                                </td>
-                                                <td>
-                                                    <select
-                                                        value={role()}
-                                                        disabled={isSelf() || updateRole.isPending}
-                                                        onChange={(e) => {
-                                                            const newRole = e.currentTarget.value as "admin" | "member" | "viewer";
-                                                            setRole(newRole);
-                                                            updateRole.mutate({ id: u.id, role: newRole }, {
-                                                onSuccess: () => toast(`Role updated to ${newRole}`, "success"),
-                                                onError: () => toast("Failed to update role", "error"),
-                                            });
-                                                        }}
-                                                    >
-                                                        <option value="admin">admin</option>
-                                                        <option value="member">member</option>
-                                                        <option value="viewer">viewer</option>
-                                                    </select>
-                                                </td>
-                                            </tr>
-                                        );
-                                    }}
-                                </For>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                <DataTable
+                    columns={columns}
+                    rows={query.data?.users ?? undefined}
+                    loading={false}
+                    isError={false}
+                    emptyTitle="No users found"
+                />
             </Show>
         </Show>
     );
