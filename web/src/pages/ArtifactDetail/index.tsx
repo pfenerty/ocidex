@@ -269,48 +269,17 @@ export default function ArtifactDetail() {
                                 </div>
 
                                 <Show when={tab() === "versions"}>
-                                    <Show
-                                        when={!versionsQuery.isLoading}
-                                        fallback={<Loading />}
-                                    >
-                                        <Show
-                                            when={!versionsQuery.isError}
-                                            fallback={
-                                                <ErrorBox
-                                                    error={versionsQuery.error}
-                                                />
-                                            }
-                                        >
-                                            <Show
-                                                when={
-                                                    versionsQuery.data &&
-                                                    versionsQuery.data.data
-                                                        .length > 0
-                                                        ? versionsQuery.data
-                                                        : undefined
-                                                }
-                                                fallback={
-                                                    <EmptyState
-                                                        title="No versions yet"
-                                                        message="Ingest a CycloneDX SBOM for this artifact to see it here."
-                                                    />
-                                                }
-                                            >
-                                                {(d) => (
-                                                    <VersionsTab
-                                                        artifactId={params.id}
-                                                        versions={d().data}
-                                                        pagination={
-                                                            d().pagination
-                                                        }
-                                                        onPageChange={
-                                                            setVersionOffset
-                                                        }
-                                                    />
-                                                )}
-                                            </Show>
-                                        </Show>
-                                    </Show>
+                                    <VersionsTab
+                                        artifactId={params.id}
+                                        versions={versionsQuery.data?.data}
+                                        pagination={
+                                            versionsQuery.data?.pagination
+                                        }
+                                        loading={versionsQuery.isFetching}
+                                        isError={versionsQuery.isError}
+                                        error={versionsQuery.error}
+                                        onPageChange={setVersionOffset}
+                                    />
                                 </Show>
 
                                 <Show when={tab() === "changelog"}>
@@ -364,41 +333,12 @@ export default function ArtifactDetail() {
                                 </Show>
 
                                 <Show when={tab() === "licenses"}>
-                                    <Show
-                                        when={!licenseQuery.isLoading}
-                                        fallback={<Loading />}
-                                    >
-                                        <Show
-                                            when={!licenseQuery.isError}
-                                            fallback={
-                                                <ErrorBox
-                                                    error={licenseQuery.error}
-                                                />
-                                            }
-                                        >
-                                            <Show
-                                                when={
-                                                    licenseQuery.data &&
-                                                    licenseQuery.data.licenses
-                                                        .length > 0
-                                                        ? licenseQuery.data
-                                                        : undefined
-                                                }
-                                                fallback={
-                                                    <EmptyState
-                                                        title="No license data"
-                                                        message="No license information found for this artifact's latest SBOM."
-                                                    />
-                                                }
-                                            >
-                                                {(d) => (
-                                                    <LicensesTab
-                                                        licenses={d().licenses}
-                                                    />
-                                                )}
-                                            </Show>
-                                        </Show>
-                                    </Show>
+                                    <LicensesTab
+                                        licenses={licenseQuery.data?.licenses}
+                                        loading={licenseQuery.isFetching}
+                                        isError={licenseQuery.isError}
+                                        error={licenseQuery.error}
+                                    />
                                 </Show>
                             </>
                         )}
