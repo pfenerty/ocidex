@@ -19,7 +19,7 @@ image:
   # release-package time by the helm-release CI task (release builds only; empty for
   # main/dev sha builds). An explicit image.tag takes precedence over digests.
   # Keys are the component names: api, scanner-worker, enrichment-worker,
-  # oci-metadata-worker, user-enricher-worker, provenance-worker, web.
+  # oci-metadata-worker, git-worker, user-enricher-worker, provenance-worker, web.
   digests: {}
 
 # --- Secrets -----------------------------------------------------------------
@@ -75,6 +75,8 @@ scannerWorker:
 enricherWorkers:
   - name: oci-metadata-worker
     consumer: enrich-hint-oci-metadata
+  - name: git-worker
+    consumer: enrich-hint-git
   - name: user-enricher-worker
     consumer: enrich-hint-user
   - name: provenance-worker

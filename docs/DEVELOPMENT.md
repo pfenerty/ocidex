@@ -351,6 +351,28 @@ enrichReg.Register(myenricher.NewEnricher())
 
 **Per-host resolvers** — When an enricher needs per-registry behavior (insecure HTTP, credentials, trust anchors), use Option closures and resolver functions rather than baking config into the struct. Define a resolver type (e.g. `type TrustResolver func(ctx context.Context, host string) (mode, pemKey string)`), expose `With*` options on the enricher, and construct the resolver from `internal/service/registry.go` (`BuildTrustLookup`, `BuildInsecureHostLookup`) inside the worker's `EnricherFactory`. See `internal/enrichment/provenance/provenance.go` and `cmd/provenance-worker/main.go` for the full pattern.
 
+### Adding a dependent enricher
+
+An enricher can depend on another enricher's output (e.g. the `git` enricher reads `oci-metadata`'s `sourceUrl`/`revision` to know which commit to fetch). This is a completion-driven chain, not a new queue: see [ADR-0035](adr/0035-enricher-dependency-chaining.md).
+
+**1. Declare the prerequisite** in `internal/enrichment/deps.go`'s `enricherDeps` map — the key is the dependent, the value is its list of prerequisites:
+
+```go
+var enricherDeps = map[string][]string{
+    "git": {"oci-metadata"},
+}
+```
+
+`Dependents(name)` and `Prerequisites(name)` (also in `deps.go`) walk this map in both directions.
+
+**2. Read the prerequisite's output via an injected reader function**, not a direct dependency on the prerequisite's package. Define a reader type on the dependent enricher (mirroring `git.OCIDataReader`) and back it with `store.GetEnrichment` in the worker's `EnricherFactory` — see `cmd/git-worker/main.go`'s `buildEnrichers` for the canonical example: it reads the `oci-metadata` row, unmarshals `oci.Metadata`, and passes `SourceURL`/`Revision` into `git.WithOCIDataReader`.
+
+**3. No new tables or subjects needed.** The now-exported `enrichmentworker.EnqueueDependents` (`internal/worker/enrichment/deps.go`) is called from every worker's completion handler after `FinishByID` succeeds (see `worker.go`'s `enrichProcessor`). For each dependent whose prerequisites have all reached `status = "success"`, it enqueues a row via the existing `enrichment_jobs` outbox and publishes the existing `.enrich.hint` NATS doorbell — the dependent's own worker picks it up through its normal poll/hint loop. If a prerequisite is missing or didn't succeed, the dependent is silently skipped (not retried) until the next time that prerequisite completes.
+
+**4. `--once`/K8s-Job mode does not chain.** `RunOnce` (used by `--once`) enriches a single SBOM and exits without calling `EnqueueDependents` — chaining only happens in the long-running daemon mode (`enrichmentworker.Run`).
+
+`tests/enrich_chain_test.go` is the integration-test template for this pattern: it seeds a prerequisite's `enrichment` row directly via `UpsertEnrichment`, calls `EnqueueDependents` directly (exercising the real production function against real Postgres/NATS), and runs a real dependent worker against a stubbed external API to prove the row it enqueued is actually processed end-to-end.
+
 ### Fakes Over Mocks
 
 Interfaces are small. Write manual fakes:
