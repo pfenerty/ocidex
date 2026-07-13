@@ -1,9 +1,12 @@
-import { createSignal, Show, For } from "solid-js";
+import { createSignal, Show } from "solid-js";
 import { A, useParams } from "@solidjs/router";
 import { useLicenses, useLicenseComponents } from "~/api/queries";
-import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
-import Pagination from "~/components/Pagination";
-import PurlLink from "~/components/PurlLink";
+import type { components } from "~/types/openapi";
+import DataTable from "~/components/DataTable";
+import type { Column } from "~/components/DataTable";
+import { ComponentNameCell, TypeBadge, VersionCell, PurlLink } from "~/components/cells";
+
+type ComponentSummary = components["schemas"]["ComponentSummary"];
 
 export default function LicenseComponents() {
     const params = useParams<{ id: string }>();
@@ -26,6 +29,44 @@ export default function LicenseComponents() {
         () => params.id,
         () => ({ limit, offset: offset() }),
     );
+
+    const columns: Column<ComponentSummary>[] = [
+        {
+            header: "Component",
+            render: (c) => (
+                <ComponentNameCell
+                    name={c.name}
+                    group={c.group}
+                    href={`/components/${c.id}`}
+                />
+            ),
+        },
+        {
+            header: "Type",
+            render: (c) => <TypeBadge type={c.type} />,
+        },
+        {
+            header: "Version",
+            render: (c) => <VersionCell version={c.version} />,
+        },
+        {
+            header: "Package",
+            render: (c) =>
+                c.purl !== undefined ? (
+                    <PurlLink purl={c.purl} showBadge />
+                ) : (
+                    <span class="text-muted">—</span>
+                ),
+        },
+        {
+            header: "Found In",
+            render: (c) => (
+                <A href={`/sboms/${c.sbomId}`} class="text-sm">
+                    View SBOM →
+                </A>
+            ),
+        },
+    ];
 
     return (
         <>
@@ -53,98 +94,20 @@ export default function LicenseComponents() {
                 </div>
             </div>
 
-            <Show when={!query.isLoading} fallback={<Loading />}>
-                <Show
-                    when={!query.isError}
-                    fallback={<ErrorBox error={query.error} />}
-                >
-                    <Show
-                        when={query.data !== undefined && query.data.data.length > 0 ? query.data : undefined}
-                        fallback={
-                            <EmptyState
-                                title="No components"
-                                message="No components are associated with this license."
-                            />
-                        }
-                    >
-                        {(d) => (
-                        <div class="card">
-                            <div class="table-wrapper">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Component</th>
-                                            <th>Type</th>
-                                            <th>Version</th>
-                                            <th>Package</th>
-                                            <th>Found In</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <For each={d().data}>
-                                            {(component) => (
-                                                <tr>
-                                                    <td>
-                                                        <A
-                                                            href={`/components/${component.id}`}
-                                                        >
-                                                            {component.group !== undefined && component.group !== ""
-                                                                ? `${component.group}/`
-                                                                : ""}
-                                                            {component.name}
-                                                        </A>
-                                                    </td>
-                                                    <td>
-                                                        <span class="badge">
-                                                            {component.type}
-                                                        </span>
-                                                    </td>
-                                                    <td class="font-mono text-sm">
-                                                        {component.version ??
-                                                            "—"}
-                                                    </td>
-                                                    <td class="truncate">
-                                                        <Show
-                                                            when={
-                                                                component.purl !== undefined
-                                                            }
-                                                            fallback={
-                                                                <span class="text-muted">
-                                                                    —
-                                                                </span>
-                                                            }
-                                                        >
-                                                            <PurlLink
-                                                                purl={
-                                                                    component.purl ?? ""
-                                                                }
-                                                                showBadge
-                                                            />
-                                                        </Show>
-                                                    </td>
-                                                    <td>
-                                                        <A
-                                                            href={`/sboms/${component.sbomId}`}
-                                                            class="text-sm"
-                                                        >
-                                                            View SBOM →
-                                                        </A>
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </For>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <Pagination
-                                pagination={d().pagination}
-                                onPageChange={setOffset}
-                            />
-                        </div>
-                        )}
-                    </Show>
-                </Show>
-            </Show>
+            <DataTable
+                columns={columns}
+                rows={query.data?.data ?? undefined}
+                loading={query.isFetching}
+                isError={query.isError}
+                error={query.error}
+                emptyTitle="No components"
+                emptyMessage="No components are associated with this license."
+                pagination={
+                    query.data
+                        ? { pagination: query.data.pagination, onPageChange: setOffset }
+                        : undefined
+                }
+            />
         </>
     );
 }
