@@ -3,11 +3,12 @@ import { Show, For, createSignal, createMemo } from "solid-js";
 import { A, useParams, useNavigate } from "@solidjs/router";
 import { useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies, useArtifactSBOMs } from "~/api/queries";
 import { useArtifactNames } from "~/api/queries";
-import type { OCIMetadata, Provenance } from "~/api/client";
+import type { OCIMetadata, Provenance, GitCommitMetadata } from "~/api/client";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
 import CopyDigest from "~/components/CopyDigest";
 import ImageMetadataCard from "~/components/ImageMetadataCard";
 import ProvenanceCard from "~/components/ProvenanceCard";
+import GitCommitCard from "~/components/GitCommitCard";
 import SummaryBand, { type SbomTab } from "~/components/SummaryBand";
 import { VulnSummaryBar } from "~/components/VulnBadge";
 import { trustStatus, trustBadgeClass } from "~/utils/trust";
@@ -49,6 +50,7 @@ export default function SBOMDetail() {
 
     const provenance = () => sbomQuery.data?.enrichments?.provenance as Provenance | undefined;
     const metadata = () => sbomQuery.data?.enrichments?.["oci-metadata"] as OCIMetadata | undefined;
+    const gitCommit = () => sbomQuery.data?.enrichments?.git as GitCommitMetadata | undefined;
 
     // Top package ecosystems (purl types) for the Packages summary tile.
     const ecosystems = createMemo(() => {
@@ -160,6 +162,7 @@ export default function SBOMDetail() {
                             <SummaryBand
                                 provenance={provenance()}
                                 metadata={metadata()}
+                                git={gitCommit()}
                                 packageCount={s.packageCount}
                                 ecosystems={ecosystems()}
                                 specVersion={s.specVersion}
@@ -178,6 +181,7 @@ export default function SBOMDetail() {
                                 </button>
                                 <button class={tab() === "provenance" ? "active" : ""} onClick={() => setTab("provenance")}>Provenance</button>
                                 <button class={tab() === "image" ? "active" : ""} onClick={() => setTab("image")}>Image</button>
+                                <button class={tab() === "git" ? "active" : ""} onClick={() => setTab("git")}>Git</button>
                                 <button class={tab() === "raw" ? "active" : ""} onClick={() => setTab("raw")}>Raw</button>
                             </div>
 
@@ -218,6 +222,25 @@ export default function SBOMDetail() {
                                     fallback={<EmptyState title="No image metadata" message="No OCI image metadata enrichment is available for this SBOM yet." />}
                                 >
                                     {(m) => <ImageMetadataCard metadata={m} ingestedAt={s.createdAt} />}
+                                </Show>
+                            </Show>
+
+                            {/* --- Git tab --- */}
+                            <Show when={tab() === "git"}>
+                                <Show
+                                    when={gitCommit()?.resolved === true ? gitCommit() : undefined}
+                                    fallback={
+                                        <EmptyState
+                                            title="No git commit data"
+                                            message={
+                                                gitCommit()?.reason !== undefined && gitCommit()?.reason !== ""
+                                                    ? `Git enrichment could not resolve a commit: ${gitCommit()?.reason}.`
+                                                    : "No git commit enrichment is available for this SBOM yet."
+                                            }
+                                        />
+                                    }
+                                >
+                                    {(commit) => <GitCommitCard commit={commit()} />}
                                 </Show>
                             </Show>
 

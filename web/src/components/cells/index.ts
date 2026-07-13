@@ -2,6 +2,7 @@ export * from "./ComponentNameCell";
 export * from "./VersionCell";
 export * from "./LicenseCell";
 export * from "./TimestampCell";
+export * from "./GitCommitCell";
 export { default as PurlLink } from "~/components/PurlLink";
 export * from "~/components/VulnBadge";
 export * from "~/components/VulnId";
