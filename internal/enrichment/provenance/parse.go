@@ -42,6 +42,13 @@ type dsseSignature struct {
 	Sig   string `json:"sig"`
 }
 
+// sigstoreBundle is the JSON shape of a Sigstore Bundle attestation
+// (application/vnd.dev.sigstore.bundle.v0.3+json). It wraps the same DSSE
+// envelope one level deeper than the raw-DSSE attArtifactType case.
+type sigstoreBundle struct {
+	DSSEEnvelope dsseEnvelope `json:"dsseEnvelope"`
+}
+
 type inTotoStatement struct {
 	Subject       []inTotoSubject `json:"subject"`
 	PredicateType string          `json:"predicateType"`
@@ -100,9 +107,12 @@ func buildProvenance(raw RawArtifacts) Provenance {
 		extractFromSig(&p, raw.SigAnnotations)
 	}
 	if raw.AttPresent {
-		if raw.AttArtifactType == inTotoArtifactType {
+		switch raw.AttArtifactType {
+		case inTotoArtifactType:
 			extractFromRawInToto(&p, raw.AttLayerBytes)
-		} else {
+		case bundleArtifactType:
+			extractFromSigstoreBundle(&p, raw.AttLayerBytes)
+		default:
 			extractFromAtt(&p, raw.AttLayerBytes)
 		}
 	}
@@ -209,7 +219,25 @@ func extractFromAtt(p *Provenance, layerBytes []byte) {
 	if err := json.Unmarshal(layerBytes, &env); err != nil {
 		return
 	}
+	extractFromDSSE(p, env)
+}
 
+// extractFromSigstoreBundle parses a Sigstore Bundle
+// (application/vnd.dev.sigstore.bundle.v0.3+json). Cosign has moved toward
+// this format for newer attestations; it wraps the same DSSE envelope one
+// level deeper than the raw-DSSE case handled by extractFromAtt.
+func extractFromSigstoreBundle(p *Provenance, layerBytes []byte) {
+	var bundle sigstoreBundle
+	if err := json.Unmarshal(layerBytes, &bundle); err != nil {
+		return
+	}
+	extractFromDSSE(p, bundle.DSSEEnvelope)
+}
+
+// extractFromDSSE parses the SLSA in-toto statement inside an already-decoded
+// DSSE envelope. Shared by extractFromAtt and extractFromSigstoreBundle, which
+// differ only in how they arrive at the envelope.
+func extractFromDSSE(p *Provenance, env dsseEnvelope) {
 	if len(env.Signatures) > 0 {
 		p.SignerFingerprint = env.Signatures[0].KeyID
 	}

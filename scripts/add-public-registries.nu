@@ -27,6 +27,11 @@ def main [
         # quay.io repos — no catalog API, repos listed explicitly.
         # containers/* has OCI manifest annotations (version+created).
         # keycloak and metallb carry version in config labels.
+        #
+        # Enrichment notes (git-commit + provenance enrichers, checked against live images):
+        # - buildah/podman/skopeo source.image annotation points at a blob/<sha>/subdir URL
+        #   into the containers/image_build monorepo — git enrichment resolves this correctly.
+        # - No cosign signatures/attestations found on these images — provenance stays absent.
         {
             name: "Quay.io — Container Tools (Red Hat)"
             type: "generic"
@@ -37,12 +42,18 @@ def main [
                 "containers/skopeo"
             ]
         }
+        # Enrichment notes: source annotation points at keycloak-rel/keycloak-rel, a
+        # release-packaging mirror, not the keycloak/keycloak upstream repo — git
+        # enrichment "succeeds" but resolves commits against the mirror, not upstream.
+        # No provenance attestations found.
         {
             name: "Quay.io — Keycloak"
             type: "generic"
             url: "quay.io"
             repositories: ["keycloak/keycloak"]
         }
+        # Enrichment notes: clean source+revision annotations, git enrichment resolves
+        # correctly against metallb/metallb. No provenance attestations found.
         {
             name: "Quay.io — MetalLB"
             type: "generic"
@@ -52,12 +63,20 @@ def main [
         # ghcr.io repos — type "ghcr" enables untagged manifest discovery.
         # traefik has OCI manifest annotations (version+created).
         # fluxcd controllers and dex carry version in config labels.
+        #
+        # Enrichment notes: traefik's *manifest-annotation* source/revision (from
+        # Docker-Official-Images tooling) point at traefik/traefik-library-image, not
+        # the actual traefik/traefik repo carried in the config-label source — oci.go's
+        # extractField prefers manifest annotations, so git enrichment resolves commits
+        # against the wrong repo here. No provenance attestations found.
         {
             name: "GHCR — Traefik"
             type: "ghcr"
             url: "ghcr.io"
             repositories: ["traefik/traefik"]
         }
+        # Enrichment notes: clean source+revision annotations, git enrichment resolves
+        # correctly. No provenance attestations found on these images.
         {
             name: "GHCR — Flux Controllers"
             type: "ghcr"
@@ -71,6 +90,10 @@ def main [
                 "fluxcd/image-reflector-controller"
             ]
         }
+        # Enrichment notes: clean source+revision annotations, git enrichment resolves
+        # correctly. Publishes a real SLSA provenance attestation as a Sigstore Bundle
+        # referrer (application/vnd.dev.sigstore.bundle.v0.3+json) — recognized by the
+        # provenance enricher.
         {
             name: "GHCR — Dex OIDC"
             type: "ghcr"

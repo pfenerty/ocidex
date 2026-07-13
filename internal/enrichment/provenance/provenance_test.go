@@ -2,6 +2,7 @@ package provenance
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -26,6 +27,13 @@ var (
 	fakeAttPayload       = []byte(`{"payload":"dGVzdA==","payloadType":"application/vnd.in-toto+json","signatures":[]}`)
 	fakeRawInTotoPayload = []byte(`{"_type":"https://in-toto.io/Statement/v0.1","predicateType":"https://slsa.dev/provenance/v1","subject":[{"name":"example.com/repo","digest":{"sha256":"0000000000000000000000000000000000000000000000000000000000000001"}}],"predicate":{"buildDefinition":{"resolvedDependencies":[{"uri":"git+https://github.com/example/repo","digest":{"sha1":"abc123"}}]},"runDetails":{"builder":{"id":"https://buildkit.moby.dev"},"metadata":{}}}}`)
 	fakeConfig           = []byte(`{}`)
+
+	// fakeSigstoreBundlePayload wraps the same in-toto statement as
+	// fakeRawInTotoPayload inside a Sigstore Bundle's dsseEnvelope, matching the
+	// real shape published by e.g. ghcr.io/dexidp/dex.
+	fakeSigstoreBundlePayload = []byte(`{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json","verificationMaterial":{},"dsseEnvelope":{"payload":"` +
+		base64.StdEncoding.EncodeToString(fakeRawInTotoPayload) +
+		`","payloadType":"application/vnd.in-toto+json","signatures":[]}}`)
 )
 
 func digestOf(data []byte) string {
@@ -78,6 +86,14 @@ func buildAttOnlyReferrersIndex(attDigest string, attSize int) []byte {
 func buildRawInTotoReferrersIndex(attDigest string, attSize int) []byte {
 	return []byte(fmt.Sprintf(
 		`{"schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"%s","size":%d,"artifactType":"application/vnd.in-toto+json"}]}`,
+		attDigest, attSize,
+	))
+}
+
+// buildSigstoreBundleReferrersIndex returns a referrers index with a Sigstore Bundle entry.
+func buildSigstoreBundleReferrersIndex(attDigest string, attSize int) []byte {
+	return []byte(fmt.Sprintf(
+		`{"schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"%s","size":%d,"artifactType":"application/vnd.dev.sigstore.bundle.v0.3+json"}]}`,
 		attDigest, attSize,
 	))
 }
@@ -466,6 +482,58 @@ func TestDiscover_RawInToto(t *testing.T) {
 	is.Equal(result.SourceCommit, "abc123")
 }
 
+// TestDiscover_SigstoreBundle verifies that a referrers index with
+// application/vnd.dev.sigstore.bundle.v0.3+json produces AttestationPresent=true
+// and populates provenance fields from the nested DSSE envelope.
+func TestDiscover_SigstoreBundle(t *testing.T) {
+	is := is.New(t)
+
+	attLayerDigest := digestOf(fakeSigstoreBundlePayload)
+	configDigest := digestOf(fakeConfig)
+
+	attManifestBytes, attManifestDigest := buildManifest(
+		"application/vnd.dev.sigstore.bundle.v0.3+json",
+		attLayerDigest, len(fakeSigstoreBundlePayload), configDigest,
+		nil,
+	)
+
+	hexDigest := strings.TrimPrefix(testImageDigest, "sha256:")
+	repo := "/repo"
+
+	routes := map[string]route{
+		repo + "/referrers/sha256:" + hexDigest: {
+			contentType: "application/vnd.oci.image.index.v1+json",
+			body:        buildSigstoreBundleReferrersIndex(attManifestDigest, len(attManifestBytes)),
+		},
+		repo + "/manifests/" + attManifestDigest: {
+			contentType: "application/vnd.oci.image.manifest.v1+json",
+			body:        attManifestBytes,
+		},
+		repo + "/blobs/" + attLayerDigest: {body: fakeSigstoreBundlePayload},
+		repo + "/blobs/" + configDigest:   {body: fakeConfig},
+	}
+
+	srv := newTestServer(t, routes)
+	defer srv.Close()
+
+	e := newTestEnricher(srv)
+	ref := testRef(strings.TrimPrefix(srv.URL, "http://"))
+
+	data, err := e.Enrich(t.Context(), ref)
+	is.NoErr(err)
+
+	var result Provenance
+	is.NoErr(json.Unmarshal(data, &result))
+
+	is.True(!result.SignaturePresent)
+	is.True(result.AttestationPresent)
+	is.Equal(result.PredicateType, "https://slsa.dev/provenance/v1")
+	is.Equal(result.BuilderID, "https://buildkit.moby.dev")
+	is.Equal(len(result.Subjects), 1)
+	is.Equal(result.SourceURI, "https://github.com/example/repo")
+	is.Equal(result.SourceCommit, "abc123")
+}
+
 // TestDiscover_NoAnchor verifies that when both referrers and tag-scheme lookups return 404
 // the enricher returns a nil error and a zero-value Provenance.
 func TestDiscover_NoAnchor(t *testing.T) {
@@ -636,6 +704,24 @@ func TestBuildProvenance(t *testing.T) {
 				AttPresent:      true,
 				AttLayerBytes:   fakeRawInTotoPayload,
 				AttArtifactType: inTotoArtifactType,
+			},
+			check: func(t *testing.T, p Provenance) {
+				is := is.New(t)
+				is.True(!p.SignaturePresent)
+				is.True(p.AttestationPresent)
+				is.Equal(p.PredicateType, "https://slsa.dev/provenance/v1")
+				is.Equal(p.BuilderID, "https://buildkit.moby.dev")
+				is.Equal(len(p.Subjects), 1)
+				is.Equal(p.SourceURI, "https://github.com/example/repo")
+				is.Equal(p.SourceCommit, "abc123")
+			},
+		},
+		{
+			name: "sigstore_bundle",
+			raw: RawArtifacts{
+				AttPresent:      true,
+				AttLayerBytes:   fakeSigstoreBundlePayload,
+				AttArtifactType: bundleArtifactType,
 			},
 			check: func(t *testing.T, p Provenance) {
 				is := is.New(t)

@@ -100,6 +100,14 @@ func TestParseSourceURL(t *testing.T) {
 			wantOK:    true,
 		},
 		{
+			name:      "github blob url with subdir",
+			raw:       "https://github.com/containers/image_build/blob/7afbb776a06a7de7ab2a73bab7066538e36d74a5/buildah/",
+			wantHost:  githubHost,
+			wantOwner: "containers",
+			wantRepo:  "image_build",
+			wantOK:    true,
+		},
+		{
 			name:   "empty string",
 			raw:    "",
 			wantOK: false,
