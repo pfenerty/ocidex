@@ -1,10 +1,12 @@
 import { createSignal, Show, For } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { useTopVulnerabilities } from "~/api/queries";
-import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
-import Pagination from "~/components/Pagination";
-import { SeverityPill } from "~/components/VulnBadge";
-import { VulnId } from "~/components/VulnId";
+import type { components } from "~/types/openapi";
+import DataTable from "~/components/DataTable";
+import type { Column } from "~/components/DataTable";
+import { SeverityPill, VulnId } from "~/components/cells";
+
+type TopVulnEntry = components["schemas"]["TopVulnEntry"];
 
 const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"] as const;
 const limit = 50;
@@ -34,6 +36,51 @@ export default function Vulnerabilities() {
 
     const formatDate = (iso: string | undefined) =>
         iso ? new Date(iso).toLocaleDateString() : "—";
+
+    const columns: Column<TopVulnEntry>[] = [
+        {
+            header: "Vulnerability",
+            render: (row) => (
+                <VulnId canonicalId={row.canonicalId} nativeId={row.id} />
+            ),
+        },
+        {
+            header: "Severity",
+            render: (row) => (
+                <SeverityPill severity={row.severity}>
+                    {row.severity}
+                </SeverityPill>
+            ),
+        },
+        {
+            header: "CVSS",
+            align: "right",
+            render: (row) =>
+                row.cvssScore !== undefined ? row.cvssScore.toFixed(1) : "—",
+        },
+        {
+            header: "Summary",
+            render: (row) => (
+                <span class="text-muted">{row.summary ?? "—"}</span>
+            ),
+        },
+        {
+            header: "Affected SBOMs",
+            align: "right",
+            render: (row) => row.affectedSbomCount.toLocaleString(),
+        },
+        {
+            header: "Affected Packages",
+            align: "right",
+            render: (row) => row.affectedPurlCount.toLocaleString(),
+        },
+        {
+            header: "Published",
+            render: (row) => (
+                <span class="text-muted">{formatDate(row.publishedAt)}</span>
+            ),
+        },
+    ];
 
     return (
         <>
@@ -83,100 +130,19 @@ export default function Vulnerabilities() {
                 </form>
             </div>
 
-            <Show when={!query.isLoading} fallback={<Loading />}>
-                <Show
-                    when={!query.isError}
-                    fallback={<ErrorBox error={query.error} />}
-                >
-                    <Show
-                        when={query.data && (query.data.data?.length ?? 0) > 0}
-                        fallback={
-                            <EmptyState title="No vulnerabilities found." />
-                        }
-                    >
-                        {(_) => {
-                            const d = () => query.data!;
-                            return (
-                                <div class="card">
-                                    <div class="table-wrapper">
-                                        <table>
-                                            <thead>
-                                                <tr>
-                                                    <th>Vulnerability</th>
-                                                    <th>Severity</th>
-                                                    <th class="text-right">
-                                                        CVSS
-                                                    </th>
-                                                    <th>Summary</th>
-                                                    <th class="text-right">
-                                                        Affected SBOMs
-                                                    </th>
-                                                    <th class="text-right">
-                                                        Affected Packages
-                                                    </th>
-                                                    <th>Published</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <For
-                                                    each={
-                                                        d().data?.filter(
-                                                            Boolean,
-                                                        ) ?? []
-                                                    }
-                                                >
-                                                    {(row) => (
-                                                        <tr>
-                                                            <td>
-                                                                <VulnId
-                                                                    canonicalId={row.canonicalId}
-                                                                    nativeId={row.id}
-                                                                />
-                                                            </td>
-                                                            <td>
-                                                                <SeverityPill severity={row.severity}>
-                                                                    {row.severity}
-                                                                </SeverityPill>
-                                                            </td>
-                                                            <td class="text-right">
-                                                                {row.cvssScore !==
-                                                                undefined
-                                                                    ? row.cvssScore.toFixed(
-                                                                          1,
-                                                                      )
-                                                                    : "—"}
-                                                            </td>
-                                                            <td class="text-muted">
-                                                                {row.summary ??
-                                                                    "—"}
-                                                            </td>
-                                                            <td class="text-right">
-                                                                {row.affectedSbomCount.toLocaleString()}
-                                                            </td>
-                                                            <td class="text-right">
-                                                                {row.affectedPurlCount.toLocaleString()}
-                                                            </td>
-                                                            <td class="text-muted">
-                                                                {formatDate(
-                                                                    row.publishedAt,
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    )}
-                                                </For>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    <Pagination
-                                        pagination={d().pagination}
-                                        onPageChange={setOffset}
-                                    />
-                                </div>
-                            );
-                        }}
-                    </Show>
-                </Show>
-            </Show>
+            <DataTable
+                columns={columns}
+                rows={query.data?.data ?? undefined}
+                loading={query.isFetching}
+                isError={query.isError}
+                error={query.error}
+                emptyTitle="No vulnerabilities found."
+                pagination={
+                    query.data
+                        ? { pagination: query.data.pagination, onPageChange: setOffset }
+                        : undefined
+                }
+            />
         </>
     );
 }
