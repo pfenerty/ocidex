@@ -119,6 +119,26 @@ services:
       LOG_LEVEL: info
       ENVIRONMENT: development
 
+  git-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: git-worker
+    container_name: ocidex-git-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgres://ocidex:ocidex@postgres:5432/ocidex?sslmode=disable
+      NATS_URL: nats://nats:4222
+      LOG_LEVEL: info
+      ENVIRONMENT: development
+
   user-enricher-worker:
     build:
       context: .
