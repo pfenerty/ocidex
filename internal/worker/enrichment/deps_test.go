@@ -124,7 +124,7 @@ func TestEnqueueDependents(t *testing.T) {
 			js := &fakeHintPublisher{}
 			logger := slog.New(slog.NewTextHandler(&discardWriter{}, nil))
 
-			enqueueDependents(context.Background(), store, jobSvc, js, "ocidex",
+			EnqueueDependents(context.Background(), store, jobSvc, js, "ocidex",
 				sbomID, "amd64", "2026-07-12", tt.completedEnricher, logger)
 
 			is.Equal(jobSvc.enqueued(), tt.wantEnqueued)
