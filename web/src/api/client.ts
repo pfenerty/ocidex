@@ -118,3 +118,25 @@ export interface Provenance {
     rekorUuid?: string;
     rekorLogIndex?: number;
 }
+
+/**
+ * Client-side type for git commit metadata stored in SBOM enrichments under
+ * the "git" key. Not part of the OpenAPI spec (enrichments is Record<string, unknown>).
+ */
+export interface GitCommitMetadata {
+    resolved: boolean;
+    reason?: string;
+    host?: string;
+    owner?: string;
+    repo?: string;
+    commitSha?: string;
+    commitUrl?: string;
+    authorName?: string;
+    authorEmail?: string;
+    authoredAt?: string;
+    committerName?: string;
+    committerEmail?: string;
+    committedAt?: string;
+    messageSubject?: string;
+    parents?: string[];
+}

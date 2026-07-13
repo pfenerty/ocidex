@@ -1,11 +1,11 @@
 import "./SummaryBand.css";
 import { Show } from "solid-js";
-import type { OCIMetadata, Provenance } from "~/api/client";
+import type { OCIMetadata, Provenance, GitCommitMetadata } from "~/api/client";
 import { relativeDate } from "~/utils/format";
 import { trustStatus, trustBadgeClass } from "~/utils/trust";
-import { ShieldIcon, OciIcon, ContainerIcon } from "./metadata/OciIcons";
+import { ShieldIcon, OciIcon, ContainerIcon, GitHubIcon } from "./metadata/OciIcons";
 
-export type SbomTab = "packages" | "provenance" | "image" | "raw";
+export type SbomTab = "packages" | "provenance" | "image" | "git" | "raw";
 
 // shortBuilder renders a recognizable builder name from a SLSA builder id URL.
 function shortBuilder(id: string | undefined): string | undefined {
@@ -18,6 +18,7 @@ function shortBuilder(id: string | undefined): string | undefined {
 export default function SummaryBand(props: {
     provenance: Provenance | undefined;
     metadata: OCIMetadata | undefined;
+    git: GitCommitMetadata | undefined;
     packageCount: number | undefined;
     ecosystems: string[];
     specVersion: string;
@@ -74,6 +75,25 @@ export default function SummaryBand(props: {
                             </>
                         )}
                     </Show>
+                </span>
+            </button>
+
+            {/* Git */}
+            <button
+                class={`summary-tile ${props.active === "git" ? "active" : ""}`}
+                onClick={() => props.onSelect("git")}
+            >
+                <span class="summary-tile-head">
+                    <GitHubIcon />
+                    Git
+                </span>
+                <span class="summary-tile-value">
+                    {props.git?.resolved === true ? props.git.commitSha?.substring(0, 8) : "—"}
+                </span>
+                <span class="summary-tile-sub">
+                    {props.git?.resolved === true
+                        ? `${props.git.owner}/${props.git.repo}`
+                        : "not enriched"}
                 </span>
             </button>
 
