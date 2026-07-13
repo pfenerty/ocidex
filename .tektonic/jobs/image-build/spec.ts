@@ -106,6 +106,7 @@ const imageSpecs: ImageSpec[] = [
   ["scanner-worker", "docker/Dockerfile", "OCIDex Scanner Worker", "OCI registry scanner and SBOM ingestion worker", "scanner-worker"],
   ["enrichment-worker", "docker/Dockerfile", "OCIDex Enrichment Worker", "SBOM enrichment pipeline dispatcher", "enrichment-worker"],
   ["oci-metadata-worker", "docker/Dockerfile", "OCIDex OCI Metadata Worker", "OCI image metadata enricher", "oci-metadata-worker"],
+  ["git-worker", "docker/Dockerfile", "OCIDex Git Worker", "Git commit metadata enricher", "git-worker"],
   ["user-enricher-worker", "docker/Dockerfile", "OCIDex User Enricher Worker", "User-defined enrichment worker", "user-enricher-worker"],
   ["provenance-worker", "docker/Dockerfile", "OCIDex Provenance Worker", "OCI image provenance verification worker", "provenance-worker"],
   ["vuln-worker", "docker/Dockerfile", "OCIDex Vulnerability Worker", "Scheduled OSV.dev vulnerability store refresher", "vuln-worker"],

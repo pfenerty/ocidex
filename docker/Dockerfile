@@ -64,6 +64,19 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       -X github.com/pfenerty/ocidex/internal/version.Date=${DATE}" && \
     CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "${LDFLAGS}" -o /app/bin/oci-metadata-worker ./cmd/oci-metadata-worker
 
+FROM builder-base AS build-git-worker
+ARG TARGETARCH
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG DATE=unknown
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    LDFLAGS="-s -w \
+      -X github.com/pfenerty/ocidex/internal/version.Version=${VERSION} \
+      -X github.com/pfenerty/ocidex/internal/version.Commit=${COMMIT} \
+      -X github.com/pfenerty/ocidex/internal/version.Date=${DATE}" && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "${LDFLAGS}" -o /app/bin/git-worker ./cmd/git-worker
+
 FROM builder-base AS build-user-enricher-worker
 ARG TARGETARCH
 ARG VERSION=dev
@@ -134,6 +147,10 @@ ENTRYPOINT ["/enrichment-worker"]
 FROM gcr.io/distroless/static-debian12:nonroot AS oci-metadata-worker
 COPY --from=build-oci-metadata-worker /app/bin/oci-metadata-worker /oci-metadata-worker
 ENTRYPOINT ["/oci-metadata-worker"]
+
+FROM gcr.io/distroless/static-debian12:nonroot AS git-worker
+COPY --from=build-git-worker /app/bin/git-worker /git-worker
+ENTRYPOINT ["/git-worker"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS user-enricher-worker
 COPY --from=build-user-enricher-worker /app/bin/user-enricher-worker /user-enricher-worker
