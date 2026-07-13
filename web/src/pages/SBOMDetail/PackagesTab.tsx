@@ -1,11 +1,16 @@
-import "~/components/Pagination.css";
 import { createSignal, createMemo, Show, For } from "solid-js";
 import { A } from "@solidjs/router";
 import type { ComponentSummary, DependencyEdge } from "~/api/client";
 import { EmptyState } from "~/components/Feedback";
-import LoadMore from "~/components/LoadMore";
-import PurlLink from "~/components/PurlLink";
-import { VulnCountBadges } from "~/components/VulnBadge";
+import DataTable from "~/components/DataTable";
+import type { Column } from "~/components/DataTable";
+import {
+    ComponentNameCell,
+    VersionCell,
+    TypeBadge,
+    PurlLink,
+    VulnCountBadges,
+} from "~/components/cells";
 import { plural } from "~/utils/format";
 import { parsePurl } from "~/utils/purl";
 
@@ -76,6 +81,48 @@ export function PackagesTab(props: {
     const hasTree = () => (props.depsGraph?.edges.length ?? 0) > 0;
     const effectiveMode = () => (hasTree() ? viewMode() : "list");
 
+    const columns: Column<ComponentSummary>[] = [
+        {
+            header: "Name",
+            render: (c) => (
+                <ComponentNameCell
+                    name={c.name}
+                    group={c.group}
+                    href={componentHref(c.name, c.group, c.version)}
+                />
+            ),
+        },
+        {
+            header: "Version",
+            render: (c) => <VersionCell version={c.version} />,
+        },
+        {
+            header: "Type",
+            render: (c) => <TypeBadge type={ecoType(c)} />,
+        },
+        {
+            header: "Vulns",
+            render: (c) => (
+                <VulnCountBadges
+                    criticalCount={c.criticalCount}
+                    highCount={c.highCount}
+                    mediumCount={c.mediumCount}
+                    lowCount={c.lowCount}
+                    unknownCount={c.unknownCount}
+                />
+            ),
+        },
+        {
+            header: "Package URL",
+            render: (c) =>
+                c.purl !== undefined ? (
+                    <PurlLink purl={c.purl} showBadge />
+                ) : (
+                    <span class="text-muted">—</span>
+                ),
+        },
+    ];
+
     return (
         <Show
             when={packages().length > 0}
@@ -86,7 +133,7 @@ export function PackagesTab(props: {
                 />
             }
         >
-            <div class="card">
+            <>
                 <div class="search-bar mb-4" style={{ "flex-wrap": "wrap" }}>
                     <Show when={effectiveMode() === "list"}>
                         <input
@@ -137,85 +184,28 @@ export function PackagesTab(props: {
                     when={effectiveMode() === "tree" ? props.depsGraph : undefined}
                     keyed
                     fallback={
-                        <>
-                            <div class="table-wrapper">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Name</th>
-                                            <th>Version</th>
-                                            <th>Type</th>
-                                            <th>Vulns</th>
-                                            <th>Package URL</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <For each={filtered()}>
-                                            {(c) => (
-                                                <tr>
-                                                    <td>
-                                                        <A href={componentHref(c.name, c.group, c.version)}>
-                                                            {c.group !== undefined && c.group !== "" ? `${c.group}/` : ""}
-                                                            {c.name}
-                                                        </A>
-                                                    </td>
-                                                    <td class="font-mono text-sm">
-                                                        {c.version ?? (
-                                                            <span class="text-muted">
-                                                                —
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td>
-                                                        <span class="badge">
-                                                            {parsePurl(c.purl ?? "")?.type ?? c.type}
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <VulnCountBadges
-                                                            criticalCount={c.criticalCount}
-                                                            highCount={c.highCount}
-                                                            mediumCount={c.mediumCount}
-                                                            lowCount={c.lowCount}
-                                                            unknownCount={c.unknownCount}
-                                                        />
-                                                    </td>
-                                                    <td class="truncate">
-                                                        <Show
-                                                            when={c.purl}
-                                                            fallback={
-                                                                <span class="text-muted">
-                                                                    —
-                                                                </span>
-                                                            }
-                                                            keyed
-                                                        >
-                                                            {(purl) => (
-                                                                <PurlLink
-                                                                    purl={purl}
-                                                                    showBadge
-                                                                />
-                                                            )}
-                                                        </Show>
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </For>
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <LoadMore
-                                hasMore={props.hasMore ?? false}
-                                loading={props.loadingMore ?? false}
-                                onClick={() => props.onLoadMore?.()}
-                            />
-                        </>
+                        <DataTable
+                            columns={columns}
+                            rows={filtered()}
+                            loading={false}
+                            isError={false}
+                            emptyTitle="No packages match"
+                            emptyMessage="Try a different filter or type."
+                            loadMore={{
+                                hasMore: props.hasMore ?? false,
+                                loading: props.loadingMore ?? false,
+                                onClick: () => props.onLoadMore?.(),
+                            }}
+                        />
                     }
                 >
-                    {(graph) => <DependencyTreeView graph={graph} />}
+                    {(graph) => (
+                        <div class="card">
+                            <DependencyTreeView graph={graph} />
+                        </div>
+                    )}
                 </Show>
-            </div>
+            </>
         </Show>
     );
 }
@@ -484,12 +474,12 @@ export function DependencyTreeView(props: {
                                                 </Show>
                                             </span>
                                         </td>
-                                        <td class="font-mono" style={{ "font-size": "0.85rem" }}>
-                                            {row.node.version ?? <span class="text-muted">—</span>}
+                                        <td>
+                                            <VersionCell version={row.node.version} />
                                         </td>
                                         <td>
-                                            <Show when={row.node.type}>
-                                                <span class="badge badge-sm">{row.node.type}</span>
+                                            <Show when={row.node.type} keyed>
+                                                {(type) => <TypeBadge type={type} />}
                                             </Show>
                                         </td>
                                         <td class="truncate">
