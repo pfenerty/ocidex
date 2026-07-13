@@ -31,13 +31,13 @@ type hintPublisher interface {
 	PublishMsgAsync(msg *nats.Msg, opts ...jetstream.PublishOpt) (jetstream.PubAckFuture, error)
 }
 
-// enqueueDependents enqueues every enricher that declares completedEnricher as
+// EnqueueDependents enqueues every enricher that declares completedEnricher as
 // a prerequisite, provided all of that dependent's prerequisites have reached
 // status=success. It reuses the existing enrichment_jobs outbox (Enqueue is
 // idempotent per sbom+enricher) and the ".enrich.hint" NATS doorbell — no new
 // tables or subjects. Best-effort: enqueue/publish failures are logged and
 // skipped rather than propagated, matching submitter.go's fire-and-forget hint.
-func enqueueDependents(
+func EnqueueDependents(
 	ctx context.Context,
 	store enrichmentGetter,
 	jobSvc enqueuer,

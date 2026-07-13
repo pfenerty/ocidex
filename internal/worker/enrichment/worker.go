@@ -131,7 +131,7 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 		if err := enrichJobSvc.FinishByID(ctx, claim.ID); err != nil {
 			return err
 		}
-		enqueueDependents(ctx, enrichStore, enrichJobSvc, natsClient.JS, appCfg.NATSStreamName,
+		EnqueueDependents(ctx, enrichStore, enrichJobSvc, natsClient.JS, appCfg.NATSStreamName,
 			claim.SBOMId, claim.Architecture, claim.BuildDate, cfg.EnricherName, logger)
 		return nil
 	}
