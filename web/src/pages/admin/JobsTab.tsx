@@ -1,7 +1,10 @@
 import { For, Show, createEffect, createSignal, createMemo } from "solid-js";
 import { A } from "@solidjs/router";
 import { Loading, ErrorBox } from "~/components/Feedback";
-import { formatDateTime } from "~/utils/format";
+import DataTable from "~/components/DataTable";
+import type { Column } from "~/components/DataTable";
+import { TimestampCell } from "~/components/cells";
+import type { ScanJob, EnrichmentJob } from "~/api/client";
 import {
     useListRegistries,
     useListScanJobs,
@@ -57,7 +60,7 @@ export function JobsTab() {
 }
 
 function ScanJobsView() {
-    const [page, setPage] = createSignal(0);
+    const [offset, setOffset] = createSignal(0);
     const [expandedErrors, setExpandedErrors] = createSignal(new Set<string>());
     const [stateFilter, setStateFilter] = createSignal<StateFilter>("active");
     const [repoFilter, setRepoFilter] = createSignal("");
@@ -85,7 +88,7 @@ function ScanJobsView() {
             return next;
         });
 
-    createEffect(() => { stateFilter(); repoFilter(); registryFilter(); setPage(0); });
+    createEffect(() => { stateFilter(); repoFilter(); registryFilter(); setOffset(0); });
 
     const isActive = () => stateFilter() === "active";
 
@@ -94,7 +97,7 @@ function ScanJobsView() {
         return {
             state: f === "active" ? "running" : (f || undefined),
             limit: isActive() ? 50 : PAGE_SIZE,
-            offset: isActive() ? 0 : page() * PAGE_SIZE,
+            offset: isActive() ? 0 : offset(),
         };
     });
     const qQueued = useListScanJobs(() => ({ state: "queued" as const, limit: 50, offset: 0 }));
@@ -124,8 +127,86 @@ function ScanJobsView() {
         );
     };
 
-    const total = () => qMain.data?.pagination.total ?? 0;
-    const pageCount = () => Math.max(1, Math.ceil(total() / PAGE_SIZE));
+    const columns: Column<ScanJob>[] = [
+        {
+            header: "State",
+            render: (job) => (
+                <span class="badge" style={{ color: JOB_STATE_COLORS[job.state] ?? "inherit" }}>
+                    {job.state}
+                </span>
+            ),
+        },
+        {
+            header: "Image",
+            render: (job) => (
+                <>
+                    <code>{job.tag !== undefined ? `${job.repository}:${job.tag}` : job.repository}</code>
+                    <code style={{ display: "block", "font-size": "0.75rem", color: "var(--color-text-muted)", "margin-top": "0.15rem" }}>
+                        {job.digest.replace(/^sha256:/, "").slice(0, 12)}
+                    </code>
+                </>
+            ),
+        },
+        {
+            header: "Worker",
+            render: (job) => (
+                <span style={{ "font-size": "0.8rem", color: "var(--color-text-muted)", "white-space": "nowrap" }}>
+                    {job.worker_id ?? "—"}
+                </span>
+            ),
+        },
+        {
+            header: "Attempts",
+            render: (job) => <>{job.attempts}</>,
+        },
+        {
+            header: "Created",
+            render: (job) => <TimestampCell iso={job.created_at} />,
+        },
+        {
+            header: "Last Error",
+            render: (job) => (
+                <Show when={job.last_error}>
+                    <button
+                        style={{ cursor: "pointer", "font-size": "0.85rem", background: "none", border: "none", padding: 0, color: "var(--color-primary)" }}
+                        onClick={() => toggleError(job.id)}
+                    >
+                        {expandedErrors().has(job.id) ? "Hide error" : "View error"}
+                    </button>
+                    <Show when={expandedErrors().has(job.id)}>
+                        <code style={{ "font-size": "0.8rem", "word-break": "break-all", display: "block", "margin-top": "0.25rem" }}>
+                            {job.last_error}
+                        </code>
+                    </Show>
+                </Show>
+            ),
+        },
+        {
+            header: "SBOM",
+            render: (job) => (
+                <Show when={job.sbom_id}>
+                    <A href={`/sboms/${job.sbom_id}`} style={{ "font-size": "0.85rem" }}>
+                        View SBOM
+                    </A>
+                </Show>
+            ),
+        },
+        {
+            header: "Actions",
+            render: (job) => (
+                <Show when={job.state === "failed"}>
+                    <button
+                        class="btn"
+                        style={{ "font-size": "0.8rem", padding: "0.25rem 0.5rem" }}
+                        disabled={retry.isPending}
+                        onClick={() => retry.mutate(job.id)}
+                    >
+                        Retry
+                    </button>
+                </Show>
+            ),
+        },
+    ];
 
     return (
         <Show when={!isLoading()} fallback={<Loading />}>
@@ -162,89 +243,18 @@ function ScanJobsView() {
                         </button>
                     </Show>
                 </div>
-                <div class="card">
-                    <div class="table-wrapper">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>State</th>
-                                    <th>Image</th>
-                                    <th>Worker</th>
-                                    <th>Attempts</th>
-                                    <th>Created</th>
-                                    <th>Last Error</th>
-                                    <th>SBOM</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <For each={displayJobs()}>
-                                    {(job) => (
-                                        <tr>
-                                            <td>
-                                                <span class="badge" style={{ color: JOB_STATE_COLORS[job.state] ?? "inherit" }}>
-                                                    {job.state}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <code>{job.tag !== undefined ? `${job.repository}:${job.tag}` : job.repository}</code>
-                                                <code style={{ display: "block", "font-size": "0.75rem", color: "var(--color-text-muted)", "margin-top": "0.15rem" }}>
-                                                    {job.digest.replace(/^sha256:/, "").slice(0, 12)}
-                                                </code>
-                                            </td>
-                                            <td style={{ "font-size": "0.8rem", color: "var(--color-text-muted)", "white-space": "nowrap" }}>
-                                                {job.worker_id ?? "—"}
-                                            </td>
-                                            <td>{job.attempts}</td>
-                                            <td style={{ "white-space": "nowrap" }}>{formatDateTime(job.created_at)}</td>
-                                            <td>
-                                                <Show when={job.last_error}>
-                                                    <button
-                                                        style={{ cursor: "pointer", "font-size": "0.85rem", background: "none", border: "none", padding: 0, color: "var(--color-primary)" }}
-                                                        onClick={() => toggleError(job.id)}
-                                                    >
-                                                        {expandedErrors().has(job.id) ? "Hide error" : "View error"}
-                                                    </button>
-                                                    <Show when={expandedErrors().has(job.id)}>
-                                                        <code style={{ "font-size": "0.8rem", "word-break": "break-all", display: "block", "margin-top": "0.25rem" }}>
-                                                            {job.last_error}
-                                                        </code>
-                                                    </Show>
-                                                </Show>
-                                            </td>
-                                            <td>
-                                                <Show when={job.sbom_id}>
-                                                    <A href={`/sboms/${job.sbom_id}`} style={{ "font-size": "0.85rem" }}>
-                                                        View SBOM
-                                                    </A>
-                                                </Show>
-                                            </td>
-                                            <td>
-                                                <Show when={job.state === "failed"}>
-                                                    <button
-                                                        class="btn"
-                                                        style={{ "font-size": "0.8rem", padding: "0.25rem 0.5rem" }}
-                                                        disabled={retry.isPending}
-                                                        onClick={() => retry.mutate(job.id)}
-                                                    >
-                                                        Retry
-                                                    </button>
-                                                </Show>
-                                            </td>
-                                        </tr>
-                                    )}
-                                </For>
-                            </tbody>
-                        </table>
-                    </div>
-                    <Show when={!isActive() && pageCount() > 1}>
-                        <div style={{ display: "flex", gap: "0.5rem", "align-items": "center", "margin-top": "1rem", "justify-content": "flex-end" }}>
-                            <button class="btn" disabled={page() === 0} onClick={() => setPage(p => p - 1)}>Prev</button>
-                            <span style={{ "font-size": "0.85rem" }}>Page {page() + 1} of {pageCount()}</span>
-                            <button class="btn" disabled={page() + 1 >= pageCount()} onClick={() => setPage(p => p + 1)}>Next</button>
-                        </div>
-                    </Show>
-                </div>
+                <DataTable
+                    columns={columns}
+                    rows={displayJobs()}
+                    loading={false}
+                    isError={false}
+                    emptyTitle="No scan jobs found"
+                    pagination={
+                        !isActive() && qMain.data?.pagination
+                            ? { pagination: qMain.data.pagination, onPageChange: setOffset }
+                            : undefined
+                    }
+                />
             </Show>
         </Show>
     );
@@ -254,7 +264,7 @@ type EnrichState = "queued" | "running" | "succeeded" | "failed";
 type Enricher = (typeof ENRICHERS)[number];
 
 function EnrichmentJobsView() {
-    const [page, setPage] = createSignal(0);
+    const [offset, setOffset] = createSignal(0);
     const [expandedErrors, setExpandedErrors] = createSignal(new Set<string>());
     const [stateFilter, setStateFilter] = createSignal<EnrichState | "">("");
     const [enricherFilter, setEnricherFilter] = createSignal<Enricher | "">("");
@@ -263,13 +273,13 @@ function EnrichmentJobsView() {
     const retryAll = useRetryAllFailedEnrichmentJobs();
     const summary = useEnrichmentJobsSummary();
 
-    createEffect(() => { stateFilter(); enricherFilter(); textFilter(); setPage(0); });
+    createEffect(() => { stateFilter(); enricherFilter(); textFilter(); setOffset(0); });
 
     const q = useListEnrichmentJobs(() => ({
         state: stateFilter() || undefined,
         enricher_name: enricherFilter() || undefined,
         limit: PAGE_SIZE,
-        offset: page() * PAGE_SIZE,
+        offset: offset(),
     }));
 
     // matrix[enricher][state] = count
@@ -315,8 +325,92 @@ function EnrichmentJobsView() {
         );
     };
 
-    const total = () => q.data?.pagination.total ?? 0;
-    const pageCount = () => Math.max(1, Math.ceil(total() / PAGE_SIZE));
+    const columns: Column<EnrichmentJob>[] = [
+        {
+            header: "State",
+            render: (job) => (
+                <span class="badge" style={{ color: JOB_STATE_COLORS[job.state] ?? "inherit" }}>
+                    {job.state}
+                </span>
+            ),
+        },
+        {
+            header: "Enricher",
+            render: (job) => <code>{job.enricher_name}</code>,
+        },
+        {
+            header: "Image",
+            render: (job) => (
+                <>
+                    <code>{job.artifact_name ?? "—"}</code>
+                    <Show when={job.sbom_digest}>
+                        <code style={{ display: "block", "font-size": "0.75rem", color: "var(--color-text-muted)", "margin-top": "0.15rem" }}>
+                            {(job.sbom_digest ?? "").replace(/^sha256:/, "").slice(0, 12)}
+                        </code>
+                    </Show>
+                </>
+            ),
+        },
+        {
+            header: "Worker",
+            render: (job) => (
+                <span style={{ "font-size": "0.8rem", color: "var(--color-text-muted)", "white-space": "nowrap" }}>
+                    {job.worker_id ?? "—"}
+                </span>
+            ),
+        },
+        {
+            header: "Attempts",
+            render: (job) => <>{job.attempts}</>,
+        },
+        {
+            header: "Created",
+            render: (job) => <TimestampCell iso={job.created_at} />,
+        },
+        {
+            header: "Last Error",
+            render: (job) => (
+                <Show when={job.last_error}>
+                    <button
+                        style={{ cursor: "pointer", "font-size": "0.85rem", background: "none", border: "none", padding: 0, color: "var(--color-primary)" }}
+                        onClick={() => toggleError(job.id)}
+                    >
+                        {expandedErrors().has(job.id) ? "Hide error" : "View error"}
+                    </button>
+                    <Show when={expandedErrors().has(job.id)}>
+                        <code style={{ "font-size": "0.8rem", "word-break": "break-all", display: "block", "margin-top": "0.25rem" }}>
+                            {job.last_error}
+                        </code>
+                    </Show>
+                </Show>
+            ),
+        },
+        {
+            header: "SBOM",
+            render: (job) => (
+                <Show when={job.sbom_id}>
+                    <A href={`/sboms/${job.sbom_id}`} style={{ "font-size": "0.85rem" }}>
+                        View SBOM
+                    </A>
+                </Show>
+            ),
+        },
+        {
+            header: "Actions",
+            render: (job) => (
+                <Show when={job.state === "failed"}>
+                    <button
+                        class="btn"
+                        style={{ "font-size": "0.8rem", padding: "0.25rem 0.5rem" }}
+                        disabled={retry.isPending}
+                        onClick={() => retry.mutate(job.id)}
+                    >
+                        Retry
+                    </button>
+                </Show>
+            ),
+        },
+    ];
 
     return (
         <div>
@@ -400,93 +494,18 @@ function EnrichmentJobsView() {
 
             <Show when={!q.isLoading} fallback={<Loading />}>
                 <Show when={!q.isError} fallback={<ErrorBox error={q.error} />}>
-                    <div class="card">
-                        <div class="table-wrapper">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>State</th>
-                                        <th>Enricher</th>
-                                        <th>Image</th>
-                                        <th>Worker</th>
-                                        <th>Attempts</th>
-                                        <th>Created</th>
-                                        <th>Last Error</th>
-                                        <th>SBOM</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <For each={displayJobs()}>
-                                        {(job) => (
-                                            <tr>
-                                                <td>
-                                                    <span class="badge" style={{ color: JOB_STATE_COLORS[job.state] ?? "inherit" }}>
-                                                        {job.state}
-                                                    </span>
-                                                </td>
-                                                <td><code>{job.enricher_name}</code></td>
-                                                <td>
-                                                    <code>{job.artifact_name ?? "—"}</code>
-                                                    <Show when={job.sbom_digest}>
-                                                        <code style={{ display: "block", "font-size": "0.75rem", color: "var(--color-text-muted)", "margin-top": "0.15rem" }}>
-                                                            {(job.sbom_digest ?? "").replace(/^sha256:/, "").slice(0, 12)}
-                                                        </code>
-                                                    </Show>
-                                                </td>
-                                                <td style={{ "font-size": "0.8rem", color: "var(--color-text-muted)", "white-space": "nowrap" }}>
-                                                    {job.worker_id ?? "—"}
-                                                </td>
-                                                <td>{job.attempts}</td>
-                                                <td style={{ "white-space": "nowrap" }}>{formatDateTime(job.created_at)}</td>
-                                                <td>
-                                                    <Show when={job.last_error}>
-                                                        <button
-                                                            style={{ cursor: "pointer", "font-size": "0.85rem", background: "none", border: "none", padding: 0, color: "var(--color-primary)" }}
-                                                            onClick={() => toggleError(job.id)}
-                                                        >
-                                                            {expandedErrors().has(job.id) ? "Hide error" : "View error"}
-                                                        </button>
-                                                        <Show when={expandedErrors().has(job.id)}>
-                                                            <code style={{ "font-size": "0.8rem", "word-break": "break-all", display: "block", "margin-top": "0.25rem" }}>
-                                                                {job.last_error}
-                                                            </code>
-                                                        </Show>
-                                                    </Show>
-                                                </td>
-                                                <td>
-                                                    <Show when={job.sbom_id}>
-                                                        <A href={`/sboms/${job.sbom_id}`} style={{ "font-size": "0.85rem" }}>
-                                                            View SBOM
-                                                        </A>
-                                                    </Show>
-                                                </td>
-                                                <td>
-                                                    <Show when={job.state === "failed"}>
-                                                        <button
-                                                            class="btn"
-                                                            style={{ "font-size": "0.8rem", padding: "0.25rem 0.5rem" }}
-                                                            disabled={retry.isPending}
-                                                            onClick={() => retry.mutate(job.id)}
-                                                        >
-                                                            Retry
-                                                        </button>
-                                                    </Show>
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </For>
-                                </tbody>
-                            </table>
-                        </div>
-                        <Show when={pageCount() > 1}>
-                            <div style={{ display: "flex", gap: "0.5rem", "align-items": "center", "margin-top": "1rem", "justify-content": "flex-end" }}>
-                                <button class="btn" disabled={page() === 0} onClick={() => setPage(p => p - 1)}>Prev</button>
-                                <span style={{ "font-size": "0.85rem" }}>Page {page() + 1} of {pageCount()}</span>
-                                <button class="btn" disabled={page() + 1 >= pageCount()} onClick={() => setPage(p => p + 1)}>Next</button>
-                            </div>
-                        </Show>
-                    </div>
+                    <DataTable
+                        columns={columns}
+                        rows={displayJobs()}
+                        loading={false}
+                        isError={false}
+                        emptyTitle="No enrichment jobs found"
+                        pagination={
+                            q.data?.pagination
+                                ? { pagination: q.data.pagination, onPageChange: setOffset }
+                                : undefined
+                        }
+                    />
                 </Show>
             </Show>
         </div>

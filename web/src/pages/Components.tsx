@@ -1,13 +1,14 @@
 import "./Components.css";
 import { createSignal } from "solid-js";
 import { Show, For } from "solid-js";
-import { A } from "@solidjs/router";
 import { useDistinctComponents, useComponentPurlTypes } from "~/api/queries";
-import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
-import Pagination from "~/components/Pagination";
+import type { components } from "~/types/openapi";
+import DataTable from "~/components/DataTable";
+import type { Column, SortDir } from "~/components/DataTable";
+import { ComponentNameCell } from "~/components/cells";
 
+type DistinctComponentSummary = components["schemas"]["DistinctComponentSummary"];
 type SortColumn = "name" | "version_count" | "sbom_count";
-type SortDir = "asc" | "desc";
 
 export default function Components() {
     const [offset, setOffset] = createSignal(0);
@@ -38,25 +39,6 @@ export default function Components() {
         setOffset(0);
     };
 
-    const toggleSort = (col: SortColumn) => {
-        if (sortBy() === col) {
-            setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-        } else {
-            setSortBy(col);
-            setSortDir(col === "name" ? "asc" : "desc");
-        }
-        setOffset(0);
-    };
-
-    const sortArrow = (col: SortColumn) => {
-        if (sortBy() !== col) return null;
-        return (
-            <span class="sort-arrow">
-                {sortDir() === "asc" ? "\u25B2" : "\u25BC"}
-            </span>
-        );
-    };
-
     const overviewHref = (c: { name: string; group?: string }) => {
         const params = new URLSearchParams({ name: c.name });
         if (c.group !== undefined && c.group !== "") params.set("group", c.group);
@@ -64,6 +46,36 @@ export default function Components() {
     };
 
     const formatCount = (n: number) => n.toLocaleString();
+
+    const columns: Column<DistinctComponentSummary>[] = [
+        {
+            header: "Component",
+            sortKey: "name",
+            sortType: "text",
+            render: (c) => (
+                <ComponentNameCell
+                    name={c.name}
+                    group={c.group}
+                    purlTypes={c.purlTypes ?? undefined}
+                    href={overviewHref(c)}
+                />
+            ),
+        },
+        {
+            header: "Versions",
+            sortKey: "version_count",
+            sortType: "numeric",
+            align: "right",
+            render: (c) => formatCount(c.versionCount),
+        },
+        {
+            header: "Found In",
+            sortKey: "sbom_count",
+            sortType: "numeric",
+            align: "right",
+            render: (c) => formatCount(c.sbomCount),
+        },
+    ];
 
     return (
         <>
@@ -126,124 +138,29 @@ export default function Components() {
                 </Show>
             </div>
 
-            <Show when={!query.isLoading} fallback={<Loading />}>
-                <Show
-                    when={!query.isError}
-                    fallback={<ErrorBox error={query.error} />}
-                >
-                    <Show
-                        when={query.data !== undefined && query.data.data.length > 0 ? query.data : undefined}
-                        fallback={
-                            <EmptyState
-                                title="No components found"
-                                message={
-                                    nameFilter() !== "" || purlTypeFilter() !== ""
-                                        ? "No libraries matching your filters were found."
-                                        : "No libraries have been ingested yet."
-                                }
-                            />
-                        }
-                    >
-                        {(d) => (
-                        <div class="card">
-                            <div class="table-wrapper">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th
-                                                class="th-sortable"
-                                                onClick={() =>
-                                                    toggleSort("name")
-                                                }
-                                            >
-                                                Component{sortArrow("name")}
-                                            </th>
-                                            <th
-                                                class="th-sortable text-right"
-                                                onClick={() =>
-                                                    toggleSort("version_count")
-                                                }
-                                            >
-                                                Versions
-                                                {sortArrow("version_count")}
-                                            </th>
-                                            <th
-                                                class="th-sortable text-right"
-                                                onClick={() =>
-                                                    toggleSort("sbom_count")
-                                                }
-                                            >
-                                                Found In
-                                                {sortArrow("sbom_count")}
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <For each={d().data}>
-                                            {(component) => (
-                                                <tr>
-                                                    <td>
-                                                        <A
-                                                            href={overviewHref(
-                                                                component,
-                                                            )}
-                                                        >
-                                                            <Show
-                                                                when={
-                                                                    component.group !== undefined && component.group !== ""
-                                                                }
-                                                            >
-                                                                <span class="text-muted">
-                                                                    {
-                                                                        component.group
-                                                                    }
-                                                                    /
-                                                                </span>
-                                                            </Show>
-                                                            <strong>
-                                                                {component.name}
-                                                            </strong>
-                                                        </A>
-                                                        <For
-                                                            each={
-                                                                component.purlTypes
-                                                            }
-                                                        >
-                                                            {(pt) => (
-                                                                <>
-                                                                    {" "}
-                                                                    <span class="badge-sm">
-                                                                        {pt}
-                                                                    </span>
-                                                                </>
-                                                            )}
-                                                        </For>
-                                                    </td>
-                                                    <td class="text-right">
-                                                        {formatCount(
-                                                            component.versionCount,
-                                                        )}
-                                                    </td>
-                                                    <td class="text-right">
-                                                        {formatCount(
-                                                            component.sbomCount,
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </For>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <Pagination
-                                pagination={d().pagination}
-                                onPageChange={setOffset}
-                            />
-                        </div>
-                        )}
-                    </Show>
-                </Show>
-            </Show>
+            <DataTable
+                columns={columns}
+                rows={query.data?.data ?? undefined}
+                loading={query.isFetching}
+                isError={query.isError}
+                error={query.error}
+                emptyTitle="No components found"
+                emptyMessage={
+                    nameFilter() !== "" || purlTypeFilter() !== ""
+                        ? "No libraries matching your filters were found."
+                        : "No libraries have been ingested yet."
+                }
+                sortBy={sortBy()}
+                sortDir={sortDir()}
+                onSort={(key, dir) => {
+                    setSortBy(key as SortColumn);
+                    setSortDir(dir);
+                    setOffset(0);
+                }}
+                pagination={
+                    query.data ? { pagination: query.data.pagination, onPageChange: setOffset } : undefined
+                }
+            />
         </>
     );
 }
