@@ -3,6 +3,9 @@ import { For, Show, createSignal, createMemo } from "solid-js";
 import { copyText } from "~/utils/clipboard";
 import { useToast } from "~/context/toast";
 import { Loading, ErrorBox } from "~/components/Feedback";
+import DataTable from "~/components/DataTable";
+import type { Column } from "~/components/DataTable";
+import type { Registry } from "~/api/client";
 import {
     useListRegistries,
     useCreateRegistry,
@@ -186,6 +189,111 @@ export function RegistriesTab() {
 
     const hasWebhook = (reg: { scan_mode?: string; type: string }) =>
         reg.scan_mode !== "poll" && TYPE_CAPS[reg.type as RegType].webhook;
+
+    const columns: Column<Registry>[] = [
+        { header: "Name", render: (reg) => <>{reg.name}</> },
+        { header: "Type", render: (reg) => <code>{regTypeLabel(reg.type)}</code> },
+        { header: "URL", render: (reg) => <code>{reg.url}</code> },
+        { header: "Visibility", render: (reg) => <span class="badge">{reg.visibility}</span> },
+        {
+            header: "Owner",
+            render: (reg) => (
+                <span style={{ color: "var(--color-text-muted)", "font-size": "0.85rem" }}>
+                    {reg.owner_username ?? "—"}
+                </span>
+            ),
+        },
+        {
+            header: "Status",
+            render: (reg) => (
+                <span style={{ color: reg.enabled ? "var(--color-success)" : "var(--color-text-muted)" }}>
+                    {reg.enabled ? "Enabled" : "Disabled"}
+                </span>
+            ),
+        },
+        { header: "Scan Mode", render: (reg) => <code>{reg.scan_mode}</code> },
+        {
+            header: "Webhook URL",
+            render: (reg) => (
+                <div style={{ display: "flex", gap: "0.3rem" }}>
+                    <Show when={hasWebhook(reg)} fallback={<span style={{ color: "var(--color-text-muted)" }}>—</span>}>
+                        <button
+                            class="btn"
+                            style={{ "font-size": "0.75rem", padding: "0.2rem 0.5rem" }}
+                            onClick={() => copyWebhookURL(reg.webhook_url)}
+                        >
+                            Copy URL
+                        </button>
+                        <button
+                            class="btn"
+                            style={{ "font-size": "0.75rem", padding: "0.2rem 0.5rem" }}
+                            title="Generate a new webhook secret (invalidates the old one)"
+                            disabled={regenSecret.isPending}
+                            onClick={() => regenSecret.mutate(reg.id, {
+                                onSuccess: (data) => setRevealedSecret(data.webhook_secret),
+                                onError: () => toast("Failed to regenerate secret", "error"),
+                            })}
+                        >
+                            Regen Secret
+                        </button>
+                    </Show>
+                </div>
+            ),
+        },
+        {
+            header: "",
+            render: (reg) => (
+                <div style={{ display: "flex", gap: "0.4rem" }}>
+                    <button
+                        class="btn"
+                        onClick={() => startEdit(reg)}
+                    >
+                        Edit
+                    </button>
+                    <button
+                        class="btn"
+                        title="Scan new/changed images; already-scanned digests are skipped"
+                        onClick={() => scanReg.mutate({ id: reg.id }, {
+                            onSuccess: (data) => toast(data.message, "success"),
+                            onError: () => toast("Failed to start scan", "error"),
+                        })}
+                        disabled={scanReg.isPending}
+                    >
+                        Scan
+                    </button>
+                    <button
+                        class="btn"
+                        title="Re-scan every image, including already-scanned digests (repopulates enrichment)"
+                        onClick={() => {
+                            if (!confirm("Force a full re-scan of every image in this registry, including digests already ingested? This re-pulls and re-scans everything.")) return;
+                            scanReg.mutate({ id: reg.id, force: true }, {
+                                onSuccess: (data) => toast(data.message, "success"),
+                                onError: () => toast("Failed to start scan", "error"),
+                            });
+                        }}
+                        disabled={scanReg.isPending}
+                    >
+                        Force
+                    </button>
+                    <Show when={(activeByRegistry().get(reg.id) ?? 0) > 0}>
+                        <span class="badge" style={{ background: "var(--color-primary)", color: "#fff", "font-size": "0.75rem" }}>
+                            {activeByRegistry().get(reg.id)} active
+                        </span>
+                    </Show>
+                    <button
+                        class="btn"
+                        onClick={() => deleteReg.mutate(reg.id, {
+                            onSuccess: () => toast("Registry deleted", "success"),
+                            onError: () => toast("Failed to delete registry", "error"),
+                        })}
+                        disabled={deleteReg.isPending}
+                    >
+                        Delete
+                    </button>
+                </div>
+            ),
+        },
+    ];
 
     return (
         <>
@@ -474,119 +582,13 @@ export function RegistriesTab() {
 
             <Show when={!query.isLoading} fallback={<Loading />}>
                 <Show when={!query.isError} fallback={<ErrorBox error={query.error} />}>
-                    <div class="card">
-                        <div class="table-wrapper">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Name</th>
-                                        <th>Type</th>
-                                        <th>URL</th>
-                                        <th>Visibility</th>
-                                        <th>Owner</th>
-                                        <th>Status</th>
-                                        <th>Scan Mode</th>
-                                        <th>Webhook URL</th>
-                                        <th />
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <For each={query.data?.data ?? []}>
-                                        {(reg) => (
-                                            <tr>
-                                                <td>{reg.name}</td>
-                                                <td><code>{regTypeLabel(reg.type)}</code></td>
-                                                <td><code>{reg.url}</code></td>
-                                                <td><span class="badge">{reg.visibility}</span></td>
-                                                <td>
-                                                    <span style={{ color: "var(--color-text-muted)", "font-size": "0.85rem" }}>
-                                                        {reg.owner_username ?? "—"}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <span style={{ color: reg.enabled ? "var(--color-success)" : "var(--color-text-muted)" }}>
-                                                        {reg.enabled ? "Enabled" : "Disabled"}
-                                                    </span>
-                                                </td>
-                                                <td><code>{reg.scan_mode}</code></td>
-                                                <td style={{ display: "flex", gap: "0.3rem" }}>
-                                                    <Show when={hasWebhook(reg)} fallback={<span style={{ color: "var(--color-text-muted)" }}>—</span>}>
-                                                        <button
-                                                            class="btn"
-                                                            style={{ "font-size": "0.75rem", padding: "0.2rem 0.5rem" }}
-                                                            onClick={() => copyWebhookURL(reg.webhook_url)}
-                                                        >
-                                                            Copy URL
-                                                        </button>
-                                                        <button
-                                                            class="btn"
-                                                            style={{ "font-size": "0.75rem", padding: "0.2rem 0.5rem" }}
-                                                            title="Generate a new webhook secret (invalidates the old one)"
-                                                            disabled={regenSecret.isPending}
-                                                            onClick={() => regenSecret.mutate(reg.id, {
-                                                                onSuccess: (data) => setRevealedSecret(data.webhook_secret),
-                                                                onError: () => toast("Failed to regenerate secret", "error"),
-                                                            })}
-                                                        >
-                                                            Regen Secret
-                                                        </button>
-                                                    </Show>
-                                                </td>
-                                                <td style={{ display: "flex", gap: "0.4rem" }}>
-                                                    <button
-                                                        class="btn"
-                                                        onClick={() => startEdit(reg)}
-                                                    >
-                                                        Edit
-                                                    </button>
-                                                    <button
-                                                        class="btn"
-                                                        title="Scan new/changed images; already-scanned digests are skipped"
-                                                        onClick={() => scanReg.mutate({ id: reg.id }, {
-                                                            onSuccess: (data) => toast(data.message, "success"),
-                                                            onError: () => toast("Failed to start scan", "error"),
-                                                        })}
-                                                        disabled={scanReg.isPending}
-                                                    >
-                                                        Scan
-                                                    </button>
-                                                    <button
-                                                        class="btn"
-                                                        title="Re-scan every image, including already-scanned digests (repopulates enrichment)"
-                                                        onClick={() => {
-                                                            if (!confirm("Force a full re-scan of every image in this registry, including digests already ingested? This re-pulls and re-scans everything.")) return;
-                                                            scanReg.mutate({ id: reg.id, force: true }, {
-                                                                onSuccess: (data) => toast(data.message, "success"),
-                                                                onError: () => toast("Failed to start scan", "error"),
-                                                            });
-                                                        }}
-                                                        disabled={scanReg.isPending}
-                                                    >
-                                                        Force
-                                                    </button>
-                                                    <Show when={(activeByRegistry().get(reg.id) ?? 0) > 0}>
-                                                        <span class="badge" style={{ background: "var(--color-primary)", color: "#fff", "font-size": "0.75rem" }}>
-                                                            {activeByRegistry().get(reg.id)} active
-                                                        </span>
-                                                    </Show>
-                                                    <button
-                                                        class="btn"
-                                                        onClick={() => deleteReg.mutate(reg.id, {
-                                                            onSuccess: () => toast("Registry deleted", "success"),
-                                                            onError: () => toast("Failed to delete registry", "error"),
-                                                        })}
-                                                        disabled={deleteReg.isPending}
-                                                    >
-                                                        Delete
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </For>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                    <DataTable
+                        columns={columns}
+                        rows={query.data?.data ?? undefined}
+                        loading={false}
+                        isError={false}
+                        emptyTitle="No registries found"
+                    />
                 </Show>
             </Show>
         </>

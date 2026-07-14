@@ -67,6 +67,11 @@ export type HashEntry = components["schemas"]["HashEntry"];
 export type ExternalRefEntry = components["schemas"]["ExternalRefEntry"];
 export type IngestResponse = components["schemas"]["IngestSBOMOutputBody"];
 export type PaginationMeta = components["schemas"]["PaginationMeta"];
+export type ScanJob = components["schemas"]["ScanJobResponse"];
+export type EnrichmentJob = components["schemas"]["EnrichmentJobResponse"];
+export type Registry = components["schemas"]["RegistryResponse"];
+export type APIKey = components["schemas"]["KeyMetaResponse"];
+export type UserAccount = components["schemas"]["UserResponse"];
 export type ErrorModel = components["schemas"]["ErrorModel"];
 export type DashboardStats = components["schemas"]["DashboardStatsOutputBody"];
 export type CategoryCountEntry = components["schemas"]["CategoryCountEntry"];
@@ -112,4 +117,26 @@ export interface Provenance {
     subjects?: string[];
     rekorUuid?: string;
     rekorLogIndex?: number;
+}
+
+/**
+ * Client-side type for git commit metadata stored in SBOM enrichments under
+ * the "git" key. Not part of the OpenAPI spec (enrichments is Record<string, unknown>).
+ */
+export interface GitCommitMetadata {
+    resolved: boolean;
+    reason?: string;
+    host?: string;
+    owner?: string;
+    repo?: string;
+    commitSha?: string;
+    commitUrl?: string;
+    authorName?: string;
+    authorEmail?: string;
+    authoredAt?: string;
+    committerName?: string;
+    committerEmail?: string;
+    committedAt?: string;
+    messageSubject?: string;
+    parents?: string[];
 }

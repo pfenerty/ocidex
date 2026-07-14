@@ -4,7 +4,7 @@ import { useArtifactsInfinite } from "~/api/queries";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
 import LoadMore from "~/components/LoadMore";
 import { artifactDisplayName, plural } from "~/utils/format";
-import { SigningBadge, TypeBadge } from "~/components/ui";
+import { SigningBadge, TypeBadge } from "~/components/cells";
 import type { ArtifactSummary } from "~/api/client";
 
 const ARTIFACT_TYPES = [

@@ -1,6 +1,6 @@
 ---
 status: "accepted"
-date: 2026-04-27
+date: 2026-07-13
 decision-makers: Patrick Fenerty
 ---
 
@@ -74,6 +74,38 @@ Amber is used sparingly — accent only, never as a primary action color.
 
 **Index-number scheme.** Each entity type has its own zero-padded sequence — artifacts `#A000142`, components `#C000142`, licenses `#L000142`. Sequence is derived from the database `id` (or sort order) at render time; not a new persisted column.
 
+### Table & interaction refinement (ocidex-dbg.2)
+
+The `dbg` epic's shared `DataTable` component (ADR-0036) already carries most tables. This
+refines the field-guide identity's table/interaction behavior to a precise, implementable spec —
+CSS implementation lands in `ocidex-dbg.5`, in `web/src/index.css`. No new tokens beyond the
+palette above; this only extends existing ones.
+
+* **Sort-affordance styling.** Keep `.th-sortable`'s pointer cursor and `color 0.15s` hover
+  transition (`DataTable.css:1-9`) unchanged. Add: while a column is the active sort key, its
+  header text stays at `--color-text` (not `--color-text-muted`) permanently, not just on hover,
+  and its arrow glyph (`.sort-arrow`) is colored `--color-accent-amber`. This is an
+  indicator, not an action — consistent with "accent only, never primary action color."
+* **Row hover / motion.** `tbody tr` gets a `background-color 150ms ease` transition, matching
+  the sitewide 150ms hover/focus convention this ADR already establishes. Today `tbody
+  tr:hover` (`index.css:317-319`) changes background with no transition at all — this closes
+  that gap rather than introducing a new duration.
+* **Sticky header behavior.** `thead th` becomes `position: sticky; top: 0` with an opaque
+  `--color-surface` background, so the header stays visible as the page scrolls past a long
+  table. `.table-wrapper` has no bounded vertical scroll container today (`overflow-x: auto`
+  only), so this sticks relative to the viewport/page scroll, not a scrollable table body — no
+  new scroll container is introduced. Where `tr.group-header-row`'s existing sticky pattern
+  (`index.css:332-344`) is also present (e.g. `PackagesTab.tsx`'s tree view), the `thead` sits
+  above it in stacking order (`z-index: 2` vs. `1`) so the column header always wins.
+* **Consistent table density.** The padding and type scale already shared by every `DataTable`
+  instance (`thead th` / `tbody td`: `0.625rem 0.75rem`; header `0.75rem` uppercase, body
+  `0.875rem` — `index.css:291-315`) is the single canonical field-guide table density. No
+  compact/comfortable variants; new tables must not introduce their own padding.
+* **Unified empty/loading treatment.** ADR-0036's `DataTable` contract — full-page `Loading` on
+  first load, skeleton rows (`.skeleton-cell` / `skeleton-pulse`, `DataTable.css:16-37`) on
+  refetch, `ErrorBox`/`EmptyState` otherwise — is the canonical, and only, loading treatment for
+  tables under this identity. No separate spec here; this is a pointer, not new behavior.
+
 ### Consequences
 
 * **Good** — Distinctive without sacrificing data-density; Pokédex metaphor lives where it is most visible (entries) and stays out of the way elsewhere.
@@ -92,6 +124,10 @@ Implementation lives in 1.0.I.11. That issue's review should:
 3. Confirm the brand LED pulses once on load and settles, with no continuous animation.
 4. Confirm `lucide-solid` icons fully replace hand-rolled SVGs in `Layout.tsx`.
 5. Confirm Space Grotesk is loaded only for `.brand` and `.entry-number`.
+6. For `ocidex-dbg.5`'s CSS: confirm each point in "Table & interaction refinement" above is
+   implemented as specified — active-sort header/arrow coloring, the 150ms row-hover
+   transition, sticky `thead` with correct z-index over `group-header-row`, unchanged shared
+   table density, and no loading/empty pattern outside ADR-0036's contract.
 
 ## Pros and Cons of the Options
 
@@ -124,5 +160,8 @@ Implementation lives in 1.0.I.11. That issue's review should:
 * Current chrome: `web/src/components/Layout.tsx:24-170`
 * ADR-0015 — UI / styling and accessibility commitments
 * ADR-0012 — SolidJS framework choice
+* ADR-0036 — shared `DataTable` component and cell-renderer conventions; source of the
+  empty/loading contract referenced above
 * Implementation issue: `ocidex-6ce.64` (1.0.I.11 — Apply visual identity refresh)
 * Landing page consumer: `ocidex-6ce.55` (1.0.I.2 — Public-facing landing page)
+* Table & interaction refinement spec: `ocidex-dbg.2`; CSS implementation: `ocidex-dbg.5`
