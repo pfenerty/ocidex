@@ -61,7 +61,7 @@ spec:
         requests:
           cpu: 100m
           memory: 2Gi
-      image: ghcr.io/pfenerty/apko-cicd/nodejs:22
+      image: ghcr.io/pfenerty/apko-cicd/nodejs:24
       name: check-types
       onError: continue
       script: |-
