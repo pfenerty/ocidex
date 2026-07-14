@@ -65,7 +65,7 @@ func TestListSBOMs(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		is.Equal(r.URL.Path, "/api/v1/sboms")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"data":[{"id":"sbom-1","specVersion":"1.4","sufficient":true,"version":1,"createdAt":"2024-01-01T00:00:00Z"}],"pagination":{"total":1,"limit":50,"offset":0}}`))
+		_, _ = w.Write([]byte(`{"data":[{"id":"sbom-1","specVersion":"1.4","sufficient":true,"version":1,"createdAt":"2024-01-01T00:00:00Z"}],"pagination":{"limit":50,"hasMore":false}}`))
 	}))
 	defer srv.Close()
 
@@ -73,7 +73,7 @@ func TestListSBOMs(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(len(page.Data), 1)
 	is.Equal(page.Data[0].Id, "sbom-1")
-	is.Equal(page.Pagination.Total, int64(1))
+	is.Equal(page.Pagination.HasMore, false)
 }
 
 func TestDeleteSBOM(t *testing.T) {

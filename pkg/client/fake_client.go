@@ -23,15 +23,15 @@ type FakeClient struct {
 	// SBOM + artifact
 	IngestSBOMFn                func(ctx context.Context, data []byte, params IngestSbomParams) (IngestSBOMOutputBody, error)
 	GetSBOMFn                   func(ctx context.Context, id string, includeRaw bool) (SBOMDetail, error)
-	ListSBOMsFn                 func(ctx context.Context, opts PageOpts) (Page[SBOMSummary], error)
+	ListSBOMsFn                 func(ctx context.Context, opts PageOpts) (CursorPage[SBOMSummary], error)
 	DeleteSBOMFn                func(ctx context.Context, id string) error
 	DiffSBOMsFn                 func(ctx context.Context, fromID, toID string) (ChangelogEntry, error)
 	GetDiffTreeFn               func(ctx context.Context, fromID, toID string) (DiffTree, error)
-	ListArtifactsFn             func(ctx context.Context, opts PageOpts) (Page[ArtifactSummary], error)
+	ListArtifactsFn             func(ctx context.Context, opts PageOpts) (CursorPage[ArtifactSummary], error)
 	GetArtifactFn               func(ctx context.Context, id string) (ArtifactDetail, error)
 	GetArtifactChangelogFn      func(ctx context.Context, id string, params GetArtifactChangelogParams) (Changelog, error)
 	GetArtifactLicenseSummaryFn func(ctx context.Context, id string) (GetArtifactLicenseSummaryOutputBody, error)
-	ListArtifactSBOMsFn         func(ctx context.Context, id string, opts PageOpts) (Page[SBOMSummary], error)
+	ListArtifactSBOMsFn         func(ctx context.Context, id string, opts PageOpts) (CursorPage[SBOMSummary], error)
 	ListArtifactVersionsFn      func(ctx context.Context, id string, opts PageOpts) (Page[ArtifactVersionSummary], error)
 
 	// Component + job + stats
@@ -146,11 +146,11 @@ func (f *FakeClient) GetSBOM(ctx context.Context, id string, includeRaw bool) (S
 	return SBOMDetail{}, nil
 }
 
-func (f *FakeClient) ListSBOMs(ctx context.Context, opts PageOpts) (Page[SBOMSummary], error) {
+func (f *FakeClient) ListSBOMs(ctx context.Context, opts PageOpts) (CursorPage[SBOMSummary], error) {
 	if f.ListSBOMsFn != nil {
 		return f.ListSBOMsFn(ctx, opts)
 	}
-	return Page[SBOMSummary]{}, nil
+	return CursorPage[SBOMSummary]{}, nil
 }
 
 func (f *FakeClient) DeleteSBOM(ctx context.Context, id string) error {
@@ -174,11 +174,11 @@ func (f *FakeClient) GetDiffTree(ctx context.Context, fromID, toID string) (Diff
 	return DiffTree{}, nil
 }
 
-func (f *FakeClient) ListArtifacts(ctx context.Context, opts PageOpts) (Page[ArtifactSummary], error) {
+func (f *FakeClient) ListArtifacts(ctx context.Context, opts PageOpts) (CursorPage[ArtifactSummary], error) {
 	if f.ListArtifactsFn != nil {
 		return f.ListArtifactsFn(ctx, opts)
 	}
-	return Page[ArtifactSummary]{}, nil
+	return CursorPage[ArtifactSummary]{}, nil
 }
 
 func (f *FakeClient) GetArtifact(ctx context.Context, id string) (ArtifactDetail, error) {
@@ -202,11 +202,11 @@ func (f *FakeClient) GetArtifactLicenseSummary(ctx context.Context, id string) (
 	return GetArtifactLicenseSummaryOutputBody{}, nil
 }
 
-func (f *FakeClient) ListArtifactSBOMs(ctx context.Context, id string, opts PageOpts) (Page[SBOMSummary], error) {
+func (f *FakeClient) ListArtifactSBOMs(ctx context.Context, id string, opts PageOpts) (CursorPage[SBOMSummary], error) {
 	if f.ListArtifactSBOMsFn != nil {
 		return f.ListArtifactSBOMsFn(ctx, id, opts)
 	}
-	return Page[SBOMSummary]{}, nil
+	return CursorPage[SBOMSummary]{}, nil
 }
 
 func (f *FakeClient) ListArtifactVersions(ctx context.Context, id string, opts PageOpts) (Page[ArtifactVersionSummary], error) {

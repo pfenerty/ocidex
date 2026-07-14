@@ -61,6 +61,16 @@ type OCIRegistrySpec struct {
 	// registry authentication. Omit for anonymous access.
 	// +optional
 	AuthSecretRef *corev1.LocalObjectReference `json:"authSecretRef,omitempty"`
+
+	// VerificationMode controls signature verification for images in this registry.
+	// +kubebuilder:validation:Enum=none;public_key
+	// +kubebuilder:default=none
+	// +optional
+	VerificationMode string `json:"verificationMode,omitempty"`
+
+	// TrustPublicKey is a PEM-encoded EC public key, required when VerificationMode is public_key.
+	// +optional
+	TrustPublicKey *string `json:"trustPublicKey,omitempty"`
 }
 
 // OCIRegistryStatus reflects the observed state of an OCIRegistry.
