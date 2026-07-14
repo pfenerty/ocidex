@@ -14,6 +14,30 @@ const (
 	CookieAuthScopes cookieAuthContextKey = "cookieAuth.Scopes"
 )
 
+// Defines values for ArtifactVersionSummarySigningStatus.
+const (
+	Signed             ArtifactVersionSummarySigningStatus = "signed"
+	Unsigned           ArtifactVersionSummarySigningStatus = "unsigned"
+	VerificationFailed ArtifactVersionSummarySigningStatus = "verification_failed"
+	Verified           ArtifactVersionSummarySigningStatus = "verified"
+)
+
+// Valid indicates whether the value is a known member of the ArtifactVersionSummarySigningStatus enum.
+func (e ArtifactVersionSummarySigningStatus) Valid() bool {
+	switch e {
+	case Signed:
+		return true
+	case Unsigned:
+		return true
+	case VerificationFailed:
+		return true
+	case Verified:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateAPIKeyInputBodyScope.
 const (
 	CreateAPIKeyInputBodyScopeRead      CreateAPIKeyInputBodyScope = "read"
@@ -80,6 +104,24 @@ func (e CreateRegistryInputBodyType) Valid() bool {
 	}
 }
 
+// Defines values for CreateRegistryInputBodyVerificationMode.
+const (
+	CreateRegistryInputBodyVerificationModeNone      CreateRegistryInputBodyVerificationMode = "none"
+	CreateRegistryInputBodyVerificationModePublicKey CreateRegistryInputBodyVerificationMode = "public_key"
+)
+
+// Valid indicates whether the value is a known member of the CreateRegistryInputBodyVerificationMode enum.
+func (e CreateRegistryInputBodyVerificationMode) Valid() bool {
+	switch e {
+	case CreateRegistryInputBodyVerificationModeNone:
+		return true
+	case CreateRegistryInputBodyVerificationModePublicKey:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateRegistryInputBodyVisibility.
 const (
 	CreateRegistryInputBodyVisibilityPrivate CreateRegistryInputBodyVisibility = "private"
@@ -98,6 +140,72 @@ func (e CreateRegistryInputBodyVisibility) Valid() bool {
 	}
 }
 
+// Defines values for CreateRegistryResponseBodyVerificationMode.
+const (
+	CreateRegistryResponseBodyVerificationModeKeyless   CreateRegistryResponseBodyVerificationMode = "keyless"
+	CreateRegistryResponseBodyVerificationModeNone      CreateRegistryResponseBodyVerificationMode = "none"
+	CreateRegistryResponseBodyVerificationModePublicKey CreateRegistryResponseBodyVerificationMode = "public_key"
+)
+
+// Valid indicates whether the value is a known member of the CreateRegistryResponseBodyVerificationMode enum.
+func (e CreateRegistryResponseBodyVerificationMode) Valid() bool {
+	switch e {
+	case CreateRegistryResponseBodyVerificationModeKeyless:
+		return true
+	case CreateRegistryResponseBodyVerificationModeNone:
+		return true
+	case CreateRegistryResponseBodyVerificationModePublicKey:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EnrichmentJobResponseEnricherName.
+const (
+	EnrichmentJobResponseEnricherNameOciMetadata EnrichmentJobResponseEnricherName = "oci-metadata"
+	EnrichmentJobResponseEnricherNameProvenance  EnrichmentJobResponseEnricherName = "provenance"
+	EnrichmentJobResponseEnricherNameUser        EnrichmentJobResponseEnricherName = "user"
+)
+
+// Valid indicates whether the value is a known member of the EnrichmentJobResponseEnricherName enum.
+func (e EnrichmentJobResponseEnricherName) Valid() bool {
+	switch e {
+	case EnrichmentJobResponseEnricherNameOciMetadata:
+		return true
+	case EnrichmentJobResponseEnricherNameProvenance:
+		return true
+	case EnrichmentJobResponseEnricherNameUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EnrichmentJobResponseState.
+const (
+	EnrichmentJobResponseStateFailed    EnrichmentJobResponseState = "failed"
+	EnrichmentJobResponseStateQueued    EnrichmentJobResponseState = "queued"
+	EnrichmentJobResponseStateRunning   EnrichmentJobResponseState = "running"
+	EnrichmentJobResponseStateSucceeded EnrichmentJobResponseState = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the EnrichmentJobResponseState enum.
+func (e EnrichmentJobResponseState) Valid() bool {
+	switch e {
+	case EnrichmentJobResponseStateFailed:
+		return true
+	case EnrichmentJobResponseStateQueued:
+		return true
+	case EnrichmentJobResponseStateRunning:
+		return true
+	case EnrichmentJobResponseStateSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for KeyMetaResponseScope.
 const (
 	KeyMetaResponseScopeRead      KeyMetaResponseScope = "read"
@@ -110,6 +218,27 @@ func (e KeyMetaResponseScope) Valid() bool {
 	case KeyMetaResponseScopeRead:
 		return true
 	case KeyMetaResponseScopeReadWrite:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RegistryResponseVerificationMode.
+const (
+	RegistryResponseVerificationModeKeyless   RegistryResponseVerificationMode = "keyless"
+	RegistryResponseVerificationModeNone      RegistryResponseVerificationMode = "none"
+	RegistryResponseVerificationModePublicKey RegistryResponseVerificationMode = "public_key"
+)
+
+// Valid indicates whether the value is a known member of the RegistryResponseVerificationMode enum.
+func (e RegistryResponseVerificationMode) Valid() bool {
+	switch e {
+	case RegistryResponseVerificationModeKeyless:
+		return true
+	case RegistryResponseVerificationModeNone:
+		return true
+	case RegistryResponseVerificationModePublicKey:
 		return true
 	default:
 		return false
@@ -188,6 +317,24 @@ func (e UpdateRegistryInputBodyType) Valid() bool {
 	}
 }
 
+// Defines values for UpdateRegistryInputBodyVerificationMode.
+const (
+	UpdateRegistryInputBodyVerificationModeNone      UpdateRegistryInputBodyVerificationMode = "none"
+	UpdateRegistryInputBodyVerificationModePublicKey UpdateRegistryInputBodyVerificationMode = "public_key"
+)
+
+// Valid indicates whether the value is a known member of the UpdateRegistryInputBodyVerificationMode enum.
+func (e UpdateRegistryInputBodyVerificationMode) Valid() bool {
+	switch e {
+	case UpdateRegistryInputBodyVerificationModeNone:
+		return true
+	case UpdateRegistryInputBodyVerificationModePublicKey:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UpdateRegistryInputBodyVisibility.
 const (
 	UpdateRegistryInputBodyVisibilityPrivate UpdateRegistryInputBodyVisibility = "private"
@@ -227,6 +374,72 @@ func (e UpdateUserRoleInputBodyRole) Valid() bool {
 	}
 }
 
+// Defines values for RetryAllFailedEnrichmentJobsParamsEnricherName.
+const (
+	RetryAllFailedEnrichmentJobsParamsEnricherNameOciMetadata RetryAllFailedEnrichmentJobsParamsEnricherName = "oci-metadata"
+	RetryAllFailedEnrichmentJobsParamsEnricherNameProvenance  RetryAllFailedEnrichmentJobsParamsEnricherName = "provenance"
+	RetryAllFailedEnrichmentJobsParamsEnricherNameUser        RetryAllFailedEnrichmentJobsParamsEnricherName = "user"
+)
+
+// Valid indicates whether the value is a known member of the RetryAllFailedEnrichmentJobsParamsEnricherName enum.
+func (e RetryAllFailedEnrichmentJobsParamsEnricherName) Valid() bool {
+	switch e {
+	case RetryAllFailedEnrichmentJobsParamsEnricherNameOciMetadata:
+		return true
+	case RetryAllFailedEnrichmentJobsParamsEnricherNameProvenance:
+		return true
+	case RetryAllFailedEnrichmentJobsParamsEnricherNameUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListEnrichmentJobsParamsState.
+const (
+	ListEnrichmentJobsParamsStateFailed    ListEnrichmentJobsParamsState = "failed"
+	ListEnrichmentJobsParamsStateQueued    ListEnrichmentJobsParamsState = "queued"
+	ListEnrichmentJobsParamsStateRunning   ListEnrichmentJobsParamsState = "running"
+	ListEnrichmentJobsParamsStateSucceeded ListEnrichmentJobsParamsState = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the ListEnrichmentJobsParamsState enum.
+func (e ListEnrichmentJobsParamsState) Valid() bool {
+	switch e {
+	case ListEnrichmentJobsParamsStateFailed:
+		return true
+	case ListEnrichmentJobsParamsStateQueued:
+		return true
+	case ListEnrichmentJobsParamsStateRunning:
+		return true
+	case ListEnrichmentJobsParamsStateSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListEnrichmentJobsParamsEnricherName.
+const (
+	OciMetadata ListEnrichmentJobsParamsEnricherName = "oci-metadata"
+	Provenance  ListEnrichmentJobsParamsEnricherName = "provenance"
+	User        ListEnrichmentJobsParamsEnricherName = "user"
+)
+
+// Valid indicates whether the value is a known member of the ListEnrichmentJobsParamsEnricherName enum.
+func (e ListEnrichmentJobsParamsEnricherName) Valid() bool {
+	switch e {
+	case OciMetadata:
+		return true
+	case Provenance:
+		return true
+	case User:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListScanJobsParamsState.
 const (
 	ListScanJobsParamsStateFailed    ListScanJobsParamsState = "failed"
@@ -251,6 +464,47 @@ func (e ListScanJobsParamsState) Valid() bool {
 	}
 }
 
+// Defines values for ListTopVulnerabilitiesParamsSeverity.
+const (
+	CRITICAL ListTopVulnerabilitiesParamsSeverity = "CRITICAL"
+	HIGH     ListTopVulnerabilitiesParamsSeverity = "HIGH"
+	LOW      ListTopVulnerabilitiesParamsSeverity = "LOW"
+	MEDIUM   ListTopVulnerabilitiesParamsSeverity = "MEDIUM"
+)
+
+// Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSeverity enum.
+func (e ListTopVulnerabilitiesParamsSeverity) Valid() bool {
+	switch e {
+	case CRITICAL:
+		return true
+	case HIGH:
+		return true
+	case LOW:
+		return true
+	case MEDIUM:
+		return true
+	default:
+		return false
+	}
+}
+
+// AffectedArtifact defines model for AffectedArtifact.
+type AffectedArtifact struct {
+	AffectedPurlCount int64   `json:"affectedPurlCount"`
+	AffectedSbomCount int64   `json:"affectedSbomCount"`
+	Group             *string `json:"group,omitempty"`
+	Id                string  `json:"id"`
+	Name              string  `json:"name"`
+}
+
+// AffectedComponent defines model for AffectedComponent.
+type AffectedComponent struct {
+	AffectedVersionCount int64   `json:"affectedVersionCount"`
+	FixedVersion         *string `json:"fixedVersion,omitempty"`
+	Group                *string `json:"group,omitempty"`
+	Name                 string  `json:"name"`
+}
+
 // ArtifactDetail defines model for ArtifactDetail.
 type ArtifactDetail struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -262,6 +516,7 @@ type ArtifactDetail struct {
 	Name                string    `json:"name"`
 	Purl                *string   `json:"purl,omitempty"`
 	SbomCount           int64     `json:"sbomCount"`
+	SigningStatus       string    `json:"signingStatus"`
 	SufficientSbomCount int64     `json:"sufficientSbomCount"`
 	Type                string    `json:"type"`
 	VersionCount        int64     `json:"versionCount"`
@@ -273,6 +528,7 @@ type ArtifactSummary struct {
 	Id                  string  `json:"id"`
 	Name                string  `json:"name"`
 	SbomCount           int64   `json:"sbomCount"`
+	SigningStatus       string  `json:"signingStatus"`
 	SufficientSbomCount int64   `json:"sufficientSbomCount"`
 	Type                string  `json:"type"`
 }
@@ -286,12 +542,18 @@ type ArtifactVersionSummary struct {
 	Revision      *string    `json:"revision,omitempty"`
 
 	// SbomCount Total number of SBOMs ingested for this version
-	SbomCount  int64   `json:"sbomCount"`
-	SbomId     string  `json:"sbomId"`
-	SourceUrl  *string `json:"sourceUrl,omitempty"`
-	Sufficient bool    `json:"sufficient"`
-	VersionKey string  `json:"versionKey"`
+	SbomCount int64  `json:"sbomCount"`
+	SbomId    string `json:"sbomId"`
+
+	// SigningStatus Signing status derived from provenance enrichment
+	SigningStatus ArtifactVersionSummarySigningStatus `json:"signingStatus"`
+	SourceUrl     *string                             `json:"sourceUrl,omitempty"`
+	Sufficient    bool                                `json:"sufficient"`
+	VersionKey    string                              `json:"versionKey"`
 }
+
+// ArtifactVersionSummarySigningStatus Signing status derived from provenance enrichment
+type ArtifactVersionSummarySigningStatus string
 
 // CategoryCountEntry defines model for CategoryCountEntry.
 type CategoryCountEntry struct {
@@ -342,23 +604,36 @@ type ComponentDetail struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema             *string             `json:"$schema,omitempty"`
 	BomRef             *string             `json:"bomRef,omitempty"`
+	Confidence         *string             `json:"confidence,omitempty"`
 	Copyright          *string             `json:"copyright,omitempty"`
 	Cpe                *string             `json:"cpe,omitempty"`
+	CriticalCount      *int64              `json:"criticalCount,omitempty"`
 	DescendantChanges  *ChangeCounts       `json:"descendantChanges,omitempty"`
 	Description        *string             `json:"description,omitempty"`
 	ExternalReferences *[]ExternalRefEntry `json:"externalReferences"`
+	FoundBy            *string             `json:"foundBy,omitempty"`
+	FromBaseImage      *bool               `json:"fromBaseImage,omitempty"`
 	Group              *string             `json:"group,omitempty"`
 	Hashes             *[]HashEntry        `json:"hashes"`
+	HighCount          *int64              `json:"highCount,omitempty"`
 	Id                 string              `json:"id"`
 	IsDirect           bool                `json:"isDirect"`
+	Layer              *int64              `json:"layer,omitempty"`
+	LayerId            *string             `json:"layerId,omitempty"`
 	Licenses           *[]LicenseSummary   `json:"licenses"`
+	LowCount           *int64              `json:"lowCount,omitempty"`
+	MaxSeverity        *string             `json:"maxSeverity,omitempty"`
+	MediumCount        *int64              `json:"mediumCount,omitempty"`
 	Name               string              `json:"name"`
 	Publisher          *string             `json:"publisher,omitempty"`
 	Purl               *string             `json:"purl,omitempty"`
 	SbomId             string              `json:"sbomId"`
 	Scope              *string             `json:"scope,omitempty"`
+	SourcePackage      *string             `json:"sourcePackage,omitempty"`
 	Type               string              `json:"type"`
+	UnknownCount       *int64              `json:"unknownCount,omitempty"`
 	Version            *string             `json:"version,omitempty"`
+	VulnCount          *int64              `json:"vulnCount,omitempty"`
 }
 
 // ComponentDiff defines model for ComponentDiff.
@@ -376,15 +651,22 @@ type ComponentDiff struct {
 // ComponentSummary defines model for ComponentSummary.
 type ComponentSummary struct {
 	BomRef            *string       `json:"bomRef,omitempty"`
+	CriticalCount     *int64        `json:"criticalCount,omitempty"`
 	DescendantChanges *ChangeCounts `json:"descendantChanges,omitempty"`
 	Group             *string       `json:"group,omitempty"`
+	HighCount         *int64        `json:"highCount,omitempty"`
 	Id                string        `json:"id"`
 	IsDirect          bool          `json:"isDirect"`
+	LowCount          *int64        `json:"lowCount,omitempty"`
+	MaxSeverity       *string       `json:"maxSeverity,omitempty"`
+	MediumCount       *int64        `json:"mediumCount,omitempty"`
 	Name              string        `json:"name"`
 	Purl              *string       `json:"purl,omitempty"`
 	SbomId            string        `json:"sbomId"`
 	Type              string        `json:"type"`
+	UnknownCount      *int64        `json:"unknownCount,omitempty"`
 	Version           *string       `json:"version,omitempty"`
+	VulnCount         *int64        `json:"vulnCount,omitempty"`
 }
 
 // ComponentVersionEntry defines model for ComponentVersionEntry.
@@ -392,8 +674,13 @@ type ComponentVersionEntry struct {
 	Architecture   *string `json:"architecture,omitempty"`
 	ArtifactId     *string `json:"artifactId,omitempty"`
 	ArtifactName   *string `json:"artifactName,omitempty"`
+	CriticalCount  *int64  `json:"criticalCount,omitempty"`
 	Group          *string `json:"group,omitempty"`
+	HighCount      *int64  `json:"highCount,omitempty"`
 	Id             string  `json:"id"`
+	LowCount       *int64  `json:"lowCount,omitempty"`
+	MaxSeverity    *string `json:"maxSeverity,omitempty"`
+	MediumCount    *int64  `json:"mediumCount,omitempty"`
 	Name           string  `json:"name"`
 	Purl           *string `json:"purl,omitempty"`
 	SbomCreatedAt  string  `json:"sbomCreatedAt"`
@@ -401,7 +688,20 @@ type ComponentVersionEntry struct {
 	SbomId         string  `json:"sbomId"`
 	SubjectVersion *string `json:"subjectVersion,omitempty"`
 	Type           string  `json:"type"`
+	UnknownCount   *int64  `json:"unknownCount,omitempty"`
 	Version        *string `json:"version,omitempty"`
+	VulnCount      int64   `json:"vulnCount"`
+}
+
+// ComponentVulnEntry defines model for ComponentVulnEntry.
+type ComponentVulnEntry struct {
+	CanonicalId      string   `json:"canonicalId"`
+	CvssScore        *float32 `json:"cvssScore,omitempty"`
+	FixedVersion     *string  `json:"fixedVersion,omitempty"`
+	Id               string   `json:"id"`
+	MatchedViaSource bool     `json:"matchedViaSource"`
+	Severity         string   `json:"severity"`
+	Summary          *string  `json:"summary,omitempty"`
 }
 
 // CreateAPIKeyInputBody defines model for CreateAPIKeyInputBody.
@@ -463,11 +763,17 @@ type CreateRegistryInputBody struct {
 	// TagPatterns Glob patterns or 'semver' for tags to ingest; empty = all
 	TagPatterns *[]string `json:"tag_patterns,omitempty"`
 
+	// TrustPublicKey PEM-encoded EC public key; required when verification_mode is public_key
+	TrustPublicKey *string `json:"trust_public_key,omitempty"`
+
 	// Type Registry type
 	Type CreateRegistryInputBodyType `json:"type"`
 
 	// Url Registry address (e.g. zot:5000)
 	Url string `json:"url"`
+
+	// VerificationMode Signature verification mode; defaults to none
+	VerificationMode *CreateRegistryInputBodyVerificationMode `json:"verification_mode,omitempty"`
 
 	// Visibility Registry visibility
 	Visibility *CreateRegistryInputBodyVisibility `json:"visibility,omitempty"`
@@ -481,6 +787,9 @@ type CreateRegistryInputBodyScanMode string
 
 // CreateRegistryInputBodyType Registry type
 type CreateRegistryInputBodyType string
+
+// CreateRegistryInputBodyVerificationMode Signature verification mode; defaults to none
+type CreateRegistryInputBodyVerificationMode string
 
 // CreateRegistryInputBodyVisibility Registry visibility
 type CreateRegistryInputBodyVisibility string
@@ -517,9 +826,15 @@ type CreateRegistryResponseBody struct {
 
 	// TagPatterns Glob patterns or 'semver' for tags to ingest; empty = all
 	TagPatterns *[]string `json:"tag_patterns"`
-	Type        string    `json:"type"`
-	UpdatedAt   string    `json:"updated_at"`
-	Url         string    `json:"url"`
+
+	// TrustPublicKey PEM-encoded EC public key for public_key verification mode
+	TrustPublicKey *string `json:"trust_public_key,omitempty"`
+	Type           string  `json:"type"`
+	UpdatedAt      string  `json:"updated_at"`
+	Url            string  `json:"url"`
+
+	// VerificationMode Signature verification mode
+	VerificationMode CreateRegistryResponseBodyVerificationMode `json:"verification_mode"`
 
 	// Visibility Registry visibility: public or private
 	Visibility string `json:"visibility"`
@@ -527,6 +842,21 @@ type CreateRegistryResponseBody struct {
 	// WebhookSecret Generated webhook secret — shown once only. Store it securely; it cannot be retrieved again.
 	WebhookSecret *string `json:"webhook_secret,omitempty"`
 	WebhookUrl    string  `json:"webhook_url"`
+}
+
+// CreateRegistryResponseBodyVerificationMode Signature verification mode
+type CreateRegistryResponseBodyVerificationMode string
+
+// CursorMeta defines model for CursorMeta.
+type CursorMeta struct {
+	// HasMore Whether more results exist after this page
+	HasMore bool `json:"hasMore"`
+
+	// Limit The limit that was applied
+	Limit int32 `json:"limit"`
+
+	// NextCursor Opaque cursor to fetch the next page; null when hasMore is false
+	NextCursor *string `json:"nextCursor,omitempty"`
 }
 
 // DBStatus defines model for DBStatus.
@@ -555,6 +885,8 @@ type DashboardStatsOutputBody struct {
 	TopPackages           *[]PackageSummaryEntry `json:"top_packages"`
 	VersionCount          int64                  `json:"version_count"`
 	VersionGrowthTimeline *[]DailyCountEntry     `json:"version_growth_timeline"`
+	VulnCount             int64                  `json:"vuln_count"`
+	VulnSeverity          VulnSeverityEntry      `json:"vuln_severity"`
 }
 
 // DependencyEdge defines model for DependencyEdge.
@@ -593,6 +925,54 @@ type DistinctComponentSummary struct {
 	SbomCount    int64     `json:"sbomCount"`
 	Type         string    `json:"type"`
 	VersionCount int64     `json:"versionCount"`
+}
+
+// EnrichmentJobResponse defines model for EnrichmentJobResponse.
+type EnrichmentJobResponse struct {
+	// ArtifactName Name of the artifact, for display
+	ArtifactName *string `json:"artifact_name,omitempty"`
+	Attempts     int32   `json:"attempts"`
+	CreatedAt    string  `json:"created_at"`
+
+	// EnricherName Which enricher this job runs
+	EnricherName EnrichmentJobResponseEnricherName `json:"enricher_name"`
+	FinishedAt   *string                           `json:"finished_at,omitempty"`
+
+	// Id Job UUID
+	Id            string  `json:"id"`
+	LastAttemptAt *string `json:"last_attempt_at,omitempty"`
+	LastError     *string `json:"last_error,omitempty"`
+
+	// SbomDigest Digest of the SBOM's image, for display
+	SbomDigest *string `json:"sbom_digest,omitempty"`
+
+	// SbomId SBOM being enriched
+	SbomId    *string                    `json:"sbom_id,omitempty"`
+	StartedAt *string                    `json:"started_at,omitempty"`
+	State     EnrichmentJobResponseState `json:"state"`
+
+	// WorkerId Pod hostname that is processing this job
+	WorkerId *string `json:"worker_id,omitempty"`
+}
+
+// EnrichmentJobResponseEnricherName Which enricher this job runs
+type EnrichmentJobResponseEnricherName string
+
+// EnrichmentJobResponseState defines model for EnrichmentJobResponse.State.
+type EnrichmentJobResponseState string
+
+// EnrichmentJobSummaryRow defines model for EnrichmentJobSummaryRow.
+type EnrichmentJobSummaryRow struct {
+	Count        int64  `json:"count"`
+	EnricherName string `json:"enricher_name"`
+	State        string `json:"state"`
+}
+
+// EnrichmentJobsSummaryOutputBody defines model for EnrichmentJobsSummaryOutputBody.
+type EnrichmentJobsSummaryOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string                    `json:"$schema,omitempty"`
+	Data   *[]EnrichmentJobSummaryRow `json:"data"`
 }
 
 // EnrichmentStatus defines model for EnrichmentStatus.
@@ -652,11 +1032,36 @@ type GetArtifactLicenseSummaryOutputBody struct {
 	Licenses *[]LicenseCount `json:"licenses"`
 }
 
+// GetArtifactVulnSummaryOutputBody defines model for GetArtifactVulnSummaryOutputBody.
+type GetArtifactVulnSummaryOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema  *string     `json:"$schema,omitempty"`
+	Summary VulnSummary `json:"summary"`
+}
+
 // GetComponentVersionsOutputBody defines model for GetComponentVersionsOutputBody.
 type GetComponentVersionsOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema   *string                  `json:"$schema,omitempty"`
 	Versions *[]ComponentVersionEntry `json:"versions"`
+}
+
+// GetComponentVulnsOutputBody defines model for GetComponentVulnsOutputBody.
+type GetComponentVulnsOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string               `json:"$schema,omitempty"`
+	Data   *[]ComponentVulnEntry `json:"data"`
+}
+
+// GetVulnerabilityOutputBody defines model for GetVulnerabilityOutputBody.
+type GetVulnerabilityOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema               *string              `json:"$schema,omitempty"`
+	AffectedArtifacts    *[]AffectedArtifact  `json:"affectedArtifacts"`
+	AffectedComponents   *[]AffectedComponent `json:"affectedComponents"`
+	ComponentsPagination PaginationMeta       `json:"componentsPagination"`
+	Pagination           PaginationMeta       `json:"pagination"`
+	Vulnerability        VulnDetail           `json:"vulnerability"`
 }
 
 // HashEntry defines model for HashEntry.
@@ -744,7 +1149,7 @@ type ListArtifactSBOMsOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema     *string        `json:"$schema,omitempty"`
 	Data       *[]SBOMSummary `json:"data"`
-	Pagination PaginationMeta `json:"pagination"`
+	Pagination CursorMeta     `json:"pagination"`
 }
 
 // ListArtifactVersionsOutputBody defines model for ListArtifactVersionsOutputBody.
@@ -760,7 +1165,7 @@ type ListArtifactsOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema     *string            `json:"$schema,omitempty"`
 	Data       *[]ArtifactSummary `json:"data"`
-	Pagination PaginationMeta     `json:"pagination"`
+	Pagination CursorMeta         `json:"pagination"`
 }
 
 // ListComponentPurlTypesOutputBody defines model for ListComponentPurlTypesOutputBody.
@@ -776,6 +1181,14 @@ type ListComponentsByLicenseOutputBody struct {
 	Schema     *string             `json:"$schema,omitempty"`
 	Data       *[]ComponentSummary `json:"data"`
 	Pagination PaginationMeta      `json:"pagination"`
+}
+
+// ListEnrichmentJobsOutputBody defines model for ListEnrichmentJobsOutputBody.
+type ListEnrichmentJobsOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema     *string                  `json:"$schema,omitempty"`
+	Data       *[]EnrichmentJobResponse `json:"data"`
+	Pagination PaginationMeta           `json:"pagination"`
 }
 
 // ListLicensesOutputBody defines model for ListLicensesOutputBody.
@@ -799,6 +1212,7 @@ type ListSBOMComponentsOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema     *string             `json:"$schema,omitempty"`
 	Components *[]ComponentSummary `json:"components"`
+	Pagination CursorMeta          `json:"pagination"`
 }
 
 // ListSBOMsOutputBody defines model for ListSBOMsOutputBody.
@@ -806,7 +1220,7 @@ type ListSBOMsOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema     *string        `json:"$schema,omitempty"`
 	Data       *[]SBOMSummary `json:"data"`
-	Pagination PaginationMeta `json:"pagination"`
+	Pagination CursorMeta     `json:"pagination"`
 }
 
 // ListScanJobsOutputBody defines model for ListScanJobsOutputBody.
@@ -815,6 +1229,14 @@ type ListScanJobsOutputBody struct {
 	Schema     *string            `json:"$schema,omitempty"`
 	Data       *[]ScanJobResponse `json:"data"`
 	Pagination PaginationMeta     `json:"pagination"`
+}
+
+// ListTopVulnerabilitiesOutputBody defines model for ListTopVulnerabilitiesOutputBody.
+type ListTopVulnerabilitiesOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema     *string         `json:"$schema,omitempty"`
+	Data       *[]TopVulnEntry `json:"data"`
+	Pagination PaginationMeta  `json:"pagination"`
 }
 
 // ListUsersOutputBody defines model for ListUsersOutputBody.
@@ -919,14 +1341,23 @@ type RegistryResponse struct {
 
 	// TagPatterns Glob patterns or 'semver' for tags to ingest; empty = all
 	TagPatterns *[]string `json:"tag_patterns"`
-	Type        string    `json:"type"`
-	UpdatedAt   string    `json:"updated_at"`
-	Url         string    `json:"url"`
+
+	// TrustPublicKey PEM-encoded EC public key for public_key verification mode
+	TrustPublicKey *string `json:"trust_public_key,omitempty"`
+	Type           string  `json:"type"`
+	UpdatedAt      string  `json:"updated_at"`
+	Url            string  `json:"url"`
+
+	// VerificationMode Signature verification mode
+	VerificationMode RegistryResponseVerificationMode `json:"verification_mode"`
 
 	// Visibility Registry visibility: public or private
 	Visibility string `json:"visibility"`
 	WebhookUrl string `json:"webhook_url"`
 }
+
+// RegistryResponseVerificationMode Signature verification mode
+type RegistryResponseVerificationMode string
 
 // RegistryWebhookInputBody defines model for RegistryWebhookInputBody.
 type RegistryWebhookInputBody struct {
@@ -937,6 +1368,15 @@ type RegistryWebhookInputBody struct {
 	MediaType string  `json:"mediaType"`
 	Name      string  `json:"name"`
 	Reference string  `json:"reference"`
+}
+
+// RetryAllFailedEnrichmentJobsOutputBody defines model for RetryAllFailedEnrichmentJobsOutputBody.
+type RetryAllFailedEnrichmentJobsOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// Count Number of rows transitioned from 'failed' to 'queued'
+	Count int64 `json:"count"`
 }
 
 // RetryAllFailedScanJobsOutputBody defines model for RetryAllFailedScanJobsOutputBody.
@@ -962,6 +1402,7 @@ type SBOMDetail struct {
 	Flavor         *string                 `json:"flavor,omitempty"`
 	Id             string                  `json:"id"`
 	ImageVersion   *string                 `json:"imageVersion,omitempty"`
+	PackageCount   int64                   `json:"packageCount"`
 	RawBom         interface{}             `json:"rawBom,omitempty"`
 	Revision       *string                 `json:"revision,omitempty"`
 	SerialNumber   *string                 `json:"serialNumber,omitempty"`
@@ -970,6 +1411,7 @@ type SBOMDetail struct {
 	SubjectVersion *string                 `json:"subjectVersion,omitempty"`
 	Sufficient     bool                    `json:"sufficient"`
 	Version        int32                   `json:"version"`
+	VulnSummary    *VulnSummary            `json:"vulnSummary,omitempty"`
 }
 
 // SBOMRef defines model for SBOMRef.
@@ -1116,6 +1558,19 @@ type TestRegistryConnectionOutputBody struct {
 	Reachable bool `json:"reachable"`
 }
 
+// TopVulnEntry defines model for TopVulnEntry.
+type TopVulnEntry struct {
+	AffectedPurlCount int64      `json:"affectedPurlCount"`
+	AffectedSbomCount int64      `json:"affectedSbomCount"`
+	Aliases           *[]string  `json:"aliases"`
+	CanonicalId       string     `json:"canonicalId"`
+	CvssScore         *float32   `json:"cvssScore,omitempty"`
+	Id                string     `json:"id"`
+	PublishedAt       *time.Time `json:"publishedAt,omitempty"`
+	Severity          string     `json:"severity"`
+	Summary           *string    `json:"summary,omitempty"`
+}
+
 // UpdateRegistryInputBody defines model for UpdateRegistryInputBody.
 type UpdateRegistryInputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -1137,8 +1592,14 @@ type UpdateRegistryInputBody struct {
 	// ScanMode Scanning mode
 	ScanMode    *UpdateRegistryInputBodyScanMode `json:"scan_mode,omitempty"`
 	TagPatterns *[]string                        `json:"tag_patterns,omitempty"`
-	Type        UpdateRegistryInputBodyType      `json:"type"`
-	Url         string                           `json:"url"`
+
+	// TrustPublicKey PEM-encoded EC public key; required when verification_mode is public_key
+	TrustPublicKey *string                     `json:"trust_public_key,omitempty"`
+	Type           UpdateRegistryInputBodyType `json:"type"`
+	Url            string                      `json:"url"`
+
+	// VerificationMode Signature verification mode; defaults to none
+	VerificationMode *UpdateRegistryInputBodyVerificationMode `json:"verification_mode,omitempty"`
 
 	// Visibility Registry visibility
 	Visibility *UpdateRegistryInputBodyVisibility `json:"visibility,omitempty"`
@@ -1149,6 +1610,9 @@ type UpdateRegistryInputBodyScanMode string
 
 // UpdateRegistryInputBodyType defines model for UpdateRegistryInputBody.Type.
 type UpdateRegistryInputBodyType string
+
+// UpdateRegistryInputBodyVerificationMode Signature verification mode; defaults to none
+type UpdateRegistryInputBodyVerificationMode string
 
 // UpdateRegistryInputBodyVisibility Registry visibility
 type UpdateRegistryInputBodyVisibility string
@@ -1183,19 +1647,68 @@ type VersionOutputBody struct {
 	Version string `json:"version"`
 }
 
+// VulnDetail defines model for VulnDetail.
+type VulnDetail struct {
+	Aliases     *[]string        `json:"aliases"`
+	CanonicalId string           `json:"canonicalId"`
+	CvssScore   *float32         `json:"cvssScore,omitempty"`
+	CvssVector  *string          `json:"cvssVector,omitempty"`
+	Details     *string          `json:"details,omitempty"`
+	Id          string           `json:"id"`
+	ModifiedAt  *time.Time       `json:"modifiedAt,omitempty"`
+	PublishedAt *time.Time       `json:"publishedAt,omitempty"`
+	References  *[]VulnReference `json:"references,omitempty"`
+	Severity    string           `json:"severity"`
+	Summary     *string          `json:"summary,omitempty"`
+}
+
+// VulnReference defines model for VulnReference.
+type VulnReference struct {
+	Type string `json:"type"`
+	Url  string `json:"url"`
+}
+
+// VulnSeverityEntry defines model for VulnSeverityEntry.
+type VulnSeverityEntry struct {
+	Critical int64 `json:"critical"`
+	High     int64 `json:"high"`
+	Low      int64 `json:"low"`
+	Medium   int64 `json:"medium"`
+	Unknown  int64 `json:"unknown"`
+}
+
+// VulnSummary defines model for VulnSummary.
+type VulnSummary struct {
+	Critical int64 `json:"critical"`
+	High     int64 `json:"high"`
+	Low      int64 `json:"low"`
+	Medium   int64 `json:"medium"`
+	Total    int64 `json:"total"`
+	Unknown  int64 `json:"unknown"`
+}
+
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
 
 // cookieAuthContextKey is the context key for cookieAuth security scheme
 type cookieAuthContextKey string
 
+// RetryAllFailedEnrichmentJobsParams defines parameters for RetryAllFailedEnrichmentJobs.
+type RetryAllFailedEnrichmentJobsParams struct {
+	// EnricherName Limit the reset to a single enricher; omit to reset all
+	EnricherName *RetryAllFailedEnrichmentJobsParamsEnricherName `form:"enricher_name,omitempty" json:"enricher_name,omitempty"`
+}
+
+// RetryAllFailedEnrichmentJobsParamsEnricherName defines parameters for RetryAllFailedEnrichmentJobs.
+type RetryAllFailedEnrichmentJobsParamsEnricherName string
+
 // ListArtifactsParams defines parameters for ListArtifacts.
 type ListArtifactsParams struct {
 	// Limit Maximum number of results per page
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 
-	// Offset Number of results to skip
-	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+	// Cursor Opaque cursor from a previous response's nextCursor; omit for the first page
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 
 	// Type Filter by artifact type
 	Type *string `form:"type,omitempty" json:"type,omitempty"`
@@ -1224,8 +1737,8 @@ type ListArtifactSbomsParams struct {
 	// Limit Maximum number of results per page
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 
-	// Offset Number of results to skip
-	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+	// Cursor Opaque cursor from a previous response's nextCursor; omit for the first page
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 
 	// SubjectVersion Filter by subject version
 	SubjectVersion *string `form:"subject_version,omitempty" json:"subject_version,omitempty"`
@@ -1303,6 +1816,27 @@ type GetComponentVersionsParams struct {
 	Type *string `form:"type,omitempty" json:"type,omitempty"`
 }
 
+// ListEnrichmentJobsParams defines parameters for ListEnrichmentJobs.
+type ListEnrichmentJobsParams struct {
+	// Limit Maximum number of results per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// State Filter by job state
+	State *ListEnrichmentJobsParamsState `form:"state,omitempty" json:"state,omitempty"`
+
+	// EnricherName Filter by enricher
+	EnricherName *ListEnrichmentJobsParamsEnricherName `form:"enricher_name,omitempty" json:"enricher_name,omitempty"`
+}
+
+// ListEnrichmentJobsParamsState defines parameters for ListEnrichmentJobs.
+type ListEnrichmentJobsParamsState string
+
+// ListEnrichmentJobsParamsEnricherName defines parameters for ListEnrichmentJobs.
+type ListEnrichmentJobsParamsEnricherName string
+
 // ListScanJobsParams defines parameters for ListScanJobs.
 type ListScanJobsParams struct {
 	// Limit Maximum number of results per page
@@ -1354,6 +1888,12 @@ type ListRegistriesParams struct {
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// ScanRegistryParams defines parameters for ScanRegistry.
+type ScanRegistryParams struct {
+	// Force Re-scan every image, including digests already ingested. Default false: already-scanned digests are skipped.
+	Force *bool `form:"force,omitempty" json:"force,omitempty"`
+}
+
 // RegistryWebhookParams defines parameters for RegistryWebhook.
 type RegistryWebhookParams struct {
 	Authorization *string `json:"Authorization,omitempty"`
@@ -1364,8 +1904,8 @@ type ListSbomsParams struct {
 	// Limit Maximum number of results per page
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 
-	// Offset Number of results to skip
-	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+	// Cursor Opaque cursor from a previous response's nextCursor; omit for the first page
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 
 	// SerialNumber Filter by serial number
 	SerialNumber *string `form:"serial_number,omitempty" json:"serial_number,omitempty"`
@@ -1408,6 +1948,39 @@ type DiffTreeParams struct {
 type GetSbomParams struct {
 	// Include Set to 'raw' to include the raw BOM JSON
 	Include *string `form:"include,omitempty" json:"include,omitempty"`
+}
+
+// ListSbomComponentsParams defines parameters for ListSbomComponents.
+type ListSbomComponentsParams struct {
+	// Limit Maximum number of results per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque cursor from a previous response's nextCursor; omit for the first page
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// ListTopVulnerabilitiesParams defines parameters for ListTopVulnerabilities.
+type ListTopVulnerabilitiesParams struct {
+	// Limit Maximum number of results per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Severity Filter by severity
+	Severity *ListTopVulnerabilitiesParamsSeverity `form:"severity,omitempty" json:"severity,omitempty"`
+}
+
+// ListTopVulnerabilitiesParamsSeverity defines parameters for ListTopVulnerabilities.
+type ListTopVulnerabilitiesParamsSeverity string
+
+// GetVulnerabilityParams defines parameters for GetVulnerability.
+type GetVulnerabilityParams struct {
+	// Limit Maximum number of results per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
 // CreateApiKeyJSONRequestBody defines body for CreateApiKey for application/json ContentType.

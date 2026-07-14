@@ -36,6 +36,10 @@ func (in *OCIRegistrySpec) DeepCopyInto(out *OCIRegistrySpec) {
 		ref := *in.AuthSecretRef
 		out.AuthSecretRef = &ref
 	}
+	if in.TrustPublicKey != nil {
+		v := *in.TrustPublicKey
+		out.TrustPublicKey = &v
+	}
 }
 
 // DeepCopy returns a deep copy of OCIRegistrySpec.

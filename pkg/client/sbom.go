@@ -33,12 +33,12 @@ func (c *httpClient) GetSBOM(ctx context.Context, id string, includeRaw bool) (S
 	return out, err
 }
 
-func (c *httpClient) ListSBOMs(ctx context.Context, opts PageOpts) (Page[SBOMSummary], error) {
+func (c *httpClient) ListSBOMs(ctx context.Context, opts PageOpts) (CursorPage[SBOMSummary], error) {
 	var out ListSBOMsOutputBody
 	if err := c.request(ctx, http.MethodGet, "/api/v1/sboms", pageParams(opts), nil, &out); err != nil {
-		return Page[SBOMSummary]{}, err
+		return CursorPage[SBOMSummary]{}, err
 	}
-	return Page[SBOMSummary]{Data: derefSlice(out.Data), Pagination: out.Pagination}, nil
+	return CursorPage[SBOMSummary]{Data: derefSlice(out.Data), Pagination: out.Pagination}, nil
 }
 
 func (c *httpClient) DeleteSBOM(ctx context.Context, id string) error {

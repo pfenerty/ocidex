@@ -112,6 +112,10 @@ spec:
                 items:
                   type: string
                 type: array
+              trustPublicKey:
+                description: TrustPublicKey is a PEM-encoded EC public key, required
+                  when VerificationMode is public_key.
+                type: string
               type:
                 description: Type is the registry implementation.
                 enum:
@@ -123,6 +127,14 @@ spec:
                 type: string
               url:
                 description: URL is the registry address (e.g. "zot:5000" or "ghcr.io").
+                type: string
+              verificationMode:
+                default: none
+                description: VerificationMode controls signature verification for
+                  images in this registry.
+                enum:
+                - none
+                - public_key
                 type: string
               visibility:
                 default: private
