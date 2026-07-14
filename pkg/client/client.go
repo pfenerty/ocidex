@@ -26,16 +26,16 @@ type Client interface {
 
 	IngestSBOM(ctx context.Context, data []byte, params IngestSbomParams) (IngestSBOMOutputBody, error)
 	GetSBOM(ctx context.Context, id string, includeRaw bool) (SBOMDetail, error)
-	ListSBOMs(ctx context.Context, opts PageOpts) (Page[SBOMSummary], error)
+	ListSBOMs(ctx context.Context, opts PageOpts) (CursorPage[SBOMSummary], error)
 	DeleteSBOM(ctx context.Context, id string) error
 	DiffSBOMs(ctx context.Context, fromID, toID string) (ChangelogEntry, error)
 	GetDiffTree(ctx context.Context, fromID, toID string) (DiffTree, error)
 
-	ListArtifacts(ctx context.Context, opts PageOpts) (Page[ArtifactSummary], error)
+	ListArtifacts(ctx context.Context, opts PageOpts) (CursorPage[ArtifactSummary], error)
 	GetArtifact(ctx context.Context, id string) (ArtifactDetail, error)
 	GetArtifactChangelog(ctx context.Context, id string, params GetArtifactChangelogParams) (Changelog, error)
 	GetArtifactLicenseSummary(ctx context.Context, id string) (GetArtifactLicenseSummaryOutputBody, error)
-	ListArtifactSBOMs(ctx context.Context, id string, opts PageOpts) (Page[SBOMSummary], error)
+	ListArtifactSBOMs(ctx context.Context, id string, opts PageOpts) (CursorPage[SBOMSummary], error)
 	ListArtifactVersions(ctx context.Context, id string, opts PageOpts) (Page[ArtifactVersionSummary], error)
 
 	// Component + job + stats

@@ -270,6 +270,38 @@ func TestOCIRegistryReconciler_AuthSecret(t *testing.T) {
 	is.Equal(gotToken, "s3cr3t")
 }
 
+func TestOCIRegistryReconciler_Verification(t *testing.T) {
+	is := is.New(t)
+	cr := newTestRegistry()
+	pubKey := "-----BEGIN PUBLIC KEY-----\nabc\n-----END PUBLIC KEY-----"
+	cr.Spec.VerificationMode = "public_key"
+	cr.Spec.TrustPublicKey = &pubKey
+
+	k8s := fake.NewClientBuilder().
+		WithScheme(testScheme).
+		WithObjects(cr).
+		WithStatusSubresource(cr).
+		Build()
+
+	var gotMode string
+	var gotKey *string
+	ocidex := &ocidexclient.FakeClient{
+		CreateRegistryFn: func(_ context.Context, body ocidexclient.CreateRegistryInputBody) (ocidexclient.CreateRegistryResponseBody, error) {
+			if body.VerificationMode != nil {
+				gotMode = string(*body.VerificationMode)
+			}
+			gotKey = body.TrustPublicKey
+			return ocidexclient.CreateRegistryResponseBody{Id: "reg-uuid"}, nil
+		},
+	}
+
+	_, err := reconcile(t, k8s, ocidex, cr)
+	is.NoErr(err)
+	is.Equal(gotMode, "public_key")
+	is.True(gotKey != nil)
+	is.Equal(*gotKey, pubKey)
+}
+
 func isConditionTrue(conditions []metav1.Condition, condType string) bool {
 	for _, c := range conditions {
 		if c.Type == condType {
