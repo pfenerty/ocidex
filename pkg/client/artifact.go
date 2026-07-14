@@ -6,12 +6,12 @@ import (
 	"net/url"
 )
 
-func (c *httpClient) ListArtifacts(ctx context.Context, opts PageOpts) (Page[ArtifactSummary], error) {
+func (c *httpClient) ListArtifacts(ctx context.Context, opts PageOpts) (CursorPage[ArtifactSummary], error) {
 	var out ListArtifactsOutputBody
 	if err := c.request(ctx, http.MethodGet, "/api/v1/artifacts", pageParams(opts), nil, &out); err != nil {
-		return Page[ArtifactSummary]{}, err
+		return CursorPage[ArtifactSummary]{}, err
 	}
-	return Page[ArtifactSummary]{Data: derefSlice(out.Data), Pagination: out.Pagination}, nil
+	return CursorPage[ArtifactSummary]{Data: derefSlice(out.Data), Pagination: out.Pagination}, nil
 }
 
 func (c *httpClient) GetArtifact(ctx context.Context, id string) (ArtifactDetail, error) {
@@ -42,12 +42,12 @@ func (c *httpClient) GetArtifactLicenseSummary(ctx context.Context, id string) (
 	return out, err
 }
 
-func (c *httpClient) ListArtifactSBOMs(ctx context.Context, id string, opts PageOpts) (Page[SBOMSummary], error) {
+func (c *httpClient) ListArtifactSBOMs(ctx context.Context, id string, opts PageOpts) (CursorPage[SBOMSummary], error) {
 	var out ListArtifactSBOMsOutputBody
 	if err := c.request(ctx, http.MethodGet, "/api/v1/artifacts/"+id+"/sboms", pageParams(opts), nil, &out); err != nil {
-		return Page[SBOMSummary]{}, err
+		return CursorPage[SBOMSummary]{}, err
 	}
-	return Page[SBOMSummary]{Data: derefSlice(out.Data), Pagination: out.Pagination}, nil
+	return CursorPage[SBOMSummary]{Data: derefSlice(out.Data), Pagination: out.Pagination}, nil
 }
 
 func (c *httpClient) ListArtifactVersions(ctx context.Context, id string, opts PageOpts) (Page[ArtifactVersionSummary], error) {

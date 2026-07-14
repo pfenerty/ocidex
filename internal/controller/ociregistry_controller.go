@@ -173,6 +173,10 @@ func specToCreateBody(spec v1alpha1.OCIRegistrySpec, username, token string) oci
 		iu := true
 		body.IncludeUntagged = &iu
 	}
+	if spec.VerificationMode != "" {
+		body.VerificationMode = (*ocidexclient.CreateRegistryInputBodyVerificationMode)(&spec.VerificationMode)
+	}
+	body.TrustPublicKey = spec.TrustPublicKey
 	if username != "" {
 		body.AuthUsername = &username
 		body.AuthToken = &token
@@ -216,6 +220,10 @@ func specToUpdateBody(spec v1alpha1.OCIRegistrySpec, username, token string) oci
 		iu := true
 		body.IncludeUntagged = &iu
 	}
+	if spec.VerificationMode != "" {
+		body.VerificationMode = (*ocidexclient.UpdateRegistryInputBodyVerificationMode)(&spec.VerificationMode)
+	}
+	body.TrustPublicKey = spec.TrustPublicKey
 	if username != "" {
 		body.AuthUsername = &username
 		body.AuthToken = &token
