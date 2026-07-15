@@ -8,6 +8,7 @@ type FakeClient struct {
 	// Registry + auth
 	ListRegistriesFn          func(ctx context.Context, opts PageOpts) (Page[RegistryResponse], error)
 	GetRegistryFn             func(ctx context.Context, id string) (RegistryResponse, error)
+	GetRegistryByNameFn       func(ctx context.Context, name string) (RegistryResponse, error)
 	CreateRegistryFn          func(ctx context.Context, body CreateRegistryInputBody) (CreateRegistryResponseBody, error)
 	UpdateRegistryFn          func(ctx context.Context, id string, body UpdateRegistryInputBody) (RegistryResponse, error)
 	DeleteRegistryFn          func(ctx context.Context, id string) error
@@ -58,6 +59,13 @@ func (f *FakeClient) ListRegistries(ctx context.Context, opts PageOpts) (Page[Re
 func (f *FakeClient) GetRegistry(ctx context.Context, id string) (RegistryResponse, error) {
 	if f.GetRegistryFn != nil {
 		return f.GetRegistryFn(ctx, id)
+	}
+	return RegistryResponse{}, nil
+}
+
+func (f *FakeClient) GetRegistryByName(ctx context.Context, name string) (RegistryResponse, error) {
+	if f.GetRegistryByNameFn != nil {
+		return f.GetRegistryByNameFn(ctx, name)
 	}
 	return RegistryResponse{}, nil
 }

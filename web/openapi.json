@@ -5408,6 +5408,49 @@
         ]
       }
     },
+    "/api/v1/registries/by-name/{name}": {
+      "get": {
+        "operationId": "get-registry-by-name",
+        "parameters": [
+          {
+            "description": "Registry name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "Registry name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a registry by name",
+        "tags": [
+          "Registries"
+        ]
+      }
+    },
     "/api/v1/registries/test-connection": {
       "post": {
         "description": "Probes the registry's /v2/ endpoint and reports whether it is reachable.",

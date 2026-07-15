@@ -62,6 +62,10 @@ func (f *fakeRegistryService) Get(_ context.Context, _ string) (service.Registry
 	return f.registry, f.getErr
 }
 
+func (f *fakeRegistryService) GetByName(_ context.Context, _ string) (service.Registry, error) {
+	return f.registry, f.getErr
+}
+
 func (f *fakeRegistryService) Delete(_ context.Context, _ string) error {
 	return f.deleteErr
 }

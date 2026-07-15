@@ -74,6 +74,16 @@ func (r *OCIRegistryReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	if cr.Status.RegistryID == "" {
 		resp, err := r.OCIDexClient.CreateRegistry(ctx, specToCreateBody(cr.Spec, username, token))
 		if err != nil {
+			if errors.Is(err, ocidexclient.ErrConflict) {
+				existing, getErr := r.OCIDexClient.GetRegistryByName(ctx, cr.Spec.Name)
+				if getErr == nil {
+					cr.Status.RegistryID = existing.Id
+					SetCondition(&cr.Status.Conditions, "Ready", metav1.ConditionTrue, "Adopted",
+						"adopted existing registry after a prior status write was lost", cr.Generation)
+					return ctrl.Result{}, r.Status().Update(ctx, cr)
+				}
+				err = getErr
+			}
 			SetCondition(&cr.Status.Conditions, "Ready", metav1.ConditionFalse, "APIError", err.Error(), cr.Generation)
 			_ = r.Status().Update(ctx, cr)
 			return ctrl.Result{}, err

@@ -10,6 +10,7 @@ type Client interface {
 
 	ListRegistries(ctx context.Context, opts PageOpts) (Page[RegistryResponse], error)
 	GetRegistry(ctx context.Context, id string) (RegistryResponse, error)
+	GetRegistryByName(ctx context.Context, name string) (RegistryResponse, error)
 	CreateRegistry(ctx context.Context, body CreateRegistryInputBody) (CreateRegistryResponseBody, error)
 	UpdateRegistry(ctx context.Context, id string, body UpdateRegistryInputBody) (RegistryResponse, error)
 	DeleteRegistry(ctx context.Context, id string) error

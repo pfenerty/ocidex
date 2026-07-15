@@ -235,6 +235,7 @@ type VisibilityFilter struct {
 type RegistryService interface {
 	Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, ownerID pgtype.UUID, visibility string, includeUntagged bool, verificationMode string, trustPublicKey *string) (Registry, error)
 	Get(ctx context.Context, id string) (Registry, error)
+	GetByName(ctx context.Context, name string) (Registry, error)
 	List(ctx context.Context, filter VisibilityFilter) ([]Registry, error)
 	ListPaged(ctx context.Context, filter VisibilityFilter, limit, offset int32) (PagedResult[Registry], error)
 	Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, visibility string, includeUntagged bool, verificationMode string, trustPublicKey *string) (Registry, error)
@@ -284,7 +285,18 @@ func (s *registryService) Create(ctx context.Context, name, regType, url string,
 		TrustPublicKey:      toNullText(trustPublicKey),
 	})
 	if err != nil {
+		if isUniqueViolation(err) {
+			return Registry{}, ErrConflict
+		}
 		return Registry{}, fmt.Errorf("creating registry: %w", err)
+	}
+	return fromRepo(r), nil
+}
+
+func (s *registryService) GetByName(ctx context.Context, name string) (Registry, error) {
+	r, err := s.repo.GetRegistryByName(ctx, name)
+	if err != nil {
+		return Registry{}, ErrNotFound
 	}
 	return fromRepo(r), nil
 }

@@ -6,6 +6,9 @@ RETURNING *;
 -- name: GetRegistry :one
 SELECT * FROM registry WHERE id = $1;
 
+-- name: GetRegistryByName :one
+SELECT * FROM registry WHERE name = $1;
+
 -- name: ListRegistries :many
 SELECT * FROM registry
 WHERE (
