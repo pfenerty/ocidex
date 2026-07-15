@@ -1,5 +1,5 @@
 # Build stage
-FROM --platform=$BUILDPLATFORM docker.io/node:22-bookworm AS build
+FROM --platform=$BUILDPLATFORM docker.io/node:24-bookworm AS build
 
 WORKDIR /app
 
