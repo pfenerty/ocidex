@@ -139,6 +139,42 @@ func (q *Queries) GetRegistry(ctx context.Context, id pgtype.UUID) (Registry, er
 	return i, err
 }
 
+const getRegistryByName = `-- name: GetRegistryByName :one
+SELECT id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged, verification_mode, trust_public_key, trust_identity, trust_issuer FROM registry WHERE name = $1
+`
+
+func (q *Queries) GetRegistryByName(ctx context.Context, name string) (Registry, error) {
+	row := q.db.QueryRow(ctx, getRegistryByName, name)
+	var i Registry
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Type,
+		&i.Url,
+		&i.Insecure,
+		&i.WebhookSecret,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.RepositoryPatterns,
+		&i.TagPatterns,
+		&i.ScanMode,
+		&i.PollIntervalMinutes,
+		&i.LastPolledAt,
+		&i.Repositories,
+		&i.AuthUsername,
+		&i.AuthToken,
+		&i.OwnerID,
+		&i.Visibility,
+		&i.IncludeUntagged,
+		&i.VerificationMode,
+		&i.TrustPublicKey,
+		&i.TrustIdentity,
+		&i.TrustIssuer,
+	)
+	return i, err
+}
+
 const listPollableRegistries = `-- name: ListPollableRegistries :many
 SELECT id, name, type, url, insecure, webhook_secret, enabled, created_at, updated_at, repository_patterns, tag_patterns, scan_mode, poll_interval_minutes, last_polled_at, repositories, auth_username, auth_token, owner_id, visibility, include_untagged, verification_mode, trust_public_key, trust_identity, trust_issuer FROM registry
 WHERE enabled = true AND scan_mode IN ('poll', 'both')

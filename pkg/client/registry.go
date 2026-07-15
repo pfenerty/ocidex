@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"net/http"
+	"net/url"
 )
 
 func (c *httpClient) ListRegistries(ctx context.Context, opts PageOpts) (Page[RegistryResponse], error) {
@@ -16,6 +17,12 @@ func (c *httpClient) ListRegistries(ctx context.Context, opts PageOpts) (Page[Re
 func (c *httpClient) GetRegistry(ctx context.Context, id string) (RegistryResponse, error) {
 	var out RegistryResponse
 	err := c.request(ctx, http.MethodGet, "/api/v1/registries/"+id, nil, nil, &out)
+	return out, err
+}
+
+func (c *httpClient) GetRegistryByName(ctx context.Context, name string) (RegistryResponse, error) {
+	var out RegistryResponse
+	err := c.request(ctx, http.MethodGet, "/api/v1/registries/by-name/"+url.PathEscape(name), nil, nil, &out)
 	return out, err
 }
 
