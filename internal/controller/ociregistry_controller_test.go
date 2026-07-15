@@ -232,6 +232,63 @@ func TestOCIRegistryReconciler_CreateAPIError(t *testing.T) {
 	is.True(isConditionFalse(updated.Status.Conditions, "Ready"))
 }
 
+func TestOCIRegistryReconciler_CreateConflictAdoptsExisting(t *testing.T) {
+	is := is.New(t)
+	cr := newTestRegistry()
+
+	k8s := fake.NewClientBuilder().
+		WithScheme(testScheme).
+		WithObjects(cr).
+		WithStatusSubresource(cr).
+		Build()
+
+	ocidex := &ocidexclient.FakeClient{
+		CreateRegistryFn: func(_ context.Context, _ ocidexclient.CreateRegistryInputBody) (ocidexclient.CreateRegistryResponseBody, error) {
+			return ocidexclient.CreateRegistryResponseBody{}, ocidexclient.ErrConflict
+		},
+		GetRegistryByNameFn: func(_ context.Context, name string) (ocidexclient.RegistryResponse, error) {
+			is.Equal(name, "test-registry")
+			return ocidexclient.RegistryResponse{Id: "existing-uuid"}, nil
+		},
+	}
+
+	_, err := reconcile(t, k8s, ocidex, cr)
+	is.NoErr(err)
+
+	updated := &v1alpha1.OCIRegistry{}
+	is.NoErr(k8s.Get(context.Background(), types.NamespacedName{Name: "reg", Namespace: "default"}, updated))
+	is.Equal(updated.Status.RegistryID, "existing-uuid")
+	is.True(isConditionTrue(updated.Status.Conditions, "Ready"))
+}
+
+func TestOCIRegistryReconciler_CreateConflictLookupAlsoFails(t *testing.T) {
+	is := is.New(t)
+	cr := newTestRegistry()
+
+	k8s := fake.NewClientBuilder().
+		WithScheme(testScheme).
+		WithObjects(cr).
+		WithStatusSubresource(cr).
+		Build()
+
+	ocidex := &ocidexclient.FakeClient{
+		CreateRegistryFn: func(_ context.Context, _ ocidexclient.CreateRegistryInputBody) (ocidexclient.CreateRegistryResponseBody, error) {
+			return ocidexclient.CreateRegistryResponseBody{}, ocidexclient.ErrConflict
+		},
+		GetRegistryByNameFn: func(_ context.Context, _ string) (ocidexclient.RegistryResponse, error) {
+			return ocidexclient.RegistryResponse{}, ocidexclient.ErrNotFound
+		},
+	}
+
+	_, err := reconcile(t, k8s, ocidex, cr)
+	is.True(errors.Is(err, ocidexclient.ErrNotFound))
+
+	updated := &v1alpha1.OCIRegistry{}
+	is.NoErr(k8s.Get(context.Background(), types.NamespacedName{Name: "reg", Namespace: "default"}, updated))
+	is.Equal(updated.Status.RegistryID, "")
+	is.True(isConditionFalse(updated.Status.Conditions, "Ready"))
+}
+
 func TestOCIRegistryReconciler_AuthSecret(t *testing.T) {
 	is := is.New(t)
 	cr := newTestRegistry()

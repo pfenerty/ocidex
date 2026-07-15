@@ -123,6 +123,22 @@ func (h *Handler) GetRegistry(ctx context.Context, in *GetRegistryInput) (*GetRe
 	return &GetRegistryOutput{Body: toRegistryResponse(reg, h.cfg.APIBaseURL, nil)}, nil
 }
 
+// GetRegistryByName returns a single registry by name.
+func (h *Handler) GetRegistryByName(ctx context.Context, in *GetRegistryByNameInput) (*GetRegistryByNameOutput, error) {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	reg, err := h.registryService.GetByName(ctx, in.Name)
+	if err != nil {
+		return nil, huma.Error404NotFound("registry not found")
+	}
+	if !canManageRegistry(user, reg) && reg.Visibility == "private" {
+		return nil, huma.Error404NotFound("registry not found")
+	}
+	return &GetRegistryByNameOutput{Body: toRegistryResponse(reg, h.cfg.APIBaseURL, nil)}, nil
+}
+
 // CreateRegistry creates a new registry. Any authenticated user can create.
 // For webhook-capable registries, a secret is auto-generated if not provided and returned once in the response.
 func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (*CreateRegistryOutput, error) {
@@ -175,7 +191,7 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 	}
 	reg, err := h.registryService.Create(ctx, in.Body.Name, regType, regURL, in.Body.Insecure, webhookSecret, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval, in.Body.AuthUsername, in.Body.AuthToken, user.ID, visibility, in.Body.IncludeUntagged, verificationMode, in.Body.TrustPublicKey)
 	if err != nil {
-		return nil, huma.Error500InternalServerError(fmt.Sprintf("creating registry: %v", err))
+		return nil, mapServiceError(err)
 	}
 	return &CreateRegistryOutput{Body: CreateRegistryResponseBody{
 		RegistryResponse: toRegistryResponse(reg, h.cfg.APIBaseURL, nil),

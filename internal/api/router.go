@@ -428,6 +428,14 @@ func registerRegistryOps(api huma.API, h *Handler) {
 	}, h.GetRegistry)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "get-registry-by-name",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/registries/by-name/{name}",
+		Summary:     "Get a registry by name",
+		Tags:        []string{"Registries"},
+	}, h.GetRegistryByName)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "update-registry",
 		Method:      http.MethodPatch,
 		Path:        "/api/v1/registries/{id}",

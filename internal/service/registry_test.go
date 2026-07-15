@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
 
@@ -18,6 +19,7 @@ import (
 type fakeRegistryRepo struct {
 	createFn     func(ctx context.Context, arg repository.CreateRegistryParams) (repository.Registry, error)
 	getFn        func(ctx context.Context, id pgtype.UUID) (repository.Registry, error)
+	getByNameFn  func(ctx context.Context, name string) (repository.Registry, error)
 	listFn       func(ctx context.Context, arg repository.ListRegistriesParams) ([]repository.Registry, error)
 	listPagedFn  func(ctx context.Context, arg repository.ListRegistriesPagedParams) ([]repository.ListRegistriesPagedRow, error)
 	updateFn     func(ctx context.Context, arg repository.UpdateRegistryParams) (repository.Registry, error)
@@ -37,6 +39,13 @@ func (f *fakeRegistryRepo) CreateRegistry(ctx context.Context, arg repository.Cr
 func (f *fakeRegistryRepo) GetRegistry(ctx context.Context, id pgtype.UUID) (repository.Registry, error) {
 	if f.getFn != nil {
 		return f.getFn(ctx, id)
+	}
+	return repository.Registry{}, errors.New("not found")
+}
+
+func (f *fakeRegistryRepo) GetRegistryByName(ctx context.Context, name string) (repository.Registry, error) {
+	if f.getByNameFn != nil {
+		return f.getByNameFn(ctx, name)
 	}
 	return repository.Registry{}, errors.New("not found")
 }
@@ -130,6 +139,19 @@ func TestRegistryCreate_ExplicitVisibility(t *testing.T) {
 	is.Equal(capturedVis, "private")
 }
 
+func TestRegistryCreate_UniqueViolationReturnsConflict(t *testing.T) {
+	is := is.New(t)
+	svc := newTestRegistryService(&fakeRegistryRepo{
+		createFn: func(_ context.Context, _ repository.CreateRegistryParams) (repository.Registry, error) {
+			return repository.Registry{}, &pgconn.PgError{Code: "23505", ConstraintName: "registry_name_key"}
+		},
+	})
+
+	_, err := svc.Create(context.Background(), "r", "generic", "https://r.example.com", false, nil, nil, nil, nil, "webhook", 0, nil, nil, pgtype.UUID{}, "", false, "", nil)
+
+	is.True(errors.Is(err, ErrConflict))
+}
+
 func TestRegistryGet_InvalidUUID(t *testing.T) {
 	is := is.New(t)
 	svc := newTestRegistryService(&fakeRegistryRepo{})
@@ -159,6 +181,32 @@ func TestRegistryGet_Valid(t *testing.T) {
 	})
 
 	reg, err := svc.Get(context.Background(), "01020304-0506-0708-090a-0b0c0d0e0f10")
+
+	is.NoErr(err)
+	is.Equal(reg.Name, "myreg")
+}
+
+func TestRegistryGetByName_NotFound(t *testing.T) {
+	is := is.New(t)
+	svc := newTestRegistryService(&fakeRegistryRepo{
+		getByNameFn: func(_ context.Context, _ string) (repository.Registry, error) {
+			return repository.Registry{}, errors.New("no rows")
+		},
+	})
+
+	_, err := svc.GetByName(context.Background(), "myreg")
+	is.Equal(err, ErrNotFound)
+}
+
+func TestRegistryGetByName_Valid(t *testing.T) {
+	is := is.New(t)
+	svc := newTestRegistryService(&fakeRegistryRepo{
+		getByNameFn: func(_ context.Context, name string) (repository.Registry, error) {
+			return repository.Registry{Name: name, Type: "harbor", ScanMode: "poll"}, nil
+		},
+	})
+
+	reg, err := svc.GetByName(context.Background(), "myreg")
 
 	is.NoErr(err)
 	is.Equal(reg.Name, "myreg")
@@ -302,6 +350,10 @@ func (f *fakeListRegistryService) Create(_ context.Context, _, _, _ string, _ bo
 }
 
 func (f *fakeListRegistryService) Get(_ context.Context, _ string) (Registry, error) {
+	return Registry{}, ErrNotFound
+}
+
+func (f *fakeListRegistryService) GetByName(_ context.Context, _ string) (Registry, error) {
 	return Registry{}, ErrNotFound
 }
 

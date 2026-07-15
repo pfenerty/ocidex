@@ -741,6 +741,16 @@ type GetRegistryOutput struct {
 	Body RegistryResponse
 }
 
+// GetRegistryByNameInput is the request for GET /api/v1/registries/by-name/{name}.
+type GetRegistryByNameInput struct {
+	Name string `path:"name" doc:"Registry name"`
+}
+
+// GetRegistryByNameOutput is the response for GET /api/v1/registries/by-name/{name}.
+type GetRegistryByNameOutput struct {
+	Body RegistryResponse
+}
+
 // CreateRegistryInput is the request for POST /api/v1/registries.
 type CreateRegistryInput struct {
 	Body struct {
