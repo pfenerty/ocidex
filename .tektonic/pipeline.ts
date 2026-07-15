@@ -64,4 +64,12 @@ new PACProject({
       storageClassName: "local-path",
     },
   ],
+  // Cancel an older in-progress run for the same pipeline+branch when a newer
+  // one starts (e.g. rapid retest-comment triggers). Without this, two
+  // concurrent PipelineRuns each run their own serial image-build chain,
+  // doubling the memory burst on the single schedulable node and risking a
+  // node-wide OOM kill instead of a normal per-container one.
+  pipelineRunAnnotations: {
+    "pipelinesascode.tekton.dev/cancel-in-progress": "true",
+  },
 });

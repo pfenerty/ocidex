@@ -40,9 +40,15 @@ function buildImageTask(
           capabilities: { drop: [], add: ["SETUID", "SETGID"] },
         },
         workingDir: "$(workspaces.workspace.path)",
+        // Limit measured empirically: a single linux/amd64 build (`api` image) peaked at
+        // ~471Mi real memory (kubectl top, 10s sampling) over an ~11min run. 2Gi keeps
+        // >50% headroom over that peak while covering heavier, unmeasured image types
+        // (e.g. `web`'s frontend bundling step) — tight enough that a genuine burst hits
+        // this container's own OOMKilled instead of growing large enough to trip Talos's
+        // node-wide OOMController (see ocidex-asx).
         computeResources: {
           requests: { cpu: "500m", memory: "1Gi" },
-          limits: { cpu: "4", memory: "4Gi" },
+          limits: { cpu: "4", memory: "2Gi" },
         },
         env: [
           { name: "DOCKER_CONFIG", value: "/tmp/docker-auth" },
