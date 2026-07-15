@@ -12,14 +12,22 @@ import (
 )
 
 const getLicenseCategoryCounts = `-- name: GetLicenseCategoryCounts :many
+WITH visible_sbom AS (
+    SELECT s.id
+    FROM sbom s
+    LEFT JOIN registry r ON r.id = s.registry_id
+    WHERE s.registry_id IS NULL
+       OR r.visibility = 'public'
+       OR r.owner_id = $1::uuid
+       OR COALESCE($2::boolean, false)
+)
 SELECT
     license_category(l.spdx_id) AS category,
     COUNT(DISTINCT cl.component_id)::bigint AS component_count
 FROM license l
 JOIN component_license cl ON cl.license_id = l.id
 JOIN component c ON c.id = cl.component_id
-WHERE EXISTS (SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-    AND sbom_visible(s.registry_id, $1::uuid, $2::boolean))
+JOIN visible_sbom vs ON vs.id = c.sbom_id
 GROUP BY 1
 ORDER BY component_count DESC
 `
@@ -55,11 +63,19 @@ func (q *Queries) GetLicenseCategoryCounts(ctx context.Context, arg GetLicenseCa
 }
 
 const getPackageGrowthTimeline = `-- name: GetPackageGrowthTimeline :many
-WITH pkg_first_seen AS (
-    SELECT DATE(MIN(s.created_at)) AS first_seen
+WITH visible_sbom AS (
+    SELECT s.id, s.created_at
+    FROM sbom s
+    LEFT JOIN registry r ON r.id = s.registry_id
+    WHERE s.registry_id IS NULL
+       OR r.visibility = 'public'
+       OR r.owner_id = $1::uuid
+       OR COALESCE($2::boolean, false)
+),
+pkg_first_seen AS (
+    SELECT DATE(MIN(vs.created_at)) AS first_seen
     FROM component c
-    JOIN sbom s ON s.id = c.sbom_id
-    WHERE sbom_visible(s.registry_id, $1::uuid, $2::boolean)
+    JOIN visible_sbom vs ON vs.id = c.sbom_id
     GROUP BY c.name, COALESCE(c.group_name, ''), c.type
 ),
 daily_new AS (
@@ -107,14 +123,22 @@ func (q *Queries) GetPackageGrowthTimeline(ctx context.Context, arg GetPackageGr
 }
 
 const getSBOMIngestionTimeline = `-- name: GetSBOMIngestionTimeline :many
+WITH visible_sbom AS (
+    SELECT s.id, s.created_at
+    FROM sbom s
+    LEFT JOIN registry r ON r.id = s.registry_id
+    WHERE s.registry_id IS NULL
+       OR r.visibility = 'public'
+       OR r.owner_id = $2::uuid
+       OR COALESCE($3::boolean, false)
+)
 SELECT
-    DATE(s.created_at)::text AS day,
-    COUNT(*)::bigint         AS count
-FROM sbom s
-WHERE s.created_at >= CURRENT_DATE - $1::int
-  AND DATE(s.created_at) <= CURRENT_DATE
-  AND sbom_visible(s.registry_id, $2::uuid, $3::boolean)
-GROUP BY DATE(s.created_at)::text
+    DATE(created_at)::text AS day,
+    COUNT(*)::bigint       AS count
+FROM visible_sbom
+WHERE created_at >= CURRENT_DATE - $1::int
+  AND DATE(created_at) <= CURRENT_DATE
+GROUP BY DATE(created_at)::text
 ORDER BY day
 `
 
@@ -150,24 +174,29 @@ func (q *Queries) GetSBOMIngestionTimeline(ctx context.Context, arg GetSBOMInges
 }
 
 const getSummaryCounts = `-- name: GetSummaryCounts :one
+WITH visible_sbom AS (
+    SELECT s.id
+    FROM sbom s
+    LEFT JOIN registry r ON r.id = s.registry_id
+    WHERE s.registry_id IS NULL
+       OR r.visibility = 'public'
+       OR r.owner_id = $1::uuid
+       OR COALESCE($2::boolean, false)
+)
 SELECT
     (SELECT COUNT(*)::bigint FROM artifact a
        WHERE artifact_visible(a.id, $1::uuid, $2::boolean)
     ) AS artifact_count,
-    (SELECT COUNT(*)::bigint FROM sbom s
-       WHERE sbom_visible(s.registry_id, $1::uuid, $2::boolean)
-    ) AS sbom_count,
+    (SELECT COUNT(*)::bigint FROM visible_sbom) AS sbom_count,
     (SELECT COUNT(*)::bigint FROM (
         SELECT DISTINCT c.name, COALESCE(c.group_name,'') AS g, c.type
         FROM component c
-        WHERE EXISTS (SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-            AND sbom_visible(s.registry_id, $1::uuid, $2::boolean))
+        JOIN visible_sbom vs ON vs.id = c.sbom_id
     ) t) AS package_count,
     (SELECT COUNT(*)::bigint FROM (
         SELECT DISTINCT c.name, COALESCE(c.group_name,'') AS g, COALESCE(c.version,'') AS v, c.type
         FROM component c
-        WHERE EXISTS (SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-            AND sbom_visible(s.registry_id, $1::uuid, $2::boolean))
+        JOIN visible_sbom vs ON vs.id = c.sbom_id
     ) t) AS version_count,
     (SELECT COUNT(*)::bigint FROM license) AS license_count
 `
@@ -199,6 +228,15 @@ func (q *Queries) GetSummaryCounts(ctx context.Context, arg GetSummaryCountsPara
 }
 
 const getTopPackagesByVersionCount = `-- name: GetTopPackagesByVersionCount :many
+WITH visible_sbom AS (
+    SELECT s.id
+    FROM sbom s
+    LEFT JOIN registry r ON r.id = s.registry_id
+    WHERE s.registry_id IS NULL
+       OR r.visibility = 'public'
+       OR r.owner_id = $2::uuid
+       OR COALESCE($3::boolean, false)
+)
 SELECT
     c.name,
     c.group_name,
@@ -206,17 +244,16 @@ SELECT
     COUNT(DISTINCT COALESCE(c.version, ''))::bigint AS version_count,
     COUNT(DISTINCT c.sbom_id)::bigint               AS sbom_count
 FROM component c
-WHERE EXISTS (SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-    AND sbom_visible(s.registry_id, $1::uuid, $2::boolean))
+JOIN visible_sbom vs ON vs.id = c.sbom_id
 GROUP BY c.name, c.group_name, c.type
 ORDER BY version_count DESC
-LIMIT $3::int
+LIMIT $1::int
 `
 
 type GetTopPackagesByVersionCountParams struct {
+	TopN    int32       `json:"top_n"`
 	UserID  pgtype.UUID `json:"user_id"`
 	IsAdmin pgtype.Bool `json:"is_admin"`
-	TopN    int32       `json:"top_n"`
 }
 
 type GetTopPackagesByVersionCountRow struct {
@@ -228,7 +265,7 @@ type GetTopPackagesByVersionCountRow struct {
 }
 
 func (q *Queries) GetTopPackagesByVersionCount(ctx context.Context, arg GetTopPackagesByVersionCountParams) ([]GetTopPackagesByVersionCountRow, error) {
-	rows, err := q.db.Query(ctx, getTopPackagesByVersionCount, arg.UserID, arg.IsAdmin, arg.TopN)
+	rows, err := q.db.Query(ctx, getTopPackagesByVersionCount, arg.TopN, arg.UserID, arg.IsAdmin)
 	if err != nil {
 		return nil, err
 	}
@@ -254,11 +291,19 @@ func (q *Queries) GetTopPackagesByVersionCount(ctx context.Context, arg GetTopPa
 }
 
 const getVersionGrowthTimeline = `-- name: GetVersionGrowthTimeline :many
-WITH ver_first_seen AS (
-    SELECT DATE(MIN(s.created_at)) AS first_seen
+WITH visible_sbom AS (
+    SELECT s.id, s.created_at
+    FROM sbom s
+    LEFT JOIN registry r ON r.id = s.registry_id
+    WHERE s.registry_id IS NULL
+       OR r.visibility = 'public'
+       OR r.owner_id = $1::uuid
+       OR COALESCE($2::boolean, false)
+),
+ver_first_seen AS (
+    SELECT DATE(MIN(vs.created_at)) AS first_seen
     FROM component c
-    JOIN sbom s ON s.id = c.sbom_id
-    WHERE sbom_visible(s.registry_id, $1::uuid, $2::boolean)
+    JOIN visible_sbom vs ON vs.id = c.sbom_id
     GROUP BY c.name, COALESCE(c.group_name, ''), COALESCE(c.version, ''), c.type
 ),
 daily_new AS (
@@ -306,6 +351,15 @@ func (q *Queries) GetVersionGrowthTimeline(ctx context.Context, arg GetVersionGr
 }
 
 const getVulnStats = `-- name: GetVulnStats :one
+WITH visible_sbom AS (
+    SELECT s.id
+    FROM sbom s
+    LEFT JOIN registry r ON r.id = s.registry_id
+    WHERE s.registry_id IS NULL
+       OR r.visibility = 'public'
+       OR r.owner_id = $1::uuid
+       OR COALESCE($2::boolean, false)
+)
 SELECT
     COUNT(DISTINCT v.canonical_id)::bigint AS total_vulns,
     COUNT(DISTINCT v.canonical_id) FILTER (WHERE v.severity = 'CRITICAL')::bigint AS critical_count,
@@ -316,11 +370,10 @@ SELECT
         WHERE v.severity IS NULL OR v.severity NOT IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW')
     )::bigint AS unknown_count
 FROM component c
-JOIN sbom s ON s.id = c.sbom_id
+JOIN visible_sbom vs ON vs.id = c.sbom_id
 JOIN package_vulnerability pv ON pv.purl = c.purl
 JOIN vulnerability v ON v.id = pv.vulnerability_id
 WHERE c.purl IS NOT NULL
-  AND sbom_visible(s.registry_id, $1::uuid, $2::boolean)
 `
 
 type GetVulnStatsParams struct {
