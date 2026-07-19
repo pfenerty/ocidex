@@ -72,7 +72,7 @@ spec:
         # Fetch only the target branch. GitHub doesn't allow fetching by arbitrary SHA,
         # but the revision is always a branch tip in CI (push/PR events). Fetching a
         # single branch avoids wildcard-refspec pack issues in newer git versions.
-        git fetch --depth=1 origin $(params.revision)
+        git fetch origin $(params.revision)
         git checkout -b $(params.revision) FETCH_HEAD
 
         # Write git metadata as Tekton results for downstream tasks.

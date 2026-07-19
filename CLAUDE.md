@@ -84,7 +84,7 @@ The project uses a layered architecture (API -> Service -> Repository) with depe
 - **Frontend:** SolidJS + Vite + Tailwind CSS
 - **Testing:** matryer/is (unit), testcontainers-go (integration)
 - **Linting:** golangci-lint (configured in `.golangci.yml`)
-- **CI:** GitHub Actions (lint, test, build, security scan)
+- **CI:** Tekton Pipelines-as-Code (source in `.tektonic/`, generated to `.tekton/`). Lint, test, build, image publish, plus SAST/secrets scans (govulncheck+gosec, gitleaks, semgrep — report-only). PR pipeline gates the Go jobs on changed paths via tektonic `onChanges`; push/tag pipelines run unconditionally.
 - **Container:** Docker multi-stage build (Alpine)
 - **Dev Environment:** Flox
 

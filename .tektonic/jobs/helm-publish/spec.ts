@@ -11,7 +11,7 @@ export const helmPublish = new Task({
   steps: [
     {
       name: "package-and-push",
-      image: "alpine/helm:3",
+      image: "alpine/helm:4",
       workingDir: "$(workspaces.workspace.path)",
       onError: "continue",
       env: [{ name: "DOCKER_CONFIG", value: "/tmp/helm-auth" }],

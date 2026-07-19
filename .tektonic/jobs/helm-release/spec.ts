@@ -14,7 +14,7 @@ export const helmRelease = new Task({
       // and push — all under `set -e`, so a failed digest resolve aborts before any
       // chart is published (never ship a partially-pinned chart).
       name: "package-and-push",
-      image: "alpine/helm:3",
+      image: "alpine/helm:4",
       workingDir: "$(workspaces.workspace.path)",
       onError: "continue",
       env: [{ name: "DOCKER_CONFIG", value: "/tmp/helm-auth" }],
