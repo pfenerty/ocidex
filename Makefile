@@ -115,8 +115,6 @@ frontend-test: frontend-init ## Run frontend unit tests
 
 tekton-synth: ## Synthesize Tekton pipeline YAML from TypeScript
 	cd .tektonic && npm ci && npx ts-node pipeline.ts
-	printf 'apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\n\nresources:\n' > .tektonic/generated/kustomization.yaml
-	ls -1 .tektonic/generated/*.k8s.yaml | xargs -n1 basename | sed 's/^/  - /' >> .tektonic/generated/kustomization.yaml
 
 dev-registry: ## Start the local Docker registry used by the Talos dev cluster
 	@docker inspect ocidex-dev-registry >/dev/null 2>&1 || \
