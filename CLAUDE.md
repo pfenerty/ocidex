@@ -84,7 +84,7 @@ The project uses a layered architecture (API -> Service -> Repository) with depe
 - **Frontend:** SolidJS + Vite + Tailwind CSS
 - **Testing:** matryer/is (unit), testcontainers-go (integration)
 - **Linting:** golangci-lint (configured in `.golangci.yml`)
-- **CI:** GitHub Actions (lint, test, build, security scan)
+- **CI:** Tekton Pipelines-as-Code (source in `.tektonic/`, generated to `.tekton/`). Lint, test, build, image publish, plus SAST/secrets scans (govulncheck+gosec, gitleaks, semgrep — report-only). PR pipeline gates the Go jobs on changed paths via tektonic `onChanges`; push/tag pipelines run unconditionally.
 - **Container:** Docker multi-stage build (Alpine)
 - **Dev Environment:** Flox
 
@@ -141,7 +141,6 @@ make frontend-dev      # Start frontend dev server (proxies API to :8080)
 make frontend-lint     # Run ESLint on the SolidJS frontend
 make frontend-lint-fix # Run ESLint with auto-fix on the SolidJS frontend
 make tekton-synth      # Synthesize Tekton pipeline YAML from TypeScript
-make tekton-check      # Verify generated Tekton YAML is up-to-date
 make dev-cluster-up    # Create local Talos dev cluster + registry (one-time per session)
 make dev-up            # Tilt: build, deploy, watch the stack on the local cluster
 make dev-down          # Stop Tilt

@@ -1,0 +1,13 @@
+# gitleaks configuration for the OCIDex secrets-scan CI task.
+# Extends the built-in ruleset and allowlists test files — fixtures use fake
+# credentials, not real secrets (mirrors .golangci.yml excluding gosec on _test.go).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test fixtures use fake credentials, not real secrets"
+paths = [
+  '''_test\.go$''',
+  '''(^|/)testdata/''',
+  '''\.(test|spec)\.(ts|tsx|js|jsx)$''',
+]
