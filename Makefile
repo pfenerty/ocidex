@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check tekton-synth tekton-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
+.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check tekton-synth dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
 
 all: check build ## Run all checks and build
 
@@ -115,14 +115,6 @@ frontend-test: frontend-init ## Run frontend unit tests
 
 tekton-synth: ## Synthesize Tekton pipeline YAML from TypeScript
 	cd .tektonic && npm ci && npx ts-node pipeline.ts
-	printf 'apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\n\nresources:\n' > .tektonic/generated/kustomization.yaml
-	ls -1 .tektonic/generated/*.k8s.yaml | xargs -n1 basename | sed 's/^/  - /' >> .tektonic/generated/kustomization.yaml
-
-tekton-check: ## Verify generated Tekton YAML is up-to-date
-	cd .tektonic && npm ci && npx ts-node pipeline.ts
-	printf 'apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\n\nresources:\n' > .tektonic/generated/kustomization.yaml
-	ls -1 .tektonic/generated/*.k8s.yaml | xargs -n1 basename | sed 's/^/  - /' >> .tektonic/generated/kustomization.yaml
-	cd .tektonic && git diff --exit-code generated/ || (echo "ERROR: .tektonic/generated/ is stale. Run 'make tekton-synth'." && exit 1)
 
 dev-registry: ## Start the local Docker registry used by the Talos dev cluster
 	@docker inspect ocidex-dev-registry >/dev/null 2>&1 || \

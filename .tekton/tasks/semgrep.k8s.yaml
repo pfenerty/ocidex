@@ -1,0 +1,114 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-semgrep
+  namespace: ocidex-ci
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+    - name: revision
+      type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    workingDir: $(workspaces.workspace.path)
+  steps:
+    - computeResources:
+        limits:
+          cpu: "2"
+          memory: 3Gi
+        requests:
+          cpu: 500m
+          memory: 1Gi
+      env:
+        - name: HOME
+          value: /tmp
+      image: semgrep/semgrep:latest
+      name: semgrep
+      onError: continue
+      script: |-
+        #!/bin/sh
+        log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+        (
+        # Report-only SAST. On a PR, scan diff-aware (only findings the branch adds vs its base)
+        # via --baseline-commit; on push to main (or anything else) do a full scan. --error makes
+        # semgrep exit non-zero on findings so the check reflects them (pipeline stays green via
+        # onError: continue).
+        set -u
+
+        # semgrep runs git for baseline diffing; the workspace is root-owned while we run as uid
+        # 1024, so mark it safe (HOME=/tmp is set on the step for a writable global config).
+        git config --global --add safe.directory '*'
+
+        EVENT="${PAC_EVENT_TYPE:-}"
+        TARGET="${PAC_TARGET_BRANCH:-}"
+        BASELINE=""
+        if [ "$EVENT" = "pull_request" ] && [ -n "$TARGET" ]; then
+          # Baseline = the base-branch tip. Any pre-existing finding is present at both the base
+          # and HEAD, so it's excluded; only findings unique to this branch are reported. A
+          # dedicated ref avoids needing $(git ...) command substitution (collides with Tekton).
+          if git -c safe.directory='*' fetch --quiet origin "$TARGET" \
+             && git -c safe.directory='*' update-ref refs/semgrep-baseline FETCH_HEAD; then
+            BASELINE="--baseline-commit refs/semgrep-baseline"
+          fi
+        fi
+
+        semgrep scan --error --disable-version-check --metrics off \
+          --jobs 1 --max-memory 2048 \
+          --config p/golang \
+          --config p/typescript \
+          --config p/secrets \
+          $BASELINE \
+          .
+        )
+        __tek_rc=$?
+        __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
+        if [ "$__tek_rc" -gt "$__tek_prev" ]; then __tek_prev="$__tek_rc"; fi
+        printf '%s' "$__tek_prev" > /tekton/home/.exit-code
+        exit "$__tek_rc"
+    - env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: report-status
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let exit_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        let state = if $exit_code == 0 { "success" } else { "failure" }
+        let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
+
+        log $"report-status [semgrep]: exit-code=($exit_code) state=($state)"
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "semgrep", description: $desc }
+
+        log $"report-status [semgrep]: POST ($url)"
+        log $"report-status [semgrep]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "report-status [semgrep]: done"
+        } catch { |e|
+          log $"report-status [semgrep]: error: ($e.msg)"
+        }
+        exit $exit_code
+  workspaces:
+    - name: workspace

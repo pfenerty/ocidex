@@ -6,7 +6,7 @@ import {
 
 // --- Images ─────────────────────────────────────────────────────────────────
 export const goImage = "ghcr.io/pfenerty/apko-cicd/golang:1.26";
-export const nodeImage = "ghcr.io/pfenerty/apko-cicd/nodejs:22";
+export const nodeImage = "ghcr.io/pfenerty/apko-cicd/nodejs:24";
 
 // ─── Status reporter ─────────────────────────────────────────────────────────
 export const statusReporter = new GitHubStatusReporter({

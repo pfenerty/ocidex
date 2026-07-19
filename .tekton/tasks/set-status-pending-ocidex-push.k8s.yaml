@@ -207,6 +207,108 @@ spec:
               key: token
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: pending-go-security
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: "pending", context: "go-security", description: "Running" }
+
+        log $"status-pending [go-security]: POST ($url)"
+        log $"status-pending [go-security]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "status-pending [go-security]: done"
+        } catch { |e|
+          log $"status-pending [go-security]: error: ($e.msg)"
+          exit 1
+        }
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: pending-secrets-scan
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: "pending", context: "secrets-scan", description: "Running" }
+
+        log $"status-pending [secrets-scan]: POST ($url)"
+        log $"status-pending [secrets-scan]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "status-pending [secrets-scan]: done"
+        } catch { |e|
+          log $"status-pending [secrets-scan]: error: ($e.msg)"
+          exit 1
+        }
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: pending-semgrep
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: "pending", context: "semgrep", description: "Running" }
+
+        log $"status-pending [semgrep]: POST ($url)"
+        log $"status-pending [semgrep]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "status-pending [semgrep]: done"
+        } catch { |e|
+          log $"status-pending [semgrep]: error: ($e.msg)"
+          exit 1
+        }
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-image-build-api
       script: |-
         #!/usr/bin/env nu

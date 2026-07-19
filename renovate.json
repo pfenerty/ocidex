@@ -17,5 +17,17 @@
       "groupName": "npm dependencies",
       "automerge": true
     }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Bump base/tool image tags in the tektonic TypeScript source (.tektonic/**/*.ts) in lockstep with the generated .tekton/ YAML, so re-synthesis never reverts a Renovate bump.",
+      "managerFilePatterns": ["/\\.tektonic/.*\\.ts$/"],
+      "matchStrings": [
+        "image:\\s*\"(?<depName>[^\":]+):(?<currentValue>[^\"]+)\"",
+        "Image\\s*=\\s*\"(?<depName>[^\":]+):(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "docker"
+    }
   ]
 }
