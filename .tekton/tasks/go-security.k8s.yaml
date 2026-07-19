@@ -1,0 +1,165 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-go-security
+  namespace: ocidex-ci
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+    - name: revision
+      type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    env:
+      - name: GOMODCACHE
+        value: $(workspaces.workspace.path)/.go-mod
+      - name: GOCACHE
+        value: $(workspaces.workspace.path)/.go-build
+      - name: GIT_CONFIG_GLOBAL
+        value: $(workspaces.workspace.path)/.gitconfig
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    workingDir: $(workspaces.workspace.path)
+  steps:
+    - image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: restore-go-cache-cache
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let hash = (
+          ["go.sum"]
+          | each { |f| if ($f | path exists) { open --raw $f } else { "" } }
+          | str join | hash sha256 | str substring 0..15
+        )
+        $hash | save -f /tekton/home/.cache-go-cache-hash
+        let archive = $"$(workspaces.go-cache.path)/($hash).tar.zst"
+
+        if ($archive | path exists) {
+          let archive_size = (ls $archive | get size.0)
+          log $"restore-go-cache-cache: hit ($hash) size=($archive_size)"
+          let cache_paths = [".go-mod", ".go-build"]
+          for p in $cache_paths {
+            if ($p | path exists) { ^chmod -R u+w $p; rm -rf $p }
+          }
+          let t0 = (date now)
+          ^zstd -d -T1 -c $archive | ^tar xf - -o --no-same-permissions
+          let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+          log $"restore-go-cache-cache: restored in ($elapsed)s"
+        } else {
+          log $"restore-go-cache-cache: miss ($hash)"
+        }
+      workingDir: $(workspaces.workspace.path)
+    - computeResources:
+        limits:
+          cpu: "2"
+          ephemeral-storage: 4Gi
+          memory: 2Gi
+        requests:
+          cpu: 500m
+          ephemeral-storage: 2Gi
+          memory: 1Gi
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.26
+      name: scan
+      onError: continue
+      script: |-
+        #!/bin/sh
+        log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+        (
+        # Report-only Go security scan: run both tools regardless of individual outcome,
+        # then exit non-zero if either found something so the GitHub check reflects it.
+        # Tekton `$()` interpolation collides with shell command substitution, so no `$(...)`
+        # is used here; `go run <pkg>@latest` avoids needing GOPATH/bin on PATH.
+        set -u
+        rc=0
+
+        echo "── govulncheck ─────────────────────────────────────────────"
+        go run golang.org/x/vuln/cmd/govulncheck@latest ./... || rc=1
+
+        echo "── gosec ───────────────────────────────────────────────────"
+        go run github.com/securego/gosec/v2/cmd/gosec@latest -fmt text ./... || rc=1
+
+        exit $rc
+        )
+        __tek_rc=$?
+        __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
+        if [ "$__tek_rc" -gt "$__tek_prev" ]; then __tek_prev="$__tek_rc"; fi
+        printf '%s' "$__tek_prev" > /tekton/home/.exit-code
+        exit "$__tek_rc"
+    - image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: save-go-cache-cache
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let hash = (try { open --raw /tekton/home/.cache-go-cache-hash | str trim } catch { "" })
+        if ($hash | is-empty) { log "save-go-cache-cache: no hash, skipping"; exit 0 }
+
+        let archive = $"$(workspaces.go-cache.path)/($hash).tar.zst"
+        if ($archive | path exists) { log $"save-go-cache-cache: ($hash) exists, skipping"; exit 0 }
+
+        let paths = [".go-mod", ".go-build"] | where { |p| ($p | path exists) }
+        if ($paths | is-empty) { log "save-go-cache-cache: no paths to cache"; exit 0 }
+
+        for p in $paths { ^chmod -R u+w $p }
+
+        let max = 3
+        if $max > 0 {
+          let entries = (try { ls $(workspaces.go-cache.path)/*.tar.zst | sort-by modified | reverse | skip $max } catch { [] })
+          for e in $entries { log $"save-go-cache-cache: evicting ($e.name | path basename)"; rm $e.name }
+        }
+
+        let uncompressed = ($paths | each { |p| try { du $p | get apparent.0 | into int } catch { 0 } } | math sum)
+        log $"save-go-cache-cache: compressing (($uncompressed / 1_000_000) | math round --precision 1)MB uncompressed ..."
+        let t0 = (date now)
+        ^tar cf - ...$paths | ^zstd -1 -T1 -o $archive
+        let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+        let compressed = (ls $archive | get size.0)
+        let ratio = ($uncompressed / ($compressed | into int) | math round --precision 1)
+        log $"save-go-cache-cache: saved ($compressed) ratio=($ratio)x in ($elapsed)s"
+      workingDir: $(workspaces.workspace.path)
+    - env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: report-status
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let exit_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        let state = if $exit_code == 0 { "success" } else { "failure" }
+        let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
+
+        log $"report-status [go-security]: exit-code=($exit_code) state=($state)"
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "go-security", description: $desc }
+
+        log $"report-status [go-security]: POST ($url)"
+        log $"report-status [go-security]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "report-status [go-security]: done"
+        } catch { |e|
+          log $"report-status [go-security]: error: ($e.msg)"
+        }
+        exit $exit_code
+  workspaces:
+    - name: go-cache
+    - name: workspace

@@ -1,0 +1,45 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-detect-go
+  namespace: ocidex-ci
+spec:
+  results:
+    - description: "'true' when any of the watched paths changed vs the trunk"
+      name: changed
+      type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    workingDir: $(workspaces.workspace.path)
+  steps:
+    - image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: detect
+      script: |-
+        #!/bin/sh
+        log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+        if git -c safe.directory='*' fetch --no-tags origin "main" 2>/dev/null; then
+          if git -c safe.directory='*' diff --name-only FETCH_HEAD...HEAD -- ':(glob)**/*.go' ':(glob)go.mod' ':(glob)go.sum' ':(glob)docker/**' ':(glob)db/**' > /tmp/tektonic-changed.txt 2>/dev/null; then
+            if [ -s /tmp/tektonic-changed.txt ]; then
+              printf true > $(results.changed.path)
+            else
+              printf false > $(results.changed.path)
+            fi
+          else
+            printf true > $(results.changed.path)
+          fi
+        else
+          printf true > $(results.changed.path)
+        fi
+  workspaces:
+    - name: workspace
