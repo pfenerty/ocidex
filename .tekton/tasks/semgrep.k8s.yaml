@@ -31,6 +31,9 @@ spec:
         requests:
           cpu: 500m
           memory: 1Gi
+      env:
+        - name: HOME
+          value: /tmp
       image: semgrep/semgrep:latest
       name: semgrep
       onError: continue
