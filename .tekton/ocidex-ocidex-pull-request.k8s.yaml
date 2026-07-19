@@ -214,6 +214,11 @@ spec:
       - name: node-cache
   taskRunTemplate:
     podTemplate:
+      env:
+        - name: PAC_EVENT_TYPE
+          value: "{{ event_type }}"
+        - name: PAC_TARGET_BRANCH
+          value: "{{ target_branch }}"
       securityContext:
         fsGroup: 1024
         runAsGroup: 1024

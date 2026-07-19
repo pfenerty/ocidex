@@ -5,16 +5,9 @@
 useDefault = true
 
 [allowlist]
-description = "Ignore test fixtures and non-repo workspace artifacts (caches, deps, VCS internals)"
+description = "Test fixtures use fake credentials, not real secrets"
 paths = [
-  # test fixtures use fake credentials, not real secrets
   '''_test\.go$''',
   '''(^|/)testdata/''',
   '''\.(test|spec)\.(ts|tsx|js|jsx)$''',
-  # non-repo workspace artifacts on the shared PVC (gitleaks --no-git ignores .gitignore):
-  # Go module/build caches, JS deps, and git internals — third-party/generated, not our source
-  '''(^|/)\.go-mod/''',
-  '''(^|/)\.go-build/''',
-  '''(^|/)node_modules/''',
-  '''(^|/)\.git/''',
 ]

@@ -87,6 +87,13 @@ new TektonicProject({
     runAsGroup: 1024,
     fsGroup: 1024,
   },
+  // Expose PAC event context to steps so the secrets scan can scope itself: a PR
+  // scans only its new commits vs the base branch, a push to main scans full history.
+  // PAC substitutes these {{ }} vars before submitting the PipelineRun.
+  podTemplateEnv: [
+    { name: "PAC_EVENT_TYPE", value: "{{ event_type }}" },
+    { name: "PAC_TARGET_BRANCH", value: "{{ target_branch }}" },
+  ],
   caches: [
     {
       workspace: goCacheWs,
