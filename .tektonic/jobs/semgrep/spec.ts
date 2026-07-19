@@ -12,6 +12,9 @@ export const semgrep = new Task({
     {
       name: "semgrep",
       image: "semgrep/semgrep:latest",
+      // Runs as uid 1024 with no home dir, so $HOME defaults to `/` and semgrep
+      // can't create its ~/.semgrep settings/log dir. Point HOME at world-writable /tmp.
+      env: [{ name: "HOME", value: "/tmp" }],
       computeResources: {
         limits: { cpu: "2", memory: "2Gi" },
         requests: { cpu: "500m", memory: "1Gi" },
