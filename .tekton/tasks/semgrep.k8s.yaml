@@ -109,6 +109,5 @@ spec:
         } catch { |e|
           log $"report-status [semgrep]: error: ($e.msg)"
         }
-        exit $exit_code
   workspaces:
     - name: workspace

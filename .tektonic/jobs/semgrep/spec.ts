@@ -1,13 +1,14 @@
 import * as path from "path";
 import { Task, scriptFromFile } from "@pfenerty/tektonic";
-import { statusReporter } from "../../shared";
+import { reportOnlyStatusReporter } from "../../shared";
 
 // Multi-language SAST with Semgrep (Go + TypeScript frontend + generic secrets
 // rulesets). Report-only: `onError: continue` keeps the PipelineRun green while the
-// statusReporter posts findings as this task's own GitHub check. Docker Hub image.
+// reportOnlyStatusReporter posts findings as this task's own GitHub check. Docker
+// Hub image.
 export const semgrep = new Task({
   name: "semgrep",
-  statusReporter,
+  statusReporter: reportOnlyStatusReporter,
   steps: [
     {
       name: "semgrep",
