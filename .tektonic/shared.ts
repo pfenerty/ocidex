@@ -34,8 +34,9 @@ export const reportOnlyStatusReporter = new GitHubStatusReporter({
 // ─── Cache workspaces (PVC-backed, local-path) ───────────────────────────────
 // Persistent PVCs provisioned once; mounted read-write by each pipeline run.
 // ReadWriteOnce is required — local-path does not support ReadWriteMany.
-// Concurrent pipeline runs on the same node can both mount the PVC but risk
-// cache corruption on simultaneous saves (non-fatal: next run rebuilds).
+// tektonic's save scripts write to a temp path and atomically rename into place
+// (see pvc-backend.ts), so a killed/OOM'd save step or a concurrent save race can
+// never leave a truncated archive at the hash-keyed cache path.
 export const goCacheWs = new Workspace({ name: "go-cache" });
 export const nodeCacheWs = new Workspace({ name: "node-cache" });
 

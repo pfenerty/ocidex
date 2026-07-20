@@ -120,7 +120,21 @@ spec:
         let uncompressed = ($paths | each { |p| try { du $p | get apparent.0 | into int } catch { 0 } } | math sum)
         log $"save-go-cache-cache: compressing (($uncompressed / 1_000_000) | math round --precision 1)MB uncompressed ..."
         let t0 = (date now)
-        ^tar cf - ...$paths | ^zstd -1 -T1 -o $archive
+        # Write to a temp path and rename into place: a step killed mid-write (OOM, eviction,
+        # timeout) must never leave a truncated archive at the real hash-keyed path, since the
+        # skip-if-exists guard above means a corrupt archive there would never self-heal.
+        let tmp = $"($archive).tmp.(random uuid)"
+        # nushell aborts the enclosing block as soon as any external command in the pipe
+        # reports a non-zero exit (e.g. tar failing to read one of $paths), so cleanup must
+        # live in a catch — code placed after the pipe but outside try/catch never runs.
+        try {
+          ^tar cf - ...$paths | ^zstd -1 -T1 -o $tmp
+        } catch { |e|
+          rm -f $tmp
+          log $"save-go-cache-cache: compress failed (($e.msg)), discarding partial archive"
+          exit 1
+        }
+        mv -f $tmp $archive
         let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
         let compressed = (ls $archive | get size.0)
         let ratio = ($uncompressed / ($compressed | into int) | math round --precision 1)
