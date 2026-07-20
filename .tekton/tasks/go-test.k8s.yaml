@@ -18,6 +18,8 @@ spec:
         cpu: 100m
         memory: 128Mi
     env:
+      - name: GOPATH
+        value: $(workspaces.workspace.path)/.go-path
       - name: GOMODCACHE
         value: $(workspaces.workspace.path)/.go-mod
       - name: GOCACHE
