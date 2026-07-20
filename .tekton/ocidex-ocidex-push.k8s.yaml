@@ -147,8 +147,6 @@ spec:
           kind: Task
           name: ocidex-go-security
         workspaces:
-          - name: go-cache
-            workspace: go-cache
           - name: workspace
             workspace: workspace
       - name: secrets-scan

@@ -17,15 +17,6 @@ spec:
       requests:
         cpu: 100m
         memory: 128Mi
-    env:
-      - name: GOPATH
-        value: $(workspaces.workspace.path)/.go-path
-      - name: GOMODCACHE
-        value: $(workspaces.workspace.path)/.go-mod
-      - name: GOCACHE
-        value: $(workspaces.workspace.path)/.go-build
-      - name: GIT_CONFIG_GLOBAL
-        value: $(workspaces.workspace.path)/.gitconfig
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
@@ -33,116 +24,58 @@ spec:
           - ALL
     workingDir: $(workspaces.workspace.path)
   steps:
-    - image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: restore-go-cache-cache
-      script: |-
-        #!/usr/bin/env nu
-        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let hash = (
-          ["go.sum"]
-          | each { |f| if ($f | path exists) { open --raw $f } else { "" } }
-          | str join | hash sha256 | str substring 0..15
-        )
-        $hash | save -f /tekton/home/.cache-go-cache-hash
-        let archive = $"$(workspaces.go-cache.path)/($hash).tar.zst"
-
-        if ($archive | path exists) {
-          let archive_size = (ls $archive | get size.0)
-          log $"restore-go-cache-cache: hit ($hash) size=($archive_size)"
-          let cache_paths = [".go-mod", ".go-build"]
-          for p in $cache_paths {
-            if ($p | path exists) { ^chmod -R u+w $p; rm -rf $p }
-          }
-          let t0 = (date now)
-          ^zstd -d -T1 -c $archive | ^tar xf - -o --no-same-permissions
-          let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
-          log $"restore-go-cache-cache: restored in ($elapsed)s"
-        } else {
-          log $"restore-go-cache-cache: miss ($hash)"
-        }
-      workingDir: $(workspaces.workspace.path)
     - computeResources:
         limits:
-          cpu: "2"
-          ephemeral-storage: 4Gi
-          memory: 2Gi
+          cpu: "1"
+          memory: 512Mi
         requests:
-          cpu: 500m
-          ephemeral-storage: 2Gi
-          memory: 1Gi
-      image: ghcr.io/pfenerty/apko-cicd/golang:1.26
-      name: scan
+          cpu: 200m
+          memory: 256Mi
+      image: ghcr.io/pfenerty/apko-cicd/syft:1.45.1
+      name: sbom
       onError: continue
       script: |-
         #!/bin/sh
         log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
         (
-        # Report-only Go security scan: run both tools regardless of individual outcome,
-        # then exit non-zero if either found something so the GitHub check reflects it.
-        # Tekton `$()` interpolation collides with shell command substitution, so no `$(...)`
-        # is used here; `go run <pkg>@latest` avoids needing GOPATH/bin on PATH.
-        set -u
-        rc=0
+        # Catalog the Go module graph straight from go.sum/go.mod — no toolchain, no
+        # network needed (unlike the old `go run govulncheck@latest`).
+        set -eu
 
-        echo "── govulncheck ─────────────────────────────────────────────"
-        go run golang.org/x/vuln/cmd/govulncheck@latest ./... || rc=1
-
-        echo "── gosec ───────────────────────────────────────────────────"
-        go run github.com/securego/gosec/v2/cmd/gosec@latest -fmt text ./... || rc=1
-
-        exit $rc
+        echo "── syft: generating SBOM (Go dependency graph) ────────────────"
+        syft dir:. --select-catalogers go -o json --file sbom.json
         )
         __tek_rc=$?
         __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
         if [ "$__tek_rc" -gt "$__tek_prev" ]; then __tek_prev="$__tek_rc"; fi
         printf '%s' "$__tek_prev" > /tekton/home/.exit-code
         exit "$__tek_rc"
-    - image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: save-go-cache-cache
+    - computeResources:
+        limits:
+          cpu: "1"
+          memory: 512Mi
+        requests:
+          cpu: 200m
+          memory: 256Mi
+      image: ghcr.io/pfenerty/apko-cicd/grype:0.114.0
+      name: scan
       onError: continue
       script: |-
-        #!/usr/bin/env nu
-        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let hash = (try { open --raw /tekton/home/.cache-go-cache-hash | str trim } catch { "" })
-        if ($hash | is-empty) { log "save-go-cache-cache: no hash, skipping"; exit 0 }
+        #!/bin/sh
+        log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+        (
+        # grype exits non-zero on any low+ severity match against the SBOM the sbom step
+        # produced — reported as this task's GitHub check (see spec.ts comment).
+        set -u
 
-        let archive = $"$(workspaces.go-cache.path)/($hash).tar.zst"
-        if ($archive | path exists) { log $"save-go-cache-cache: ($hash) exists, skipping"; exit 0 }
-
-        let paths = [".go-mod", ".go-build"] | where { |p| ($p | path exists) }
-        if ($paths | is-empty) { log "save-go-cache-cache: no paths to cache"; exit 0 }
-
-        for p in $paths { ^chmod -R u+w $p }
-
-        let max = 3
-        if $max > 0 {
-          let entries = (try { ls $(workspaces.go-cache.path)/*.tar.zst | sort-by modified | reverse | skip $max } catch { [] })
-          for e in $entries { log $"save-go-cache-cache: evicting ($e.name | path basename)"; rm $e.name }
-        }
-
-        let uncompressed = ($paths | each { |p| try { du $p | get apparent.0 | into int } catch { 0 } } | math sum)
-        log $"save-go-cache-cache: compressing (($uncompressed / 1_000_000) | math round --precision 1)MB uncompressed ..."
-        let t0 = (date now)
-        # Write to a temp path and rename into place: a step killed mid-write (OOM, eviction,
-        # timeout) must never leave a truncated archive at the real hash-keyed path, since the
-        # skip-if-exists guard above means a corrupt archive there would never self-heal.
-        let tmp = $"($archive).tmp.(random uuid)"
-        # nushell aborts the enclosing block as soon as any external command in the pipe
-        # reports a non-zero exit (e.g. tar failing to read one of $paths), so cleanup must
-        # live in a catch — code placed after the pipe but outside try/catch never runs.
-        try {
-          ^tar cf - ...$paths | ^zstd -1 -T1 -o $tmp
-        } catch { |e|
-          rm -f $tmp
-          log $"save-go-cache-cache: compress failed (($e.msg)), discarding partial archive"
-          exit 1
-        }
-        mv -f $tmp $archive
-        let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
-        let compressed = (ls $archive | get size.0)
-        let ratio = ($uncompressed / ($compressed | into int) | math round --precision 1)
-        log $"save-go-cache-cache: saved ($compressed) ratio=($ratio)x in ($elapsed)s"
-      workingDir: $(workspaces.workspace.path)
+        echo "── grype: scanning SBOM for known vulnerabilities ──────────────"
+        grype sbom:sbom.json --fail-on low
+        )
+        __tek_rc=$?
+        __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
+        if [ "$__tek_rc" -gt "$__tek_prev" ]; then __tek_prev="$__tek_rc"; fi
+        printf '%s' "$__tek_prev" > /tekton/home/.exit-code
+        exit "$__tek_rc"
     - env:
         - name: GITHUB_TOKEN
           valueFrom:
@@ -176,5 +109,4 @@ spec:
           log $"report-status [go-security]: error: ($e.msg)"
         }
   workspaces:
-    - name: go-cache
     - name: workspace

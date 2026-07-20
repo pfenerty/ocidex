@@ -176,8 +176,6 @@ spec:
             values:
               - "true"
         workspaces:
-          - name: go-cache
-            workspace: go-cache
           - name: workspace
             workspace: workspace
       - name: secrets-scan
