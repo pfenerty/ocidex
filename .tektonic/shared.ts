@@ -69,6 +69,12 @@ export const nodeModulesCache = {
 
 // ─── Env ─────────────────────────────────────────────────────────────────────
 export const goEnv = [
+  // uid 1024 has no passwd entry, so $HOME defaults to "/" and Go's default
+  // GOPATH ("$HOME/go" = "/go") isn't writable. GOMODCACHE/GOCACHE cover the
+  // module/build caches, but govulncheck/gosec's sumdb tree-head cache is
+  // hardcoded to "$GOPATH/pkg/sumdb" regardless of GOMODCACHE, so GOPATH must
+  // also point at a writable location.
+  { name: "GOPATH", value: "$(workspaces.workspace.path)/.go-path" },
   { name: "GOMODCACHE", value: "$(workspaces.workspace.path)/.go-mod" },
   { name: "GOCACHE", value: "$(workspaces.workspace.path)/.go-build" },
   {
