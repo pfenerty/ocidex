@@ -1,16 +1,16 @@
 import * as path from "path";
 import { Task, scriptFromFile } from "@pfenerty/tektonic";
-import { goImage, goCache, goEnv, statusReporter } from "../../shared";
+import { goImage, goCache, goEnv, reportOnlyStatusReporter } from "../../shared";
 
 // Go SAST + dependency-vuln scan: govulncheck (known CVEs in deps/stdlib) + gosec
 // (static analysis). Report-only — `onError: continue` keeps the PipelineRun green;
-// the statusReporter still posts the real exit code as this task's own GitHub check,
-// so findings surface as a red check + logs without blocking. Reuses the Go module
-// cache so `go run <tool>@latest` stays fast on reruns.
+// the reportOnlyStatusReporter still posts the real exit code as this task's own
+// GitHub check, so findings surface as a red check + logs without blocking. Reuses
+// the Go module cache so `go run <tool>@latest` stays fast on reruns.
 export const goSecurity = new Task({
   name: "go-security",
   caches: [goCache],
-  statusReporter,
+  statusReporter: reportOnlyStatusReporter,
   stepTemplate: {
     env: goEnv,
   },

@@ -20,6 +20,17 @@ export const statusReporter = new GitHubStatusReporter({
   },
 });
 
+// Report-only variant for tasks whose findings should post a red GitHub check
+// without failing the TaskRun/PipelineRun (e.g. security scans on push to main).
+export const reportOnlyStatusReporter = new GitHubStatusReporter({
+  tokenSecretName: "github-pipeline-token",
+  pendingTaskComputeResources: {
+    requests: { cpu: "25m", memory: "64Mi" },
+    limits: { cpu: "200m", memory: "128Mi" },
+  },
+  failOnError: false,
+});
+
 // ─── Cache workspaces (PVC-backed, local-path) ───────────────────────────────
 // Persistent PVCs provisioned once; mounted read-write by each pipeline run.
 // ReadWriteOnce is required — local-path does not support ReadWriteMany.
