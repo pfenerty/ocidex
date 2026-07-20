@@ -90,9 +90,17 @@ new TektonicProject({
   // Expose PAC event context to steps so the secrets scan can scope itself: a PR
   // scans only its new commits vs the base branch, a push to main scans full history.
   // PAC substitutes these {{ }} vars before submitting the PipelineRun.
+  //
+  // HOME is set pod-wide here (not via stepTemplate.env like goEnv/nodeEnv) because
+  // defaultPodSecurityContext's runAsUser: 1024 also applies to Tekton's own injected
+  // containers (e.g. creds-init, which materializes the ghcr-docker-config secret into
+  // $HOME/.docker/config.json). uid 1024 has no /etc/passwd entry, so without this,
+  // $HOME defaults to "/" and creds-init fails with "mkdir /.docker: permission denied".
+  // /tekton/home is writable by any uid regardless of HOME/passwd state.
   podTemplateEnv: [
     { name: "PAC_EVENT_TYPE", value: "{{ event_type }}" },
     { name: "PAC_TARGET_BRANCH", value: "{{ target_branch }}" },
+    { name: "HOME", value: "/tekton/home" },
   ],
   caches: [
     {

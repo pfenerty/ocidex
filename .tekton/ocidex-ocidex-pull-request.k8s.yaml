@@ -219,6 +219,8 @@ spec:
           value: "{{ event_type }}"
         - name: PAC_TARGET_BRANCH
           value: "{{ target_branch }}"
+        - name: HOME
+          value: /tekton/home
       securityContext:
         fsGroup: 1024
         runAsGroup: 1024
