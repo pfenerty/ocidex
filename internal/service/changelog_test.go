@@ -14,32 +14,6 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// compareVersionStrings
-// ---------------------------------------------------------------------------
-
-func TestCompareVersionStrings(t *testing.T) {
-	tests := []struct {
-		a, b string
-		want int
-	}{
-		{"1.2.3", "1.2.3", 0},
-		{"1.2.3", "1.2.4", -1},
-		{"1.2.4", "1.2.3", 1},
-		{"2.0.0", "1.9.9", 1},
-		{"1.10.0", "1.9.0", 1},
-		{"1.0.0-alpha", "1.0.0-beta", -1},
-		{"1", "1.0", -1},
-		{"1.0.0", "1.0", 1},
-	}
-	for _, tt := range tests {
-		t.Run(tt.a+"_vs_"+tt.b, func(t *testing.T) {
-			is := is.New(t)
-			is.Equal(compareVersionStrings(tt.a, tt.b), tt.want)
-		})
-	}
-}
-
-// ---------------------------------------------------------------------------
 // laterThan
 // ---------------------------------------------------------------------------
 
@@ -334,10 +308,33 @@ func TestSortCandidates_ByVersion(t *testing.T) {
 		mkCandidate("1.2.0"),
 		mkCandidate("1.9.0"),
 	}
-	sortCandidates(candidates)
+	sortCandidates(candidates, SortSemver)
 	is.Equal(candidates[0].sbom.SubjectVersion.String, "1.2.0")
 	is.Equal(candidates[1].sbom.SubjectVersion.String, "1.9.0")
 	is.Equal(candidates[2].sbom.SubjectVersion.String, "1.10.0")
+}
+
+func TestSortCandidates_BuildTimeModeIgnoresVersion(t *testing.T) {
+	is := is.New(t)
+	t1 := time.Now().Add(-2 * time.Hour)
+	t2 := time.Now().Add(-time.Hour)
+	mk := func(version string, built time.Time) changelogCandidate {
+		return changelogCandidate{
+			sbom: repository.ListSBOMsByArtifactRow{
+				SubjectVersion: pgtype.Text{String: version, Valid: true},
+				CreatedAt:      pgtype.Timestamptz{Time: built, Valid: true},
+			},
+			buildDate: &built,
+		}
+	}
+	// Higher version built earlier must still sort first in build-time mode.
+	candidates := []changelogCandidate{
+		mk("2.0.0", t2),
+		mk("1.0.0", t1),
+	}
+	sortCandidates(candidates, SortBuildTime)
+	is.Equal(candidates[0].sbom.SubjectVersion.String, "1.0.0")
+	is.Equal(candidates[1].sbom.SubjectVersion.String, "2.0.0")
 }
 
 func TestSortCandidates_FallsBackToIngestionTime(t *testing.T) {
@@ -348,7 +345,7 @@ func TestSortCandidates_FallsBackToIngestionTime(t *testing.T) {
 		{sbom: repository.ListSBOMsByArtifactRow{CreatedAt: pgtype.Timestamptz{Time: t2, Valid: true}}},
 		{sbom: repository.ListSBOMsByArtifactRow{CreatedAt: pgtype.Timestamptz{Time: t1, Valid: true}}},
 	}
-	sortCandidates(candidates)
+	sortCandidates(candidates, SortSemver)
 	// Earlier ingestion time should be first.
 	is.Equal(candidates[0].sbom.CreatedAt.Time.UTC(), t1.UTC())
 }
@@ -575,7 +572,7 @@ func TestGetArtifactChangelog_NotVisible(t *testing.T) {
 	svc := NewSearchService(db)
 	uid := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
 
-	_, err := svc.GetArtifactChangelog(context.Background(), uid, "", "", "", VisibilityFilter{})
+	_, err := svc.GetArtifactChangelog(context.Background(), uid, "", "", "", SortAuto, VisibilityFilter{})
 	is.Equal(err, ErrNotFound)
 }
 
@@ -601,7 +598,7 @@ func TestGetArtifactChangelog_EmptyChangelog(t *testing.T) {
 	svc := NewSearchService(db)
 	uid := pgtype.UUID{Bytes: [16]byte{2}, Valid: true}
 
-	cl, err := svc.GetArtifactChangelog(context.Background(), uid, "", "", "", VisibilityFilter{IsAdmin: true})
+	cl, err := svc.GetArtifactChangelog(context.Background(), uid, "", "", "", SortAuto, VisibilityFilter{IsAdmin: true})
 	is.NoErr(err)
 	is.Equal(len(cl.Entries), 0)
 }

@@ -400,7 +400,8 @@ type ListArtifactSBOMsOutput struct {
 // ListArtifactVersionsInput is the request for GET /api/v1/artifacts/{id}/versions.
 type ListArtifactVersionsInput struct {
 	PaginationParams
-	ID string `path:"id" doc:"Artifact UUID" format:"uuid"`
+	ID   string `path:"id" doc:"Artifact UUID" format:"uuid"`
+	Mode string `query:"mode" enum:"semver,all" doc:"Sort/filter mode: 'semver' (semver versions, semver order), 'all' (every version, build-time order). Empty auto-selects semver when available."`
 }
 
 // ArtifactVersionSummary is a single version row returned by the versions endpoint.
@@ -421,8 +422,10 @@ type ArtifactVersionSummary struct {
 // ListArtifactVersionsOutput is the response for GET /api/v1/artifacts/{id}/versions.
 type ListArtifactVersionsOutput struct {
 	Body struct {
-		Data       []ArtifactVersionSummary `json:"data"`
-		Pagination PaginationMeta           `json:"pagination"`
+		Data         []ArtifactVersionSummary `json:"data"`
+		Pagination   PaginationMeta           `json:"pagination"`
+		HasSemver    bool                     `json:"hasSemver" doc:"Whether the artifact has any semver-parseable version"`
+		ResolvedMode string                   `json:"resolvedMode" enum:"semver,all" doc:"Concrete sort mode applied after auto-resolution"`
 	}
 }
 
@@ -436,6 +439,7 @@ type GetArtifactChangelogInput struct {
 	SubjectVersion string `query:"subject_version" doc:"Filter by subject version"`
 	Arch           string `query:"arch"            doc:"Architecture to show timeline for (e.g. amd64)"`
 	Flavor         string `query:"flavor"          doc:"Flavor to show timeline for (e.g. standard, fips)"`
+	Mode           string `query:"mode" enum:"semver,all" doc:"Sort/filter mode: 'semver' (semver versions, semver order), 'all' (every version, build-time order). Empty auto-selects semver when available."`
 }
 
 // GetArtifactChangelogOutput is the response for GET /api/v1/artifacts/{id}/changelog.

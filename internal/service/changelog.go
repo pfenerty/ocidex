@@ -36,10 +36,16 @@ var identityQualifiers = map[string]bool{
 
 // Changelog represents the full changelog for an artifact.
 type Changelog struct {
-	ArtifactID             string           `json:"artifactId"`
-	AvailableArchitectures []string         `json:"availableArchitectures"`
-	AvailableFlavors       []string         `json:"availableFlavors"`
-	Entries                []ChangelogEntry `json:"entries"`
+	ArtifactID             string   `json:"artifactId"`
+	AvailableArchitectures []string `json:"availableArchitectures"`
+	AvailableFlavors       []string `json:"availableFlavors"`
+	// HasSemver reports whether the artifact has any semver-parseable version,
+	// so the client can default the Semver/All toggle.
+	HasSemver bool `json:"hasSemver"`
+	// ResolvedMode is the concrete sort mode used ("semver" or "all"), after
+	// resolving an auto request.
+	ResolvedMode string           `json:"resolvedMode"`
+	Entries      []ChangelogEntry `json:"entries"`
 }
 
 // ChangelogEntry represents a diff between two consecutive SBOMs.
@@ -298,7 +304,7 @@ type changelogCandidate struct {
 // GetArtifactChangelog generates a changelog by diffing consecutive SBOMs for an artifact.
 // SBOMs are grouped by (architecture, flavor), deduplicated by (version, arch, flavor), then
 // diffed within the selected (arch, flavor) timeline.
-func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch, flavor string, vis VisibilityFilter) (Changelog, error) {
+func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch, flavor string, mode VersionSortMode, vis VisibilityFilter) (Changelog, error) {
 	q := repository.New(s.db)
 
 	// Access check.
@@ -331,8 +337,17 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgt
 	best, available, availableFlavors := deduplicateSBOMs(sboms, meta)
 	selectedArch := selectArch(arch, available)
 	selectedFlavor := selectFlavor(flavor, availableFlavors)
+
+	// hasSemver reflects the whole artifact (any arch/flavor), so switching the
+	// selected timeline never flips the default Semver/All toggle.
+	hasSemver := groupsHaveSemver(best)
+	resolved := resolveSortMode(mode, hasSemver)
+
 	candidates := filterByArchAndFlavor(best, selectedArch, selectedFlavor)
-	sortCandidates(candidates)
+	if resolved == SortSemver {
+		candidates = filterSemverCandidates(candidates)
+	}
+	sortCandidates(candidates, resolved)
 
 	arches := make([]string, 0, len(available))
 	for a := range available {
@@ -350,6 +365,8 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgt
 		ArtifactID:             uuidToString(artifactID),
 		AvailableArchitectures: arches,
 		AvailableFlavors:       flavors,
+		HasSemver:              hasSemver,
+		ResolvedMode:           string(resolved),
 		Entries:                []ChangelogEntry{},
 	}
 
@@ -429,22 +446,46 @@ func filterByArchAndFlavor(best map[changelogGroupKey]changelogCandidate, arch, 
 	return out
 }
 
-// sortCandidates sorts in-place by version (numeric-aware), falling back to build date then ingestion time.
-func sortCandidates(candidates []changelogCandidate) {
+// groupsHaveSemver reports whether any deduplicated group has a semver version.
+func groupsHaveSemver(best map[changelogGroupKey]changelogCandidate) bool {
+	for k := range best {
+		if isSemver(k.version) {
+			return true
+		}
+	}
+	return false
+}
+
+// filterSemverCandidates keeps only candidates whose subject version is semver.
+func filterSemverCandidates(candidates []changelogCandidate) []changelogCandidate {
+	out := candidates[:0:0]
+	for _, c := range candidates {
+		if c.sbom.SubjectVersion.Valid && isSemver(c.sbom.SubjectVersion.String) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// sortCandidates sorts in-place. In SortSemver mode it orders by semantic-version
+// precedence (build time breaks ties); otherwise it orders purely by build time,
+// falling back to ingestion time.
+func sortCandidates(candidates []changelogCandidate, mode VersionSortMode) {
 	sort.Slice(candidates, func(i, j int) bool {
-		return candidateLess(candidates, i, j)
+		return candidateLess(candidates, i, j, mode)
 	})
 }
 
-func candidateLess(candidates []changelogCandidate, i, j int) bool {
-	vi := candidates[i].sbom.SubjectVersion.String
-	vj := candidates[j].sbom.SubjectVersion.String
-	hasVI := candidates[i].sbom.SubjectVersion.Valid && vi != ""
-	hasVJ := candidates[j].sbom.SubjectVersion.Valid && vj != ""
-
-	if hasVI && hasVJ {
-		if cmp := compareVersionStrings(vi, vj); cmp != 0 {
-			return cmp < 0
+func candidateLess(candidates []changelogCandidate, i, j int, mode VersionSortMode) bool {
+	if mode == SortSemver {
+		vi := candidates[i].sbom.SubjectVersion.String
+		vj := candidates[j].sbom.SubjectVersion.String
+		hasVI := candidates[i].sbom.SubjectVersion.Valid && vi != ""
+		hasVJ := candidates[j].sbom.SubjectVersion.Valid && vj != ""
+		if hasVI && hasVJ {
+			if cmp := compareSemver(vi, vj); cmp != 0 {
+				return cmp < 0
+			}
 		}
 	}
 
@@ -667,44 +708,6 @@ func dfsChangeCounts(nodeID string, idToChildren map[string][]string, changesByN
 		counts.Modified += sub.Modified
 	}
 	return counts
-}
-
-// compareVersionStrings compares two version strings numerically.
-// Segments are split on "." and "-" and compared as integers when possible,
-// lexicographically otherwise. Returns -1, 0, or +1.
-func compareVersionStrings(a, b string) int {
-	splitVersion := func(s string) []string {
-		return strings.FieldsFunc(strings.ReplaceAll(s, "-", "."), func(r rune) bool {
-			return r == '.'
-		})
-	}
-	pa, pb := splitVersion(a), splitVersion(b)
-	for i := 0; i < len(pa) && i < len(pb); i++ {
-		ia, aerr := strconv.Atoi(pa[i])
-		ib, berr := strconv.Atoi(pb[i])
-		if aerr == nil && berr == nil {
-			if ia != ib {
-				if ia < ib {
-					return -1
-				}
-				return 1
-			}
-		} else {
-			if pa[i] != pb[i] {
-				if pa[i] < pb[i] {
-					return -1
-				}
-				return 1
-			}
-		}
-	}
-	if len(pa) != len(pb) {
-		if len(pa) < len(pb) {
-			return -1
-		}
-		return 1
-	}
-	return 0
 }
 
 // debCharOrd returns the deb-policy ordering value for a byte (zero byte = end of string).
