@@ -1,7 +1,7 @@
-import { GitPipeline, TektonicProject, TRIGGER_EVENTS, gated } from "@pfenerty/tektonic";
+import { GitPipeline, TektonicProject, TRIGGER_EVENTS, gated, or } from "@pfenerty/tektonic";
 
 import { goCacheWs, nodeCacheWs } from "./shared";
-import { goChanged, detectTasks } from "./changes";
+import { goChanged, nodeChanged, detectTasks } from "./changes";
 import { goFmt } from "./jobs/go-fmt/spec";
 import { goBuild } from "./jobs/go-build/spec";
 import { goTest } from "./jobs/go-test/spec";
@@ -64,11 +64,12 @@ const prPipeline = new GitPipeline({
     gated(openapiCheck, { when: goChanged }),
     gated(goSecurity, { when: goChanged }),
     gated(goVulncheck, { when: goChanged }),
-    // web-security + secrets + semgrep run unconditionally: cheap, multi-language, and not
-    // dependencies of any other task, so they dodge the frontend-lint gating coupling.
-    webSecurity,
+    // web-security is a leaf → gate on the frontend bucket. semgrep is multi-language SAST →
+    // run when Go OR frontend code changed (skips docs/CI-only PRs). secrets-scan stays
+    // ungated: secrets can land in any file, and it's cheap.
+    gated(webSecurity, { when: nodeChanged }),
+    gated(semgrep, { when: or(goChanged, nodeChanged) }),
     secretsScan,
-    semgrep,
   ],
 });
 

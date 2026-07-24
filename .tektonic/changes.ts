@@ -25,9 +25,17 @@ export const goChanged = onChanges({
   paths: ["**/*.go", "go.mod", "go.sum", "docker/**", "db/**"],
 });
 
+// Frontend bucket: everything under web/ (SolidJS/TS source + package-lock.json). Gates
+// the leaf web-security scan; frontend-lint stays ungated because it's a hard `needs`
+// dependency of openapi-check (same coupling that keeps go-build ungated — see below).
+export const nodeChanged = onChanges({
+  name: "detect-node",
+  paths: ["web/**"],
+});
+
 // The detection task backing the condition above. `gated()` overrides only the
 // emitted pipeline-task `when` and does not auto-wire the producing task into the
 // pipeline, so it must be listed explicitly on the PR pipeline. Tekton orders
 // consumers after it automatically via the `$(tasks.detect-go.results.changed)`
 // result reference in the `when` clauses.
-export const detectTasks = [...goChanged.sources()];
+export const detectTasks = [...goChanged.sources(), ...nodeChanged.sources()];
