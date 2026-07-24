@@ -22,10 +22,14 @@ if [ "$EVENT" = "pull_request" ] && [ -n "$TARGET" ]; then
   fi
 fi
 
+# --sarif-output writes SARIF for the Security-tab upload alongside the normal run; --error
+# still drives the report-only GitHub check. A non-existent baseline scan produces no SARIF,
+# so upload-sarif skips gracefully.
 semgrep scan --error --disable-version-check --metrics off \
   --jobs 1 --max-memory 2048 \
   --config p/golang \
   --config p/typescript \
   --config p/secrets \
+  --sarif-output=semgrep.sarif \
   $BASELINE \
   .

@@ -1,12 +1,17 @@
 import {
+  Param,
   Workspace,
   GitHubStatusReporter,
   TaskVolumeSpec,
+  TaskStepSpec,
 } from "@pfenerty/tektonic";
 
 // --- Images ─────────────────────────────────────────────────────────────────
 export const goImage = "ghcr.io/pfenerty/apko-cicd/golang:1.26";
 export const nodeImage = "ghcr.io/pfenerty/apko-cicd/nodejs:24";
+export const baseImage = "ghcr.io/pfenerty/apko-cicd/base:stable";
+// Go-version-matched govulncheck image; bump the -goX.Y suffix in lockstep with goImage.
+export const govulncheckImage = "ghcr.io/pfenerty/apko-cicd/govulncheck:1.6.0-go1.26";
 
 // ─── Status reporter ─────────────────────────────────────────────────────────
 export const statusReporter = new GitHubStatusReporter({
@@ -91,3 +96,59 @@ export const dockerConfigVolume: TaskVolumeSpec = {
   name: "docker-config",
   secret: { secretName: "ghcr-docker-config" },
 };
+
+// ─── SARIF → GitHub Security tab ──────────────────────────────────────────────
+// Declare this Param on any task that uses `uploadSarifStep` so the git ref is
+// available for the code-scanning upload. tektonic wires it from the pipeline's
+// `source-branch` ({{ source_branch }}); `repo-full-name` + `revision` come for free
+// on any task with a statusReporter.
+export const sourceBranchParam = new Param({ name: "source-branch", type: "string" });
+
+// Best-effort SARIF upload to GitHub code-scanning (Security tab). Add as a trailing
+// step on a report-only security task; it ALWAYS exits 0 so a failed/again-throttled
+// upload never flips the task's own scan verdict. `category` keeps each tool's findings
+// separate in the Security tab. Requires the `github-pipeline-token` secret to carry the
+// `security-events: write` scope (in addition to repo:status used by the reporter).
+export function uploadSarifStep(sarifPath: string, category: string): TaskStepSpec {
+  return {
+    name: `upload-sarif-${category}`,
+    image: baseImage,
+    env: [
+      {
+        name: "GITHUB_TOKEN",
+        valueFrom: { secretKeyRef: { name: "github-pipeline-token", key: "token" } },
+      },
+    ],
+    onError: "continue",
+    // Uses `print` (a builtin) rather than the injected `log` helper, and exits 0 so this
+    // step never raises the task's accumulated exit code (the scan step's verdict stands).
+    script: `#!/usr/bin/env nu
+print "upload-sarif [${category}]: start"
+
+if not ("${sarifPath}" | path exists) or (ls "${sarifPath}" | get size.0) == 0B {
+  print "upload-sarif [${category}]: no sarif produced, skipping"
+  exit 0
+}
+
+# code-scanning wants a full ref; PAC's source-branch is the short name on push, a ref on tag.
+let ref_raw = "$(params.source-branch)"
+let ref = if ($ref_raw | str starts-with "refs/") { $ref_raw } else { $"refs/heads/($ref_raw)" }
+print $"upload-sarif [${category}]: ref=($ref)"
+
+let sarif_b64 = (open --raw "${sarifPath}" | ^gzip -c | encode base64)
+let url = "https://api.github.com/repos/$(params.repo-full-name)/code-scanning/sarifs"
+let body = { commit_sha: "$(params.revision)", ref: $ref, sarif: $sarif_b64, category: "${category}" }
+
+try {
+  http post $url $body -t application/json -H [
+    Authorization $"token ($env.GITHUB_TOKEN)"
+    Accept "application/vnd.github+json"
+    X-GitHub-Api-Version "2022-11-28"
+  ]
+  print "upload-sarif [${category}]: uploaded"
+} catch { |e| print $"upload-sarif [${category}]: upload failed (non-fatal): ($e.msg)" }
+
+# Never affect the task's scan verdict.
+exit 0`,
+  };
+}

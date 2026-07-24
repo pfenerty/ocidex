@@ -1,21 +1,43 @@
 import * as path from "path";
 import { Task, scriptFromFile } from "@pfenerty/tektonic";
-import { reportOnlyStatusReporter } from "../../shared";
+import {
+  goImage,
+  goEnv,
+  goCache,
+  reportOnlyStatusReporter,
+  sourceBranchParam,
+  uploadSarifStep,
+} from "../../shared";
 
-// Go dependency vulnerability scan: syft catalogs the module graph straight from
-// go.sum (no Go toolchain, no network — unlike the old `go run govulncheck@latest`,
-// which downloaded+compiled the tool on every run), then grype scans that SBOM
-// against known-vuln databases. gosec was dropped: it has no Wolfi apk package, and
-// semgrep's `--config p/golang` ruleset (jobs/semgrep) already covers the same SAST
-// categories (hardcoded creds, injection, weak crypto) with real but redundant
-// overlap. Report-only: with statusReporter set, tektonic auto-injects
-// `onError: continue` on every step so the reporter step always runs and posts the
-// worst exit code across both steps as this task's GitHub check — the
-// PipelineRun stays green either way.
+// Go dependency vulnerability scan. IMPORTANT: we catalog the *built binaries*, not
+// go.sum. `syft dir:. --select-catalogers go` reads go.sum — the accumulated hash set
+// for every module version ever seen during graph resolution — so grype then flags CVEs
+// against dozens of phantom versions that aren't in the binary (e.g. 76 versions of
+// golang.org/x/sys when the build selects exactly one). Building `./cmd/...` and letting
+// syft's go-binary cataloger read the linker-embedded versions gives one version per
+// module — the set we actually ship. govulncheck (jobs/go-vulncheck) adds reachability on
+// top; this task is the broad SBOM/SARIF sweep. Report-only: the reporter posts the worst
+// exit code as this task's GitHub check while the PipelineRun stays green.
 export const goSecurity = new Task({
   name: "go-security",
+  params: [sourceBranchParam],
   statusReporter: reportOnlyStatusReporter,
+  caches: [goCache],
+  stepTemplate: {
+    env: goEnv,
+  },
   steps: [
+    {
+      // Compile every command into .sbom-bins/ so syft catalogs the real linked module
+      // set. Reuses the go module/build cache warmed by go-build.
+      name: "build-bins",
+      image: goImage,
+      computeResources: {
+        limits: { cpu: "2", memory: "2Gi", "ephemeral-storage": "4Gi" },
+        requests: { cpu: "500m", memory: "1Gi", "ephemeral-storage": "2Gi" },
+      },
+      script: scriptFromFile(path.join(__dirname, "build.nu")),
+    },
     {
       name: "sbom",
       image: "ghcr.io/pfenerty/apko-cicd/syft:1.45.1",
@@ -34,5 +56,6 @@ export const goSecurity = new Task({
       },
       script: scriptFromFile(path.join(__dirname, "scan.sh")),
     },
+    uploadSarifStep("grype-go.sarif", "grype-go"),
   ],
 });

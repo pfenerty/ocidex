@@ -1,13 +1,14 @@
 import * as path from "path";
 import { Task, scriptFromFile } from "@pfenerty/tektonic";
-import { reportOnlyStatusReporter } from "../../shared";
+import { reportOnlyStatusReporter, sourceBranchParam, uploadSarifStep } from "../../shared";
 
 // Multi-language SAST with Semgrep (Go + TypeScript frontend + generic secrets
 // rulesets). Report-only: `onError: continue` keeps the PipelineRun green while the
-// reportOnlyStatusReporter posts findings as this task's own GitHub check. Docker
-// Hub image.
+// reportOnlyStatusReporter posts findings as this task's own GitHub check. The scan also
+// writes SARIF that upload-sarif publishes to the GitHub Security tab. Docker Hub image.
 export const semgrep = new Task({
   name: "semgrep",
+  params: [sourceBranchParam],
   statusReporter: reportOnlyStatusReporter,
   steps: [
     {
@@ -25,5 +26,6 @@ export const semgrep = new Task({
       script: scriptFromFile(path.join(__dirname, "scan.sh")),
       onError: "continue",
     },
+    uploadSarifStep("semgrep.sarif", "semgrep"),
   ],
 });

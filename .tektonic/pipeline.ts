@@ -8,6 +8,8 @@ import { goTest } from "./jobs/go-test/spec";
 import { frontendLint } from "./jobs/frontend-lint/spec";
 import { openapiCheck } from "./jobs/openapi-check/spec";
 import { goSecurity } from "./jobs/go-security/spec";
+import { goVulncheck } from "./jobs/go-vulncheck/spec";
+import { webSecurity } from "./jobs/web-security/spec";
 import { secretsScan } from "./jobs/secrets-scan/spec";
 import { semgrep } from "./jobs/semgrep/spec";
 import { imageBuilds, imageBuildsTag } from "./jobs/image-build/spec";
@@ -19,7 +21,9 @@ import { ghRelease } from "./jobs/gh-release/spec";
 // Core build/verify tasks + the always-on security scans. Run ungated on push so
 // the publish path (main) always rebuilds and re-scans.
 const coreTasks = [goFmt, goTest, goBuild, openapiCheck, frontendLint];
-const securityTasks = [goSecurity, secretsScan, semgrep];
+// go-security = broad SBOM/SARIF sweep (built-binary catalog); go-vulncheck = reachability
+// gate; web-security = frontend npm deps; semgrep = SAST; secrets-scan = gitleaks.
+const securityTasks = [goSecurity, goVulncheck, webSecurity, secretsScan, semgrep];
 
 // ─── Pipelines ────────────────────────────────────────────────────────────────
 const pushPipeline = new GitPipeline({
@@ -59,6 +63,10 @@ const prPipeline = new GitPipeline({
     gated(goTest, { when: goChanged }),
     gated(openapiCheck, { when: goChanged }),
     gated(goSecurity, { when: goChanged }),
+    gated(goVulncheck, { when: goChanged }),
+    // web-security + secrets + semgrep run unconditionally: cheap, multi-language, and not
+    // dependencies of any other task, so they dodge the frontend-lint gating coupling.
+    webSecurity,
     secretsScan,
     semgrep,
   ],

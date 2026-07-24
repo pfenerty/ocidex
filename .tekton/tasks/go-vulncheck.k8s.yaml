@@ -1,12 +1,10 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: ocidex-go-security
+  name: ocidex-go-vulncheck
   namespace: ocidex-ci
 spec:
   params:
-    - name: source-branch
-      type: string
     - name: repo-full-name
       type: string
     - name: revision
@@ -72,120 +70,27 @@ spec:
           cpu: 500m
           ephemeral-storage: 2Gi
           memory: 1Gi
-      image: ghcr.io/pfenerty/apko-cicd/golang:1.26
-      name: build-bins
+      image: ghcr.io/pfenerty/apko-cicd/govulncheck:1.6.0-go1.26
+      name: govulncheck
       onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         def main [] {
-        # Build every command binary so syft catalogs the ACTUAL linked module set (one version
-        # per module) instead of go.sum's full historical version graph — see spec.ts.
+        # Reachability-aware Go vuln scan against the MVS-selected module versions — see spec.ts.
+        # Non-zero exit = at least one vuln is reachable from ocidex's code; the report-only
+        # reporter surfaces that as this task's GitHub check.
         log $"pwd=(pwd) uid=(id -u) go=(go version)"
         ^git config --global --add safe.directory (pwd)
-        rm -rf .sbom-bins
-        mkdir .sbom-bins
-        log "Building ./cmd/... into .sbom-bins/"
-        ^go build -o .sbom-bins/ ./cmd/...
-        log $"built: (ls .sbom-bins | get name | path basename | str join ', ')"
+        log "Running govulncheck ./..."
+        ^govulncheck ./...
+        log "OK: no reachable vulnerabilities"
         }
         let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
         let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
         let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
         $"($__tek_worst)" | save -f /tekton/home/.exit-code
         exit $__tek_rc
-    - computeResources:
-        limits:
-          cpu: "1"
-          memory: 512Mi
-        requests:
-          cpu: 200m
-          memory: 256Mi
-      image: ghcr.io/pfenerty/apko-cicd/syft:1.45.1
-      name: sbom
-      onError: continue
-      script: |-
-        #!/bin/sh
-        log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
-        (
-        # Catalog the built binaries: syft's go-binary cataloger reads the exact module versions
-        # the Go linker embedded — one per module. .sbom-bins/ holds no go.mod/go.sum, so the go
-        # *file* cataloger finds nothing and the phantom-version flood from go.sum is eliminated.
-        set -eu
-
-        echo "── syft: cataloging built Go binaries (.sbom-bins) ─────────────"
-        syft dir:.sbom-bins --select-catalogers go -o json --file sbom.json
-        )
-        __tek_rc=$?
-        __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
-        if [ "$__tek_rc" -gt "$__tek_prev" ]; then __tek_prev="$__tek_rc"; fi
-        printf '%s' "$__tek_prev" > /tekton/home/.exit-code
-        exit "$__tek_rc"
-    - computeResources:
-        limits:
-          cpu: "1"
-          memory: 512Mi
-        requests:
-          cpu: 200m
-          memory: 256Mi
-      image: ghcr.io/pfenerty/apko-cicd/grype:0.114.0
-      name: scan
-      onError: continue
-      script: |-
-        #!/bin/sh
-        log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
-        (
-        # grype exits non-zero on any low+ severity match against the binary-derived SBOM —
-        # reported as this task's GitHub check (see spec.ts). Also emit SARIF for upload to the
-        # GitHub Security tab (uploadSarifStep). Both -o outputs come from one scan.
-        set -u
-
-        echo "── grype: scanning SBOM for known vulnerabilities ──────────────"
-        grype sbom:sbom.json --fail-on low -o table -o sarif=grype-go.sarif
-        )
-        __tek_rc=$?
-        __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
-        if [ "$__tek_rc" -gt "$__tek_prev" ]; then __tek_prev="$__tek_rc"; fi
-        printf '%s' "$__tek_prev" > /tekton/home/.exit-code
-        exit "$__tek_rc"
-    - env:
-        - name: GITHUB_TOKEN
-          valueFrom:
-            secretKeyRef:
-              key: token
-              name: github-pipeline-token
-      image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: upload-sarif-grype-go
-      onError: continue
-      script: |-
-        #!/usr/bin/env nu
-        print "upload-sarif [grype-go]: start"
-
-        if not ("grype-go.sarif" | path exists) or (ls "grype-go.sarif" | get size.0) == 0B {
-          print "upload-sarif [grype-go]: no sarif produced, skipping"
-          exit 0
-        }
-
-        # code-scanning wants a full ref; PAC's source-branch is the short name on push, a ref on tag.
-        let ref_raw = "$(params.source-branch)"
-        let ref = if ($ref_raw | str starts-with "refs/") { $ref_raw } else { $"refs/heads/($ref_raw)" }
-        print $"upload-sarif [grype-go]: ref=($ref)"
-
-        let sarif_b64 = (open --raw "grype-go.sarif" | ^gzip -c | encode base64)
-        let url = "https://api.github.com/repos/$(params.repo-full-name)/code-scanning/sarifs"
-        let body = { commit_sha: "$(params.revision)", ref: $ref, sarif: $sarif_b64, category: "grype-go" }
-
-        try {
-          http post $url $body -t application/json -H [
-            Authorization $"token ($env.GITHUB_TOKEN)"
-            Accept "application/vnd.github+json"
-            X-GitHub-Api-Version "2022-11-28"
-          ]
-          print "upload-sarif [grype-go]: uploaded"
-        } catch { |e| print $"upload-sarif [grype-go]: upload failed (non-fatal): ($e.msg)" }
-
-        # Never affect the task's scan verdict.
-        exit 0
     - image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: save-go-cache-cache
       onError: continue
@@ -247,22 +152,22 @@ spec:
         let state = if $exit_code == 0 { "success" } else { "failure" }
         let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
 
-        log $"report-status [go-security]: exit-code=($exit_code) state=($state)"
+        log $"report-status [go-vulncheck]: exit-code=($exit_code) state=($state)"
 
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: $state, context: "go-security", description: $desc }
+        let body = { state: $state, context: "go-vulncheck", description: $desc }
 
-        log $"report-status [go-security]: POST ($url)"
-        log $"report-status [go-security]: body: ($body | to json -r)"
+        log $"report-status [go-vulncheck]: POST ($url)"
+        log $"report-status [go-vulncheck]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "report-status [go-security]: done"
+          log "report-status [go-vulncheck]: done"
         } catch { |e|
-          log $"report-status [go-security]: error: ($e.msg)"
+          log $"report-status [go-vulncheck]: error: ($e.msg)"
         }
   workspaces:
     - name: go-cache

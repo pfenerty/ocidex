@@ -17,6 +17,13 @@
       "matchManagers": ["npm"],
       "groupName": "npm dependencies",
       "automerge": true
+    },
+    {
+      "description": "Track @pfenerty/tektonic via its git tags (pinned as github:pfenerty/tektonic#vX.Y.Z in .tektonic/package.json). github-tags datasource; keep minor/patch automerge, hold majors for manual review + re-synth.",
+      "matchPackageNames": ["@pfenerty/tektonic"],
+      "groupName": "tektonic",
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
     }
   ],
   "customManagers": [
