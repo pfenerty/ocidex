@@ -135,9 +135,12 @@ export function useArtifactSBOMs(
 // useArtifactVersions — GET /api/v1/artifacts/{id}/versions
 // ---------------------------------------------------------------------------
 
+export type VersionSortMode = "semver" | "all";
+
 export interface UseArtifactVersionsParams {
     limit?: number;
     offset?: number;
+    mode?: VersionSortMode;
 }
 
 export function useArtifactVersions(
@@ -148,13 +151,13 @@ export function useArtifactVersions(
     return createQuery(() => {
         const p = params();
         return {
-            queryKey: ["artifact", id(), "versions", p.limit, p.offset] as const,
+            queryKey: ["artifact", id(), "versions", p.limit, p.offset, p.mode] as const,
             queryFn: () =>
                 unwrap(
                     client.GET("/api/v1/artifacts/{id}/versions", {
                         params: {
                             path: { id: id() },
-                            query: { limit: p.limit, offset: p.offset },
+                            query: { limit: p.limit, offset: p.offset, mode: p.mode },
                         },
                     }),
                 ),
@@ -175,13 +178,15 @@ export function useArtifactChangelog(
         enabled?: Accessor<boolean>;
         arch?: Accessor<string | undefined>;
         flavor?: Accessor<string | undefined>;
+        mode?: Accessor<VersionSortMode | undefined>;
     },
 ) {
     return createQuery(() => ({
-        queryKey: ["artifact", id(), "changelog", options?.arch?.(), options?.flavor?.()] as const,
+        queryKey: ["artifact", id(), "changelog", options?.arch?.(), options?.flavor?.(), options?.mode?.()] as const,
         queryFn: () => {
             const arch = options?.arch?.();
             const flavor = options?.flavor?.();
+            const mode = options?.mode?.();
             return unwrap(
                 client.GET("/api/v1/artifacts/{id}/changelog", {
                     params: {
@@ -189,6 +194,7 @@ export function useArtifactChangelog(
                         query: {
                             arch: arch !== "" ? arch : undefined,
                             flavor: flavor !== "" ? flavor : undefined,
+                            mode,
                         },
                     },
                 }),

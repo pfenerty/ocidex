@@ -89,7 +89,7 @@ func (f *fakeSearchService) ListSBOMsByArtifact(_ context.Context, _ pgtype.UUID
 	}, nil
 }
 
-func (f *fakeSearchService) GetArtifactChangelog(_ context.Context, _ pgtype.UUID, _, _, _ string, _ service.VisibilityFilter) (service.Changelog, error) {
+func (f *fakeSearchService) GetArtifactChangelog(_ context.Context, _ pgtype.UUID, _, _, _ string, _ service.VersionSortMode, _ service.VisibilityFilter) (service.Changelog, error) {
 	return service.Changelog{
 		ArtifactID: "art1",
 		Entries:    []service.ChangelogEntry{},
@@ -175,12 +175,16 @@ func (f *fakeSearchService) GetDashboardStats(_ context.Context, _ service.Visib
 	return &service.DashboardStats{}, nil
 }
 
-func (f *fakeSearchService) ListVersionsByArtifact(_ context.Context, _ pgtype.UUID, limit, offset int32, _ service.VisibilityFilter) (service.PagedResult[service.ArtifactVersion], error) {
-	return service.PagedResult[service.ArtifactVersion]{
-		Data:   []service.ArtifactVersion{{VersionKey: "v1.0.0", SbomID: "sbom1", Architectures: []string{"amd64"}}},
-		Total:  1,
-		Limit:  limit,
-		Offset: offset,
+func (f *fakeSearchService) ListVersionsByArtifact(_ context.Context, _ pgtype.UUID, limit, offset int32, _ service.VersionSortMode, _ service.VisibilityFilter) (service.ArtifactVersionsPage, error) {
+	return service.ArtifactVersionsPage{
+		PagedResult: service.PagedResult[service.ArtifactVersion]{
+			Data:   []service.ArtifactVersion{{VersionKey: "v1.0.0", SbomID: "sbom1", Architectures: []string{"amd64"}}},
+			Total:  1,
+			Limit:  limit,
+			Offset: offset,
+		},
+		HasSemver:    true,
+		ResolvedMode: service.SortSemver,
 	}, nil
 }
 
