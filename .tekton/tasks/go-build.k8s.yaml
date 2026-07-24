@@ -77,13 +77,9 @@ spec:
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         def main [] {
-        log $"pwd=(pwd) uid=(id -u) go=(go version)"
-        log $"GOMODCACHE=($env.GOMODCACHE) GOCACHE=($env.GOCACHE)"
-        log $".git exists=('.git' | path exists) go-mod exists=('go-mod' | path exists)"
+        log $"go=(go version) uid=(id -u) pwd=(pwd)"
         ^git config --global --add safe.directory (pwd)
-        log $"git rev-parse HEAD: (^git rev-parse --short HEAD)"
-        log "Building ocidex binaries"
-        for cmd in ["./cmd/ocidex", "./cmd/scanner-worker", "./cmd/enrichment-worker"] {
+        for cmd in ["./cmd/ocidex" "./cmd/scanner-worker" "./cmd/enrichment-worker"] {
           log $"Building ($cmd)"
           ^go build -o /dev/null $cmd
         }

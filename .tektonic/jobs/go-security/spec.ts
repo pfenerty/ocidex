@@ -1,5 +1,6 @@
 import { nu, TaskStepSpec } from "@pfenerty/tektonic";
 import { goImage, goEnv, goCache } from "../../shared";
+import { goSetup } from "../../script-lib";
 import { depScanTask } from "../_dep-scan";
 
 // Compile every command into .sbom-bins/ so syft's go-binary cataloger reads the exact
@@ -15,13 +16,12 @@ const buildBins: TaskStepSpec = {
     requests: { cpu: "500m", memory: "1Gi", "ephemeral-storage": "2Gi" },
   },
   script: nu`
-    print $"go=(go version) uid=(id -u)"
-    ^git config --global --add safe.directory (pwd)
-    rm -rf .sbom-bins
-    mkdir .sbom-bins
-    print "building ./cmd/... into .sbom-bins/"
-    ^go build -o .sbom-bins/ ./cmd/...
-  `,
+${goSetup}
+rm -rf .sbom-bins
+mkdir .sbom-bins
+log "building ./cmd/... into .sbom-bins/"
+^go build -o .sbom-bins/ ./cmd/...
+`,
 };
 
 export const goSecurity = depScanTask({

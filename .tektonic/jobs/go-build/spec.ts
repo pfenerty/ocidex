@@ -1,7 +1,10 @@
-import * as path from "path";
-import { Task, scriptFromFile } from "@pfenerty/tektonic";
+import { Task, nu } from "@pfenerty/tektonic";
 import { goImage, goCache, goEnv, statusReporter } from "../../shared";
+import { goSetup } from "../../script-lib";
 
+// Compile-check the representative binaries (each pulls in the shared internal/ packages, so
+// this covers most of the build graph) and warm the go module/build cache for downstream go
+// tasks. Builds to /dev/null — no artifact needed.
 export const goBuild = new Task({
   name: "go-build",
   caches: [goCache],
@@ -21,7 +24,14 @@ export const goBuild = new Task({
           "ephemeral-storage": "2Gi",
         },
       },
-      script: scriptFromFile(path.join(__dirname, "build.nu")),
+      script: nu`
+${goSetup}
+for cmd in ["./cmd/ocidex" "./cmd/scanner-worker" "./cmd/enrichment-worker"] {
+  log $"Building ($cmd)"
+  ^go build -o /dev/null $cmd
+}
+log "OK: all binaries built"
+`,
       onError: "continue",
     },
   ],

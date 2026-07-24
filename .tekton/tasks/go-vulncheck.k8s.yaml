@@ -77,10 +77,7 @@ spec:
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         def main [] {
-        # Reachability-aware Go vuln scan against the MVS-selected module versions — see spec.ts.
-        # Non-zero exit = at least one vuln is reachable from ocidex's code; the report-only
-        # reporter surfaces that as this task's GitHub check.
-        log $"pwd=(pwd) uid=(id -u) go=(go version)"
+        log $"go=(go version) uid=(id -u) pwd=(pwd)"
         ^git config --global --add safe.directory (pwd)
         log "Running govulncheck ./..."
         ^govulncheck ./...

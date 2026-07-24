@@ -79,11 +79,11 @@ spec:
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         def main [] {
-        print $"go=(go version) uid=(id -u)"
+        log $"go=(go version) uid=(id -u) pwd=(pwd)"
         ^git config --global --add safe.directory (pwd)
         rm -rf .sbom-bins
         mkdir .sbom-bins
-        print "building ./cmd/... into .sbom-bins/"
+        log "building ./cmd/... into .sbom-bins/"
         ^go build -o .sbom-bins/ ./cmd/...
         }
         let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
