@@ -15,6 +15,10 @@ export const govulncheckImage = "ghcr.io/pfenerty/apko-cicd/govulncheck:1.6.0-go
 // SBOM + vuln scanners shared by the dependency-audit tasks (see jobs/_dep-scan.ts).
 export const syftImage = "ghcr.io/pfenerty/apko-cicd/syft:1.45.1";
 export const grypeImage = "ghcr.io/pfenerty/apko-cicd/grype:0.114.0";
+// SAST + secrets scanners — first-party apko-cicd images (on base, so nushell + git are
+// present), replacing Docker Hub semgrep/semgrep and zricethezav/gitleaks.
+export const semgrepImage = "ghcr.io/pfenerty/apko-cicd/semgrep:1.165.0";
+export const gitleaksImage = "ghcr.io/pfenerty/apko-cicd/gitleaks:8.30.1";
 
 // ─── Status reporter ─────────────────────────────────────────────────────────
 export const statusReporter = new GitHubStatusReporter({

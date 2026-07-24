@@ -1,8 +1,7 @@
-// Shared script snippets for job scripts, interpolated into tektonic `nu`/`sh` templates
-// flush-left (column 0) so the tag's dedent leaves them clean. The nushell snippets assume
-// the consuming step runs one of our apko images (which ship nushell) and has a statusReporter
-// (so the injected `log` helper exists) — true for every Go/Node task. The `sh` snippet is for
-// steps on third-party images that lack nushell (semgrep, gitleaks).
+// Shared nushell snippets for job scripts, interpolated into tektonic `nu` templates
+// flush-left (column 0) so the tag's dedent leaves them clean. They assume the consuming step
+// runs one of our apko images (which all ship nushell — including the semgrep/gitleaks images
+// now) and has a statusReporter (so the injected `log` helper exists) — true for every task.
 
 // Mark the root-owned checkout (local-path PV) safe for git — steps run as uid 1024, which
 // has no /etc/passwd entry, so git otherwise refuses with "dubious ownership".
@@ -32,16 +31,3 @@ if $pac_event == "pull_request" and ($pac_target | is-not-empty) {
   let fetched = (do { ^git -c safe.directory='*' fetch --quiet origin $pac_target } | complete)
   if $fetched.exit_code == 0 { $scoped = true }
 }`;
-
-// sh variant of the PAC diff-baseline, for the report-only security scans whose images lack
-// nushell (semgrep, gitleaks). Marks the tree safe for git (the tools shell out to git in
-// subdirs) and, on a PR with a known base, fetches it. Sets BASELINE_REF=FETCH_HEAD when a
-// diff baseline is available, empty otherwise (full scan on push / unknown / fetch failure).
-// The \${...} are escaped so they render as literal sh, not TS interpolation.
-export const pacBaselineSh = `git config --global --add safe.directory '*'
-BASELINE_REF=""
-if [ "\${PAC_EVENT_TYPE:-}" = "pull_request" ] && [ -n "\${PAC_TARGET_BRANCH:-}" ]; then
-  if git -c safe.directory='*' fetch --quiet origin "\${PAC_TARGET_BRANCH}"; then
-    BASELINE_REF="FETCH_HEAD"
-  fi
-fi`;

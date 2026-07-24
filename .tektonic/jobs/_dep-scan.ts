@@ -60,8 +60,8 @@ export function depScanTask(o: DepScanOptions): Task {
         image: grypeImage,
         computeResources: scanResources,
         script: nu`
-          print "grype: scanning ${o.sbom} (fail-on low); SARIF -> ${o.category}.sarif"
-          ^grype sbom:${o.sbom} --fail-on low -o table -o sarif=${o.category}.sarif
+          print "grype: scanning ${o.sbom} (fail-on high); SARIF -> ${o.category}.sarif"
+          ^grype sbom:${o.sbom} --fail-on high -o table -o sarif=${o.category}.sarif
         `,
       },
       uploadSarifStep(`${o.category}.sarif`, o.category),

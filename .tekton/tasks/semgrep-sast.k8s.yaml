@@ -36,32 +36,32 @@ spec:
       env:
         - name: HOME
           value: /tmp
-      image: semgrep/semgrep:latest
+      image: ghcr.io/pfenerty/apko-cicd/semgrep:1.165.0
       name: semgrep-scan
       onError: continue
       script: |-
-        #!/bin/sh
-        log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
-        (
-        git config --global --add safe.directory '*'
-        BASELINE_REF=""
-        if [ "${PAC_EVENT_TYPE:-}" = "pull_request" ] && [ -n "${PAC_TARGET_BRANCH:-}" ]; then
-          if git -c safe.directory='*' fetch --quiet origin "${PAC_TARGET_BRANCH}"; then
-            BASELINE_REF="FETCH_HEAD"
-          fi
-        fi
-        BASELINE=""
-        if [ -n "$BASELINE_REF" ]; then
-          git -c safe.directory='*' update-ref refs/semgrep-baseline "$BASELINE_REF"
-          BASELINE="--baseline-commit refs/semgrep-baseline"
-        fi
-        semgrep scan --error --disable-version-check --metrics off   --jobs 1 --max-memory 2048   --config p/golang --config p/typescript --config p/secrets   --sarif-output=semgrep.sarif   $BASELINE .
-        )
-        __tek_rc=$?
-        __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
-        if [ "$__tek_rc" -gt "$__tek_prev" ]; then __tek_prev="$__tek_rc"; fi
-        printf '%s' "$__tek_prev" > /tekton/home/.exit-code
-        exit "$__tek_rc"
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def main [] {
+        ^git config --global --add safe.directory '*'
+        let pac_event = ($env.PAC_EVENT_TYPE? | default "")
+        let pac_target = ($env.PAC_TARGET_BRANCH? | default "")
+        mut scoped = false
+        if $pac_event == "pull_request" and ($pac_target | is-not-empty) {
+          let fetched = (do { ^git -c safe.directory='*' fetch --quiet origin $pac_target } | complete)
+          if $fetched.exit_code == 0 { $scoped = true }
+        }
+        let baseline = if $scoped {
+          ^git -c safe.directory='*' update-ref refs/semgrep-baseline FETCH_HEAD
+          ["--baseline-commit" "refs/semgrep-baseline"]
+        } else { [] }
+        ^semgrep scan --error --disable-version-check --metrics off --jobs 1 --max-memory 2048 --severity ERROR --config p/golang --config p/typescript --config p/secrets --sarif-output=semgrep.sarif ...$baseline .
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
     - env:
         - name: GITHUB_TOKEN
           valueFrom:

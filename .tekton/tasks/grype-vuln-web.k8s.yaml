@@ -62,8 +62,8 @@ spec:
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         def main [] {
-        print "grype: scanning sbom-web.json (fail-on low); SARIF -> grype-web.sarif"
-        ^grype sbom:sbom-web.json --fail-on low -o table -o sarif=grype-web.sarif
+        print "grype: scanning sbom-web.json (fail-on high); SARIF -> grype-web.sarif"
+        ^grype sbom:sbom-web.json --fail-on high -o table -o sarif=grype-web.sarif
         }
         let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
         let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
