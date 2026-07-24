@@ -139,14 +139,27 @@ let sarif_b64 = (open --raw "${sarifPath}" | ^gzip -c | encode base64)
 let url = "https://api.github.com/repos/$(params.repo-full-name)/code-scanning/sarifs"
 let body = { commit_sha: "$(params.revision)", ref: $ref, sarif: $sarif_b64, category: "${category}" }
 
-try {
-  http post $url $body -t application/json -H [
+# --allow-errors + --full so a non-2xx (e.g. 403 missing security_events scope, 422 ref
+# mismatch) is captured and logged instead of thrown — the status/body tells us exactly why.
+# Wrapped in try only to survive genuine network errors. Note: interpolated strings must not
+# contain bare parentheses (nushell evaluates them), so keep log text paren-free.
+let resp = (try {
+  http post $url $body -t application/json --full --allow-errors -H [
     Authorization $"token ($env.GITHUB_TOKEN)"
     Accept "application/vnd.github+json"
     X-GitHub-Api-Version "2022-11-28"
   ]
-  print "upload-sarif [${category}]: uploaded"
-} catch { |e| print $"upload-sarif [${category}]: upload failed (non-fatal): ($e.msg)" }
+} catch { |e| print $"upload-sarif [${category}]: request error - ($e.msg)"; null })
+
+if $resp != null {
+  let status = ($resp.status? | default 0)
+  if $status >= 200 and $status < 300 {
+    print $"upload-sarif [${category}]: uploaded ok, status ($status)"
+  } else {
+    print $"upload-sarif [${category}]: upload failed, status ($status)"
+    print ($resp.body? | default "" | to text)
+  }
+}
 
 # Never affect the task's scan verdict.
 exit 0`,
