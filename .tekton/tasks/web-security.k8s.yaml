@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: ocidex-semgrep
+  name: ocidex-web-security
   namespace: ocidex-ci
 spec:
   params:
@@ -28,40 +28,48 @@ spec:
   steps:
     - computeResources:
         limits:
-          cpu: "2"
-          memory: 4Gi
+          cpu: "1"
+          memory: 512Mi
         requests:
-          cpu: 500m
-          memory: 1Gi
-      env:
-        - name: HOME
-          value: /tmp
-      image: semgrep/semgrep:latest
-      name: semgrep
+          cpu: 200m
+          memory: 256Mi
+      image: ghcr.io/pfenerty/apko-cicd/syft:1.45.1
+      name: sbom
       onError: continue
       script: |-
-        #!/bin/sh
-        log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
-        (
-        git config --global --add safe.directory '*'
-        BASELINE_REF=""
-        if [ "${PAC_EVENT_TYPE:-}" = "pull_request" ] && [ -n "${PAC_TARGET_BRANCH:-}" ]; then
-          if git -c safe.directory='*' fetch --quiet origin "${PAC_TARGET_BRANCH}"; then
-            BASELINE_REF="FETCH_HEAD"
-          fi
-        fi
-        BASELINE=""
-        if [ -n "$BASELINE_REF" ]; then
-          git -c safe.directory='*' update-ref refs/semgrep-baseline "$BASELINE_REF"
-          BASELINE="--baseline-commit refs/semgrep-baseline"
-        fi
-        semgrep scan --error --disable-version-check --metrics off   --jobs 1 --max-memory 2048   --config p/golang --config p/typescript --config p/secrets   --sarif-output=semgrep.sarif   $BASELINE .
-        )
-        __tek_rc=$?
-        __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
-        if [ "$__tek_rc" -gt "$__tek_prev" ]; then __tek_prev="$__tek_rc"; fi
-        printf '%s' "$__tek_prev" > /tekton/home/.exit-code
-        exit "$__tek_rc"
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def main [] {
+        print "syft: cataloging file:web/package-lock.json -> sbom-web.json"
+        ^syft file:web/package-lock.json -o json=sbom-web.json
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
+    - computeResources:
+        limits:
+          cpu: "1"
+          memory: 512Mi
+        requests:
+          cpu: 200m
+          memory: 256Mi
+      image: ghcr.io/pfenerty/apko-cicd/grype:0.114.0
+      name: scan
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def main [] {
+        print "grype: scanning sbom-web.json (fail-on low); SARIF -> grype-web.sarif"
+        ^grype sbom:sbom-web.json --fail-on low -o table -o sarif=grype-web.sarif
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
     - env:
         - name: GITHUB_TOKEN
           valueFrom:
@@ -69,28 +77,28 @@ spec:
               key: token
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: upload-sarif-semgrep
+      name: upload-sarif-grype-web
       onError: continue
       script: |-
         #!/usr/bin/env nu
-        print "upload-sarif [semgrep]: start"
+        print "upload-sarif [grype-web]: start"
 
-        if not ("semgrep.sarif" | path exists) or (ls "semgrep.sarif" | get size.0) == 0B {
-          print "upload-sarif [semgrep]: no sarif produced, skipping"
+        if not ("grype-web.sarif" | path exists) or (ls "grype-web.sarif" | get size.0) == 0B {
+          print "upload-sarif [grype-web]: no sarif produced, skipping"
           exit 0
         }
 
         # code-scanning wants a full ref; PAC's source-branch is the short name on push, a ref on tag.
         let ref_raw = "$(params.source-branch)"
         let ref = if ($ref_raw | str starts-with "refs/") { $ref_raw } else { $"refs/heads/($ref_raw)" }
-        print $"upload-sarif [semgrep]: ref=($ref)"
+        print $"upload-sarif [grype-web]: ref=($ref)"
 
         # GitHub has no top-level category field (passing one returns 422). The category lives
         # INSIDE the SARIF as runs[].automationDetails.id, which is also how GitHub keeps analyses
         # distinct — essential here since grype-go and grype-web share the tool name grype and
         # would otherwise overwrite each other on the same ref.
-        let sarif_json = (open --raw "semgrep.sarif" | from json)
-        let ad = { id: "semgrep/" }
+        let sarif_json = (open --raw "grype-web.sarif" | from json)
+        let ad = { id: "grype-web/" }
         let runs2 = ($sarif_json.runs | each { |r| $r | upsert automationDetails $ad })
         let sarif_b64 = ($sarif_json | upsert runs $runs2 | to json -r | ^gzip -c | encode base64)
         let url = "https://api.github.com/repos/$(params.repo-full-name)/code-scanning/sarifs"
@@ -106,14 +114,14 @@ spec:
             Accept "application/vnd.github+json"
             X-GitHub-Api-Version "2022-11-28"
           ]
-        } catch { |e| print $"upload-sarif [semgrep]: request error - ($e.msg)"; null })
+        } catch { |e| print $"upload-sarif [grype-web]: request error - ($e.msg)"; null })
 
         if $resp != null {
           let status = ($resp.status? | default 0)
           if $status >= 200 and $status < 300 {
-            print $"upload-sarif [semgrep]: uploaded ok, status ($status)"
+            print $"upload-sarif [grype-web]: uploaded ok, status ($status)"
           } else {
-            print $"upload-sarif [semgrep]: upload failed, status ($status)"
+            print $"upload-sarif [grype-web]: upload failed, status ($status)"
             print ($resp.body? | default "" | to text)
           }
         }
@@ -135,22 +143,22 @@ spec:
         let state = if $exit_code == 0 { "success" } else { "failure" }
         let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
 
-        log $"report-status [semgrep]: exit-code=($exit_code) state=($state)"
+        log $"report-status [web-security]: exit-code=($exit_code) state=($state)"
 
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: $state, context: "semgrep", description: $desc }
+        let body = { state: $state, context: "web-security", description: $desc }
 
-        log $"report-status [semgrep]: POST ($url)"
-        log $"report-status [semgrep]: body: ($body | to json -r)"
+        log $"report-status [web-security]: POST ($url)"
+        log $"report-status [web-security]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "report-status [semgrep]: done"
+          log "report-status [web-security]: done"
         } catch { |e|
-          log $"report-status [semgrep]: error: ($e.msg)"
+          log $"report-status [web-security]: error: ($e.msg)"
         }
   workspaces:
     - name: workspace

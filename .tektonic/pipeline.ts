@@ -1,13 +1,15 @@
 import { GitPipeline, TektonicProject, TRIGGER_EVENTS, gated } from "@pfenerty/tektonic";
 
 import { goCacheWs, nodeCacheWs } from "./shared";
-import { goChanged, detectTasks } from "./changes";
+import { goChanged, nodeChanged, sourceChanged, detectTasks } from "./changes";
 import { goFmt } from "./jobs/go-fmt/spec";
 import { goBuild } from "./jobs/go-build/spec";
 import { goTest } from "./jobs/go-test/spec";
 import { frontendLint } from "./jobs/frontend-lint/spec";
 import { openapiCheck } from "./jobs/openapi-check/spec";
 import { goSecurity } from "./jobs/go-security/spec";
+import { goVulncheck } from "./jobs/go-vulncheck/spec";
+import { webSecurity } from "./jobs/web-security/spec";
 import { secretsScan } from "./jobs/secrets-scan/spec";
 import { semgrep } from "./jobs/semgrep/spec";
 import { imageBuilds, imageBuildsTag } from "./jobs/image-build/spec";
@@ -19,7 +21,9 @@ import { ghRelease } from "./jobs/gh-release/spec";
 // Core build/verify tasks + the always-on security scans. Run ungated on push so
 // the publish path (main) always rebuilds and re-scans.
 const coreTasks = [goFmt, goTest, goBuild, openapiCheck, frontendLint];
-const securityTasks = [goSecurity, secretsScan, semgrep];
+// go-security = broad SBOM/SARIF sweep (built-binary catalog); go-vulncheck = reachability
+// gate; web-security = frontend npm deps; semgrep = SAST; secrets-scan = gitleaks.
+const securityTasks = [goSecurity, goVulncheck, webSecurity, secretsScan, semgrep];
 
 // ─── Pipelines ────────────────────────────────────────────────────────────────
 const pushPipeline = new GitPipeline({
@@ -59,8 +63,13 @@ const prPipeline = new GitPipeline({
     gated(goTest, { when: goChanged }),
     gated(openapiCheck, { when: goChanged }),
     gated(goSecurity, { when: goChanged }),
+    gated(goVulncheck, { when: goChanged }),
+    // web-security is a leaf → gate on the frontend bucket. semgrep is multi-language SAST →
+    // run when Go OR frontend code changed (skips docs/CI-only PRs). secrets-scan stays
+    // ungated: secrets can land in any file, and it's cheap.
+    gated(webSecurity, { when: nodeChanged }),
+    gated(semgrep, { when: sourceChanged }),
     secretsScan,
-    semgrep,
   ],
 });
 

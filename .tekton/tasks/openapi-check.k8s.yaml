@@ -42,8 +42,7 @@ spec:
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         def main [] {
-        log $"pwd=(pwd) uid=(id -u) go=(go version)"
-        log $".git exists=('.git' | path exists)"
+        log $"go=(go version) uid=(id -u) pwd=(pwd)"
         ^git config --global --add safe.directory (pwd)
         log "Generating OpenAPI spec"
         ^go run ./cmd/specgen out> /tmp/openapi-check.json
@@ -70,11 +69,9 @@ spec:
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         def main [] {
-        log $"pwd=(pwd) uid=(id -u) node=(node --version) npm=(npm --version)"
-        log $"node_modules exists=('node_modules' | path exists) package.json exists=('package.json' | path exists)"
-        log "Installing dependencies"
+        log $"node=(node --version) npm=(npm --version) uid=(id -u)"
+        log "Installing dependencies (npm ci)"
         ^npm ci
-        log $"node_modules exists after install=('node_modules' | path exists)"
         log "Generating TypeScript types from spec"
         ^npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts
         log "Diffing against committed types"

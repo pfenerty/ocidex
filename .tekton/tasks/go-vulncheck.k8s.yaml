@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: ocidex-go-build
+  name: ocidex-go-vulncheck
   namespace: ocidex-ci
 spec:
   params:
@@ -70,8 +70,8 @@ spec:
           cpu: 500m
           ephemeral-storage: 2Gi
           memory: 1Gi
-      image: ghcr.io/pfenerty/apko-cicd/golang:1.26
-      name: build
+      image: ghcr.io/pfenerty/apko-cicd/govulncheck:1.6.0-go1.26
+      name: govulncheck
       onError: continue
       script: |-
         #!/usr/bin/env nu
@@ -79,11 +79,9 @@ spec:
         def main [] {
         log $"go=(go version) uid=(id -u) pwd=(pwd)"
         ^git config --global --add safe.directory (pwd)
-        for cmd in ["./cmd/ocidex" "./cmd/scanner-worker" "./cmd/enrichment-worker"] {
-          log $"Building ($cmd)"
-          ^go build -o /dev/null $cmd
-        }
-        log "OK: all binaries built"
+        log "Running govulncheck ./..."
+        ^govulncheck ./...
+        log "OK: no reachable vulnerabilities"
         }
         let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
         let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
@@ -151,24 +149,23 @@ spec:
         let state = if $exit_code == 0 { "success" } else { "failure" }
         let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
 
-        log $"report-status [go-build]: exit-code=($exit_code) state=($state)"
+        log $"report-status [go-vulncheck]: exit-code=($exit_code) state=($state)"
 
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: $state, context: "go-build", description: $desc }
+        let body = { state: $state, context: "go-vulncheck", description: $desc }
 
-        log $"report-status [go-build]: POST ($url)"
-        log $"report-status [go-build]: body: ($body | to json -r)"
+        log $"report-status [go-vulncheck]: POST ($url)"
+        log $"report-status [go-vulncheck]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "report-status [go-build]: done"
+          log "report-status [go-vulncheck]: done"
         } catch { |e|
-          log $"report-status [go-build]: error: ($e.msg)"
+          log $"report-status [go-vulncheck]: error: ($e.msg)"
         }
-        exit $exit_code
   workspaces:
     - name: go-cache
     - name: workspace

@@ -1,6 +1,6 @@
-import * as path from "path";
-import { Task, scriptFromFile } from "@pfenerty/tektonic";
+import { Task, nu } from "@pfenerty/tektonic";
 import { nodeImage, nodeModulesCache, nodeEnv, statusReporter } from "../../shared";
+import { nodeSetup } from "../../script-lib";
 
 export const frontendLint = new Task({
   name: "frontend-lint",
@@ -18,7 +18,12 @@ export const frontendLint = new Task({
         limits: { cpu: "2", memory: "3Gi" },
         requests: { cpu: "500m", memory: "2Gi" },
       },
-      script: scriptFromFile(path.join(__dirname, "lint.nu")),
+      script: nu`
+${nodeSetup}
+log "Running ESLint"
+^npm run lint
+log "OK: no lint errors"
+`,
       onError: "continue",
     },
   ],
