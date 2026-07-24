@@ -989,6 +989,8 @@ export interface components {
             availableArchitectures: string[] | null;
             availableFlavors: string[] | null;
             entries: components["schemas"]["ChangelogEntry"][] | null;
+            hasSemver: boolean;
+            resolvedMode: string;
         };
         ChangelogEntry: {
             /**
@@ -1584,7 +1586,14 @@ export interface components {
              */
             readonly $schema?: string;
             data: components["schemas"]["ArtifactVersionSummary"][] | null;
+            /** @description Whether the artifact has any semver-parseable version */
+            hasSemver: boolean;
             pagination: components["schemas"]["PaginationMeta"];
+            /**
+             * @description Concrete sort mode applied after auto-resolution
+             * @enum {string}
+             */
+            resolvedMode: "semver" | "all";
         };
         ListArtifactsOutputBody: {
             /**
@@ -2468,6 +2477,8 @@ export interface operations {
                 arch?: string;
                 /** @description Flavor to show timeline for (e.g. standard, fips) */
                 flavor?: string;
+                /** @description Sort/filter mode: 'semver' (semver versions, semver order), 'all' (every version, build-time order). Empty auto-selects semver when available. */
+                mode?: "semver" | "all";
             };
             header?: never;
             path: {
@@ -2578,6 +2589,8 @@ export interface operations {
                 limit?: number;
                 /** @description Number of results to skip */
                 offset?: number;
+                /** @description Sort/filter mode: 'semver' (semver versions, semver order), 'all' (every version, build-time order). Empty auto-selects semver when available. */
+                mode?: "semver" | "all";
             };
             header?: never;
             path: {

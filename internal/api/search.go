@@ -378,7 +378,7 @@ func (h *Handler) ListArtifactVersions(ctx context.Context, input *ListArtifactV
 	}
 
 	vis := visibilityFilterFromContext(ctx)
-	result, err := h.searchService.ListVersionsByArtifact(ctx, id, input.Limit, input.Offset, vis)
+	result, err := h.searchService.ListVersionsByArtifact(ctx, id, input.Limit, input.Offset, service.ParseVersionSortMode(input.Mode), vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -402,7 +402,9 @@ func (h *Handler) ListArtifactVersions(ctx context.Context, input *ListArtifactV
 
 	out := &ListArtifactVersionsOutput{}
 	out.Body.Data = items
-	out.Body.Pagination = paginationMeta(result)
+	out.Body.Pagination = paginationMeta(result.PagedResult)
+	out.Body.HasSemver = result.HasSemver
+	out.Body.ResolvedMode = string(result.ResolvedMode)
 	return out, nil
 }
 
@@ -594,7 +596,7 @@ func (h *Handler) GetArtifactChangelog(ctx context.Context, input *GetArtifactCh
 	}
 
 	vis := visibilityFilterFromContext(ctx)
-	changelog, err := h.searchService.GetArtifactChangelog(ctx, id, input.SubjectVersion, input.Arch, input.Flavor, vis)
+	changelog, err := h.searchService.GetArtifactChangelog(ctx, id, input.SubjectVersion, input.Arch, input.Flavor, service.ParseVersionSortMode(input.Mode), vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

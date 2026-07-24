@@ -341,12 +341,20 @@
               "array",
               "null"
             ]
+          },
+          "hasSemver": {
+            "type": "boolean"
+          },
+          "resolvedMode": {
+            "type": "string"
           }
         },
         "required": [
           "artifactId",
           "availableArchitectures",
           "availableFlavors",
+          "hasSemver",
+          "resolvedMode",
           "entries"
         ],
         "type": "object"
@@ -2055,13 +2063,27 @@
               "null"
             ]
           },
+          "hasSemver": {
+            "description": "Whether the artifact has any semver-parseable version",
+            "type": "boolean"
+          },
           "pagination": {
             "$ref": "#/components/schemas/PaginationMeta"
+          },
+          "resolvedMode": {
+            "description": "Concrete sort mode applied after auto-resolution",
+            "enum": [
+              "semver",
+              "all"
+            ],
+            "type": "string"
           }
         },
         "required": [
           "data",
-          "pagination"
+          "pagination",
+          "hasSemver",
+          "resolvedMode"
         ],
         "type": "object"
       },
@@ -4116,6 +4138,20 @@
               "description": "Flavor to show timeline for (e.g. standard, fips)",
               "type": "string"
             }
+          },
+          {
+            "description": "Sort/filter mode: 'semver' (semver versions, semver order), 'all' (every version, build-time order). Empty auto-selects semver when available.",
+            "explode": false,
+            "in": "query",
+            "name": "mode",
+            "schema": {
+              "description": "Sort/filter mode: 'semver' (semver versions, semver order), 'all' (every version, build-time order). Empty auto-selects semver when available.",
+              "enum": [
+                "semver",
+                "all"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -4317,6 +4353,20 @@
             "schema": {
               "description": "Artifact UUID",
               "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort/filter mode: 'semver' (semver versions, semver order), 'all' (every version, build-time order). Empty auto-selects semver when available.",
+            "explode": false,
+            "in": "query",
+            "name": "mode",
+            "schema": {
+              "description": "Sort/filter mode: 'semver' (semver versions, semver order), 'all' (every version, build-time order). Empty auto-selects semver when available.",
+              "enum": [
+                "semver",
+                "all"
+              ],
               "type": "string"
             }
           }

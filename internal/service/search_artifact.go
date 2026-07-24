@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -71,64 +72,139 @@ func (s *searchService) GetArtifact(ctx context.Context, id pgtype.UUID, vis Vis
 	}, nil
 }
 
-func (s *searchService) ListVersionsByArtifact(ctx context.Context, artifactID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ArtifactVersion], error) {
+func (s *searchService) ListVersionsByArtifact(ctx context.Context, artifactID pgtype.UUID, limit, offset int32, mode VersionSortMode, vis VisibilityFilter) (ArtifactVersionsPage, error) {
 	q := repository.New(s.db)
 
+	// Semver ordering can't be expressed in SQL, so fetch every distinct version
+	// (one row each via the newest_per_version CTE) and sort/paginate in Go.
 	rows, err := q.ListArtifactVersions(ctx, repository.ListArtifactVersionsParams{
 		ArtifactID: artifactID,
 		UserID:     vis.UserID,
 		IsAdmin:    visAdminBool(vis),
-		RowLimit:   limit,
-		RowOffset:  offset,
+		RowLimit:   maxVersionsFetch,
+		RowOffset:  0,
 	})
 	if err != nil {
-		return PagedResult[ArtifactVersion]{}, fmt.Errorf("listing artifact versions: %w", err)
+		return ArtifactVersionsPage{}, fmt.Errorf("listing artifact versions: %w", err)
 	}
 
-	var total int64
-	items := make([]ArtifactVersion, 0, len(rows))
+	all := make([]ArtifactVersion, 0, len(rows))
 	for _, row := range rows {
-		total = row.TotalCount
-		v := ArtifactVersion{
-			VersionKey:    row.VersionKey.String,
-			SbomID:        uuidToString(row.NewestSbomID),
-			SBOMCount:     row.SbomCount,
-			Sufficient:    row.EnrichmentSufficient,
-			CreatedAt:     row.CreatedAt.Time,
-			SigningStatus: row.SigningStatus,
-		}
-		if row.BuildDate.Valid {
-			t := row.BuildDate.Time
-			v.BuildDate = &t
-		}
-		if s, ok := row.ImageVersion.(string); ok && s != "" {
-			v.ImageVersion = &s
-		}
-		if s, ok := row.Revision.(string); ok && s != "" {
-			v.Revision = &s
-		}
-		if s, ok := row.SourceUrl.(string); ok && s != "" {
-			v.SourceURL = &s
-		}
-		if arches, ok := row.Architectures.([]interface{}); ok {
-			strs := make([]string, 0, len(arches))
-			for _, a := range arches {
-				if arch, ok := a.(string); ok && arch != "" {
-					strs = append(strs, arch)
-				}
-			}
-			sort.Strings(strs)
-			v.Architectures = strs
-		}
-		items = append(items, v)
+		all = append(all, artifactVersionFromRow(row))
 	}
 
-	return PagedResult[ArtifactVersion]{
-		Data:   items,
-		Total:  total,
-		Limit:  limit,
-		Offset: offset,
+	hasSemver := false
+	for _, v := range all {
+		if isSemver(v.VersionKey) {
+			hasSemver = true
+			break
+		}
+	}
+	resolved := resolveSortMode(mode, hasSemver)
+
+	if resolved == SortSemver {
+		filtered := all[:0:0]
+		for _, v := range all {
+			if isSemver(v.VersionKey) {
+				filtered = append(filtered, v)
+			}
+		}
+		all = filtered
+	}
+	sortVersions(all, resolved)
+
+	total := int64(len(all))
+	page := paginateVersions(all, limit, offset)
+
+	return ArtifactVersionsPage{
+		PagedResult: PagedResult[ArtifactVersion]{
+			Data:   page,
+			Total:  total,
+			Limit:  limit,
+			Offset: offset,
+		},
+		HasSemver:    hasSemver,
+		ResolvedMode: resolved,
 	}, nil
+}
+
+// maxVersionsFetch caps the number of distinct versions pulled for in-Go
+// sorting; mirrors the changelog's defensive fetch-all cap.
+const maxVersionsFetch = 10000
+
+// artifactVersionFromRow maps a ListArtifactVersions row to an ArtifactVersion.
+func artifactVersionFromRow(row repository.ListArtifactVersionsRow) ArtifactVersion {
+	v := ArtifactVersion{
+		VersionKey:    row.VersionKey.String,
+		SbomID:        uuidToString(row.NewestSbomID),
+		SBOMCount:     row.SbomCount,
+		Sufficient:    row.EnrichmentSufficient,
+		CreatedAt:     row.CreatedAt.Time,
+		SigningStatus: row.SigningStatus,
+	}
+	if row.BuildDate.Valid {
+		t := row.BuildDate.Time
+		v.BuildDate = &t
+	}
+	if s, ok := row.ImageVersion.(string); ok && s != "" {
+		v.ImageVersion = &s
+	}
+	if s, ok := row.Revision.(string); ok && s != "" {
+		v.Revision = &s
+	}
+	if s, ok := row.SourceUrl.(string); ok && s != "" {
+		v.SourceURL = &s
+	}
+	if arches, ok := row.Architectures.([]interface{}); ok {
+		strs := make([]string, 0, len(arches))
+		for _, a := range arches {
+			if arch, ok := a.(string); ok && arch != "" {
+				strs = append(strs, arch)
+			}
+		}
+		sort.Strings(strs)
+		v.Architectures = strs
+	}
+	return v
+}
+
+// sortVersions orders versions descending. SortSemver uses semantic-version
+// precedence (build time breaks ties); otherwise it orders by build time
+// (falling back to ingestion time).
+func sortVersions(vs []ArtifactVersion, mode VersionSortMode) {
+	sort.SliceStable(vs, func(i, j int) bool {
+		if mode == SortSemver {
+			if cmp := compareSemver(vs[i].VersionKey, vs[j].VersionKey); cmp != 0 {
+				return cmp > 0 // descending
+			}
+		}
+		ti, tj := versionEffectiveTime(vs[i]), versionEffectiveTime(vs[j])
+		return ti.After(tj) // descending
+	})
+}
+
+// versionEffectiveTime returns the build time when known, else ingestion time.
+func versionEffectiveTime(v ArtifactVersion) time.Time {
+	if v.BuildDate != nil {
+		return *v.BuildDate
+	}
+	return v.CreatedAt
+}
+
+// paginateVersions applies offset/limit to an already-sorted slice.
+func paginateVersions(vs []ArtifactVersion, limit, offset int32) []ArtifactVersion {
+	if offset < 0 {
+		offset = 0
+	}
+	start := int(offset)
+	if start >= len(vs) {
+		return []ArtifactVersion{}
+	}
+	end := len(vs)
+	if limit > 0 && start+int(limit) < end {
+		end = start + int(limit)
+	}
+	return vs[start:end]
 }
 
 func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter) (CursorPage[ArtifactSummary], error) {
