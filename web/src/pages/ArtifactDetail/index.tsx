@@ -34,19 +34,35 @@ export default function ArtifactDetail() {
         "amd64",
     );
     const [selectedFlavor, setSelectedFlavor] = createSignal<string | undefined>(undefined);
+    // undefined = auto (let the backend pick semver when available, else all).
+    const [viewMode, setViewMode] = createSignal<"semver" | "all" | undefined>(undefined);
     const versionLimit = 25;
 
     const artifactQuery = useArtifact(() => params.id);
 
     const versionsQuery = useArtifactVersions(
         () => params.id,
-        () => ({ limit: versionLimit, offset: versionOffset() }),
+        () => ({ limit: versionLimit, offset: versionOffset(), mode: viewMode() }),
     );
+
+    // The versions query always runs, so it's the source of truth for whether
+    // the artifact has semver versions and which mode the backend resolved to.
+    const hasSemver = () => versionsQuery.data?.hasSemver ?? false;
+    const effectiveMode = (): "semver" | "all" => {
+        const explicit = viewMode();
+        if (explicit !== undefined) return explicit;
+        return versionsQuery.data?.resolvedMode === "semver" ? "semver" : "all";
+    };
+    const selectMode = (m: "semver" | "all") => {
+        setViewMode(m);
+        setVersionOffset(0);
+    };
 
     const changelogQuery = useArtifactChangelog(() => params.id, {
         enabled: () => tab() === "changelog",
         arch: selectedArch,
         flavor: selectedFlavor,
+        mode: viewMode,
     });
 
     const licenseQuery = useArtifactLicenseSummary(() => params.id, {
@@ -267,6 +283,42 @@ export default function ArtifactDetail() {
                                         Licenses
                                     </button>
                                 </div>
+
+                                <Show
+                                    when={
+                                        hasSemver() &&
+                                        (tab() === "versions" ||
+                                            tab() === "changelog")
+                                    }
+                                >
+                                    <div
+                                        class="tab-bar"
+                                        style={{ "margin-bottom": "0.75rem" }}
+                                    >
+                                        <button
+                                            class={
+                                                effectiveMode() === "semver"
+                                                    ? "active"
+                                                    : ""
+                                            }
+                                            onClick={() => selectMode("semver")}
+                                            title="Only semver versions, ordered by semantic version"
+                                        >
+                                            Semver
+                                        </button>
+                                        <button
+                                            class={
+                                                effectiveMode() === "all"
+                                                    ? "active"
+                                                    : ""
+                                            }
+                                            onClick={() => selectMode("all")}
+                                            title="All versions, ordered by build time"
+                                        >
+                                            All
+                                        </button>
+                                    </div>
+                                </Show>
 
                                 <Show when={tab() === "versions"}>
                                     <VersionsTab

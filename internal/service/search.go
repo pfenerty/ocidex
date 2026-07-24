@@ -23,8 +23,8 @@ type SearchService interface {
 	GetArtifact(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ArtifactDetail, error)
 	ListArtifacts(ctx context.Context, filter ArtifactFilter) (CursorPage[ArtifactSummary], error)
 	ListSBOMsByArtifact(ctx context.Context, artifactID pgtype.UUID, subjectVersion, imageVersion string, page SBOMByArtifactPage, vis VisibilityFilter) (CursorPage[SBOMSummary], error)
-	ListVersionsByArtifact(ctx context.Context, artifactID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ArtifactVersion], error)
-	GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch, flavor string, vis VisibilityFilter) (Changelog, error)
+	ListVersionsByArtifact(ctx context.Context, artifactID pgtype.UUID, limit, offset int32, mode VersionSortMode, vis VisibilityFilter) (ArtifactVersionsPage, error)
+	GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch, flavor string, mode VersionSortMode, vis VisibilityFilter) (Changelog, error)
 	DiffSBOMs(ctx context.Context, fromID, toID pgtype.UUID, vis VisibilityFilter) (ChangelogEntry, error)
 	DiffSBOMsWithTree(ctx context.Context, fromID, toID pgtype.UUID, vis VisibilityFilter) (DiffTree, error)
 	ListSBOMsByDigest(ctx context.Context, digest string, limit, offset int32, vis VisibilityFilter) (PagedResult[SBOMSummary], error)
@@ -164,6 +164,16 @@ type PagedResult[T any] struct {
 	Total  int64 `json:"total"`
 	Limit  int32 `json:"limit"`
 	Offset int32 `json:"offset"`
+}
+
+// ArtifactVersionsPage is a page of artifact versions plus the metadata the
+// client needs to drive the Semver/All view toggle.
+type ArtifactVersionsPage struct {
+	PagedResult[ArtifactVersion]
+	// HasSemver reports whether the artifact has any semver-parseable version.
+	HasSemver bool
+	// ResolvedMode is the concrete sort mode applied ("semver" or "all").
+	ResolvedMode VersionSortMode
 }
 
 // CursorPage wraps a keyset-paginated result set. The caller derives the next
