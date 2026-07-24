@@ -47,7 +47,7 @@ export function depScanTask(o: DepScanOptions): Task {
     steps: [
       ...(o.buildSteps ?? []),
       {
-        name: "sbom",
+        name: "syft-sbom",
         image: syftImage,
         computeResources: scanResources,
         script: nu`
@@ -56,7 +56,7 @@ export function depScanTask(o: DepScanOptions): Task {
         `,
       },
       {
-        name: "scan",
+        name: "grype-scan",
         image: grypeImage,
         computeResources: scanResources,
         script: nu`

@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: ocidex-openapi-check
+  name: ocidex-openapi-verify
   namespace: ocidex-ci
 spec:
   params:
@@ -36,7 +36,7 @@ spec:
     workingDir: $(workspaces.workspace.path)
   steps:
     - image: ghcr.io/pfenerty/apko-cicd/golang:1.26
-      name: check-spec
+      name: openapi-spec-check
       onError: continue
       script: |-
         #!/usr/bin/env nu
@@ -63,7 +63,7 @@ spec:
           cpu: 100m
           memory: 2Gi
       image: ghcr.io/pfenerty/apko-cicd/nodejs:24
-      name: check-types
+      name: openapi-types-check
       onError: continue
       script: |-
         #!/usr/bin/env nu
@@ -99,22 +99,22 @@ spec:
         let state = if $exit_code == 0 { "success" } else { "failure" }
         let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
 
-        log $"report-status [openapi-check]: exit-code=($exit_code) state=($state)"
+        log $"report-status [openapi-verify]: exit-code=($exit_code) state=($state)"
 
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: $state, context: "openapi-check", description: $desc }
+        let body = { state: $state, context: "openapi-verify", description: $desc }
 
-        log $"report-status [openapi-check]: POST ($url)"
-        log $"report-status [openapi-check]: body: ($body | to json -r)"
+        log $"report-status [openapi-verify]: POST ($url)"
+        log $"report-status [openapi-verify]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "report-status [openapi-check]: done"
+          log "report-status [openapi-verify]: done"
         } catch { |e|
-          log $"report-status [openapi-check]: error: ($e.msg)"
+          log $"report-status [openapi-verify]: error: ($e.msg)"
         }
         exit $exit_code
   workspaces:

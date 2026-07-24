@@ -71,7 +71,7 @@ spec:
           ephemeral-storage: 2Gi
           memory: 1Gi
       image: ghcr.io/pfenerty/apko-cicd/golang:1.26
-      name: build
+      name: go-build
       onError: continue
       script: |-
         #!/usr/bin/env nu

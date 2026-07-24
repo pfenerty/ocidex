@@ -8,11 +8,11 @@ import { pacBaselineSh } from "../../script-lib";
 // the reporter as a failed check. Third-party image with no nushell, so this step is sh.
 // Report-only: `onError: continue` keeps the PipelineRun green.
 export const secretsScan = new Task({
-  name: "secrets-scan",
+  name: "gitleaks-secrets",
   statusReporter: reportOnlyStatusReporter,
   steps: [
     {
-      name: "gitleaks",
+      name: "gitleaks-scan",
       image: "zricethezav/gitleaks:latest",
       // gitleaks shells out to git; HOME=/tmp keeps the global git config (safe.directory)
       // writable for uid 1024.

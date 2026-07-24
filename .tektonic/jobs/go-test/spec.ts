@@ -17,7 +17,7 @@ export const goTest = new Task({
   },
   steps: [
     {
-      name: "test",
+      name: "go-test",
       image: goImage,
       computeResources: {
         // GKE Autopilot assigns ephemeral-storage: 1Gi by default; go test

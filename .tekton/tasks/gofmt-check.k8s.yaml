@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: ocidex-go-fmt
+  name: ocidex-gofmt-check
   namespace: ocidex-ci
 spec:
   params:
@@ -25,7 +25,7 @@ spec:
     workingDir: $(workspaces.workspace.path)
   steps:
     - image: ghcr.io/pfenerty/apko-cicd/golang:1.26
-      name: fmt
+      name: gofmt-check
       onError: continue
       script: |-
         #!/usr/bin/env nu
@@ -59,22 +59,22 @@ spec:
         let state = if $exit_code == 0 { "success" } else { "failure" }
         let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
 
-        log $"report-status [go-fmt]: exit-code=($exit_code) state=($state)"
+        log $"report-status [gofmt-check]: exit-code=($exit_code) state=($state)"
 
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: $state, context: "go-fmt", description: $desc }
+        let body = { state: $state, context: "gofmt-check", description: $desc }
 
-        log $"report-status [go-fmt]: POST ($url)"
-        log $"report-status [go-fmt]: body: ($body | to json -r)"
+        log $"report-status [gofmt-check]: POST ($url)"
+        log $"report-status [gofmt-check]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "report-status [go-fmt]: done"
+          log "report-status [gofmt-check]: done"
         } catch { |e|
-          log $"report-status [go-fmt]: error: ($e.msg)"
+          log $"report-status [gofmt-check]: error: ($e.msg)"
         }
         exit $exit_code
   workspaces:

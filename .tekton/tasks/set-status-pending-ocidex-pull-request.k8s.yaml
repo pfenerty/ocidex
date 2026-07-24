@@ -37,24 +37,24 @@ spec:
               key: token
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: pending-go-fmt
+      name: pending-gofmt-check
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "pending", context: "go-fmt", description: "Running" }
+        let body = { state: "pending", context: "gofmt-check", description: "Running" }
 
-        log $"status-pending [go-fmt]: POST ($url)"
-        log $"status-pending [go-fmt]: body: ($body | to json -r)"
+        log $"status-pending [gofmt-check]: POST ($url)"
+        log $"status-pending [gofmt-check]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "status-pending [go-fmt]: done"
+          log "status-pending [gofmt-check]: done"
         } catch { |e|
-          log $"status-pending [go-fmt]: error: ($e.msg)"
+          log $"status-pending [gofmt-check]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -139,24 +139,24 @@ spec:
               key: token
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: pending-openapi-check
+      name: pending-openapi-verify
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "pending", context: "openapi-check", description: "Running" }
+        let body = { state: "pending", context: "openapi-verify", description: "Running" }
 
-        log $"status-pending [openapi-check]: POST ($url)"
-        log $"status-pending [openapi-check]: body: ($body | to json -r)"
+        log $"status-pending [openapi-verify]: POST ($url)"
+        log $"status-pending [openapi-verify]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "status-pending [openapi-check]: done"
+          log "status-pending [openapi-verify]: done"
         } catch { |e|
-          log $"status-pending [openapi-check]: error: ($e.msg)"
+          log $"status-pending [openapi-verify]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -173,24 +173,24 @@ spec:
               key: token
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: pending-frontend-lint
+      name: pending-eslint-lint-web
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "pending", context: "frontend-lint", description: "Running" }
+        let body = { state: "pending", context: "eslint-lint-web", description: "Running" }
 
-        log $"status-pending [frontend-lint]: POST ($url)"
-        log $"status-pending [frontend-lint]: body: ($body | to json -r)"
+        log $"status-pending [eslint-lint-web]: POST ($url)"
+        log $"status-pending [eslint-lint-web]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "status-pending [frontend-lint]: done"
+          log "status-pending [eslint-lint-web]: done"
         } catch { |e|
-          log $"status-pending [frontend-lint]: error: ($e.msg)"
+          log $"status-pending [eslint-lint-web]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -207,24 +207,24 @@ spec:
               key: token
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: pending-go-vulncheck
+      name: pending-govulncheck-scan
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "pending", context: "go-vulncheck", description: "Running" }
+        let body = { state: "pending", context: "govulncheck-scan", description: "Running" }
 
-        log $"status-pending [go-vulncheck]: POST ($url)"
-        log $"status-pending [go-vulncheck]: body: ($body | to json -r)"
+        log $"status-pending [govulncheck-scan]: POST ($url)"
+        log $"status-pending [govulncheck-scan]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "status-pending [go-vulncheck]: done"
+          log "status-pending [govulncheck-scan]: done"
         } catch { |e|
-          log $"status-pending [go-vulncheck]: error: ($e.msg)"
+          log $"status-pending [govulncheck-scan]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -241,24 +241,24 @@ spec:
               key: token
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: pending-web-security
+      name: pending-grype-vuln-web
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "pending", context: "web-security", description: "Running" }
+        let body = { state: "pending", context: "grype-vuln-web", description: "Running" }
 
-        log $"status-pending [web-security]: POST ($url)"
-        log $"status-pending [web-security]: body: ($body | to json -r)"
+        log $"status-pending [grype-vuln-web]: POST ($url)"
+        log $"status-pending [grype-vuln-web]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "status-pending [web-security]: done"
+          log "status-pending [grype-vuln-web]: done"
         } catch { |e|
-          log $"status-pending [web-security]: error: ($e.msg)"
+          log $"status-pending [grype-vuln-web]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -275,24 +275,24 @@ spec:
               key: token
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: pending-semgrep
+      name: pending-semgrep-sast
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "pending", context: "semgrep", description: "Running" }
+        let body = { state: "pending", context: "semgrep-sast", description: "Running" }
 
-        log $"status-pending [semgrep]: POST ($url)"
-        log $"status-pending [semgrep]: body: ($body | to json -r)"
+        log $"status-pending [semgrep-sast]: POST ($url)"
+        log $"status-pending [semgrep-sast]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "status-pending [semgrep]: done"
+          log "status-pending [semgrep-sast]: done"
         } catch { |e|
-          log $"status-pending [semgrep]: error: ($e.msg)"
+          log $"status-pending [semgrep-sast]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -309,23 +309,23 @@ spec:
               key: token
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: pending-secrets-scan
+      name: pending-gitleaks-secrets
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "pending", context: "secrets-scan", description: "Running" }
+        let body = { state: "pending", context: "gitleaks-secrets", description: "Running" }
 
-        log $"status-pending [secrets-scan]: POST ($url)"
-        log $"status-pending [secrets-scan]: body: ($body | to json -r)"
+        log $"status-pending [gitleaks-secrets]: POST ($url)"
+        log $"status-pending [gitleaks-secrets]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "status-pending [secrets-scan]: done"
+          log "status-pending [gitleaks-secrets]: done"
         } catch { |e|
-          log $"status-pending [secrets-scan]: error: ($e.msg)"
+          log $"status-pending [gitleaks-secrets]: error: ($e.msg)"
           exit 1
         }

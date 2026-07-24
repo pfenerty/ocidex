@@ -9,7 +9,7 @@ import { frontendLint } from "../frontend-lint/spec";
 // from the spec and diffs those. Cross-language, hence the goBuild + frontendLint needs
 // (cache-warm ordering; neither consumes their artifacts).
 export const openapiCheck = new Task({
-  name: "openapi-check",
+  name: "openapi-verify",
   needs: [goBuild, frontendLint],
   statusReporter,
   stepTemplate: {
@@ -17,7 +17,7 @@ export const openapiCheck = new Task({
   },
   steps: [
     {
-      name: "check-spec",
+      name: "openapi-spec-check",
       image: goImage,
       script: nu`
 ${goSetup}
@@ -30,7 +30,7 @@ log "OK: spec is up to date"
       onError: "continue",
     },
     {
-      name: "check-types",
+      name: "openapi-types-check",
       image: nodeImage,
       workingDir: "$(workspaces.workspace.path)/web",
       computeResources: {

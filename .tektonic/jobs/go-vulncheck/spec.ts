@@ -8,7 +8,7 @@ import { goSetup } from "../../script-lib";
 // toolchain, so it's its own task. Report-only: non-zero exit (reachable vulns) becomes this
 // task's GitHub check while the PipelineRun stays green.
 export const goVulncheck = new Task({
-  name: "go-vulncheck",
+  name: "govulncheck-scan",
   statusReporter: reportOnlyStatusReporter,
   caches: [goCache],
   stepTemplate: {
@@ -16,7 +16,7 @@ export const goVulncheck = new Task({
   },
   steps: [
     {
-      name: "govulncheck",
+      name: "govulncheck-scan",
       image: govulncheckImage,
       computeResources: {
         limits: { cpu: "2", memory: "2Gi", "ephemeral-storage": "4Gi" },

@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: ocidex-web-security
+  name: ocidex-grype-vuln-web
   namespace: ocidex-ci
 spec:
   params:
@@ -34,7 +34,7 @@ spec:
           cpu: 200m
           memory: 256Mi
       image: ghcr.io/pfenerty/apko-cicd/syft:1.45.1
-      name: sbom
+      name: syft-sbom
       onError: continue
       script: |-
         #!/usr/bin/env nu
@@ -56,7 +56,7 @@ spec:
           cpu: 200m
           memory: 256Mi
       image: ghcr.io/pfenerty/apko-cicd/grype:0.114.0
-      name: scan
+      name: grype-scan
       onError: continue
       script: |-
         #!/usr/bin/env nu
@@ -77,7 +77,7 @@ spec:
               key: token
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: upload-sarif-grype-web
+      name: sarif-upload-grype-web
       onError: continue
       script: |-
         #!/usr/bin/env nu
@@ -143,22 +143,22 @@ spec:
         let state = if $exit_code == 0 { "success" } else { "failure" }
         let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
 
-        log $"report-status [web-security]: exit-code=($exit_code) state=($state)"
+        log $"report-status [grype-vuln-web]: exit-code=($exit_code) state=($state)"
 
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: $state, context: "web-security", description: $desc }
+        let body = { state: $state, context: "grype-vuln-web", description: $desc }
 
-        log $"report-status [web-security]: POST ($url)"
-        log $"report-status [web-security]: body: ($body | to json -r)"
+        log $"report-status [grype-vuln-web]: POST ($url)"
+        log $"report-status [grype-vuln-web]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "report-status [web-security]: done"
+          log "report-status [grype-vuln-web]: done"
         } catch { |e|
-          log $"report-status [web-security]: error: ($e.msg)"
+          log $"report-status [grype-vuln-web]: error: ($e.msg)"
         }
   workspaces:
     - name: workspace
