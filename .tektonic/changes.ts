@@ -33,9 +33,22 @@ export const nodeChanged = onChanges({
   paths: ["web/**"],
 });
 
+// Union bucket (Go ∪ frontend) as a SINGLE detection task, so multi-language semgrep can
+// be gated with a classic `in` guard. Deliberately NOT `or(goChanged, nodeChanged)`: that
+// composes into a CEL when-expression, which needs the enable-cel-in-whenexpression Tekton
+// feature flag (off on this cluster) — the same reason the rest of the pipeline avoids CEL.
+export const sourceChanged = onChanges({
+  name: "detect-source",
+  paths: ["**/*.go", "go.mod", "go.sum", "docker/**", "db/**", "web/**"],
+});
+
 // The detection task backing the condition above. `gated()` overrides only the
 // emitted pipeline-task `when` and does not auto-wire the producing task into the
 // pipeline, so it must be listed explicitly on the PR pipeline. Tekton orders
 // consumers after it automatically via the `$(tasks.detect-go.results.changed)`
 // result reference in the `when` clauses.
-export const detectTasks = [...goChanged.sources(), ...nodeChanged.sources()];
+export const detectTasks = [
+  ...goChanged.sources(),
+  ...nodeChanged.sources(),
+  ...sourceChanged.sources(),
+];

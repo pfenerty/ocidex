@@ -1,7 +1,7 @@
-import { GitPipeline, TektonicProject, TRIGGER_EVENTS, gated, or } from "@pfenerty/tektonic";
+import { GitPipeline, TektonicProject, TRIGGER_EVENTS, gated } from "@pfenerty/tektonic";
 
 import { goCacheWs, nodeCacheWs } from "./shared";
-import { goChanged, nodeChanged, detectTasks } from "./changes";
+import { goChanged, nodeChanged, sourceChanged, detectTasks } from "./changes";
 import { goFmt } from "./jobs/go-fmt/spec";
 import { goBuild } from "./jobs/go-build/spec";
 import { goTest } from "./jobs/go-test/spec";
@@ -68,7 +68,7 @@ const prPipeline = new GitPipeline({
     // run when Go OR frontend code changed (skips docs/CI-only PRs). secrets-scan stays
     // ungated: secrets can land in any file, and it's cheap.
     gated(webSecurity, { when: nodeChanged }),
-    gated(semgrep, { when: or(goChanged, nodeChanged) }),
+    gated(semgrep, { when: sourceChanged }),
     secretsScan,
   ],
 });
