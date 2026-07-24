@@ -18,9 +18,12 @@ export const semgrep = new Task({
       // uid 1024 has no home dir, so $HOME defaults to `/` and semgrep can't create its
       // ~/.semgrep dir. Point HOME at world-writable /tmp (also the writable git global config).
       env: [{ name: "HOME", value: "/tmp" }],
-      // --max-memory bounds per-rule/file usage; 3Gi limit leaves headroom for base + rules.
+      // Full-repo scans on push OOMKilled at a 3Gi limit (semgrep-4pf): --max-memory 2048 caps
+      // per-target work at 2Gi, but semgrep's base + rule-loading pushed the container past 3Gi.
+      // Raise the limit to 4Gi for ~2Gi of headroom over the per-target cap. PR scans are
+      // diff-aware (small) and never hit this; the ceiling is for the push full scan.
       computeResources: {
-        limits: { cpu: "2", memory: "3Gi" },
+        limits: { cpu: "2", memory: "4Gi" },
         requests: { cpu: "500m", memory: "1Gi" },
       },
       script: sh`

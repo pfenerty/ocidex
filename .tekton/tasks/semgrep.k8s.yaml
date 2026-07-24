@@ -29,7 +29,7 @@ spec:
     - computeResources:
         limits:
           cpu: "2"
-          memory: 3Gi
+          memory: 4Gi
         requests:
           cpu: 500m
           memory: 1Gi
