@@ -45,7 +45,7 @@ spec:
         set -eu
 
         echo "── syft: cataloging web/ npm dependency graph ─────────────────"
-        syft file:web/package-lock.json -o json --file sbom-web.json
+        syft file:web/package-lock.json -o json=sbom-web.json
         )
         __tek_rc=$?
         __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
@@ -101,9 +101,16 @@ spec:
         let ref = if ($ref_raw | str starts-with "refs/") { $ref_raw } else { $"refs/heads/($ref_raw)" }
         print $"upload-sarif [grype-web]: ref=($ref)"
 
-        let sarif_b64 = (open --raw "grype-web.sarif" | ^gzip -c | encode base64)
+        # GitHub has no top-level category field (passing one returns 422). The category lives
+        # INSIDE the SARIF as runs[].automationDetails.id, which is also how GitHub keeps analyses
+        # distinct — essential here since grype-go and grype-web share the tool name grype and
+        # would otherwise overwrite each other on the same ref.
+        let sarif_json = (open --raw "grype-web.sarif" | from json)
+        let ad = { id: "grype-web/" }
+        let runs2 = ($sarif_json.runs | each { |r| $r | upsert automationDetails $ad })
+        let sarif_b64 = ($sarif_json | upsert runs $runs2 | to json -r | ^gzip -c | encode base64)
         let url = "https://api.github.com/repos/$(params.repo-full-name)/code-scanning/sarifs"
-        let body = { commit_sha: "$(params.revision)", ref: $ref, sarif: $sarif_b64, category: "grype-web" }
+        let body = { commit_sha: "$(params.revision)", ref: $ref, sarif: $sarif_b64 }
 
         # --allow-errors + --full so a non-2xx (e.g. 403 missing security_events scope, 422 ref
         # mismatch) is captured and logged instead of thrown — the status/body tells us exactly why.

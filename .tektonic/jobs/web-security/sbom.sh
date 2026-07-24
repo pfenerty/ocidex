@@ -4,4 +4,4 @@
 set -eu
 
 echo "── syft: cataloging web/ npm dependency graph ─────────────────"
-syft file:web/package-lock.json -o json --file sbom-web.json
+syft file:web/package-lock.json -o json=sbom-web.json

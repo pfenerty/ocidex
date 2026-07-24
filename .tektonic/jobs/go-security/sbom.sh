@@ -5,4 +5,4 @@
 set -eu
 
 echo "── syft: cataloging built Go binaries (.sbom-bins) ─────────────"
-syft dir:.sbom-bins --select-catalogers go -o json --file sbom.json
+syft dir:.sbom-bins --select-catalogers go -o json=sbom.json

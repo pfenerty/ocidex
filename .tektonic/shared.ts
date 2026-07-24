@@ -135,9 +135,16 @@ let ref_raw = "$(params.source-branch)"
 let ref = if ($ref_raw | str starts-with "refs/") { $ref_raw } else { $"refs/heads/($ref_raw)" }
 print $"upload-sarif [${category}]: ref=($ref)"
 
-let sarif_b64 = (open --raw "${sarifPath}" | ^gzip -c | encode base64)
+# GitHub has no top-level category field (passing one returns 422). The category lives
+# INSIDE the SARIF as runs[].automationDetails.id, which is also how GitHub keeps analyses
+# distinct — essential here since grype-go and grype-web share the tool name grype and
+# would otherwise overwrite each other on the same ref.
+let sarif_json = (open --raw "${sarifPath}" | from json)
+let ad = { id: "${category}/" }
+let runs2 = ($sarif_json.runs | each { |r| $r | upsert automationDetails $ad })
+let sarif_b64 = ($sarif_json | upsert runs $runs2 | to json -r | ^gzip -c | encode base64)
 let url = "https://api.github.com/repos/$(params.repo-full-name)/code-scanning/sarifs"
-let body = { commit_sha: "$(params.revision)", ref: $ref, sarif: $sarif_b64, category: "${category}" }
+let body = { commit_sha: "$(params.revision)", ref: $ref, sarif: $sarif_b64 }
 
 # --allow-errors + --full so a non-2xx (e.g. 403 missing security_events scope, 422 ref
 # mismatch) is captured and logged instead of thrown — the status/body tells us exactly why.
