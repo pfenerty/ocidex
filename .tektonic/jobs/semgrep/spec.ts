@@ -8,12 +8,12 @@ import { pacBaselineSh } from "../../script-lib";
 // Security tab. Third-party image with no nushell, so this step is sh. Report-only:
 // `onError: continue` keeps the PipelineRun green.
 export const semgrep = new Task({
-  name: "semgrep",
+  name: "semgrep-sast",
   params: [sourceBranchParam],
   statusReporter: reportOnlyStatusReporter,
   steps: [
     {
-      name: "semgrep",
+      name: "semgrep-scan",
       image: "semgrep/semgrep:latest",
       // uid 1024 has no home dir, so $HOME defaults to `/` and semgrep can't create its
       // ~/.semgrep dir. Point HOME at world-writable /tmp (also the writable git global config).

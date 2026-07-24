@@ -10,7 +10,7 @@ export const helmPublish = new Task({
   volumes: [dockerConfigVolume],
   steps: [
     {
-      name: "package-and-push",
+      name: "helm-package-push",
       image: "alpine/helm:4",
       workingDir: "$(workspaces.workspace.path)",
       onError: "continue",

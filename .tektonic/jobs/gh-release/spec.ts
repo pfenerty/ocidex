@@ -9,7 +9,7 @@ export const ghRelease = new Task({
   needs: [...imageBuildsTag],
   steps: [
     {
-      name: "create-release",
+      name: "gh-release-create",
       image: "ghcr.io/pfenerty/apko-cicd/base:stable",
       workingDir: "$(workspaces.workspace.path)",
       onError: "continue",

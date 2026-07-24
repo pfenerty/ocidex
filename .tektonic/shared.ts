@@ -114,7 +114,7 @@ export const sourceBranchParam = new Param({ name: "source-branch", type: "strin
 // `security-events: write` scope (in addition to repo:status used by the reporter).
 export function uploadSarifStep(sarifPath: string, category: string): TaskStepSpec {
   return {
-    name: `upload-sarif-${category}`,
+    name: `sarif-upload-${category}`,
     image: baseImage,
     env: [
       {

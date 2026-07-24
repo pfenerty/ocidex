@@ -4,7 +4,7 @@ import { depScanTask } from "../_dep-scan";
 // were never vuln-scanned (frontend-lint runs eslint only). syft catalogs the npm graph
 // straight from the lockfile (no install, no network) → grype → SARIF. Report-only.
 export const webSecurity = depScanTask({
-  name: "web-security",
+  name: "grype-vuln-web",
   source: "file:web/package-lock.json",
   sbom: "sbom-web.json",
   category: "grype-web",

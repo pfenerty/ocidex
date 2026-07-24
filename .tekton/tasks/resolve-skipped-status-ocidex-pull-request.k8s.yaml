@@ -37,31 +37,31 @@ spec:
               key: token
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: resolve-go-fmt
+      name: resolve-gofmt-check
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let status = "$(tasks.go-fmt.status)"
+        let status = "$(tasks.gofmt-check.status)"
 
         if $status != "None" {
-          log $"resolve-skipped [go-fmt]: task status is ($status), nothing to resolve"
+          log $"resolve-skipped [gofmt-check]: task status is ($status), nothing to resolve"
           exit 0
         }
 
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "success", context: "go-fmt", description: "Skipped" }
+        let body = { state: "success", context: "gofmt-check", description: "Skipped" }
 
-        log $"resolve-skipped [go-fmt]: task was skipped, POST ($url)"
-        log $"resolve-skipped [go-fmt]: body: ($body | to json -r)"
+        log $"resolve-skipped [gofmt-check]: task was skipped, POST ($url)"
+        log $"resolve-skipped [gofmt-check]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "resolve-skipped [go-fmt]: done"
+          log "resolve-skipped [gofmt-check]: done"
         } catch { |e|
-          log $"resolve-skipped [go-fmt]: error: ($e.msg)"
+          log $"resolve-skipped [gofmt-check]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -119,31 +119,31 @@ spec:
               key: token
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: resolve-openapi-check
+      name: resolve-openapi-verify
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let status = "$(tasks.openapi-check.status)"
+        let status = "$(tasks.openapi-verify.status)"
 
         if $status != "None" {
-          log $"resolve-skipped [openapi-check]: task status is ($status), nothing to resolve"
+          log $"resolve-skipped [openapi-verify]: task status is ($status), nothing to resolve"
           exit 0
         }
 
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "success", context: "openapi-check", description: "Skipped" }
+        let body = { state: "success", context: "openapi-verify", description: "Skipped" }
 
-        log $"resolve-skipped [openapi-check]: task was skipped, POST ($url)"
-        log $"resolve-skipped [openapi-check]: body: ($body | to json -r)"
+        log $"resolve-skipped [openapi-verify]: task was skipped, POST ($url)"
+        log $"resolve-skipped [openapi-verify]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "resolve-skipped [openapi-check]: done"
+          log "resolve-skipped [openapi-verify]: done"
         } catch { |e|
-          log $"resolve-skipped [openapi-check]: error: ($e.msg)"
+          log $"resolve-skipped [openapi-verify]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -160,31 +160,31 @@ spec:
               key: token
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: resolve-go-vulncheck
+      name: resolve-govulncheck-scan
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let status = "$(tasks.go-vulncheck.status)"
+        let status = "$(tasks.govulncheck-scan.status)"
 
         if $status != "None" {
-          log $"resolve-skipped [go-vulncheck]: task status is ($status), nothing to resolve"
+          log $"resolve-skipped [govulncheck-scan]: task status is ($status), nothing to resolve"
           exit 0
         }
 
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "success", context: "go-vulncheck", description: "Skipped" }
+        let body = { state: "success", context: "govulncheck-scan", description: "Skipped" }
 
-        log $"resolve-skipped [go-vulncheck]: task was skipped, POST ($url)"
-        log $"resolve-skipped [go-vulncheck]: body: ($body | to json -r)"
+        log $"resolve-skipped [govulncheck-scan]: task was skipped, POST ($url)"
+        log $"resolve-skipped [govulncheck-scan]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "resolve-skipped [go-vulncheck]: done"
+          log "resolve-skipped [govulncheck-scan]: done"
         } catch { |e|
-          log $"resolve-skipped [go-vulncheck]: error: ($e.msg)"
+          log $"resolve-skipped [govulncheck-scan]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -201,31 +201,31 @@ spec:
               key: token
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: resolve-web-security
+      name: resolve-grype-vuln-web
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let status = "$(tasks.web-security.status)"
+        let status = "$(tasks.grype-vuln-web.status)"
 
         if $status != "None" {
-          log $"resolve-skipped [web-security]: task status is ($status), nothing to resolve"
+          log $"resolve-skipped [grype-vuln-web]: task status is ($status), nothing to resolve"
           exit 0
         }
 
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "success", context: "web-security", description: "Skipped" }
+        let body = { state: "success", context: "grype-vuln-web", description: "Skipped" }
 
-        log $"resolve-skipped [web-security]: task was skipped, POST ($url)"
-        log $"resolve-skipped [web-security]: body: ($body | to json -r)"
+        log $"resolve-skipped [grype-vuln-web]: task was skipped, POST ($url)"
+        log $"resolve-skipped [grype-vuln-web]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "resolve-skipped [web-security]: done"
+          log "resolve-skipped [grype-vuln-web]: done"
         } catch { |e|
-          log $"resolve-skipped [web-security]: error: ($e.msg)"
+          log $"resolve-skipped [grype-vuln-web]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -242,30 +242,30 @@ spec:
               key: token
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: resolve-semgrep
+      name: resolve-semgrep-sast
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let status = "$(tasks.semgrep.status)"
+        let status = "$(tasks.semgrep-sast.status)"
 
         if $status != "None" {
-          log $"resolve-skipped [semgrep]: task status is ($status), nothing to resolve"
+          log $"resolve-skipped [semgrep-sast]: task status is ($status), nothing to resolve"
           exit 0
         }
 
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "success", context: "semgrep", description: "Skipped" }
+        let body = { state: "success", context: "semgrep-sast", description: "Skipped" }
 
-        log $"resolve-skipped [semgrep]: task was skipped, POST ($url)"
-        log $"resolve-skipped [semgrep]: body: ($body | to json -r)"
+        log $"resolve-skipped [semgrep-sast]: task was skipped, POST ($url)"
+        log $"resolve-skipped [semgrep-sast]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "resolve-skipped [semgrep]: done"
+          log "resolve-skipped [semgrep-sast]: done"
         } catch { |e|
-          log $"resolve-skipped [semgrep]: error: ($e.msg)"
+          log $"resolve-skipped [semgrep-sast]: error: ($e.msg)"
           exit 1
         }

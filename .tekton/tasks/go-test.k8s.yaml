@@ -79,7 +79,7 @@ spec:
           ephemeral-storage: 2Gi
           memory: 256Mi
       image: ghcr.io/pfenerty/apko-cicd/golang:1.26
-      name: test
+      name: go-test
       onError: continue
       script: |-
         #!/usr/bin/env nu

@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: ocidex-semgrep
+  name: ocidex-semgrep-sast
   namespace: ocidex-ci
 spec:
   params:
@@ -37,7 +37,7 @@ spec:
         - name: HOME
           value: /tmp
       image: semgrep/semgrep:latest
-      name: semgrep
+      name: semgrep-scan
       onError: continue
       script: |-
         #!/bin/sh
@@ -69,7 +69,7 @@ spec:
               key: token
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: upload-sarif-semgrep
+      name: sarif-upload-semgrep
       onError: continue
       script: |-
         #!/usr/bin/env nu
@@ -135,22 +135,22 @@ spec:
         let state = if $exit_code == 0 { "success" } else { "failure" }
         let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
 
-        log $"report-status [semgrep]: exit-code=($exit_code) state=($state)"
+        log $"report-status [semgrep-sast]: exit-code=($exit_code) state=($state)"
 
         let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: $state, context: "semgrep", description: $desc }
+        let body = { state: $state, context: "semgrep-sast", description: $desc }
 
-        log $"report-status [semgrep]: POST ($url)"
-        log $"report-status [semgrep]: body: ($body | to json -r)"
+        log $"report-status [semgrep-sast]: POST ($url)"
+        log $"report-status [semgrep-sast]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "report-status [semgrep]: done"
+          log "report-status [semgrep-sast]: done"
         } catch { |e|
-          log $"report-status [semgrep]: error: ($e.msg)"
+          log $"report-status [semgrep-sast]: error: ($e.msg)"
         }
   workspaces:
     - name: workspace

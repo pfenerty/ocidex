@@ -31,7 +31,7 @@ spec:
               key: token
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: create-release
+      name: gh-release-create
       onError: continue
       script: |-
         #!/usr/bin/env nu

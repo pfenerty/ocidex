@@ -3,7 +3,7 @@ import { nodeImage, nodeModulesCache, nodeEnv, statusReporter } from "../../shar
 import { nodeSetup } from "../../script-lib";
 
 export const frontendLint = new Task({
-  name: "frontend-lint",
+  name: "eslint-lint-web",
   statusReporter,
   caches: [nodeModulesCache],
   stepTemplate: {
@@ -11,7 +11,7 @@ export const frontendLint = new Task({
   },
   steps: [
     {
-      name: "lint",
+      name: "eslint-lint",
       image: nodeImage,
       workingDir: "$(workspaces.workspace.path)/web",
       computeResources: {

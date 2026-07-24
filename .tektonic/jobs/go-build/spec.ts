@@ -14,7 +14,7 @@ export const goBuild = new Task({
   },
   steps: [
     {
-      name: "build",
+      name: "go-build",
       image: goImage,
       computeResources: {
         limits: { cpu: "2", memory: "2Gi", "ephemeral-storage": "4Gi" },
