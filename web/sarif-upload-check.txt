@@ -1,0 +1,1 @@
+Temporary trigger to exercise web-security's SARIF upload on this PR. Reverted immediately after.
