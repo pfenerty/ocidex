@@ -60,6 +60,6 @@ func TestPaginateVersions(t *testing.T) {
 	}
 	is.Equal(keys(paginateVersions(vs, 2, 0)), []string{"a", "b"})
 	is.Equal(keys(paginateVersions(vs, 2, 2)), []string{"c"})
-	is.Equal(len(paginateVersions(vs, 2, 5)), 0) // offset past end
+	is.Equal(len(paginateVersions(vs, 2, 5)), 0)                        // offset past end
 	is.Equal(keys(paginateVersions(vs, 0, 0)), []string{"a", "b", "c"}) // limit 0 = all
 }
