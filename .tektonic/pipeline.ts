@@ -7,7 +7,6 @@ import { goBuild } from "./jobs/go-build/spec";
 import { goTest } from "./jobs/go-test/spec";
 import { frontendLint } from "./jobs/frontend-lint/spec";
 import { openapiCheck } from "./jobs/openapi-check/spec";
-import { goSecurity } from "./jobs/go-security/spec";
 import { goVulncheck } from "./jobs/go-vulncheck/spec";
 import { webSecurity } from "./jobs/web-security/spec";
 import { secretsScan } from "./jobs/secrets-scan/spec";
@@ -21,9 +20,11 @@ import { ghRelease } from "./jobs/gh-release/spec";
 // Core build/verify tasks + the always-on security scans. Run ungated on push so
 // the publish path (main) always rebuilds and re-scans.
 const coreTasks = [goFmt, goTest, goBuild, openapiCheck, frontendLint];
-// go-security = broad SBOM/SARIF sweep (built-binary catalog); go-vulncheck = reachability
-// gate; web-security = frontend npm deps; semgrep = SAST; secrets-scan = gitleaks.
-const securityTasks = [goSecurity, goVulncheck, webSecurity, secretsScan, semgrep];
+// go-vulncheck = reachability-aware Go gate (replaced grype-on-Go, which only added
+// noise for Go — e.g. flagging the unreachable, unfixable x/crypto/openpgp advisory);
+// web-security = frontend npm deps (grype — govulncheck can't scan npm); semgrep = SAST;
+// secrets-scan = gitleaks.
+const securityTasks = [goVulncheck, webSecurity, secretsScan, semgrep];
 
 // ─── Pipelines ────────────────────────────────────────────────────────────────
 const pushPipeline = new GitPipeline({
@@ -52,7 +53,7 @@ const pushPipeline = new GitPipeline({
 // go-test / openapi-check), so they are pulled into the graph ungated via `needs`
 // and run on every PR. Gating a depended-upon task collides with the raw reference
 // its dependents hold. Net effect: a frontend-only PR skips go-fmt/test/openapi-check
-// /go-security (the heavy Go work); go-build + frontend-lint still run.
+// /go-vulncheck (the heavy Go work); go-build + frontend-lint still run.
 const prPipeline = new GitPipeline({
   name: "ocidex-pull-request",
   trigger: { rules: [{ on: TRIGGER_EVENTS.PULL_REQUEST }], cancelInProgress: true },
@@ -62,7 +63,6 @@ const prPipeline = new GitPipeline({
     gated(goFmt, { when: goChanged }),
     gated(goTest, { when: goChanged }),
     gated(openapiCheck, { when: goChanged }),
-    gated(goSecurity, { when: goChanged }),
     gated(goVulncheck, { when: goChanged }),
     // web-security is a leaf → gate on the frontend bucket. semgrep is multi-language SAST →
     // run when Go OR frontend code changed (skips docs/CI-only PRs). secrets-scan stays
