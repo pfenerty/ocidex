@@ -79,15 +79,12 @@ spec:
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         def main [] {
-        # Build every command binary so syft catalogs the ACTUAL linked module set (one version
-        # per module) instead of go.sum's full historical version graph — see spec.ts.
-        log $"pwd=(pwd) uid=(id -u) go=(go version)"
+        print $"go=(go version) uid=(id -u)"
         ^git config --global --add safe.directory (pwd)
         rm -rf .sbom-bins
         mkdir .sbom-bins
-        log "Building ./cmd/... into .sbom-bins/"
+        print "building ./cmd/... into .sbom-bins/"
         ^go build -o .sbom-bins/ ./cmd/...
-        log $"built: (ls .sbom-bins | get name | path basename | str join ', ')"
         }
         let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
         let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
@@ -105,22 +102,17 @@ spec:
       name: sbom
       onError: continue
       script: |-
-        #!/bin/sh
-        log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
-        (
-        # Catalog the built binaries: syft's go-binary cataloger reads the exact module versions
-        # the Go linker embedded — one per module. .sbom-bins/ holds no go.mod/go.sum, so the go
-        # *file* cataloger finds nothing and the phantom-version flood from go.sum is eliminated.
-        set -eu
-
-        echo "── syft: cataloging built Go binaries (.sbom-bins) ─────────────"
-        syft dir:.sbom-bins --select-catalogers go -o json=sbom.json
-        )
-        __tek_rc=$?
-        __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
-        if [ "$__tek_rc" -gt "$__tek_prev" ]; then __tek_prev="$__tek_rc"; fi
-        printf '%s' "$__tek_prev" > /tekton/home/.exit-code
-        exit "$__tek_rc"
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def main [] {
+        print "syft: cataloging dir:.sbom-bins -> sbom.json"
+        ^syft dir:.sbom-bins --select-catalogers go -o json=sbom.json
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
     - computeResources:
         limits:
           cpu: "1"
@@ -132,22 +124,17 @@ spec:
       name: scan
       onError: continue
       script: |-
-        #!/bin/sh
-        log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
-        (
-        # grype exits non-zero on any low+ severity match against the binary-derived SBOM —
-        # reported as this task's GitHub check (see spec.ts). Also emit SARIF for upload to the
-        # GitHub Security tab (uploadSarifStep). Both -o outputs come from one scan.
-        set -u
-
-        echo "── grype: scanning SBOM for known vulnerabilities ──────────────"
-        grype sbom:sbom.json --fail-on low -o table -o sarif=grype-go.sarif
-        )
-        __tek_rc=$?
-        __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
-        if [ "$__tek_rc" -gt "$__tek_prev" ]; then __tek_prev="$__tek_rc"; fi
-        printf '%s' "$__tek_prev" > /tekton/home/.exit-code
-        exit "$__tek_rc"
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def main [] {
+        print "grype: scanning sbom.json (fail-on low); SARIF -> grype-go.sarif"
+        ^grype sbom:sbom.json --fail-on low -o table -o sarif=grype-go.sarif
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
     - env:
         - name: GITHUB_TOKEN
           valueFrom:

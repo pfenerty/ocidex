@@ -37,21 +37,17 @@ spec:
       name: sbom
       onError: continue
       script: |-
-        #!/bin/sh
-        log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
-        (
-        # Catalog the frontend npm dependency graph straight from the lockfile — no `npm install`,
-        # no network. syft's javascript lock cataloger reads package-lock.json.
-        set -eu
-
-        echo "── syft: cataloging web/ npm dependency graph ─────────────────"
-        syft file:web/package-lock.json -o json=sbom-web.json
-        )
-        __tek_rc=$?
-        __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
-        if [ "$__tek_rc" -gt "$__tek_prev" ]; then __tek_prev="$__tek_rc"; fi
-        printf '%s' "$__tek_prev" > /tekton/home/.exit-code
-        exit "$__tek_rc"
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def main [] {
+        print "syft: cataloging file:web/package-lock.json -> sbom-web.json"
+        ^syft file:web/package-lock.json -o json=sbom-web.json
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
     - computeResources:
         limits:
           cpu: "1"
@@ -63,21 +59,17 @@ spec:
       name: scan
       onError: continue
       script: |-
-        #!/bin/sh
-        log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
-        (
-        # grype exits non-zero on any low+ severity match against the web SBOM — reported as this
-        # task's GitHub check. Also emit SARIF for upload to the GitHub Security tab.
-        set -u
-
-        echo "── grype: scanning web SBOM for known vulnerabilities ──────────"
-        grype sbom:sbom-web.json --fail-on low -o table -o sarif=grype-web.sarif
-        )
-        __tek_rc=$?
-        __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
-        if [ "$__tek_rc" -gt "$__tek_prev" ]; then __tek_prev="$__tek_rc"; fi
-        printf '%s' "$__tek_prev" > /tekton/home/.exit-code
-        exit "$__tek_rc"
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def main [] {
+        print "grype: scanning sbom-web.json (fail-on low); SARIF -> grype-web.sarif"
+        ^grype sbom:sbom-web.json --fail-on low -o table -o sarif=grype-web.sarif
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
     - env:
         - name: GITHUB_TOKEN
           valueFrom:
