@@ -33,7 +33,7 @@ spec:
         requests:
           cpu: 200m
           memory: 256Mi
-      image: ghcr.io/pfenerty/apko-cicd/syft:1.45.1
+      image: ghcr.io/pfenerty/apko-cicd/syft:1.49.0
       name: syft-sbom
       onError: continue
       script: |-
@@ -55,7 +55,7 @@ spec:
         requests:
           cpu: 200m
           memory: 256Mi
-      image: ghcr.io/pfenerty/apko-cicd/grype:0.114.0
+      image: ghcr.io/pfenerty/apko-cicd/grype:0.116.0
       name: grype-scan
       onError: continue
       script: |-
