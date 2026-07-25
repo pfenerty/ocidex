@@ -42,9 +42,17 @@ type RawArtifacts struct {
 	DiscoveryMethod string            `json:"discoveryMethod"`           // "referrers" | "tag-scheme"
 }
 
-// TrustResolver returns the verification mode and PEM public key for a registry host.
-// mode values: "none" | "public_key" | "keyless"
-type TrustResolver func(ctx context.Context, host string) (mode, pemKey string)
+// TrustConfig is the per-host verification configuration resolved from the
+// registry's stored trust settings. Mode is "none" | "public_key" | "keyless".
+type TrustConfig struct {
+	Mode         string
+	PublicKeyPEM string
+	Identity     string // regex matched against the Fulcio cert SAN (keyless only)
+	Issuer       string // exact OIDC issuer URL (keyless only)
+}
+
+// TrustResolver returns the verification configuration for a registry host.
+type TrustResolver func(ctx context.Context, host string) TrustConfig
 
 // Enricher discovers cosign signatures and attestations for container images.
 type Enricher struct {
@@ -172,8 +180,13 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 		p.RekorUUID = fetchRekorUUID(ctx, p.RekorLogIndex)
 	}
 	if e.trustResolver != nil {
-		mode, pemKey := e.trustResolver(ctx, host)
-		applyVerification(&p, raw, mode, pemKey, lookupDigest)
+		cfg := e.trustResolver(ctx, host)
+		switch cfg.Mode {
+		case "public_key":
+			applyVerification(&p, raw, cfg.Mode, cfg.PublicKeyPEM, lookupDigest)
+		case "keyless":
+			applyKeylessVerification(ctx, &p, raw, cfg, lookupDigest)
+		}
 	}
 
 	data, err := json.Marshal(p)

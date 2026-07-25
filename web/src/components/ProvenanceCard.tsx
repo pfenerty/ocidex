@@ -64,7 +64,9 @@ export default function ProvenanceCard(props: { provenance: Provenance }) {
                         <span class="detail-label">Verification</span>
                         <span class="detail-value">
                             {p.verified === true
-                                ? "Verified against trusted key"
+                                ? (p.signerIssuer !== undefined && p.signerIssuer !== ""
+                                    ? `Verified — keyless (issuer: ${p.signerIssuer}, identity: ${p.signerIdentity})`
+                                    : "Verified against trusted key")
                                 : "Verification failed"}
                         </span>
                     </div>

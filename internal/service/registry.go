@@ -39,6 +39,8 @@ type Registry struct {
 	IncludeUntagged     bool       // scan untagged manifests via registry-specific APIs
 	VerificationMode    string     // "none" | "public_key" | "keyless"
 	TrustPublicKey      *string    // PEM-encoded EC public key; nil when mode != public_key
+	TrustIdentity       *string    // regex matched against the Fulcio cert SAN; nil when mode != keyless
+	TrustIssuer         *string    // exact OIDC issuer URL; nil when mode != keyless
 }
 
 // HasAuth returns true if the registry has authentication credentials configured.
@@ -189,39 +191,53 @@ func BuildCredentialLookup(svc RegistryService) HostCredentialLookup {
 	}
 }
 
+// TrustConfig is the per-host verification configuration resolved from the
+// registry's stored trust settings.
+type TrustConfig struct {
+	Mode         string // "none" | "public_key" | "keyless"
+	PublicKeyPEM string
+	Identity     string // regex matched against the Fulcio cert SAN (keyless only)
+	Issuer       string // exact OIDC issuer URL (keyless only)
+}
+
 // BuildTrustLookup returns a resolver that maps a registry hostname to its
-// configured verification mode and PEM public key. Results are cached for
-// resolverCacheTTL to avoid a DB round-trip on every enrichment.
-func BuildTrustLookup(svc RegistryService) func(ctx context.Context, host string) (mode, pemKey string) {
-	type trust struct{ mode, pemKey string }
+// configured verification settings. Results are cached for resolverCacheTTL
+// to avoid a DB round-trip on every enrichment.
+func BuildTrustLookup(svc RegistryService) func(ctx context.Context, host string) TrustConfig {
 	var (
 		mu        sync.Mutex
-		cache     map[string]trust
+		cache     map[string]TrustConfig
 		fetchedAt time.Time
 	)
-	return func(ctx context.Context, host string) (string, string) {
+	return func(ctx context.Context, host string) TrustConfig {
 		mu.Lock()
 		defer mu.Unlock()
 		if cache == nil || time.Since(fetchedAt) > resolverCacheTTL {
 			regs, err := svc.List(ctx, VisibilityFilter{IsAdmin: true})
 			if err != nil {
-				return "none", ""
+				return TrustConfig{Mode: "none"}
 			}
-			cache = make(map[string]trust, len(regs))
+			cache = make(map[string]TrustConfig, len(regs))
 			for _, r := range regs {
-				pemKey := ""
+				cfg := TrustConfig{Mode: r.VerificationMode}
 				if r.TrustPublicKey != nil {
-					pemKey = *r.TrustPublicKey
+					cfg.PublicKeyPEM = *r.TrustPublicKey
 				}
-				cache[registryHost(r.URL)] = trust{r.VerificationMode, pemKey}
+				if r.TrustIdentity != nil {
+					cfg.Identity = *r.TrustIdentity
+				}
+				if r.TrustIssuer != nil {
+					cfg.Issuer = *r.TrustIssuer
+				}
+				cache[registryHost(r.URL)] = cfg
 			}
 			fetchedAt = time.Now()
 		}
-		t := cache[host]
-		if t.mode == "" {
-			return "none", ""
+		cfg, ok := cache[host]
+		if !ok || cfg.Mode == "" {
+			return TrustConfig{Mode: "none"}
 		}
-		return t.mode, t.pemKey
+		return cfg
 	}
 }
 
@@ -233,12 +249,12 @@ type VisibilityFilter struct {
 
 // RegistryService manages registry configuration.
 type RegistryService interface {
-	Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, ownerID pgtype.UUID, visibility string, includeUntagged bool, verificationMode string, trustPublicKey *string) (Registry, error)
+	Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, ownerID pgtype.UUID, visibility string, includeUntagged bool, verificationMode string, trustPublicKey, trustIdentity, trustIssuer *string) (Registry, error)
 	Get(ctx context.Context, id string) (Registry, error)
 	GetByName(ctx context.Context, name string) (Registry, error)
 	List(ctx context.Context, filter VisibilityFilter) ([]Registry, error)
 	ListPaged(ctx context.Context, filter VisibilityFilter, limit, offset int32) (PagedResult[Registry], error)
-	Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, visibility string, includeUntagged bool, verificationMode string, trustPublicKey *string) (Registry, error)
+	Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, visibility string, includeUntagged bool, verificationMode string, trustPublicKey, trustIdentity, trustIssuer *string) (Registry, error)
 	SetEnabled(ctx context.Context, id string, enabled bool) (Registry, error)
 	Delete(ctx context.Context, id string) error
 	ListPollable(ctx context.Context) ([]Registry, error)
@@ -258,7 +274,7 @@ func NewRegistryService(pool *pgxpool.Pool) RegistryService {
 	}
 }
 
-func (s *registryService) Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, ownerID pgtype.UUID, visibility string, includeUntagged bool, verificationMode string, trustPublicKey *string) (Registry, error) {
+func (s *registryService) Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, ownerID pgtype.UUID, visibility string, includeUntagged bool, verificationMode string, trustPublicKey, trustIdentity, trustIssuer *string) (Registry, error) {
 	if visibility == "" {
 		visibility = "public"
 	}
@@ -283,6 +299,8 @@ func (s *registryService) Create(ctx context.Context, name, regType, url string,
 		IncludeUntagged:     includeUntagged,
 		VerificationMode:    verificationMode,
 		TrustPublicKey:      toNullText(trustPublicKey),
+		TrustIdentity:       toNullText(trustIdentity),
+		TrustIssuer:         toNullText(trustIssuer),
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -367,12 +385,14 @@ func (s *registryService) ListPaged(ctx context.Context, filter VisibilityFilter
 			IncludeUntagged:     r.IncludeUntagged,
 			VerificationMode:    r.VerificationMode,
 			TrustPublicKey:      r.TrustPublicKey,
+			TrustIdentity:       r.TrustIdentity,
+			TrustIssuer:         r.TrustIssuer,
 		})
 	}
 	return PagedResult[Registry]{Data: out, Total: total, Limit: limit, Offset: offset}, nil
 }
 
-func (s *registryService) Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, visibility string, includeUntagged bool, verificationMode string, trustPublicKey *string) (Registry, error) {
+func (s *registryService) Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, visibility string, includeUntagged bool, verificationMode string, trustPublicKey, trustIdentity, trustIssuer *string) (Registry, error) {
 	if visibility == "" {
 		visibility = "public"
 	}
@@ -380,11 +400,6 @@ func (s *registryService) Update(ctx context.Context, id, name, regType, url str
 		verificationMode = "none"
 	}
 	uid, err := parseRegistryUUID(id)
-	if err != nil {
-		return Registry{}, ErrNotFound
-	}
-	// Read existing to preserve trust columns not yet exposed (TrustIdentity, TrustIssuer).
-	existing, err := s.repo.GetRegistry(ctx, uid)
 	if err != nil {
 		return Registry{}, ErrNotFound
 	}
@@ -407,8 +422,8 @@ func (s *registryService) Update(ctx context.Context, id, name, regType, url str
 		IncludeUntagged:     includeUntagged,
 		VerificationMode:    verificationMode,
 		TrustPublicKey:      toNullText(trustPublicKey),
-		TrustIdentity:       existing.TrustIdentity,
-		TrustIssuer:         existing.TrustIssuer,
+		TrustIdentity:       toNullText(trustIdentity),
+		TrustIssuer:         toNullText(trustIssuer),
 	})
 	if err != nil {
 		return Registry{}, fmt.Errorf("updating registry: %w", err)
@@ -512,6 +527,14 @@ func fromRepo(r repository.Registry) Registry {
 	if r.TrustPublicKey.Valid {
 		s := r.TrustPublicKey.String
 		out.TrustPublicKey = &s
+	}
+	if r.TrustIdentity.Valid {
+		s := r.TrustIdentity.String
+		out.TrustIdentity = &s
+	}
+	if r.TrustIssuer.Valid {
+		s := r.TrustIssuer.String
+		out.TrustIssuer = &s
 	}
 	return out
 }

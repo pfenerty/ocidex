@@ -112,6 +112,15 @@ spec:
                 items:
                   type: string
                 type: array
+              trustIdentity:
+                description: |-
+                  TrustIdentity is a regex matched against the Fulcio certificate's Subject
+                  Alternative Name, required when VerificationMode is keyless.
+                type: string
+              trustIssuer:
+                description: TrustIssuer is the expected OIDC issuer URL, required
+                  when VerificationMode is keyless.
+                type: string
               trustPublicKey:
                 description: TrustPublicKey is a PEM-encoded EC public key, required
                   when VerificationMode is public_key.
@@ -135,6 +144,7 @@ spec:
                 enum:
                 - none
                 - public_key
+                - keyless
                 type: string
               visibility:
                 default: private

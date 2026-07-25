@@ -124,6 +124,8 @@ export interface Provenance {
     subjects?: string[];
     rekorUuid?: string;
     rekorLogIndex?: number;
+    signerIdentity?: string;
+    signerIssuer?: string;
 }
 
 /**

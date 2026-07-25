@@ -1182,6 +1182,10 @@ export interface components {
             scan_mode?: "webhook" | "poll" | "both";
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
             tag_patterns?: string[] | null;
+            /** @description Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless */
+            trust_identity?: string;
+            /** @description Expected OIDC issuer URL; required when verification_mode is keyless */
+            trust_issuer?: string;
             /** @description PEM-encoded EC public key; required when verification_mode is public_key */
             trust_public_key?: string;
             /**
@@ -1195,7 +1199,7 @@ export interface components {
              * @description Signature verification mode; defaults to none
              * @enum {string}
              */
-            verification_mode?: "none" | "public_key";
+            verification_mode?: "none" | "public_key" | "keyless";
             /**
              * @description Registry visibility
              * @default public
@@ -1235,6 +1239,10 @@ export interface components {
             scan_mode: string;
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
             tag_patterns: string[] | null;
+            /** @description Regex matched against the Fulcio certificate SAN; required for keyless verification mode */
+            trust_identity?: string;
+            /** @description Expected OIDC issuer URL; required for keyless verification mode */
+            trust_issuer?: string;
             /** @description PEM-encoded EC public key for public_key verification mode */
             trust_public_key?: string;
             type: string;
@@ -1802,6 +1810,10 @@ export interface components {
             scan_mode: string;
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
             tag_patterns: string[] | null;
+            /** @description Regex matched against the Fulcio certificate SAN; required for keyless verification mode */
+            trust_identity?: string;
+            /** @description Expected OIDC issuer URL; required for keyless verification mode */
+            trust_issuer?: string;
             /** @description PEM-encoded EC public key for public_key verification mode */
             trust_public_key?: string;
             type: string;
@@ -2079,6 +2091,10 @@ export interface components {
              */
             scan_mode?: "webhook" | "poll" | "both";
             tag_patterns?: string[] | null;
+            /** @description Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless */
+            trust_identity?: string;
+            /** @description Expected OIDC issuer URL; required when verification_mode is keyless */
+            trust_issuer?: string;
             /** @description PEM-encoded EC public key; required when verification_mode is public_key */
             trust_public_key?: string;
             /** @enum {string} */
@@ -2088,7 +2104,7 @@ export interface components {
              * @description Signature verification mode; defaults to none
              * @enum {string}
              */
-            verification_mode?: "none" | "public_key";
+            verification_mode?: "none" | "public_key" | "keyless";
             /**
              * @description Registry visibility
              * @enum {string}

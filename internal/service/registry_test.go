@@ -117,7 +117,7 @@ func TestRegistryCreate_DefaultVisibility(t *testing.T) {
 		},
 	})
 
-	_, err := svc.Create(context.Background(), "r", "generic", "https://r.example.com", false, nil, nil, nil, nil, "webhook", 0, nil, nil, pgtype.UUID{}, "", false, "", nil)
+	_, err := svc.Create(context.Background(), "r", "generic", "https://r.example.com", false, nil, nil, nil, nil, "webhook", 0, nil, nil, pgtype.UUID{}, "", false, "", nil, nil, nil)
 
 	is.NoErr(err)
 	is.Equal(capturedVis, "public") // empty string defaults to "public"
@@ -133,7 +133,7 @@ func TestRegistryCreate_ExplicitVisibility(t *testing.T) {
 		},
 	})
 
-	_, err := svc.Create(context.Background(), "r", "generic", "https://r.example.com", false, nil, nil, nil, nil, "webhook", 0, nil, nil, pgtype.UUID{}, "private", false, "", nil)
+	_, err := svc.Create(context.Background(), "r", "generic", "https://r.example.com", false, nil, nil, nil, nil, "webhook", 0, nil, nil, pgtype.UUID{}, "private", false, "", nil, nil, nil)
 
 	is.NoErr(err)
 	is.Equal(capturedVis, "private")
@@ -147,7 +147,7 @@ func TestRegistryCreate_UniqueViolationReturnsConflict(t *testing.T) {
 		},
 	})
 
-	_, err := svc.Create(context.Background(), "r", "generic", "https://r.example.com", false, nil, nil, nil, nil, "webhook", 0, nil, nil, pgtype.UUID{}, "", false, "", nil)
+	_, err := svc.Create(context.Background(), "r", "generic", "https://r.example.com", false, nil, nil, nil, nil, "webhook", 0, nil, nil, pgtype.UUID{}, "", false, "", nil, nil, nil)
 
 	is.True(errors.Is(err, ErrConflict))
 }
@@ -253,7 +253,7 @@ func TestRegistryUpdate_DefaultVisibility(t *testing.T) {
 		},
 	})
 
-	_, err := svc.Update(context.Background(), "01020304-0506-0708-090a-0b0c0d0e0f10", "r", "generic", "https://r.example.com", false, nil, true, nil, nil, nil, "webhook", 0, nil, nil, "", false, "", nil)
+	_, err := svc.Update(context.Background(), "01020304-0506-0708-090a-0b0c0d0e0f10", "r", "generic", "https://r.example.com", false, nil, true, nil, nil, nil, "webhook", 0, nil, nil, "", false, "", nil, nil, nil)
 
 	is.NoErr(err)
 	is.Equal(capturedVis, "public")
@@ -345,7 +345,7 @@ func (f *fakeListRegistryService) ListPaged(_ context.Context, _ VisibilityFilte
 	return PagedResult[Registry]{Data: f.registries, Total: int64(len(f.registries))}, nil
 }
 
-func (f *fakeListRegistryService) Create(_ context.Context, _, _, _ string, _ bool, _ *string, _, _, _ []string, _ string, _ int, _, _ *string, _ pgtype.UUID, _ string, _ bool, _ string, _ *string) (Registry, error) {
+func (f *fakeListRegistryService) Create(_ context.Context, _, _, _ string, _ bool, _ *string, _, _, _ []string, _ string, _ int, _, _ *string, _ pgtype.UUID, _ string, _ bool, _ string, _, _, _ *string) (Registry, error) {
 	return Registry{}, nil
 }
 
@@ -357,7 +357,7 @@ func (f *fakeListRegistryService) GetByName(_ context.Context, _ string) (Regist
 	return Registry{}, ErrNotFound
 }
 
-func (f *fakeListRegistryService) Update(_ context.Context, _, _, _, _ string, _ bool, _ *string, _ bool, _, _, _ []string, _ string, _ int, _, _ *string, _ string, _ bool, _ string, _ *string) (Registry, error) {
+func (f *fakeListRegistryService) Update(_ context.Context, _, _, _, _ string, _ bool, _ *string, _ bool, _, _, _ []string, _ string, _ int, _, _ *string, _ string, _ bool, _ string, _, _, _ *string) (Registry, error) {
 	return Registry{}, nil
 }
 
@@ -430,6 +430,77 @@ func TestBuildCredentialLookup_CachesResults(t *testing.T) {
 		onList: func() { callCount++ },
 	}
 	lookup := BuildCredentialLookup(svc)
+	ctx := context.Background()
+
+	lookup(ctx, "registry.example.com")
+	lookup(ctx, "registry.example.com")
+
+	is.Equal(callCount, 1)
+}
+
+// ---------------------------------------------------------------------------
+// BuildTrustLookup tests
+// ---------------------------------------------------------------------------
+
+func TestBuildTrustLookup_PublicKeyMode(t *testing.T) {
+	is := is.New(t)
+	key := "-----BEGIN PUBLIC KEY-----\nabc\n-----END PUBLIC KEY-----\n"
+	svc := &fakeListRegistryService{
+		registries: []Registry{
+			{URL: "https://registry.example.com", VerificationMode: "public_key", TrustPublicKey: &key},
+		},
+	}
+	lookup := BuildTrustLookup(svc)
+
+	cfg := lookup(context.Background(), "registry.example.com")
+
+	is.Equal(cfg.Mode, "public_key")
+	is.Equal(cfg.PublicKeyPEM, key)
+	is.Equal(cfg.Identity, "")
+	is.Equal(cfg.Issuer, "")
+}
+
+func TestBuildTrustLookup_KeylessMode(t *testing.T) {
+	is := is.New(t)
+	identity := "^https://github.com/example/repo/.*$"
+	issuer := "https://token.actions.githubusercontent.com"
+	svc := &fakeListRegistryService{
+		registries: []Registry{
+			{URL: "https://registry.example.com", VerificationMode: "keyless", TrustIdentity: &identity, TrustIssuer: &issuer},
+		},
+	}
+	lookup := BuildTrustLookup(svc)
+
+	cfg := lookup(context.Background(), "registry.example.com")
+
+	is.Equal(cfg.Mode, "keyless")
+	is.Equal(cfg.Identity, identity)
+	is.Equal(cfg.Issuer, issuer)
+	is.Equal(cfg.PublicKeyPEM, "")
+}
+
+func TestBuildTrustLookup_NoMatchDefaultsToNone(t *testing.T) {
+	is := is.New(t)
+	svc := &fakeListRegistryService{
+		registries: []Registry{{URL: "https://other.example.com", VerificationMode: "public_key"}},
+	}
+	lookup := BuildTrustLookup(svc)
+
+	cfg := lookup(context.Background(), "registry.example.com")
+
+	is.Equal(cfg.Mode, "none")
+}
+
+func TestBuildTrustLookup_CachesResults(t *testing.T) {
+	is := is.New(t)
+	callCount := 0
+	svc := &countingListService{
+		fakeListRegistryService: fakeListRegistryService{registries: []Registry{
+			{URL: "https://registry.example.com", VerificationMode: "public_key"},
+		}},
+		onList: func() { callCount++ },
+	}
+	lookup := BuildTrustLookup(svc)
 	ctx := context.Background()
 
 	lookup(ctx, "registry.example.com")

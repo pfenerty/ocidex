@@ -32,7 +32,7 @@ type ScanMode = "webhook" | "poll" | "both";
 
 type Visibility = "public" | "private";
 
-type VerificationMode = "none" | "public_key";
+type VerificationMode = "none" | "public_key" | "keyless";
 
 interface RegistryFormState {
     name: string;
@@ -50,6 +50,8 @@ interface RegistryFormState {
     includeUntagged: boolean;
     verificationMode: VerificationMode;
     trustPublicKey: string;
+    trustIdentity: string;
+    trustIssuer: string;
 }
 
 const emptyForm = (): RegistryFormState => ({
@@ -68,6 +70,8 @@ const emptyForm = (): RegistryFormState => ({
     includeUntagged: false,
     verificationMode: "none",
     trustPublicKey: "",
+    trustIdentity: "",
+    trustIssuer: "",
 });
 
 function toPatternArray(s: string): string[] {
@@ -119,7 +123,7 @@ export function RegistriesTab() {
         dialogRef?.showModal();
     }
 
-    function startEdit(reg: { id: string; name: string; type: string; url: string; insecure: boolean; has_secret: boolean; has_auth: boolean; enabled: boolean; repositories?: string[] | null; repository_patterns?: string[] | null; tag_patterns?: string[] | null; scan_mode?: string; poll_interval_minutes?: number; visibility?: string; include_untagged?: boolean; verification_mode?: string; trust_public_key?: string | null }) {
+    function startEdit(reg: { id: string; name: string; type: string; url: string; insecure: boolean; has_secret: boolean; has_auth: boolean; enabled: boolean; repositories?: string[] | null; repository_patterns?: string[] | null; tag_patterns?: string[] | null; scan_mode?: string; poll_interval_minutes?: number; visibility?: string; include_untagged?: boolean; verification_mode?: string; trust_public_key?: string | null; trust_identity?: string | null; trust_issuer?: string | null }) {
         setEditingID(reg.id);
         setEditEnabled(reg.enabled);
         setForm({
@@ -136,8 +140,10 @@ export function RegistriesTab() {
             pollIntervalMinutes: reg.poll_interval_minutes ?? 60,
             visibility: (reg.visibility ?? "public") as Visibility,
             includeUntagged: reg.include_untagged ?? false,
-            verificationMode: (reg.verification_mode as VerificationMode | undefined) === "public_key" ? "public_key" : "none",
+            verificationMode: ["public_key", "keyless"].includes(reg.verification_mode ?? "") ? (reg.verification_mode as VerificationMode) : "none",
             trustPublicKey: reg.trust_public_key ?? "",
+            trustIdentity: reg.trust_identity ?? "",
+            trustIssuer: reg.trust_issuer ?? "",
         });
         dialogRef?.showModal();
     }
@@ -154,10 +160,12 @@ export function RegistriesTab() {
 
         const currentID = editingID();
         const trustPublicKey = f.verificationMode === "public_key" ? (f.trustPublicKey.trim() || undefined) : undefined;
+        const trustIdentity = f.verificationMode === "keyless" ? (f.trustIdentity.trim() || undefined) : undefined;
+        const trustIssuer = f.verificationMode === "keyless" ? (f.trustIssuer.trim() || undefined) : undefined;
 
         if (currentID !== null) {
             updateReg.mutate(
-                { id: currentID, name: f.name, type: f.type, url: f.url, insecure: f.insecure, auth_username: authUsername, auth_token: authToken, enabled: editEnabled(), repositories: repos, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes, visibility: f.visibility, include_untagged: f.includeUntagged, verification_mode: f.verificationMode, trust_public_key: trustPublicKey },
+                { id: currentID, name: f.name, type: f.type, url: f.url, insecure: f.insecure, auth_username: authUsername, auth_token: authToken, enabled: editEnabled(), repositories: repos, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes, visibility: f.visibility, include_untagged: f.includeUntagged, verification_mode: f.verificationMode, trust_public_key: trustPublicKey, trust_identity: trustIdentity, trust_issuer: trustIssuer },
                 {
                     onSuccess: () => { toast("Registry updated", "success"); dialogRef?.close(); },
                     onError: () => toast("Failed to update registry", "error"),
@@ -165,7 +173,7 @@ export function RegistriesTab() {
             );
         } else {
             createReg.mutate(
-                { name: f.name, type: f.type, url: f.url, insecure: f.insecure, auth_username: authUsername, auth_token: authToken, repositories: repos, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes, visibility: f.visibility, include_untagged: f.includeUntagged, verification_mode: f.verificationMode, trust_public_key: trustPublicKey },
+                { name: f.name, type: f.type, url: f.url, insecure: f.insecure, auth_username: authUsername, auth_token: authToken, repositories: repos, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes, visibility: f.visibility, include_untagged: f.includeUntagged, verification_mode: f.verificationMode, trust_public_key: trustPublicKey, trust_identity: trustIdentity, trust_issuer: trustIssuer },
                 {
                     onSuccess: (data) => {
                         toast("Registry created", "success");
@@ -516,11 +524,14 @@ export function RegistriesTab() {
                                         ...f,
                                         verificationMode: e.currentTarget.value as VerificationMode,
                                         trustPublicKey: e.currentTarget.value !== "public_key" ? "" : f.trustPublicKey,
+                                        trustIdentity: e.currentTarget.value !== "keyless" ? "" : f.trustIdentity,
+                                        trustIssuer: e.currentTarget.value !== "keyless" ? "" : f.trustIssuer,
                                     }))}
                                     style={{ width: "100%" }}
                                 >
                                     <option value="none">None</option>
                                     <option value="public_key">Public Key</option>
+                                    <option value="keyless">Keyless (Fulcio/Rekor)</option>
                                 </select>
                             </div>
                             <Show when={form().verificationMode === "public_key"}>
@@ -533,6 +544,32 @@ export function RegistriesTab() {
                                         onInput={(e) => setForm(f => ({ ...f, trustPublicKey: e.currentTarget.value }))}
                                         rows={6}
                                         placeholder={"-----BEGIN PUBLIC KEY-----\n..."}
+                                        style={{ width: "100%", "font-family": "monospace", "font-size": "0.85rem" }}
+                                    />
+                                </div>
+                            </Show>
+                            <Show when={form().verificationMode === "keyless"}>
+                                <div>
+                                    <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>
+                                        Trust Identity (SAN regex)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={form().trustIdentity}
+                                        onInput={(e) => setForm(f => ({ ...f, trustIdentity: e.currentTarget.value }))}
+                                        placeholder="https://github.com/org/repo/.*"
+                                        style={{ width: "100%", "font-family": "monospace", "font-size": "0.85rem" }}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>
+                                        Trust Issuer
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={form().trustIssuer}
+                                        onInput={(e) => setForm(f => ({ ...f, trustIssuer: e.currentTarget.value }))}
+                                        placeholder="https://token.actions.githubusercontent.com"
                                         style={{ width: "100%", "font-family": "monospace", "font-size": "0.85rem" }}
                                     />
                                 </div>

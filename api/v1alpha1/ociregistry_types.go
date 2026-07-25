@@ -63,7 +63,7 @@ type OCIRegistrySpec struct {
 	AuthSecretRef *corev1.LocalObjectReference `json:"authSecretRef,omitempty"`
 
 	// VerificationMode controls signature verification for images in this registry.
-	// +kubebuilder:validation:Enum=none;public_key
+	// +kubebuilder:validation:Enum=none;public_key;keyless
 	// +kubebuilder:default=none
 	// +optional
 	VerificationMode string `json:"verificationMode,omitempty"`
@@ -71,6 +71,15 @@ type OCIRegistrySpec struct {
 	// TrustPublicKey is a PEM-encoded EC public key, required when VerificationMode is public_key.
 	// +optional
 	TrustPublicKey *string `json:"trustPublicKey,omitempty"`
+
+	// TrustIdentity is a regex matched against the Fulcio certificate's Subject
+	// Alternative Name, required when VerificationMode is keyless.
+	// +optional
+	TrustIdentity *string `json:"trustIdentity,omitempty"`
+
+	// TrustIssuer is the expected OIDC issuer URL, required when VerificationMode is keyless.
+	// +optional
+	TrustIssuer *string `json:"trustIssuer,omitempty"`
 }
 
 // OCIRegistryStatus reflects the observed state of an OCIRegistry.

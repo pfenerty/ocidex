@@ -40,6 +40,14 @@ func (in *OCIRegistrySpec) DeepCopyInto(out *OCIRegistrySpec) {
 		v := *in.TrustPublicKey
 		out.TrustPublicKey = &v
 	}
+	if in.TrustIdentity != nil {
+		v := *in.TrustIdentity
+		out.TrustIdentity = &v
+	}
+	if in.TrustIssuer != nil {
+		v := *in.TrustIssuer
+		out.TrustIssuer = &v
+	}
 }
 
 // DeepCopy returns a deep copy of OCIRegistrySpec.

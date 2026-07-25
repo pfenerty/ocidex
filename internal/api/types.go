@@ -720,6 +720,8 @@ type RegistryResponse struct {
 	IncludeUntagged     bool     `json:"include_untagged" doc:"Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)"`
 	VerificationMode    string   `json:"verification_mode" enum:"none,public_key,keyless" doc:"Signature verification mode"`
 	TrustPublicKey      *string  `json:"trust_public_key,omitempty" doc:"PEM-encoded EC public key for public_key verification mode"`
+	TrustIdentity       *string  `json:"trust_identity,omitempty" doc:"Regex matched against the Fulcio certificate SAN; required for keyless verification mode"`
+	TrustIssuer         *string  `json:"trust_issuer,omitempty" doc:"Expected OIDC issuer URL; required for keyless verification mode"`
 }
 
 // ListRegistriesInput is the request for GET /api/v1/registries.
@@ -772,8 +774,10 @@ type CreateRegistryInput struct {
 		PollIntervalMinutes int      `json:"poll_interval_minutes,omitempty" minimum:"1" doc:"Minutes between polls"`
 		Visibility          string   `json:"visibility,omitempty" enum:"public,private" default:"public" doc:"Registry visibility"`
 		IncludeUntagged     bool     `json:"include_untagged,omitempty" doc:"Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)"`
-		VerificationMode    string   `json:"verification_mode,omitempty" enum:"none,public_key" doc:"Signature verification mode; defaults to none"`
+		VerificationMode    string   `json:"verification_mode,omitempty" enum:"none,public_key,keyless" doc:"Signature verification mode; defaults to none"`
 		TrustPublicKey      *string  `json:"trust_public_key,omitempty" doc:"PEM-encoded EC public key; required when verification_mode is public_key"`
+		TrustIdentity       *string  `json:"trust_identity,omitempty" doc:"Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless"`
+		TrustIssuer         *string  `json:"trust_issuer,omitempty" doc:"Expected OIDC issuer URL; required when verification_mode is keyless"`
 	}
 }
 
@@ -819,8 +823,10 @@ type UpdateRegistryInput struct {
 		PollIntervalMinutes int      `json:"poll_interval_minutes,omitempty" minimum:"1" doc:"Minutes between polls"`
 		Visibility          string   `json:"visibility,omitempty" enum:"public,private" doc:"Registry visibility"`
 		IncludeUntagged     bool     `json:"include_untagged,omitempty" doc:"Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)"`
-		VerificationMode    string   `json:"verification_mode,omitempty" enum:"none,public_key" doc:"Signature verification mode; defaults to none"`
+		VerificationMode    string   `json:"verification_mode,omitempty" enum:"none,public_key,keyless" doc:"Signature verification mode; defaults to none"`
 		TrustPublicKey      *string  `json:"trust_public_key,omitempty" doc:"PEM-encoded EC public key; required when verification_mode is public_key"`
+		TrustIdentity       *string  `json:"trust_identity,omitempty" doc:"Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless"`
+		TrustIssuer         *string  `json:"trust_issuer,omitempty" doc:"Expected OIDC issuer URL; required when verification_mode is keyless"`
 	}
 }
 

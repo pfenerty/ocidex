@@ -894,6 +894,14 @@
               "null"
             ]
           },
+          "trust_identity": {
+            "description": "Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless",
+            "type": "string"
+          },
+          "trust_issuer": {
+            "description": "Expected OIDC issuer URL; required when verification_mode is keyless",
+            "type": "string"
+          },
           "trust_public_key": {
             "description": "PEM-encoded EC public key; required when verification_mode is public_key",
             "type": "string"
@@ -918,7 +926,8 @@
             "description": "Signature verification mode; defaults to none",
             "enum": [
               "none",
-              "public_key"
+              "public_key",
+              "keyless"
             ],
             "type": "string"
           },
@@ -1028,6 +1037,14 @@
               "array",
               "null"
             ]
+          },
+          "trust_identity": {
+            "description": "Regex matched against the Fulcio certificate SAN; required for keyless verification mode",
+            "type": "string"
+          },
+          "trust_issuer": {
+            "description": "Expected OIDC issuer URL; required for keyless verification mode",
+            "type": "string"
           },
           "trust_public_key": {
             "description": "PEM-encoded EC public key for public_key verification mode",
@@ -2659,6 +2676,14 @@
               "null"
             ]
           },
+          "trust_identity": {
+            "description": "Regex matched against the Fulcio certificate SAN; required for keyless verification mode",
+            "type": "string"
+          },
+          "trust_issuer": {
+            "description": "Expected OIDC issuer URL; required for keyless verification mode",
+            "type": "string"
+          },
           "trust_public_key": {
             "description": "PEM-encoded EC public key for public_key verification mode",
             "type": "string"
@@ -3411,6 +3436,14 @@
               "null"
             ]
           },
+          "trust_identity": {
+            "description": "Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless",
+            "type": "string"
+          },
+          "trust_issuer": {
+            "description": "Expected OIDC issuer URL; required when verification_mode is keyless",
+            "type": "string"
+          },
           "trust_public_key": {
             "description": "PEM-encoded EC public key; required when verification_mode is public_key",
             "type": "string"
@@ -3433,7 +3466,8 @@
             "description": "Signature verification mode; defaults to none",
             "enum": [
               "none",
-              "public_key"
+              "public_key",
+              "keyless"
             ],
             "type": "string"
           },

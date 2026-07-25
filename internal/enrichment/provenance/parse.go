@@ -26,7 +26,9 @@ type Provenance struct {
 	Subjects           []string   `json:"subjects,omitempty"` // "name@sha256:digest"
 	RekorUUID          string     `json:"rekorUuid,omitempty"`
 	RekorLogIndex      int64      `json:"rekorLogIndex,omitempty"`
-	Verified           *bool      `json:"verified,omitempty"` // nil until B4
+	Verified           *bool      `json:"verified,omitempty"`       // nil until B4
+	SignerIdentity     string     `json:"signerIdentity,omitempty"` // keyless only: matched trust_identity pattern
+	SignerIssuer       string     `json:"signerIssuer,omitempty"`   // keyless only: matched trust_issuer
 }
 
 // --- internal parsing types --------------------------------------------------
