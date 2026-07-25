@@ -1,5 +1,5 @@
 import "./Skeleton.css";
-import { Index } from "solid-js";
+import { Index, Show } from "solid-js";
 import type { JSX } from "solid-js";
 
 /**
@@ -79,23 +79,39 @@ export function SkeletonText(props: {
  * @example
  * ```tsx
  * <SkeletonTable columns={4} rows={8} />
+ * <SkeletonTable headers={["Name", "Type", "Version"]} />
  * ```
  */
 export function SkeletonTable(props: {
-    columns: number;
+    /** Column count. Optional when `headers` is given (defaults to headers.length). */
+    columns?: number;
+    /** When provided, renders a real <thead> with these labels. */
+    headers?: string[];
     rows?: number;
     class?: string;
 }): JSX.Element {
     const rowCount = (): number => props.rows ?? 8;
+    const colCount = (): number => props.columns ?? props.headers?.length ?? 1;
     return (
         <div class={"card" + (props.class ? ` ${props.class}` : "")} aria-hidden="true">
             <div class="table-wrapper">
                 <table>
+                    <Show when={props.headers}>
+                        {(headers) => (
+                            <thead>
+                                <tr>
+                                    <Index each={headers()}>
+                                        {(header) => <th>{header()}</th>}
+                                    </Index>
+                                </tr>
+                            </thead>
+                        )}
+                    </Show>
                     <tbody>
                         <Index each={Array.from({ length: rowCount() })}>
                             {() => (
                                 <tr>
-                                    <Index each={Array.from({ length: props.columns })}>
+                                    <Index each={Array.from({ length: colCount() })}>
                                         {() => (
                                             <td>
                                                 <Skeleton />

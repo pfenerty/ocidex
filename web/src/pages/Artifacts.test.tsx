@@ -82,10 +82,13 @@ describe("Artifacts", () => {
         vi.clearAllMocks();
     });
 
-    it("shows loading spinner", () => {
+    it("shows a skeleton table while loading", () => {
         mockUseArtifacts.mockReturnValue(makeQuery({ isLoading: true }) as never);
-        const { getByText } = renderArtifacts();
-        expect(getByText("Loading…")).toBeDefined();
+        const { container, getByText } = renderArtifacts();
+        // Real headers render immediately; body is shimmer, not a spinner.
+        expect(getByText("Artifact")).toBeDefined();
+        expect(container.querySelector(".skeleton")).not.toBeNull();
+        expect(container.querySelector(".spinner")).toBeNull();
     });
 
     it("shows error message on query failure", () => {

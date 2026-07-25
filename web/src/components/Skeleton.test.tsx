@@ -38,6 +38,19 @@ describe("SkeletonTable", () => {
     });
 });
 
+describe("SkeletonTable headers", () => {
+    it("renders a <thead> with the given labels and derives column count", () => {
+        const { container, getByText } = render(() => (
+            <SkeletonTable headers={["Name", "Type", "Version"]} rows={2} />
+        ));
+        expect(getByText("Name")).toBeDefined();
+        expect(getByText("Type")).toBeDefined();
+        expect(container.querySelectorAll("thead th")).toHaveLength(3);
+        // 2 rows × 3 derived columns of shimmer cells
+        expect(container.querySelectorAll("tbody .skeleton")).toHaveLength(6);
+    });
+});
+
 describe("SkeletonHeader", () => {
     it("renders a .page-header with a title bar and one subtitle line by default", () => {
         const { container } = render(() => <SkeletonHeader />);

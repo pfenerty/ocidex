@@ -1,7 +1,8 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 import { A } from "@solidjs/router";
 import { useArtifactsInfinite } from "~/api/queries";
-import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
+import { ErrorBox, EmptyState } from "~/components/Feedback";
+import { SkeletonTable } from "~/components/Skeleton";
 import LoadMore from "~/components/LoadMore";
 import { artifactDisplayName, plural } from "~/utils/format";
 import { SigningBadge, TypeBadge } from "~/components/cells";
@@ -101,7 +102,10 @@ export default function Artifacts() {
                 </label>
             </div>
 
-            <Show when={!query.isLoading} fallback={<Loading />}>
+            <Show
+                when={!query.isLoading}
+                fallback={<SkeletonTable headers={["Artifact", "Type", "Signing", "SBOMs"]} />}
+            >
                 <Show
                     when={!query.isError}
                     fallback={<ErrorBox error={query.error} />}

@@ -1,6 +1,7 @@
 import { createSignal, Show } from "solid-js";
 import { useDiffTree } from "~/api/queries";
-import { Loading, ErrorBox } from "~/components/Feedback";
+import { ErrorBox } from "~/components/Feedback";
+import { SkeletonText } from "~/components/Skeleton";
 import DiffEntry from "~/components/DiffEntry";
 import { DiffTreeView } from "~/components/DiffTreeView";
 import type { ChangelogEntryData } from "~/utils/diff";
@@ -32,7 +33,7 @@ export function DiffPairView(props: {
 
     return (
         <>
-            <Show when={query.isLoading}><Loading /></Show>
+            <Show when={query.isLoading}><SkeletonText lines={8} /></Show>
             <Show when={query.isError}><ErrorBox error={query.error} /></Show>
             <Show when={query.data} keyed>
                 {(tree) => {

@@ -8,8 +8,8 @@ import {
     useArtifactLicenseSummary,
     useArtifactVulnSummary,
 } from "~/api/queries";
-import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
-import { Skeleton, SkeletonHeader } from "~/components/Skeleton";
+import { ErrorBox, EmptyState } from "~/components/Feedback";
+import { Skeleton, SkeletonHeader, SkeletonText } from "~/components/Skeleton";
 import PurlLink from "~/components/PurlLink";
 import { VulnSummaryBar } from "~/components/VulnBadge";
 import { TypeBadge, SigningBadge } from "~/components/ui";
@@ -342,7 +342,7 @@ export default function ArtifactDetail() {
                                 <Show when={tab() === "changelog"}>
                                     <Show
                                         when={!changelogQuery.isLoading}
-                                        fallback={<Loading />}
+                                        fallback={<SkeletonText lines={8} />}
                                     >
                                         <Show
                                             when={!changelogQuery.isError}
