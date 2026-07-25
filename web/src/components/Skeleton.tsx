@@ -2,6 +2,9 @@ import "./Skeleton.css";
 import { Index, Show } from "solid-js";
 import type { JSX } from "solid-js";
 
+/** Join class names, dropping falsy/undefined parts. */
+const cx = (...parts: (string | false | undefined)[]): string => parts.filter(Boolean).join(" ");
+
 /**
  * A single shimmer placeholder block. Decorative — hidden from assistive tech.
  *
@@ -27,11 +30,7 @@ export function Skeleton(props: {
     });
     return (
         <span
-            class={
-                "skeleton" +
-                (props.circle ? " skeleton-circle" : "") +
-                (props.class ? ` ${props.class}` : "")
-            }
+            class={cx("skeleton", props.circle === true && "skeleton-circle", props.class)}
             style={style()}
             aria-hidden="true"
         />
@@ -55,7 +54,7 @@ export function SkeletonText(props: {
 }): JSX.Element {
     const count = (): number => props.lines ?? 3;
     return (
-        <div class={"skeleton-text" + (props.class ? ` ${props.class}` : "")} aria-hidden="true">
+        <div class={cx("skeleton-text", props.class)} aria-hidden="true">
             <Index each={Array.from({ length: count() })}>
                 {(_, i) => (
                     <Skeleton
@@ -93,7 +92,7 @@ export function SkeletonTable(props: {
     const rowCount = (): number => props.rows ?? 8;
     const colCount = (): number => props.columns ?? props.headers?.length ?? 1;
     return (
-        <div class={"card" + (props.class ? ` ${props.class}` : "")} aria-hidden="true">
+        <div class={cx("card", props.class)} aria-hidden="true">
             <div class="table-wrapper">
                 <table>
                     <Show when={props.headers}>
@@ -139,7 +138,7 @@ export function SkeletonTable(props: {
  */
 export function SkeletonCard(props: { lines?: number; class?: string }): JSX.Element {
     return (
-        <div class={"card skeleton-card" + (props.class ? ` ${props.class}` : "")} aria-hidden="true">
+        <div class={cx("card skeleton-card", props.class)} aria-hidden="true">
             <Skeleton width="40%" height="1.2em" />
             <SkeletonText lines={props.lines ?? 3} />
         </div>
@@ -160,7 +159,7 @@ export function SkeletonCard(props: { lines?: number; class?: string }): JSX.Ele
  */
 export function SkeletonHeader(props: { subtitleLines?: number; class?: string }): JSX.Element {
     return (
-        <div class={"page-header" + (props.class ? ` ${props.class}` : "")} aria-hidden="true">
+        <div class={cx("page-header", props.class)} aria-hidden="true">
             <div class="page-header-row">
                 <div>
                     <Skeleton width="16rem" height="1.5rem" />

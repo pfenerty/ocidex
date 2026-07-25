@@ -201,6 +201,9 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
                     fallback={<EmptyState title={props.emptyTitle} message={props.emptyMessage} />}
                 >
                     {(rows) =>
+                        // The thunk's reads are realized inside the tracked {body()}
+                        // scope in tableShell; reactivity is covered by DataTable.test.tsx.
+                        // eslint-disable-next-line solid/reactivity
                         tableShell(() =>
                             isRefetching() ? skeletonBody(rows().length) : realBody(rows()),
                         )

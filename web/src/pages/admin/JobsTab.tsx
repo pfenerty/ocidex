@@ -109,7 +109,7 @@ function ScanJobsView() {
         if (qMain.data === undefined) return undefined;
         let jobs;
         if (isActive()) {
-            const running = [...(qMain.data?.data ?? [])].sort(
+            const running = [...(qMain.data.data ?? [])].sort(
                 (a, b) => new Date(a.started_at ?? a.created_at).getTime() - new Date(b.started_at ?? b.created_at).getTime()
             );
             const queued = [...(qQueued.data?.data ?? [])].sort(
@@ -117,7 +117,7 @@ function ScanJobsView() {
             );
             jobs = [...running, ...queued];
         } else {
-            jobs = qMain.data?.data ?? [];
+            jobs = qMain.data.data ?? [];
         }
         const repo = repoFilter().toLowerCase();
         const reg = registryFilter();
