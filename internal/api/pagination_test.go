@@ -22,7 +22,7 @@ func TestPaginationDefaults(t *testing.T) {
 
 	var resp cursorBody
 	is.NoErr(json.Unmarshal(w.Body.Bytes(), &resp))
-	is.Equal(resp.Pagination.Limit, int32(50))
+	is.Equal(resp.Pagination.Limit, int32(20))
 	is.Equal(resp.Pagination.HasMore, false)
 }
 
