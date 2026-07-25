@@ -106,6 +106,9 @@ function ScanJobsView() {
     const isError = () => qMain.isError || (isActive() && qQueued.isError);
 
     const displayJobs = () => {
+        // First load (no data yet): return undefined so DataTable shows its
+        // skeleton rather than the empty state.
+        if (qMain.data === undefined) return undefined;
         let jobs;
         if (isActive()) {
             const running = [...(qMain.data?.data ?? [])].sort(
@@ -315,8 +318,11 @@ function EnrichmentJobsView() {
     };
 
     const displayJobs = () => {
+        // First load (no data yet): return undefined so DataTable shows its
+        // skeleton rather than the empty state.
+        if (q.data === undefined) return undefined;
         const t = textFilter().toLowerCase();
-        return (q.data?.data ?? []).filter(job =>
+        return (q.data.data ?? []).filter(job =>
             !t ||
             (job.artifact_name ?? "").toLowerCase().includes(t) ||
             (job.sbom_digest ?? "").toLowerCase().includes(t)

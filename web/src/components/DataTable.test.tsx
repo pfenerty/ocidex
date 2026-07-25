@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from "vitest";
+import { createSignal } from "solid-js";
 import { render } from "@solidjs/testing-library";
 import DataTable from "./DataTable";
 import type { Column } from "./DataTable";
@@ -62,5 +63,40 @@ describe("DataTable loaded", () => {
             />
         ));
         expect(getByText("Nothing here")).toBeDefined();
+    });
+});
+
+describe("DataTable reactivity", () => {
+    it("re-renders the body when the rows signal changes (pagination/sort)", () => {
+        const [rows, setRows] = createSignal<Row[]>([{ name: "alpha" }]);
+        const { queryByText } = render(() => (
+            <DataTable
+                columns={columns}
+                rows={rows()}
+                loading={false}
+                isError={false}
+                emptyTitle="Nothing here"
+            />
+        ));
+        expect(queryByText("alpha")).not.toBeNull();
+        setRows([{ name: "beta" }]);
+        expect(queryByText("beta")).not.toBeNull();
+        expect(queryByText("alpha")).toBeNull();
+    });
+
+    it("swaps to skeleton rows when loading flips true with rows present (refetch)", () => {
+        const [loading, setLoading] = createSignal(false);
+        const { container } = render(() => (
+            <DataTable
+                columns={columns}
+                rows={[{ name: "alpha" }]}
+                loading={loading()}
+                isError={false}
+                emptyTitle="Nothing here"
+            />
+        ));
+        expect(container.querySelectorAll("tbody .skeleton")).toHaveLength(0);
+        setLoading(true);
+        expect(container.querySelectorAll("tbody .skeleton").length).toBeGreaterThan(0);
     });
 });

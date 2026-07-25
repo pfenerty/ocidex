@@ -151,7 +151,10 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
         </For>
     );
 
-    const tableShell = (body: JSX.Element) => (
+    // body is a thunk so the tbody stays reactive: reading rows()/isRefetching()
+    // inside the {body()} expression lets Solid re-render just the tbody on
+    // pagination, sort, and refetch without rebuilding the card/headers.
+    const tableShell = (body: () => JSX.Element) => (
         <div class="card">
             <div class="table-wrapper">
                 <table>
@@ -173,7 +176,7 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
                             </For>
                         </tr>
                     </thead>
-                    <tbody>{body}</tbody>
+                    <tbody>{body()}</tbody>
                 </table>
             </div>
             <Show when={props.pagination}>
@@ -191,14 +194,16 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
         <Show when={!props.isError} fallback={<ErrorBox error={props.error} />}>
             <Show
                 when={!isFirstLoad()}
-                fallback={tableShell(skeletonBody(props.skeletonRows ?? 8))}
+                fallback={tableShell(() => skeletonBody(props.skeletonRows ?? 8))}
             >
                 <Show
                     when={visibleRows()}
                     fallback={<EmptyState title={props.emptyTitle} message={props.emptyMessage} />}
                 >
                     {(rows) =>
-                        tableShell(isRefetching() ? skeletonBody(rows().length) : realBody(rows()))
+                        tableShell(() =>
+                            isRefetching() ? skeletonBody(rows().length) : realBody(rows()),
+                        )
                     }
                 </Show>
             </Show>
