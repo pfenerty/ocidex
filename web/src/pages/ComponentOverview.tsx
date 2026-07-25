@@ -1,21 +1,14 @@
-import "~/components/DetailSection.css";
 import { Show, For, createMemo, createSignal } from "solid-js";
 import { A, useSearchParams } from "@solidjs/router";
 import { useComponent, useComponentVersions, useComponentVulns } from "~/api/queries";
-import type { ComponentVersionEntry, LicenseSummary, HashEntry } from "~/api/client";
-import type { components } from "~/types/openapi";
+import type { ComponentVersionEntry } from "~/api/client";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
 import CopyDigest from "~/components/CopyDigest";
 import PurlLink from "~/components/PurlLink";
+import ComponentMetadata from "~/components/ComponentMetadata";
 import { VulnCountBadges } from "~/components/VulnBadge";
-import { StatusPill } from "~/components/ui/Badge";
 import { purlToRegistryUrl, purlTypeLabel } from "~/utils/purl";
 import { relativeDate, formatDateTime, plural, hasText } from "~/utils/format";
-import DataTable from "~/components/DataTable";
-import type { Column } from "~/components/DataTable";
-import { SeverityPill, VulnId, SpdxBadgeCell } from "~/components/cells";
-
-type ComponentVulnEntry = components["schemas"]["ComponentVulnEntry"];
 
 interface VersionGroup {
     version: string;
@@ -147,79 +140,6 @@ export default function ComponentOverview() {
         return `${base}${group}`;
     };
 
-    const vulnColumns: Column<ComponentVulnEntry>[] = [
-        {
-            header: "Vulnerability",
-            render: (v) => (
-                <>
-                    <VulnId canonicalId={v.canonicalId} nativeId={v.id} />
-                    <Show when={v.matchedViaSource}>
-                        <span style={{ "margin-left": "8px" }}>
-                            <StatusPill
-                                variant="default"
-                                title="Matched via the component's source package, not its own purl"
-                            >
-                                via source
-                            </StatusPill>
-                        </span>
-                    </Show>
-                </>
-            ),
-        },
-        {
-            header: "Severity",
-            render: (v) => <SeverityPill severity={v.severity}>{v.severity}</SeverityPill>,
-        },
-        {
-            header: "CVSS",
-            render: (v) => v.cvssScore?.toFixed(1) ?? "—",
-        },
-        {
-            header: "Summary",
-            render: (v) => <span class="text-muted">{v.summary ?? "—"}</span>,
-        },
-        {
-            header: "Fixed In",
-            render: (v) => <span class="font-mono text-sm">{v.fixedVersion ?? "—"}</span>,
-        },
-    ];
-
-    const licenseColumns: Column<LicenseSummary>[] = [
-        {
-            header: "Name",
-            render: (license) => (
-                <A href={`/licenses/${license.id}/components`}>{license.name}</A>
-            ),
-        },
-        {
-            header: "SPDX ID",
-            render: (license) => <SpdxBadgeCell spdxId={license.spdxId} />,
-        },
-        {
-            header: "URL",
-            render: (license) => (
-                <Show when={license.url} fallback={<span class="text-muted">—</span>}>
-                    {(url) => (
-                        <a href={url()} target="_blank" rel="noopener noreferrer" class="text-sm">
-                            {url()}
-                        </a>
-                    )}
-                </Show>
-            ),
-        },
-    ];
-
-    const hashColumns: Column<HashEntry>[] = [
-        {
-            header: "Algorithm",
-            render: (hash) => <span class="badge">{hash.algorithm}</span>,
-        },
-        {
-            header: "Value",
-            render: (hash) => <span class="font-mono text-sm">{hash.value}</span>,
-        },
-    ];
-
     return (
         <>
             <div class="breadcrumb">
@@ -341,213 +261,11 @@ export default function ComponentOverview() {
 
                                     {/* ── Drill-down: specific version selected ── */}
                                     <Show when={hasVersion()}>
-                                        {/* Component metadata */}
-                                        <Show when={detailQuery.data} keyed>
-                                            {(detail) => (
-                                                <>
-                                                    <div class="detail-grid">
-                                                        <div class="detail-field">
-                                                            <span class="detail-label">Type</span>
-                                                            <span class="detail-value">{detail.type}</span>
-                                                        </div>
-                                                        <Show when={hasText(detail.group)}>
-                                                            <div class="detail-field">
-                                                                <span class="detail-label">Group</span>
-                                                                <span class="detail-value">{detail.group}</span>
-                                                            </div>
-                                                        </Show>
-                                                        <Show when={hasText(detail.purl)}>
-                                                            <div class="detail-field">
-                                                                <span class="detail-label">PURL</span>
-                                                                <span class="detail-value">
-                                                                    <PurlLink purl={detail.purl ?? ""} showBadge />
-                                                                </span>
-                                                            </div>
-                                                        </Show>
-                                                        <Show when={hasText(detail.cpe)}>
-                                                            <div class="detail-field">
-                                                                <span class="detail-label">CPE</span>
-                                                                <span class="detail-value font-mono text-sm">{detail.cpe}</span>
-                                                            </div>
-                                                        </Show>
-                                                        <Show when={hasText(detail.scope)}>
-                                                            <div class="detail-field">
-                                                                <span class="detail-label">Scope</span>
-                                                                <span class="detail-value">{detail.scope}</span>
-                                                            </div>
-                                                        </Show>
-                                                        <Show when={hasText(detail.publisher)}>
-                                                            <div class="detail-field">
-                                                                <span class="detail-label">Publisher</span>
-                                                                <span class="detail-value">{detail.publisher}</span>
-                                                            </div>
-                                                        </Show>
-                                                        <Show when={hasText(detail.copyright)}>
-                                                            <div class="detail-field">
-                                                                <span class="detail-label">Copyright</span>
-                                                                <span class="detail-value">{detail.copyright}</span>
-                                                            </div>
-                                                        </Show>
-                                                        <Show when={hasText(detail.foundBy)}>
-                                                            <div class="detail-field">
-                                                                <span class="detail-label">Detected by</span>
-                                                                <span class="detail-value">
-                                                                    {detail.foundBy}
-                                                                    <Show when={hasText(detail.confidence)}>
-                                                                        <span style={{ "margin-left": "8px" }}>
-                                                                            <StatusPill variant="warning">
-                                                                                {detail.confidence} confidence
-                                                                            </StatusPill>
-                                                                        </span>
-                                                                    </Show>
-                                                                </span>
-                                                            </div>
-                                                        </Show>
-                                                        <Show when={hasText(detail.sourcePackage)}>
-                                                            <div class="detail-field">
-                                                                <span class="detail-label">Source package</span>
-                                                                <span class="detail-value">{detail.sourcePackage}</span>
-                                                            </div>
-                                                        </Show>
-                                                        <Show when={detail.layer !== undefined}>
-                                                            <div class="detail-field">
-                                                                <span class="detail-label">Layer</span>
-                                                                <span class="detail-value">
-                                                                    {detail.layer}
-                                                                    <Show when={detail.fromBaseImage}>
-                                                                        <span style={{ "margin-left": "8px" }}>
-                                                                            <StatusPill
-                                                                                variant="primary"
-                                                                                title="Introduced by the image's base layer"
-                                                                            >
-                                                                                base image
-                                                                            </StatusPill>
-                                                                        </span>
-                                                                    </Show>
-                                                                </span>
-                                                            </div>
-                                                        </Show>
-                                                    </div>
-
-                                                    <Show when={hasText(detail.description)}>
-                                                        <div class="card mb-4">
-                                                            <div class="card-header">
-                                                                <h3>Description</h3>
-                                                            </div>
-                                                            <p class="text-sm">{detail.description}</p>
-                                                        </div>
-                                                    </Show>
-                                                </>
-                                            )}
-                                        </Show>
-
-                                        {/* Vulnerabilities */}
-                                        <Show when={hasText(firstVersionPurl())}>
-                                            <div class="mb-4">
-                                                <h3>
-                                                    Vulnerabilities{" "}
-                                                    <Show when={vulnsQuery.data} keyed>
-                                                        {(d) => (
-                                                            <span class="badge">{d.data.length}</span>
-                                                        )}
-                                                    </Show>
-                                                </h3>
-                                                <DataTable
-                                                    columns={vulnColumns}
-                                                    rows={vulnsQuery.data?.data}
-                                                    loading={vulnsQuery.isFetching}
-                                                    isError={vulnsQuery.isError}
-                                                    error={vulnsQuery.error}
-                                                    emptyTitle="No known vulnerabilities"
-                                                    emptyMessage="No vulnerabilities are currently recorded for this package."
-                                                />
-                                            </div>
-                                        </Show>
-
-                                        {/* Licenses */}
-                                        <div class="mb-4">
-                                            <h3>
-                                                Licenses{" "}
-                                                <Show when={detailQuery.data} keyed>
-                                                    {(d) => (
-                                                        <span class="badge">{(d.licenses ?? []).length}</span>
-                                                    )}
-                                                </Show>
-                                            </h3>
-                                            <DataTable
-                                                columns={licenseColumns}
-                                                rows={detailQuery.data?.licenses ?? undefined}
-                                                loading={detailQuery.isFetching}
-                                                isError={detailQuery.isError}
-                                                error={detailQuery.error}
-                                                emptyTitle="No licenses"
-                                                emptyMessage="No license information found for this component."
-                                            />
-                                        </div>
-
-                                        {/* Hashes */}
-                                        <div class="mb-4">
-                                            <h3>
-                                                Hashes{" "}
-                                                <Show when={detailQuery.data} keyed>
-                                                    {(d) => (
-                                                        <span class="badge">{(d.hashes ?? []).length}</span>
-                                                    )}
-                                                </Show>
-                                            </h3>
-                                            <DataTable
-                                                columns={hashColumns}
-                                                rows={detailQuery.data?.hashes ?? undefined}
-                                                loading={detailQuery.isFetching}
-                                                isError={detailQuery.isError}
-                                                error={detailQuery.error}
-                                                emptyTitle="No hashes"
-                                                emptyMessage="No hash information found for this component."
-                                            />
-                                        </div>
-
-                                        {/* External References */}
-                                        <Show when={(detailQuery.data?.externalReferences ?? []).length > 0}>
-                                            <div class="card mb-4">
-                                                <div class="card-header">
-                                                    <h3>External References</h3>
-                                                    <span class="badge">{(detailQuery.data?.externalReferences ?? []).length}</span>
-                                                </div>
-                                                <div class="table-wrapper">
-                                                    <table>
-                                                        <thead>
-                                                            <tr>
-                                                                <th>Type</th>
-                                                                <th>URL</th>
-                                                                <th>Comment</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            <For each={detailQuery.data?.externalReferences ?? []}>
-                                                                {(ref) => (
-                                                                    <tr>
-                                                                        <td>
-                                                                            <span class="badge">{ref.type}</span>
-                                                                        </td>
-                                                                        <td>
-                                                                            <a
-                                                                                href={ref.url}
-                                                                                target="_blank"
-                                                                                rel="noopener noreferrer"
-                                                                                class="font-mono text-sm"
-                                                                            >
-                                                                                {ref.url}
-                                                                            </a>
-                                                                        </td>
-                                                                        <td class="text-muted">{ref.comment ?? "—"}</td>
-                                                                    </tr>
-                                                                )}
-                                                            </For>
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </div>
-                                        </Show>
+                                        <ComponentMetadata
+                                            detailQuery={detailQuery}
+                                            vulnsQuery={vulnsQuery}
+                                            showVulns={hasText(firstVersionPurl())}
+                                        />
 
                                         {/* Artifacts */}
                                         <div class="card">
