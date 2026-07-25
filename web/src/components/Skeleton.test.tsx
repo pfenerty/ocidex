@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from "vitest";
 import { render } from "@solidjs/testing-library";
-import { Skeleton, SkeletonText, SkeletonTable, SkeletonCard } from "./Skeleton";
+import { Skeleton, SkeletonText, SkeletonTable, SkeletonCard, SkeletonHeader } from "./Skeleton";
 
 describe("Skeleton", () => {
     it("renders a single shimmer block honoring width", () => {
@@ -35,6 +35,21 @@ describe("SkeletonTable", () => {
         const { container } = render(() => <SkeletonTable columns={4} rows={3} />);
         expect(container.querySelectorAll("tbody tr")).toHaveLength(3);
         expect(container.querySelectorAll("tbody .skeleton")).toHaveLength(12);
+    });
+});
+
+describe("SkeletonHeader", () => {
+    it("renders a .page-header with a title bar and one subtitle line by default", () => {
+        const { container } = render(() => <SkeletonHeader />);
+        expect(container.querySelector(".page-header .page-header-row")).not.toBeNull();
+        // 1 title bar + 1 subtitle line
+        expect(container.querySelectorAll(".skeleton")).toHaveLength(2);
+    });
+
+    it("honors subtitleLines", () => {
+        const { container } = render(() => <SkeletonHeader subtitleLines={3} />);
+        // 1 title bar + 3 subtitle lines
+        expect(container.querySelectorAll(".skeleton")).toHaveLength(4);
     });
 });
 

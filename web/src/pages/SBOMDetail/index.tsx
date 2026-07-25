@@ -5,6 +5,7 @@ import { useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies, useArt
 import { useArtifactNames } from "~/api/queries";
 import type { OCIMetadata, Provenance, GitCommitMetadata } from "~/api/client";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
+import { Skeleton, SkeletonHeader } from "~/components/Skeleton";
 import CopyDigest from "~/components/CopyDigest";
 import ImageMetadataCard from "~/components/ImageMetadataCard";
 import ProvenanceCard from "~/components/ProvenanceCard";
@@ -96,10 +97,17 @@ export default function SBOMDetail() {
                         </>
                     )}
                 </Show>
-                <span>{(sbomQuery.data?.subjectVersion ?? formatDateTime(sbomQuery.data?.createdAt ?? "")) || params.id}</span>
+                <span>
+                    {sbomQuery.isLoading ? (
+                        <Skeleton width="6rem" style={{ display: "inline-block" }} />
+                    ) : (
+                        (sbomQuery.data?.subjectVersion ??
+                            formatDateTime(sbomQuery.data?.createdAt ?? "")) || params.id
+                    )}
+                </span>
             </div>
 
-            <Show when={!sbomQuery.isLoading} fallback={<Loading />}>
+            <Show when={!sbomQuery.isLoading} fallback={<SkeletonHeader />}>
                 <Show
                     when={!sbomQuery.isError && sbomQuery.data !== undefined ? sbomQuery.data : undefined}
                     keyed

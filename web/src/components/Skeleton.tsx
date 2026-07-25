@@ -129,3 +129,34 @@ export function SkeletonCard(props: { lines?: number; class?: string }): JSX.Ele
         </div>
     );
 }
+
+/**
+ * A placeholder for a detail-page hero. Renders the real `.page-header` /
+ * `.page-header-row` structure (see Layout.css) so there is no layout shift
+ * when the loaded header replaces it.
+ *
+ * @example
+ * ```tsx
+ * <Show when={!query.isLoading} fallback={<SkeletonHeader />}>
+ *     …the real page header…
+ * </Show>
+ * ```
+ */
+export function SkeletonHeader(props: { subtitleLines?: number; class?: string }): JSX.Element {
+    return (
+        <div class={"page-header" + (props.class ? ` ${props.class}` : "")} aria-hidden="true">
+            <div class="page-header-row">
+                <div>
+                    <Skeleton width="16rem" height="1.5rem" />
+                    <div style={{ "margin-top": "0.5rem" }}>
+                        <SkeletonText
+                            lines={props.subtitleLines ?? 1}
+                            width="24rem"
+                            lastLineWidth="18rem"
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}

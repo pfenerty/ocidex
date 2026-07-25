@@ -1,7 +1,8 @@
 import { Show } from "solid-js";
 import { A, useParams } from "@solidjs/router";
 import { useComponent, useComponentVulns } from "~/api/queries";
-import { Loading, ErrorBox } from "~/components/Feedback";
+import { ErrorBox } from "~/components/Feedback";
+import { Skeleton, SkeletonHeader } from "~/components/Skeleton";
 import ComponentMetadata from "~/components/ComponentMetadata";
 import { VulnCountBadges } from "~/components/VulnBadge";
 import { hasText } from "~/utils/format";
@@ -26,10 +27,14 @@ export default function ComponentDetail() {
             <div class="breadcrumb">
                 <A href="/components">Components</A>
                 <span class="separator">/</span>
-                <span>{detailQuery.data?.name ?? params.id}</span>
+                <span>
+                    {detailQuery.data?.name ?? (
+                        <Skeleton width="6rem" style={{ display: "inline-block" }} />
+                    )}
+                </span>
             </div>
 
-            <Show when={!detailQuery.isLoading} fallback={<Loading />}>
+            <Show when={!detailQuery.isLoading} fallback={<SkeletonHeader />}>
                 <Show
                     when={
                         !detailQuery.isError && detailQuery.data !== undefined
