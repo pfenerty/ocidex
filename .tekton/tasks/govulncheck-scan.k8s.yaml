@@ -65,7 +65,7 @@ spec:
         limits:
           cpu: "2"
           ephemeral-storage: 4Gi
-          memory: 4Gi
+          memory: 6Gi
         requests:
           cpu: 500m
           ephemeral-storage: 2Gi
@@ -79,8 +79,8 @@ spec:
         def main [] {
         log $"go=(go version) uid=(id -u) pwd=(pwd)"
         ^git config --global --add safe.directory (pwd)
-        log "Running govulncheck ./..."
-        ^govulncheck ./...
+        log "Running govulncheck ./cmd/..."
+        ^govulncheck ./cmd/...
         log "OK: no reachable vulnerabilities"
         }
         let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })

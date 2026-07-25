@@ -47,6 +47,11 @@
       "matchUpdateTypes": ["major"],
       "groupName": "tektonic (major)",
       "automerge": false
+    },
+    {
+      "description": "Hold eslint at <10: eslint-plugin-solid (^0.14) only peer-supports eslint ^6||^7||^8||^9, so eslint 10 fails npm install (ERESOLVE) and leaves the major-update PR perpetually red. Lift once eslint-plugin-solid supports eslint 10.",
+      "matchPackageNames": ["eslint"],
+      "allowedVersions": "<10"
     }
   ],
   "customManagers": [
