@@ -12,7 +12,7 @@ import (
 
 // PaginationParams is embedded in input structs for paginated endpoints.
 type PaginationParams struct {
-	Limit  int32 `query:"limit" default:"50" minimum:"1" maximum:"200" doc:"Maximum number of results per page"`
+	Limit  int32 `query:"limit" default:"20" minimum:"1" maximum:"200" doc:"Maximum number of results per page"`
 	Offset int32 `query:"offset" default:"0" minimum:"0" doc:"Number of results to skip"`
 }
 
@@ -28,7 +28,7 @@ type PaginationMeta struct {
 // drops the per-page COUNT(*) total; the client pages forward with an opaque
 // cursor and stops when hasMore is false.
 type CursorParams struct {
-	Limit  int32  `query:"limit" default:"50" minimum:"1" maximum:"200" doc:"Maximum number of results per page"`
+	Limit  int32  `query:"limit" default:"20" minimum:"1" maximum:"200" doc:"Maximum number of results per page"`
 	Cursor string `query:"cursor" doc:"Opaque cursor from a previous response's nextCursor; omit for the first page"`
 }
 

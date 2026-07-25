@@ -3,7 +3,7 @@ import { A } from "@solidjs/router";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { TimestampCell } from "~/components/cells";
-import type { ScanJob, EnrichmentJob } from "~/api/client";
+import { DEFAULT_PAGE_SIZE, type ScanJob, type EnrichmentJob } from "~/api/client";
 import {
     useListRegistries,
     useListScanJobs,
@@ -21,8 +21,6 @@ const JOB_STATE_COLORS: Record<string, string> = {
     succeeded: "var(--color-success)",
     failed: "var(--color-error, #e53e3e)",
 };
-
-const PAGE_SIZE = 20;
 const ENRICHERS = ["user", "oci-metadata", "provenance"] as const;
 const ENRICH_STATES = ["queued", "running", "succeeded", "failed"] as const;
 
@@ -95,7 +93,7 @@ function ScanJobsView() {
         const f = stateFilter();
         return {
             state: f === "active" ? "running" : (f || undefined),
-            limit: isActive() ? 50 : PAGE_SIZE,
+            limit: isActive() ? 50 : DEFAULT_PAGE_SIZE,
             offset: isActive() ? 0 : offset(),
         };
     });
@@ -279,7 +277,7 @@ function EnrichmentJobsView() {
     const q = useListEnrichmentJobs(() => ({
         state: stateFilter() || undefined,
         enricher_name: enricherFilter() || undefined,
-        limit: PAGE_SIZE,
+        limit: DEFAULT_PAGE_SIZE,
         offset: offset(),
     }));
 

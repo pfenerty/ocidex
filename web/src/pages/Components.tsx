@@ -1,4 +1,5 @@
 import "./Components.css";
+import { DEFAULT_PAGE_SIZE } from "~/api/client";
 import { createSignal } from "solid-js";
 import { Show, For } from "solid-js";
 import { useDistinctComponents, useComponentPurlTypes } from "~/api/queries";
@@ -17,7 +18,7 @@ export default function Components() {
     const [purlTypeFilter, setPurlTypeFilter] = createSignal("");
     const [sortBy, setSortBy] = createSignal<SortColumn>("sbom_count");
     const [sortDir, setSortDir] = createSignal<SortDir>("desc");
-    const limit = 50;
+    const limit = DEFAULT_PAGE_SIZE;
 
     const purlTypesQuery = useComponentPurlTypes();
 

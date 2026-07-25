@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import { DEFAULT_PAGE_SIZE } from "~/api/client";
 import { For } from "solid-js";
 import { A } from "@solidjs/router";
 import { useLicenses } from "~/api/queries";
@@ -22,7 +23,7 @@ export default function Licenses() {
     const [nameFilter, setNameFilter] = createSignal("");
     const [spdxFilter, setSpdxFilter] = createSignal("");
     const [categoryFilter, setCategoryFilter] = createSignal("");
-    const limit = 50;
+    const limit = DEFAULT_PAGE_SIZE;
 
     const query = useLicenses(() => ({
         name: nameFilter() !== "" ? nameFilter() : undefined,

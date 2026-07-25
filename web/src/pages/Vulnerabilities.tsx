@@ -1,4 +1,5 @@
 import { createSignal, Show, For } from "solid-js";
+import { DEFAULT_PAGE_SIZE } from "~/api/client";
 import { useNavigate } from "@solidjs/router";
 import { useTopVulnerabilities } from "~/api/queries";
 import type { components } from "~/types/openapi";
@@ -9,7 +10,7 @@ import { SeverityPill, VulnId } from "~/components/cells";
 type TopVulnEntry = components["schemas"]["TopVulnEntry"];
 
 const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"] as const;
-const limit = 50;
+const limit = DEFAULT_PAGE_SIZE;
 
 export default function Vulnerabilities() {
     const navigate = useNavigate();

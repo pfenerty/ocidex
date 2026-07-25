@@ -5,6 +5,13 @@ import type { paths, components } from "~/types/openapi";
 // same-origin (e.g. when the Go binary serves the frontend statically).
 export const API_BASE_URL: string = import.meta.env.VITE_API_URL ?? "";
 
+/**
+ * Default page size for paginated list endpoints. Kept in sync with the backend
+ * default (internal/api/types.go PaginationParams/CursorParams). Use this for
+ * every default-page-size list rather than re-hardcoding a limit per page.
+ */
+export const DEFAULT_PAGE_SIZE = 20;
+
 export const client = createClient<paths>({ baseUrl: API_BASE_URL });
 
 /**

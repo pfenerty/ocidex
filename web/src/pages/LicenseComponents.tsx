@@ -1,4 +1,5 @@
 import { createSignal, Show } from "solid-js";
+import { DEFAULT_PAGE_SIZE } from "~/api/client";
 import { A, useParams } from "@solidjs/router";
 import { useLicenses, useLicenseComponents } from "~/api/queries";
 import type { components } from "~/types/openapi";
@@ -12,7 +13,7 @@ type ComponentSummary = components["schemas"]["ComponentSummary"];
 export default function LicenseComponents() {
     const params = useParams<{ id: string }>();
     const [offset, setOffset] = createSignal(0);
-    const limit = 50;
+    const limit = DEFAULT_PAGE_SIZE;
 
     const licenseQuery = useLicenses(() => ({ limit: 200 }));
 
