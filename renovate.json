@@ -4,6 +4,7 @@
   "semanticCommits": "enabled",
   "postUpdateOptions": ["gomodTidy", "npmDedupe"],
   "minimumReleaseAge": "3 days",
+  "prHourlyLimit": 10,
   "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": {
     "automerge": false,
@@ -12,32 +13,29 @@
   "labels": ["renovate"],
   "packageRules": [
     {
-      "description": "Automerge all minor and patch updates (specific group rules override the groupName below)",
+      "description": "Automerge minor and patch updates across all managers. Group rules below set groupName only — no automerge, so this rule remains the single source of truth for automerge.",
       "matchUpdateTypes": ["minor", "patch"],
       "automerge": true
     },
     {
       "description": "Group all Go module updates into one PR",
       "matchManagers": ["gomod"],
-      "groupName": "Go dependencies",
-      "automerge": true
+      "groupName": "Go dependencies"
     },
     {
       "description": "Group .tektonic/ npm updates; keeps CI pipeline deps separate from the web app",
       "matchManagers": ["npm"],
       "matchFileNames": [".tektonic/package.json"],
-      "groupName": "tektonic pipeline dependencies",
-      "automerge": true
+      "groupName": "tektonic pipeline dependencies"
     },
     {
       "description": "Group web/ npm updates separately from .tektonic/",
       "matchManagers": ["npm"],
       "matchFileNames": ["web/package.json"],
-      "groupName": "web dependencies",
-      "automerge": true
+      "groupName": "web dependencies"
     },
     {
-      "description": "Track @pfenerty/tektonic minor/patch via git tags — automerge, bump before re-synth",
+      "description": "Track @pfenerty/tektonic minor/patch via git tags — automerge after re-synth",
       "matchPackageNames": ["@pfenerty/tektonic"],
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "tektonic",
