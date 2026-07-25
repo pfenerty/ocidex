@@ -2,7 +2,6 @@ import "./RegistriesTab.css";
 import { For, Show, createSignal, createMemo } from "solid-js";
 import { copyText } from "~/utils/clipboard";
 import { useToast } from "~/context/toast";
-import { Loading, ErrorBox } from "~/components/Feedback";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import type { Registry } from "~/api/client";
@@ -580,17 +579,14 @@ export function RegistriesTab() {
                 </div>
             </dialog>
 
-            <Show when={!query.isLoading} fallback={<Loading />}>
-                <Show when={!query.isError} fallback={<ErrorBox error={query.error} />}>
-                    <DataTable
-                        columns={columns}
-                        rows={query.data?.data ?? undefined}
-                        loading={false}
-                        isError={false}
-                        emptyTitle="No registries found"
-                    />
-                </Show>
-            </Show>
+            <DataTable
+                columns={columns}
+                rows={query.data?.data ?? undefined}
+                loading={query.isLoading}
+                isError={query.isError}
+                error={query.error}
+                emptyTitle="No registries found"
+            />
         </>
     );
 }

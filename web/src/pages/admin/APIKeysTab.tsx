@@ -1,7 +1,6 @@
 import { Show, createSignal } from "solid-js";
 import { copyText } from "~/utils/clipboard";
 import { useToast } from "~/context/toast";
-import { Loading, ErrorBox } from "~/components/Feedback";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import type { APIKey } from "~/api/client";
@@ -116,17 +115,14 @@ export function APIKeysTab() {
                 </form>
             </div>
 
-            <Show when={!query.isLoading} fallback={<Loading />}>
-                <Show when={!query.isError} fallback={<ErrorBox error={query.error} />}>
-                    <DataTable
-                        columns={columns}
-                        rows={query.data?.keys ?? undefined}
-                        loading={false}
-                        isError={false}
-                        emptyTitle="No API keys found"
-                    />
-                </Show>
-            </Show>
+            <DataTable
+                columns={columns}
+                rows={query.data?.keys ?? undefined}
+                loading={query.isLoading}
+                isError={query.isError}
+                error={query.error}
+                emptyTitle="No API keys found"
+            />
         </>
     );
 }

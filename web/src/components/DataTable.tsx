@@ -1,7 +1,7 @@
 import "./DataTable.css";
 import { Show, For, createSignal, createMemo, createEffect } from "solid-js";
 import type { JSX } from "solid-js";
-import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
+import { ErrorBox, EmptyState } from "~/components/Feedback";
 import { Skeleton } from "~/components/Skeleton";
 import Pagination from "~/components/Pagination";
 import LoadMore from "~/components/LoadMore";
@@ -44,6 +44,8 @@ export interface DataTableProps<T> {
         loading: boolean;
         onClick: () => void;
     };
+    /** Number of shimmer rows to show on first load. Default 8. */
+    skeletonRows?: number;
 }
 
 function defaultDirFor(col: Pick<Column<unknown>, "sortType">): SortDir {
@@ -117,81 +119,87 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
         return <span class="sort-arrow">{sortDir() === "asc" ? "▲" : "▼"}</span>;
     };
 
+    const skeletonBody = (count: number) => (
+        <For each={Array.from({ length: count })}>
+            {() => (
+                <tr>
+                    <For each={props.columns}>
+                        {(col) => (
+                            <td class={col.align === "right" ? "text-right" : ""}>
+                                <Skeleton height="0.85em" />
+                            </td>
+                        )}
+                    </For>
+                </tr>
+            )}
+        </For>
+    );
+
+    const realBody = (rows: T[]) => (
+        <For each={rows}>
+            {(row) => (
+                <tr>
+                    <For each={props.columns}>
+                        {(col) => (
+                            <td class={col.align === "right" ? "text-right" : ""}>
+                                {col.render(row)}
+                            </td>
+                        )}
+                    </For>
+                </tr>
+            )}
+        </For>
+    );
+
+    const tableShell = (body: JSX.Element) => (
+        <div class="card">
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <For each={props.columns}>
+                                {(col) => (
+                                    <th
+                                        class={
+                                            (col.sortKey !== undefined ? "th-sortable " : "") +
+                                            (col.align === "right" ? "text-right" : "")
+                                        }
+                                        onClick={() => handleSort(col)}
+                                    >
+                                        {col.header}
+                                        {col.sortKey !== undefined && sortArrow(col)}
+                                    </th>
+                                )}
+                            </For>
+                        </tr>
+                    </thead>
+                    <tbody>{body}</tbody>
+                </table>
+            </div>
+            <Show when={props.pagination}>
+                {(p) => <Pagination pagination={p().pagination} onPageChange={p().onPageChange} />}
+            </Show>
+            <Show when={!props.pagination && props.loadMore}>
+                {(lm) => (
+                    <LoadMore hasMore={lm().hasMore} loading={lm().loading} onClick={lm().onClick} />
+                )}
+            </Show>
+        </div>
+    );
+
     return (
-        <Show when={!isFirstLoad()} fallback={<Loading />}>
-            <Show when={!props.isError} fallback={<ErrorBox error={props.error} />}>
+        <Show when={!props.isError} fallback={<ErrorBox error={props.error} />}>
+            <Show
+                when={!isFirstLoad()}
+                fallback={tableShell(skeletonBody(props.skeletonRows ?? 8))}
+            >
                 <Show
                     when={visibleRows()}
                     fallback={<EmptyState title={props.emptyTitle} message={props.emptyMessage} />}
                 >
-                    {(rows) => (
-                        <div class="card">
-                            <div class="table-wrapper">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <For each={props.columns}>
-                                                {(col) => (
-                                                    <th
-                                                        class={
-                                                            (col.sortKey !== undefined ? "th-sortable " : "") +
-                                                            (col.align === "right" ? "text-right" : "")
-                                                        }
-                                                        onClick={() => handleSort(col)}
-                                                    >
-                                                        {col.header}
-                                                        {col.sortKey !== undefined && sortArrow(col)}
-                                                    </th>
-                                                )}
-                                            </For>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <Show
-                                            when={!isRefetching()}
-                                            fallback={
-                                                <For each={rows()}>
-                                                    {() => (
-                                                        <tr>
-                                                            <For each={props.columns}>
-                                                                {(col) => (
-                                                                    <td class={col.align === "right" ? "text-right" : ""}>
-                                                                        <Skeleton height="0.85em" />
-                                                                    </td>
-                                                                )}
-                                                            </For>
-                                                        </tr>
-                                                    )}
-                                                </For>
-                                            }
-                                        >
-                                            <For each={rows()}>
-                                                {(row) => (
-                                                    <tr>
-                                                        <For each={props.columns}>
-                                                            {(col) => (
-                                                                <td class={col.align === "right" ? "text-right" : ""}>
-                                                                    {col.render(row)}
-                                                                </td>
-                                                            )}
-                                                        </For>
-                                                    </tr>
-                                                )}
-                                            </For>
-                                        </Show>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <Show when={props.pagination}>
-                                {(p) => <Pagination pagination={p().pagination} onPageChange={p().onPageChange} />}
-                            </Show>
-                            <Show when={!props.pagination && props.loadMore}>
-                                {(lm) => (
-                                    <LoadMore hasMore={lm().hasMore} loading={lm().loading} onClick={lm().onClick} />
-                                )}
-                            </Show>
-                        </div>
-                    )}
+                    {(rows) =>
+                        tableShell(isRefetching() ? skeletonBody(rows().length) : realBody(rows()))
+                    }
                 </Show>
             </Show>
         </Show>

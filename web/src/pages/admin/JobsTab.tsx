@@ -1,6 +1,5 @@
 import { For, Show, createEffect, createSignal, createMemo } from "solid-js";
 import { A } from "@solidjs/router";
-import { Loading, ErrorBox } from "~/components/Feedback";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { TimestampCell } from "~/components/cells";
@@ -209,8 +208,7 @@ function ScanJobsView() {
     ];
 
     return (
-        <Show when={!isLoading()} fallback={<Loading />}>
-            <Show when={!isError()} fallback={<ErrorBox error={qMain.error} />}>
+        <>
                 <div style={{ display: "flex", gap: "0.75rem", "align-items": "center", "margin-bottom": "1rem", "flex-wrap": "wrap" }}>
                     <select value={stateFilter()} onInput={e => setStateFilter(e.currentTarget.value as StateFilter)}>
                         <option value="active">Active (Running + Queued)</option>
@@ -246,8 +244,9 @@ function ScanJobsView() {
                 <DataTable
                     columns={columns}
                     rows={displayJobs()}
-                    loading={false}
-                    isError={false}
+                    loading={isLoading()}
+                    isError={isError()}
+                    error={qMain.error}
                     emptyTitle="No scan jobs found"
                     pagination={
                         !isActive() && qMain.data?.pagination
@@ -255,8 +254,7 @@ function ScanJobsView() {
                             : undefined
                     }
                 />
-            </Show>
-        </Show>
+        </>
     );
 }
 
@@ -492,22 +490,19 @@ function EnrichmentJobsView() {
                 </Show>
             </div>
 
-            <Show when={!q.isLoading} fallback={<Loading />}>
-                <Show when={!q.isError} fallback={<ErrorBox error={q.error} />}>
-                    <DataTable
-                        columns={columns}
-                        rows={displayJobs()}
-                        loading={false}
-                        isError={false}
-                        emptyTitle="No enrichment jobs found"
-                        pagination={
-                            q.data?.pagination
-                                ? { pagination: q.data.pagination, onPageChange: setOffset }
-                                : undefined
-                        }
-                    />
-                </Show>
-            </Show>
+            <DataTable
+                columns={columns}
+                rows={displayJobs()}
+                loading={q.isLoading}
+                isError={q.isError}
+                error={q.error}
+                emptyTitle="No enrichment jobs found"
+                pagination={
+                    q.data?.pagination
+                        ? { pagination: q.data.pagination, onPageChange: setOffset }
+                        : undefined
+                }
+            />
         </div>
     );
 }

@@ -1,7 +1,6 @@
-import { Show, createSignal } from "solid-js";
+import { createSignal } from "solid-js";
 import { useAuth } from "~/context/auth";
 import { useToast } from "~/context/toast";
-import { Loading, ErrorBox } from "~/components/Feedback";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import type { UserAccount } from "~/api/client";
@@ -51,16 +50,13 @@ export function UsersTab() {
     ];
 
     return (
-        <Show when={!query.isLoading} fallback={<Loading />}>
-            <Show when={!query.isError} fallback={<ErrorBox error={query.error} />}>
-                <DataTable
-                    columns={columns}
-                    rows={query.data?.users ?? undefined}
-                    loading={false}
-                    isError={false}
-                    emptyTitle="No users found"
-                />
-            </Show>
-        </Show>
+        <DataTable
+            columns={columns}
+            rows={query.data?.users ?? undefined}
+            loading={query.isLoading}
+            isError={query.isError}
+            error={query.error}
+            emptyTitle="No users found"
+        />
     );
 }
