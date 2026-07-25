@@ -18,8 +18,10 @@ export const goVulncheck = new Task({
     {
       name: "govulncheck-scan",
       image: govulncheckImage,
+      // govulncheck builds the whole-module SSA call graph for reachability analysis, which is
+      // memory-hungry — OOMKilled at 2Gi on the full push scan. 4Gi matches semgrep's ceiling.
       computeResources: {
-        limits: { cpu: "2", memory: "2Gi", "ephemeral-storage": "4Gi" },
+        limits: { cpu: "2", memory: "4Gi", "ephemeral-storage": "4Gi" },
         requests: { cpu: "500m", memory: "1Gi", "ephemeral-storage": "2Gi" },
       },
       script: nu`
