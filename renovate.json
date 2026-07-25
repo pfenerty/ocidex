@@ -1,29 +1,54 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
-  "postUpdateOptions": ["gomodTidy"],
+  "semanticCommits": "enabled",
+  "postUpdateOptions": ["gomodTidy", "npmDedupe"],
+  "minimumReleaseAge": "3 days",
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "automerge": false,
+    "labels": ["security", "renovate"]
+  },
+  "labels": ["renovate"],
   "packageRules": [
     {
+      "description": "Automerge all minor and patch updates (specific group rules override the groupName below)",
       "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "minor and patch dependencies",
       "automerge": true
     },
     {
+      "description": "Group all Go module updates into one PR",
       "matchManagers": ["gomod"],
       "groupName": "Go dependencies",
       "automerge": true
     },
     {
+      "description": "Group .tektonic/ npm updates; keeps CI pipeline deps separate from the web app",
       "matchManagers": ["npm"],
-      "groupName": "npm dependencies",
+      "matchFileNames": [".tektonic/package.json"],
+      "groupName": "tektonic pipeline dependencies",
       "automerge": true
     },
     {
-      "description": "Track @pfenerty/tektonic via its git tags (pinned as github:pfenerty/tektonic#vX.Y.Z in .tektonic/package.json). github-tags datasource; keep minor/patch automerge, hold majors for manual review + re-synth.",
-      "matchPackageNames": ["@pfenerty/tektonic"],
-      "groupName": "tektonic",
-      "matchUpdateTypes": ["minor", "patch"],
+      "description": "Group web/ npm updates separately from .tektonic/",
+      "matchManagers": ["npm"],
+      "matchFileNames": ["web/package.json"],
+      "groupName": "web dependencies",
       "automerge": true
+    },
+    {
+      "description": "Track @pfenerty/tektonic minor/patch via git tags — automerge, bump before re-synth",
+      "matchPackageNames": ["@pfenerty/tektonic"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "tektonic",
+      "automerge": true
+    },
+    {
+      "description": "@pfenerty/tektonic major — hold for manual review and re-synth",
+      "matchPackageNames": ["@pfenerty/tektonic"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "tektonic (major)",
+      "automerge": false
     }
   ],
   "customManagers": [
