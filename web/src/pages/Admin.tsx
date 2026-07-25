@@ -5,7 +5,6 @@ import { APIKeysTab } from "./admin/APIKeysTab";
 import { StatusTab } from "./admin/StatusTab";
 import { RegistriesTab } from "./admin/RegistriesTab";
 import { JobsTab } from "./admin/JobsTab";
-import { MetricsTab } from "./admin/MetricsTab";
 
 export default function Admin() {
     const location = useLocation();
@@ -14,7 +13,6 @@ export default function Admin() {
     const isKeysTab = () => location.pathname === "/admin/keys";
     const isStatusTab = () => location.pathname === "/admin/status";
     const isRegistriesTab = () => location.pathname === "/admin/registries";
-    const isMetricsTab = () => location.pathname === "/admin/metrics";
     const isJobsTab = () => location.pathname === "/admin/jobs";
 
     return (
@@ -78,18 +76,6 @@ export default function Admin() {
                     System Status
                 </A>
                 <A
-                    href="/admin/metrics"
-                    style={{
-                        padding: "0.5rem 1rem",
-                        "border-bottom": isMetricsTab() ? "2px solid var(--color-primary)" : "2px solid transparent",
-                        color: isMetricsTab() ? "var(--color-primary)" : "inherit",
-                        "font-weight": isMetricsTab() ? "600" : "400",
-                        "margin-bottom": "-1px",
-                    }}
-                >
-                    Metrics
-                </A>
-                <A
                     href="/admin/jobs"
                     style={{
                         padding: "0.5rem 1rem",
@@ -114,9 +100,6 @@ export default function Admin() {
             </Show>
             <Show when={isStatusTab()}>
                 <StatusTab />
-            </Show>
-            <Show when={isMetricsTab()}>
-                <MetricsTab />
             </Show>
             <Show when={isJobsTab()}>
                 <JobsTab />
