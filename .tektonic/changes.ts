@@ -42,6 +42,13 @@ export const sourceChanged = onChanges({
   paths: ["**/*.go", "go.mod", "go.sum", "docker/**", "db/**", "web/**"],
 });
 
+// Pipeline-definition bucket: gates the tekton-check drift guard so it only runs when the
+// pipeline sources or generated YAML change.
+export const pipelineChanged = onChanges({
+  name: "detect-pipeline",
+  paths: [".tektonic/**", ".tekton/**"],
+});
+
 // The detection task backing the condition above. `gated()` overrides only the
 // emitted pipeline-task `when` and does not auto-wire the producing task into the
 // pipeline, so it must be listed explicitly on the PR pipeline. Tekton orders
@@ -51,4 +58,5 @@ export const detectTasks = [
   ...goChanged.sources(),
   ...nodeChanged.sources(),
   ...sourceChanged.sources(),
+  ...pipelineChanged.sources(),
 ];

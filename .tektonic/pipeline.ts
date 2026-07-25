@@ -1,7 +1,7 @@
 import { GitPipeline, TektonicProject, TRIGGER_EVENTS, gated } from "@pfenerty/tektonic";
 
 import { goCacheWs, nodeCacheWs } from "./shared";
-import { goChanged, nodeChanged, sourceChanged, detectTasks } from "./changes";
+import { goChanged, nodeChanged, sourceChanged, pipelineChanged, detectTasks } from "./changes";
 import { goFmt } from "./jobs/go-fmt/spec";
 import { goBuild } from "./jobs/go-build/spec";
 import { goTest } from "./jobs/go-test/spec";
@@ -15,6 +15,7 @@ import { imageBuilds, imageBuildsTag } from "./jobs/image-build/spec";
 import { helmPublish } from "./jobs/helm-publish/spec";
 import { helmRelease } from "./jobs/helm-release/spec";
 import { ghRelease } from "./jobs/gh-release/spec";
+import { tektonCheck } from "./jobs/tekton-check/spec";
 
 // ─── Task groups ──────────────────────────────────────────────────────────────
 // Core build/verify tasks + the always-on security scans. Run ungated on push so
@@ -70,6 +71,8 @@ const prPipeline = new GitPipeline({
     gated(webSecurity, { when: nodeChanged }),
     gated(semgrep, { when: sourceChanged }),
     secretsScan,
+    // Fails if .tekton drifts from .tektonic/ or synth breaks — only when pipeline defs change.
+    gated(tektonCheck, { when: pipelineChanged }),
   ],
 });
 

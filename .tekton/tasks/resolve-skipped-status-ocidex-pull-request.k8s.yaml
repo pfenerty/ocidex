@@ -269,3 +269,44 @@ spec:
           log $"resolve-skipped [semgrep-sast]: error: ($e.msg)"
           exit 1
         }
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: resolve-tekton-check
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let status = "$(tasks.tekton-check.status)"
+
+        if $status != "None" {
+          log $"resolve-skipped [tekton-check]: task status is ($status), nothing to resolve"
+          exit 0
+        }
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: "success", context: "tekton-check", description: "Skipped" }
+
+        log $"resolve-skipped [tekton-check]: task was skipped, POST ($url)"
+        log $"resolve-skipped [tekton-check]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "resolve-skipped [tekton-check]: done"
+        } catch { |e|
+          log $"resolve-skipped [tekton-check]: error: ($e.msg)"
+          exit 1
+        }
