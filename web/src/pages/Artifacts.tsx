@@ -1,11 +1,12 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 import { A } from "@solidjs/router";
 import { useArtifactsInfinite } from "~/api/queries";
-import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
+import { ErrorBox, EmptyState } from "~/components/Feedback";
+import { SkeletonTable } from "~/components/Skeleton";
 import LoadMore from "~/components/LoadMore";
 import { artifactDisplayName, plural } from "~/utils/format";
 import { SigningBadge, TypeBadge } from "~/components/cells";
-import type { ArtifactSummary } from "~/api/client";
+import { DEFAULT_PAGE_SIZE, type ArtifactSummary } from "~/api/client";
 
 const ARTIFACT_TYPES = [
     "application",
@@ -42,7 +43,7 @@ export default function Artifacts() {
     const query = useArtifactsInfinite(() => ({
         name: nameFilter(),
         type: typeFilter(),
-        limit: 50,
+        limit: DEFAULT_PAGE_SIZE,
         sufficient: showAll() ? false : true,
     }));
 
@@ -101,7 +102,10 @@ export default function Artifacts() {
                 </label>
             </div>
 
-            <Show when={!query.isLoading} fallback={<Loading />}>
+            <Show
+                when={!query.isLoading}
+                fallback={<SkeletonTable headers={["Artifact", "Type", "Signing", "SBOMs"]} />}
+            >
                 <Show
                     when={!query.isError}
                     fallback={<ErrorBox error={query.error} />}

@@ -1,7 +1,8 @@
 import { For, Show, createSignal } from "solid-js";
 import { A, useParams } from "@solidjs/router";
 import { useArtifact, useArtifactSBOMs } from "~/api/queries";
-import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
+import { ErrorBox, EmptyState } from "~/components/Feedback";
+import { SkeletonText } from "~/components/Skeleton";
 import { DiffPairView, ViewToggle } from "~/components/DiffPairView";
 
 export default function ArtifactVersionHistory() {
@@ -59,7 +60,7 @@ export default function ArtifactVersionHistory() {
                 </div>
             </div>
 
-            <Show when={!sbomsQuery.isLoading} fallback={<Loading />}>
+            <Show when={!sbomsQuery.isLoading} fallback={<SkeletonText lines={8} />}>
                 <Show
                     when={!sbomsQuery.isError}
                     fallback={<ErrorBox error={sbomsQuery.error} />}

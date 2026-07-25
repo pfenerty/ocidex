@@ -1,10 +1,9 @@
 import { For, Show, createEffect, createSignal, createMemo } from "solid-js";
 import { A } from "@solidjs/router";
-import { Loading, ErrorBox } from "~/components/Feedback";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { TimestampCell } from "~/components/cells";
-import type { ScanJob, EnrichmentJob } from "~/api/client";
+import { DEFAULT_PAGE_SIZE, type ScanJob, type EnrichmentJob } from "~/api/client";
 import {
     useListRegistries,
     useListScanJobs,
@@ -22,8 +21,6 @@ const JOB_STATE_COLORS: Record<string, string> = {
     succeeded: "var(--color-success)",
     failed: "var(--color-error, #e53e3e)",
 };
-
-const PAGE_SIZE = 20;
 const ENRICHERS = ["user", "oci-metadata", "provenance"] as const;
 const ENRICH_STATES = ["queued", "running", "succeeded", "failed"] as const;
 
@@ -96,7 +93,7 @@ function ScanJobsView() {
         const f = stateFilter();
         return {
             state: f === "active" ? "running" : (f || undefined),
-            limit: isActive() ? 50 : PAGE_SIZE,
+            limit: isActive() ? 50 : DEFAULT_PAGE_SIZE,
             offset: isActive() ? 0 : offset(),
         };
     });
@@ -107,9 +104,12 @@ function ScanJobsView() {
     const isError = () => qMain.isError || (isActive() && qQueued.isError);
 
     const displayJobs = () => {
+        // First load (no data yet): return undefined so DataTable shows its
+        // skeleton rather than the empty state.
+        if (qMain.data === undefined) return undefined;
         let jobs;
         if (isActive()) {
-            const running = [...(qMain.data?.data ?? [])].sort(
+            const running = [...(qMain.data.data ?? [])].sort(
                 (a, b) => new Date(a.started_at ?? a.created_at).getTime() - new Date(b.started_at ?? b.created_at).getTime()
             );
             const queued = [...(qQueued.data?.data ?? [])].sort(
@@ -117,7 +117,7 @@ function ScanJobsView() {
             );
             jobs = [...running, ...queued];
         } else {
-            jobs = qMain.data?.data ?? [];
+            jobs = qMain.data.data ?? [];
         }
         const repo = repoFilter().toLowerCase();
         const reg = registryFilter();
@@ -209,8 +209,7 @@ function ScanJobsView() {
     ];
 
     return (
-        <Show when={!isLoading()} fallback={<Loading />}>
-            <Show when={!isError()} fallback={<ErrorBox error={qMain.error} />}>
+        <>
                 <div style={{ display: "flex", gap: "0.75rem", "align-items": "center", "margin-bottom": "1rem", "flex-wrap": "wrap" }}>
                     <select value={stateFilter()} onInput={e => setStateFilter(e.currentTarget.value as StateFilter)}>
                         <option value="active">Active (Running + Queued)</option>
@@ -246,8 +245,9 @@ function ScanJobsView() {
                 <DataTable
                     columns={columns}
                     rows={displayJobs()}
-                    loading={false}
-                    isError={false}
+                    loading={isLoading()}
+                    isError={isError()}
+                    error={qMain.error}
                     emptyTitle="No scan jobs found"
                     pagination={
                         !isActive() && qMain.data?.pagination
@@ -255,8 +255,7 @@ function ScanJobsView() {
                             : undefined
                     }
                 />
-            </Show>
-        </Show>
+        </>
     );
 }
 
@@ -278,7 +277,7 @@ function EnrichmentJobsView() {
     const q = useListEnrichmentJobs(() => ({
         state: stateFilter() || undefined,
         enricher_name: enricherFilter() || undefined,
-        limit: PAGE_SIZE,
+        limit: DEFAULT_PAGE_SIZE,
         offset: offset(),
     }));
 
@@ -317,8 +316,11 @@ function EnrichmentJobsView() {
     };
 
     const displayJobs = () => {
+        // First load (no data yet): return undefined so DataTable shows its
+        // skeleton rather than the empty state.
+        if (q.data === undefined) return undefined;
         const t = textFilter().toLowerCase();
-        return (q.data?.data ?? []).filter(job =>
+        return (q.data.data ?? []).filter(job =>
             !t ||
             (job.artifact_name ?? "").toLowerCase().includes(t) ||
             (job.sbom_digest ?? "").toLowerCase().includes(t)
@@ -492,22 +494,19 @@ function EnrichmentJobsView() {
                 </Show>
             </div>
 
-            <Show when={!q.isLoading} fallback={<Loading />}>
-                <Show when={!q.isError} fallback={<ErrorBox error={q.error} />}>
-                    <DataTable
-                        columns={columns}
-                        rows={displayJobs()}
-                        loading={false}
-                        isError={false}
-                        emptyTitle="No enrichment jobs found"
-                        pagination={
-                            q.data?.pagination
-                                ? { pagination: q.data.pagination, onPageChange: setOffset }
-                                : undefined
-                        }
-                    />
-                </Show>
-            </Show>
+            <DataTable
+                columns={columns}
+                rows={displayJobs()}
+                loading={q.isLoading}
+                isError={q.isError}
+                error={q.error}
+                emptyTitle="No enrichment jobs found"
+                pagination={
+                    q.data?.pagination
+                        ? { pagination: q.data.pagination, onPageChange: setOffset }
+                        : undefined
+                }
+            />
         </div>
     );
 }

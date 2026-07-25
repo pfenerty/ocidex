@@ -2,7 +2,8 @@ import { Show, For, createMemo, createSignal } from "solid-js";
 import { A, useSearchParams } from "@solidjs/router";
 import { useComponent, useComponentVersions, useComponentVulns } from "~/api/queries";
 import type { ComponentVersionEntry } from "~/api/client";
-import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
+import { ErrorBox, EmptyState } from "~/components/Feedback";
+import { SkeletonHeader } from "~/components/Skeleton";
 import CopyDigest from "~/components/CopyDigest";
 import PurlLink from "~/components/PurlLink";
 import ComponentMetadata from "~/components/ComponentMetadata";
@@ -160,7 +161,7 @@ export default function ComponentOverview() {
             </Show>
 
             <Show when={params.name !== undefined}>
-                <Show when={!query.isLoading} fallback={<Loading />}>
+                <Show when={!query.isLoading} fallback={<SkeletonHeader />}>
                     <Show
                         when={!query.isError}
                         fallback={<ErrorBox error={query.error} />}

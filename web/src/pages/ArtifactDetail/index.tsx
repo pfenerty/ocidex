@@ -8,7 +8,8 @@ import {
     useArtifactLicenseSummary,
     useArtifactVulnSummary,
 } from "~/api/queries";
-import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
+import { ErrorBox, EmptyState } from "~/components/Feedback";
+import { Skeleton, SkeletonHeader, SkeletonText } from "~/components/Skeleton";
 import PurlLink from "~/components/PurlLink";
 import { VulnSummaryBar } from "~/components/VulnBadge";
 import { TypeBadge, SigningBadge } from "~/components/ui";
@@ -76,10 +77,14 @@ export default function ArtifactDetail() {
             <div class="breadcrumb">
                 <A href="/artifacts">Artifacts</A>
                 <span class="separator">/</span>
-                <span>{artifactQuery.data?.name ?? params.id}</span>
+                <span>
+                    {artifactQuery.data?.name ?? (
+                        <Skeleton width="6rem" style={{ display: "inline-block" }} />
+                    )}
+                </span>
             </div>
 
-            <Show when={!artifactQuery.isLoading} fallback={<Loading />}>
+            <Show when={!artifactQuery.isLoading} fallback={<SkeletonHeader />}>
                 <Show
                     when={!artifactQuery.isError}
                     fallback={<ErrorBox error={artifactQuery.error} />}
@@ -337,7 +342,7 @@ export default function ArtifactDetail() {
                                 <Show when={tab() === "changelog"}>
                                     <Show
                                         when={!changelogQuery.isLoading}
-                                        fallback={<Loading />}
+                                        fallback={<SkeletonText lines={8} />}
                                     >
                                         <Show
                                             when={!changelogQuery.isError}

@@ -1,0 +1,52 @@
+/*
+ * Canonical shimmer-placeholder styles for the Skeleton primitive family.
+ * The `skeleton-pulse` keyframe name is shared with DataTable.css's refetch
+ * `.skeleton-cell` so there is a single shimmer definition across the app.
+ * Theme-aware for free: colors resolve from --color-* tokens (dark @theme
+ * default, `.light` overrides) in index.css.
+ */
+
+.skeleton {
+    display: block;
+    background: linear-gradient(
+        90deg,
+        var(--color-surface-hover) 25%,
+        var(--color-elevated) 50%,
+        var(--color-surface-hover) 75%
+    );
+    background-size: 200% 100%;
+    border-radius: var(--radius-sm);
+    animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.skeleton-circle {
+    border-radius: 50%;
+}
+
+.skeleton-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.skeleton-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+@keyframes skeleton-pulse {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .skeleton {
+        animation: none;
+        background: var(--color-surface-hover);
+    }
+}

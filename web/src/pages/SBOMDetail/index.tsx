@@ -4,7 +4,8 @@ import { A, useParams, useNavigate } from "@solidjs/router";
 import { useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies, useArtifactSBOMs } from "~/api/queries";
 import { useArtifactNames } from "~/api/queries";
 import type { OCIMetadata, Provenance, GitCommitMetadata } from "~/api/client";
-import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
+import { ErrorBox, EmptyState } from "~/components/Feedback";
+import { Skeleton, SkeletonHeader, SkeletonTable } from "~/components/Skeleton";
 import CopyDigest from "~/components/CopyDigest";
 import ImageMetadataCard from "~/components/ImageMetadataCard";
 import ProvenanceCard from "~/components/ProvenanceCard";
@@ -96,10 +97,17 @@ export default function SBOMDetail() {
                         </>
                     )}
                 </Show>
-                <span>{(sbomQuery.data?.subjectVersion ?? formatDateTime(sbomQuery.data?.createdAt ?? "")) || params.id}</span>
+                <span>
+                    {sbomQuery.isLoading ? (
+                        <Skeleton width="6rem" style={{ display: "inline-block" }} />
+                    ) : (
+                        (sbomQuery.data?.subjectVersion ??
+                            formatDateTime(sbomQuery.data?.createdAt ?? "")) || params.id
+                    )}
+                </span>
             </div>
 
-            <Show when={!sbomQuery.isLoading} fallback={<Loading />}>
+            <Show when={!sbomQuery.isLoading} fallback={<SkeletonHeader />}>
                 <Show
                     when={!sbomQuery.isError && sbomQuery.data !== undefined ? sbomQuery.data : undefined}
                     keyed
@@ -187,7 +195,7 @@ export default function SBOMDetail() {
 
                             {/* --- Packages tab --- */}
                             <Show when={tab() === "packages"}>
-                                <Show when={!componentsQuery.isLoading} fallback={<Loading />}>
+                                <Show when={!componentsQuery.isLoading} fallback={<SkeletonTable columns={5} />}>
                                     <Show
                                         when={!componentsQuery.isError}
                                         fallback={<ErrorBox error={componentsQuery.error} />}
