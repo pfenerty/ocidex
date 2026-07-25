@@ -114,7 +114,7 @@ frontend-test: frontend-init ## Run frontend unit tests
 	cd web && npm test
 
 tekton-synth: ## Synthesize Tekton pipeline YAML from TypeScript
-	cd .tektonic && npm ci && npx ts-node pipeline.ts
+	cd .tektonic && npm ci && npx tsx pipeline.ts
 
 dev-registry: ## Start the local Docker registry used by the Talos dev cluster
 	@docker inspect ocidex-dev-registry >/dev/null 2>&1 || \
