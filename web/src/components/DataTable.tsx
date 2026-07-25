@@ -2,6 +2,7 @@ import "./DataTable.css";
 import { Show, For, createSignal, createMemo, createEffect } from "solid-js";
 import type { JSX } from "solid-js";
 import { Loading, ErrorBox, EmptyState } from "~/components/Feedback";
+import { Skeleton } from "~/components/Skeleton";
 import Pagination from "~/components/Pagination";
 import LoadMore from "~/components/LoadMore";
 import type { PaginationMeta } from "~/api/client";
@@ -155,7 +156,7 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
                                                             <For each={props.columns}>
                                                                 {(col) => (
                                                                     <td class={col.align === "right" ? "text-right" : ""}>
-                                                                        <span class="skeleton-cell" />
+                                                                        <Skeleton height="0.85em" />
                                                                     </td>
                                                                 )}
                                                             </For>
