@@ -33,7 +33,10 @@ let baseline = if $scoped {
   ^git -c safe.directory='*' update-ref refs/semgrep-baseline FETCH_HEAD
   ["--baseline-commit" "refs/semgrep-baseline"]
 } else { [] }
-^semgrep scan --error --disable-version-check --metrics off --jobs 1 --max-memory 2048 --severity ERROR --config p/golang --config p/typescript --config p/secrets --sarif-output=semgrep.sarif ...$baseline .
+# Exclude the CI cache dirs goEnv creates in the workspace root (GOMODCACHE=.go-mod etc.):
+# they hold tens of thousands of third-party .go files that semgrep would otherwise SAST-scan
+# as if they were our source (66k+ files). .gitignore covers node_modules but not these.
+^semgrep scan --error --disable-version-check --metrics off --jobs 1 --max-memory 2048 --severity ERROR --config p/golang --config p/typescript --config p/secrets --exclude .go-mod --exclude .go-build --exclude .go-path --sarif-output=semgrep.sarif ...$baseline .
 `,
       onError: "continue",
     },
