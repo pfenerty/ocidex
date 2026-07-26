@@ -192,6 +192,22 @@ func TestApplyKeylessVerification_NoOpWithoutIdentityOrIssuer(t *testing.T) {
 	is.True(p.Verified == nil) // no identity/issuer configured: verification not attempted
 }
 
+func TestApplyKeylessVerification_RawInTotoOnlyNoSignature(t *testing.T) {
+	// goh.1: a raw in-toto attestation (buildkit-native) with no cosign
+	// signature must not be reported as verified, and must not name a signer
+	// whose certificate was never checked.
+	is := is.New(t)
+	p := &Provenance{}
+	raw := RawArtifacts{SigPresent: false, AttPresent: true, AttArtifactType: inTotoArtifactType}
+	cfg := trust.Config{Mode: "keyless", Identity: "^foo$", Issuer: "https://issuer.example"}
+
+	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest)
+
+	is.True(p.Verified == nil)
+	is.Equal(p.SignerIdentity, "")
+	is.Equal(p.SignerIssuer, "")
+}
+
 func TestApplyKeylessVerification_NoOpWithoutSignatureOrAttestation(t *testing.T) {
 	is := is.New(t)
 	p := &Provenance{}

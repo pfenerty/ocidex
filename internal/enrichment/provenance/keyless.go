@@ -104,14 +104,23 @@ func applyKeylessVerification(ctx context.Context, p *Provenance, raw RawArtifac
 		IgnoreSCT:       testIgnoreSCT,
 	}
 
+	checked := false
 	verified := true
 	if raw.SigPresent {
+		checked = true
 		verified = verified && verifyOCISignature(ctx, raw, h, baseOpts)
 	}
 	if raw.AttPresent && raw.AttArtifactType != inTotoArtifactType {
 		// Raw in-toto atts (buildkit-native) carry no envelope signature and are
 		// excluded from cryptographic verification, matching applyVerification.
+		checked = true
 		verified = verified && verifyOCIAttestation(ctx, raw, h, baseOpts)
+	}
+	if !checked {
+		// Only raw in-toto attestations are present — nothing was actually
+		// verified. Leave p.Verified nil (falls through to "signed") and do
+		// not name a signer whose certificate was never checked.
+		return
 	}
 	p.Verified = &verified
 	if verified {
