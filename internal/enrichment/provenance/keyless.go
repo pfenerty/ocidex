@@ -104,12 +104,12 @@ func applyKeylessVerification(ctx context.Context, p *Provenance, raw RawArtifac
 
 	verified := true
 	if raw.SigPresent {
-		verified = verified && verifyKeylessSignature(ctx, raw, h, baseOpts)
+		verified = verified && verifyOCISignature(ctx, raw, h, baseOpts)
 	}
 	if raw.AttPresent && raw.AttArtifactType != inTotoArtifactType {
 		// Raw in-toto atts (buildkit-native) carry no envelope signature and are
 		// excluded from cryptographic verification, matching applyVerification.
-		verified = verified && verifyKeylessAttestation(ctx, raw, h, baseOpts)
+		verified = verified && verifyOCIAttestation(ctx, raw, h, baseOpts)
 	}
 	p.Verified = &verified
 	if verified {
@@ -118,11 +118,13 @@ func applyKeylessVerification(ctx context.Context, p *Provenance, raw RawArtifac
 	}
 }
 
-// verifyKeylessSignature verifies the cosign simplesigning signature (the
-// OCI-attached image signature) against a Fulcio cert + Rekor bundle, using
-// SimpleClaimVerifier to bind the payload to h (rejecting a valid signature
-// transplanted from a different image).
-func verifyKeylessSignature(ctx context.Context, raw RawArtifacts, h v1.Hash, co cosign.CheckOpts) bool {
+// verifyOCISignature verifies the cosign simplesigning signature (the
+// OCI-attached image signature) against co, using SimpleClaimVerifier to bind
+// the payload to h (rejecting a valid signature transplanted from a different
+// image). Shared by both the keyless (Fulcio+Rekor via co.TrustedMaterial)
+// and public-key (co.SigVerifier) verification paths — co determines which
+// trust source is actually checked.
+func verifyOCISignature(ctx context.Context, raw RawArtifacts, h v1.Hash, co cosign.CheckOpts) bool {
 	sig, err := buildOCISignature(raw.SigLayerBytes, raw.SigAnnotations)
 	if err != nil {
 		return false
@@ -132,10 +134,11 @@ func verifyKeylessSignature(ctx context.Context, raw RawArtifacts, h v1.Hash, co
 	return err == nil
 }
 
-// verifyKeylessAttestation verifies a DSSE-enveloped SLSA attestation against a
-// Fulcio cert + Rekor bundle, using IntotoSubjectClaimVerifier to require the
-// envelope's in-toto subject to bind to h.
-func verifyKeylessAttestation(ctx context.Context, raw RawArtifacts, h v1.Hash, co cosign.CheckOpts) bool {
+// verifyOCIAttestation verifies a DSSE-enveloped SLSA attestation against co,
+// using IntotoSubjectClaimVerifier to require the envelope's in-toto subject
+// to bind to h. Shared by both the keyless and public-key verification paths
+// (see verifyOCISignature).
+func verifyOCIAttestation(ctx context.Context, raw RawArtifacts, h v1.Hash, co cosign.CheckOpts) bool {
 	att, err := static.NewAttestation(raw.AttLayerBytes, buildStaticOptions(raw.AttAnnotations)...)
 	if err != nil {
 		return false

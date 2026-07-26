@@ -929,7 +929,7 @@ func TestVerification(t *testing.T) {
 				digest = fixtureDigest
 			}
 			p := buildProvenance(raw)
-			applyVerification(&p, raw, tc.mode, tc.pemKey, digest)
+			applyVerification(t.Context(), &p, raw, tc.mode, tc.pemKey, digest)
 			if tc.wantVerified == nil {
 				is.True(p.Verified == nil)
 			} else {

@@ -221,7 +221,7 @@ func (e *Enricher) applyTrust(ctx context.Context, p *Provenance, raw RawArtifac
 	cfg := e.trustResolver(ctx, host)
 	switch cfg.Mode {
 	case "public_key":
-		applyVerification(p, raw, cfg.Mode, cfg.PublicKeyPEM, imageDigest)
+		applyVerification(ctx, p, raw, cfg.Mode, cfg.PublicKeyPEM, imageDigest)
 	case "keyless":
 		applyKeylessVerification(ctx, p, raw, cfg, imageDigest)
 	}

@@ -63,16 +63,6 @@ type inTotoSubject struct {
 	Digest map[string]string `json:"digest"`
 }
 
-// simpleSigning is the cosign simplesigning payload (the sig layer blob).
-// critical.image.docker-manifest-digest binds the signature to a specific image.
-type simpleSigning struct {
-	Critical struct {
-		Image struct {
-			DockerManifestDigest string `json:"docker-manifest-digest"`
-		} `json:"image"`
-	} `json:"critical"`
-}
-
 type slsaPredicate struct {
 	BuildDefinition struct {
 		ResolvedDependencies []struct {
@@ -177,16 +167,6 @@ func fetchRekorUUIDFromBase(ctx context.Context, baseURL string, logIndex int64)
 		return uuid
 	}
 	return ""
-}
-
-// sigBoundDigest returns the image digest a simplesigning payload is bound to
-// (critical.image.docker-manifest-digest), or "" if absent/unparseable.
-func sigBoundDigest(sigLayerBytes []byte) string {
-	var ss simpleSigning
-	if err := json.Unmarshal(sigLayerBytes, &ss); err != nil {
-		return ""
-	}
-	return ss.Critical.Image.DockerManifestDigest
 }
 
 // --- att extraction ----------------------------------------------------------
