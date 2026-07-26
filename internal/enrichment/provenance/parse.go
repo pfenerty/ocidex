@@ -9,9 +9,12 @@ import (
 	"strings"
 	"time"
 
+	slsav1 "github.com/in-toto/attestation/go/predicates/provenance/v1"
+	intotov1 "github.com/in-toto/attestation/go/v1"
 	cbundle "github.com/sigstore/cosign/v2/pkg/cosign/bundle"
 	rekorclient "github.com/sigstore/rekor/pkg/client"
 	"github.com/sigstore/rekor/pkg/generated/client/entries"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // Provenance is the parsed result stored in the enrichment JSONB column
@@ -52,34 +55,6 @@ type dsseSignature struct {
 // envelope one level deeper than the raw-DSSE attArtifactType case.
 type sigstoreBundle struct {
 	DSSEEnvelope dsseEnvelope `json:"dsseEnvelope"`
-}
-
-type inTotoStatement struct {
-	Subject       []inTotoSubject `json:"subject"`
-	PredicateType string          `json:"predicateType"`
-	Predicate     slsaPredicate   `json:"predicate"`
-}
-
-type inTotoSubject struct {
-	Name   string            `json:"name"`
-	Digest map[string]string `json:"digest"`
-}
-
-type slsaPredicate struct {
-	BuildDefinition struct {
-		ResolvedDependencies []struct {
-			URI    string            `json:"uri"`
-			Digest map[string]string `json:"digest"`
-		} `json:"resolvedDependencies"`
-	} `json:"buildDefinition"`
-	RunDetails struct {
-		Builder struct {
-			ID string `json:"id"`
-		} `json:"builder"`
-		Metadata struct {
-			StartedOn *time.Time `json:"startedOn"`
-		} `json:"metadata"`
-	} `json:"runDetails"`
 }
 
 // --- entry point -------------------------------------------------------------
@@ -167,27 +142,11 @@ func fetchRekorUUIDFromBase(ctx context.Context, baseURL string, logIndex int64)
 // extractFromRawInToto parses a buildkit-native in-toto statement (not DSSE-wrapped).
 // The layer bytes are raw JSON — no envelope, no base64 encoding.
 func extractFromRawInToto(p *Provenance, layerBytes []byte) {
-	var stmt inTotoStatement
-	if err := json.Unmarshal(layerBytes, &stmt); err != nil {
+	stmt, err := parseInTotoStatement(layerBytes)
+	if err != nil {
 		return
 	}
-	p.PredicateType = stmt.PredicateType
-	p.BuilderID = stmt.Predicate.RunDetails.Builder.ID
-	p.BuildStartedOn = stmt.Predicate.RunDetails.Metadata.StartedOn
-	for _, s := range stmt.Subject {
-		if sha, ok := s.Digest["sha256"]; ok {
-			p.Subjects = append(p.Subjects, s.Name+"@sha256:"+sha)
-		}
-	}
-	for _, dep := range stmt.Predicate.BuildDefinition.ResolvedDependencies {
-		if strings.HasPrefix(dep.URI, "git+") {
-			p.SourceURI = strings.TrimPrefix(dep.URI, "git+")
-			if commit, ok := dep.Digest["sha1"]; ok {
-				p.SourceCommit = commit
-			}
-			break
-		}
-	}
+	applyInTotoStatement(p, stmt)
 }
 
 // extractFromAtt parses the DSSE envelope and the SLSA in-toto statement inside it.
@@ -224,26 +183,64 @@ func extractFromDSSE(p *Provenance, env dsseEnvelope) {
 		return
 	}
 
-	var stmt inTotoStatement
-	if err := json.Unmarshal(decoded, &stmt); err != nil {
+	stmt, err := parseInTotoStatement(decoded)
+	if err != nil {
 		return
 	}
+	applyInTotoStatement(p, stmt)
+}
 
-	p.PredicateType = stmt.PredicateType
-	p.BuilderID = stmt.Predicate.RunDetails.Builder.ID
-	p.BuildStartedOn = stmt.Predicate.RunDetails.Metadata.StartedOn
+// parseInTotoStatement decodes raw in-toto statement JSON into the upstream
+// protobuf-generated Statement type. in-toto/attestation types are
+// protobuf-generated (structpb.Struct/timestamppb.Timestamp under the hood,
+// with "json" struct tags that are cosmetic protoc-gen-go remnants rather
+// than the real wire field names — e.g. Statement.Type actually serializes
+// as "_type" per the in-toto spec), so they must be decoded with protojson
+// rather than encoding/json.
+func parseInTotoStatement(data []byte) (*intotov1.Statement, error) {
+	stmt := &intotov1.Statement{}
+	if err := protojson.Unmarshal(data, stmt); err != nil {
+		return nil, err
+	}
+	return stmt, nil
+}
 
-	for _, s := range stmt.Subject {
-		if sha, ok := s.Digest["sha256"]; ok {
-			p.Subjects = append(p.Subjects, s.Name+"@sha256:"+sha)
+// applyInTotoStatement copies fields from a decoded in-toto Statement into p.
+// The predicate is a generic structpb.Struct at the Statement level (any
+// in-toto predicate type is legal there); it's round-tripped through
+// protojson into the typed SLSA v1 Provenance predicate here. A non-SLSA or
+// malformed predicate simply leaves the SLSA-specific fields unset.
+func applyInTotoStatement(p *Provenance, stmt *intotov1.Statement) {
+	p.PredicateType = stmt.GetPredicateType()
+	for _, s := range stmt.GetSubject() {
+		if sha, ok := s.GetDigest()["sha256"]; ok {
+			p.Subjects = append(p.Subjects, s.GetName()+"@sha256:"+sha)
 		}
 	}
 
+	if stmt.GetPredicate() == nil {
+		return
+	}
+	predJSON, err := protojson.Marshal(stmt.GetPredicate())
+	if err != nil {
+		return
+	}
+	var pred slsav1.Provenance
+	if err := protojson.Unmarshal(predJSON, &pred); err != nil {
+		return
+	}
+
+	p.BuilderID = pred.GetRunDetails().GetBuilder().GetId()
+	if ts := pred.GetRunDetails().GetMetadata().GetStartedOn(); ts != nil {
+		t := ts.AsTime()
+		p.BuildStartedOn = &t
+	}
+
 	// Source: prefer git+ dependency (standard SLSA); oci:// and other schemes are skipped.
-	for _, dep := range stmt.Predicate.BuildDefinition.ResolvedDependencies {
-		if strings.HasPrefix(dep.URI, "git+") {
-			p.SourceURI = strings.TrimPrefix(dep.URI, "git+")
-			if commit, ok := dep.Digest["sha1"]; ok {
+	for _, dep := range pred.GetBuildDefinition().GetResolvedDependencies() {
+		if strings.HasPrefix(dep.GetUri(), "git+") {
+			p.SourceURI = strings.TrimPrefix(dep.GetUri(), "git+")
+			if commit, ok := dep.GetDigest()["sha1"]; ok {
 				p.SourceCommit = commit
 			}
 			break
