@@ -27,8 +27,6 @@ export default function ProvenanceCard(props: {
 }) {
     // eslint-disable-next-line solid/reactivity
     const p = props.provenance;
-    // eslint-disable-next-line solid/reactivity
-    const drift = props.drift;
 
     const trust = () => trustStatus(props.signingStatus);
 
@@ -58,7 +56,7 @@ export default function ProvenanceCard(props: {
                 </Show>
             </div>
 
-            <Show when={drift}>
+            <Show when={props.drift}>
                 {(d) => (
                     <div class="badge badge-warning" style={{ display: "block", "margin-bottom": "0.75rem" }}>
                         Verification status changed from{" "}
