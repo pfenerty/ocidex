@@ -8,6 +8,16 @@ DO UPDATE SET
 RETURNING id;
 
 -- name: GetArtifact :one
+-- The nested CASE aggregates signing_status(pe.data) across every SBOM under
+-- this artifact, so unlike signing_status()'s single-row ladder (mutually
+-- exclusive fields on one enrichment blob), here multiple WHEN branches can
+-- independently be true across different SBOMs. artifact_missing is checked
+-- first deliberately: it's worst-case-first so one missing artifact among
+-- many SBOMs dominates the rollup rather than being masked by a sibling
+-- SBOM that still verifies. This intentionally inverts the "best status
+-- wins" instinct one might expect from a rollup. See ocidex-goh.16 and
+-- TestArtifactRollupSigningStatus_ArtifactMissingDominates in
+-- tests/integration_test.go.
 SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
        (SELECT CASE
            WHEN EXISTS (
@@ -36,6 +46,9 @@ FROM artifact a
 WHERE a.id = $1;
 
 -- name: ListArtifacts :many
+-- Same artifact_missing-first rollup precedence as GetArtifact above — see
+-- that query's comment for why this cross-SBOM ladder deliberately checks
+-- worst-case first.
 SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
        COUNT(s.id) AS sbom_count,
        COUNT(s.id) FILTER (WHERE s.enrichment_sufficient) AS sufficient_sbom_count,

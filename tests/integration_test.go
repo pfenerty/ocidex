@@ -625,6 +625,78 @@ func TestSigningStatusParity_AllStatuses(t *testing.T) {
 	}
 }
 
+// TestArtifactRollupSigningStatus_ArtifactMissingDominates verifies the
+// deliberate precedence inversion documented on GetArtifact/ListArtifacts in
+// db/queries/artifact.sql (ocidex-goh.16): when an artifact has multiple
+// SBOMs with different signing statuses, a single artifact_missing SBOM
+// dominates the rollup even though a sibling SBOM under the same artifact
+// still verifies. This is the one scenario where the rollup ladder's order
+// is actually load-bearing — signing_status()'s single-row ladder never sees
+// more than one status at a time, so its ordering has no such effect.
+func TestArtifactRollupSigningStatus_ArtifactMissingDominates(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireDocker(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+
+	is := is.New(t)
+
+	memberID := seedUser(t, pool, 8300, "signing-rollup-member", "member")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "signing-rollup-test", "read-write")
+	is.NoErr(err)
+
+	// First SBOM: verified.
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", minimalSBOM, memberKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	var ingest1 map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingest1))
+	resp.Body.Close()
+	sbomID1 := ingest1["id"].(string)
+
+	_, err = pool.Exec(t.Context(),
+		`INSERT INTO enrichment (sbom_id, enricher_name, status, data)
+		 VALUES ($1::uuid, 'provenance', 'success', $2::jsonb)`,
+		sbomID1, `{"verified": true, "signaturePresent": true}`)
+	is.NoErr(err)
+
+	// Second SBOM under the SAME artifact: artifact_missing.
+	resp, err = doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", secondSBOM, memberKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	var ingest2 map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingest2))
+	resp.Body.Close()
+	sbomID2 := ingest2["id"].(string)
+
+	_, err = pool.Exec(t.Context(),
+		`INSERT INTO enrichment (sbom_id, enricher_name, status, data)
+		 VALUES ($1::uuid, 'provenance', 'success', $2::jsonb)`,
+		sbomID2, `{"artifactMissing": true}`)
+	is.NoErr(err)
+
+	// Both SBOMs must belong to the one artifact, or this test proves nothing.
+	artifact := firstArtifact(t, srv.URL, memberKey)
+	artifactID := artifact["id"].(string)
+
+	// Rollup must report artifact_missing, not verified — worst case wins.
+	is.Equal(artifact["signingStatus"], "artifact_missing")
+
+	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/artifacts/%s", srv.URL, artifactID))
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var detail map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&detail))
+	resp.Body.Close()
+	is.Equal(detail["signingStatus"], "artifact_missing")
+}
+
 // TestProvenanceRecheckErrorPreservesData covers ocidex-goh.2: a transient
 // registry error during provenance reverification must not clobber a prior
 // verified result. Exercises the exact sequence the reverifier hits UpsertEnrichment
