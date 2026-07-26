@@ -43,7 +43,8 @@ spec:
         # npm ci can fetch the public @pfenerty/tektonic without SSH keys in CI.
         ^git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
         cd .tektonic
-        ^npm ci
+        # npm 12+ defaults allow-git to "none", blocking the @pfenerty/tektonic git dependency.
+        ^npm ci --allow-git=all
         ^npx tsx pipeline.ts
         cd ..
         let drift = (^git status --porcelain -- .tekton | complete | get stdout | str trim)
