@@ -98,7 +98,7 @@ func (s *searchService) GetSBOM(ctx context.Context, id pgtype.UUID, includeRaw 
 		if err != nil {
 			return SBOMDetail{}, err
 		}
-		detail.ProvenanceDrift = drift
+		detail.ProvenanceDrift = currentDrift(drift, provenance.SigningStatus(signingProv))
 	}
 	detail.SigningStatus = provenance.SigningStatus(signingProv)
 
@@ -148,6 +148,18 @@ func lookupProvenanceDrift(ctx context.Context, q *repository.Queries, sbomID pg
 		Reason:         drift.Reason,
 		DetectedAt:     drift.DetectedAt.Time,
 	}, nil
+}
+
+// currentDrift returns drift only if it still describes the SBOM's present
+// signing status. A regression event becomes stale once the status changes
+// again — including a recovery, which recordProvenanceDrift does not itself
+// record as a new event — and surfacing it then would show a banner that
+// contradicts the current status.
+func currentDrift(drift *ProvenanceDriftSummary, currentStatus string) *ProvenanceDriftSummary {
+	if drift == nil || drift.NewStatus != currentStatus {
+		return nil
+	}
+	return drift
 }
 
 // ListSBOMDriftHistory returns the full provenance drift event history for an
