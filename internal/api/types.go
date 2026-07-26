@@ -168,6 +168,24 @@ type DeleteSBOMInput struct {
 }
 
 // ---------------------------------------------------------------------------
+// SBOM — Drift history
+// ---------------------------------------------------------------------------
+
+// ListSBOMDriftHistoryInput is the request for GET /api/v1/sboms/{id}/drift.
+type ListSBOMDriftHistoryInput struct {
+	PaginationParams
+	ID string `path:"id" doc:"SBOM UUID" format:"uuid"`
+}
+
+// ListSBOMDriftHistoryOutput is the response for GET /api/v1/sboms/{id}/drift.
+type ListSBOMDriftHistoryOutput struct {
+	Body struct {
+		Data       []service.ProvenanceDriftSummary `json:"data"`
+		Pagination PaginationMeta                   `json:"pagination"`
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Diff
 // ---------------------------------------------------------------------------
 
@@ -881,6 +899,28 @@ type RegistryWebhookInput struct {
 		Digest    string `json:"digest"`
 		MediaType string `json:"mediaType"`
 		Manifest  string `json:"manifest"`
+	}
+}
+
+// GetRegistryTrustSummaryOutput is the response for GET /api/v1/registries/trust-summary.
+// Admin-only: aggregates across all registries, bypassing per-registry visibility.
+type GetRegistryTrustSummaryOutput struct {
+	Body struct {
+		Data []service.RegistryTrustCount `json:"data"`
+	}
+}
+
+// ListRecentDriftInput is the request for GET /api/v1/registries/drift-feed.
+type ListRecentDriftInput struct {
+	PaginationParams
+}
+
+// ListRecentDriftOutput is the response for GET /api/v1/registries/drift-feed.
+// Admin-only: aggregates across all registries, bypassing per-registry visibility.
+type ListRecentDriftOutput struct {
+	Body struct {
+		Data       []service.RecentDriftEntry `json:"data"`
+		Pagination PaginationMeta             `json:"pagination"`
 	}
 }
 

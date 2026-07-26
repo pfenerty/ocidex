@@ -8,3 +8,25 @@ FROM provenance_drift_events
 WHERE sbom_id = $1
 ORDER BY detected_at DESC
 LIMIT 1;
+
+-- name: ListProvenanceDriftBySBOM :many
+SELECT id, sbom_id, previous_status, new_status, reason, detected_at,
+       COUNT(*) OVER() AS total_count
+FROM provenance_drift_events
+WHERE sbom_id = $1
+ORDER BY detected_at DESC
+LIMIT @row_limit OFFSET @row_offset;
+
+-- name: ListRecentProvenanceDrift :many
+SELECT
+    d.id, d.sbom_id, d.previous_status, d.new_status, d.reason, d.detected_at,
+    s.registry_id, s.artifact_id,
+    a.name AS artifact_name, a.type AS artifact_type,
+    r.name AS registry_name,
+    COUNT(*) OVER() AS total_count
+FROM provenance_drift_events d
+JOIN sbom s ON s.id = d.sbom_id
+LEFT JOIN artifact a ON a.id = s.artifact_id
+LEFT JOIN registry r ON r.id = s.registry_id
+ORDER BY d.detected_at DESC
+LIMIT @row_limit OFFSET @row_offset;

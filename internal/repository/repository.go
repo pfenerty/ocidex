@@ -87,6 +87,7 @@ type RegistryRepository interface {
 	DeleteRegistry(ctx context.Context, id pgtype.UUID) (int64, error)
 	ListPollableRegistries(ctx context.Context) ([]Registry, error)
 	UpdateRegistryLastPolled(ctx context.Context, id pgtype.UUID) (Registry, error)
+	ListRegistryTrustSummary(ctx context.Context) ([]ListRegistryTrustSummaryRow, error)
 }
 
 // EnrichmentJobRepository defines data access methods for enrichment job lifecycle.

@@ -98,6 +98,10 @@ func (f *fakeRegistryService) MarkPolled(_ context.Context, _ string) (service.R
 	return service.Registry{}, nil
 }
 
+func (f *fakeRegistryService) TrustSummary(_ context.Context) ([]service.RegistryTrustCount, error) {
+	return nil, nil
+}
+
 type fakeAuthService struct {
 	users map[string]service.AuthUser
 }

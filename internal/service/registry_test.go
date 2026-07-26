@@ -99,6 +99,10 @@ func (f *fakeRegistryRepo) UpdateRegistryLastPolled(ctx context.Context, id pgty
 	return repository.Registry{}, nil
 }
 
+func (f *fakeRegistryRepo) ListRegistryTrustSummary(ctx context.Context) ([]repository.ListRegistryTrustSummaryRow, error) {
+	return nil, nil
+}
+
 func newTestRegistryService(repo repository.RegistryRepository) *registryService {
 	return &registryService{repo: repo}
 }
@@ -373,6 +377,10 @@ func (f *fakeListRegistryService) ListPollable(_ context.Context) ([]Registry, e
 
 func (f *fakeListRegistryService) MarkPolled(_ context.Context, _ string) (Registry, error) {
 	return Registry{}, nil
+}
+
+func (f *fakeListRegistryService) TrustSummary(_ context.Context) ([]RegistryTrustCount, error) {
+	return nil, nil
 }
 
 // countingListService wraps fakeListRegistryService and calls onList on every List.

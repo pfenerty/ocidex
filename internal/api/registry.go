@@ -134,6 +134,46 @@ func (h *Handler) ListRegistries(ctx context.Context, input *ListRegistriesInput
 	return out, nil
 }
 
+// GetRegistryTrustSummary returns per-registry artifact counts across all
+// five signing statuses. Admin-only: it aggregates across every registry,
+// bypassing the per-registry visibility filter other endpoints apply.
+func (h *Handler) GetRegistryTrustSummary(ctx context.Context, _ *struct{}) (*GetRegistryTrustSummaryOutput, error) {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	if user.Role != roleAdmin {
+		return nil, huma.Error403Forbidden("admin only")
+	}
+	rows, err := h.registryService.TrustSummary(ctx)
+	if err != nil {
+		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing registry trust summary: %v", err))
+	}
+	out := &GetRegistryTrustSummaryOutput{}
+	out.Body.Data = rows
+	return out, nil
+}
+
+// ListRecentDrift returns the most recent provenance drift events across
+// every registry. Admin-only, for the same reason as GetRegistryTrustSummary.
+func (h *Handler) ListRecentDrift(ctx context.Context, in *ListRecentDriftInput) (*ListRecentDriftOutput, error) {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	if user.Role != roleAdmin {
+		return nil, huma.Error403Forbidden("admin only")
+	}
+	result, err := h.searchService.ListRecentProvenanceDrift(ctx, in.Limit, in.Offset)
+	if err != nil {
+		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing recent provenance drift: %v", err))
+	}
+	out := &ListRecentDriftOutput{}
+	out.Body.Data = result.Data
+	out.Body.Pagination = paginationMeta(result)
+	return out, nil
+}
+
 // GetRegistry returns a single registry by ID.
 func (h *Handler) GetRegistry(ctx context.Context, in *GetRegistryInput) (*GetRegistryOutput, error) {
 	user, ok := UserFromContext(ctx)

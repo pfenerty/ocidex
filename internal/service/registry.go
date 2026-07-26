@@ -251,6 +251,16 @@ type RegistryService interface {
 	Delete(ctx context.Context, id string) error
 	ListPollable(ctx context.Context) ([]Registry, error)
 	MarkPolled(ctx context.Context, id string) (Registry, error)
+	TrustSummary(ctx context.Context) ([]RegistryTrustCount, error)
+}
+
+// RegistryTrustCount is a per-registry, per-signing-status artifact count,
+// derived from each artifact's most recent SBOM via the signing_status() SQL
+// function (see ocidex-82g.3).
+type RegistryTrustCount struct {
+	RegistryID    string `json:"registryId"`
+	SigningStatus string `json:"signingStatus"`
+	Count         int64  `json:"count"`
 }
 
 type registryService struct {
@@ -475,6 +485,22 @@ func (s *registryService) Delete(ctx context.Context, id string) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+func (s *registryService) TrustSummary(ctx context.Context) ([]RegistryTrustCount, error) {
+	rows, err := s.repo.ListRegistryTrustSummary(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("listing registry trust summary: %w", err)
+	}
+	out := make([]RegistryTrustCount, len(rows))
+	for i, r := range rows {
+		out[i] = RegistryTrustCount{
+			RegistryID:    uuidToStr(r.RegistryID),
+			SigningStatus: r.SigningStatus,
+			Count:         r.ArtifactCount,
+		}
+	}
+	return out, nil
 }
 
 func fromRepo(r repository.Registry) Registry {

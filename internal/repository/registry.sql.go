@@ -383,6 +383,52 @@ func (q *Queries) ListRegistriesPaged(ctx context.Context, arg ListRegistriesPag
 	return items, nil
 }
 
+const listRegistryTrustSummary = `-- name: ListRegistryTrustSummary :many
+WITH latest_provenance AS (
+    SELECT DISTINCT ON (s.registry_id, s.artifact_id)
+        s.registry_id,
+        signing_status(p.data) AS signing_status
+    FROM sbom s
+    LEFT JOIN enrichment p ON p.sbom_id = s.id AND p.enricher_name = 'provenance' AND p.status = 'success'
+    WHERE s.artifact_id IS NOT NULL
+    ORDER BY s.registry_id, s.artifact_id, s.created_at DESC
+)
+SELECT registry_id, signing_status, COUNT(*) AS artifact_count
+FROM latest_provenance
+GROUP BY registry_id, signing_status
+ORDER BY registry_id, signing_status
+`
+
+type ListRegistryTrustSummaryRow struct {
+	RegistryID    pgtype.UUID `json:"registry_id"`
+	SigningStatus string      `json:"signing_status"`
+	ArtifactCount int64       `json:"artifact_count"`
+}
+
+// Per-registry counts across the five signing statuses, one row per
+// (registry, status) with a nonzero count. Derives each artifact's *current*
+// status from its most recently created SBOM per registry — reuses the
+// signing_status() function from ocidex-82g.3 rather than re-deriving.
+func (q *Queries) ListRegistryTrustSummary(ctx context.Context) ([]ListRegistryTrustSummaryRow, error) {
+	rows, err := q.db.Query(ctx, listRegistryTrustSummary)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRegistryTrustSummaryRow{}
+	for rows.Next() {
+		var i ListRegistryTrustSummaryRow
+		if err := rows.Scan(&i.RegistryID, &i.SigningStatus, &i.ArtifactCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setRegistryEnabled = `-- name: SetRegistryEnabled :one
 UPDATE registry
 SET enabled    = $2,

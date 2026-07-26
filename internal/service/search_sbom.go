@@ -150,6 +150,85 @@ func lookupProvenanceDrift(ctx context.Context, q *repository.Queries, sbomID pg
 	}, nil
 }
 
+// ListSBOMDriftHistory returns the full provenance drift event history for an
+// SBOM, newest first. Visibility-gated the same way as GetSBOM.
+func (s *searchService) ListSBOMDriftHistory(ctx context.Context, sbomID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ProvenanceDriftSummary], error) {
+	q := repository.New(s.db)
+
+	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
+		ID:      sbomID,
+		UserID:  vis.UserID,
+		IsAdmin: visAdminBool(vis),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return PagedResult[ProvenanceDriftSummary]{}, ErrNotFound
+		}
+		return PagedResult[ProvenanceDriftSummary]{}, fmt.Errorf("checking sbom visibility: %w", err)
+	}
+	if !visible {
+		return PagedResult[ProvenanceDriftSummary]{}, ErrNotFound
+	}
+
+	rows, err := q.ListProvenanceDriftBySBOM(ctx, repository.ListProvenanceDriftBySBOMParams{
+		SbomID:    sbomID,
+		RowLimit:  limit,
+		RowOffset: offset,
+	})
+	if err != nil {
+		return PagedResult[ProvenanceDriftSummary]{}, fmt.Errorf("listing sbom drift history: %w", err)
+	}
+
+	var total int64
+	items := make([]ProvenanceDriftSummary, len(rows))
+	for i, r := range rows {
+		total = r.TotalCount
+		items[i] = ProvenanceDriftSummary{
+			PreviousStatus: r.PreviousStatus,
+			NewStatus:      r.NewStatus,
+			Reason:         r.Reason,
+			DetectedAt:     r.DetectedAt.Time,
+		}
+	}
+	return PagedResult[ProvenanceDriftSummary]{Data: items, Total: total, Limit: limit, Offset: offset}, nil
+}
+
+// ListRecentProvenanceDrift returns the most recent provenance drift events
+// across every registry, newest first. Admin-only — callers must gate access
+// since this bypasses per-registry visibility.
+func (s *searchService) ListRecentProvenanceDrift(ctx context.Context, limit, offset int32) (PagedResult[RecentDriftEntry], error) {
+	q := repository.New(s.db)
+
+	rows, err := q.ListRecentProvenanceDrift(ctx, repository.ListRecentProvenanceDriftParams{
+		RowLimit:  limit,
+		RowOffset: offset,
+	})
+	if err != nil {
+		return PagedResult[RecentDriftEntry]{}, fmt.Errorf("listing recent provenance drift: %w", err)
+	}
+
+	var total int64
+	items := make([]RecentDriftEntry, len(rows))
+	for i, r := range rows {
+		total = r.TotalCount
+		items[i] = RecentDriftEntry{
+			ProvenanceDriftSummary: ProvenanceDriftSummary{
+				PreviousStatus: r.PreviousStatus,
+				NewStatus:      r.NewStatus,
+				Reason:         r.Reason,
+				DetectedAt:     r.DetectedAt.Time,
+			},
+			SBOMID:       uuidToString(r.SbomID),
+			RegistryID:   uuidToPtr(r.RegistryID),
+			RegistryName: textToPtr(r.RegistryName),
+			ArtifactID:   uuidToPtr(r.ArtifactID),
+			ArtifactName: textToPtr(r.ArtifactName),
+			ArtifactType: textToPtr(r.ArtifactType),
+		}
+	}
+	return PagedResult[RecentDriftEntry]{Data: items, Total: total, Limit: limit, Offset: offset}, nil
+}
+
 // buildVulnSummary folds per-severity counts into a VulnSummary, or nil when
 // there are no findings.
 func buildVulnSummary(rows []repository.GetSBOMVulnSummaryRow) *VulnSummary {

@@ -192,6 +192,14 @@ func registerSBOMOps(api huma.API, h *Handler) {
 		DefaultStatus: http.StatusNoContent,
 		Middlewares:   huma.Middlewares{sbomOwnerMW},
 	}, h.DeleteSBOM)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-sbom-drift-history",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/sboms/{id}/drift",
+		Summary:     "List provenance drift history for an SBOM",
+		Tags:        []string{"SBOMs"},
+	}, h.ListSBOMDriftHistory)
 }
 
 // ---------------------------------------------------------------------------
@@ -409,6 +417,24 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Summary:     "List registries",
 		Tags:        []string{"Registries"},
 	}, h.ListRegistries)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-registry-trust-summary",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/registries/trust-summary",
+		Summary:     "Per-registry signing-status counts",
+		Description: "Admin-only. Counts artifacts by current signing status, per registry, across all registries.",
+		Tags:        []string{"Registries"},
+	}, h.GetRegistryTrustSummary)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-recent-drift",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/registries/drift-feed",
+		Summary:     "Cross-registry recent provenance drift feed",
+		Description: "Admin-only. Most recent provenance drift events across all registries.",
+		Tags:        []string{"Registries"},
+	}, h.ListRecentDrift)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "create-registry",

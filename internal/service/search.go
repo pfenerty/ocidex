@@ -38,6 +38,20 @@ type SearchService interface {
 	GetArtifactVulnSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (*VulnSummary, error)
 	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (*VulnDetail, PagedResult[AffectedArtifact], PagedResult[AffectedComponent], error)
 	GetComponentVulns(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) ([]ComponentVulnEntry, error)
+	ListSBOMDriftHistory(ctx context.Context, sbomID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ProvenanceDriftSummary], error)
+	ListRecentProvenanceDrift(ctx context.Context, limit, offset int32) (PagedResult[RecentDriftEntry], error)
+}
+
+// RecentDriftEntry is a provenance_drift_events row enriched with enough
+// SBOM/artifact/registry context to render in a cross-registry feed.
+type RecentDriftEntry struct {
+	ProvenanceDriftSummary
+	SBOMID       string  `json:"sbomId"`
+	RegistryID   *string `json:"registryId,omitempty"`
+	RegistryName *string `json:"registryName,omitempty"`
+	ArtifactID   *string `json:"artifactId,omitempty"`
+	ArtifactName *string `json:"artifactName,omitempty"`
+	ArtifactType *string `json:"artifactType,omitempty"`
 }
 
 // DashboardStats holds aggregated metrics for the dashboard.
