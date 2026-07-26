@@ -19,12 +19,17 @@ export const goVulncheck = new Task({
       name: "govulncheck-scan",
       image: govulncheckImage,
       // govulncheck builds a whole-program SSA call graph for reachability analysis, which is
-      // very memory-hungry on ocidex's dep graph (grype/syft/AWS-SDK/k8s) — it OOMKilled at 2Gi
-      // and then 4Gi. Raise to 6Gi. If it still OOMs, the node likely needs more headroom rather
-      // than another bump.
+      // very memory-hungry on ocidex's dep graph (grype/syft/AWS-SDK/k8s) — it OOMKilled at 2Gi,
+      // then 4Gi, then 6Gi (ocidex-2w2). The 6Gi OOM was confirmed NOT a node-headroom problem —
+      // the pod landed on the cluster's largest node with 11GB+ free and still hit its own 6Gi
+      // cgroup ceiling in under 90s. A local run against the same ./cmd/... target measured
+      // ~3.2GB peak RSS; the gap to 6Gi is plausibly cgroup page-cache accounting on the
+      // restored GOMODCACHE/GOCACHE archive, which grows with the heavier dep tree the
+      // ocidex-goh provenance epic added (cosign, sigstore-go, rekor, in-toto). Raise to 10Gi
+      // with real margin over the observed baseline; the node has capacity for it.
       computeResources: {
-        limits: { cpu: "2", memory: "6Gi", "ephemeral-storage": "4Gi" },
-        requests: { cpu: "500m", memory: "1Gi", "ephemeral-storage": "2Gi" },
+        limits: { cpu: "2", memory: "10Gi", "ephemeral-storage": "4Gi" },
+        requests: { cpu: "500m", memory: "2Gi", "ephemeral-storage": "2Gi" },
       },
       // Scan from the command entry points (./cmd/...) rather than ./... : it still follows every
       // import the binaries actually use (so no production vuln is missed), but drops test files
