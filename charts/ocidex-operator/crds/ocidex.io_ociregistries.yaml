@@ -113,6 +113,19 @@ spec:
                 items:
                   type: string
                 type: array
+              trustIdentity:
+                description: |-
+                  TrustIdentity is a regex matched against the Fulcio certificate's Subject
+                  Alternative Name, required when VerificationMode is keyless.
+                type: string
+              trustIssuer:
+                description: TrustIssuer is the expected OIDC issuer URL, required
+                  when VerificationMode is keyless.
+                type: string
+              trustPublicKey:
+                description: TrustPublicKey is a PEM-encoded EC public key, required
+                  when VerificationMode is public_key.
+                type: string
               type:
                 description: Type is the registry implementation.
                 enum:
@@ -124,6 +137,15 @@ spec:
                 type: string
               url:
                 description: URL is the registry address (e.g. "zot:5000" or "ghcr.io").
+                type: string
+              verificationMode:
+                default: none
+                description: VerificationMode controls signature verification for
+                  images in this registry.
+                enum:
+                - none
+                - public_key
+                - keyless
                 type: string
               visibility:
                 default: private
@@ -138,6 +160,15 @@ spec:
             - type
             - url
             type: object
+            x-kubernetes-validations:
+            - message: trustIdentity and trustIssuer are required when verificationMode
+                is keyless
+              rule: self.verificationMode != 'keyless' || (has(self.trustIdentity)
+                && size(self.trustIdentity) > 0 && has(self.trustIssuer) && size(self.trustIssuer)
+                > 0)
+            - message: trustPublicKey is required when verificationMode is public_key
+              rule: self.verificationMode != 'public_key' || (has(self.trustPublicKey)
+                && size(self.trustPublicKey) > 0)
           status:
             description: OCIRegistryStatus reflects the observed state of an OCIRegistry.
             properties:
