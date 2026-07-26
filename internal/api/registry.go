@@ -70,6 +70,33 @@ func generateWebhookSecret() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
+// ensureWebhookSecret returns the provided webhook secret, or auto-generates one for
+// webhook-capable scan modes when none was supplied. Returns the (possibly generated)
+// secret and, separately, the generated value alone (empty if none was generated) so
+// callers can decide whether to reveal it in a response.
+func ensureWebhookSecret(scanMode string, provided *string) (secret *string, generated string, err error) {
+	if (scanMode != scanModeWebhook && scanMode != scanModeBoth) || (provided != nil && *provided != "") {
+		return provided, "", nil
+	}
+	s, err := generateWebhookSecret()
+	if err != nil {
+		return nil, "", huma.Error500InternalServerError("generating webhook secret")
+	}
+	return &s, s, nil
+}
+
+// validateVerificationConfig rejects a keyless verification_mode that's missing the
+// trust_identity/trust_issuer it needs to match a Fulcio certificate against.
+func validateVerificationConfig(verificationMode string, trustIdentity, trustIssuer *string) error {
+	if verificationMode != "keyless" {
+		return nil
+	}
+	if trustIdentity == nil || *trustIdentity == "" || trustIssuer == nil || *trustIssuer == "" {
+		return huma.Error400BadRequest("trust_identity and trust_issuer are required when verification_mode is keyless")
+	}
+	return nil
+}
+
 // ListRegistries returns registries visible to the current user.
 func (h *Handler) ListRegistries(ctx context.Context, input *ListRegistriesInput) (*ListRegistriesOutput, error) {
 	user, ok := UserFromContext(ctx)
@@ -103,6 +130,46 @@ func (h *Handler) ListRegistries(ctx context.Context, input *ListRegistriesInput
 		}
 		out.Body.Data[i] = toRegistryResponse(r, h.cfg.APIBaseURL, ownerUsername)
 	}
+	out.Body.Pagination = paginationMeta(result)
+	return out, nil
+}
+
+// GetRegistryTrustSummary returns per-registry artifact counts across all
+// five signing statuses. Admin-only: it aggregates across every registry,
+// bypassing the per-registry visibility filter other endpoints apply.
+func (h *Handler) GetRegistryTrustSummary(ctx context.Context, _ *struct{}) (*GetRegistryTrustSummaryOutput, error) {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	if user.Role != roleAdmin {
+		return nil, huma.Error403Forbidden("admin only")
+	}
+	rows, err := h.registryService.TrustSummary(ctx)
+	if err != nil {
+		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing registry trust summary: %v", err))
+	}
+	out := &GetRegistryTrustSummaryOutput{}
+	out.Body.Data = rows
+	return out, nil
+}
+
+// ListRecentDrift returns the most recent provenance drift events across
+// every registry. Admin-only, for the same reason as GetRegistryTrustSummary.
+func (h *Handler) ListRecentDrift(ctx context.Context, in *ListRecentDriftInput) (*ListRecentDriftOutput, error) {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	if user.Role != roleAdmin {
+		return nil, huma.Error403Forbidden("admin only")
+	}
+	result, err := h.searchService.ListRecentProvenanceDrift(ctx, in.Limit, in.Offset)
+	if err != nil {
+		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing recent provenance drift: %v", err))
+	}
+	out := &ListRecentDriftOutput{}
+	out.Body.Data = result.Data
 	out.Body.Pagination = paginationMeta(result)
 	return out, nil
 }
@@ -173,23 +240,19 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 		visibility = "public"
 	}
 
-	// Auto-generate a webhook secret for webhook-capable registries when not provided.
-	webhookSecret := in.Body.WebhookSecret
-	var generatedSecret string
-	if (scanMode == scanModeWebhook || scanMode == scanModeBoth) && (webhookSecret == nil || *webhookSecret == "") {
-		s, err := generateWebhookSecret()
-		if err != nil {
-			return nil, huma.Error500InternalServerError("generating webhook secret")
-		}
-		generatedSecret = s
-		webhookSecret = &generatedSecret
+	webhookSecret, generatedSecret, err := ensureWebhookSecret(scanMode, in.Body.WebhookSecret)
+	if err != nil {
+		return nil, err
 	}
 
 	verificationMode := in.Body.VerificationMode
 	if verificationMode == "" {
 		verificationMode = "none"
 	}
-	reg, err := h.registryService.Create(ctx, in.Body.Name, regType, regURL, in.Body.Insecure, webhookSecret, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval, in.Body.AuthUsername, in.Body.AuthToken, user.ID, visibility, in.Body.IncludeUntagged, verificationMode, in.Body.TrustPublicKey)
+	if err := validateVerificationConfig(verificationMode, in.Body.TrustIdentity, in.Body.TrustIssuer); err != nil {
+		return nil, err
+	}
+	reg, err := h.registryService.Create(ctx, in.Body.Name, regType, regURL, in.Body.Insecure, webhookSecret, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval, in.Body.AuthUsername, in.Body.AuthToken, user.ID, visibility, in.Body.IncludeUntagged, verificationMode, in.Body.TrustPublicKey, in.Body.TrustIdentity, in.Body.TrustIssuer)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -213,7 +276,7 @@ func (h *Handler) RegenerateWebhookSecret(ctx context.Context, in *RegenerateWeb
 	if err != nil {
 		return nil, huma.Error500InternalServerError("generating webhook secret")
 	}
-	_, err = h.registryService.Update(ctx, in.ID, existing.Name, existing.Type, existing.URL, existing.Insecure, &secret, existing.Enabled, existing.Repositories, existing.RepositoryPatterns, existing.TagPatterns, existing.ScanMode, existing.PollIntervalMinutes, existing.AuthUsername, existing.AuthToken, existing.Visibility, existing.IncludeUntagged, existing.VerificationMode, existing.TrustPublicKey)
+	_, err = h.registryService.Update(ctx, in.ID, existing.Name, existing.Type, existing.URL, existing.Insecure, &secret, existing.Enabled, existing.Repositories, existing.RepositoryPatterns, existing.TagPatterns, existing.ScanMode, existing.PollIntervalMinutes, existing.AuthUsername, existing.AuthToken, existing.Visibility, existing.IncludeUntagged, existing.VerificationMode, existing.TrustPublicKey, existing.TrustIdentity, existing.TrustIssuer)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("updating webhook secret")
 	}
@@ -261,8 +324,19 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 	if updateTrustPublicKey == nil {
 		updateTrustPublicKey = existing.TrustPublicKey
 	}
+	updateTrustIdentity := in.Body.TrustIdentity
+	if updateTrustIdentity == nil {
+		updateTrustIdentity = existing.TrustIdentity
+	}
+	updateTrustIssuer := in.Body.TrustIssuer
+	if updateTrustIssuer == nil {
+		updateTrustIssuer = existing.TrustIssuer
+	}
+	if err := validateVerificationConfig(updateVerificationMode, updateTrustIdentity, updateTrustIssuer); err != nil {
+		return nil, err
+	}
 	var reg service.Registry
-	reg, err = h.registryService.Update(ctx, in.ID, in.Body.Name, regType, regURL, in.Body.Insecure, existing.WebhookSecret, in.Body.Enabled, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval, in.Body.AuthUsername, in.Body.AuthToken, visibility, in.Body.IncludeUntagged, updateVerificationMode, updateTrustPublicKey)
+	reg, err = h.registryService.Update(ctx, in.ID, in.Body.Name, regType, regURL, in.Body.Insecure, existing.WebhookSecret, in.Body.Enabled, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval, in.Body.AuthUsername, in.Body.AuthToken, visibility, in.Body.IncludeUntagged, updateVerificationMode, updateTrustPublicKey, updateTrustIdentity, updateTrustIssuer)
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}
@@ -410,6 +484,8 @@ func toRegistryResponse(r service.Registry, apiBaseURL string, ownerUsername *st
 		IncludeUntagged:     r.IncludeUntagged,
 		VerificationMode:    r.VerificationMode,
 		TrustPublicKey:      r.TrustPublicKey,
+		TrustIdentity:       r.TrustIdentity,
+		TrustIssuer:         r.TrustIssuer,
 	}
 	if r.LastPolledAt != nil {
 		s := r.LastPolledAt.UTC().Format("2006-01-02T15:04:05Z")

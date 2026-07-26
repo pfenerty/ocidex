@@ -204,6 +204,14 @@ func (f *fakeSearchService) GetComponentVulns(_ context.Context, _ pgtype.UUID, 
 	return []service.ComponentVulnEntry{}, nil
 }
 
+func (f *fakeSearchService) ListSBOMDriftHistory(_ context.Context, _ pgtype.UUID, limit, offset int32, _ service.VisibilityFilter) (service.PagedResult[service.ProvenanceDriftSummary], error) {
+	return service.PagedResult[service.ProvenanceDriftSummary]{Limit: limit, Offset: offset}, nil
+}
+
+func (f *fakeSearchService) ListRecentProvenanceDrift(_ context.Context, limit, offset int32) (service.PagedResult[service.RecentDriftEntry], error) {
+	return service.PagedResult[service.RecentDriftEntry]{Limit: limit, Offset: offset}, nil
+}
+
 // notFoundSearchService returns ErrNotFound for single-item lookups.
 type notFoundSearchService struct{ fakeSearchService }
 

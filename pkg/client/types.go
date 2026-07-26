@@ -16,6 +16,7 @@ const (
 
 // Defines values for ArtifactVersionSummarySigningStatus.
 const (
+	ArtifactMissing    ArtifactVersionSummarySigningStatus = "artifact_missing"
 	Signed             ArtifactVersionSummarySigningStatus = "signed"
 	Unsigned           ArtifactVersionSummarySigningStatus = "unsigned"
 	VerificationFailed ArtifactVersionSummarySigningStatus = "verification_failed"
@@ -25,6 +26,8 @@ const (
 // Valid indicates whether the value is a known member of the ArtifactVersionSummarySigningStatus enum.
 func (e ArtifactVersionSummarySigningStatus) Valid() bool {
 	switch e {
+	case ArtifactMissing:
+		return true
 	case Signed:
 		return true
 	case Unsigned:
@@ -106,6 +109,7 @@ func (e CreateRegistryInputBodyType) Valid() bool {
 
 // Defines values for CreateRegistryInputBodyVerificationMode.
 const (
+	CreateRegistryInputBodyVerificationModeKeyless   CreateRegistryInputBodyVerificationMode = "keyless"
 	CreateRegistryInputBodyVerificationModeNone      CreateRegistryInputBodyVerificationMode = "none"
 	CreateRegistryInputBodyVerificationModePublicKey CreateRegistryInputBodyVerificationMode = "public_key"
 )
@@ -113,6 +117,8 @@ const (
 // Valid indicates whether the value is a known member of the CreateRegistryInputBodyVerificationMode enum.
 func (e CreateRegistryInputBodyVerificationMode) Valid() bool {
 	switch e {
+	case CreateRegistryInputBodyVerificationModeKeyless:
+		return true
 	case CreateRegistryInputBodyVerificationModeNone:
 		return true
 	case CreateRegistryInputBodyVerificationModePublicKey:
@@ -224,6 +230,24 @@ func (e KeyMetaResponseScope) Valid() bool {
 	}
 }
 
+// Defines values for ListArtifactVersionsOutputBodyResolvedMode.
+const (
+	ListArtifactVersionsOutputBodyResolvedModeAll    ListArtifactVersionsOutputBodyResolvedMode = "all"
+	ListArtifactVersionsOutputBodyResolvedModeSemver ListArtifactVersionsOutputBodyResolvedMode = "semver"
+)
+
+// Valid indicates whether the value is a known member of the ListArtifactVersionsOutputBodyResolvedMode enum.
+func (e ListArtifactVersionsOutputBodyResolvedMode) Valid() bool {
+	switch e {
+	case ListArtifactVersionsOutputBodyResolvedModeAll:
+		return true
+	case ListArtifactVersionsOutputBodyResolvedModeSemver:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RegistryResponseVerificationMode.
 const (
 	RegistryResponseVerificationModeKeyless   RegistryResponseVerificationMode = "keyless"
@@ -319,6 +343,7 @@ func (e UpdateRegistryInputBodyType) Valid() bool {
 
 // Defines values for UpdateRegistryInputBodyVerificationMode.
 const (
+	UpdateRegistryInputBodyVerificationModeKeyless   UpdateRegistryInputBodyVerificationMode = "keyless"
 	UpdateRegistryInputBodyVerificationModeNone      UpdateRegistryInputBodyVerificationMode = "none"
 	UpdateRegistryInputBodyVerificationModePublicKey UpdateRegistryInputBodyVerificationMode = "public_key"
 )
@@ -326,6 +351,8 @@ const (
 // Valid indicates whether the value is a known member of the UpdateRegistryInputBodyVerificationMode enum.
 func (e UpdateRegistryInputBodyVerificationMode) Valid() bool {
 	switch e {
+	case UpdateRegistryInputBodyVerificationModeKeyless:
+		return true
 	case UpdateRegistryInputBodyVerificationModeNone:
 		return true
 	case UpdateRegistryInputBodyVerificationModePublicKey:
@@ -389,6 +416,42 @@ func (e RetryAllFailedEnrichmentJobsParamsEnricherName) Valid() bool {
 	case RetryAllFailedEnrichmentJobsParamsEnricherNameProvenance:
 		return true
 	case RetryAllFailedEnrichmentJobsParamsEnricherNameUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetArtifactChangelogParamsMode.
+const (
+	GetArtifactChangelogParamsModeAll    GetArtifactChangelogParamsMode = "all"
+	GetArtifactChangelogParamsModeSemver GetArtifactChangelogParamsMode = "semver"
+)
+
+// Valid indicates whether the value is a known member of the GetArtifactChangelogParamsMode enum.
+func (e GetArtifactChangelogParamsMode) Valid() bool {
+	switch e {
+	case GetArtifactChangelogParamsModeAll:
+		return true
+	case GetArtifactChangelogParamsModeSemver:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListArtifactVersionsParamsMode.
+const (
+	All    ListArtifactVersionsParamsMode = "all"
+	Semver ListArtifactVersionsParamsMode = "semver"
+)
+
+// Valid indicates whether the value is a known member of the ListArtifactVersionsParamsMode enum.
+func (e ListArtifactVersionsParamsMode) Valid() bool {
+	switch e {
+	case All:
+		return true
+	case Semver:
 		return true
 	default:
 		return false
@@ -587,6 +650,8 @@ type Changelog struct {
 	AvailableArchitectures *[]string         `json:"availableArchitectures"`
 	AvailableFlavors       *[]string         `json:"availableFlavors"`
 	Entries                *[]ChangelogEntry `json:"entries"`
+	HasSemver              bool              `json:"hasSemver"`
+	ResolvedMode           string            `json:"resolvedMode"`
 }
 
 // ChangelogEntry defines model for ChangelogEntry.
@@ -763,6 +828,12 @@ type CreateRegistryInputBody struct {
 	// TagPatterns Glob patterns or 'semver' for tags to ingest; empty = all
 	TagPatterns *[]string `json:"tag_patterns,omitempty"`
 
+	// TrustIdentity Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless
+	TrustIdentity *string `json:"trust_identity,omitempty"`
+
+	// TrustIssuer Expected OIDC issuer URL; required when verification_mode is keyless
+	TrustIssuer *string `json:"trust_issuer,omitempty"`
+
 	// TrustPublicKey PEM-encoded EC public key; required when verification_mode is public_key
 	TrustPublicKey *string `json:"trust_public_key,omitempty"`
 
@@ -826,6 +897,12 @@ type CreateRegistryResponseBody struct {
 
 	// TagPatterns Glob patterns or 'semver' for tags to ingest; empty = all
 	TagPatterns *[]string `json:"tag_patterns"`
+
+	// TrustIdentity Regex matched against the Fulcio certificate SAN; required for keyless verification mode
+	TrustIdentity *string `json:"trust_identity,omitempty"`
+
+	// TrustIssuer Expected OIDC issuer URL; required for keyless verification mode
+	TrustIssuer *string `json:"trust_issuer,omitempty"`
 
 	// TrustPublicKey PEM-encoded EC public key for public_key verification mode
 	TrustPublicKey *string `json:"trust_public_key,omitempty"`
@@ -1155,10 +1232,19 @@ type ListArtifactSBOMsOutputBody struct {
 // ListArtifactVersionsOutputBody defines model for ListArtifactVersionsOutputBody.
 type ListArtifactVersionsOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema     *string                   `json:"$schema,omitempty"`
-	Data       *[]ArtifactVersionSummary `json:"data"`
-	Pagination PaginationMeta            `json:"pagination"`
+	Schema *string                   `json:"$schema,omitempty"`
+	Data   *[]ArtifactVersionSummary `json:"data"`
+
+	// HasSemver Whether the artifact has any semver-parseable version
+	HasSemver  bool           `json:"hasSemver"`
+	Pagination PaginationMeta `json:"pagination"`
+
+	// ResolvedMode Concrete sort mode applied after auto-resolution
+	ResolvedMode ListArtifactVersionsOutputBodyResolvedMode `json:"resolvedMode"`
 }
+
+// ListArtifactVersionsOutputBodyResolvedMode Concrete sort mode applied after auto-resolution
+type ListArtifactVersionsOutputBodyResolvedMode string
 
 // ListArtifactsOutputBody defines model for ListArtifactsOutputBody.
 type ListArtifactsOutputBody struct {
@@ -1288,6 +1374,14 @@ type PaginationMeta struct {
 	Total int64 `json:"total"`
 }
 
+// ProvenanceDriftSummary defines model for ProvenanceDriftSummary.
+type ProvenanceDriftSummary struct {
+	DetectedAt     time.Time `json:"detectedAt"`
+	NewStatus      string    `json:"newStatus"`
+	PreviousStatus string    `json:"previousStatus"`
+	Reason         string    `json:"reason"`
+}
+
 // ReadinessCheckOutputBody defines model for ReadinessCheckOutputBody.
 type ReadinessCheckOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -1342,6 +1436,12 @@ type RegistryResponse struct {
 	// TagPatterns Glob patterns or 'semver' for tags to ingest; empty = all
 	TagPatterns *[]string `json:"tag_patterns"`
 
+	// TrustIdentity Regex matched against the Fulcio certificate SAN; required for keyless verification mode
+	TrustIdentity *string `json:"trust_identity,omitempty"`
+
+	// TrustIssuer Expected OIDC issuer URL; required for keyless verification mode
+	TrustIssuer *string `json:"trust_issuer,omitempty"`
+
 	// TrustPublicKey PEM-encoded EC public key for public_key verification mode
 	TrustPublicKey *string `json:"trust_public_key,omitempty"`
 	Type           string  `json:"type"`
@@ -1391,27 +1491,28 @@ type RetryAllFailedScanJobsOutputBody struct {
 // SBOMDetail defines model for SBOMDetail.
 type SBOMDetail struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema         *string                 `json:"$schema,omitempty"`
-	Architecture   *string                 `json:"architecture,omitempty"`
-	ArtifactId     *string                 `json:"artifactId,omitempty"`
-	BuildDate      *time.Time              `json:"buildDate,omitempty"`
-	ComponentCount *int64                  `json:"componentCount,omitempty"`
-	CreatedAt      time.Time               `json:"createdAt"`
-	Digest         *string                 `json:"digest,omitempty"`
-	Enrichments    *map[string]interface{} `json:"enrichments,omitempty"`
-	Flavor         *string                 `json:"flavor,omitempty"`
-	Id             string                  `json:"id"`
-	ImageVersion   *string                 `json:"imageVersion,omitempty"`
-	PackageCount   int64                   `json:"packageCount"`
-	RawBom         interface{}             `json:"rawBom,omitempty"`
-	Revision       *string                 `json:"revision,omitempty"`
-	SerialNumber   *string                 `json:"serialNumber,omitempty"`
-	SourceUrl      *string                 `json:"sourceUrl,omitempty"`
-	SpecVersion    string                  `json:"specVersion"`
-	SubjectVersion *string                 `json:"subjectVersion,omitempty"`
-	Sufficient     bool                    `json:"sufficient"`
-	Version        int32                   `json:"version"`
-	VulnSummary    *VulnSummary            `json:"vulnSummary,omitempty"`
+	Schema          *string                 `json:"$schema,omitempty"`
+	Architecture    *string                 `json:"architecture,omitempty"`
+	ArtifactId      *string                 `json:"artifactId,omitempty"`
+	BuildDate       *time.Time              `json:"buildDate,omitempty"`
+	ComponentCount  *int64                  `json:"componentCount,omitempty"`
+	CreatedAt       time.Time               `json:"createdAt"`
+	Digest          *string                 `json:"digest,omitempty"`
+	Enrichments     *map[string]interface{} `json:"enrichments,omitempty"`
+	Flavor          *string                 `json:"flavor,omitempty"`
+	Id              string                  `json:"id"`
+	ImageVersion    *string                 `json:"imageVersion,omitempty"`
+	PackageCount    int64                   `json:"packageCount"`
+	ProvenanceDrift *ProvenanceDriftSummary `json:"provenanceDrift,omitempty"`
+	RawBom          interface{}             `json:"rawBom,omitempty"`
+	Revision        *string                 `json:"revision,omitempty"`
+	SerialNumber    *string                 `json:"serialNumber,omitempty"`
+	SourceUrl       *string                 `json:"sourceUrl,omitempty"`
+	SpecVersion     string                  `json:"specVersion"`
+	SubjectVersion  *string                 `json:"subjectVersion,omitempty"`
+	Sufficient      bool                    `json:"sufficient"`
+	Version         int32                   `json:"version"`
+	VulnSummary     *VulnSummary            `json:"vulnSummary,omitempty"`
 }
 
 // SBOMRef defines model for SBOMRef.
@@ -1593,6 +1694,12 @@ type UpdateRegistryInputBody struct {
 	ScanMode    *UpdateRegistryInputBodyScanMode `json:"scan_mode,omitempty"`
 	TagPatterns *[]string                        `json:"tag_patterns,omitempty"`
 
+	// TrustIdentity Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless
+	TrustIdentity *string `json:"trust_identity,omitempty"`
+
+	// TrustIssuer Expected OIDC issuer URL; required when verification_mode is keyless
+	TrustIssuer *string `json:"trust_issuer,omitempty"`
+
 	// TrustPublicKey PEM-encoded EC public key; required when verification_mode is public_key
 	TrustPublicKey *string                     `json:"trust_public_key,omitempty"`
 	Type           UpdateRegistryInputBodyType `json:"type"`
@@ -1730,7 +1837,13 @@ type GetArtifactChangelogParams struct {
 
 	// Flavor Flavor to show timeline for (e.g. standard, fips)
 	Flavor *string `form:"flavor,omitempty" json:"flavor,omitempty"`
+
+	// Mode Sort/filter mode: 'semver' (semver versions, semver order), 'all' (every version, build-time order). Empty auto-selects semver when available.
+	Mode *GetArtifactChangelogParamsMode `form:"mode,omitempty" json:"mode,omitempty"`
 }
+
+// GetArtifactChangelogParamsMode defines parameters for GetArtifactChangelog.
+type GetArtifactChangelogParamsMode string
 
 // ListArtifactSbomsParams defines parameters for ListArtifactSboms.
 type ListArtifactSbomsParams struct {
@@ -1754,7 +1867,13 @@ type ListArtifactVersionsParams struct {
 
 	// Offset Number of results to skip
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Mode Sort/filter mode: 'semver' (semver versions, semver order), 'all' (every version, build-time order). Empty auto-selects semver when available.
+	Mode *ListArtifactVersionsParamsMode `form:"mode,omitempty" json:"mode,omitempty"`
 }
+
+// ListArtifactVersionsParamsMode defines parameters for ListArtifactVersions.
+type ListArtifactVersionsParamsMode string
 
 // SearchComponentsParams defines parameters for SearchComponents.
 type SearchComponentsParams struct {

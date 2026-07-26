@@ -192,7 +192,8 @@
               "unsigned",
               "signed",
               "verified",
-              "verification_failed"
+              "verification_failed",
+              "artifact_missing"
             ],
             "type": "string"
           },
@@ -894,6 +895,14 @@
               "null"
             ]
           },
+          "trust_identity": {
+            "description": "Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless",
+            "type": "string"
+          },
+          "trust_issuer": {
+            "description": "Expected OIDC issuer URL; required when verification_mode is keyless",
+            "type": "string"
+          },
           "trust_public_key": {
             "description": "PEM-encoded EC public key; required when verification_mode is public_key",
             "type": "string"
@@ -918,7 +927,8 @@
             "description": "Signature verification mode; defaults to none",
             "enum": [
               "none",
-              "public_key"
+              "public_key",
+              "keyless"
             ],
             "type": "string"
           },
@@ -1028,6 +1038,14 @@
               "array",
               "null"
             ]
+          },
+          "trust_identity": {
+            "description": "Regex matched against the Fulcio certificate SAN; required for keyless verification mode",
+            "type": "string"
+          },
+          "trust_issuer": {
+            "description": "Expected OIDC issuer URL; required for keyless verification mode",
+            "type": "string"
           },
           "trust_public_key": {
             "description": "PEM-encoded EC public key for public_key verification mode",
@@ -1756,6 +1774,33 @@
         ],
         "type": "object"
       },
+      "GetRegistryTrustSummaryOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/GetRegistryTrustSummaryOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/RegistryTrustCount"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
       "GetVulnerabilityOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -2238,6 +2283,37 @@
         ],
         "type": "object"
       },
+      "ListRecentDriftOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListRecentDriftOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/RecentDriftEntry"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        },
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "type": "object"
+      },
       "ListRegistriesOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -2296,6 +2372,37 @@
         },
         "required": [
           "components",
+          "pagination"
+        ],
+        "type": "object"
+      },
+      "ListSBOMDriftHistoryOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListSBOMDriftHistoryOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ProvenanceDriftSummary"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        },
+        "required": [
+          "data",
           "pagination"
         ],
         "type": "object"
@@ -2523,6 +2630,31 @@
         ],
         "type": "object"
       },
+      "ProvenanceDriftSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "detectedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "newStatus": {
+            "type": "string"
+          },
+          "previousStatus": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "previousStatus",
+          "newStatus",
+          "reason",
+          "detectedAt"
+        ],
+        "type": "object"
+      },
       "ReadinessCheckOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -2549,6 +2681,50 @@
         },
         "required": [
           "status"
+        ],
+        "type": "object"
+      },
+      "RecentDriftEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": {
+            "type": "string"
+          },
+          "artifactName": {
+            "type": "string"
+          },
+          "artifactType": {
+            "type": "string"
+          },
+          "detectedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "newStatus": {
+            "type": "string"
+          },
+          "previousStatus": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "registryId": {
+            "type": "string"
+          },
+          "registryName": {
+            "type": "string"
+          },
+          "sbomId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sbomId",
+          "previousStatus",
+          "newStatus",
+          "reason",
+          "detectedAt"
         ],
         "type": "object"
       },
@@ -2659,6 +2835,14 @@
               "null"
             ]
           },
+          "trust_identity": {
+            "description": "Regex matched against the Fulcio certificate SAN; required for keyless verification mode",
+            "type": "string"
+          },
+          "trust_issuer": {
+            "description": "Expected OIDC issuer URL; required for keyless verification mode",
+            "type": "string"
+          },
           "trust_public_key": {
             "description": "PEM-encoded EC public key for public_key verification mode",
             "type": "string"
@@ -2709,6 +2893,27 @@
           "visibility",
           "include_untagged",
           "verification_mode"
+        ],
+        "type": "object"
+      },
+      "RegistryTrustCount": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "registryId": {
+            "type": "string"
+          },
+          "signingStatus": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "registryId",
+          "signingStatus",
+          "count"
         ],
         "type": "object"
       },
@@ -2845,11 +3050,17 @@
             "format": "int64",
             "type": "integer"
           },
+          "provenanceDrift": {
+            "$ref": "#/components/schemas/ProvenanceDriftSummary"
+          },
           "rawBom": {},
           "revision": {
             "type": "string"
           },
           "serialNumber": {
+            "type": "string"
+          },
+          "signingStatus": {
             "type": "string"
           },
           "sourceUrl": {
@@ -2874,6 +3085,7 @@
         },
         "required": [
           "packageCount",
+          "signingStatus",
           "id",
           "specVersion",
           "version",
@@ -3411,6 +3623,14 @@
               "null"
             ]
           },
+          "trust_identity": {
+            "description": "Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless",
+            "type": "string"
+          },
+          "trust_issuer": {
+            "description": "Expected OIDC issuer URL; required when verification_mode is keyless",
+            "type": "string"
+          },
           "trust_public_key": {
             "description": "PEM-encoded EC public key; required when verification_mode is public_key",
             "type": "string"
@@ -3433,7 +3653,8 @@
             "description": "Signature verification mode; defaults to none",
             "enum": [
               "none",
-              "public_key"
+              "public_key",
+              "keyless"
             ],
             "type": "string"
           },
@@ -5501,6 +5722,67 @@
         ]
       }
     },
+    "/api/v1/registries/drift-feed": {
+      "get": {
+        "description": "Admin-only. Most recent provenance drift events across all registries.",
+        "operationId": "list-recent-drift",
+        "parameters": [
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of results to skip",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Number of results to skip",
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListRecentDriftOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Cross-registry recent provenance drift feed",
+        "tags": [
+          "Registries"
+        ]
+      }
+    },
     "/api/v1/registries/test-connection": {
       "post": {
         "description": "Probes the registry's /v2/ endpoint and reports whether it is reachable.",
@@ -5538,6 +5820,38 @@
           }
         },
         "summary": "Test registry connectivity",
+        "tags": [
+          "Registries"
+        ]
+      }
+    },
+    "/api/v1/registries/trust-summary": {
+      "get": {
+        "description": "Admin-only. Counts artifacts by current signing status, per registry, across all registries.",
+        "operationId": "get-registry-trust-summary",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetRegistryTrustSummaryOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Per-registry signing-status counts",
         "tags": [
           "Registries"
         ]
@@ -6293,6 +6607,77 @@
           }
         },
         "summary": "Get SBOM dependency graph",
+        "tags": [
+          "SBOMs"
+        ]
+      }
+    },
+    "/api/v1/sboms/{id}/drift": {
+      "get": {
+        "operationId": "list-sbom-drift-history",
+        "parameters": [
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of results to skip",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Number of results to skip",
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "SBOM UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "SBOM UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSBOMDriftHistoryOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List provenance drift history for an SBOM",
         "tags": [
           "SBOMs"
         ]

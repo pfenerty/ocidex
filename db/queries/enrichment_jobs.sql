@@ -171,3 +171,22 @@ SET state           = 'queued',
     last_attempt_at = NULL
 WHERE state = 'failed'
   AND (sqlc.narg('enricher_name')::text IS NULL OR enricher_name = sqlc.narg('enricher_name')::text);
+
+-- RequeueSucceededEnrichmentJob resets an already-succeeded row back to
+-- 'queued' for periodic re-verification (e.g. provenance drift detection).
+-- idempotency_key is a permanent UNIQUE constraint on (sbom_id, enricher_name)
+-- from the initial ingest-time insert, so a fresh InsertEnrichmentJob for the
+-- same pair would silently violate it; recheck must reuse the existing row
+-- instead of inserting a new one. No-ops (0 rows) if the job isn't currently
+-- 'succeeded' (e.g. already queued/running from something else).
+-- name: RequeueSucceededEnrichmentJob :execrows
+UPDATE enrichment_jobs
+SET state           = 'queued',
+    attempts        = 0,
+    last_error      = NULL,
+    finished_at     = NULL,
+    started_at      = NULL,
+    last_attempt_at = NULL
+WHERE sbom_id = @sbom_id::uuid
+  AND enricher_name = @enricher_name::text
+  AND state = 'succeeded';

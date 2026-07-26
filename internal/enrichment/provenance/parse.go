@@ -26,7 +26,10 @@ type Provenance struct {
 	Subjects           []string   `json:"subjects,omitempty"` // "name@sha256:digest"
 	RekorUUID          string     `json:"rekorUuid,omitempty"`
 	RekorLogIndex      int64      `json:"rekorLogIndex,omitempty"`
-	Verified           *bool      `json:"verified,omitempty"` // nil until B4
+	Verified           *bool      `json:"verified,omitempty"`        // nil until B4
+	SignerIdentity     string     `json:"signerIdentity,omitempty"`  // keyless only: matched trust_identity pattern
+	SignerIssuer       string     `json:"signerIssuer,omitempty"`    // keyless only: matched trust_issuer
+	ArtifactMissing    bool       `json:"artifactMissing,omitempty"` // true when the registry no longer has this digest
 }
 
 // --- internal parsing types --------------------------------------------------
@@ -58,16 +61,6 @@ type inTotoStatement struct {
 type inTotoSubject struct {
 	Name   string            `json:"name"`
 	Digest map[string]string `json:"digest"`
-}
-
-// simpleSigning is the cosign simplesigning payload (the sig layer blob).
-// critical.image.docker-manifest-digest binds the signature to a specific image.
-type simpleSigning struct {
-	Critical struct {
-		Image struct {
-			DockerManifestDigest string `json:"docker-manifest-digest"`
-		} `json:"image"`
-	} `json:"critical"`
 }
 
 type slsaPredicate struct {
@@ -102,6 +95,7 @@ func buildProvenance(raw RawArtifacts) Provenance {
 	p := Provenance{
 		SignaturePresent:   raw.SigPresent,
 		AttestationPresent: raw.AttPresent,
+		ArtifactMissing:    raw.ArtifactMissing,
 	}
 	if raw.SigPresent {
 		extractFromSig(&p, raw.SigAnnotations)
@@ -173,16 +167,6 @@ func fetchRekorUUIDFromBase(ctx context.Context, baseURL string, logIndex int64)
 		return uuid
 	}
 	return ""
-}
-
-// sigBoundDigest returns the image digest a simplesigning payload is bound to
-// (critical.image.docker-manifest-digest), or "" if absent/unparseable.
-func sigBoundDigest(sigLayerBytes []byte) string {
-	var ss simpleSigning
-	if err := json.Unmarshal(sigLayerBytes, &ss); err != nil {
-		return ""
-	}
-	return ss.Critical.Image.DockerManifestDigest
 }
 
 // --- att extraction ----------------------------------------------------------

@@ -374,6 +374,39 @@ func (q *Queries) RequeueStuckEnrichmentJobs(ctx context.Context, arg RequeueStu
 	return err
 }
 
+const requeueSucceededEnrichmentJob = `-- name: RequeueSucceededEnrichmentJob :execrows
+UPDATE enrichment_jobs
+SET state           = 'queued',
+    attempts        = 0,
+    last_error      = NULL,
+    finished_at     = NULL,
+    started_at      = NULL,
+    last_attempt_at = NULL
+WHERE sbom_id = $1::uuid
+  AND enricher_name = $2::text
+  AND state = 'succeeded'
+`
+
+type RequeueSucceededEnrichmentJobParams struct {
+	SbomID       pgtype.UUID `json:"sbom_id"`
+	EnricherName string      `json:"enricher_name"`
+}
+
+// RequeueSucceededEnrichmentJob resets an already-succeeded row back to
+// 'queued' for periodic re-verification (e.g. provenance drift detection).
+// idempotency_key is a permanent UNIQUE constraint on (sbom_id, enricher_name)
+// from the initial ingest-time insert, so a fresh InsertEnrichmentJob for the
+// same pair would silently violate it; recheck must reuse the existing row
+// instead of inserting a new one. No-ops (0 rows) if the job isn't currently
+// 'succeeded' (e.g. already queued/running from something else).
+func (q *Queries) RequeueSucceededEnrichmentJob(ctx context.Context, arg RequeueSucceededEnrichmentJobParams) (int64, error) {
+	result, err := q.db.Exec(ctx, requeueSucceededEnrichmentJob, arg.SbomID, arg.EnricherName)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const retryAllFailedEnrichmentJobs = `-- name: RetryAllFailedEnrichmentJobs :execrows
 UPDATE enrichment_jobs
 SET state           = 'queued',

@@ -115,6 +115,41 @@ func (q *Queries) ListSBOMEnrichmentsByArtifact(ctx context.Context, artifactID 
 	return items, nil
 }
 
+const listSBOMsDueForProvenanceRecheck = `-- name: ListSBOMsDueForProvenanceRecheck :many
+SELECT sbom_id
+FROM enrichment
+WHERE enricher_name = 'provenance'
+  AND status = 'success'
+  AND updated_at < $1::timestamptz
+ORDER BY updated_at
+LIMIT $2::int
+`
+
+type ListSBOMsDueForProvenanceRecheckParams struct {
+	Cutoff   pgtype.Timestamptz `json:"cutoff"`
+	RowLimit int32              `json:"row_limit"`
+}
+
+func (q *Queries) ListSBOMsDueForProvenanceRecheck(ctx context.Context, arg ListSBOMsDueForProvenanceRecheckParams) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listSBOMsDueForProvenanceRecheck, arg.Cutoff, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var sbom_id pgtype.UUID
+		if err := rows.Scan(&sbom_id); err != nil {
+			return nil, err
+		}
+		items = append(items, sbom_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateSBOMEnrichmentSufficient = `-- name: UpdateSBOMEnrichmentSufficient :exec
 UPDATE sbom SET enrichment_sufficient = $2 WHERE id = $1
 `

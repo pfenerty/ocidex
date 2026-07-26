@@ -121,7 +121,7 @@ export default function SBOMDetail() {
                                     <div>
                                         <h2 style={{ display: "flex", "align-items": "center", gap: "0.6rem", "flex-wrap": "wrap" }}>
                                             {title()}
-                                            <Show when={trustStatus(provenance())}>
+                                            <Show when={trustStatus(s.signingStatus)}>
                                                 {(t) => <span class={trustBadgeClass(t().variant)}>{t().label}</span>}
                                             </Show>
                                         </h2>
@@ -169,6 +169,7 @@ export default function SBOMDetail() {
                             {/* --- Summary band --- */}
                             <SummaryBand
                                 provenance={provenance()}
+                                signingStatus={s.signingStatus}
                                 metadata={metadata()}
                                 git={gitCommit()}
                                 packageCount={s.packageCount}
@@ -218,7 +219,7 @@ export default function SBOMDetail() {
                                     keyed
                                     fallback={<EmptyState title="No provenance data" message="No cosign signature or SLSA attestation was found for this image. Provenance enrichment runs after ingestion." />}
                                 >
-                                    {(prov) => <ProvenanceCard provenance={prov} />}
+                                    {(prov) => <ProvenanceCard provenance={prov} signingStatus={s.signingStatus} drift={sbomQuery.data?.provenanceDrift} />}
                                 </Show>
                             </Show>
 

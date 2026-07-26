@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
@@ -43,6 +44,11 @@ type fakeStore struct {
 	params             []repository.UpsertEnrichmentParams
 	versionUpdates     []repository.UpdateSBOMSubjectVersionParams
 	sufficiencyUpdates []repository.UpdateSBOMEnrichmentSufficientParams
+	driftInserts       []repository.InsertProvenanceDriftParams
+	// priorEnrichment, if set, is returned by GetEnrichment for any call;
+	// priorEnrichmentErr overrides it with an error (e.g. pgx.ErrNoRows).
+	priorEnrichment    repository.Enrichment
+	priorEnrichmentErr error
 	mu                 sync.Mutex
 }
 
@@ -65,6 +71,30 @@ func (s *fakeStore) UpdateSBOMEnrichmentSufficient(_ context.Context, arg reposi
 	defer s.mu.Unlock()
 	s.sufficiencyUpdates = append(s.sufficiencyUpdates, arg)
 	return nil
+}
+
+func (s *fakeStore) GetEnrichment(_ context.Context, _ repository.GetEnrichmentParams) (repository.Enrichment, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.priorEnrichmentErr != nil {
+		return repository.Enrichment{}, s.priorEnrichmentErr
+	}
+	return s.priorEnrichment, nil
+}
+
+func (s *fakeStore) InsertProvenanceDrift(_ context.Context, arg repository.InsertProvenanceDriftParams) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.driftInserts = append(s.driftInserts, arg)
+	return nil
+}
+
+func (s *fakeStore) driftResults() []repository.InsertProvenanceDriftParams {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]repository.InsertProvenanceDriftParams, len(s.driftInserts))
+	copy(out, s.driftInserts)
+	return out
 }
 
 func (s *fakeStore) sufficiencyResults() []repository.UpdateSBOMEnrichmentSufficientParams {
@@ -447,5 +477,155 @@ func TestDispatcher_UserEnricher_TriggersSufficiency(t *testing.T) {
 	// User enricher must NOT trigger subject_version promotion (OCI only).
 	if updates := store.versionResults(); len(updates) != 0 {
 		t.Errorf("expected no subject_version updates from user enricher, got %d", len(updates))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Provenance drift detection
+// ---------------------------------------------------------------------------
+
+func provenanceJSON(t *testing.T, fields map[string]any) []byte {
+	t.Helper()
+	data, err := json.Marshal(fields)
+	if err != nil {
+		t.Fatalf("marshaling provenance fixture: %v", err)
+	}
+	return data
+}
+
+func TestDispatcher_ProvenanceDrift_TrustConfigChanged(t *testing.T) {
+	oldData := provenanceJSON(t, map[string]any{"verified": true, "signerFingerprint": "abc123"})
+	newData := provenanceJSON(t, map[string]any{"verified": false, "signerFingerprint": "abc123"})
+	enricher := &fakeEnricher{name: "provenance", canRun: true, output: newData}
+	store := &fakeStore{priorEnrichment: repository.Enrichment{Status: "success", Data: oldData}}
+
+	reg := NewCatalog()
+	reg.Register(enricher)
+	d := NewDispatcher(store, reg)
+
+	sbomID := pgtype.UUID{Bytes: [16]byte{8}, Valid: true}
+	if err := d.ProcessOne(t.Context(), SubjectRef{SBOMId: sbomID, ArtifactType: "container", ArtifactName: "docker.io/myapp"}); err != nil {
+		t.Fatalf("ProcessOne: %v", err)
+	}
+
+	drifts := store.driftResults()
+	if len(drifts) != 1 {
+		t.Fatalf("expected 1 drift event, got %d", len(drifts))
+	}
+	if drifts[0].SbomID != sbomID {
+		t.Errorf("expected sbom ID %v, got %v", sbomID, drifts[0].SbomID)
+	}
+	if drifts[0].PreviousStatus != "verified" || drifts[0].NewStatus != "verification_failed" {
+		t.Errorf("expected verified->verification_failed, got %s->%s", drifts[0].PreviousStatus, drifts[0].NewStatus)
+	}
+	if drifts[0].Reason != "trust_config_changed" {
+		t.Errorf("expected reason trust_config_changed (same signer, different outcome), got %s", drifts[0].Reason)
+	}
+}
+
+func TestDispatcher_ProvenanceDrift_ArtifactMissing(t *testing.T) {
+	oldData := provenanceJSON(t, map[string]any{"verified": true, "signerFingerprint": "abc123"})
+	newData := provenanceJSON(t, map[string]any{"artifactMissing": true})
+	enricher := &fakeEnricher{name: "provenance", canRun: true, output: newData}
+	store := &fakeStore{priorEnrichment: repository.Enrichment{Status: "success", Data: oldData}}
+
+	reg := NewCatalog()
+	reg.Register(enricher)
+	d := NewDispatcher(store, reg)
+
+	sbomID := pgtype.UUID{Bytes: [16]byte{9}, Valid: true}
+	if err := d.ProcessOne(t.Context(), SubjectRef{SBOMId: sbomID, ArtifactType: "container", ArtifactName: "docker.io/myapp"}); err != nil {
+		t.Fatalf("ProcessOne: %v", err)
+	}
+
+	drifts := store.driftResults()
+	if len(drifts) != 1 {
+		t.Fatalf("expected 1 drift event, got %d", len(drifts))
+	}
+	if drifts[0].NewStatus != "artifact_missing" || drifts[0].Reason != "artifact_missing" {
+		t.Errorf("expected new_status=artifact_missing reason=artifact_missing, got %s/%s", drifts[0].NewStatus, drifts[0].Reason)
+	}
+}
+
+func TestDispatcher_ProvenanceDrift_ReverificationFailedWhenSignerDiffers(t *testing.T) {
+	oldData := provenanceJSON(t, map[string]any{"verified": true, "signerIdentity": "https://github.com/example/repo/.*", "signerIssuer": "https://token.actions.githubusercontent.com"})
+	newData := provenanceJSON(t, map[string]any{"signaturePresent": false, "attestationPresent": false})
+	enricher := &fakeEnricher{name: "provenance", canRun: true, output: newData}
+	store := &fakeStore{priorEnrichment: repository.Enrichment{Status: "success", Data: oldData}}
+
+	reg := NewCatalog()
+	reg.Register(enricher)
+	d := NewDispatcher(store, reg)
+
+	sbomID := pgtype.UUID{Bytes: [16]byte{10}, Valid: true}
+	if err := d.ProcessOne(t.Context(), SubjectRef{SBOMId: sbomID, ArtifactType: "container", ArtifactName: "docker.io/myapp"}); err != nil {
+		t.Fatalf("ProcessOne: %v", err)
+	}
+
+	drifts := store.driftResults()
+	if len(drifts) != 1 {
+		t.Fatalf("expected 1 drift event, got %d", len(drifts))
+	}
+	if drifts[0].Reason != "reverification_failed" {
+		t.Errorf("expected reason reverification_failed (signature disappeared, no comparable signer), got %s", drifts[0].Reason)
+	}
+}
+
+func TestDispatcher_ProvenanceDrift_NoRecordWhenUnchanged(t *testing.T) {
+	oldData := provenanceJSON(t, map[string]any{"verified": true, "signerFingerprint": "abc123"})
+	newData := provenanceJSON(t, map[string]any{"verified": true, "signerFingerprint": "abc123"})
+	enricher := &fakeEnricher{name: "provenance", canRun: true, output: newData}
+	store := &fakeStore{priorEnrichment: repository.Enrichment{Status: "success", Data: oldData}}
+
+	reg := NewCatalog()
+	reg.Register(enricher)
+	d := NewDispatcher(store, reg)
+
+	sbomID := pgtype.UUID{Bytes: [16]byte{11}, Valid: true}
+	if err := d.ProcessOne(t.Context(), SubjectRef{SBOMId: sbomID, ArtifactType: "container", ArtifactName: "docker.io/myapp"}); err != nil {
+		t.Fatalf("ProcessOne: %v", err)
+	}
+
+	if drifts := store.driftResults(); len(drifts) != 0 {
+		t.Errorf("expected no drift events when status is unchanged, got %d", len(drifts))
+	}
+}
+
+func TestDispatcher_ProvenanceDrift_NoRecordWithoutPriorEnrichment(t *testing.T) {
+	newData := provenanceJSON(t, map[string]any{"verified": false})
+	enricher := &fakeEnricher{name: "provenance", canRun: true, output: newData}
+	store := &fakeStore{priorEnrichmentErr: pgx.ErrNoRows} // first-ever enrichment for this SBOM
+
+	reg := NewCatalog()
+	reg.Register(enricher)
+	d := NewDispatcher(store, reg)
+
+	sbomID := pgtype.UUID{Bytes: [16]byte{12}, Valid: true}
+	if err := d.ProcessOne(t.Context(), SubjectRef{SBOMId: sbomID, ArtifactType: "container", ArtifactName: "docker.io/myapp"}); err != nil {
+		t.Fatalf("ProcessOne: %v", err)
+	}
+
+	if drifts := store.driftResults(); len(drifts) != 0 {
+		t.Errorf("expected no drift events on first-ever enrichment, got %d", len(drifts))
+	}
+}
+
+func TestDispatcher_ProvenanceDrift_ScopedToProvenanceEnricher(t *testing.T) {
+	oldData := provenanceJSON(t, map[string]any{"imageVersion": "1.0.0"})
+	newData := provenanceJSON(t, map[string]any{"imageVersion": "2.0.0"})
+	enricher := &fakeEnricher{name: "oci-metadata", canRun: true, output: newData}
+	store := &fakeStore{priorEnrichment: repository.Enrichment{Status: "success", Data: oldData}}
+
+	reg := NewCatalog()
+	reg.Register(enricher)
+	d := NewDispatcher(store, reg)
+
+	sbomID := pgtype.UUID{Bytes: [16]byte{13}, Valid: true}
+	if err := d.ProcessOne(t.Context(), SubjectRef{SBOMId: sbomID, ArtifactType: "container", ArtifactName: "docker.io/myapp"}); err != nil {
+		t.Fatalf("ProcessOne: %v", err)
+	}
+
+	if drifts := store.driftResults(); len(drifts) != 0 {
+		t.Errorf("expected no drift events for non-provenance enrichers, got %d", len(drifts))
 	}
 }

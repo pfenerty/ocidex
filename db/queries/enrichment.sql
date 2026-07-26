@@ -28,3 +28,12 @@ ORDER BY e.sbom_id;
 
 -- name: UpdateSBOMEnrichmentSufficient :exec
 UPDATE sbom SET enrichment_sufficient = $2 WHERE id = $1;
+
+-- name: ListSBOMsDueForProvenanceRecheck :many
+SELECT sbom_id
+FROM enrichment
+WHERE enricher_name = 'provenance'
+  AND status = 'success'
+  AND updated_at < @cutoff::timestamptz
+ORDER BY updated_at
+LIMIT @row_limit::int;

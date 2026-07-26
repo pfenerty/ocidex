@@ -17,16 +17,17 @@ import (
 // ---------------------------------------------------------------------------
 
 type fakeRegistryRepo struct {
-	createFn     func(ctx context.Context, arg repository.CreateRegistryParams) (repository.Registry, error)
-	getFn        func(ctx context.Context, id pgtype.UUID) (repository.Registry, error)
-	getByNameFn  func(ctx context.Context, name string) (repository.Registry, error)
-	listFn       func(ctx context.Context, arg repository.ListRegistriesParams) ([]repository.Registry, error)
-	listPagedFn  func(ctx context.Context, arg repository.ListRegistriesPagedParams) ([]repository.ListRegistriesPagedRow, error)
-	updateFn     func(ctx context.Context, arg repository.UpdateRegistryParams) (repository.Registry, error)
-	setEnabledFn func(ctx context.Context, arg repository.SetRegistryEnabledParams) (repository.Registry, error)
-	deleteFn     func(ctx context.Context, id pgtype.UUID) (int64, error)
-	listPollFn   func(ctx context.Context) ([]repository.Registry, error)
-	markPolledFn func(ctx context.Context, id pgtype.UUID) (repository.Registry, error)
+	createFn       func(ctx context.Context, arg repository.CreateRegistryParams) (repository.Registry, error)
+	getFn          func(ctx context.Context, id pgtype.UUID) (repository.Registry, error)
+	getByNameFn    func(ctx context.Context, name string) (repository.Registry, error)
+	listFn         func(ctx context.Context, arg repository.ListRegistriesParams) ([]repository.Registry, error)
+	listPagedFn    func(ctx context.Context, arg repository.ListRegistriesPagedParams) ([]repository.ListRegistriesPagedRow, error)
+	updateFn       func(ctx context.Context, arg repository.UpdateRegistryParams) (repository.Registry, error)
+	setEnabledFn   func(ctx context.Context, arg repository.SetRegistryEnabledParams) (repository.Registry, error)
+	deleteFn       func(ctx context.Context, id pgtype.UUID) (int64, error)
+	listPollFn     func(ctx context.Context) ([]repository.Registry, error)
+	markPolledFn   func(ctx context.Context, id pgtype.UUID) (repository.Registry, error)
+	trustSummaryFn func(ctx context.Context) ([]repository.ListRegistryTrustSummaryRow, error)
 }
 
 func (f *fakeRegistryRepo) CreateRegistry(ctx context.Context, arg repository.CreateRegistryParams) (repository.Registry, error) {
@@ -99,6 +100,13 @@ func (f *fakeRegistryRepo) UpdateRegistryLastPolled(ctx context.Context, id pgty
 	return repository.Registry{}, nil
 }
 
+func (f *fakeRegistryRepo) ListRegistryTrustSummary(ctx context.Context) ([]repository.ListRegistryTrustSummaryRow, error) {
+	if f.trustSummaryFn != nil {
+		return f.trustSummaryFn(ctx)
+	}
+	return nil, nil
+}
+
 func newTestRegistryService(repo repository.RegistryRepository) *registryService {
 	return &registryService{repo: repo}
 }
@@ -117,7 +125,7 @@ func TestRegistryCreate_DefaultVisibility(t *testing.T) {
 		},
 	})
 
-	_, err := svc.Create(context.Background(), "r", "generic", "https://r.example.com", false, nil, nil, nil, nil, "webhook", 0, nil, nil, pgtype.UUID{}, "", false, "", nil)
+	_, err := svc.Create(context.Background(), "r", "generic", "https://r.example.com", false, nil, nil, nil, nil, "webhook", 0, nil, nil, pgtype.UUID{}, "", false, "", nil, nil, nil)
 
 	is.NoErr(err)
 	is.Equal(capturedVis, "public") // empty string defaults to "public"
@@ -133,7 +141,7 @@ func TestRegistryCreate_ExplicitVisibility(t *testing.T) {
 		},
 	})
 
-	_, err := svc.Create(context.Background(), "r", "generic", "https://r.example.com", false, nil, nil, nil, nil, "webhook", 0, nil, nil, pgtype.UUID{}, "private", false, "", nil)
+	_, err := svc.Create(context.Background(), "r", "generic", "https://r.example.com", false, nil, nil, nil, nil, "webhook", 0, nil, nil, pgtype.UUID{}, "private", false, "", nil, nil, nil)
 
 	is.NoErr(err)
 	is.Equal(capturedVis, "private")
@@ -147,7 +155,7 @@ func TestRegistryCreate_UniqueViolationReturnsConflict(t *testing.T) {
 		},
 	})
 
-	_, err := svc.Create(context.Background(), "r", "generic", "https://r.example.com", false, nil, nil, nil, nil, "webhook", 0, nil, nil, pgtype.UUID{}, "", false, "", nil)
+	_, err := svc.Create(context.Background(), "r", "generic", "https://r.example.com", false, nil, nil, nil, nil, "webhook", 0, nil, nil, pgtype.UUID{}, "", false, "", nil, nil, nil)
 
 	is.True(errors.Is(err, ErrConflict))
 }
@@ -253,7 +261,7 @@ func TestRegistryUpdate_DefaultVisibility(t *testing.T) {
 		},
 	})
 
-	_, err := svc.Update(context.Background(), "01020304-0506-0708-090a-0b0c0d0e0f10", "r", "generic", "https://r.example.com", false, nil, true, nil, nil, nil, "webhook", 0, nil, nil, "", false, "", nil)
+	_, err := svc.Update(context.Background(), "01020304-0506-0708-090a-0b0c0d0e0f10", "r", "generic", "https://r.example.com", false, nil, true, nil, nil, nil, "webhook", 0, nil, nil, "", false, "", nil, nil, nil)
 
 	is.NoErr(err)
 	is.Equal(capturedVis, "public")
@@ -345,7 +353,7 @@ func (f *fakeListRegistryService) ListPaged(_ context.Context, _ VisibilityFilte
 	return PagedResult[Registry]{Data: f.registries, Total: int64(len(f.registries))}, nil
 }
 
-func (f *fakeListRegistryService) Create(_ context.Context, _, _, _ string, _ bool, _ *string, _, _, _ []string, _ string, _ int, _, _ *string, _ pgtype.UUID, _ string, _ bool, _ string, _ *string) (Registry, error) {
+func (f *fakeListRegistryService) Create(_ context.Context, _, _, _ string, _ bool, _ *string, _, _, _ []string, _ string, _ int, _, _ *string, _ pgtype.UUID, _ string, _ bool, _ string, _, _, _ *string) (Registry, error) {
 	return Registry{}, nil
 }
 
@@ -357,7 +365,7 @@ func (f *fakeListRegistryService) GetByName(_ context.Context, _ string) (Regist
 	return Registry{}, ErrNotFound
 }
 
-func (f *fakeListRegistryService) Update(_ context.Context, _, _, _, _ string, _ bool, _ *string, _ bool, _, _, _ []string, _ string, _ int, _, _ *string, _ string, _ bool, _ string, _ *string) (Registry, error) {
+func (f *fakeListRegistryService) Update(_ context.Context, _, _, _, _ string, _ bool, _ *string, _ bool, _, _, _ []string, _ string, _ int, _, _ *string, _ string, _ bool, _ string, _, _, _ *string) (Registry, error) {
 	return Registry{}, nil
 }
 
@@ -373,6 +381,10 @@ func (f *fakeListRegistryService) ListPollable(_ context.Context) ([]Registry, e
 
 func (f *fakeListRegistryService) MarkPolled(_ context.Context, _ string) (Registry, error) {
 	return Registry{}, nil
+}
+
+func (f *fakeListRegistryService) TrustSummary(_ context.Context) ([]RegistryTrustCount, error) {
+	return nil, nil
 }
 
 // countingListService wraps fakeListRegistryService and calls onList on every List.
@@ -430,6 +442,77 @@ func TestBuildCredentialLookup_CachesResults(t *testing.T) {
 		onList: func() { callCount++ },
 	}
 	lookup := BuildCredentialLookup(svc)
+	ctx := context.Background()
+
+	lookup(ctx, "registry.example.com")
+	lookup(ctx, "registry.example.com")
+
+	is.Equal(callCount, 1)
+}
+
+// ---------------------------------------------------------------------------
+// BuildTrustLookup tests
+// ---------------------------------------------------------------------------
+
+func TestBuildTrustLookup_PublicKeyMode(t *testing.T) {
+	is := is.New(t)
+	key := "-----BEGIN PUBLIC KEY-----\nabc\n-----END PUBLIC KEY-----\n"
+	svc := &fakeListRegistryService{
+		registries: []Registry{
+			{URL: "https://registry.example.com", VerificationMode: "public_key", TrustPublicKey: &key},
+		},
+	}
+	lookup := BuildTrustLookup(svc)
+
+	cfg := lookup(context.Background(), "registry.example.com")
+
+	is.Equal(cfg.Mode, "public_key")
+	is.Equal(cfg.PublicKeyPEM, key)
+	is.Equal(cfg.Identity, "")
+	is.Equal(cfg.Issuer, "")
+}
+
+func TestBuildTrustLookup_KeylessMode(t *testing.T) {
+	is := is.New(t)
+	identity := "^https://github.com/example/repo/.*$"
+	issuer := "https://token.actions.githubusercontent.com"
+	svc := &fakeListRegistryService{
+		registries: []Registry{
+			{URL: "https://registry.example.com", VerificationMode: "keyless", TrustIdentity: &identity, TrustIssuer: &issuer},
+		},
+	}
+	lookup := BuildTrustLookup(svc)
+
+	cfg := lookup(context.Background(), "registry.example.com")
+
+	is.Equal(cfg.Mode, "keyless")
+	is.Equal(cfg.Identity, identity)
+	is.Equal(cfg.Issuer, issuer)
+	is.Equal(cfg.PublicKeyPEM, "")
+}
+
+func TestBuildTrustLookup_NoMatchDefaultsToNone(t *testing.T) {
+	is := is.New(t)
+	svc := &fakeListRegistryService{
+		registries: []Registry{{URL: "https://other.example.com", VerificationMode: "public_key"}},
+	}
+	lookup := BuildTrustLookup(svc)
+
+	cfg := lookup(context.Background(), "registry.example.com")
+
+	is.Equal(cfg.Mode, "none")
+}
+
+func TestBuildTrustLookup_CachesResults(t *testing.T) {
+	is := is.New(t)
+	callCount := 0
+	svc := &countingListService{
+		fakeListRegistryService: fakeListRegistryService{registries: []Registry{
+			{URL: "https://registry.example.com", VerificationMode: "public_key"},
+		}},
+		onList: func() { callCount++ },
+	}
+	lookup := BuildTrustLookup(svc)
 	ctx := context.Background()
 
 	lookup(ctx, "registry.example.com")
@@ -697,4 +780,41 @@ func TestToLicenseSummary(t *testing.T) {
 	is.Equal(summary.Name, "MIT")
 	is.True(summary.SpdxID != nil)
 	is.Equal(*summary.SpdxID, "MIT")
+}
+
+// ---------------------------------------------------------------------------
+// TrustSummary
+// ---------------------------------------------------------------------------
+
+func TestTrustSummary_MapsRows(t *testing.T) {
+	is := is.New(t)
+	id := pgtype.UUID{Bytes: [16]byte{3}, Valid: true}
+	repo := &fakeRegistryRepo{
+		trustSummaryFn: func(_ context.Context) ([]repository.ListRegistryTrustSummaryRow, error) {
+			return []repository.ListRegistryTrustSummaryRow{
+				{RegistryID: id, SigningStatus: "verified", ArtifactCount: 5},
+			}, nil
+		},
+	}
+	svc := newTestRegistryService(repo)
+
+	out, err := svc.TrustSummary(context.Background())
+	is.NoErr(err)
+	is.Equal(len(out), 1)
+	is.Equal(out[0].RegistryID, uuidToStr(id))
+	is.Equal(out[0].SigningStatus, "verified")
+	is.Equal(out[0].Count, int64(5))
+}
+
+func TestTrustSummary_DBError(t *testing.T) {
+	is := is.New(t)
+	repo := &fakeRegistryRepo{
+		trustSummaryFn: func(_ context.Context) ([]repository.ListRegistryTrustSummaryRow, error) {
+			return nil, errors.New("connection reset")
+		},
+	}
+	svc := newTestRegistryService(repo)
+
+	_, err := svc.TrustSummary(context.Background())
+	is.True(err != nil)
 }

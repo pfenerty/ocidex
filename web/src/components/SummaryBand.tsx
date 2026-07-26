@@ -17,6 +17,7 @@ function shortBuilder(id: string | undefined): string | undefined {
 
 export default function SummaryBand(props: {
     provenance: Provenance | undefined;
+    signingStatus: string | undefined;
     metadata: OCIMetadata | undefined;
     git: GitCommitMetadata | undefined;
     packageCount: number | undefined;
@@ -26,7 +27,7 @@ export default function SummaryBand(props: {
     active: SbomTab;
     onSelect: (tab: SbomTab) => void;
 }) {
-    const trust = () => trustStatus(props.provenance);
+    const trust = () => trustStatus(props.signingStatus);
     const platform = () => {
         const m = props.metadata;
         if (m === undefined) return undefined;

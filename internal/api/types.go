@@ -168,6 +168,24 @@ type DeleteSBOMInput struct {
 }
 
 // ---------------------------------------------------------------------------
+// SBOM — Drift history
+// ---------------------------------------------------------------------------
+
+// ListSBOMDriftHistoryInput is the request for GET /api/v1/sboms/{id}/drift.
+type ListSBOMDriftHistoryInput struct {
+	PaginationParams
+	ID string `path:"id" doc:"SBOM UUID" format:"uuid"`
+}
+
+// ListSBOMDriftHistoryOutput is the response for GET /api/v1/sboms/{id}/drift.
+type ListSBOMDriftHistoryOutput struct {
+	Body struct {
+		Data       []service.ProvenanceDriftSummary `json:"data"`
+		Pagination PaginationMeta                   `json:"pagination"`
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Diff
 // ---------------------------------------------------------------------------
 
@@ -416,7 +434,7 @@ type ArtifactVersionSummary struct {
 	BuildDate     *time.Time `json:"buildDate,omitempty"`
 	CreatedAt     time.Time  `json:"createdAt"`
 	Sufficient    bool       `json:"sufficient"`
-	SigningStatus string     `json:"signingStatus" enum:"unsigned,signed,verified,verification_failed" doc:"Signing status derived from provenance enrichment"`
+	SigningStatus string     `json:"signingStatus" enum:"unsigned,signed,verified,verification_failed,artifact_missing" doc:"Signing status derived from provenance enrichment"`
 }
 
 // ListArtifactVersionsOutput is the response for GET /api/v1/artifacts/{id}/versions.
@@ -720,6 +738,8 @@ type RegistryResponse struct {
 	IncludeUntagged     bool     `json:"include_untagged" doc:"Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)"`
 	VerificationMode    string   `json:"verification_mode" enum:"none,public_key,keyless" doc:"Signature verification mode"`
 	TrustPublicKey      *string  `json:"trust_public_key,omitempty" doc:"PEM-encoded EC public key for public_key verification mode"`
+	TrustIdentity       *string  `json:"trust_identity,omitempty" doc:"Regex matched against the Fulcio certificate SAN; required for keyless verification mode"`
+	TrustIssuer         *string  `json:"trust_issuer,omitempty" doc:"Expected OIDC issuer URL; required for keyless verification mode"`
 }
 
 // ListRegistriesInput is the request for GET /api/v1/registries.
@@ -772,8 +792,10 @@ type CreateRegistryInput struct {
 		PollIntervalMinutes int      `json:"poll_interval_minutes,omitempty" minimum:"1" doc:"Minutes between polls"`
 		Visibility          string   `json:"visibility,omitempty" enum:"public,private" default:"public" doc:"Registry visibility"`
 		IncludeUntagged     bool     `json:"include_untagged,omitempty" doc:"Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)"`
-		VerificationMode    string   `json:"verification_mode,omitempty" enum:"none,public_key" doc:"Signature verification mode; defaults to none"`
+		VerificationMode    string   `json:"verification_mode,omitempty" enum:"none,public_key,keyless" doc:"Signature verification mode; defaults to none"`
 		TrustPublicKey      *string  `json:"trust_public_key,omitempty" doc:"PEM-encoded EC public key; required when verification_mode is public_key"`
+		TrustIdentity       *string  `json:"trust_identity,omitempty" doc:"Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless"`
+		TrustIssuer         *string  `json:"trust_issuer,omitempty" doc:"Expected OIDC issuer URL; required when verification_mode is keyless"`
 	}
 }
 
@@ -819,8 +841,10 @@ type UpdateRegistryInput struct {
 		PollIntervalMinutes int      `json:"poll_interval_minutes,omitempty" minimum:"1" doc:"Minutes between polls"`
 		Visibility          string   `json:"visibility,omitempty" enum:"public,private" doc:"Registry visibility"`
 		IncludeUntagged     bool     `json:"include_untagged,omitempty" doc:"Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)"`
-		VerificationMode    string   `json:"verification_mode,omitempty" enum:"none,public_key" doc:"Signature verification mode; defaults to none"`
+		VerificationMode    string   `json:"verification_mode,omitempty" enum:"none,public_key,keyless" doc:"Signature verification mode; defaults to none"`
 		TrustPublicKey      *string  `json:"trust_public_key,omitempty" doc:"PEM-encoded EC public key; required when verification_mode is public_key"`
+		TrustIdentity       *string  `json:"trust_identity,omitempty" doc:"Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless"`
+		TrustIssuer         *string  `json:"trust_issuer,omitempty" doc:"Expected OIDC issuer URL; required when verification_mode is keyless"`
 	}
 }
 
@@ -875,6 +899,28 @@ type RegistryWebhookInput struct {
 		Digest    string `json:"digest"`
 		MediaType string `json:"mediaType"`
 		Manifest  string `json:"manifest"`
+	}
+}
+
+// GetRegistryTrustSummaryOutput is the response for GET /api/v1/registries/trust-summary.
+// Admin-only: aggregates across all registries, bypassing per-registry visibility.
+type GetRegistryTrustSummaryOutput struct {
+	Body struct {
+		Data []service.RegistryTrustCount `json:"data"`
+	}
+}
+
+// ListRecentDriftInput is the request for GET /api/v1/registries/drift-feed.
+type ListRecentDriftInput struct {
+	PaginationParams
+}
+
+// ListRecentDriftOutput is the response for GET /api/v1/registries/drift-feed.
+// Admin-only: aggregates across all registries, bypassing per-registry visibility.
+type ListRecentDriftOutput struct {
+	Body struct {
+		Data       []service.RecentDriftEntry `json:"data"`
+		Pagination PaginationMeta             `json:"pagination"`
 	}
 }
 

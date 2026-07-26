@@ -187,6 +187,25 @@ func (h *Handler) GetSBOM(ctx context.Context, input *GetSBOMInput) (*GetSBOMOut
 	return out, nil
 }
 
+// ListSBOMDriftHistory handles GET /api/v1/sboms/{id}/drift.
+func (h *Handler) ListSBOMDriftHistory(ctx context.Context, in *ListSBOMDriftHistoryInput) (*ListSBOMDriftHistoryOutput, error) {
+	id, err := parseUUID(in.ID)
+	if err != nil {
+		return nil, err
+	}
+	vis := visibilityFilterFromContext(ctx)
+
+	result, err := h.searchService.ListSBOMDriftHistory(ctx, id, in.Limit, in.Offset, vis)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	out := &ListSBOMDriftHistoryOutput{}
+	out.Body.Data = result.Data
+	out.Body.Pagination = paginationMeta(result)
+	return out, nil
+}
+
 // SearchComponents handles GET /api/v1/components.
 func (h *Handler) SearchComponents(ctx context.Context, input *SearchComponentsInput) (*SearchComponentsOutput, error) {
 	vis := visibilityFilterFromContext(ctx)

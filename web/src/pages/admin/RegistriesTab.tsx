@@ -1,10 +1,13 @@
 import "./RegistriesTab.css";
 import { For, Show, createSignal, createMemo } from "solid-js";
+import { A } from "@solidjs/router";
 import { copyText } from "~/utils/clipboard";
 import { useToast } from "~/context/toast";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import type { Registry } from "~/api/client";
+import { trustBadgeClass, signingStatusLabel, trustStatus, driftReasonLabel } from "~/utils/trust";
+import { formatDateTime } from "~/utils/format";
 import {
     useListRegistries,
     useCreateRegistry,
@@ -15,6 +18,8 @@ import {
     useRegenerateWebhookSecret,
     useGetSystemStatus,
     useListScanJobs,
+    useRegistryTrustSummary,
+    useRecentDrift,
 } from "~/api/queries";
 
 type RegType = "zot" | "harbor" | "docker" | "generic" | "ghcr";
@@ -32,7 +37,7 @@ type ScanMode = "webhook" | "poll" | "both";
 
 type Visibility = "public" | "private";
 
-type VerificationMode = "none" | "public_key";
+type VerificationMode = "none" | "public_key" | "keyless";
 
 interface RegistryFormState {
     name: string;
@@ -50,6 +55,8 @@ interface RegistryFormState {
     includeUntagged: boolean;
     verificationMode: VerificationMode;
     trustPublicKey: string;
+    trustIdentity: string;
+    trustIssuer: string;
 }
 
 const emptyForm = (): RegistryFormState => ({
@@ -68,6 +75,8 @@ const emptyForm = (): RegistryFormState => ({
     includeUntagged: false,
     verificationMode: "none",
     trustPublicKey: "",
+    trustIdentity: "",
+    trustIssuer: "",
 });
 
 function toPatternArray(s: string): string[] {
@@ -94,6 +103,22 @@ export function RegistriesTab() {
         return counts;
     });
 
+    const trustSummary = useRegistryTrustSummary();
+    const trustByRegistry = createMemo(() => {
+        const byRegistry = new Map<string, Map<string, number>>();
+        for (const row of trustSummary.data?.data ?? []) {
+            let statuses = byRegistry.get(row.registryId);
+            if (statuses === undefined) {
+                statuses = new Map<string, number>();
+                byRegistry.set(row.registryId, statuses);
+            }
+            statuses.set(row.signingStatus, row.count);
+        }
+        return byRegistry;
+    });
+
+    const recentDrift = useRecentDrift(() => ({ limit: 20 }));
+
     const statusQuery = useGetSystemStatus();
 
     const [form, setForm] = createSignal<RegistryFormState>(emptyForm());
@@ -119,7 +144,7 @@ export function RegistriesTab() {
         dialogRef?.showModal();
     }
 
-    function startEdit(reg: { id: string; name: string; type: string; url: string; insecure: boolean; has_secret: boolean; has_auth: boolean; enabled: boolean; repositories?: string[] | null; repository_patterns?: string[] | null; tag_patterns?: string[] | null; scan_mode?: string; poll_interval_minutes?: number; visibility?: string; include_untagged?: boolean; verification_mode?: string; trust_public_key?: string | null }) {
+    function startEdit(reg: { id: string; name: string; type: string; url: string; insecure: boolean; has_secret: boolean; has_auth: boolean; enabled: boolean; repositories?: string[] | null; repository_patterns?: string[] | null; tag_patterns?: string[] | null; scan_mode?: string; poll_interval_minutes?: number; visibility?: string; include_untagged?: boolean; verification_mode?: string; trust_public_key?: string | null; trust_identity?: string | null; trust_issuer?: string | null }) {
         setEditingID(reg.id);
         setEditEnabled(reg.enabled);
         setForm({
@@ -136,8 +161,10 @@ export function RegistriesTab() {
             pollIntervalMinutes: reg.poll_interval_minutes ?? 60,
             visibility: (reg.visibility ?? "public") as Visibility,
             includeUntagged: reg.include_untagged ?? false,
-            verificationMode: (reg.verification_mode as VerificationMode | undefined) === "public_key" ? "public_key" : "none",
+            verificationMode: ["public_key", "keyless"].includes(reg.verification_mode ?? "") ? (reg.verification_mode as VerificationMode) : "none",
             trustPublicKey: reg.trust_public_key ?? "",
+            trustIdentity: reg.trust_identity ?? "",
+            trustIssuer: reg.trust_issuer ?? "",
         });
         dialogRef?.showModal();
     }
@@ -154,10 +181,12 @@ export function RegistriesTab() {
 
         const currentID = editingID();
         const trustPublicKey = f.verificationMode === "public_key" ? (f.trustPublicKey.trim() || undefined) : undefined;
+        const trustIdentity = f.verificationMode === "keyless" ? (f.trustIdentity.trim() || undefined) : undefined;
+        const trustIssuer = f.verificationMode === "keyless" ? (f.trustIssuer.trim() || undefined) : undefined;
 
         if (currentID !== null) {
             updateReg.mutate(
-                { id: currentID, name: f.name, type: f.type, url: f.url, insecure: f.insecure, auth_username: authUsername, auth_token: authToken, enabled: editEnabled(), repositories: repos, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes, visibility: f.visibility, include_untagged: f.includeUntagged, verification_mode: f.verificationMode, trust_public_key: trustPublicKey },
+                { id: currentID, name: f.name, type: f.type, url: f.url, insecure: f.insecure, auth_username: authUsername, auth_token: authToken, enabled: editEnabled(), repositories: repos, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes, visibility: f.visibility, include_untagged: f.includeUntagged, verification_mode: f.verificationMode, trust_public_key: trustPublicKey, trust_identity: trustIdentity, trust_issuer: trustIssuer },
                 {
                     onSuccess: () => { toast("Registry updated", "success"); dialogRef?.close(); },
                     onError: () => toast("Failed to update registry", "error"),
@@ -165,7 +194,7 @@ export function RegistriesTab() {
             );
         } else {
             createReg.mutate(
-                { name: f.name, type: f.type, url: f.url, insecure: f.insecure, auth_username: authUsername, auth_token: authToken, repositories: repos, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes, visibility: f.visibility, include_untagged: f.includeUntagged, verification_mode: f.verificationMode, trust_public_key: trustPublicKey },
+                { name: f.name, type: f.type, url: f.url, insecure: f.insecure, auth_username: authUsername, auth_token: authToken, repositories: repos, repository_patterns: repoPats, tag_patterns: tagPats, scan_mode: f.scanMode, poll_interval_minutes: f.pollIntervalMinutes, visibility: f.visibility, include_untagged: f.includeUntagged, verification_mode: f.verificationMode, trust_public_key: trustPublicKey, trust_identity: trustIdentity, trust_issuer: trustIssuer },
                 {
                     onSuccess: (data) => {
                         toast("Registry created", "success");
@@ -208,6 +237,37 @@ export function RegistriesTab() {
                 <span style={{ color: reg.enabled ? "var(--color-success)" : "var(--color-text-muted)" }}>
                     {reg.enabled ? "Enabled" : "Disabled"}
                 </span>
+            ),
+        },
+        {
+            header: "Signing Status",
+            render: (reg) => (
+                <Show
+                    when={(() => {
+                        const s = trustByRegistry().get(reg.id);
+                        return s !== undefined && s.size > 0 ? s : undefined;
+                    })()}
+                    fallback={<span style={{ color: "var(--color-text-muted)" }}>—</span>}
+                >
+                    {(statuses) => (
+                        <div style={{ display: "flex", "flex-wrap": "wrap", gap: "0.3rem" }}>
+                            <For each={[...statuses().entries()]}>
+                                {([status, count]) => {
+                                    const t = trustStatus(status);
+                                    return (
+                                        <span
+                                            class={t !== null ? trustBadgeClass(t.variant) : "badge"}
+                                            style={{ "font-size": "0.75rem" }}
+                                            title={signingStatusLabel(status)}
+                                        >
+                                            {signingStatusLabel(status)}: {count}
+                                        </span>
+                                    );
+                                }}
+                            </For>
+                        </div>
+                    )}
+                </Show>
             ),
         },
         { header: "Scan Mode", render: (reg) => <code>{reg.scan_mode}</code> },
@@ -516,11 +576,14 @@ export function RegistriesTab() {
                                         ...f,
                                         verificationMode: e.currentTarget.value as VerificationMode,
                                         trustPublicKey: e.currentTarget.value !== "public_key" ? "" : f.trustPublicKey,
+                                        trustIdentity: e.currentTarget.value !== "keyless" ? "" : f.trustIdentity,
+                                        trustIssuer: e.currentTarget.value !== "keyless" ? "" : f.trustIssuer,
                                     }))}
                                     style={{ width: "100%" }}
                                 >
                                     <option value="none">None</option>
                                     <option value="public_key">Public Key</option>
+                                    <option value="keyless">Keyless (Fulcio/Rekor)</option>
                                 </select>
                             </div>
                             <Show when={form().verificationMode === "public_key"}>
@@ -533,6 +596,32 @@ export function RegistriesTab() {
                                         onInput={(e) => setForm(f => ({ ...f, trustPublicKey: e.currentTarget.value }))}
                                         rows={6}
                                         placeholder={"-----BEGIN PUBLIC KEY-----\n..."}
+                                        style={{ width: "100%", "font-family": "monospace", "font-size": "0.85rem" }}
+                                    />
+                                </div>
+                            </Show>
+                            <Show when={form().verificationMode === "keyless"}>
+                                <div>
+                                    <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>
+                                        Trust Identity (SAN regex)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={form().trustIdentity}
+                                        onInput={(e) => setForm(f => ({ ...f, trustIdentity: e.currentTarget.value }))}
+                                        placeholder="https://github.com/org/repo/.*"
+                                        style={{ width: "100%", "font-family": "monospace", "font-size": "0.85rem" }}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>
+                                        Trust Issuer
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={form().trustIssuer}
+                                        onInput={(e) => setForm(f => ({ ...f, trustIssuer: e.currentTarget.value }))}
+                                        placeholder="https://token.actions.githubusercontent.com"
                                         style={{ width: "100%", "font-family": "monospace", "font-size": "0.85rem" }}
                                     />
                                 </div>
@@ -587,6 +676,54 @@ export function RegistriesTab() {
                 error={query.error}
                 emptyTitle="No registries found"
             />
+
+            <div class="card" style={{ "margin-top": "1.5rem" }}>
+                <div class="card-header">
+                    <h3>Recent Provenance Drift</h3>
+                </div>
+                <p style={{ color: "var(--color-text-muted)", "font-size": "0.85rem", "margin-bottom": "0.75rem" }}>
+                    Drift tracking is regression-only: it records when a re-verified artifact's
+                    signing status gets worse (e.g. verified → verification failed). Recovery
+                    transitions such as unsigned → verified are not recorded here.
+                </p>
+                <Show
+                    when={(recentDrift.data?.data?.length ?? 0) > 0}
+                    fallback={<p style={{ color: "var(--color-text-muted)" }}>No drift events recorded.</p>}
+                >
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Detected</th>
+                                <th>Registry</th>
+                                <th>Artifact</th>
+                                <th>Change</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <For each={recentDrift.data?.data ?? []}>
+                                {(entry) => (
+                                    <tr>
+                                        <td style={{ "font-size": "0.85rem" }}>{formatDateTime(entry.detectedAt)}</td>
+                                        <td>{entry.registryName ?? "—"}</td>
+                                        <td>
+                                            <A href={`/sboms/${entry.sbomId}`} style={{ "font-size": "0.85rem" }}>
+                                                {entry.artifactName ?? entry.sbomId}
+                                            </A>
+                                        </td>
+                                        <td style={{ "font-size": "0.85rem" }}>
+                                            {signingStatusLabel(entry.previousStatus)} → {signingStatusLabel(entry.newStatus)}
+                                        </td>
+                                        <td style={{ color: "var(--color-text-muted)", "font-size": "0.85rem" }}>
+                                            {driftReasonLabel(entry.reason)}
+                                        </td>
+                                    </tr>
+                                )}
+                            </For>
+                        </tbody>
+                    </table>
+                </Show>
+            </div>
         </>
     );
 }

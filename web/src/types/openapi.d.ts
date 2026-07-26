@@ -521,6 +521,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/registries/drift-feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cross-registry recent provenance drift feed
+         * @description Admin-only. Most recent provenance drift events across all registries.
+         */
+        get: operations["list-recent-drift"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/registries/test-connection": {
         parameters: {
             query?: never;
@@ -535,6 +555,26 @@ export interface paths {
          * @description Probes the registry's /v2/ endpoint and reports whether it is reachable.
          */
         post: operations["test-registry-connection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/registries/trust-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per-registry signing-status counts
+         * @description Admin-only. Counts artifacts by current signing status, per registry, across all registries.
+         */
+        get: operations["get-registry-trust-summary"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -725,6 +765,23 @@ export interface paths {
         };
         /** Get SBOM dependency graph */
         get: operations["get-sbom-dependencies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sboms/{id}/drift": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List provenance drift history for an SBOM */
+        get: operations["list-sbom-drift-history"];
         put?: never;
         post?: never;
         delete?: never;
@@ -944,7 +1001,7 @@ export interface components {
              * @description Signing status derived from provenance enrichment
              * @enum {string}
              */
-            signingStatus: "unsigned" | "signed" | "verified" | "verification_failed";
+            signingStatus: "unsigned" | "signed" | "verified" | "verification_failed" | "artifact_missing";
             sourceUrl?: string;
             sufficient: boolean;
             versionKey: string;
@@ -1182,6 +1239,10 @@ export interface components {
             scan_mode?: "webhook" | "poll" | "both";
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
             tag_patterns?: string[] | null;
+            /** @description Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless */
+            trust_identity?: string;
+            /** @description Expected OIDC issuer URL; required when verification_mode is keyless */
+            trust_issuer?: string;
             /** @description PEM-encoded EC public key; required when verification_mode is public_key */
             trust_public_key?: string;
             /**
@@ -1195,7 +1256,7 @@ export interface components {
              * @description Signature verification mode; defaults to none
              * @enum {string}
              */
-            verification_mode?: "none" | "public_key";
+            verification_mode?: "none" | "public_key" | "keyless";
             /**
              * @description Registry visibility
              * @default public
@@ -1235,6 +1296,10 @@ export interface components {
             scan_mode: string;
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
             tag_patterns: string[] | null;
+            /** @description Regex matched against the Fulcio certificate SAN; required for keyless verification mode */
+            trust_identity?: string;
+            /** @description Expected OIDC issuer URL; required for keyless verification mode */
+            trust_issuer?: string;
             /** @description PEM-encoded EC public key for public_key verification mode */
             trust_public_key?: string;
             type: string;
@@ -1474,6 +1539,15 @@ export interface components {
             readonly $schema?: string;
             data: components["schemas"]["ComponentVulnEntry"][] | null;
         };
+        GetRegistryTrustSummaryOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/GetRegistryTrustSummaryOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["RegistryTrustCount"][] | null;
+        };
         GetVulnerabilityOutputBody: {
             /**
              * Format: uri
@@ -1644,6 +1718,16 @@ export interface components {
             data: components["schemas"]["LicenseCount"][] | null;
             pagination: components["schemas"]["PaginationMeta"];
         };
+        ListRecentDriftOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListRecentDriftOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["RecentDriftEntry"][] | null;
+            pagination: components["schemas"]["PaginationMeta"];
+        };
         ListRegistriesOutputBody: {
             /**
              * Format: uri
@@ -1663,6 +1747,16 @@ export interface components {
             readonly $schema?: string;
             components: components["schemas"]["ComponentSummary"][] | null;
             pagination: components["schemas"]["CursorMeta"];
+        };
+        ListSBOMDriftHistoryOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListSBOMDriftHistoryOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["ProvenanceDriftSummary"][] | null;
+            pagination: components["schemas"]["PaginationMeta"];
         };
         ListSBOMsOutputBody: {
             /**
@@ -1747,6 +1841,13 @@ export interface components {
              */
             total: number;
         };
+        ProvenanceDriftSummary: {
+            /** Format: date-time */
+            detectedAt: string;
+            newStatus: string;
+            previousStatus: string;
+            reason: string;
+        };
         ReadinessCheckOutputBody: {
             /**
              * Format: uri
@@ -1761,6 +1862,19 @@ export interface components {
              * @example ready
              */
             status: string;
+        };
+        RecentDriftEntry: {
+            artifactId?: string;
+            artifactName?: string;
+            artifactType?: string;
+            /** Format: date-time */
+            detectedAt: string;
+            newStatus: string;
+            previousStatus: string;
+            reason: string;
+            registryId?: string;
+            registryName?: string;
+            sbomId: string;
         };
         RegenerateWebhookSecretOutputBody: {
             /**
@@ -1802,6 +1916,10 @@ export interface components {
             scan_mode: string;
             /** @description Glob patterns or 'semver' for tags to ingest; empty = all */
             tag_patterns: string[] | null;
+            /** @description Regex matched against the Fulcio certificate SAN; required for keyless verification mode */
+            trust_identity?: string;
+            /** @description Expected OIDC issuer URL; required for keyless verification mode */
+            trust_issuer?: string;
             /** @description PEM-encoded EC public key for public_key verification mode */
             trust_public_key?: string;
             type: string;
@@ -1815,6 +1933,12 @@ export interface components {
             /** @description Registry visibility: public or private */
             visibility: string;
             webhook_url: string;
+        };
+        RegistryTrustCount: {
+            /** Format: int64 */
+            count: number;
+            registryId: string;
+            signingStatus: string;
         };
         RegistryWebhookInputBody: {
             /**
@@ -1879,9 +2003,11 @@ export interface components {
             imageVersion?: string;
             /** Format: int64 */
             packageCount: number;
+            provenanceDrift?: components["schemas"]["ProvenanceDriftSummary"];
             rawBom?: unknown;
             revision?: string;
             serialNumber?: string;
+            signingStatus: string;
             sourceUrl?: string;
             specVersion: string;
             subjectVersion?: string;
@@ -2079,6 +2205,10 @@ export interface components {
              */
             scan_mode?: "webhook" | "poll" | "both";
             tag_patterns?: string[] | null;
+            /** @description Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless */
+            trust_identity?: string;
+            /** @description Expected OIDC issuer URL; required when verification_mode is keyless */
+            trust_issuer?: string;
             /** @description PEM-encoded EC public key; required when verification_mode is public_key */
             trust_public_key?: string;
             /** @enum {string} */
@@ -2088,7 +2218,7 @@ export interface components {
              * @description Signature verification mode; defaults to none
              * @enum {string}
              */
-            verification_mode?: "none" | "public_key";
+            verification_mode?: "none" | "public_key" | "keyless";
             /**
              * @description Registry visibility
              * @enum {string}
@@ -3273,6 +3403,40 @@ export interface operations {
             };
         };
     };
+    "list-recent-drift": {
+        parameters: {
+            query?: {
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Number of results to skip */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListRecentDriftOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "test-registry-connection": {
         parameters: {
             query?: never;
@@ -3293,6 +3457,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TestRegistryConnectionOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-registry-trust-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetRegistryTrustSummaryOutputBody"];
                 };
             };
             /** @description Error */
@@ -3774,6 +3967,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DependencyGraph"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-sbom-drift-history": {
+        parameters: {
+            query?: {
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Number of results to skip */
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                /** @description SBOM UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListSBOMDriftHistoryOutputBody"];
                 };
             };
             /** @description Error */

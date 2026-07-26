@@ -38,6 +38,20 @@ type SearchService interface {
 	GetArtifactVulnSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (*VulnSummary, error)
 	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (*VulnDetail, PagedResult[AffectedArtifact], PagedResult[AffectedComponent], error)
 	GetComponentVulns(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) ([]ComponentVulnEntry, error)
+	ListSBOMDriftHistory(ctx context.Context, sbomID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ProvenanceDriftSummary], error)
+	ListRecentProvenanceDrift(ctx context.Context, limit, offset int32) (PagedResult[RecentDriftEntry], error)
+}
+
+// RecentDriftEntry is a provenance_drift_events row enriched with enough
+// SBOM/artifact/registry context to render in a cross-registry feed.
+type RecentDriftEntry struct {
+	ProvenanceDriftSummary
+	SBOMID       string  `json:"sbomId"`
+	RegistryID   *string `json:"registryId,omitempty"`
+	RegistryName *string `json:"registryName,omitempty"`
+	ArtifactID   *string `json:"artifactId,omitempty"`
+	ArtifactName *string `json:"artifactName,omitempty"`
+	ArtifactType *string `json:"artifactType,omitempty"`
 }
 
 // DashboardStats holds aggregated metrics for the dashboard.
@@ -318,10 +332,25 @@ type SBOMDetail struct {
 	PackageCount int64                      `json:"packageCount"`
 	RawBOM       json.RawMessage            `json:"rawBom,omitempty"`
 	Enrichments  map[string]json.RawMessage `json:"enrichments,omitempty"`
+	// SigningStatus is the terminal signing status derived from this SBOM's
+	// provenance enrichment ("unsigned" when none exists).
+	SigningStatus string `json:"signingStatus"`
 	// VulnSummary is the per-severity count of vulnerability findings across the
 	// SBOM's packages, derived by joining component.purl against the vulnerability
 	// store. Nil when the SBOM has no known vulnerabilities.
 	VulnSummary *VulnSummary `json:"vulnSummary,omitempty"`
+	// ProvenanceDrift is the most recent recorded change in this SBOM's signing
+	// status (e.g. verified -> verification_failed after a trust config change
+	// or registry deletion). Nil when no drift has ever been recorded.
+	ProvenanceDrift *ProvenanceDriftSummary `json:"provenanceDrift,omitempty"`
+}
+
+// ProvenanceDriftSummary is the most recent provenance_drift_events row for a SBOM.
+type ProvenanceDriftSummary struct {
+	PreviousStatus string    `json:"previousStatus"`
+	NewStatus      string    `json:"newStatus"`
+	Reason         string    `json:"reason"`
+	DetectedAt     time.Time `json:"detectedAt"`
 }
 
 // VulnSummary is the per-severity vulnerability finding count for an SBOM. A

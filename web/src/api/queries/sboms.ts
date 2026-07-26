@@ -80,6 +80,26 @@ export function sbomComponents(
     return (pages ?? []).flatMap((p) => p.components ?? []);
 }
 
+/** List provenance drift history for an SBOM, newest first. */
+export function useSBOMDriftHistory(
+    id: Accessor<string>,
+    params?: Accessor<{ limit?: number; offset?: number }>,
+) {
+    return createQuery(() => {
+        const p = params?.() ?? {};
+        return {
+            queryKey: ["sbom", id(), "drift", p.limit, p.offset] as const,
+            queryFn: () =>
+                unwrap(
+                    client.GET("/api/v1/sboms/{id}/drift", {
+                        params: { path: { id: id() }, query: p },
+                    }),
+                ),
+            select: (resp) => ({ ...resp, data: resp.data ?? [] }),
+        };
+    });
+}
+
 /** Get the dependency graph for an SBOM. */
 export function useSBOMDependencies(
     id: Accessor<string>,

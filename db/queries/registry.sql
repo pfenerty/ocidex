@@ -73,3 +73,22 @@ ORDER BY created_at ASC;
 
 -- name: DeleteRegistry :execrows
 DELETE FROM registry WHERE id = $1;
+
+-- name: ListRegistryTrustSummary :many
+-- Per-registry counts across the five signing statuses, one row per
+-- (registry, status) with a nonzero count. Derives each artifact's *current*
+-- status from its most recently created SBOM per registry — reuses the
+-- signing_status() function from ocidex-82g.3 rather than re-deriving.
+WITH latest_provenance AS (
+    SELECT DISTINCT ON (s.registry_id, s.artifact_id)
+        s.registry_id,
+        signing_status(p.data) AS signing_status
+    FROM sbom s
+    LEFT JOIN enrichment p ON p.sbom_id = s.id AND p.enricher_name = 'provenance' AND p.status = 'success'
+    WHERE s.artifact_id IS NOT NULL
+    ORDER BY s.registry_id, s.artifact_id, s.created_at DESC
+)
+SELECT registry_id, signing_status, COUNT(*) AS artifact_count
+FROM latest_provenance
+GROUP BY registry_id, signing_status
+ORDER BY registry_id, signing_status;

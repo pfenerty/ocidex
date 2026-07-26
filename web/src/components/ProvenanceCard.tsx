@@ -2,10 +2,10 @@ import "~/components/DetailSection.css";
 import "./ProvenanceCard.css";
 import { Show, For } from "solid-js";
 import { Check, X } from "lucide-solid";
-import type { Provenance } from "~/api/client";
+import type { Provenance, ProvenanceDriftSummary } from "~/api/client";
 import { formatDateTime } from "~/utils/format";
 import { isGitHubUrl, gitHubCommitUrl } from "~/utils/oci";
-import { trustStatus, trustBadgeClass } from "~/utils/trust";
+import { trustStatus, trustBadgeClass, signingStatusLabel, driftReasonLabel } from "~/utils/trust";
 import { ShieldIcon, GitHubIcon, ExternalLinkIcon } from "./metadata/OciIcons";
 import { LinkedField } from "./metadata/LinkedField";
 
@@ -19,11 +19,13 @@ function FactPill(props: { present: boolean; label: string }) {
     );
 }
 
-export default function ProvenanceCard(props: { provenance: Provenance }) {
+export default function ProvenanceCard(props: { provenance: Provenance; signingStatus: string; drift?: ProvenanceDriftSummary }) {
     // eslint-disable-next-line solid/reactivity
     const p = props.provenance;
+    // eslint-disable-next-line solid/reactivity
+    const drift = props.drift;
 
-    const trust = () => trustStatus(p);
+    const trust = () => trustStatus(props.signingStatus);
 
     const commitUrl = () => {
         if (p.sourceUri === undefined || p.sourceCommit === undefined) return null;
@@ -51,6 +53,18 @@ export default function ProvenanceCard(props: { provenance: Provenance }) {
                 </Show>
             </div>
 
+            <Show when={drift}>
+                {(d) => (
+                    <div class="badge badge-warning" style={{ display: "block", "margin-bottom": "0.75rem" }}>
+                        Verification status changed from{" "}
+                        <strong>{signingStatusLabel(d().previousStatus)}</strong> to{" "}
+                        <strong>{signingStatusLabel(d().newStatus)}</strong> on{" "}
+                        {formatDateTime(d().detectedAt)}
+                        {" — "}{driftReasonLabel(d().reason)}.
+                    </div>
+                )}
+            </Show>
+
             {/* Distinct trust facts */}
             <div class="fact-row">
                 <FactPill present={p.signaturePresent === true} label="cosign signature" />
@@ -64,7 +78,9 @@ export default function ProvenanceCard(props: { provenance: Provenance }) {
                         <span class="detail-label">Verification</span>
                         <span class="detail-value">
                             {p.verified === true
-                                ? "Verified against trusted key"
+                                ? (p.signerIssuer !== undefined && p.signerIssuer !== ""
+                                    ? `Verified — keyless (issuer: ${p.signerIssuer}, identity: ${p.signerIdentity})`
+                                    : "Verified against trusted key")
                                 : "Verification failed"}
                         </span>
                     </div>
