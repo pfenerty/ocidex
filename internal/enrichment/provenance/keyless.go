@@ -16,6 +16,8 @@ import (
 	"github.com/sigstore/cosign/v2/pkg/oci/mutate"
 	"github.com/sigstore/cosign/v2/pkg/oci/static"
 	"github.com/sigstore/sigstore-go/pkg/root"
+	"github.com/sigstore/sigstore-go/pkg/tuf"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/pfenerty/ocidex/internal/trust"
 )
@@ -24,15 +26,34 @@ import (
 // (Fulcio CAs, Rekor/CT log public keys) is re-fetched via TUF.
 const trustedRootCacheTTL = 24 * time.Hour
 
+// trustedRootFetchTimeout bounds a single TUF fetch attempt.
+const trustedRootFetchTimeout = 30 * time.Second
+
+// trustedRootMaxStaleness is the hard ceiling on how long a cached trusted
+// root may keep being served while TUF fetches fail. Beyond this, a revoked
+// Fulcio CA could plausibly have propagated, so verification must fail
+// closed rather than trust stale material forever.
+const trustedRootMaxStaleness = 7 * trustedRootCacheTTL
+
 var (
 	trustedRootMu        sync.Mutex
 	trustedRootCache     *root.TrustedRoot
 	trustedRootFetchedAt time.Time
+	trustedRootGroup     singleflight.Group
 )
+
+// fetchTrustedRootFn performs the actual TUF fetch. Overridable in tests to
+// avoid a live network call and to simulate concurrency/failure/timeout
+// behavior.
+var fetchTrustedRootFn = func(ctx context.Context) (*root.TrustedRoot, error) {
+	return root.FetchTrustedRootWithOptions(tuf.DefaultOptions().WithContext(ctx))
+}
 
 // trustedMaterialProvider resolves the trust material used for Fulcio/Rekor
 // verification. Overridable in tests to avoid a live TUF fetch.
-var trustedMaterialProvider = func() (root.TrustedMaterial, error) { return getTrustedRoot() }
+var trustedMaterialProvider = func(ctx context.Context) (root.TrustedMaterial, error) {
+	return getTrustedRoot(ctx)
+}
 
 // testIgnoreSCT disables the requirement that the Fulcio cert carry an
 // embedded Signed Certificate Timestamp. Production must never set this true:
@@ -45,25 +66,62 @@ var trustedMaterialProvider = func() (root.TrustedMaterial, error) { return getT
 var testIgnoreSCT bool
 
 // getTrustedRoot returns the cached Sigstore public-good trusted root, fetching
-// (or refreshing) it via TUF when the cache is empty or stale.
-func getTrustedRoot() (*root.TrustedRoot, error) {
+// (or refreshing) it via TUF when the cache is empty or stale. Concurrent
+// callers that all observe a stale/empty cache collapse into a single
+// in-flight fetch (singleflight) rather than serializing behind a lock held
+// for the whole network round trip.
+func getTrustedRoot(ctx context.Context) (*root.TrustedRoot, error) {
+	if tr, ok := freshCachedTrustedRoot(); ok {
+		return tr, nil
+	}
+
+	v, err, _ := trustedRootGroup.Do("trusted-root", func() (any, error) {
+		// Another goroutine may have refreshed the cache while this one was
+		// waiting to enter Do.
+		if tr, ok := freshCachedTrustedRoot(); ok {
+			return tr, nil
+		}
+
+		fetchCtx, cancel := context.WithTimeout(ctx, trustedRootFetchTimeout)
+		defer cancel()
+		tr, err := fetchTrustedRootFn(fetchCtx)
+		if err != nil {
+			trustedRootMu.Lock()
+			cached, fetchedAt := trustedRootCache, trustedRootFetchedAt
+			trustedRootMu.Unlock()
+			if cached != nil && time.Since(fetchedAt) < trustedRootMaxStaleness {
+				// Serve the stale root rather than failing every verification
+				// because of a transient TUF fetch error, but only up to
+				// trustedRootMaxStaleness — beyond that a revoked Fulcio CA
+				// could plausibly have propagated, so fail closed instead.
+				slog.WarnContext(ctx, "keyless verification: serving stale trusted root after TUF fetch failure",
+					"err", err, "age", time.Since(fetchedAt))
+				return cached, nil
+			}
+			return nil, fmt.Errorf("fetching sigstore trusted root: %w", err)
+		}
+
+		trustedRootMu.Lock()
+		trustedRootCache = tr
+		trustedRootFetchedAt = time.Now()
+		trustedRootMu.Unlock()
+		return tr, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return v.(*root.TrustedRoot), nil
+}
+
+// freshCachedTrustedRoot returns the cached trusted root if it is within
+// trustedRootCacheTTL.
+func freshCachedTrustedRoot() (*root.TrustedRoot, bool) {
 	trustedRootMu.Lock()
 	defer trustedRootMu.Unlock()
 	if trustedRootCache != nil && time.Since(trustedRootFetchedAt) < trustedRootCacheTTL {
-		return trustedRootCache, nil
+		return trustedRootCache, true
 	}
-	tr, err := root.FetchTrustedRoot()
-	if err != nil {
-		if trustedRootCache != nil {
-			// Serve the stale root rather than failing every verification because
-			// of a transient TUF fetch error.
-			return trustedRootCache, nil
-		}
-		return nil, fmt.Errorf("fetching sigstore trusted root: %w", err)
-	}
-	trustedRootCache = tr
-	trustedRootFetchedAt = time.Now()
-	return tr, nil
+	return nil, false
 }
 
 // applyKeylessVerification sets p.Verified based on Fulcio certificate chain +
@@ -86,7 +144,7 @@ func applyKeylessVerification(ctx context.Context, p *Provenance, raw RawArtifac
 		return
 	}
 
-	trustedMaterial, err := trustedMaterialProvider()
+	trustedMaterial, err := trustedMaterialProvider(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "keyless verification: fetching trusted root", "err", err)
 		return

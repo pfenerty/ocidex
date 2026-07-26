@@ -7,7 +7,9 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/matryer/is"
 	"github.com/sigstore/sigstore-go/pkg/root"
@@ -106,7 +108,7 @@ func useFixtureTrustedRoot(t *testing.T, virtualCA root.TrustedMaterial) {
 	t.Helper()
 	origMaterial := trustedMaterialProvider
 	origIgnoreSCT := testIgnoreSCT
-	trustedMaterialProvider = func() (root.TrustedMaterial, error) { return virtualCA, nil }
+	trustedMaterialProvider = func(context.Context) (root.TrustedMaterial, error) { return virtualCA, nil }
 	testIgnoreSCT = true
 	t.Cleanup(func() {
 		trustedMaterialProvider = origMaterial
@@ -222,7 +224,7 @@ func TestApplyKeylessVerification_NoOpWithoutSignatureOrAttestation(t *testing.T
 func TestApplyKeylessVerification_FailsClosedOnTrustedRootError(t *testing.T) {
 	is := is.New(t)
 	orig := trustedMaterialProvider
-	trustedMaterialProvider = func() (root.TrustedMaterial, error) {
+	trustedMaterialProvider = func(context.Context) (root.TrustedMaterial, error) {
 		return nil, errors.New("simulated TUF fetch failure")
 	}
 	defer func() { trustedMaterialProvider = orig }()
@@ -237,4 +239,126 @@ func TestApplyKeylessVerification_FailsClosedOnTrustedRootError(t *testing.T) {
 	// rather than reporting a false verification failure, matching the
 	// public-key path's contract when a required input is unavailable.
 	is.True(p.Verified == nil)
+}
+
+// ----- getTrustedRoot: caching, singleflight, staleness ceiling ------------
+
+// resetTrustedRootState clears the package-level trusted root cache and
+// restores fetchTrustedRootFn, so tests don't leak state into each other.
+func resetTrustedRootState(t *testing.T) {
+	t.Helper()
+	origFetch := fetchTrustedRootFn
+	trustedRootMu.Lock()
+	trustedRootCache = nil
+	trustedRootFetchedAt = time.Time{}
+	trustedRootMu.Unlock()
+	t.Cleanup(func() {
+		fetchTrustedRootFn = origFetch
+		trustedRootMu.Lock()
+		trustedRootCache = nil
+		trustedRootFetchedAt = time.Time{}
+		trustedRootMu.Unlock()
+	})
+}
+
+func TestGetTrustedRoot_CacheHitWithinTTLSkipsFetch(t *testing.T) {
+	is := is.New(t)
+	resetTrustedRootState(t)
+
+	var calls atomic.Int32
+	fetchTrustedRootFn = func(context.Context) (*root.TrustedRoot, error) {
+		calls.Add(1)
+		return &root.TrustedRoot{}, nil
+	}
+	trustedRootMu.Lock()
+	trustedRootCache = &root.TrustedRoot{}
+	trustedRootFetchedAt = time.Now()
+	trustedRootMu.Unlock()
+
+	tr, err := getTrustedRoot(context.Background())
+	is.NoErr(err)
+	is.True(tr != nil)
+	is.Equal(calls.Load(), int32(0))
+}
+
+func TestGetTrustedRoot_ConcurrentCallsCollapseIntoSingleFetch(t *testing.T) {
+	is := is.New(t)
+	resetTrustedRootState(t)
+
+	var calls atomic.Int32
+	release := make(chan struct{})
+	fetchTrustedRootFn = func(context.Context) (*root.TrustedRoot, error) {
+		calls.Add(1)
+		<-release
+		return &root.TrustedRoot{}, nil
+	}
+
+	const n = 5
+	results := make(chan error, n)
+	for range n {
+		go func() {
+			_, err := getTrustedRoot(context.Background())
+			results <- err
+		}()
+	}
+	// Give every goroutine a chance to reach the singleflight call before
+	// letting the (single) in-flight fetch complete.
+	time.Sleep(50 * time.Millisecond)
+	close(release)
+
+	for range n {
+		is.NoErr(<-results)
+	}
+	is.Equal(calls.Load(), int32(1))
+}
+
+func TestGetTrustedRoot_HonoursContextTimeout(t *testing.T) {
+	is := is.New(t)
+	resetTrustedRootState(t)
+
+	var sawDeadline bool
+	fetchTrustedRootFn = func(ctx context.Context) (*root.TrustedRoot, error) {
+		_, sawDeadline = ctx.Deadline()
+		return &root.TrustedRoot{}, nil
+	}
+
+	_, err := getTrustedRoot(context.Background())
+	is.NoErr(err)
+	is.True(sawDeadline)
+}
+
+func TestGetTrustedRoot_ServesStaleWithinMaxStaleness(t *testing.T) {
+	is := is.New(t)
+	resetTrustedRootState(t)
+
+	stale := &root.TrustedRoot{}
+	trustedRootMu.Lock()
+	trustedRootCache = stale
+	trustedRootFetchedAt = time.Now().Add(-(trustedRootMaxStaleness - time.Hour))
+	trustedRootMu.Unlock()
+
+	fetchTrustedRootFn = func(context.Context) (*root.TrustedRoot, error) {
+		return nil, errors.New("simulated TUF fetch failure")
+	}
+
+	tr, err := getTrustedRoot(context.Background())
+	is.NoErr(err)
+	is.True(tr == stale)
+}
+
+func TestGetTrustedRoot_FailsClosedBeyondMaxStaleness(t *testing.T) {
+	is := is.New(t)
+	resetTrustedRootState(t)
+
+	trustedRootMu.Lock()
+	trustedRootCache = &root.TrustedRoot{}
+	trustedRootFetchedAt = time.Now().Add(-(trustedRootMaxStaleness + time.Hour))
+	trustedRootMu.Unlock()
+
+	fetchTrustedRootFn = func(context.Context) (*root.TrustedRoot, error) {
+		return nil, errors.New("simulated TUF fetch failure")
+	}
+
+	_, err := getTrustedRoot(context.Background())
+	is.True(err != nil)
 }
