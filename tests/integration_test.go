@@ -19,6 +19,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/pfenerty/ocidex/db"
+	"github.com/pfenerty/ocidex/internal/enrichment"
 	"github.com/pfenerty/ocidex/internal/enrichment/provenance"
 	"github.com/pfenerty/ocidex/internal/repository"
 
@@ -713,4 +714,108 @@ func TestProvenanceRecheckErrorPreservesData(t *testing.T) {
 		}
 	}
 	is.True(found)
+}
+
+// fakeProvenanceEnricher returns fixed provenance JSON for every subject,
+// standing in for the real provenance enricher so tests can drive
+// Dispatcher.ProcessOne directly against a real Postgres-backed Store.
+type fakeProvenanceEnricher struct {
+	data []byte
+}
+
+func (f *fakeProvenanceEnricher) Name() string                           { return "provenance" }
+func (f *fakeProvenanceEnricher) CanEnrich(_ enrichment.SubjectRef) bool { return true }
+func (f *fakeProvenanceEnricher) Enrich(_ context.Context, _ enrichment.SubjectRef) ([]byte, error) {
+	return f.data, nil
+}
+
+// TestProvenanceDriftFullCycle drives the real Dispatcher/Store against
+// Postgres for a verified -> regressed transition, then confirms the
+// resulting provenance_drift_events row is visible via the SBOM
+// drift-history API. Regression coverage for ocidex-goh.10.
+func TestProvenanceDriftFullCycle(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireDocker(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+
+	is := is.New(t)
+	ctx := t.Context()
+
+	memberID := seedUser(t, pool, 3100, "test-drift-cycle", "member")
+	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "test", "read-write")
+	is.NoErr(err)
+
+	sbomJSON := fmt.Sprintf(signingStatusSBOMTemplate, 98, 98)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", sbomJSON, memberKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	var ingestResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingestResp))
+	resp.Body.Close()
+	sbomIDStr := ingestResp["id"].(string)
+
+	var sbomID pgtype.UUID
+	is.NoErr(sbomID.Scan(sbomIDStr))
+
+	queries := repository.New(pool)
+
+	// Seed the initial verified provenance enrichment, as if the real
+	// provenance enricher already ran once successfully.
+	verifiedData := []byte(`{"verified": true, "signaturePresent": true, "signerFingerprint": "abc123"}`)
+	is.NoErr(queries.UpsertEnrichment(ctx, repository.UpsertEnrichmentParams{
+		SbomID:       sbomID,
+		EnricherName: "provenance",
+		Status:       "success",
+		Data:         verifiedData,
+	}))
+
+	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomIDStr))
+	is.NoErr(err)
+	var before map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&before))
+	resp.Body.Close()
+	is.Equal(before["signingStatus"], "verified")
+
+	// Drive a real reverification pass through the actual Dispatcher/Store:
+	// same signer, but the trust config now rejects it.
+	regressedData := []byte(`{"verified": false, "signaturePresent": true, "signerFingerprint": "abc123"}`)
+	catalog := enrichment.NewCatalog()
+	catalog.Register(&fakeProvenanceEnricher{data: regressedData})
+	dispatcher := enrichment.NewDispatcher(queries, catalog)
+	is.NoErr(dispatcher.ProcessOne(ctx, enrichment.SubjectRef{
+		SBOMId:       sbomID,
+		ArtifactType: "container",
+		ArtifactName: "docker.io/signing-status-fixture",
+	}))
+
+	// The regression must be visible in the SBOM's signing status...
+	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomIDStr))
+	is.NoErr(err)
+	var after map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&after))
+	resp.Body.Close()
+	is.Equal(after["signingStatus"], "verification_failed")
+
+	// ...and as a recorded drift event, visible via the drift-history API.
+	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s/drift", srv.URL, sbomIDStr))
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var driftResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&driftResp))
+	resp.Body.Close()
+
+	data, ok := driftResp["data"].([]any)
+	is.True(ok)
+	is.Equal(len(data), 1)
+	event := data[0].(map[string]any)
+	is.Equal(event["previousStatus"], "verified")
+	is.Equal(event["newStatus"], "verification_failed")
+	is.Equal(event["reason"], "trust_config_changed")
 }
