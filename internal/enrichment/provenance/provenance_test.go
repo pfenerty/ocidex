@@ -985,6 +985,7 @@ func TestFetchRekorUUID(t *testing.T) {
 		{
 			name: "malformed_json",
 			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
 				fmt.Fprint(w, `not json`)
 			},
 			wantUUID: "",
@@ -992,6 +993,7 @@ func TestFetchRekorUUID(t *testing.T) {
 		{
 			name: "empty_map",
 			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
 				fmt.Fprint(w, `{}`)
 			},
 			wantUUID: "",

@@ -4,14 +4,14 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
 	cbundle "github.com/sigstore/cosign/v2/pkg/cosign/bundle"
+	rekorclient "github.com/sigstore/rekor/pkg/client"
+	"github.com/sigstore/rekor/pkg/generated/client/entries"
 )
 
 // Provenance is the parsed result stored in the enrichment JSONB column
@@ -142,22 +142,21 @@ func fetchRekorUUID(ctx context.Context, logIndex int64) string {
 
 // fetchRekorUUIDFromBase is the testable core: it accepts a base URL so tests
 // can substitute an httptest.Server without hitting the public Rekor instance.
+// It uses the upstream sigstore/rekor generated client rather than a
+// hand-rolled HTTP request — it already carries retry and response-decoding
+// logic we'd otherwise have to duplicate, and cosign pulls in go-openapi for
+// this exact purpose.
 func fetchRekorUUIDFromBase(ctx context.Context, baseURL string, logIndex int64) string {
-	reqURL := fmt.Sprintf("%s/api/v1/log/entries?logIndex=%d", baseURL, logIndex)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	c, err := rekorclient.GetRekorClient(baseURL)
 	if err != nil {
 		return ""
 	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil || resp.StatusCode != http.StatusOK {
+	params := entries.NewGetLogEntryByIndexParamsWithContext(ctx).WithLogIndex(logIndex)
+	resp, err := c.Entries.GetLogEntryByIndex(params)
+	if err != nil {
 		return ""
 	}
-	defer resp.Body.Close()
-	var entries map[string]json.RawMessage
-	if err := json.NewDecoder(resp.Body).Decode(&entries); err != nil {
-		return ""
-	}
-	for uuid := range entries {
+	for uuid := range resp.Payload {
 		return uuid
 	}
 	return ""
