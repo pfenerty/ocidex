@@ -65,11 +65,11 @@ spec:
         limits:
           cpu: "2"
           ephemeral-storage: 4Gi
-          memory: 6Gi
+          memory: 10Gi
         requests:
           cpu: 500m
           ephemeral-storage: 2Gi
-          memory: 1Gi
+          memory: 2Gi
       image: ghcr.io/pfenerty/apko-cicd/govulncheck:1.6.0-go1.26
       name: govulncheck-scan
       onError: continue
