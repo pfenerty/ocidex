@@ -16,7 +16,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/matryer/is"
 
-	"github.com/pfenerty/ocidex/internal/enrichment"
+	"github.com/pfenerty/ocidex/internal/enrichment/subject"
 )
 
 // ----- test fixtures ---------------------------------------------------------
@@ -160,8 +160,8 @@ func newTestEnricher(srv *httptest.Server) *Enricher {
 }
 
 // testRef builds a SubjectRef pointing at the given host.
-func testRef(host string) enrichment.SubjectRef {
-	return enrichment.SubjectRef{
+func testRef(host string) subject.Ref {
+	return subject.Ref{
 		ArtifactType: "container",
 		ArtifactName: host + "/repo",
 		Digest:       testImageDigest,
@@ -640,9 +640,9 @@ func TestCanEnrich(t *testing.T) {
 	is := is.New(t)
 	e := NewEnricher()
 
-	is.True(e.CanEnrich(enrichment.SubjectRef{ArtifactType: "container", Digest: "sha256:abc"}))
-	is.True(!e.CanEnrich(enrichment.SubjectRef{ArtifactType: "container"}))                  // missing digest
-	is.True(!e.CanEnrich(enrichment.SubjectRef{ArtifactType: "file", Digest: "sha256:abc"})) // wrong type
+	is.True(e.CanEnrich(subject.Ref{ArtifactType: "container", Digest: "sha256:abc"}))
+	is.True(!e.CanEnrich(subject.Ref{ArtifactType: "container"}))                  // missing digest
+	is.True(!e.CanEnrich(subject.Ref{ArtifactType: "file", Digest: "sha256:abc"})) // wrong type
 }
 
 func TestName(t *testing.T) {

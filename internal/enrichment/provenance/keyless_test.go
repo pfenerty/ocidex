@@ -13,6 +13,8 @@ import (
 	"github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/sigstore/sigstore-go/pkg/testing/ca"
 	"github.com/sigstore/sigstore-go/pkg/tlog"
+
+	"github.com/pfenerty/ocidex/internal/trust"
 )
 
 // ----- fixture: a real, cryptographically valid keyless signature ------------
@@ -125,7 +127,7 @@ func TestApplyKeylessVerification_ValidSignatureVerifies(t *testing.T) {
 
 	p := &Provenance{}
 	raw := RawArtifacts{SigPresent: true, SigAnnotations: annotations, SigLayerBytes: fakeSigPayload}
-	cfg := TrustConfig{Mode: "keyless", Identity: "^" + testKeylessIdentity + "$", Issuer: testKeylessIssuer}
+	cfg := trust.Config{Mode: "keyless", Identity: "^" + testKeylessIdentity + "$", Issuer: testKeylessIssuer}
 
 	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest)
 
@@ -146,7 +148,7 @@ func TestApplyKeylessVerification_WrongIdentityFails(t *testing.T) {
 	p := &Provenance{}
 	raw := RawArtifacts{SigPresent: true, SigAnnotations: annotations, SigLayerBytes: fakeSigPayload}
 	// Configured to require a *different* identity than the one actually signed.
-	cfg := TrustConfig{Mode: "keyless", Identity: "^https://github.com/someone-else/other-repo/.*$", Issuer: testKeylessIssuer}
+	cfg := trust.Config{Mode: "keyless", Identity: "^https://github.com/someone-else/other-repo/.*$", Issuer: testKeylessIssuer}
 
 	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest)
 
@@ -170,7 +172,7 @@ func TestApplyKeylessVerification_TransplantedSignatureFails(t *testing.T) {
 
 	p := &Provenance{}
 	raw := RawArtifacts{SigPresent: true, SigAnnotations: annotations, SigLayerBytes: otherDigestPayload}
-	cfg := TrustConfig{Mode: "keyless", Identity: "^" + testKeylessIdentity + "$", Issuer: testKeylessIssuer}
+	cfg := trust.Config{Mode: "keyless", Identity: "^" + testKeylessIdentity + "$", Issuer: testKeylessIssuer}
 
 	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest)
 
@@ -185,7 +187,7 @@ func TestApplyKeylessVerification_NoOpWithoutIdentityOrIssuer(t *testing.T) {
 	p := &Provenance{}
 	raw := RawArtifacts{SigPresent: true}
 
-	applyKeylessVerification(context.Background(), p, raw, TrustConfig{Mode: "keyless"}, testImageDigest)
+	applyKeylessVerification(context.Background(), p, raw, trust.Config{Mode: "keyless"}, testImageDigest)
 
 	is.True(p.Verified == nil) // no identity/issuer configured: verification not attempted
 }
@@ -194,7 +196,7 @@ func TestApplyKeylessVerification_NoOpWithoutSignatureOrAttestation(t *testing.T
 	is := is.New(t)
 	p := &Provenance{}
 	raw := RawArtifacts{} // SigPresent=false, AttPresent=false
-	cfg := TrustConfig{Mode: "keyless", Identity: "^foo$", Issuer: "https://issuer.example"}
+	cfg := trust.Config{Mode: "keyless", Identity: "^foo$", Issuer: "https://issuer.example"}
 
 	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest)
 
@@ -211,7 +213,7 @@ func TestApplyKeylessVerification_FailsClosedOnTrustedRootError(t *testing.T) {
 
 	p := &Provenance{}
 	raw := RawArtifacts{SigPresent: true}
-	cfg := TrustConfig{Mode: "keyless", Identity: "^foo$", Issuer: "https://issuer.example"}
+	cfg := trust.Config{Mode: "keyless", Identity: "^foo$", Issuer: "https://issuer.example"}
 
 	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest)
 

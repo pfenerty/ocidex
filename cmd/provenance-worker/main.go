@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"log/slog"
 	"os"
 
@@ -31,24 +30,8 @@ func buildEnrichers(pool *pgxpool.Pool) []enrichment.Enricher {
 	return []enrichment.Enricher{
 		provenance.NewEnricher(
 			provenance.WithInsecureResolver(insecureResolver),
-			provenance.WithTrustResolver(adaptTrustResolver(trustResolver)),
+			provenance.WithTrustResolver(trustResolver),
 			provenance.WithCredentialResolver(credResolver),
 		),
-	}
-}
-
-// adaptTrustResolver adapts service.TrustConfig to provenance.TrustConfig. The two
-// types can't be unified without an import cycle: internal/enrichment (which
-// internal/enrichment/provenance depends on for enrichment.SubjectRef) already
-// imports internal/service.
-func adaptTrustResolver(resolve func(ctx context.Context, host string) service.TrustConfig) provenance.TrustResolver {
-	return func(ctx context.Context, host string) provenance.TrustConfig {
-		cfg := resolve(ctx, host)
-		return provenance.TrustConfig{
-			Mode:         cfg.Mode,
-			PublicKeyPEM: cfg.PublicKeyPEM,
-			Identity:     cfg.Identity,
-			Issuer:       cfg.Issuer,
-		}
 	}
 }

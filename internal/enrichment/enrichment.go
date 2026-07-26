@@ -6,22 +6,13 @@ package enrichment
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/pfenerty/ocidex/internal/enrichment/subject"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
-// SubjectRef identifies what to enrich. It carries the SBOM identity
-// and the artifact metadata needed by enrichers.
-type SubjectRef struct {
-	SBOMId         pgtype.UUID
-	ArtifactType   string
-	ArtifactName   string
-	Digest         string
-	IndexDigest    string // multi-arch index this child came from; provenance lives here, not on the child
-	SubjectVersion string // tag hint for parent index lookup
-	Architecture   string // caller-supplied at ingest time
-	BuildDate      string // caller-supplied at ingest time (RFC3339 or date string)
-}
+// SubjectRef identifies what to enrich; defined in internal/enrichment/subject
+// so leaf enricher packages can depend on it without importing this package.
+type SubjectRef = subject.Ref
 
 // Enricher is implemented by each enrichment source (OCI metadata, vuln scan, etc.).
 type Enricher interface {

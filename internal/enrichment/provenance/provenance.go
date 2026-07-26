@@ -19,7 +19,8 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 
-	"github.com/pfenerty/ocidex/internal/enrichment"
+	"github.com/pfenerty/ocidex/internal/enrichment/subject"
+	"github.com/pfenerty/ocidex/internal/trust"
 )
 
 const (
@@ -46,17 +47,8 @@ type RawArtifacts struct {
 	ArtifactMissing bool              `json:"artifactMissing,omitempty"` // true when the registry no longer has this digest
 }
 
-// TrustConfig is the per-host verification configuration resolved from the
-// registry's stored trust settings. Mode is "none" | "public_key" | "keyless".
-type TrustConfig struct {
-	Mode         string
-	PublicKeyPEM string
-	Identity     string // regex matched against the Fulcio cert SAN (keyless only)
-	Issuer       string // exact OIDC issuer URL (keyless only)
-}
-
 // TrustResolver returns the verification configuration for a registry host.
-type TrustResolver func(ctx context.Context, host string) TrustConfig
+type TrustResolver func(ctx context.Context, host string) trust.Config
 
 // Enricher discovers cosign signatures and attestations for container images.
 type Enricher struct {
@@ -115,7 +107,7 @@ func NewEnricher(opts ...Option) *Enricher {
 func (e *Enricher) Name() string { return enricherName }
 
 // CanEnrich returns true for container-type artifacts with a digest.
-func (e *Enricher) CanEnrich(ref enrichment.SubjectRef) bool {
+func (e *Enricher) CanEnrich(ref subject.Ref) bool {
 	return ref.ArtifactType == "container" && ref.Digest != ""
 }
 
@@ -130,7 +122,7 @@ func (e *Enricher) insecureFor(ctx context.Context, host string) bool {
 // Enrich discovers cosign signatures and attestations for the image digest and
 // returns a JSON-encoded RawArtifacts. Returns an error only for fatal failures
 // (bad reference, marshal error); missing sig/att results in SigPresent=false/AttPresent=false.
-func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byte, error) {
+func (e *Enricher) Enrich(ctx context.Context, ref subject.Ref) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, e.timeout)
 	defer cancel()
 

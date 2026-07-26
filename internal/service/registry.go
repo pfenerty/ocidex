@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pfenerty/ocidex/internal/repository"
+	"github.com/pfenerty/ocidex/internal/trust"
 )
 
 // Registry is the domain model for a configured OCI registry.
@@ -191,35 +192,26 @@ func BuildCredentialLookup(svc RegistryService) HostCredentialLookup {
 	}
 }
 
-// TrustConfig is the per-host verification configuration resolved from the
-// registry's stored trust settings.
-type TrustConfig struct {
-	Mode         string // "none" | "public_key" | "keyless"
-	PublicKeyPEM string
-	Identity     string // regex matched against the Fulcio cert SAN (keyless only)
-	Issuer       string // exact OIDC issuer URL (keyless only)
-}
-
 // BuildTrustLookup returns a resolver that maps a registry hostname to its
 // configured verification settings. Results are cached for resolverCacheTTL
 // to avoid a DB round-trip on every enrichment.
-func BuildTrustLookup(svc RegistryService) func(ctx context.Context, host string) TrustConfig {
+func BuildTrustLookup(svc RegistryService) func(ctx context.Context, host string) trust.Config {
 	var (
 		mu        sync.Mutex
-		cache     map[string]TrustConfig
+		cache     map[string]trust.Config
 		fetchedAt time.Time
 	)
-	return func(ctx context.Context, host string) TrustConfig {
+	return func(ctx context.Context, host string) trust.Config {
 		mu.Lock()
 		defer mu.Unlock()
 		if cache == nil || time.Since(fetchedAt) > resolverCacheTTL {
 			regs, err := svc.List(ctx, VisibilityFilter{IsAdmin: true})
 			if err != nil {
-				return TrustConfig{Mode: "none"}
+				return trust.Config{Mode: "none"}
 			}
-			cache = make(map[string]TrustConfig, len(regs))
+			cache = make(map[string]trust.Config, len(regs))
 			for _, r := range regs {
-				cfg := TrustConfig{Mode: r.VerificationMode}
+				cfg := trust.Config{Mode: r.VerificationMode}
 				if r.TrustPublicKey != nil {
 					cfg.PublicKeyPEM = *r.TrustPublicKey
 				}
@@ -235,7 +227,7 @@ func BuildTrustLookup(svc RegistryService) func(ctx context.Context, host string
 		}
 		cfg, ok := cache[host]
 		if !ok || cfg.Mode == "" {
-			return TrustConfig{Mode: "none"}
+			return trust.Config{Mode: "none"}
 		}
 		return cfg
 	}

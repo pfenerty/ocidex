@@ -16,6 +16,8 @@ import (
 	"github.com/sigstore/cosign/v2/pkg/oci/mutate"
 	"github.com/sigstore/cosign/v2/pkg/oci/static"
 	"github.com/sigstore/sigstore-go/pkg/root"
+
+	"github.com/pfenerty/ocidex/internal/trust"
 )
 
 // trustedRootCacheTTL controls how often the Sigstore public-good trusted root
@@ -76,7 +78,7 @@ func getTrustedRoot() (*root.TrustedRoot, error) {
 // Verification is offline (Offline: true): cosign verifies the Rekor
 // inclusion promise (SET) embedded in its own OCI bundle annotation against
 // trustedMaterial's Rekor public key, with no live call to rekor.sigstore.dev.
-func applyKeylessVerification(ctx context.Context, p *Provenance, raw RawArtifacts, cfg TrustConfig, imageDigest string) {
+func applyKeylessVerification(ctx context.Context, p *Provenance, raw RawArtifacts, cfg trust.Config, imageDigest string) {
 	if cfg.Identity == "" || cfg.Issuer == "" {
 		return
 	}
