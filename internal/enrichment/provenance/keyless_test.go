@@ -2,75 +2,23 @@ package provenance
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
-	"strings"
 	"testing"
 
+	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/matryer/is"
 	"github.com/sigstore/sigstore-go/pkg/root"
 )
 
-// ----- buildTlogEntry ---------------------------------------------------------
-
-func TestBuildTlogEntry_Valid(t *testing.T) {
-	is := is.New(t)
-	bundleJSON := `{"SignedEntryTimestamp":"` + base64.StdEncoding.EncodeToString([]byte("fake-set")) + `","Payload":{"body":"` +
-		base64.StdEncoding.EncodeToString([]byte(`{"kind":"hashedrekord"}`)) +
-		`","integratedTime":1700000000,"logIndex":12345,"logID":"` + strings.Repeat("ab", 32) + `"}}`
-
-	entry, err := buildTlogEntry(bundleJSON, "hashedrekord")
-
-	is.NoErr(err)
-	is.Equal(entry.LogIndex, int64(12345))
-	is.Equal(entry.IntegratedTime, int64(1700000000))
-	is.Equal(entry.KindVersion.Kind, "hashedrekord")
-	is.Equal(string(entry.CanonicalizedBody), `{"kind":"hashedrekord"}`)
-	is.Equal(string(entry.InclusionPromise.SignedEntryTimestamp), "fake-set")
-	is.Equal(len(entry.LogId.KeyId), 32) // sha256 logID, hex-decoded
-}
-
-func TestBuildTlogEntry_Empty(t *testing.T) {
-	is := is.New(t)
-	_, err := buildTlogEntry("", "hashedrekord")
-	is.True(err != nil)
-}
-
-func TestBuildTlogEntry_MissingFields(t *testing.T) {
-	is := is.New(t)
-	// No SignedEntryTimestamp, no body: cosign always sets these together, so
-	// treat a partial bundle as unusable rather than guessing.
-	_, err := buildTlogEntry(`{"Payload":{"logIndex":1,"logID":"aa"}}`, "hashedrekord")
-	is.True(err != nil)
-}
-
-func TestBuildTlogEntry_InvalidJSON(t *testing.T) {
-	is := is.New(t)
-	_, err := buildTlogEntry("not json", "hashedrekord")
-	is.True(err != nil)
-}
-
-// ----- buildCertificateIdentity ------------------------------------------------
-
-func TestBuildCertificateIdentity_Valid(t *testing.T) {
-	is := is.New(t)
-	_, err := buildCertificateIdentity(TrustConfig{
-		Mode:     "keyless",
-		Identity: "^https://github.com/example/repo/.*$",
-		Issuer:   "https://token.actions.githubusercontent.com",
-	})
-	is.NoErr(err)
-}
-
-func TestBuildCertificateIdentity_BadRegex(t *testing.T) {
-	is := is.New(t)
-	_, err := buildCertificateIdentity(TrustConfig{
-		Mode:     "keyless",
-		Identity: "(unclosed",
-		Issuer:   "https://token.actions.githubusercontent.com",
-	})
-	is.True(err != nil)
-}
+// testDigestRef uses the RFC 2606 reserved .invalid TLD, guaranteed to never
+// resolve, so tests never depend on real network reachability.
+var testDigestRef = func() name.Digest {
+	ref, err := name.NewDigest("registry.invalid/repo@" + testImageDigest)
+	if err != nil {
+		panic(err)
+	}
+	return ref
+}()
 
 // ----- applyKeylessVerification: guard clauses ---------------------------------
 
@@ -79,7 +27,7 @@ func TestApplyKeylessVerification_NoOpWithoutIdentityOrIssuer(t *testing.T) {
 	p := &Provenance{}
 	raw := RawArtifacts{SigPresent: true}
 
-	applyKeylessVerification(context.Background(), p, raw, TrustConfig{Mode: "keyless"}, testImageDigest)
+	applyKeylessVerification(context.Background(), p, raw, TrustConfig{Mode: "keyless"}, testDigestRef, nil)
 
 	is.True(p.Verified == nil) // no identity/issuer configured: verification not attempted
 }
@@ -90,7 +38,7 @@ func TestApplyKeylessVerification_NoOpWithoutSignatureOrAttestation(t *testing.T
 	raw := RawArtifacts{} // SigPresent=false, AttPresent=false
 	cfg := TrustConfig{Mode: "keyless", Identity: "^foo$", Issuer: "https://issuer.example"}
 
-	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest)
+	applyKeylessVerification(context.Background(), p, raw, cfg, testDigestRef, nil)
 
 	is.True(p.Verified == nil)
 }
@@ -104,12 +52,10 @@ func TestApplyKeylessVerification_FailsClosedOnTrustedRootError(t *testing.T) {
 	defer func() { trustedMaterialProvider = orig }()
 
 	p := &Provenance{}
-	raw := RawArtifacts{SigPresent: true, SigAnnotations: map[string]string{
-		"dev.cosignproject.cosign/signature": "not-a-real-signature",
-	}}
+	raw := RawArtifacts{SigPresent: true}
 	cfg := TrustConfig{Mode: "keyless", Identity: "^foo$", Issuer: "https://issuer.example"}
 
-	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest)
+	applyKeylessVerification(context.Background(), p, raw, cfg, testDigestRef, nil)
 
 	// Infrastructure failure (can't fetch trust material) leaves Verified unset
 	// rather than reporting a false verification failure, matching the
@@ -117,37 +63,26 @@ func TestApplyKeylessVerification_FailsClosedOnTrustedRootError(t *testing.T) {
 	is.True(p.Verified == nil)
 }
 
-// ----- verifyKeylessMessageSignature: malformed input fails closed -------------
-
-func TestVerifyKeylessMessageSignature_MissingCertificate(t *testing.T) {
+func TestApplyKeylessVerification_FailsClosedWhenCosignCannotVerify(t *testing.T) {
 	is := is.New(t)
-	raw := RawArtifacts{
-		SigAnnotations: map[string]string{
-			"dev.cosignproject.cosign/signature": base64.StdEncoding.EncodeToString([]byte("sig")),
-		},
-		SigLayerBytes: fakeSigPayload,
+	orig := trustedMaterialProvider
+	trustedMaterialProvider = func() (root.TrustedMaterial, error) {
+		// A real (but useless for this unreachable/unsigned test ref) trusted
+		// root, so we exercise the actual cosign.VerifyImageSignatures call
+		// rather than short-circuiting on the trust-root fetch.
+		return &root.TrustedRoot{}, nil
 	}
-	certID, err := buildCertificateIdentity(TrustConfig{Identity: "^foo$", Issuer: "https://issuer.example"})
-	is.NoErr(err)
+	defer func() { trustedMaterialProvider = orig }()
 
-	ok := verifyKeylessMessageSignature(nil, certID, raw, testImageDigest)
+	p := &Provenance{}
+	raw := RawArtifacts{SigPresent: true}
+	cfg := TrustConfig{Mode: "keyless", Identity: "^foo$", Issuer: "https://issuer.example"}
 
-	is.True(!ok) // no certificate annotation present: must not verify
-}
+	// testDigestRef points at a registry that doesn't exist; cosign's own
+	// fetch will fail, which must surface as Verified=false, not a crash or
+	// a silently-skipped (nil) result.
+	applyKeylessVerification(context.Background(), p, raw, cfg, testDigestRef, nil)
 
-func TestVerifyKeylessMessageSignature_DigestMismatch(t *testing.T) {
-	is := is.New(t)
-	raw := RawArtifacts{
-		SigAnnotations: map[string]string{
-			"dev.cosignproject.cosign/signature": base64.StdEncoding.EncodeToString([]byte("sig")),
-			"dev.sigstore.cosign/certificate":    "-----BEGIN CERTIFICATE-----\nMAA=\n-----END CERTIFICATE-----\n",
-		},
-		SigLayerBytes: fakeSigPayload, // bound to testImageDigest
-	}
-	certID, err := buildCertificateIdentity(TrustConfig{Identity: "^foo$", Issuer: "https://issuer.example"})
-	is.NoErr(err)
-
-	ok := verifyKeylessMessageSignature(nil, certID, raw, "sha256:deadbeef")
-
-	is.True(!ok) // signature is bound to a different digest than the one being verified
+	is.True(p.Verified != nil)
+	is.True(!*p.Verified)
 }

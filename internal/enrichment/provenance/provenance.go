@@ -185,7 +185,7 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 		case "public_key":
 			applyVerification(&p, raw, cfg.Mode, cfg.PublicKeyPEM, lookupDigest)
 		case "keyless":
-			applyKeylessVerification(ctx, &p, raw, cfg, lookupDigest)
+			applyKeylessVerification(ctx, &p, raw, cfg, digestRef, opts)
 		}
 	}
 
