@@ -20,6 +20,9 @@ import (
 
 	"github.com/pfenerty/ocidex/db"
 	"github.com/pfenerty/ocidex/internal/enrichment/provenance"
+	"github.com/pfenerty/ocidex/internal/repository"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // requireDocker skips the test if Docker is not available.
@@ -619,4 +622,95 @@ func TestSigningStatusParity_AllStatuses(t *testing.T) {
 			is.Equal(artifactDetail["signingStatus"], fx.want)
 		})
 	}
+}
+
+// TestProvenanceRecheckErrorPreservesData covers ocidex-goh.2: a transient
+// registry error during provenance reverification must not clobber a prior
+// verified result. Exercises the exact sequence the reverifier hits UpsertEnrichment
+// with (success, then a later error with no data), and asserts the SBOM keeps
+// reporting "verified" and remains eligible for the next recheck sweep.
+func TestProvenanceRecheckErrorPreservesData(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireDocker(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+
+	is := is.New(t)
+	ctx := t.Context()
+
+	memberID := seedUser(t, pool, 3001, "test-provenance-recheck", "member")
+	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "test", "read-write")
+	is.NoErr(err)
+
+	sbomJSON := fmt.Sprintf(signingStatusSBOMTemplate, 99, 99)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", sbomJSON, memberKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	var ingestResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingestResp))
+	resp.Body.Close()
+	sbomIDStr := ingestResp["id"].(string)
+
+	var sbomID pgtype.UUID
+	is.NoErr(sbomID.Scan(sbomIDStr))
+
+	queries := repository.New(pool)
+	verifiedData := []byte(`{"verified": true, "signaturePresent": true}`)
+
+	// The reverifier's first (successful) pass.
+	is.NoErr(queries.UpsertEnrichment(ctx, repository.UpsertEnrichmentParams{
+		SbomID:       sbomID,
+		EnricherName: "provenance",
+		Status:       "success",
+		Data:         verifiedData,
+	}))
+
+	// A later recheck hits a transient registry error: no data, just an error.
+	is.NoErr(queries.UpsertEnrichment(ctx, repository.UpsertEnrichmentParams{
+		SbomID:       sbomID,
+		EnricherName: "provenance",
+		Status:       "error",
+		ErrorMessage: pgtype.Text{String: "transient registry error", Valid: true},
+	}))
+
+	// The prior successful data and status must survive the error.
+	stored, err := queries.GetEnrichment(ctx, repository.GetEnrichmentParams{
+		SbomID:       sbomID,
+		EnricherName: "provenance",
+	})
+	is.NoErr(err)
+	is.Equal(stored.Status, "success")
+	is.Equal(string(stored.Data), string(verifiedData))
+	is.Equal(stored.ErrorMessage.String, "transient registry error")
+
+	// The user-visible signing status must still read "verified", not fall back
+	// to "unsigned" because the enrichment status flipped away from 'success'.
+	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomIDStr))
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var sbomDetail map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&sbomDetail))
+	resp.Body.Close()
+	is.Equal(sbomDetail["signingStatus"], "verified")
+
+	// The SBOM must remain eligible for the next recheck sweep.
+	due, err := queries.ListSBOMsDueForProvenanceRecheck(ctx, repository.ListSBOMsDueForProvenanceRecheckParams{
+		Cutoff:   pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true},
+		RowLimit: 10,
+	})
+	is.NoErr(err)
+	found := false
+	for _, id := range due {
+		if id.Bytes == sbomID.Bytes {
+			found = true
+			break
+		}
+	}
+	is.True(found)
 }
