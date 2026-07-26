@@ -29,12 +29,19 @@ func sameSigner(a, b provenance.Provenance) bool {
 // recordProvenanceDrift compares a SBOM's previous successful provenance
 // enrichment against its just-stored new one and, if the signing status
 // meaningfully changed, inserts a provenance_drift_events row.
+//
+// Malformed provenance JSON is log-and-degrade, not a hard error: it's
+// enricher output, not user input, so a bad row just means no drift event is
+// recorded for this enrichment cycle. See also GetSBOM in
+// internal/service/search_sbom.go, which applies the same policy.
 func (d *Dispatcher) recordProvenanceDrift(ctx context.Context, sbomID pgtype.UUID, oldData, newData []byte) {
 	var oldP, newP provenance.Provenance
 	if err := json.Unmarshal(oldData, &oldP); err != nil {
+		d.logger.Error("parsing previous provenance enrichment", "sbom_id", sbomID, "err", err)
 		return
 	}
 	if err := json.Unmarshal(newData, &newP); err != nil {
+		d.logger.Error("parsing new provenance enrichment", "sbom_id", sbomID, "err", err)
 		return
 	}
 
