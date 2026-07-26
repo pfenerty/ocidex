@@ -449,10 +449,11 @@ bd close <epic-id>
 | 025 | RBAC / Visibility Model | Registry owner, public/private visibility, API key scopes (read/write) |
 | 026 | Pluggable Enricher Interface | `Enricher` interface (`Name/CanEnrich/Enrich`), `Dispatcher`, registration at startup |
 | 027 | Ephemeral Job Contract | `--once` flag for K8s Job mode; env vars, exit codes, structured lifecycle logs |
-| 032 | Provenance Verification | Tiered trust per registry (display → ECDSA verify); four status values; digest-bound; no cosign SDK |
+| 032 | Provenance Verification | ~~Tiered trust per registry (display → ECDSA verify); four status values; digest-bound; no cosign SDK~~ superseded by 037 |
 | 033 | Per-Enricher Services | Per-enricher `cmd/` binary + Docker image + NATS consumer; `enrichment_jobs.enricher_name` partitions work |
 | 034 | Component Provenance | CycloneDX retained (SPDX is a lateral move, no new capability); capability-driven typed columns (no generic property hoarding); base-vs-app layer caveat (ordinal-0-only, package-DB-layer granularity) |
 | 035 | Enricher Dependency Chaining | Completion-driven dependent enqueue via deps.go graph; reuses enrichment_jobs outbox + `.enrich.hint` doorbell; no new tables/subjects; `--once` mode does not chain |
+| 037 | Cosign-Delegated Provenance Verification | Three trust tiers (none/public_key/keyless) via cosign.CheckOpts; five status values incl. artifact_missing; adopted cosign/sigstore-go (786 transitive deps), reversing ADR-032 |
 
 **When working on diff, dependency-tree, or changelog code, read ADRs 0019–0021 first.** They are the normative contract; the implementation issues (`ocidex-bqh.*`) reference them by section.
 
