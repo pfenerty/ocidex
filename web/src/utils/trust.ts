@@ -1,5 +1,3 @@
-import type { Provenance } from "~/api/client";
-
 export type TrustVariant = "success" | "warning" | "danger" | "neutral";
 
 export interface TrustStatus {
@@ -7,16 +5,25 @@ export interface TrustStatus {
     variant: TrustVariant;
 }
 
-// trustStatus derives the headline trust signal from provenance enrichment.
-// Returns null when there is no provenance data to summarize.
-export function trustStatus(p: Provenance | undefined): TrustStatus | null {
-    if (p === undefined) return null;
-    if (p.artifactMissing === true) return { label: "Artifact missing", variant: "danger" };
-    if (p.verified === true) return { label: "Verified", variant: "success" };
-    if (p.verified === false) return { label: "Verification failed", variant: "danger" };
-    if (p.signaturePresent === true || p.attestationPresent === true)
-        return { label: "Signed", variant: "warning" };
-    return { label: "Unsigned", variant: "neutral" };
+const STATUS_INFO: Record<string, TrustStatus> = {
+    artifact_missing: { label: "Artifact missing", variant: "danger" },
+    verified: { label: "Verified", variant: "success" },
+    verification_failed: { label: "Verification failed", variant: "danger" },
+    signed: { label: "Signed", variant: "warning" },
+    unsigned: { label: "Unsigned", variant: "neutral" },
+};
+
+// trustStatus maps a server-computed signing status to the headline trust
+// signal. Returns null when there is no status to summarize.
+export function trustStatus(status: string | undefined): TrustStatus | null {
+    if (status === undefined) return null;
+    return STATUS_INFO[status] ?? null;
+}
+
+// signingStatusLabel returns the display label for a signing status,
+// falling back to the raw status string for unrecognized values.
+export function signingStatusLabel(status: string): string {
+    return trustStatus(status)?.label ?? status;
 }
 
 // trustBadgeClass maps a trust variant to the shared badge CSS class.

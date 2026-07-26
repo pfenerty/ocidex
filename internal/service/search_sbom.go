@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/pfenerty/ocidex/internal/enrichment/provenance"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
@@ -88,13 +89,18 @@ func (s *searchService) GetSBOM(ctx context.Context, id pgtype.UUID, includeRaw 
 
 	// Most recent provenance drift event, if this SBOM has ever been re-verified
 	// with a different result than its original signing status.
-	if _, hasProvenance := detail.Enrichments["provenance"]; hasProvenance {
+	var signingProv provenance.Provenance
+	if raw, hasProvenance := detail.Enrichments["provenance"]; hasProvenance {
+		if err := json.Unmarshal(raw, &signingProv); err != nil {
+			return SBOMDetail{}, fmt.Errorf("parsing provenance enrichment: %w", err)
+		}
 		drift, err := lookupProvenanceDrift(ctx, q, id)
 		if err != nil {
 			return SBOMDetail{}, err
 		}
 		detail.ProvenanceDrift = drift
 	}
+	detail.SigningStatus = provenance.SigningStatus(signingProv)
 
 	// Vulnerability summary (joins component.purl against the vulnerability store).
 	vsRows, err := q.GetSBOMVulnSummary(ctx, id)

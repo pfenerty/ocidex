@@ -13,24 +13,22 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND (pe.data->>'artifactMissing')::boolean = true
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'artifact_missing'
            ) THEN 'artifact_missing'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND (pe.data->>'verified')::boolean = true
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
            ) THEN 'verified'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND (pe.data->>'verified')::boolean = false
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'verification_failed'
            ) THEN 'verification_failed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success'
-                 AND ((pe.data->>'signaturePresent')::boolean = true
-                      OR (pe.data->>'attestationPresent')::boolean = true)
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
            ) THEN 'signed'
            ELSE 'unsigned'
        END)::text AS signing_status
@@ -45,24 +43,22 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND (pe.data->>'artifactMissing')::boolean = true
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'artifact_missing'
            ) THEN 'artifact_missing'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND (pe.data->>'verified')::boolean = true
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
            ) THEN 'verified'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND (pe.data->>'verified')::boolean = false
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'verification_failed'
            ) THEN 'verification_failed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success'
-                 AND ((pe.data->>'signaturePresent')::boolean = true
-                      OR (pe.data->>'attestationPresent')::boolean = true)
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
            ) THEN 'signed'
            ELSE 'unsigned'
        END)::text AS signing_status
@@ -147,14 +143,7 @@ WITH sboms_meta AS (
         COALESCE(e.data->>'revision',      u.data->>'revision')          AS revision,
         COALESCE(e.data->>'sourceUrl',     u.data->>'sourceUrl')         AS source_url,
         (COALESCE(e.data->>'created',      u.data->>'created'))::timestamptz AS build_date,
-        CASE
-            WHEN (p.data->>'artifactMissing')::boolean = true THEN 'artifact_missing'
-            WHEN (p.data->>'verified')::boolean = true THEN 'verified'
-            WHEN (p.data->>'verified')::boolean = false THEN 'verification_failed'
-            WHEN (p.data->>'signaturePresent')::boolean = true
-                 OR (p.data->>'attestationPresent')::boolean = true THEN 'signed'
-            ELSE 'unsigned'
-        END AS signing_status
+        signing_status(p.data) AS signing_status
     FROM sbom s
     LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
     LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user'         AND u.status = 'success'

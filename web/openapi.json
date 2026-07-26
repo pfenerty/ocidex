@@ -2906,6 +2906,9 @@
           "serialNumber": {
             "type": "string"
           },
+          "signingStatus": {
+            "type": "string"
+          },
           "sourceUrl": {
             "type": "string"
           },
@@ -2928,6 +2931,7 @@
         },
         "required": [
           "packageCount",
+          "signingStatus",
           "id",
           "specVersion",
           "version",

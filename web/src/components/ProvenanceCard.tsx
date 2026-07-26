@@ -5,7 +5,7 @@ import { Check, X } from "lucide-solid";
 import type { Provenance, ProvenanceDriftSummary } from "~/api/client";
 import { formatDateTime } from "~/utils/format";
 import { isGitHubUrl, gitHubCommitUrl } from "~/utils/oci";
-import { trustStatus, trustBadgeClass } from "~/utils/trust";
+import { trustStatus, trustBadgeClass, signingStatusLabel } from "~/utils/trust";
 import { ShieldIcon, GitHubIcon, ExternalLinkIcon } from "./metadata/OciIcons";
 import { LinkedField } from "./metadata/LinkedField";
 
@@ -25,21 +25,13 @@ const driftReasonLabels: Record<string, string> = {
     reverification_failed: "re-verification failed",
 };
 
-const statusLabels: Record<string, string> = {
-    unsigned: "Unsigned",
-    signed: "Signed",
-    verified: "Verified",
-    verification_failed: "Verification failed",
-    artifact_missing: "Artifact missing",
-};
-
-export default function ProvenanceCard(props: { provenance: Provenance; drift?: ProvenanceDriftSummary }) {
+export default function ProvenanceCard(props: { provenance: Provenance; signingStatus: string; drift?: ProvenanceDriftSummary }) {
     // eslint-disable-next-line solid/reactivity
     const p = props.provenance;
     // eslint-disable-next-line solid/reactivity
     const drift = props.drift;
 
-    const trust = () => trustStatus(p);
+    const trust = () => trustStatus(props.signingStatus);
 
     const commitUrl = () => {
         if (p.sourceUri === undefined || p.sourceCommit === undefined) return null;
@@ -71,8 +63,8 @@ export default function ProvenanceCard(props: { provenance: Provenance; drift?: 
                 {(d) => (
                     <div class="badge badge-warning" style={{ display: "block", "margin-bottom": "0.75rem" }}>
                         Verification status changed from{" "}
-                        <strong>{statusLabels[d().previousStatus] ?? d().previousStatus}</strong> to{" "}
-                        <strong>{statusLabels[d().newStatus] ?? d().newStatus}</strong> on{" "}
+                        <strong>{signingStatusLabel(d().previousStatus)}</strong> to{" "}
+                        <strong>{signingStatusLabel(d().newStatus)}</strong> on{" "}
                         {formatDateTime(d().detectedAt)}
                         {d().reason in driftReasonLabels && ` — ${driftReasonLabels[d().reason]}`}.
                     </div>

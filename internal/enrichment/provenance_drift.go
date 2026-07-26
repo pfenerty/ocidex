@@ -10,23 +10,6 @@ import (
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
-// signingStatus derives the same terminal status the signing_status SQL CASE
-// expression computes, from a single provenance enrichment's data.
-func signingStatus(p provenance.Provenance) string {
-	switch {
-	case p.ArtifactMissing:
-		return "artifact_missing"
-	case p.Verified != nil && *p.Verified:
-		return "verified"
-	case p.Verified != nil && !*p.Verified:
-		return "verification_failed"
-	case p.SignaturePresent || p.AttestationPresent:
-		return "signed"
-	default:
-		return "unsigned"
-	}
-}
-
 // sameSigner reports whether a and b carry the same non-empty signer
 // identity (public-key fingerprint, or keyless identity+issuer). Used to
 // tell "our trust config changed" (same signer, different verification
@@ -55,8 +38,8 @@ func (d *Dispatcher) recordProvenanceDrift(ctx context.Context, sbomID pgtype.UU
 		return
 	}
 
-	oldStatus := signingStatus(oldP)
-	newStatus := signingStatus(newP)
+	oldStatus := provenance.SigningStatus(oldP)
+	newStatus := provenance.SigningStatus(newP)
 	if newStatus == oldStatus {
 		return
 	}

@@ -19,6 +19,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/pfenerty/ocidex/db"
+	"github.com/pfenerty/ocidex/internal/enrichment/provenance"
 )
 
 // requireDocker skips the test if Docker is not available.
@@ -505,4 +506,117 @@ func firstArtifact(t *testing.T, baseURL, apiKey string) map[string]any {
 	data := listResp["data"].([]any)
 	is.Equal(len(data), 1)
 	return data[0].(map[string]any)
+}
+
+// signingStatusFixtures covers all 5 terminal signing statuses, exercising
+// the Go classifier (provenance.SigningStatus), the SBOM detail endpoint
+// (Go-computed), and the artifact detail endpoint (SQL-computed) in one pass.
+var signingStatusFixtures = []struct {
+	name string
+	data string // provenance enrichment JSON
+	want string
+}{
+	{"unsigned", `{}`, "unsigned"},
+	{"signed", `{"signaturePresent": true}`, "signed"},
+	{"verified", `{"verified": true, "signaturePresent": true}`, "verified"},
+	{"verification_failed", `{"verified": false, "signaturePresent": true}`, "verification_failed"},
+	{"artifact_missing", `{"artifactMissing": true}`, "artifact_missing"},
+}
+
+// signingStatusSBOMTemplate is a minimal container SBOM parameterized by an
+// index so each fixture resolves to a distinct artifact/digest.
+const signingStatusSBOMTemplate = `{
+	"bomFormat": "CycloneDX",
+	"specVersion": "1.6",
+	"serialNumber": "urn:uuid:11111111-1111-1111-1111-11111111111%d",
+	"version": 1,
+	"metadata": {
+		"component": {
+			"type": "container",
+			"name": "docker.io/signing-status-fixture@sha256:%064d",
+			"version": "1.0",
+			"properties": [
+				{"name": "syft:image:labels:org.opencontainers.image.architecture", "value": "amd64"}
+			]
+		}
+	},
+	"components": [
+		{
+			"type": "library",
+			"name": "adduser",
+			"version": "3.118ubuntu2",
+			"purl": "pkg:deb/ubuntu/adduser@3.118ubuntu2?arch=all&distro=ubuntu-24.04"
+		}
+	]
+}`
+
+// TestSigningStatusParity_AllStatuses verifies that for every terminal
+// signing status, the Go classifier (provenance.SigningStatus), the SBOM
+// detail endpoint's Go-computed signingStatus, and the artifact detail
+// endpoint's SQL-computed signingStatus all agree. Regression coverage for
+// ocidex-82g.3 (single source of truth for signing-status derivation).
+func TestSigningStatusParity_AllStatuses(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireDocker(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+
+	memberID := seedUser(t, pool, 8200, "signing-status-member", "member")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "signing-status-test", "read-write")
+	is.New(t).NoErr(err)
+
+	for i, fx := range signingStatusFixtures {
+		t.Run(fx.name, func(t *testing.T) {
+			is := is.New(t)
+
+			// Go side: the classifier used by the SBOM detail endpoint.
+			var p provenance.Provenance
+			is.NoErr(json.Unmarshal([]byte(fx.data), &p))
+			is.Equal(provenance.SigningStatus(p), fx.want)
+
+			// Ingest a fixture-specific SBOM (distinct digest per fixture).
+			sbomJSON := fmt.Sprintf(signingStatusSBOMTemplate, i, i)
+			resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", sbomJSON, memberKey)
+			is.NoErr(err)
+			is.Equal(resp.StatusCode, http.StatusCreated)
+			var ingestResp map[string]any
+			is.NoErr(json.NewDecoder(resp.Body).Decode(&ingestResp))
+			resp.Body.Close()
+			sbomID := ingestResp["id"].(string)
+
+			// Seed the provenance enrichment.
+			_, err = pool.Exec(t.Context(),
+				`INSERT INTO enrichment (sbom_id, enricher_name, status, data)
+				 VALUES ($1::uuid, 'provenance', 'success', $2::jsonb)`,
+				sbomID, fx.data)
+			is.NoErr(err)
+
+			// SBOM detail endpoint: Go-computed signingStatus.
+			resp, err = doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomID))
+			is.NoErr(err)
+			is.Equal(resp.StatusCode, http.StatusOK)
+			var sbomDetail map[string]any
+			is.NoErr(json.NewDecoder(resp.Body).Decode(&sbomDetail))
+			resp.Body.Close()
+			is.Equal(sbomDetail["signingStatus"], fx.want)
+
+			artifactID, ok := sbomDetail["artifactId"].(string)
+			is.True(ok)
+
+			// Artifact detail endpoint: SQL-computed signingStatus.
+			resp, err = doGet(t, fmt.Sprintf("%s/api/v1/artifacts/%s", srv.URL, artifactID))
+			is.NoErr(err)
+			is.Equal(resp.StatusCode, http.StatusOK)
+			var artifactDetail map[string]any
+			is.NoErr(json.NewDecoder(resp.Body).Decode(&artifactDetail))
+			resp.Body.Close()
+			is.Equal(artifactDetail["signingStatus"], fx.want)
+		})
+	}
 }

@@ -1902,6 +1902,7 @@ export interface components {
             rawBom?: unknown;
             revision?: string;
             serialNumber?: string;
+            signingStatus: string;
             sourceUrl?: string;
             specVersion: string;
             subjectVersion?: string;

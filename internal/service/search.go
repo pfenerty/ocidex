@@ -318,6 +318,9 @@ type SBOMDetail struct {
 	PackageCount int64                      `json:"packageCount"`
 	RawBOM       json.RawMessage            `json:"rawBom,omitempty"`
 	Enrichments  map[string]json.RawMessage `json:"enrichments,omitempty"`
+	// SigningStatus is the terminal signing status derived from this SBOM's
+	// provenance enrichment ("unsigned" when none exists).
+	SigningStatus string `json:"signingStatus"`
 	// VulnSummary is the per-severity count of vulnerability findings across the
 	// SBOM's packages, derived by joining component.purl against the vulnerability
 	// store. Nil when the SBOM has no known vulnerabilities.
