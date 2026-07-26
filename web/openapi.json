@@ -192,7 +192,8 @@
               "unsigned",
               "signed",
               "verified",
-              "verification_failed"
+              "verification_failed",
+              "artifact_missing"
             ],
             "type": "string"
           },
@@ -2540,6 +2541,31 @@
         ],
         "type": "object"
       },
+      "ProvenanceDriftSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "detectedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "newStatus": {
+            "type": "string"
+          },
+          "previousStatus": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "previousStatus",
+          "newStatus",
+          "reason",
+          "detectedAt"
+        ],
+        "type": "object"
+      },
       "ReadinessCheckOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -2869,6 +2895,9 @@
           "packageCount": {
             "format": "int64",
             "type": "integer"
+          },
+          "provenanceDrift": {
+            "$ref": "#/components/schemas/ProvenanceDriftSummary"
           },
           "rawBom": {},
           "revision": {

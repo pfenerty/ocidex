@@ -322,6 +322,18 @@ type SBOMDetail struct {
 	// SBOM's packages, derived by joining component.purl against the vulnerability
 	// store. Nil when the SBOM has no known vulnerabilities.
 	VulnSummary *VulnSummary `json:"vulnSummary,omitempty"`
+	// ProvenanceDrift is the most recent recorded change in this SBOM's signing
+	// status (e.g. verified -> verification_failed after a trust config change
+	// or registry deletion). Nil when no drift has ever been recorded.
+	ProvenanceDrift *ProvenanceDriftSummary `json:"provenanceDrift,omitempty"`
+}
+
+// ProvenanceDriftSummary is the most recent provenance_drift_events row for a SBOM.
+type ProvenanceDriftSummary struct {
+	PreviousStatus string    `json:"previousStatus"`
+	NewStatus      string    `json:"newStatus"`
+	Reason         string    `json:"reason"`
+	DetectedAt     time.Time `json:"detectedAt"`
 }
 
 // VulnSummary is the per-severity vulnerability finding count for an SBOM. A

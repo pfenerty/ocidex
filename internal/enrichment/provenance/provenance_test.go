@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -107,7 +108,10 @@ type route struct {
 }
 
 // newTestServer creates an httptest server that responds to the given path→route map.
-// /v2/ always returns 200 for the auth probe.
+// /v2/ always returns 200 for the auth probe. A HEAD/GET to the digest manifest
+// path (repo/manifests/sha256:<hex>, used by Enrich()'s existence check) defaults
+// to 200 when not explicitly listed, since nearly every test assumes the image
+// exists; list it explicitly with statusCode 404 to test the "artifact missing" path.
 func newTestServer(t *testing.T, routes map[string]route) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
@@ -121,6 +125,16 @@ func newTestServer(t *testing.T, routes map[string]route) *httptest.Server {
 		path := strings.TrimPrefix(r.URL.Path, "/v2")
 		resp, ok := routes[path]
 		if !ok {
+			if strings.Contains(path, "/manifests/sha256:") {
+				digest := path[strings.LastIndex(path, "/")+1:]
+				body := []byte(`{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json"}`)
+				w.Header().Set("Content-Type", "application/vnd.oci.image.manifest.v1+json")
+				w.Header().Set("Docker-Content-Digest", digest)
+				w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(body)
+				return
+			}
 			http.NotFound(w, r)
 			return
 		}
@@ -564,6 +578,60 @@ func TestDiscover_NoAnchor(t *testing.T) {
 
 	is.True(!result.SignaturePresent)
 	is.True(!result.AttestationPresent)
+}
+
+// TestEnrich_ArtifactMissing verifies that a 404 on the digest manifest itself
+// (the artifact was deleted from the registry) is reported as ArtifactMissing,
+// distinct from "never signed" — sig/att discovery must not even run.
+func TestEnrich_ArtifactMissing(t *testing.T) {
+	is := is.New(t)
+
+	hexDigest := strings.TrimPrefix(testImageDigest, "sha256:")
+	repo := "/repo"
+
+	routes := map[string]route{
+		repo + "/manifests/sha256:" + hexDigest: {statusCode: http.StatusNotFound},
+	}
+
+	srv := newTestServer(t, routes)
+	defer srv.Close()
+
+	e := newTestEnricher(srv)
+	ref := testRef(strings.TrimPrefix(srv.URL, "http://"))
+
+	data, err := e.Enrich(t.Context(), ref)
+	is.NoErr(err)
+
+	var result Provenance
+	is.NoErr(json.Unmarshal(data, &result))
+
+	is.True(result.ArtifactMissing)
+	is.True(!result.SignaturePresent)
+	is.True(!result.AttestationPresent)
+}
+
+// TestEnrich_ExistenceCheckTransientError verifies that a non-404 failure
+// checking artifact existence (network issue, 5xx, auth failure) surfaces as
+// an Enrich() error for job-queue retry, rather than being misclassified as
+// artifact deletion.
+func TestEnrich_ExistenceCheckTransientError(t *testing.T) {
+	is := is.New(t)
+
+	hexDigest := strings.TrimPrefix(testImageDigest, "sha256:")
+	repo := "/repo"
+
+	routes := map[string]route{
+		repo + "/manifests/sha256:" + hexDigest: {statusCode: http.StatusInternalServerError},
+	}
+
+	srv := newTestServer(t, routes)
+	defer srv.Close()
+
+	e := newTestEnricher(srv)
+	ref := testRef(strings.TrimPrefix(srv.URL, "http://"))
+
+	_, err := e.Enrich(t.Context(), ref)
+	is.True(err != nil)
 }
 
 // ----- CanEnrich / Name -------------------------------------------------------

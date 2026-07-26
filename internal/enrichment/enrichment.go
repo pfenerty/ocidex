@@ -39,6 +39,8 @@ type Enricher interface {
 // Store persists enrichment results. Implemented by the repository layer.
 type Store interface {
 	UpsertEnrichment(ctx context.Context, arg repository.UpsertEnrichmentParams) error
+	GetEnrichment(ctx context.Context, arg repository.GetEnrichmentParams) (repository.Enrichment, error)
 	UpdateSBOMSubjectVersion(ctx context.Context, arg repository.UpdateSBOMSubjectVersionParams) error
 	UpdateSBOMEnrichmentSufficient(ctx context.Context, arg repository.UpdateSBOMEnrichmentSufficientParams) error
+	InsertProvenanceDrift(ctx context.Context, arg repository.InsertProvenanceDriftParams) error
 }

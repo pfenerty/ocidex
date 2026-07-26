@@ -218,7 +218,7 @@ export default function SBOMDetail() {
                                     keyed
                                     fallback={<EmptyState title="No provenance data" message="No cosign signature or SLSA attestation was found for this image. Provenance enrichment runs after ingestion." />}
                                 >
-                                    {(prov) => <ProvenanceCard provenance={prov} />}
+                                    {(prov) => <ProvenanceCard provenance={prov} drift={sbomQuery.data?.provenanceDrift} />}
                                 </Show>
                             </Show>
 

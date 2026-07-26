@@ -16,6 +16,7 @@ const (
 
 // Defines values for ArtifactVersionSummarySigningStatus.
 const (
+	ArtifactMissing    ArtifactVersionSummarySigningStatus = "artifact_missing"
 	Signed             ArtifactVersionSummarySigningStatus = "signed"
 	Unsigned           ArtifactVersionSummarySigningStatus = "unsigned"
 	VerificationFailed ArtifactVersionSummarySigningStatus = "verification_failed"
@@ -25,6 +26,8 @@ const (
 // Valid indicates whether the value is a known member of the ArtifactVersionSummarySigningStatus enum.
 func (e ArtifactVersionSummarySigningStatus) Valid() bool {
 	switch e {
+	case ArtifactMissing:
+		return true
 	case Signed:
 		return true
 	case Unsigned:
@@ -1371,6 +1374,14 @@ type PaginationMeta struct {
 	Total int64 `json:"total"`
 }
 
+// ProvenanceDriftSummary defines model for ProvenanceDriftSummary.
+type ProvenanceDriftSummary struct {
+	DetectedAt     time.Time `json:"detectedAt"`
+	NewStatus      string    `json:"newStatus"`
+	PreviousStatus string    `json:"previousStatus"`
+	Reason         string    `json:"reason"`
+}
+
 // ReadinessCheckOutputBody defines model for ReadinessCheckOutputBody.
 type ReadinessCheckOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -1480,27 +1491,28 @@ type RetryAllFailedScanJobsOutputBody struct {
 // SBOMDetail defines model for SBOMDetail.
 type SBOMDetail struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema         *string                 `json:"$schema,omitempty"`
-	Architecture   *string                 `json:"architecture,omitempty"`
-	ArtifactId     *string                 `json:"artifactId,omitempty"`
-	BuildDate      *time.Time              `json:"buildDate,omitempty"`
-	ComponentCount *int64                  `json:"componentCount,omitempty"`
-	CreatedAt      time.Time               `json:"createdAt"`
-	Digest         *string                 `json:"digest,omitempty"`
-	Enrichments    *map[string]interface{} `json:"enrichments,omitempty"`
-	Flavor         *string                 `json:"flavor,omitempty"`
-	Id             string                  `json:"id"`
-	ImageVersion   *string                 `json:"imageVersion,omitempty"`
-	PackageCount   int64                   `json:"packageCount"`
-	RawBom         interface{}             `json:"rawBom,omitempty"`
-	Revision       *string                 `json:"revision,omitempty"`
-	SerialNumber   *string                 `json:"serialNumber,omitempty"`
-	SourceUrl      *string                 `json:"sourceUrl,omitempty"`
-	SpecVersion    string                  `json:"specVersion"`
-	SubjectVersion *string                 `json:"subjectVersion,omitempty"`
-	Sufficient     bool                    `json:"sufficient"`
-	Version        int32                   `json:"version"`
-	VulnSummary    *VulnSummary            `json:"vulnSummary,omitempty"`
+	Schema          *string                 `json:"$schema,omitempty"`
+	Architecture    *string                 `json:"architecture,omitempty"`
+	ArtifactId      *string                 `json:"artifactId,omitempty"`
+	BuildDate       *time.Time              `json:"buildDate,omitempty"`
+	ComponentCount  *int64                  `json:"componentCount,omitempty"`
+	CreatedAt       time.Time               `json:"createdAt"`
+	Digest          *string                 `json:"digest,omitempty"`
+	Enrichments     *map[string]interface{} `json:"enrichments,omitempty"`
+	Flavor          *string                 `json:"flavor,omitempty"`
+	Id              string                  `json:"id"`
+	ImageVersion    *string                 `json:"imageVersion,omitempty"`
+	PackageCount    int64                   `json:"packageCount"`
+	ProvenanceDrift *ProvenanceDriftSummary `json:"provenanceDrift,omitempty"`
+	RawBom          interface{}             `json:"rawBom,omitempty"`
+	Revision        *string                 `json:"revision,omitempty"`
+	SerialNumber    *string                 `json:"serialNumber,omitempty"`
+	SourceUrl       *string                 `json:"sourceUrl,omitempty"`
+	SpecVersion     string                  `json:"specVersion"`
+	SubjectVersion  *string                 `json:"subjectVersion,omitempty"`
+	Sufficient      bool                    `json:"sufficient"`
+	Version         int32                   `json:"version"`
+	VulnSummary     *VulnSummary            `json:"vulnSummary,omitempty"`
 }
 
 // SBOMRef defines model for SBOMRef.

@@ -11,6 +11,7 @@ export interface TrustStatus {
 // Returns null when there is no provenance data to summarize.
 export function trustStatus(p: Provenance | undefined): TrustStatus | null {
     if (p === undefined) return null;
+    if (p.artifactMissing === true) return { label: "Artifact missing", variant: "danger" };
     if (p.verified === true) return { label: "Verified", variant: "success" };
     if (p.verified === false) return { label: "Verification failed", variant: "danger" };
     if (p.signaturePresent === true || p.attestationPresent === true)

@@ -13,6 +13,11 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND pe.status = 'success' AND (pe.data->>'artifactMissing')::boolean = true
+           ) THEN 'artifact_missing'
+           WHEN EXISTS (
+               SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
+               WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
                  AND pe.status = 'success' AND (pe.data->>'verified')::boolean = true
            ) THEN 'verified'
            WHEN EXISTS (
@@ -37,6 +42,11 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
        COUNT(s.id) AS sbom_count,
        COUNT(s.id) FILTER (WHERE s.enrichment_sufficient) AS sufficient_sbom_count,
        (SELECT CASE
+           WHEN EXISTS (
+               SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
+               WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
+                 AND pe.status = 'success' AND (pe.data->>'artifactMissing')::boolean = true
+           ) THEN 'artifact_missing'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
@@ -138,6 +148,7 @@ WITH sboms_meta AS (
         COALESCE(e.data->>'sourceUrl',     u.data->>'sourceUrl')         AS source_url,
         (COALESCE(e.data->>'created',      u.data->>'created'))::timestamptz AS build_date,
         CASE
+            WHEN (p.data->>'artifactMissing')::boolean = true THEN 'artifact_missing'
             WHEN (p.data->>'verified')::boolean = true THEN 'verified'
             WHEN (p.data->>'verified')::boolean = false THEN 'verification_failed'
             WHEN (p.data->>'signaturePresent')::boolean = true

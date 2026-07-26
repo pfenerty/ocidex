@@ -84,6 +84,11 @@ type Config struct {
 	// RegistryPollerEnabled starts the background poller for poll-mode registries.
 	RegistryPollerEnabled bool `env:"REGISTRY_POLLER_ENABLED" envDefault:"false"`
 
+	// ProvenanceRecheckInterval is how old a SBOM's last successful provenance
+	// check must be before it's requeued for re-verification (drift detection:
+	// trust config changes, registry deletions).
+	ProvenanceRecheckInterval time.Duration `env:"PROVENANCE_RECHECK_INTERVAL" envDefault:"24h"`
+
 	// Ingest-time vuln lookup — queries OSV for purls from newly ingested SBOMs
 	// that are not yet in package_vulnerability. Shares env var names with VulnWorkerConfig.
 	IngestVulnLookupEnabled        bool          `env:"INGEST_VULN_LOOKUP_ENABLED"         envDefault:"true"`

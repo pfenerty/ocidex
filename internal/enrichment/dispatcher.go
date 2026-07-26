@@ -165,6 +165,16 @@ func (d *Dispatcher) processSubject(ctx context.Context, ref SubjectRef) error {
 			params.Data = data
 		}
 
+		var priorProvenance *repository.Enrichment
+		if err == nil && e.Name() == "provenance" {
+			if prior, getErr := d.store.GetEnrichment(ctx, repository.GetEnrichmentParams{
+				SbomID:       ref.SBOMId,
+				EnricherName: "provenance",
+			}); getErr == nil {
+				priorProvenance = &prior
+			}
+		}
+
 		if storeErr := d.store.UpsertEnrichment(ctx, params); storeErr != nil {
 			d.logger.Error("failed to store enrichment result",
 				"enricher", e.Name(),
@@ -180,6 +190,9 @@ func (d *Dispatcher) processSubject(ctx context.Context, ref SubjectRef) error {
 			}
 			if e.Name() == "oci-metadata" || e.Name() == "user" {
 				d.applyEnrichmentSufficiency(ctx, ref.SBOMId, data)
+			}
+			if e.Name() == "provenance" && priorProvenance != nil && priorProvenance.Status == "success" {
+				d.recordProvenanceDrift(ctx, ref.SBOMId, priorProvenance.Data, data)
 			}
 		}
 	}

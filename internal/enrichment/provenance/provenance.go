@@ -6,8 +6,10 @@ package provenance
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 
 	"github.com/pfenerty/ocidex/internal/enrichment"
 )
@@ -40,6 +43,7 @@ type RawArtifacts struct {
 	AttLayerBytes   []byte            `json:"attLayerBytes,omitempty"`   // raw DSSE envelope or raw in-toto statement
 	AttArtifactType string            `json:"attArtifactType,omitempty"` // attArtifactType | inTotoArtifactType; empty means DSSE
 	DiscoveryMethod string            `json:"discoveryMethod"`           // "referrers" | "tag-scheme"
+	ArtifactMissing bool              `json:"artifactMissing,omitempty"` // true when the registry no longer has this digest
 }
 
 // TrustConfig is the per-host verification configuration resolved from the
@@ -161,7 +165,43 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 		return nil, fmt.Errorf("expected digest reference for %q", imageRef)
 	}
 
-	// Build remote options (same pattern as internal/enrichment/oci/oci.go).
+	opts := e.buildRemoteOptions(ctx, host)
+
+	// Confirm the digest still exists before discovering sig/att data. Without
+	// this, a deleted image and a never-signed image are indistinguishable:
+	// discover()'s referrers/tag-scheme lookups fail the same way for both,
+	// silently downgrading a drift event (verified -> gone) to "unsigned".
+	missing, err := artifactMissing(digestRef, opts)
+	if err != nil {
+		return nil, fmt.Errorf("checking artifact existence for %q: %w", imageRef, err)
+	}
+	if missing {
+		data, err := json.Marshal(buildProvenance(RawArtifacts{ArtifactMissing: true}))
+		if err != nil {
+			return nil, fmt.Errorf("marshaling provenance: %w", err)
+		}
+		return data, nil
+	}
+
+	raw := e.discover(ctx, digestRef, repo, lookupDigest, opts)
+	p := buildProvenance(raw)
+	if p.RekorLogIndex > 0 {
+		p.RekorUUID = fetchRekorUUID(ctx, p.RekorLogIndex)
+	}
+	if e.trustResolver != nil {
+		e.applyTrust(ctx, &p, raw, host, lookupDigest)
+	}
+
+	data, err := json.Marshal(p)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling provenance: %w", err)
+	}
+	return data, nil
+}
+
+// buildRemoteOptions assembles go-containerregistry remote options for host,
+// including per-host credentials (same pattern as internal/enrichment/oci/oci.go).
+func (e *Enricher) buildRemoteOptions(ctx context.Context, host string) []remote.Option {
 	opts := make([]remote.Option, 0, len(e.options)+2)
 	opts = append(opts, remote.WithContext(ctx))
 	opts = append(opts, e.options...)
@@ -173,27 +213,32 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 			})))
 		}
 	}
+	return opts
+}
 
-	raw := e.discover(ctx, digestRef, repo, lookupDigest, opts)
-	p := buildProvenance(raw)
-	if p.RekorLogIndex > 0 {
-		p.RekorUUID = fetchRekorUUID(ctx, p.RekorLogIndex)
+// applyTrust dispatches to the configured verification mode's checker.
+func (e *Enricher) applyTrust(ctx context.Context, p *Provenance, raw RawArtifacts, host, imageDigest string) {
+	cfg := e.trustResolver(ctx, host)
+	switch cfg.Mode {
+	case "public_key":
+		applyVerification(p, raw, cfg.Mode, cfg.PublicKeyPEM, imageDigest)
+	case "keyless":
+		applyKeylessVerification(ctx, p, raw, cfg, imageDigest)
 	}
-	if e.trustResolver != nil {
-		cfg := e.trustResolver(ctx, host)
-		switch cfg.Mode {
-		case "public_key":
-			applyVerification(&p, raw, cfg.Mode, cfg.PublicKeyPEM, lookupDigest)
-		case "keyless":
-			applyKeylessVerification(ctx, &p, raw, cfg, lookupDigest)
+}
+
+// artifactMissing reports whether digestRef no longer exists in the registry
+// (404/MANIFEST_UNKNOWN). Any other error (network, auth, 5xx) is returned as
+// an error so the caller treats it as transient rather than deletion.
+func artifactMissing(digestRef name.Digest, opts []remote.Option) (bool, error) {
+	if _, err := remote.Head(digestRef, opts...); err != nil {
+		var terr *transport.Error
+		if errors.As(err, &terr) && terr.StatusCode == http.StatusNotFound {
+			return true, nil
 		}
+		return false, err
 	}
-
-	data, err := json.Marshal(p)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling provenance: %w", err)
-	}
-	return data, nil
+	return false, nil
 }
 
 // discover tries the OCI 1.1 referrers API first, then falls back to the cosign tag scheme.

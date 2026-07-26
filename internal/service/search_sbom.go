@@ -81,18 +81,19 @@ func (s *searchService) GetSBOM(ctx context.Context, id pgtype.UUID, includeRaw 
 	}
 
 	// Fetch enrichment data for this SBOM.
-	enrichRows, err := q.ListEnrichmentsBySBOM(ctx, id)
+	detail.Enrichments, err = fetchEnrichments(ctx, q, id)
 	if err != nil {
-		return SBOMDetail{}, fmt.Errorf("listing enrichments: %w", err)
+		return SBOMDetail{}, err
 	}
-	for _, e := range enrichRows {
-		if e.Status != "success" || len(e.Data) == 0 {
-			continue
+
+	// Most recent provenance drift event, if this SBOM has ever been re-verified
+	// with a different result than its original signing status.
+	if _, hasProvenance := detail.Enrichments["provenance"]; hasProvenance {
+		drift, err := lookupProvenanceDrift(ctx, q, id)
+		if err != nil {
+			return SBOMDetail{}, err
 		}
-		if detail.Enrichments == nil {
-			detail.Enrichments = make(map[string]json.RawMessage)
-		}
-		detail.Enrichments[e.EnricherName] = json.RawMessage(e.Data)
+		detail.ProvenanceDrift = drift
 	}
 
 	// Vulnerability summary (joins component.purl against the vulnerability store).
@@ -103,6 +104,44 @@ func (s *searchService) GetSBOM(ctx context.Context, id pgtype.UUID, includeRaw 
 	detail.VulnSummary = buildVulnSummary(vsRows)
 
 	return detail, nil
+}
+
+// fetchEnrichments returns successful enrichment results for sbomID, keyed by
+// enricher name. Nil when there are none.
+func fetchEnrichments(ctx context.Context, q *repository.Queries, sbomID pgtype.UUID) (map[string]json.RawMessage, error) {
+	rows, err := q.ListEnrichmentsBySBOM(ctx, sbomID)
+	if err != nil {
+		return nil, fmt.Errorf("listing enrichments: %w", err)
+	}
+	var enrichments map[string]json.RawMessage
+	for _, e := range rows {
+		if e.Status != "success" || len(e.Data) == 0 {
+			continue
+		}
+		if enrichments == nil {
+			enrichments = make(map[string]json.RawMessage)
+		}
+		enrichments[e.EnricherName] = json.RawMessage(e.Data)
+	}
+	return enrichments, nil
+}
+
+// lookupProvenanceDrift returns the most recent provenance_drift_events row
+// for sbomID, or nil if the SBOM has never drifted.
+func lookupProvenanceDrift(ctx context.Context, q *repository.Queries, sbomID pgtype.UUID) (*ProvenanceDriftSummary, error) {
+	drift, err := q.GetLatestProvenanceDrift(ctx, sbomID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("getting provenance drift: %w", err)
+	}
+	return &ProvenanceDriftSummary{
+		PreviousStatus: drift.PreviousStatus,
+		NewStatus:      drift.NewStatus,
+		Reason:         drift.Reason,
+		DetectedAt:     drift.DetectedAt.Time,
+	}, nil
 }
 
 // buildVulnSummary folds per-severity counts into a VulnSummary, or nil when

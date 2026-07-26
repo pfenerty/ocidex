@@ -944,7 +944,7 @@ export interface components {
              * @description Signing status derived from provenance enrichment
              * @enum {string}
              */
-            signingStatus: "unsigned" | "signed" | "verified" | "verification_failed";
+            signingStatus: "unsigned" | "signed" | "verified" | "verification_failed" | "artifact_missing";
             sourceUrl?: string;
             sufficient: boolean;
             versionKey: string;
@@ -1755,6 +1755,13 @@ export interface components {
              */
             total: number;
         };
+        ProvenanceDriftSummary: {
+            /** Format: date-time */
+            detectedAt: string;
+            newStatus: string;
+            previousStatus: string;
+            reason: string;
+        };
         ReadinessCheckOutputBody: {
             /**
              * Format: uri
@@ -1891,6 +1898,7 @@ export interface components {
             imageVersion?: string;
             /** Format: int64 */
             packageCount: number;
+            provenanceDrift?: components["schemas"]["ProvenanceDriftSummary"];
             rawBom?: unknown;
             revision?: string;
             serialNumber?: string;

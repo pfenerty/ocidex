@@ -27,6 +27,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/extension"
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
+	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
 	"github.com/pfenerty/ocidex/internal/version"
@@ -133,6 +134,13 @@ func run() error {
 	} else {
 		warnUnpolledRegistries(ctx, registrySvc)
 	}
+
+	reverifier := enrichment.NewReverifier(repository.New(pool), cfg.ProvenanceRecheckInterval, logger)
+	rh := fnv.New64a()
+	rh.Write([]byte("ocidex-reverifier"))
+	reverifierKey := int64(rh.Sum64()) //nolint:gosec
+	go service.LeaderElect(extCtx, pool, reverifierKey, reverifier.Run)
+	slog.Info("provenance reverifier election started", "lock_key", reverifierKey, "interval", cfg.ProvenanceRecheckInterval)
 
 	go runSessionCleaner(extCtx, authSvc)
 

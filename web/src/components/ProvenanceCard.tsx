@@ -2,7 +2,7 @@ import "~/components/DetailSection.css";
 import "./ProvenanceCard.css";
 import { Show, For } from "solid-js";
 import { Check, X } from "lucide-solid";
-import type { Provenance } from "~/api/client";
+import type { Provenance, ProvenanceDriftSummary } from "~/api/client";
 import { formatDateTime } from "~/utils/format";
 import { isGitHubUrl, gitHubCommitUrl } from "~/utils/oci";
 import { trustStatus, trustBadgeClass } from "~/utils/trust";
@@ -19,9 +19,25 @@ function FactPill(props: { present: boolean; label: string }) {
     );
 }
 
-export default function ProvenanceCard(props: { provenance: Provenance }) {
+const driftReasonLabels: Record<string, string> = {
+    trust_config_changed: "the registry's trust configuration changed",
+    artifact_missing: "the artifact was removed from the registry",
+    reverification_failed: "re-verification failed",
+};
+
+const statusLabels: Record<string, string> = {
+    unsigned: "Unsigned",
+    signed: "Signed",
+    verified: "Verified",
+    verification_failed: "Verification failed",
+    artifact_missing: "Artifact missing",
+};
+
+export default function ProvenanceCard(props: { provenance: Provenance; drift?: ProvenanceDriftSummary }) {
     // eslint-disable-next-line solid/reactivity
     const p = props.provenance;
+    // eslint-disable-next-line solid/reactivity
+    const drift = props.drift;
 
     const trust = () => trustStatus(p);
 
@@ -50,6 +66,18 @@ export default function ProvenanceCard(props: { provenance: Provenance }) {
                     {(t) => <span class={trustBadgeClass(t().variant)}>{t().label}</span>}
                 </Show>
             </div>
+
+            <Show when={drift}>
+                {(d) => (
+                    <div class="badge badge-warning" style={{ display: "block", "margin-bottom": "0.75rem" }}>
+                        Verification status changed from{" "}
+                        <strong>{statusLabels[d().previousStatus] ?? d().previousStatus}</strong> to{" "}
+                        <strong>{statusLabels[d().newStatus] ?? d().newStatus}</strong> on{" "}
+                        {formatDateTime(d().detectedAt)}
+                        {d().reason in driftReasonLabels && ` — ${driftReasonLabels[d().reason]}`}.
+                    </div>
+                )}
+            </Show>
 
             {/* Distinct trust facts */}
             <div class="fact-row">
