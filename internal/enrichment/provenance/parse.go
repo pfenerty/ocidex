@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	cbundle "github.com/sigstore/cosign/v2/pkg/cosign/bundle"
 )
 
 // Provenance is the parsed result stored in the enrichment JSONB column
@@ -80,14 +82,6 @@ type slsaPredicate struct {
 	} `json:"runDetails"`
 }
 
-// cosignBundle is the JSON shape of the dev.sigstore.cosign/bundle annotation.
-type cosignBundle struct {
-	Payload struct {
-		LogIndex int64  `json:"logIndex"`
-		LogID    string `json:"logID"`
-	} `json:"Payload"`
-}
-
 // --- entry point -------------------------------------------------------------
 
 // buildProvenance converts raw discovered bytes into a parsed Provenance.
@@ -131,7 +125,7 @@ func extractFromSig(p *Provenance, annotations map[string]string) {
 
 	// Cosign bundle annotation: JSON with Payload.logIndex.
 	if bundleJSON := annotations["dev.sigstore.cosign/bundle"]; bundleJSON != "" {
-		var b cosignBundle
+		var b cbundle.RekorBundle
 		if err := json.Unmarshal([]byte(bundleJSON), &b); err == nil && b.Payload.LogIndex > 0 {
 			p.RekorLogIndex = b.Payload.LogIndex
 		}
