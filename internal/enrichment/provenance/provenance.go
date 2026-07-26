@@ -175,7 +175,7 @@ func (e *Enricher) Enrich(ctx context.Context, ref subject.Ref) ([]byte, error) 
 		return data, nil
 	}
 
-	raw := e.discover(ctx, digestRef, repo, lookupDigest, opts)
+	raw := e.discover(digestRef, repo, lookupDigest, opts)
 	p := buildProvenance(raw)
 	if p.RekorLogIndex > 0 {
 		p.RekorUUID = fetchRekorUUID(ctx, p.RekorLogIndex)
@@ -234,7 +234,7 @@ func artifactMissing(digestRef name.Digest, opts []remote.Option) (bool, error) 
 }
 
 // discover tries the OCI 1.1 referrers API first, then falls back to the cosign tag scheme.
-func (e *Enricher) discover(ctx context.Context, digestRef name.Digest, repo name.Repository, rawDigest string, opts []remote.Option) RawArtifacts {
+func (e *Enricher) discover(digestRef name.Digest, repo name.Repository, rawDigest string, opts []remote.Option) RawArtifacts {
 	// OCI 1.1 referrers API (go-containerregistry also tries the sha256-<hex> fallback tag internally).
 	idx, err := remote.Referrers(digestRef, opts...)
 	if err == nil {
