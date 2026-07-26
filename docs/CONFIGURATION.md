@@ -89,6 +89,17 @@ Controls webhook-triggered and poll-triggered OCI image scanning (runs Syft).
 | `poll` | Poller periodically lists tags and scans new digests. Requires `SCANNER_ENABLED=true` + `REGISTRY_POLLER_ENABLED=true`. |
 | `both` | Both webhook and poll. |
 
+### Provenance Reverification
+
+Periodically requeues the provenance enrichment job for SBOMs whose last successful check is
+older than the configured interval, so drift (a trust config change, or a registry deleting
+the artifact) is detected without a new push. Runs on the API process via leader election.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PROVENANCE_REVERIFIER_ENABLED` | `true` | Enable the background provenance recheck sweep. Uses leader election so multiple API replicas are safe. |
+| `PROVENANCE_RECHECK_INTERVAL` | `24h` | How old a SBOM's last successful provenance check must be before it's requeued. Also controls the sweep's tick rate. |
+
 ### NATS JetStream
 
 Required by every process — the API and both workers fail to start without `NATS_URL`.

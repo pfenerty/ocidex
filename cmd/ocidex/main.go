@@ -135,12 +135,16 @@ func run() error {
 		warnUnpolledRegistries(ctx, registrySvc)
 	}
 
-	reverifier := enrichment.NewReverifier(repository.New(pool), cfg.ProvenanceRecheckInterval, logger)
-	rh := fnv.New64a()
-	rh.Write([]byte("ocidex-reverifier"))
-	reverifierKey := int64(rh.Sum64()) //nolint:gosec
-	go service.LeaderElect(extCtx, pool, reverifierKey, reverifier.Run)
-	slog.Info("provenance reverifier election started", "lock_key", reverifierKey, "interval", cfg.ProvenanceRecheckInterval)
+	if cfg.ProvenanceReverifierEnabled {
+		reverifier := enrichment.NewReverifier(repository.New(pool), cfg.ProvenanceRecheckInterval, logger)
+		rh := fnv.New64a()
+		rh.Write([]byte("ocidex-reverifier"))
+		reverifierKey := int64(rh.Sum64()) //nolint:gosec
+		go service.LeaderElect(extCtx, pool, reverifierKey, reverifier.Run)
+		slog.Info("provenance reverifier election started", "lock_key", reverifierKey, "interval", cfg.ProvenanceRecheckInterval)
+	} else {
+		slog.Info("provenance reverifier disabled")
+	}
 
 	go runSessionCleaner(extCtx, authSvc)
 

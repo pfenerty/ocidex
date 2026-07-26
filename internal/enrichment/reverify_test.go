@@ -96,3 +96,48 @@ func TestReverifier_Tick_ContinuesAfterOneRequeueError(t *testing.T) {
 		t.Errorf("expected exactly 1 list call, got %d", store.listCallCount)
 	}
 }
+
+func (s *fakeRecheckStore) callCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.listCallCount
+}
+
+func TestReverifier_Run_TicksImmediatelyOnStart(t *testing.T) {
+	store := &fakeRecheckStore{}
+	r := NewReverifier(store, time.Hour, nil) // long interval: only the immediate tick can fire
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		r.Run(ctx)
+		close(done)
+	}()
+	<-done
+
+	if got := store.callCount(); got < 1 {
+		t.Errorf("expected at least 1 immediate tick, got %d", got)
+	}
+}
+
+func TestReverifier_Run_TicksAtConfiguredInterval(t *testing.T) {
+	store := &fakeRecheckStore{}
+	r := NewReverifier(store, 15*time.Millisecond, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Millisecond)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		r.Run(ctx)
+		close(done)
+	}()
+	<-done
+
+	// immediate tick + at least 2 ticker fires over 60ms at a 15ms interval
+	if got := store.callCount(); got < 3 {
+		t.Errorf("expected ticker period to track the configured interval, got %d ticks in 60ms at 15ms interval", got)
+	}
+}
