@@ -1,3 +1,4 @@
+import type { Accessor } from "solid-js";
 import { createQuery, createMutation, useQueryClient } from "@tanstack/solid-query";
 import { client, unwrap } from "~/api/client";
 
@@ -6,6 +7,26 @@ export function useListRegistries() {
         queryKey: ["registries"],
         queryFn: () => unwrap(client.GET("/api/v1/registries")),
     }));
+}
+
+/** Admin-only: per-registry signing-status counts. */
+export function useRegistryTrustSummary() {
+    return createQuery(() => ({
+        queryKey: ["registries", "trust-summary"] as const,
+        queryFn: () => unwrap(client.GET("/api/v1/registries/trust-summary", {})),
+    }));
+}
+
+/** Admin-only: most recent provenance drift events across all registries. */
+export function useRecentDrift(params?: Accessor<{ limit?: number; offset?: number }>) {
+    return createQuery(() => {
+        const p = params?.() ?? {};
+        return {
+            queryKey: ["registries", "drift-feed", p.limit, p.offset] as const,
+            queryFn: () =>
+                unwrap(client.GET("/api/v1/registries/drift-feed", { params: { query: p } })),
+        };
+    });
 }
 
 export function useCreateRegistry() {

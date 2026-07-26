@@ -366,3 +366,62 @@ func TestTextToPtr(t *testing.T) {
 		})
 	}
 }
+
+// ---------------------------------------------------------------------------
+// ListSBOMDriftHistory
+// ---------------------------------------------------------------------------
+
+func TestListSBOMDriftHistory_NotVisible(t *testing.T) {
+	is := is.New(t)
+	svc := newSearchSvc(func(_ context.Context, _ string, _ ...any) pgx.Row {
+		return &fakeRow{scanFn: func(dest ...any) error {
+			if b, ok := dest[0].(*bool); ok {
+				*b = false
+			}
+			return nil
+		}}
+	})
+	uid := pgtype.UUID{Bytes: [16]byte{10}, Valid: true}
+
+	_, err := svc.ListSBOMDriftHistory(context.Background(), uid, 10, 0, VisibilityFilter{})
+	is.Equal(err, ErrNotFound)
+}
+
+func TestListSBOMDriftHistory_DBError(t *testing.T) {
+	is := is.New(t)
+	db := &fakeDB{
+		queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
+			return &fakeRow{scanFn: func(dest ...any) error {
+				if b, ok := dest[0].(*bool); ok {
+					*b = true
+				}
+				return nil
+			}}
+		},
+		queryFn: func(_ context.Context, _ string, _ ...any) (pgx.Rows, error) {
+			return nil, errors.New("db error")
+		},
+	}
+	svc := &searchService{db: db}
+	uid := pgtype.UUID{Bytes: [16]byte{11}, Valid: true}
+
+	_, err := svc.ListSBOMDriftHistory(context.Background(), uid, 10, 0, VisibilityFilter{})
+	is.True(err != nil)
+}
+
+// ---------------------------------------------------------------------------
+// ListRecentProvenanceDrift
+// ---------------------------------------------------------------------------
+
+func TestListRecentProvenanceDrift_DBError(t *testing.T) {
+	is := is.New(t)
+	db := &fakeDB{
+		queryFn: func(_ context.Context, _ string, _ ...any) (pgx.Rows, error) {
+			return nil, errors.New("db error")
+		},
+	}
+	svc := &searchService{db: db}
+
+	_, err := svc.ListRecentProvenanceDrift(context.Background(), 10, 0)
+	is.True(err != nil)
+}

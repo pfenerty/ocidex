@@ -5,7 +5,7 @@ import { Check, X } from "lucide-solid";
 import type { Provenance, ProvenanceDriftSummary } from "~/api/client";
 import { formatDateTime } from "~/utils/format";
 import { isGitHubUrl, gitHubCommitUrl } from "~/utils/oci";
-import { trustStatus, trustBadgeClass, signingStatusLabel } from "~/utils/trust";
+import { trustStatus, trustBadgeClass, signingStatusLabel, driftReasonLabel } from "~/utils/trust";
 import { ShieldIcon, GitHubIcon, ExternalLinkIcon } from "./metadata/OciIcons";
 import { LinkedField } from "./metadata/LinkedField";
 
@@ -18,12 +18,6 @@ function FactPill(props: { present: boolean; label: string }) {
         </span>
     );
 }
-
-const driftReasonLabels: Record<string, string> = {
-    trust_config_changed: "the registry's trust configuration changed",
-    artifact_missing: "the artifact was removed from the registry",
-    reverification_failed: "re-verification failed",
-};
 
 export default function ProvenanceCard(props: { provenance: Provenance; signingStatus: string; drift?: ProvenanceDriftSummary }) {
     // eslint-disable-next-line solid/reactivity
@@ -66,7 +60,7 @@ export default function ProvenanceCard(props: { provenance: Provenance; signingS
                         <strong>{signingStatusLabel(d().previousStatus)}</strong> to{" "}
                         <strong>{signingStatusLabel(d().newStatus)}</strong> on{" "}
                         {formatDateTime(d().detectedAt)}
-                        {d().reason in driftReasonLabels && ` — ${driftReasonLabels[d().reason]}`}.
+                        {" — "}{driftReasonLabel(d().reason)}.
                     </div>
                 )}
             </Show>

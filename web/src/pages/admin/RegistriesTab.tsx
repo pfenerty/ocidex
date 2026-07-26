@@ -1,10 +1,13 @@
 import "./RegistriesTab.css";
 import { For, Show, createSignal, createMemo } from "solid-js";
+import { A } from "@solidjs/router";
 import { copyText } from "~/utils/clipboard";
 import { useToast } from "~/context/toast";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import type { Registry } from "~/api/client";
+import { trustBadgeClass, signingStatusLabel, trustStatus, driftReasonLabel } from "~/utils/trust";
+import { formatDateTime } from "~/utils/format";
 import {
     useListRegistries,
     useCreateRegistry,
@@ -15,6 +18,8 @@ import {
     useRegenerateWebhookSecret,
     useGetSystemStatus,
     useListScanJobs,
+    useRegistryTrustSummary,
+    useRecentDrift,
 } from "~/api/queries";
 
 type RegType = "zot" | "harbor" | "docker" | "generic" | "ghcr";
@@ -97,6 +102,22 @@ export function RegistriesTab() {
         }
         return counts;
     });
+
+    const trustSummary = useRegistryTrustSummary();
+    const trustByRegistry = createMemo(() => {
+        const byRegistry = new Map<string, Map<string, number>>();
+        for (const row of trustSummary.data?.data ?? []) {
+            let statuses = byRegistry.get(row.registryId);
+            if (statuses === undefined) {
+                statuses = new Map<string, number>();
+                byRegistry.set(row.registryId, statuses);
+            }
+            statuses.set(row.signingStatus, row.count);
+        }
+        return byRegistry;
+    });
+
+    const recentDrift = useRecentDrift(() => ({ limit: 20 }));
 
     const statusQuery = useGetSystemStatus();
 
@@ -216,6 +237,37 @@ export function RegistriesTab() {
                 <span style={{ color: reg.enabled ? "var(--color-success)" : "var(--color-text-muted)" }}>
                     {reg.enabled ? "Enabled" : "Disabled"}
                 </span>
+            ),
+        },
+        {
+            header: "Signing Status",
+            render: (reg) => (
+                <Show
+                    when={(() => {
+                        const s = trustByRegistry().get(reg.id);
+                        return s !== undefined && s.size > 0 ? s : undefined;
+                    })()}
+                    fallback={<span style={{ color: "var(--color-text-muted)" }}>—</span>}
+                >
+                    {(statuses) => (
+                        <div style={{ display: "flex", "flex-wrap": "wrap", gap: "0.3rem" }}>
+                            <For each={[...statuses().entries()]}>
+                                {([status, count]) => {
+                                    const t = trustStatus(status);
+                                    return (
+                                        <span
+                                            class={t !== null ? trustBadgeClass(t.variant) : "badge"}
+                                            style={{ "font-size": "0.75rem" }}
+                                            title={signingStatusLabel(status)}
+                                        >
+                                            {signingStatusLabel(status)}: {count}
+                                        </span>
+                                    );
+                                }}
+                            </For>
+                        </div>
+                    )}
+                </Show>
             ),
         },
         { header: "Scan Mode", render: (reg) => <code>{reg.scan_mode}</code> },
@@ -624,6 +676,54 @@ export function RegistriesTab() {
                 error={query.error}
                 emptyTitle="No registries found"
             />
+
+            <div class="card" style={{ "margin-top": "1.5rem" }}>
+                <div class="card-header">
+                    <h3>Recent Provenance Drift</h3>
+                </div>
+                <p style={{ color: "var(--color-text-muted)", "font-size": "0.85rem", "margin-bottom": "0.75rem" }}>
+                    Drift tracking is regression-only: it records when a re-verified artifact's
+                    signing status gets worse (e.g. verified → verification failed). Recovery
+                    transitions such as unsigned → verified are not recorded here.
+                </p>
+                <Show
+                    when={(recentDrift.data?.data?.length ?? 0) > 0}
+                    fallback={<p style={{ color: "var(--color-text-muted)" }}>No drift events recorded.</p>}
+                >
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Detected</th>
+                                <th>Registry</th>
+                                <th>Artifact</th>
+                                <th>Change</th>
+                                <th>Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <For each={recentDrift.data?.data ?? []}>
+                                {(entry) => (
+                                    <tr>
+                                        <td style={{ "font-size": "0.85rem" }}>{formatDateTime(entry.detectedAt)}</td>
+                                        <td>{entry.registryName ?? "—"}</td>
+                                        <td>
+                                            <A href={`/sboms/${entry.sbomId}`} style={{ "font-size": "0.85rem" }}>
+                                                {entry.artifactName ?? entry.sbomId}
+                                            </A>
+                                        </td>
+                                        <td style={{ "font-size": "0.85rem" }}>
+                                            {signingStatusLabel(entry.previousStatus)} → {signingStatusLabel(entry.newStatus)}
+                                        </td>
+                                        <td style={{ color: "var(--color-text-muted)", "font-size": "0.85rem" }}>
+                                            {driftReasonLabel(entry.reason)}
+                                        </td>
+                                    </tr>
+                                )}
+                            </For>
+                        </tbody>
+                    </table>
+                </Show>
+            </div>
         </>
     );
 }

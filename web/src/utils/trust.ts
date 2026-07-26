@@ -35,3 +35,15 @@ export function trustBadgeClass(variant: TrustVariant): string {
         default:        return "badge";
     }
 }
+
+const DRIFT_REASON_LABELS: Record<string, string> = {
+    trust_config_changed: "the registry's trust configuration changed",
+    artifact_missing: "the artifact was removed from the registry",
+    reverification_failed: "re-verification failed",
+};
+
+// driftReasonLabel returns a human-readable explanation for a provenance
+// drift reason code, falling back to the raw code for unrecognized values.
+export function driftReasonLabel(reason: string): string {
+    return DRIFT_REASON_LABELS[reason] ?? reason;
+}

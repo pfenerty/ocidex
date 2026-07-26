@@ -17,16 +17,17 @@ import (
 // ---------------------------------------------------------------------------
 
 type fakeRegistryRepo struct {
-	createFn     func(ctx context.Context, arg repository.CreateRegistryParams) (repository.Registry, error)
-	getFn        func(ctx context.Context, id pgtype.UUID) (repository.Registry, error)
-	getByNameFn  func(ctx context.Context, name string) (repository.Registry, error)
-	listFn       func(ctx context.Context, arg repository.ListRegistriesParams) ([]repository.Registry, error)
-	listPagedFn  func(ctx context.Context, arg repository.ListRegistriesPagedParams) ([]repository.ListRegistriesPagedRow, error)
-	updateFn     func(ctx context.Context, arg repository.UpdateRegistryParams) (repository.Registry, error)
-	setEnabledFn func(ctx context.Context, arg repository.SetRegistryEnabledParams) (repository.Registry, error)
-	deleteFn     func(ctx context.Context, id pgtype.UUID) (int64, error)
-	listPollFn   func(ctx context.Context) ([]repository.Registry, error)
-	markPolledFn func(ctx context.Context, id pgtype.UUID) (repository.Registry, error)
+	createFn       func(ctx context.Context, arg repository.CreateRegistryParams) (repository.Registry, error)
+	getFn          func(ctx context.Context, id pgtype.UUID) (repository.Registry, error)
+	getByNameFn    func(ctx context.Context, name string) (repository.Registry, error)
+	listFn         func(ctx context.Context, arg repository.ListRegistriesParams) ([]repository.Registry, error)
+	listPagedFn    func(ctx context.Context, arg repository.ListRegistriesPagedParams) ([]repository.ListRegistriesPagedRow, error)
+	updateFn       func(ctx context.Context, arg repository.UpdateRegistryParams) (repository.Registry, error)
+	setEnabledFn   func(ctx context.Context, arg repository.SetRegistryEnabledParams) (repository.Registry, error)
+	deleteFn       func(ctx context.Context, id pgtype.UUID) (int64, error)
+	listPollFn     func(ctx context.Context) ([]repository.Registry, error)
+	markPolledFn   func(ctx context.Context, id pgtype.UUID) (repository.Registry, error)
+	trustSummaryFn func(ctx context.Context) ([]repository.ListRegistryTrustSummaryRow, error)
 }
 
 func (f *fakeRegistryRepo) CreateRegistry(ctx context.Context, arg repository.CreateRegistryParams) (repository.Registry, error) {
@@ -100,6 +101,9 @@ func (f *fakeRegistryRepo) UpdateRegistryLastPolled(ctx context.Context, id pgty
 }
 
 func (f *fakeRegistryRepo) ListRegistryTrustSummary(ctx context.Context) ([]repository.ListRegistryTrustSummaryRow, error) {
+	if f.trustSummaryFn != nil {
+		return f.trustSummaryFn(ctx)
+	}
 	return nil, nil
 }
 
@@ -776,4 +780,41 @@ func TestToLicenseSummary(t *testing.T) {
 	is.Equal(summary.Name, "MIT")
 	is.True(summary.SpdxID != nil)
 	is.Equal(*summary.SpdxID, "MIT")
+}
+
+// ---------------------------------------------------------------------------
+// TrustSummary
+// ---------------------------------------------------------------------------
+
+func TestTrustSummary_MapsRows(t *testing.T) {
+	is := is.New(t)
+	id := pgtype.UUID{Bytes: [16]byte{3}, Valid: true}
+	repo := &fakeRegistryRepo{
+		trustSummaryFn: func(_ context.Context) ([]repository.ListRegistryTrustSummaryRow, error) {
+			return []repository.ListRegistryTrustSummaryRow{
+				{RegistryID: id, SigningStatus: "verified", ArtifactCount: 5},
+			}, nil
+		},
+	}
+	svc := newTestRegistryService(repo)
+
+	out, err := svc.TrustSummary(context.Background())
+	is.NoErr(err)
+	is.Equal(len(out), 1)
+	is.Equal(out[0].RegistryID, uuidToStr(id))
+	is.Equal(out[0].SigningStatus, "verified")
+	is.Equal(out[0].Count, int64(5))
+}
+
+func TestTrustSummary_DBError(t *testing.T) {
+	is := is.New(t)
+	repo := &fakeRegistryRepo{
+		trustSummaryFn: func(_ context.Context) ([]repository.ListRegistryTrustSummaryRow, error) {
+			return nil, errors.New("connection reset")
+		},
+	}
+	svc := newTestRegistryService(repo)
+
+	_, err := svc.TrustSummary(context.Background())
+	is.True(err != nil)
 }
