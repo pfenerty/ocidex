@@ -55,16 +55,6 @@ var trustedMaterialProvider = func(ctx context.Context) (root.TrustedMaterial, e
 	return getTrustedRoot(ctx)
 }
 
-// testIgnoreSCT disables the requirement that the Fulcio cert carry an
-// embedded Signed Certificate Timestamp. Production must never set this true:
-// real Fulcio-issued certs always embed an SCT, and skipping the check would
-// accept a cert Fulcio never actually vouched for via the CT log. It exists
-// solely so tests using ca.VirtualSigstore (github.com/sigstore/sigstore-go's
-// own in-memory test CA, which stubs CTLogs() to satisfy the TrustedMaterial
-// interface but never embeds SCTs into the certs it issues) can exercise the
-// rest of the verification pipeline.
-var testIgnoreSCT bool
-
 // getTrustedRoot returns the cached Sigstore public-good trusted root, fetching
 // (or refreshing) it via TUF when the cache is empty or stale. Concurrent
 // callers that all observe a stale/empty cache collapse into a single
@@ -136,7 +126,16 @@ func freshCachedTrustedRoot() (*root.TrustedRoot, bool) {
 // Verification is offline (Offline: true): cosign verifies the Rekor
 // inclusion promise (SET) embedded in its own OCI bundle annotation against
 // trustedMaterial's Rekor public key, with no live call to rekor.sigstore.dev.
-func applyKeylessVerification(ctx context.Context, p *Provenance, raw RawArtifacts, cfg trust.Config, imageDigest string) {
+//
+// ignoreSCT disables the requirement that the Fulcio cert carry an embedded
+// Signed Certificate Timestamp. Production always passes false: real
+// Fulcio-issued certs always embed an SCT, and skipping the check would
+// accept a cert Fulcio never actually vouched for via the CT log. Tests pass
+// true because ca.VirtualSigstore (github.com/sigstore/sigstore-go's own
+// in-memory test CA, which stubs CTLogs() to satisfy the TrustedMaterial
+// interface but never embeds SCTs into the certs it issues) can't otherwise
+// exercise the rest of the verification pipeline.
+func applyKeylessVerification(ctx context.Context, p *Provenance, raw RawArtifacts, cfg trust.Config, imageDigest string, ignoreSCT bool) {
 	if cfg.Identity == "" || cfg.Issuer == "" {
 		return
 	}
@@ -159,7 +158,7 @@ func applyKeylessVerification(ctx context.Context, p *Provenance, raw RawArtifac
 		TrustedMaterial: trustedMaterial,
 		Identities:      []cosign.Identity{{SubjectRegExp: cfg.Identity, Issuer: cfg.Issuer}},
 		Offline:         true,
-		IgnoreSCT:       testIgnoreSCT,
+		IgnoreSCT:       ignoreSCT,
 	}
 
 	checked := false

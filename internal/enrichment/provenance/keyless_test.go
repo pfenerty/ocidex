@@ -101,18 +101,15 @@ func annotationsFromEntity(t *testing.T, virtualCA *ca.VirtualSigstore, entity *
 
 // useFixtureTrustedRoot points trustedMaterialProvider at the VirtualSigstore's
 // own trust material (it implements root.TrustedMaterial directly) instead of
-// doing a live TUF fetch, and disables the embedded-SCT requirement (see
-// testIgnoreSCT's doc comment: VirtualSigstore never embeds one). Both are
-// restored on test cleanup.
+// doing a live TUF fetch. Restored on test cleanup. Callers must pass
+// ignoreSCT: true to applyKeylessVerification (see its doc comment) since
+// VirtualSigstore never embeds a Signed Certificate Timestamp.
 func useFixtureTrustedRoot(t *testing.T, virtualCA root.TrustedMaterial) {
 	t.Helper()
 	origMaterial := trustedMaterialProvider
-	origIgnoreSCT := testIgnoreSCT
 	trustedMaterialProvider = func(context.Context) (root.TrustedMaterial, error) { return virtualCA, nil }
-	testIgnoreSCT = true
 	t.Cleanup(func() {
 		trustedMaterialProvider = origMaterial
-		testIgnoreSCT = origIgnoreSCT
 	})
 }
 
@@ -131,7 +128,7 @@ func TestApplyKeylessVerification_ValidSignatureVerifies(t *testing.T) {
 	raw := RawArtifacts{SigPresent: true, SigAnnotations: annotations, SigLayerBytes: fakeSigPayload}
 	cfg := trust.Config{Mode: "keyless", Identity: "^" + testKeylessIdentity + "$", Issuer: testKeylessIssuer}
 
-	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest)
+	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest, true)
 
 	is.True(p.Verified != nil)
 	is.True(*p.Verified) // real Fulcio cert + Rekor bundle, matching identity/issuer: must verify
@@ -152,7 +149,7 @@ func TestApplyKeylessVerification_WrongIdentityFails(t *testing.T) {
 	// Configured to require a *different* identity than the one actually signed.
 	cfg := trust.Config{Mode: "keyless", Identity: "^https://github.com/someone-else/other-repo/.*$", Issuer: testKeylessIssuer}
 
-	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest)
+	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest, true)
 
 	is.True(p.Verified != nil)
 	is.True(!*p.Verified)
@@ -176,7 +173,7 @@ func TestApplyKeylessVerification_TransplantedSignatureFails(t *testing.T) {
 	raw := RawArtifacts{SigPresent: true, SigAnnotations: annotations, SigLayerBytes: otherDigestPayload}
 	cfg := trust.Config{Mode: "keyless", Identity: "^" + testKeylessIdentity + "$", Issuer: testKeylessIssuer}
 
-	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest)
+	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest, true)
 
 	is.True(p.Verified != nil)
 	is.True(!*p.Verified)
@@ -189,7 +186,7 @@ func TestApplyKeylessVerification_NoOpWithoutIdentityOrIssuer(t *testing.T) {
 	p := &Provenance{}
 	raw := RawArtifacts{SigPresent: true}
 
-	applyKeylessVerification(context.Background(), p, raw, trust.Config{Mode: "keyless"}, testImageDigest)
+	applyKeylessVerification(context.Background(), p, raw, trust.Config{Mode: "keyless"}, testImageDigest, false)
 
 	is.True(p.Verified == nil) // no identity/issuer configured: verification not attempted
 }
@@ -203,7 +200,7 @@ func TestApplyKeylessVerification_RawInTotoOnlyNoSignature(t *testing.T) {
 	raw := RawArtifacts{SigPresent: false, AttPresent: true, AttArtifactType: inTotoArtifactType}
 	cfg := trust.Config{Mode: "keyless", Identity: "^foo$", Issuer: "https://issuer.example"}
 
-	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest)
+	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest, false)
 
 	is.True(p.Verified == nil)
 	is.Equal(p.SignerIdentity, "")
@@ -216,7 +213,7 @@ func TestApplyKeylessVerification_NoOpWithoutSignatureOrAttestation(t *testing.T
 	raw := RawArtifacts{} // SigPresent=false, AttPresent=false
 	cfg := trust.Config{Mode: "keyless", Identity: "^foo$", Issuer: "https://issuer.example"}
 
-	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest)
+	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest, false)
 
 	is.True(p.Verified == nil)
 }
@@ -233,7 +230,7 @@ func TestApplyKeylessVerification_FailsClosedOnTrustedRootError(t *testing.T) {
 	raw := RawArtifacts{SigPresent: true}
 	cfg := trust.Config{Mode: "keyless", Identity: "^foo$", Issuer: "https://issuer.example"}
 
-	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest)
+	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest, false)
 
 	// Infrastructure failure (can't fetch trust material) leaves Verified unset
 	// rather than reporting a false verification failure, matching the
