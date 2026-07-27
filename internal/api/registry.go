@@ -86,13 +86,18 @@ func ensureWebhookSecret(scanMode string, provided *string) (secret *string, gen
 }
 
 // validateVerificationConfig rejects a keyless verification_mode that's missing the
-// trust_identity/trust_issuer it needs to match a Fulcio certificate against.
-func validateVerificationConfig(verificationMode string, trustIdentity, trustIssuer *string) error {
-	if verificationMode != "keyless" {
-		return nil
-	}
-	if trustIdentity == nil || *trustIdentity == "" || trustIssuer == nil || *trustIssuer == "" {
-		return huma.Error400BadRequest("trust_identity and trust_issuer are required when verification_mode is keyless")
+// trust_identity/trust_issuer it needs to match a Fulcio certificate against, and a
+// public_key verification_mode that's missing trust_public_key.
+func validateVerificationConfig(verificationMode string, trustPublicKey, trustIdentity, trustIssuer *string) error {
+	switch verificationMode {
+	case "keyless":
+		if trustIdentity == nil || *trustIdentity == "" || trustIssuer == nil || *trustIssuer == "" {
+			return huma.Error400BadRequest("trust_identity and trust_issuer are required when verification_mode is keyless")
+		}
+	case "public_key":
+		if trustPublicKey == nil || *trustPublicKey == "" {
+			return huma.Error400BadRequest("trust_public_key is required when verification_mode is public_key")
+		}
 	}
 	return nil
 }
@@ -249,10 +254,30 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 	if verificationMode == "" {
 		verificationMode = "none"
 	}
-	if err := validateVerificationConfig(verificationMode, in.Body.TrustIdentity, in.Body.TrustIssuer); err != nil {
+	if err := validateVerificationConfig(verificationMode, in.Body.TrustPublicKey, in.Body.TrustIdentity, in.Body.TrustIssuer); err != nil {
 		return nil, err
 	}
-	reg, err := h.registryService.Create(ctx, in.Body.Name, regType, regURL, in.Body.Insecure, webhookSecret, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval, in.Body.AuthUsername, in.Body.AuthToken, user.ID, visibility, in.Body.IncludeUntagged, verificationMode, in.Body.TrustPublicKey, in.Body.TrustIdentity, in.Body.TrustIssuer)
+	reg, err := h.registryService.Create(ctx, service.CreateRegistryParams{
+		Name:                in.Body.Name,
+		Type:                regType,
+		URL:                 regURL,
+		Insecure:            in.Body.Insecure,
+		WebhookSecret:       webhookSecret,
+		Repositories:        in.Body.Repositories,
+		RepositoryPatterns:  in.Body.RepositoryPatterns,
+		TagPatterns:         in.Body.TagPatterns,
+		ScanMode:            scanMode,
+		PollIntervalMinutes: pollInterval,
+		AuthUsername:        in.Body.AuthUsername,
+		AuthToken:           in.Body.AuthToken,
+		OwnerID:             user.ID,
+		Visibility:          visibility,
+		IncludeUntagged:     in.Body.IncludeUntagged,
+		VerificationMode:    verificationMode,
+		TrustPublicKey:      in.Body.TrustPublicKey,
+		TrustIdentity:       in.Body.TrustIdentity,
+		TrustIssuer:         in.Body.TrustIssuer,
+	})
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -276,7 +301,28 @@ func (h *Handler) RegenerateWebhookSecret(ctx context.Context, in *RegenerateWeb
 	if err != nil {
 		return nil, huma.Error500InternalServerError("generating webhook secret")
 	}
-	_, err = h.registryService.Update(ctx, in.ID, existing.Name, existing.Type, existing.URL, existing.Insecure, &secret, existing.Enabled, existing.Repositories, existing.RepositoryPatterns, existing.TagPatterns, existing.ScanMode, existing.PollIntervalMinutes, existing.AuthUsername, existing.AuthToken, existing.Visibility, existing.IncludeUntagged, existing.VerificationMode, existing.TrustPublicKey, existing.TrustIdentity, existing.TrustIssuer)
+	_, err = h.registryService.Update(ctx, service.UpdateRegistryParams{
+		ID:                  in.ID,
+		Name:                existing.Name,
+		Type:                existing.Type,
+		URL:                 existing.URL,
+		Insecure:            existing.Insecure,
+		WebhookSecret:       &secret,
+		Enabled:             existing.Enabled,
+		Repositories:        existing.Repositories,
+		RepositoryPatterns:  existing.RepositoryPatterns,
+		TagPatterns:         existing.TagPatterns,
+		ScanMode:            existing.ScanMode,
+		PollIntervalMinutes: existing.PollIntervalMinutes,
+		AuthUsername:        existing.AuthUsername,
+		AuthToken:           existing.AuthToken,
+		Visibility:          existing.Visibility,
+		IncludeUntagged:     existing.IncludeUntagged,
+		VerificationMode:    existing.VerificationMode,
+		TrustPublicKey:      existing.TrustPublicKey,
+		TrustIdentity:       existing.TrustIdentity,
+		TrustIssuer:         existing.TrustIssuer,
+	})
 	if err != nil {
 		return nil, huma.Error500InternalServerError("updating webhook secret")
 	}
@@ -332,11 +378,32 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 	if updateTrustIssuer == nil {
 		updateTrustIssuer = existing.TrustIssuer
 	}
-	if err := validateVerificationConfig(updateVerificationMode, updateTrustIdentity, updateTrustIssuer); err != nil {
+	if err := validateVerificationConfig(updateVerificationMode, updateTrustPublicKey, updateTrustIdentity, updateTrustIssuer); err != nil {
 		return nil, err
 	}
 	var reg service.Registry
-	reg, err = h.registryService.Update(ctx, in.ID, in.Body.Name, regType, regURL, in.Body.Insecure, existing.WebhookSecret, in.Body.Enabled, in.Body.Repositories, in.Body.RepositoryPatterns, in.Body.TagPatterns, scanMode, pollInterval, in.Body.AuthUsername, in.Body.AuthToken, visibility, in.Body.IncludeUntagged, updateVerificationMode, updateTrustPublicKey, updateTrustIdentity, updateTrustIssuer)
+	reg, err = h.registryService.Update(ctx, service.UpdateRegistryParams{
+		ID:                  in.ID,
+		Name:                in.Body.Name,
+		Type:                regType,
+		URL:                 regURL,
+		Insecure:            in.Body.Insecure,
+		WebhookSecret:       existing.WebhookSecret,
+		Enabled:             in.Body.Enabled,
+		Repositories:        in.Body.Repositories,
+		RepositoryPatterns:  in.Body.RepositoryPatterns,
+		TagPatterns:         in.Body.TagPatterns,
+		ScanMode:            scanMode,
+		PollIntervalMinutes: pollInterval,
+		AuthUsername:        in.Body.AuthUsername,
+		AuthToken:           in.Body.AuthToken,
+		Visibility:          visibility,
+		IncludeUntagged:     in.Body.IncludeUntagged,
+		VerificationMode:    in.Body.VerificationMode,
+		TrustPublicKey:      in.Body.TrustPublicKey,
+		TrustIdentity:       in.Body.TrustIdentity,
+		TrustIssuer:         in.Body.TrustIssuer,
+	})
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}

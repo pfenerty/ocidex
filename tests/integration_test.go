@@ -19,7 +19,11 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/pfenerty/ocidex/db"
+	"github.com/pfenerty/ocidex/internal/enrichment"
 	"github.com/pfenerty/ocidex/internal/enrichment/provenance"
+	"github.com/pfenerty/ocidex/internal/repository"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // requireDocker skips the test if Docker is not available.
@@ -619,4 +623,271 @@ func TestSigningStatusParity_AllStatuses(t *testing.T) {
 			is.Equal(artifactDetail["signingStatus"], fx.want)
 		})
 	}
+}
+
+// TestArtifactRollupSigningStatus_ArtifactMissingDominates verifies the
+// deliberate precedence inversion documented on GetArtifact/ListArtifacts in
+// db/queries/artifact.sql (ocidex-goh.16): when an artifact has multiple
+// SBOMs with different signing statuses, a single artifact_missing SBOM
+// dominates the rollup even though a sibling SBOM under the same artifact
+// still verifies. This is the one scenario where the rollup ladder's order
+// is actually load-bearing — signing_status()'s single-row ladder never sees
+// more than one status at a time, so its ordering has no such effect.
+func TestArtifactRollupSigningStatus_ArtifactMissingDominates(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireDocker(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+
+	is := is.New(t)
+
+	memberID := seedUser(t, pool, 8300, "signing-rollup-member", "member")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "signing-rollup-test", "read-write")
+	is.NoErr(err)
+
+	// First SBOM: verified.
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", minimalSBOM, memberKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	var ingest1 map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingest1))
+	resp.Body.Close()
+	sbomID1 := ingest1["id"].(string)
+
+	_, err = pool.Exec(t.Context(),
+		`INSERT INTO enrichment (sbom_id, enricher_name, status, data)
+		 VALUES ($1::uuid, 'provenance', 'success', $2::jsonb)`,
+		sbomID1, `{"verified": true, "signaturePresent": true}`)
+	is.NoErr(err)
+
+	// Second SBOM under the SAME artifact: artifact_missing.
+	resp, err = doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", secondSBOM, memberKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	var ingest2 map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingest2))
+	resp.Body.Close()
+	sbomID2 := ingest2["id"].(string)
+
+	_, err = pool.Exec(t.Context(),
+		`INSERT INTO enrichment (sbom_id, enricher_name, status, data)
+		 VALUES ($1::uuid, 'provenance', 'success', $2::jsonb)`,
+		sbomID2, `{"artifactMissing": true}`)
+	is.NoErr(err)
+
+	// Both SBOMs must belong to the one artifact, or this test proves nothing.
+	artifact := firstArtifact(t, srv.URL, memberKey)
+	artifactID := artifact["id"].(string)
+
+	// Rollup must report artifact_missing, not verified — worst case wins.
+	is.Equal(artifact["signingStatus"], "artifact_missing")
+
+	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/artifacts/%s", srv.URL, artifactID))
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var detail map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&detail))
+	resp.Body.Close()
+	is.Equal(detail["signingStatus"], "artifact_missing")
+}
+
+// TestProvenanceRecheckErrorPreservesData covers ocidex-goh.2: a transient
+// registry error during provenance reverification must not clobber a prior
+// verified result. Exercises the exact sequence the reverifier hits UpsertEnrichment
+// with (success, then a later error with no data), and asserts the SBOM keeps
+// reporting "verified" and remains eligible for the next recheck sweep.
+func TestProvenanceRecheckErrorPreservesData(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireDocker(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+
+	is := is.New(t)
+	ctx := t.Context()
+
+	memberID := seedUser(t, pool, 3001, "test-provenance-recheck", "member")
+	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "test", "read-write")
+	is.NoErr(err)
+
+	sbomJSON := fmt.Sprintf(signingStatusSBOMTemplate, 99, 99)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", sbomJSON, memberKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	var ingestResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingestResp))
+	resp.Body.Close()
+	sbomIDStr := ingestResp["id"].(string)
+
+	var sbomID pgtype.UUID
+	is.NoErr(sbomID.Scan(sbomIDStr))
+
+	queries := repository.New(pool)
+	verifiedData := []byte(`{"verified": true, "signaturePresent": true}`)
+
+	// The reverifier's first (successful) pass.
+	is.NoErr(queries.UpsertEnrichment(ctx, repository.UpsertEnrichmentParams{
+		SbomID:       sbomID,
+		EnricherName: "provenance",
+		Status:       "success",
+		Data:         verifiedData,
+	}))
+
+	// A later recheck hits a transient registry error: no data, just an error.
+	is.NoErr(queries.UpsertEnrichment(ctx, repository.UpsertEnrichmentParams{
+		SbomID:       sbomID,
+		EnricherName: "provenance",
+		Status:       "error",
+		ErrorMessage: pgtype.Text{String: "transient registry error", Valid: true},
+	}))
+
+	// The prior successful data and status must survive the error.
+	stored, err := queries.GetEnrichment(ctx, repository.GetEnrichmentParams{
+		SbomID:       sbomID,
+		EnricherName: "provenance",
+	})
+	is.NoErr(err)
+	is.Equal(stored.Status, "success")
+	is.Equal(string(stored.Data), string(verifiedData))
+	is.Equal(stored.ErrorMessage.String, "transient registry error")
+
+	// The user-visible signing status must still read "verified", not fall back
+	// to "unsigned" because the enrichment status flipped away from 'success'.
+	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomIDStr))
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var sbomDetail map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&sbomDetail))
+	resp.Body.Close()
+	is.Equal(sbomDetail["signingStatus"], "verified")
+
+	// The SBOM must remain eligible for the next recheck sweep.
+	due, err := queries.ListSBOMsDueForProvenanceRecheck(ctx, repository.ListSBOMsDueForProvenanceRecheckParams{
+		Cutoff:   pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true},
+		RowLimit: 10,
+	})
+	is.NoErr(err)
+	found := false
+	for _, id := range due {
+		if id.Bytes == sbomID.Bytes {
+			found = true
+			break
+		}
+	}
+	is.True(found)
+}
+
+// fakeProvenanceEnricher returns fixed provenance JSON for every subject,
+// standing in for the real provenance enricher so tests can drive
+// Dispatcher.ProcessOne directly against a real Postgres-backed Store.
+type fakeProvenanceEnricher struct {
+	data []byte
+}
+
+func (f *fakeProvenanceEnricher) Name() string                           { return "provenance" }
+func (f *fakeProvenanceEnricher) CanEnrich(_ enrichment.SubjectRef) bool { return true }
+func (f *fakeProvenanceEnricher) Enrich(_ context.Context, _ enrichment.SubjectRef) ([]byte, error) {
+	return f.data, nil
+}
+
+// TestProvenanceDriftFullCycle drives the real Dispatcher/Store against
+// Postgres for a verified -> regressed transition, then confirms the
+// resulting provenance_drift_events row is visible via the SBOM
+// drift-history API. Regression coverage for ocidex-goh.10.
+func TestProvenanceDriftFullCycle(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireDocker(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+
+	is := is.New(t)
+	ctx := t.Context()
+
+	memberID := seedUser(t, pool, 3100, "test-drift-cycle", "member")
+	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "test", "read-write")
+	is.NoErr(err)
+
+	sbomJSON := fmt.Sprintf(signingStatusSBOMTemplate, 98, 98)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", sbomJSON, memberKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	var ingestResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingestResp))
+	resp.Body.Close()
+	sbomIDStr := ingestResp["id"].(string)
+
+	var sbomID pgtype.UUID
+	is.NoErr(sbomID.Scan(sbomIDStr))
+
+	queries := repository.New(pool)
+
+	// Seed the initial verified provenance enrichment, as if the real
+	// provenance enricher already ran once successfully.
+	verifiedData := []byte(`{"verified": true, "signaturePresent": true, "signerFingerprint": "abc123"}`)
+	is.NoErr(queries.UpsertEnrichment(ctx, repository.UpsertEnrichmentParams{
+		SbomID:       sbomID,
+		EnricherName: "provenance",
+		Status:       "success",
+		Data:         verifiedData,
+	}))
+
+	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomIDStr))
+	is.NoErr(err)
+	var before map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&before))
+	resp.Body.Close()
+	is.Equal(before["signingStatus"], "verified")
+
+	// Drive a real reverification pass through the actual Dispatcher/Store:
+	// same signer, but the trust config now rejects it.
+	regressedData := []byte(`{"verified": false, "signaturePresent": true, "signerFingerprint": "abc123"}`)
+	catalog := enrichment.NewCatalog()
+	catalog.Register(&fakeProvenanceEnricher{data: regressedData})
+	dispatcher := enrichment.NewDispatcher(queries, catalog)
+	is.NoErr(dispatcher.ProcessOne(ctx, enrichment.SubjectRef{
+		SBOMId:       sbomID,
+		ArtifactType: "container",
+		ArtifactName: "docker.io/signing-status-fixture",
+	}))
+
+	// The regression must be visible in the SBOM's signing status...
+	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomIDStr))
+	is.NoErr(err)
+	var after map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&after))
+	resp.Body.Close()
+	is.Equal(after["signingStatus"], "verification_failed")
+
+	// ...and as a recorded drift event, visible via the drift-history API.
+	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s/drift", srv.URL, sbomIDStr))
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var driftResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&driftResp))
+	resp.Body.Close()
+
+	data, ok := driftResp["data"].([]any)
+	is.True(ok)
+	is.Equal(len(data), 1)
+	event := data[0].(map[string]any)
+	is.Equal(event["previousStatus"], "verified")
+	is.Equal(event["newStatus"], "verification_failed")
+	is.Equal(event["reason"], "trust_config_changed")
 }

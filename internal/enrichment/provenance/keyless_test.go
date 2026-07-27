@@ -7,7 +7,9 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/matryer/is"
 	"github.com/sigstore/sigstore-go/pkg/root"
@@ -99,18 +101,15 @@ func annotationsFromEntity(t *testing.T, virtualCA *ca.VirtualSigstore, entity *
 
 // useFixtureTrustedRoot points trustedMaterialProvider at the VirtualSigstore's
 // own trust material (it implements root.TrustedMaterial directly) instead of
-// doing a live TUF fetch, and disables the embedded-SCT requirement (see
-// testIgnoreSCT's doc comment: VirtualSigstore never embeds one). Both are
-// restored on test cleanup.
+// doing a live TUF fetch. Restored on test cleanup. Callers must pass
+// ignoreSCT: true to applyKeylessVerification (see its doc comment) since
+// VirtualSigstore never embeds a Signed Certificate Timestamp.
 func useFixtureTrustedRoot(t *testing.T, virtualCA root.TrustedMaterial) {
 	t.Helper()
 	origMaterial := trustedMaterialProvider
-	origIgnoreSCT := testIgnoreSCT
-	trustedMaterialProvider = func() (root.TrustedMaterial, error) { return virtualCA, nil }
-	testIgnoreSCT = true
+	trustedMaterialProvider = func(context.Context) (root.TrustedMaterial, error) { return virtualCA, nil }
 	t.Cleanup(func() {
 		trustedMaterialProvider = origMaterial
-		testIgnoreSCT = origIgnoreSCT
 	})
 }
 
@@ -129,7 +128,7 @@ func TestApplyKeylessVerification_ValidSignatureVerifies(t *testing.T) {
 	raw := RawArtifacts{SigPresent: true, SigAnnotations: annotations, SigLayerBytes: fakeSigPayload}
 	cfg := trust.Config{Mode: "keyless", Identity: "^" + testKeylessIdentity + "$", Issuer: testKeylessIssuer}
 
-	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest)
+	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest, true)
 
 	is.True(p.Verified != nil)
 	is.True(*p.Verified) // real Fulcio cert + Rekor bundle, matching identity/issuer: must verify
@@ -150,7 +149,7 @@ func TestApplyKeylessVerification_WrongIdentityFails(t *testing.T) {
 	// Configured to require a *different* identity than the one actually signed.
 	cfg := trust.Config{Mode: "keyless", Identity: "^https://github.com/someone-else/other-repo/.*$", Issuer: testKeylessIssuer}
 
-	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest)
+	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest, true)
 
 	is.True(p.Verified != nil)
 	is.True(!*p.Verified)
@@ -174,7 +173,7 @@ func TestApplyKeylessVerification_TransplantedSignatureFails(t *testing.T) {
 	raw := RawArtifacts{SigPresent: true, SigAnnotations: annotations, SigLayerBytes: otherDigestPayload}
 	cfg := trust.Config{Mode: "keyless", Identity: "^" + testKeylessIdentity + "$", Issuer: testKeylessIssuer}
 
-	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest)
+	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest, true)
 
 	is.True(p.Verified != nil)
 	is.True(!*p.Verified)
@@ -187,9 +186,25 @@ func TestApplyKeylessVerification_NoOpWithoutIdentityOrIssuer(t *testing.T) {
 	p := &Provenance{}
 	raw := RawArtifacts{SigPresent: true}
 
-	applyKeylessVerification(context.Background(), p, raw, trust.Config{Mode: "keyless"}, testImageDigest)
+	applyKeylessVerification(context.Background(), p, raw, trust.Config{Mode: "keyless"}, testImageDigest, false)
 
 	is.True(p.Verified == nil) // no identity/issuer configured: verification not attempted
+}
+
+func TestApplyKeylessVerification_RawInTotoOnlyNoSignature(t *testing.T) {
+	// goh.1: a raw in-toto attestation (buildkit-native) with no cosign
+	// signature must not be reported as verified, and must not name a signer
+	// whose certificate was never checked.
+	is := is.New(t)
+	p := &Provenance{}
+	raw := RawArtifacts{SigPresent: false, AttPresent: true, AttArtifactType: inTotoArtifactType}
+	cfg := trust.Config{Mode: "keyless", Identity: "^foo$", Issuer: "https://issuer.example"}
+
+	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest, false)
+
+	is.True(p.Verified == nil)
+	is.Equal(p.SignerIdentity, "")
+	is.Equal(p.SignerIssuer, "")
 }
 
 func TestApplyKeylessVerification_NoOpWithoutSignatureOrAttestation(t *testing.T) {
@@ -198,7 +213,7 @@ func TestApplyKeylessVerification_NoOpWithoutSignatureOrAttestation(t *testing.T
 	raw := RawArtifacts{} // SigPresent=false, AttPresent=false
 	cfg := trust.Config{Mode: "keyless", Identity: "^foo$", Issuer: "https://issuer.example"}
 
-	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest)
+	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest, false)
 
 	is.True(p.Verified == nil)
 }
@@ -206,7 +221,7 @@ func TestApplyKeylessVerification_NoOpWithoutSignatureOrAttestation(t *testing.T
 func TestApplyKeylessVerification_FailsClosedOnTrustedRootError(t *testing.T) {
 	is := is.New(t)
 	orig := trustedMaterialProvider
-	trustedMaterialProvider = func() (root.TrustedMaterial, error) {
+	trustedMaterialProvider = func(context.Context) (root.TrustedMaterial, error) {
 		return nil, errors.New("simulated TUF fetch failure")
 	}
 	defer func() { trustedMaterialProvider = orig }()
@@ -215,10 +230,132 @@ func TestApplyKeylessVerification_FailsClosedOnTrustedRootError(t *testing.T) {
 	raw := RawArtifacts{SigPresent: true}
 	cfg := trust.Config{Mode: "keyless", Identity: "^foo$", Issuer: "https://issuer.example"}
 
-	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest)
+	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest, false)
 
 	// Infrastructure failure (can't fetch trust material) leaves Verified unset
 	// rather than reporting a false verification failure, matching the
 	// public-key path's contract when a required input is unavailable.
 	is.True(p.Verified == nil)
+}
+
+// ----- getTrustedRoot: caching, singleflight, staleness ceiling ------------
+
+// resetTrustedRootState clears the package-level trusted root cache and
+// restores fetchTrustedRootFn, so tests don't leak state into each other.
+func resetTrustedRootState(t *testing.T) {
+	t.Helper()
+	origFetch := fetchTrustedRootFn
+	trustedRootMu.Lock()
+	trustedRootCache = nil
+	trustedRootFetchedAt = time.Time{}
+	trustedRootMu.Unlock()
+	t.Cleanup(func() {
+		fetchTrustedRootFn = origFetch
+		trustedRootMu.Lock()
+		trustedRootCache = nil
+		trustedRootFetchedAt = time.Time{}
+		trustedRootMu.Unlock()
+	})
+}
+
+func TestGetTrustedRoot_CacheHitWithinTTLSkipsFetch(t *testing.T) {
+	is := is.New(t)
+	resetTrustedRootState(t)
+
+	var calls atomic.Int32
+	fetchTrustedRootFn = func(context.Context) (*root.TrustedRoot, error) {
+		calls.Add(1)
+		return &root.TrustedRoot{}, nil
+	}
+	trustedRootMu.Lock()
+	trustedRootCache = &root.TrustedRoot{}
+	trustedRootFetchedAt = time.Now()
+	trustedRootMu.Unlock()
+
+	tr, err := getTrustedRoot(context.Background())
+	is.NoErr(err)
+	is.True(tr != nil)
+	is.Equal(calls.Load(), int32(0))
+}
+
+func TestGetTrustedRoot_ConcurrentCallsCollapseIntoSingleFetch(t *testing.T) {
+	is := is.New(t)
+	resetTrustedRootState(t)
+
+	var calls atomic.Int32
+	release := make(chan struct{})
+	fetchTrustedRootFn = func(context.Context) (*root.TrustedRoot, error) {
+		calls.Add(1)
+		<-release
+		return &root.TrustedRoot{}, nil
+	}
+
+	const n = 5
+	results := make(chan error, n)
+	for range n {
+		go func() {
+			_, err := getTrustedRoot(context.Background())
+			results <- err
+		}()
+	}
+	// Give every goroutine a chance to reach the singleflight call before
+	// letting the (single) in-flight fetch complete.
+	time.Sleep(50 * time.Millisecond)
+	close(release)
+
+	for range n {
+		is.NoErr(<-results)
+	}
+	is.Equal(calls.Load(), int32(1))
+}
+
+func TestGetTrustedRoot_HonoursContextTimeout(t *testing.T) {
+	is := is.New(t)
+	resetTrustedRootState(t)
+
+	var sawDeadline bool
+	fetchTrustedRootFn = func(ctx context.Context) (*root.TrustedRoot, error) {
+		_, sawDeadline = ctx.Deadline()
+		return &root.TrustedRoot{}, nil
+	}
+
+	_, err := getTrustedRoot(context.Background())
+	is.NoErr(err)
+	is.True(sawDeadline)
+}
+
+func TestGetTrustedRoot_ServesStaleWithinMaxStaleness(t *testing.T) {
+	is := is.New(t)
+	resetTrustedRootState(t)
+
+	stale := &root.TrustedRoot{}
+	trustedRootMu.Lock()
+	trustedRootCache = stale
+	trustedRootFetchedAt = time.Now().Add(-(trustedRootMaxStaleness - time.Hour))
+	trustedRootMu.Unlock()
+
+	fetchTrustedRootFn = func(context.Context) (*root.TrustedRoot, error) {
+		return nil, errors.New("simulated TUF fetch failure")
+	}
+
+	tr, err := getTrustedRoot(context.Background())
+	is.NoErr(err)
+	is.True(tr == stale)
+}
+
+func TestGetTrustedRoot_FailsClosedBeyondMaxStaleness(t *testing.T) {
+	is := is.New(t)
+	resetTrustedRootState(t)
+
+	trustedRootMu.Lock()
+	trustedRootCache = &root.TrustedRoot{}
+	trustedRootFetchedAt = time.Now().Add(-(trustedRootMaxStaleness + time.Hour))
+	trustedRootMu.Unlock()
+
+	fetchTrustedRootFn = func(context.Context) (*root.TrustedRoot, error) {
+		return nil, errors.New("simulated TUF fetch failure")
+	}
+
+	_, err := getTrustedRoot(context.Background())
+	is.True(err != nil)
 }

@@ -6,6 +6,8 @@ import (
 )
 
 // OCIRegistrySpec defines the desired state of an OCI registry registration.
+// +kubebuilder:validation:XValidation:rule="self.verificationMode != 'keyless' || (has(self.trustIdentity) && size(self.trustIdentity) > 0 && has(self.trustIssuer) && size(self.trustIssuer) > 0)",message="trustIdentity and trustIssuer are required when verificationMode is keyless"
+// +kubebuilder:validation:XValidation:rule="self.verificationMode != 'public_key' || (has(self.trustPublicKey) && size(self.trustPublicKey) > 0)",message="trustPublicKey is required when verificationMode is public_key"
 type OCIRegistrySpec struct {
 	// URL is the registry address (e.g. "zot:5000" or "ghcr.io").
 	// +kubebuilder:validation:Required

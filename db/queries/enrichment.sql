@@ -1,10 +1,16 @@
 -- name: UpsertEnrichment :exec
+-- A transient enricher error must not clobber a prior successful result: status
+-- only moves to 'error' if there was no prior good data, and data is preserved
+-- via COALESCE when the new result carries none (see ocidex-goh.2).
 INSERT INTO enrichment (sbom_id, enricher_name, status, data, error_message, updated_at)
 VALUES ($1, $2, $3, $4, $5, now())
 ON CONFLICT (sbom_id, enricher_name)
 DO UPDATE SET
-    status = EXCLUDED.status,
-    data = EXCLUDED.data,
+    status = CASE
+        WHEN EXCLUDED.status = 'error' AND enrichment.data IS NOT NULL THEN enrichment.status
+        ELSE EXCLUDED.status
+    END,
+    data = COALESCE(EXCLUDED.data, enrichment.data),
     error_message = EXCLUDED.error_message,
     updated_at = now();
 

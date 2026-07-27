@@ -410,6 +410,22 @@ func TestListSBOMDriftHistory_DBError(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// currentDrift
+// ---------------------------------------------------------------------------
+
+func TestCurrentDrift(t *testing.T) {
+	is := is.New(t)
+
+	is.Equal(currentDrift(nil, "verified"), nil)
+
+	active := &ProvenanceDriftSummary{PreviousStatus: "verified", NewStatus: "artifact_missing"}
+	is.Equal(currentDrift(active, "artifact_missing"), active)
+
+	stale := &ProvenanceDriftSummary{PreviousStatus: "verified", NewStatus: "artifact_missing"}
+	is.Equal(currentDrift(stale, "verified"), nil)
+}
+
+// ---------------------------------------------------------------------------
 // ListRecentProvenanceDrift
 // ---------------------------------------------------------------------------
 

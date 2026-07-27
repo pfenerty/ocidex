@@ -915,6 +915,22 @@ func TestVerification(t *testing.T) {
 			},
 			wantVerified: boolPtr(false),
 		},
+		{
+			// goh.1: a raw in-toto attestation (buildkit-native) with no cosign
+			// signature must not be reported as verified — neither branch of
+			// applyVerification actually runs a cryptographic check on it.
+			name:   "raw_intoto_only_no_signature",
+			mode:   "public_key",
+			pemKey: string(pubKeyPEM),
+			rawOverride: func(r RawArtifacts) RawArtifacts {
+				r.SigPresent = false
+				r.SigLayerBytes = nil
+				r.SigAnnotations = nil
+				r.AttArtifactType = inTotoArtifactType
+				return r
+			},
+			wantVerified: nil,
+		},
 	}
 
 	for _, tc := range cases {
@@ -969,6 +985,7 @@ func TestFetchRekorUUID(t *testing.T) {
 		{
 			name: "malformed_json",
 			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
 				fmt.Fprint(w, `not json`)
 			},
 			wantUUID: "",
@@ -976,6 +993,7 @@ func TestFetchRekorUUID(t *testing.T) {
 		{
 			name: "empty_map",
 			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
 				fmt.Fprint(w, `{}`)
 			},
 			wantUUID: "",

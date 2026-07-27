@@ -159,6 +159,15 @@ spec:
             - type
             - url
             type: object
+            x-kubernetes-validations:
+            - message: trustIdentity and trustIssuer are required when verificationMode
+                is keyless
+              rule: self.verificationMode != 'keyless' || (has(self.trustIdentity)
+                && size(self.trustIdentity) > 0 && has(self.trustIssuer) && size(self.trustIssuer)
+                > 0)
+            - message: trustPublicKey is required when verificationMode is public_key
+              rule: self.verificationMode != 'public_key' || (has(self.trustPublicKey)
+                && size(self.trustPublicKey) > 0)
           status:
             description: OCIRegistryStatus reflects the observed state of an OCIRegistry.
             properties:

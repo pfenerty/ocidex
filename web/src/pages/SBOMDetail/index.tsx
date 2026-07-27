@@ -1,7 +1,7 @@
 import "~/components/DetailSection.css";
 import { Show, For, createSignal, createMemo } from "solid-js";
 import { A, useParams, useNavigate } from "@solidjs/router";
-import { useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies, useArtifactSBOMs } from "~/api/queries";
+import { useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies, useSBOMDriftHistory, useArtifactSBOMs } from "~/api/queries";
 import { useArtifactNames } from "~/api/queries";
 import type { OCIMetadata, Provenance, GitCommitMetadata } from "~/api/client";
 import { ErrorBox, EmptyState } from "~/components/Feedback";
@@ -50,6 +50,11 @@ export default function SBOMDetail() {
     };
 
     const provenance = () => sbomQuery.data?.enrichments?.provenance as Provenance | undefined;
+    const driftHistoryQuery = useSBOMDriftHistory(
+        () => params.id,
+        () => ({ limit: 20 }),
+        { enabled: () => provenance() !== undefined },
+    );
     const metadata = () => sbomQuery.data?.enrichments?.["oci-metadata"] as OCIMetadata | undefined;
     const gitCommit = () => sbomQuery.data?.enrichments?.git as GitCommitMetadata | undefined;
 
@@ -219,7 +224,7 @@ export default function SBOMDetail() {
                                     keyed
                                     fallback={<EmptyState title="No provenance data" message="No cosign signature or SLSA attestation was found for this image. Provenance enrichment runs after ingestion." />}
                                 >
-                                    {(prov) => <ProvenanceCard provenance={prov} signingStatus={s.signingStatus} drift={sbomQuery.data?.provenanceDrift} />}
+                                    {(prov) => <ProvenanceCard provenance={prov} signingStatus={s.signingStatus} drift={sbomQuery.data?.provenanceDrift} driftHistory={driftHistoryQuery.data?.data} />}
                                 </Show>
                             </Show>
 

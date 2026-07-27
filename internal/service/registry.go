@@ -239,14 +239,66 @@ type VisibilityFilter struct {
 	UserID  pgtype.UUID // authenticated user's ID (zero-value if unauthenticated)
 }
 
+// CreateRegistryParams holds the parameters for creating a new registry.
+type CreateRegistryParams struct {
+	Name                string
+	Type                string
+	URL                 string
+	Insecure            bool
+	WebhookSecret       *string
+	Repositories        []string
+	RepositoryPatterns  []string
+	TagPatterns         []string
+	ScanMode            string
+	PollIntervalMinutes int
+	AuthUsername        *string
+	AuthToken           *string
+	OwnerID             pgtype.UUID
+	Visibility          string
+	IncludeUntagged     bool
+	VerificationMode    string
+	TrustPublicKey      *string
+	TrustIdentity       *string
+	TrustIssuer         *string
+}
+
+// UpdateRegistryParams holds the parameters for updating an existing registry.
+//
+// VerificationMode (when empty) and TrustPublicKey/TrustIdentity/TrustIssuer
+// (when nil) are preserved from the existing registry rather than wiped, so
+// any caller that omits them — the HTTP API, an operator reconciler, a CLI,
+// a test — can't accidentally erase provenance verification config.
+type UpdateRegistryParams struct {
+	ID                  string
+	Name                string
+	Type                string
+	URL                 string
+	Insecure            bool
+	WebhookSecret       *string
+	Enabled             bool
+	Repositories        []string
+	RepositoryPatterns  []string
+	TagPatterns         []string
+	ScanMode            string
+	PollIntervalMinutes int
+	AuthUsername        *string
+	AuthToken           *string
+	Visibility          string
+	IncludeUntagged     bool
+	VerificationMode    string
+	TrustPublicKey      *string
+	TrustIdentity       *string
+	TrustIssuer         *string
+}
+
 // RegistryService manages registry configuration.
 type RegistryService interface {
-	Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, ownerID pgtype.UUID, visibility string, includeUntagged bool, verificationMode string, trustPublicKey, trustIdentity, trustIssuer *string) (Registry, error)
+	Create(ctx context.Context, params CreateRegistryParams) (Registry, error)
 	Get(ctx context.Context, id string) (Registry, error)
 	GetByName(ctx context.Context, name string) (Registry, error)
 	List(ctx context.Context, filter VisibilityFilter) ([]Registry, error)
 	ListPaged(ctx context.Context, filter VisibilityFilter, limit, offset int32) (PagedResult[Registry], error)
-	Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, visibility string, includeUntagged bool, verificationMode string, trustPublicKey, trustIdentity, trustIssuer *string) (Registry, error)
+	Update(ctx context.Context, params UpdateRegistryParams) (Registry, error)
 	SetEnabled(ctx context.Context, id string, enabled bool) (Registry, error)
 	Delete(ctx context.Context, id string) error
 	ListPollable(ctx context.Context) ([]Registry, error)
@@ -276,33 +328,35 @@ func NewRegistryService(pool *pgxpool.Pool) RegistryService {
 	}
 }
 
-func (s *registryService) Create(ctx context.Context, name, regType, url string, insecure bool, webhookSecret *string, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, ownerID pgtype.UUID, visibility string, includeUntagged bool, verificationMode string, trustPublicKey, trustIdentity, trustIssuer *string) (Registry, error) {
+func (s *registryService) Create(ctx context.Context, params CreateRegistryParams) (Registry, error) {
+	visibility := params.Visibility
 	if visibility == "" {
 		visibility = "public"
 	}
+	verificationMode := params.VerificationMode
 	if verificationMode == "" {
 		verificationMode = "none"
 	}
 	r, err := s.repo.CreateRegistry(ctx, repository.CreateRegistryParams{
-		Name:                name,
-		Type:                regType,
-		Url:                 url,
-		Insecure:            insecure,
-		WebhookSecret:       toNullText(webhookSecret),
-		Repositories:        nonEmpty(repositories),
-		RepositoryPatterns:  nonEmpty(repositoryPatterns),
-		TagPatterns:         nonEmpty(tagPatterns),
-		ScanMode:            scanMode,
-		PollIntervalMinutes: int32(pollIntervalMinutes), //nolint:gosec // G115: poll interval is validated to fit int32
-		AuthUsername:        toNullText(authUsername),
-		AuthToken:           toNullText(authToken),
-		OwnerID:             ownerID,
+		Name:                params.Name,
+		Type:                params.Type,
+		Url:                 params.URL,
+		Insecure:            params.Insecure,
+		WebhookSecret:       toNullText(params.WebhookSecret),
+		Repositories:        nonEmpty(params.Repositories),
+		RepositoryPatterns:  nonEmpty(params.RepositoryPatterns),
+		TagPatterns:         nonEmpty(params.TagPatterns),
+		ScanMode:            params.ScanMode,
+		PollIntervalMinutes: int32(params.PollIntervalMinutes), //nolint:gosec // G115: poll interval is validated to fit int32
+		AuthUsername:        toNullText(params.AuthUsername),
+		AuthToken:           toNullText(params.AuthToken),
+		OwnerID:             params.OwnerID,
 		Visibility:          visibility,
-		IncludeUntagged:     includeUntagged,
+		IncludeUntagged:     params.IncludeUntagged,
 		VerificationMode:    verificationMode,
-		TrustPublicKey:      toNullText(trustPublicKey),
-		TrustIdentity:       toNullText(trustIdentity),
-		TrustIssuer:         toNullText(trustIssuer),
+		TrustPublicKey:      toNullText(params.TrustPublicKey),
+		TrustIdentity:       toNullText(params.TrustIdentity),
+		TrustIssuer:         toNullText(params.TrustIssuer),
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -394,34 +448,58 @@ func (s *registryService) ListPaged(ctx context.Context, filter VisibilityFilter
 	return PagedResult[Registry]{Data: out, Total: total, Limit: limit, Offset: offset}, nil
 }
 
-func (s *registryService) Update(ctx context.Context, id, name, regType, url string, insecure bool, webhookSecret *string, enabled bool, repositories, repositoryPatterns, tagPatterns []string, scanMode string, pollIntervalMinutes int, authUsername, authToken *string, visibility string, includeUntagged bool, verificationMode string, trustPublicKey, trustIdentity, trustIssuer *string) (Registry, error) {
+func (s *registryService) Update(ctx context.Context, params UpdateRegistryParams) (Registry, error) {
+	uid, err := parseRegistryUUID(params.ID)
+	if err != nil {
+		return Registry{}, ErrNotFound
+	}
+	existingRow, err := s.repo.GetRegistry(ctx, uid)
+	if err != nil {
+		return Registry{}, ErrNotFound
+	}
+	existing := fromRepo(existingRow)
+
+	visibility := params.Visibility
 	if visibility == "" {
 		visibility = "public"
+	}
+	verificationMode := params.VerificationMode
+	if verificationMode == "" {
+		verificationMode = existing.VerificationMode
 	}
 	if verificationMode == "" {
 		verificationMode = "none"
 	}
-	uid, err := parseRegistryUUID(id)
-	if err != nil {
-		return Registry{}, ErrNotFound
+	trustPublicKey := params.TrustPublicKey
+	if trustPublicKey == nil {
+		trustPublicKey = existing.TrustPublicKey
 	}
+	trustIdentity := params.TrustIdentity
+	if trustIdentity == nil {
+		trustIdentity = existing.TrustIdentity
+	}
+	trustIssuer := params.TrustIssuer
+	if trustIssuer == nil {
+		trustIssuer = existing.TrustIssuer
+	}
+
 	r, err := s.repo.UpdateRegistry(ctx, repository.UpdateRegistryParams{
 		ID:                  uid,
-		Name:                name,
-		Type:                regType,
-		Url:                 url,
-		Insecure:            insecure,
-		WebhookSecret:       toNullText(webhookSecret),
-		Enabled:             enabled,
-		Repositories:        nonEmpty(repositories),
-		RepositoryPatterns:  nonEmpty(repositoryPatterns),
-		TagPatterns:         nonEmpty(tagPatterns),
-		ScanMode:            scanMode,
-		PollIntervalMinutes: int32(pollIntervalMinutes), //nolint:gosec // G115: poll interval is validated to fit int32
-		AuthUsername:        toNullText(authUsername),
-		AuthToken:           toNullText(authToken),
+		Name:                params.Name,
+		Type:                params.Type,
+		Url:                 params.URL,
+		Insecure:            params.Insecure,
+		WebhookSecret:       toNullText(params.WebhookSecret),
+		Enabled:             params.Enabled,
+		Repositories:        nonEmpty(params.Repositories),
+		RepositoryPatterns:  nonEmpty(params.RepositoryPatterns),
+		TagPatterns:         nonEmpty(params.TagPatterns),
+		ScanMode:            params.ScanMode,
+		PollIntervalMinutes: int32(params.PollIntervalMinutes), //nolint:gosec // G115: poll interval is validated to fit int32
+		AuthUsername:        toNullText(params.AuthUsername),
+		AuthToken:           toNullText(params.AuthToken),
 		Visibility:          visibility,
-		IncludeUntagged:     includeUntagged,
+		IncludeUntagged:     params.IncludeUntagged,
 		VerificationMode:    verificationMode,
 		TrustPublicKey:      toNullText(trustPublicKey),
 		TrustIdentity:       toNullText(trustIdentity),

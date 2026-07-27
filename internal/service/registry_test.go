@@ -125,7 +125,12 @@ func TestRegistryCreate_DefaultVisibility(t *testing.T) {
 		},
 	})
 
-	_, err := svc.Create(context.Background(), "r", "generic", "https://r.example.com", false, nil, nil, nil, nil, "webhook", 0, nil, nil, pgtype.UUID{}, "", false, "", nil, nil, nil)
+	_, err := svc.Create(context.Background(), CreateRegistryParams{
+		Name:     "r",
+		Type:     "generic",
+		URL:      "https://r.example.com",
+		ScanMode: "webhook",
+	})
 
 	is.NoErr(err)
 	is.Equal(capturedVis, "public") // empty string defaults to "public"
@@ -141,7 +146,13 @@ func TestRegistryCreate_ExplicitVisibility(t *testing.T) {
 		},
 	})
 
-	_, err := svc.Create(context.Background(), "r", "generic", "https://r.example.com", false, nil, nil, nil, nil, "webhook", 0, nil, nil, pgtype.UUID{}, "private", false, "", nil, nil, nil)
+	_, err := svc.Create(context.Background(), CreateRegistryParams{
+		Name:       "r",
+		Type:       "generic",
+		URL:        "https://r.example.com",
+		ScanMode:   "webhook",
+		Visibility: "private",
+	})
 
 	is.NoErr(err)
 	is.Equal(capturedVis, "private")
@@ -155,7 +166,12 @@ func TestRegistryCreate_UniqueViolationReturnsConflict(t *testing.T) {
 		},
 	})
 
-	_, err := svc.Create(context.Background(), "r", "generic", "https://r.example.com", false, nil, nil, nil, nil, "webhook", 0, nil, nil, pgtype.UUID{}, "", false, "", nil, nil, nil)
+	_, err := svc.Create(context.Background(), CreateRegistryParams{
+		Name:     "r",
+		Type:     "generic",
+		URL:      "https://r.example.com",
+		ScanMode: "webhook",
+	})
 
 	is.True(errors.Is(err, ErrConflict))
 }
@@ -261,10 +277,54 @@ func TestRegistryUpdate_DefaultVisibility(t *testing.T) {
 		},
 	})
 
-	_, err := svc.Update(context.Background(), "01020304-0506-0708-090a-0b0c0d0e0f10", "r", "generic", "https://r.example.com", false, nil, true, nil, nil, nil, "webhook", 0, nil, nil, "", false, "", nil, nil, nil)
+	_, err := svc.Update(context.Background(), UpdateRegistryParams{
+		ID:       "01020304-0506-0708-090a-0b0c0d0e0f10",
+		Name:     "r",
+		Type:     "generic",
+		URL:      "https://r.example.com",
+		Enabled:  true,
+		ScanMode: "webhook",
+	})
 
 	is.NoErr(err)
 	is.Equal(capturedVis, "public")
+}
+
+func TestRegistryUpdate_PreservesTrustFieldsWhenUnset(t *testing.T) {
+	is := is.New(t)
+	existingIdentity := "existing-identity"
+	existingIssuer := "existing-issuer"
+	var captured repository.UpdateRegistryParams
+	svc := newTestRegistryService(&fakeRegistryRepo{
+		getFn: func(_ context.Context, _ pgtype.UUID) (repository.Registry, error) {
+			return repository.Registry{
+				VerificationMode: "keyless",
+				TrustIdentity:    pgtype.Text{String: existingIdentity, Valid: true},
+				TrustIssuer:      pgtype.Text{String: existingIssuer, Valid: true},
+			}, nil
+		},
+		updateFn: func(_ context.Context, arg repository.UpdateRegistryParams) (repository.Registry, error) {
+			captured = arg
+			return repository.Registry{}, nil
+		},
+	})
+
+	// Update is called directly (not via the HTTP handler) with the trust
+	// fields left at their zero value, simulating a caller (e.g. the
+	// operator reconciler) that only wants to change unrelated fields.
+	_, err := svc.Update(context.Background(), UpdateRegistryParams{
+		ID:       "01020304-0506-0708-090a-0b0c0d0e0f10",
+		Name:     "r",
+		Type:     "generic",
+		URL:      "https://r.example.com",
+		Enabled:  true,
+		ScanMode: "webhook",
+	})
+
+	is.NoErr(err)
+	is.Equal(captured.VerificationMode, "keyless")
+	is.Equal(captured.TrustIdentity.String, existingIdentity)
+	is.Equal(captured.TrustIssuer.String, existingIssuer)
 }
 
 // ---------------------------------------------------------------------------
@@ -353,7 +413,7 @@ func (f *fakeListRegistryService) ListPaged(_ context.Context, _ VisibilityFilte
 	return PagedResult[Registry]{Data: f.registries, Total: int64(len(f.registries))}, nil
 }
 
-func (f *fakeListRegistryService) Create(_ context.Context, _, _, _ string, _ bool, _ *string, _, _, _ []string, _ string, _ int, _, _ *string, _ pgtype.UUID, _ string, _ bool, _ string, _, _, _ *string) (Registry, error) {
+func (f *fakeListRegistryService) Create(_ context.Context, _ CreateRegistryParams) (Registry, error) {
 	return Registry{}, nil
 }
 
@@ -365,7 +425,7 @@ func (f *fakeListRegistryService) GetByName(_ context.Context, _ string) (Regist
 	return Registry{}, ErrNotFound
 }
 
-func (f *fakeListRegistryService) Update(_ context.Context, _, _, _, _ string, _ bool, _ *string, _ bool, _, _, _ []string, _ string, _ int, _, _ *string, _ string, _ bool, _ string, _, _, _ *string) (Registry, error) {
+func (f *fakeListRegistryService) Update(_ context.Context, _ UpdateRegistryParams) (Registry, error) {
 	return Registry{}, nil
 }
 

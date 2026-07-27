@@ -19,11 +19,14 @@ function FactPill(props: { present: boolean; label: string }) {
     );
 }
 
-export default function ProvenanceCard(props: { provenance: Provenance; signingStatus: string; drift?: ProvenanceDriftSummary }) {
+export default function ProvenanceCard(props: {
+    provenance: Provenance;
+    signingStatus: string;
+    drift?: ProvenanceDriftSummary;
+    driftHistory?: ProvenanceDriftSummary[];
+}) {
     // eslint-disable-next-line solid/reactivity
     const p = props.provenance;
-    // eslint-disable-next-line solid/reactivity
-    const drift = props.drift;
 
     const trust = () => trustStatus(props.signingStatus);
 
@@ -53,7 +56,7 @@ export default function ProvenanceCard(props: { provenance: Provenance; signingS
                 </Show>
             </div>
 
-            <Show when={drift}>
+            <Show when={props.drift}>
                 {(d) => (
                     <div class="badge badge-warning" style={{ display: "block", "margin-bottom": "0.75rem" }}>
                         Verification status changed from{" "}
@@ -178,6 +181,39 @@ export default function ProvenanceCard(props: { provenance: Provenance; signingS
                                 {(s) => <li class="font-mono text-sm">{s}</li>}
                             </For>
                         </ul>
+                    </details>
+                )}
+            </Show>
+
+            {/* Verification history (collapsible) */}
+            <Show when={(props.driftHistory?.length ?? 0) > 1 ? props.driftHistory : undefined}>
+                {(history) => (
+                    <details class="mt-4">
+                        <summary class="text-muted text-sm" style={{ cursor: "pointer" }}>
+                            History ({history().length})
+                        </summary>
+                        <table class="table" style={{ "margin-top": "0.5rem" }}>
+                            <thead>
+                                <tr>
+                                    <th>Detected</th>
+                                    <th>Change</th>
+                                    <th>Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <For each={history()}>
+                                    {(event) => (
+                                        <tr>
+                                            <td class="text-sm">{formatDateTime(event.detectedAt)}</td>
+                                            <td class="text-sm">
+                                                {signingStatusLabel(event.previousStatus)} → {signingStatusLabel(event.newStatus)}
+                                            </td>
+                                            <td class="text-muted text-sm">{driftReasonLabel(event.reason)}</td>
+                                        </tr>
+                                    )}
+                                </For>
+                            </tbody>
+                        </table>
                     </details>
                 )}
             </Show>

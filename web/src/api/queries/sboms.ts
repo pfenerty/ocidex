@@ -84,6 +84,7 @@ export function sbomComponents(
 export function useSBOMDriftHistory(
     id: Accessor<string>,
     params?: Accessor<{ limit?: number; offset?: number }>,
+    options?: { enabled?: Accessor<boolean> },
 ) {
     return createQuery(() => {
         const p = params?.() ?? {};
@@ -95,6 +96,7 @@ export function useSBOMDriftHistory(
                         params: { path: { id: id() }, query: p },
                     }),
                 ),
+            enabled: options?.enabled?.() ?? true,
             select: (resp) => ({ ...resp, data: resp.data ?? [] }),
         };
     });

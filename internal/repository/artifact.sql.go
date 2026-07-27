@@ -123,6 +123,16 @@ type GetArtifactRow struct {
 	SigningStatus string             `json:"signing_status"`
 }
 
+// The nested CASE aggregates signing_status(pe.data) across every SBOM under
+// this artifact, so unlike signing_status()'s single-row ladder (mutually
+// exclusive fields on one enrichment blob), here multiple WHEN branches can
+// independently be true across different SBOMs. artifact_missing is checked
+// first deliberately: it's worst-case-first so one missing artifact among
+// many SBOMs dominates the rollup rather than being masked by a sibling
+// SBOM that still verifies. This intentionally inverts the "best status
+// wins" instinct one might expect from a rollup. See ocidex-goh.16 and
+// TestArtifactRollupSigningStatus_ArtifactMissingDominates in
+// tests/integration_test.go.
 func (q *Queries) GetArtifact(ctx context.Context, id pgtype.UUID) (GetArtifactRow, error) {
 	row := q.db.QueryRow(ctx, getArtifact, id)
 	var i GetArtifactRow
@@ -346,6 +356,9 @@ type ListArtifactsRow struct {
 	SigningStatus       string             `json:"signing_status"`
 }
 
+// Same artifact_missing-first rollup precedence as GetArtifact above — see
+// that query's comment for why this cross-SBOM ladder deliberately checks
+// worst-case first.
 func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([]ListArtifactsRow, error) {
 	rows, err := q.db.Query(ctx, listArtifacts,
 		arg.Type,

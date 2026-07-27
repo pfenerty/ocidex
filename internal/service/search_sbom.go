@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -89,16 +90,22 @@ func (s *searchService) GetSBOM(ctx context.Context, id pgtype.UUID, includeRaw 
 
 	// Most recent provenance drift event, if this SBOM has ever been re-verified
 	// with a different result than its original signing status.
+	//
+	// Malformed provenance JSON is log-and-degrade, not a hard error: it's
+	// enricher output, not user input, so one bad enrichment row shouldn't
+	// fail the whole SBOM detail request. See also recordProvenanceDrift in
+	// internal/enrichment/provenance_drift.go, which applies the same policy.
 	var signingProv provenance.Provenance
 	if raw, hasProvenance := detail.Enrichments["provenance"]; hasProvenance {
 		if err := json.Unmarshal(raw, &signingProv); err != nil {
-			return SBOMDetail{}, fmt.Errorf("parsing provenance enrichment: %w", err)
+			slog.ErrorContext(ctx, "parsing provenance enrichment", "sbom_id", id, "err", err)
+		} else {
+			drift, err := lookupProvenanceDrift(ctx, q, id)
+			if err != nil {
+				return SBOMDetail{}, err
+			}
+			detail.ProvenanceDrift = currentDrift(drift, provenance.SigningStatus(signingProv))
 		}
-		drift, err := lookupProvenanceDrift(ctx, q, id)
-		if err != nil {
-			return SBOMDetail{}, err
-		}
-		detail.ProvenanceDrift = drift
 	}
 	detail.SigningStatus = provenance.SigningStatus(signingProv)
 
@@ -148,6 +155,18 @@ func lookupProvenanceDrift(ctx context.Context, q *repository.Queries, sbomID pg
 		Reason:         drift.Reason,
 		DetectedAt:     drift.DetectedAt.Time,
 	}, nil
+}
+
+// currentDrift returns drift only if it still describes the SBOM's present
+// signing status. A regression event becomes stale once the status changes
+// again — including a recovery, which recordProvenanceDrift does not itself
+// record as a new event — and surfacing it then would show a banner that
+// contradicts the current status.
+func currentDrift(drift *ProvenanceDriftSummary, currentStatus string) *ProvenanceDriftSummary {
+	if drift == nil || drift.NewStatus != currentStatus {
+		return nil
+	}
+	return drift
 }
 
 // ListSBOMDriftHistory returns the full provenance drift event history for an

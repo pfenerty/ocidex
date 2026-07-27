@@ -3,6 +3,12 @@
 **Status:** Accepted  
 **Date:** 2026-06-27
 
+> **Superseded by [ADR-0037](0037-cosign-delegated-provenance-verification.md).** The
+> "no cosign SDK" decision below was reversed in `ocidex-82g`: verification now
+> delegates to cosign/sigstore-go directly, a keyless tier shipped, and the status enum
+> grew a fifth value. Kept for historical context only — do not treat the tier table or
+> dependency claims below as current.
+
 ## Context
 
 Tekton Chains signs every `apko-cicd`/`ocidex` image at build time, producing two OCI referrer artifacts per image: a cosign simplesigning signature (`application/vnd.dev.cosign.artifact.sig.v1+json`) and a SLSA DSSE attestation (`application/vnd.dsse.envelope.v1+json`), with the Rekor log entry recorded in both annotations. OCIDex needed to surface this data and optionally verify it, without pulling in the cosign SDK (which drags in sigstore dependencies and ties verification to Fulcio/CT-log trust).

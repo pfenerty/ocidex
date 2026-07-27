@@ -88,6 +88,10 @@ type Config struct {
 	// check must be before it's requeued for re-verification (drift detection:
 	// trust config changes, registry deletions).
 	ProvenanceRecheckInterval time.Duration `env:"PROVENANCE_RECHECK_INTERVAL" envDefault:"24h"`
+	// ProvenanceReverifierEnabled gates the provenance recheck sweep. Defaults
+	// to true since it already runs unconditionally today; set to false to
+	// disable (e.g. in a test/staging environment without registry access).
+	ProvenanceReverifierEnabled bool `env:"PROVENANCE_REVERIFIER_ENABLED" envDefault:"true"`
 
 	// Ingest-time vuln lookup — queries OSV for purls from newly ingested SBOMs
 	// that are not yet in package_vulnerability. Shares env var names with VulnWorkerConfig.

@@ -40,10 +40,19 @@ func NewReverifier(store RecheckStore, interval time.Duration, logger *slog.Logg
 	return &Reverifier{store: store, interval: interval, logger: logger}
 }
 
-// Run ticks every hour and requeues due SBOMs. Blocks until ctx is cancelled.
+// Run ticks immediately on start, then at r.interval, requeuing due SBOMs on
+// each tick. Blocks until ctx is cancelled.
 func (r *Reverifier) Run(ctx context.Context) {
-	ticker := time.NewTicker(time.Hour)
+	ticker := time.NewTicker(r.interval)
 	defer ticker.Stop()
+
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
+	r.tick(ctx)
+
 	for {
 		select {
 		case <-ticker.C:
