@@ -19,11 +19,29 @@ tradeoff was reversed.
 ### Dependency-weight reversal
 
 `internal/enrichment/provenance/verify.go` and `keyless.go` now delegate directly to
-`github.com/sigstore/cosign/v2` (`cosign.CheckOpts`, image-signature and
+`github.com/sigstore/cosign/v3` (`cosign.CheckOpts`, image-signature and
 image-attestation verification) and `github.com/sigstore/sigstore-go` (TUF-fetched
 trusted root for Fulcio/Rekor material). `go list -deps ./cmd/ocidex` reports **786**
 modules. Neither `crypto/ecdsa` nor `crypto/x509` is imported anywhere in the
 `provenance` package anymore.
+
+**cosign/v2 → v3 (govulncheck remediation, 2026-07-29):** bumped to resolve
+GO-2026-4529/CVE-2026-24122 (cosign accepted signatures with expired intermediate certs
+when tlog verification was skipped — not applicable here since `CheckOpts.IgnoreTlog` is
+never set, but fixed only in v3.0.5+, no v2-line backport). The v2→v3 Go SDK surface used
+by ocidex (`CheckOpts`, `VerifyImageSignature`, `VerifyImageAttestation`,
+`SimpleClaimVerifier`, `IntotoSubjectClaimVerifier`, `static.*`, `cbundle.RekorBundle`)
+is unchanged — only import paths moved, no code changes required.
+
+GO-2026-5932 (`golang.org/x/crypto/openpgp` unsafe-by-design, frozen upstream) is
+**not** resolved by this bump and cannot be fixed from ocidex's side: `go mod why
+golang.org/x/crypto/openpgp` traces it through
+`cosign/v3/pkg/cosign` → `rekor/pkg/types/rekord/v0.0.1` → `rekor/pkg/pki/pgp` —
+Rekor's transparency-log client registers a legacy PGP-signed entry type ocidex never
+creates or reads, but the registration happens unconditionally at import time. No
+version of cosign or Rekor will drop this without removing rekord v0.0.1 support
+entirely, and `x/crypto/openpgp` itself will never receive a real fix (Go team: frozen,
+security-fixes-only, "will not be removed"). Tracked as accepted risk in `ocidex-z6h`.
 
 This reverses ADR-0032's core premise. The reversal was the right call: digest-binding
 claim verification (`SimpleClaimVerifier` / `IntotoSubjectClaimVerifier`) and

@@ -11,7 +11,7 @@ import (
 
 	slsav1 "github.com/in-toto/attestation/go/predicates/provenance/v1"
 	intotov1 "github.com/in-toto/attestation/go/v1"
-	cbundle "github.com/sigstore/cosign/v2/pkg/cosign/bundle"
+	cbundle "github.com/sigstore/cosign/v3/pkg/cosign/bundle"
 	rekorclient "github.com/sigstore/rekor/pkg/client"
 	"github.com/sigstore/rekor/pkg/generated/client/entries"
 	"google.golang.org/protobuf/encoding/protojson"
