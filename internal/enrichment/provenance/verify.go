@@ -5,7 +5,7 @@ import (
 	"crypto"
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/sigstore/cosign/v2/pkg/cosign"
+	"github.com/sigstore/cosign/v3/pkg/cosign"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
 )

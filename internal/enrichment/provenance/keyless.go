@@ -9,12 +9,12 @@ import (
 	"time"
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/sigstore/cosign/v2/pkg/cosign"
-	cbundle "github.com/sigstore/cosign/v2/pkg/cosign/bundle"
-	"github.com/sigstore/cosign/v2/pkg/oci"
-	"github.com/sigstore/cosign/v2/pkg/oci/empty"
-	"github.com/sigstore/cosign/v2/pkg/oci/mutate"
-	"github.com/sigstore/cosign/v2/pkg/oci/static"
+	"github.com/sigstore/cosign/v3/pkg/cosign"
+	cbundle "github.com/sigstore/cosign/v3/pkg/cosign/bundle"
+	"github.com/sigstore/cosign/v3/pkg/oci"
+	"github.com/sigstore/cosign/v3/pkg/oci/empty"
+	"github.com/sigstore/cosign/v3/pkg/oci/mutate"
+	"github.com/sigstore/cosign/v3/pkg/oci/static"
 	"github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/sigstore/sigstore-go/pkg/tuf"
 	"golang.org/x/sync/singleflight"
@@ -117,7 +117,7 @@ func freshCachedTrustedRoot() (*root.TrustedRoot, bool) {
 // applyKeylessVerification sets p.Verified based on Fulcio certificate chain +
 // Rekor transparency log verification. Discovery already happened (raw is the
 // same RawArtifacts our own OCI fetch produced); cryptographic verification is
-// delegated to cosign's own verify pipeline (github.com/sigstore/cosign/v2) —
+// delegated to cosign's own verify pipeline (github.com/sigstore/cosign/v3) —
 // the reference implementation for exactly this check — by wrapping the
 // already-fetched signature/attestation bytes and annotations into an
 // oci.Signature via the static package, rather than re-fetching from the
@@ -233,7 +233,7 @@ func buildOCISignature(payload []byte, annotations map[string]string) (oci.Signa
 // buildStaticOptions extracts the certificate chain and Rekor bundle (if
 // present) from cosign's OCI annotations into static.Options. The bundle
 // annotation is cosign's own JSON encoding of a cbundle.RekorBundle
-// (github.com/sigstore/cosign/v2/pkg/oci/static WithBundle marshals it
+// (github.com/sigstore/cosign/v3/pkg/oci/static WithBundle marshals it
 // directly), so round-tripping it back through json.Unmarshal reconstructs
 // exactly what cosign's verify path expects — no hand-parsing required.
 func buildStaticOptions(annotations map[string]string) []static.Option {
