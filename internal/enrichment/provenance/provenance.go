@@ -18,6 +18,7 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/enrichment/subject"
 	"github.com/pfenerty/ocidex/internal/trust"
@@ -47,8 +48,9 @@ type RawArtifacts struct {
 	ArtifactMissing bool              `json:"artifactMissing,omitempty"` // true when the registry no longer has this digest
 }
 
-// TrustResolver returns the verification configuration for a registry host.
-type TrustResolver func(ctx context.Context, host string) trust.Config
+// TrustResolver returns the verification configuration for the given registry.
+// host is retained as a fallback for callers that cannot supply a registry ID.
+type TrustResolver func(ctx context.Context, registryID pgtype.UUID, host string) trust.Config
 
 // Enricher discovers cosign signatures and attestations for container images.
 type Enricher struct {
@@ -181,7 +183,7 @@ func (e *Enricher) Enrich(ctx context.Context, ref subject.Ref) ([]byte, error) 
 		p.RekorUUID = fetchRekorUUID(ctx, p.RekorLogIndex)
 	}
 	if e.trustResolver != nil {
-		e.applyTrust(ctx, &p, raw, host, lookupDigest)
+		e.applyTrust(ctx, &p, raw, ref.RegistryID, host, lookupDigest)
 	}
 
 	data, err := json.Marshal(p)
@@ -209,8 +211,8 @@ func (e *Enricher) buildRemoteOptions(ctx context.Context, host string) []remote
 }
 
 // applyTrust dispatches to the configured verification mode's checker.
-func (e *Enricher) applyTrust(ctx context.Context, p *Provenance, raw RawArtifacts, host, imageDigest string) {
-	cfg := e.trustResolver(ctx, host)
+func (e *Enricher) applyTrust(ctx context.Context, p *Provenance, raw RawArtifacts, registryID pgtype.UUID, host, imageDigest string) {
+	cfg := e.trustResolver(ctx, registryID, host)
 	switch cfg.Mode {
 	case "public_key":
 		applyVerification(ctx, p, raw, cfg.Mode, cfg.PublicKeyPEM, imageDigest)

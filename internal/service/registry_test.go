@@ -517,14 +517,15 @@ func TestBuildCredentialLookup_CachesResults(t *testing.T) {
 func TestBuildTrustLookup_PublicKeyMode(t *testing.T) {
 	is := is.New(t)
 	key := "-----BEGIN PUBLIC KEY-----\nabc\n-----END PUBLIC KEY-----\n"
+	regID := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
 	svc := &fakeListRegistryService{
 		registries: []Registry{
-			{URL: "https://registry.example.com", VerificationMode: "public_key", TrustPublicKey: &key},
+			{ID: uuidToStr(regID), URL: "https://registry.example.com", VerificationMode: "public_key", TrustPublicKey: &key},
 		},
 	}
 	lookup := BuildTrustLookup(svc)
 
-	cfg := lookup(context.Background(), "registry.example.com")
+	cfg := lookup(context.Background(), regID, "registry.example.com")
 
 	is.Equal(cfg.Mode, "public_key")
 	is.Equal(cfg.PublicKeyPEM, key)
@@ -536,14 +537,15 @@ func TestBuildTrustLookup_KeylessMode(t *testing.T) {
 	is := is.New(t)
 	identity := "^https://github.com/example/repo/.*$"
 	issuer := "https://token.actions.githubusercontent.com"
+	regID := pgtype.UUID{Bytes: [16]byte{2}, Valid: true}
 	svc := &fakeListRegistryService{
 		registries: []Registry{
-			{URL: "https://registry.example.com", VerificationMode: "keyless", TrustIdentity: &identity, TrustIssuer: &issuer},
+			{ID: uuidToStr(regID), URL: "https://registry.example.com", VerificationMode: "keyless", TrustIdentity: &identity, TrustIssuer: &issuer},
 		},
 	}
 	lookup := BuildTrustLookup(svc)
 
-	cfg := lookup(context.Background(), "registry.example.com")
+	cfg := lookup(context.Background(), regID, "registry.example.com")
 
 	is.Equal(cfg.Mode, "keyless")
 	is.Equal(cfg.Identity, identity)
@@ -554,29 +556,51 @@ func TestBuildTrustLookup_KeylessMode(t *testing.T) {
 func TestBuildTrustLookup_NoMatchDefaultsToNone(t *testing.T) {
 	is := is.New(t)
 	svc := &fakeListRegistryService{
-		registries: []Registry{{URL: "https://other.example.com", VerificationMode: "public_key"}},
+		registries: []Registry{{ID: uuidToStr(pgtype.UUID{Bytes: [16]byte{9}, Valid: true}), URL: "https://other.example.com", VerificationMode: "public_key"}},
 	}
 	lookup := BuildTrustLookup(svc)
 
-	cfg := lookup(context.Background(), "registry.example.com")
+	cfg := lookup(context.Background(), pgtype.UUID{Bytes: [16]byte{3}, Valid: true}, "registry.example.com")
 
 	is.Equal(cfg.Mode, "none")
+}
+
+func TestBuildTrustLookup_DuplicateHostDifferentRegistries(t *testing.T) {
+	is := is.New(t)
+	noneID := pgtype.UUID{Bytes: [16]byte{4}, Valid: true}
+	pubKeyID := pgtype.UUID{Bytes: [16]byte{5}, Valid: true}
+	key := "-----BEGIN PUBLIC KEY-----\nabc\n-----END PUBLIC KEY-----\n"
+	svc := &fakeListRegistryService{
+		registries: []Registry{
+			{ID: uuidToStr(noneID), URL: "https://ghcr.io", VerificationMode: "none"},
+			{ID: uuidToStr(pubKeyID), URL: "https://ghcr.io", VerificationMode: "public_key", TrustPublicKey: &key},
+		},
+	}
+	lookup := BuildTrustLookup(svc)
+
+	noneCfg := lookup(context.Background(), noneID, "ghcr.io")
+	pubKeyCfg := lookup(context.Background(), pubKeyID, "ghcr.io")
+
+	is.Equal(noneCfg.Mode, "none")
+	is.Equal(pubKeyCfg.Mode, "public_key")
+	is.Equal(pubKeyCfg.PublicKeyPEM, key)
 }
 
 func TestBuildTrustLookup_CachesResults(t *testing.T) {
 	is := is.New(t)
 	callCount := 0
+	regID := pgtype.UUID{Bytes: [16]byte{6}, Valid: true}
 	svc := &countingListService{
 		fakeListRegistryService: fakeListRegistryService{registries: []Registry{
-			{URL: "https://registry.example.com", VerificationMode: "public_key"},
+			{ID: uuidToStr(regID), URL: "https://registry.example.com", VerificationMode: "public_key"},
 		}},
 		onList: func() { callCount++ },
 	}
 	lookup := BuildTrustLookup(svc)
 	ctx := context.Background()
 
-	lookup(ctx, "registry.example.com")
-	lookup(ctx, "registry.example.com")
+	lookup(ctx, regID, "registry.example.com")
+	lookup(ctx, regID, "registry.example.com")
 
 	is.Equal(callCount, 1)
 }

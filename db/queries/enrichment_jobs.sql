@@ -31,7 +31,8 @@ SELECT
     COALESCE(s.index_digest, '')::text        AS index_digest,
     COALESCE(s.subject_version, '')::text     AS subject_version,
     COALESCE(a.type, '')::text                AS artifact_type,
-    COALESCE(a.name, '')::text                AS artifact_name
+    COALESCE(a.name, '')::text                AS artifact_name,
+    s.registry_id                             AS registry_id
 FROM claimed c
 JOIN sbom s ON s.id = c.sbom_id
 JOIN artifact a ON a.id = s.artifact_id;
@@ -66,7 +67,8 @@ SELECT
     COALESCE(s.index_digest, '')::text        AS index_digest,
     COALESCE(s.subject_version, '')::text     AS subject_version,
     COALESCE(a.type, '')::text                AS artifact_type,
-    COALESCE(a.name, '')::text                AS artifact_name
+    COALESCE(a.name, '')::text                AS artifact_name,
+    s.registry_id                             AS registry_id
 FROM claimed c
 JOIN sbom s ON s.id = c.sbom_id
 JOIN artifact a ON a.id = s.artifact_id;
