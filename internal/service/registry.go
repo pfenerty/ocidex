@@ -192,24 +192,27 @@ func BuildCredentialLookup(svc RegistryService) HostCredentialLookup {
 	}
 }
 
-// BuildTrustLookup returns a resolver that maps a registry hostname to its
+// BuildTrustLookup returns a resolver that maps a registry ID to its
 // configured verification settings. Results are cached for resolverCacheTTL
-// to avoid a DB round-trip on every enrichment.
-func BuildTrustLookup(svc RegistryService) func(ctx context.Context, host string) trust.Config {
+// to avoid a DB round-trip on every enrichment. host is used only as a
+// fallback for callers that cannot supply a registry ID; since multiple
+// registry rows may share a host (per-owner visibility, ADR-025), the
+// host-keyed fallback defaults to "none" rather than guessing among them.
+func BuildTrustLookup(svc RegistryService) func(ctx context.Context, registryID pgtype.UUID, host string) trust.Config {
 	var (
 		mu        sync.Mutex
-		cache     map[string]trust.Config
+		byID      map[string]trust.Config
 		fetchedAt time.Time
 	)
-	return func(ctx context.Context, host string) trust.Config {
+	return func(ctx context.Context, registryID pgtype.UUID, host string) trust.Config {
 		mu.Lock()
 		defer mu.Unlock()
-		if cache == nil || time.Since(fetchedAt) > resolverCacheTTL {
+		if byID == nil || time.Since(fetchedAt) > resolverCacheTTL {
 			regs, err := svc.List(ctx, VisibilityFilter{IsAdmin: true})
 			if err != nil {
 				return trust.Config{Mode: "none"}
 			}
-			cache = make(map[string]trust.Config, len(regs))
+			byID = make(map[string]trust.Config, len(regs))
 			for _, r := range regs {
 				cfg := trust.Config{Mode: r.VerificationMode}
 				if r.TrustPublicKey != nil {
@@ -221,15 +224,16 @@ func BuildTrustLookup(svc RegistryService) func(ctx context.Context, host string
 				if r.TrustIssuer != nil {
 					cfg.Issuer = *r.TrustIssuer
 				}
-				cache[registryHost(r.URL)] = cfg
+				byID[r.ID] = cfg
 			}
 			fetchedAt = time.Now()
 		}
-		cfg, ok := cache[host]
-		if !ok || cfg.Mode == "" {
-			return trust.Config{Mode: "none"}
+		if id := uuidToStr(registryID); id != "" {
+			if cfg, ok := byID[id]; ok && cfg.Mode != "" {
+				return cfg
+			}
 		}
-		return cfg
+		return trust.Config{Mode: "none"}
 	}
 }
 

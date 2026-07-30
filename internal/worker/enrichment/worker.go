@@ -117,6 +117,7 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 	enrichProcessor := func(ctx context.Context, claim service.EnrichJobClaim) error {
 		ref := enrichment.SubjectRef{
 			SBOMId:         claim.SBOMId,
+			RegistryID:     claim.RegistryID,
 			ArtifactType:   claim.ArtifactType,
 			ArtifactName:   claim.ArtifactName,
 			Digest:         claim.Digest,
@@ -215,6 +216,7 @@ func RunOnce(ctx context.Context, pool *pgxpool.Pool, factory EnricherFactory) e
 
 	ref := enrichment.SubjectRef{
 		SBOMId:         sbomID,
+		RegistryID:     sbomRow.RegistryID,
 		ArtifactType:   artifact.Type,
 		ArtifactName:   artifact.Name,
 		Digest:         sbomRow.Digest.String,

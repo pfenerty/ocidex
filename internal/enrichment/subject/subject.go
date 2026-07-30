@@ -12,6 +12,7 @@ import "github.com/jackc/pgx/v5/pgtype"
 // artifact metadata needed by enrichers.
 type Ref struct {
 	SBOMId         pgtype.UUID
+	RegistryID     pgtype.UUID // registry this SBOM was ingested under; scopes per-registry trust config
 	ArtifactType   string
 	ArtifactName   string
 	Digest         string

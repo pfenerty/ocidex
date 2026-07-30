@@ -28,6 +28,7 @@ type EnrichJobClaim struct {
 	SubjectVersion string
 	ArtifactType   string
 	ArtifactName   string
+	RegistryID     pgtype.UUID
 }
 
 func (c EnrichJobClaim) JobID() string      { return c.ID }
@@ -295,6 +296,7 @@ func enrichClaimFromRow(r repository.ClaimEnrichmentJobByIDRow) EnrichJobClaim {
 		SubjectVersion: r.SubjectVersion,
 		ArtifactType:   r.ArtifactType,
 		ArtifactName:   r.ArtifactName,
+		RegistryID:     r.RegistryID,
 	}
 }
 
@@ -311,5 +313,6 @@ func enrichClaimFromNextRow(r repository.ClaimNextEnrichmentJobRow) EnrichJobCla
 		SubjectVersion: r.SubjectVersion,
 		ArtifactType:   r.ArtifactType,
 		ArtifactName:   r.ArtifactName,
+		RegistryID:     r.RegistryID,
 	}
 }
