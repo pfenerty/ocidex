@@ -1,6 +1,7 @@
 import { A } from "@solidjs/router";
 import { Package, Layers, ShieldCheck, ArrowUpDown, ExternalLink, ShieldAlert } from "lucide-solid";
 import { Show } from "solid-js";
+import { Skeleton } from "~/components/Skeleton";
 import { useDashboardStats } from "~/api/queries";
 import "./Home.css";
 
@@ -19,7 +20,22 @@ export default function Home() {
                     exposure — all from a single searchable index. Know what's in your containers
                     before your next incident does.
                 </p>
-                <Show when={stats.data}>
+                {/* Stats have three states and all three are visible: an
+                    unadorned <Show> rendered a failure as silence, which is
+                    indistinguishable from a catalog that is simply empty. */}
+                <Show
+                    when={stats.data}
+                    fallback={
+                        <div class="landing-stats">
+                            <Show
+                                when={stats.isError}
+                                fallback={<Skeleton width="24rem" height="1em" />}
+                            >
+                                <span class="text-muted">Catalog stats are unavailable.</span>
+                            </Show>
+                        </div>
+                    }
+                >
                     {(data) => (
                         <div class="landing-stats">
                             <span>{data().artifact_count.toLocaleString()} artifacts</span>

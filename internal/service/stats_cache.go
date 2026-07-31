@@ -7,8 +7,17 @@ import (
 
 // statsCacheTTL is how long a computed dashboard-stats payload is reused before
 // recomputation. The dashboard aggregates scan the whole component table, so
-// recomputing on every load does not scale; stats tolerate slight staleness.
-const statsCacheTTL = 60 * time.Second
+// recomputing on every load does not scale; stats tolerate staleness.
+//
+// StatsWarmInterval must stay comfortably below this: the warmer is what keeps
+// entries fresh, and if an entry could lapse between two warms, a dashboard
+// load would land on the slow path the warmer exists to avoid.
+const (
+	statsCacheTTL = 15 * time.Minute
+
+	// StatsWarmInterval is how often the background warmer recomputes stats.
+	StatsWarmInterval = 5 * time.Minute
+)
 
 type statsCacheEntry struct {
 	stats     *DashboardStats

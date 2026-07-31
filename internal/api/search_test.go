@@ -175,6 +175,10 @@ func (f *fakeSearchService) GetDashboardStats(_ context.Context, _ service.Visib
 	return &service.DashboardStats{}, nil
 }
 
+func (f *fakeSearchService) WarmDashboardStats(_ context.Context, _ service.VisibilityFilter) (*service.DashboardStats, error) {
+	return &service.DashboardStats{}, nil
+}
+
 func (f *fakeSearchService) ListVersionsByArtifact(_ context.Context, _ pgtype.UUID, limit, offset int32, _ service.VersionSortMode, _ service.VisibilityFilter) (service.ArtifactVersionsPage, error) {
 	return service.ArtifactVersionsPage{
 		PagedResult: service.PagedResult[service.ArtifactVersion]{
