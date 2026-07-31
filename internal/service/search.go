@@ -98,6 +98,8 @@ type TopVulnFilter struct {
 	Limit      int32
 	Offset     int32
 	Severity   string
+	Sort       string
+	SortDir    string
 	Visibility VisibilityFilter
 }
 

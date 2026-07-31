@@ -6876,6 +6876,38 @@
               ],
               "type": "string"
             }
+          },
+          {
+            "description": "Sort field",
+            "explode": false,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Sort field",
+              "enum": [
+                "severity",
+                "cvss_score",
+                "affected_sbom_count",
+                "affected_purl_count",
+                "published_at",
+                "canonical_id"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction (asc or desc)",
+            "explode": false,
+            "in": "query",
+            "name": "sort_dir",
+            "schema": {
+              "description": "Sort direction (asc or desc)",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {

@@ -4149,6 +4149,10 @@ export interface operations {
                 offset?: number;
                 /** @description Filter by severity */
                 severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+                /** @description Sort field */
+                sort?: "severity" | "cvss_score" | "affected_sbom_count" | "affected_purl_count" | "published_at" | "canonical_id";
+                /** @description Sort direction (asc or desc) */
+                sort_dir?: "asc" | "desc";
             };
             header?: never;
             path?: never;

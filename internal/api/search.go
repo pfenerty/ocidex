@@ -576,6 +576,8 @@ func (h *Handler) ListTopVulnerabilities(ctx context.Context, input *ListTopVuln
 		Limit:      input.Limit,
 		Offset:     input.Offset,
 		Severity:   input.Severity,
+		Sort:       input.Sort,
+		SortDir:    input.SortDir,
 		Visibility: vis,
 	}
 	result, err := h.searchService.ListTopVulnerabilities(ctx, filter)

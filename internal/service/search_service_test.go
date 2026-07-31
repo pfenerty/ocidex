@@ -235,6 +235,58 @@ func TestSearchDistinctComponents_EmptyPurlTypes(t *testing.T) {
 	is.Equal(len(result.Data[0].PurlTypes), 0)
 }
 
+// ---- ListTopVulnerabilities tests ----
+
+// TestListTopVulnerabilities_SortNormalization verifies that the sort reaching
+// the query is always one the ORDER BY knows about, and that an unset sort
+// preserves the severity-first ranking the list had before it was sortable.
+func TestListTopVulnerabilities_SortNormalization(t *testing.T) {
+	tests := []struct {
+		name        string
+		sort        string
+		sortDir     string
+		wantSort    string
+		wantSortDir string
+	}{
+		{"unset falls back to the previous ranking", "", "", "severity", "desc"},
+		{"unknown column rejected", "summary", "asc", "severity", "asc"},
+		{"unknown direction rejected", "cvss_score", "sideways", "cvss_score", "desc"},
+		{"count column ascending", "affected_sbom_count", "asc", "affected_sbom_count", "asc"},
+		{"text column", "canonical_id", "asc", "canonical_id", "asc"},
+		{"published_at descending", "published_at", "desc", "published_at", "desc"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+
+			var gotSortBy, gotSortDir string
+			db := &fakeDB{
+				queryFn: func(_ context.Context, _ string, args ...any) (pgx.Rows, error) {
+					// args positions match ListTopVulnerabilities:
+					// 0=Severity, 1=UserID, 2=IsAdmin, 3=SortBy, 4=SortDir,
+					// 5=RowOffset, 6=RowLimit
+					if len(args) >= 5 {
+						gotSortBy, _ = args[3].(string)
+						gotSortDir, _ = args[4].(string)
+					}
+					return emptyRows(), nil
+				},
+			}
+
+			_, err := NewSearchService(db).ListTopVulnerabilities(context.Background(), TopVulnFilter{
+				Sort:    tt.sort,
+				SortDir: tt.sortDir,
+				Limit:   25,
+			})
+
+			is.NoErr(err)
+			is.Equal(gotSortBy, tt.wantSort)
+			is.Equal(gotSortDir, tt.wantSortDir)
+		})
+	}
+}
+
 // ---- SearchComponents tests ----
 
 // TestSearchComponents_EmptyResult verifies that an empty DB result returns a

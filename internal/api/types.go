@@ -528,6 +528,8 @@ type VulnSeverityEntry struct {
 type ListTopVulnerabilitiesInput struct {
 	PaginationParams
 	Severity string `query:"severity" enum:"CRITICAL,HIGH,MEDIUM,LOW" doc:"Filter by severity"`
+	Sort     string `query:"sort" enum:"severity,cvss_score,affected_sbom_count,affected_purl_count,published_at,canonical_id" doc:"Sort field"`
+	SortDir  string `query:"sort_dir" enum:"asc,desc" doc:"Sort direction (asc or desc)"`
 }
 
 // ListTopVulnerabilitiesOutput is the response for GET /api/v1/vulns.

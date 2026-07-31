@@ -2,9 +2,10 @@ import { createSignal, Show, For } from "solid-js";
 import { DEFAULT_PAGE_SIZE } from "~/api/client";
 import { useNavigate } from "@solidjs/router";
 import { useTopVulnerabilities } from "~/api/queries";
+import type { TopVulnSort } from "~/api/queries/vulns";
 import type { components } from "~/types/openapi";
 import DataTable from "~/components/DataTable";
-import type { Column } from "~/components/DataTable";
+import type { Column, SortDir } from "~/components/DataTable";
 import { SeverityPill, VulnId } from "~/components/cells";
 
 type TopVulnEntry = components["schemas"]["TopVulnEntry"];
@@ -17,11 +18,17 @@ export default function Vulnerabilities() {
     const [offset, setOffset] = createSignal(0);
     const [severityFilter, setSeverityFilter] = createSignal("");
     const [idQuery, setIdQuery] = createSignal("");
+    const [sortBy, setSortBy] = createSignal<TopVulnSort>("severity");
+    const [sortDir, setSortDir] = createSignal<SortDir>("desc");
 
+    // The list is server-paginated, so sorting has to re-query: reordering the
+    // 25 visible rows would claim a ranking the other pages don't share.
     const query = useTopVulnerabilities(() => ({
         limit,
         offset: offset(),
         severity: severityFilter(),
+        sort: sortBy(),
+        sort_dir: sortDir(),
     }));
 
     const handleTabChange = (tab: string) => {
@@ -41,12 +48,16 @@ export default function Vulnerabilities() {
     const columns: Column<TopVulnEntry>[] = [
         {
             header: "Vulnerability",
+            sortKey: "canonical_id",
+            sortType: "text",
             render: (row) => (
                 <VulnId canonicalId={row.canonicalId} nativeId={row.id} />
             ),
         },
         {
             header: "Severity",
+            sortKey: "severity",
+            sortType: "numeric",
             render: (row) => (
                 <SeverityPill severity={row.severity}>
                     {row.severity}
@@ -56,10 +67,13 @@ export default function Vulnerabilities() {
         {
             header: "CVSS",
             align: "right",
+            sortKey: "cvss_score",
+            sortType: "numeric",
             render: (row) =>
                 row.cvssScore !== undefined ? row.cvssScore.toFixed(1) : "—",
         },
         {
+            // Free text with no useful ordering — left unsortable deliberately.
             header: "Summary",
             render: (row) => (
                 <span class="text-muted">{row.summary ?? "—"}</span>
@@ -68,15 +82,21 @@ export default function Vulnerabilities() {
         {
             header: "Affected SBOMs",
             align: "right",
+            sortKey: "affected_sbom_count",
+            sortType: "numeric",
             render: (row) => row.affectedSbomCount.toLocaleString(),
         },
         {
             header: "Affected Packages",
             align: "right",
+            sortKey: "affected_purl_count",
+            sortType: "numeric",
             render: (row) => row.affectedPurlCount.toLocaleString(),
         },
         {
             header: "Published",
+            sortKey: "published_at",
+            sortType: "numeric",
             render: (row) => (
                 <span class="text-muted">{formatDate(row.publishedAt)}</span>
             ),
@@ -138,6 +158,13 @@ export default function Vulnerabilities() {
                 isError={query.isError}
                 error={query.error}
                 emptyTitle="No vulnerabilities found."
+                sortBy={sortBy()}
+                sortDir={sortDir()}
+                onSort={(key, dir) => {
+                    setSortBy(key as TopVulnSort);
+                    setSortDir(dir);
+                    setOffset(0);
+                }}
                 pagination={
                     query.data
                         ? { pagination: query.data.pagination, onPageChange: setOffset }

@@ -9,6 +9,24 @@ import (
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
+// normalizeTopVulnSort clamps the requested sort to the columns
+// ListTopVulnerabilities knows how to order by, falling back to the ranking the
+// list had before sorting was configurable. The query interpolates neither
+// value, so this is about honest defaults rather than injection.
+func normalizeTopVulnSort(sort, dir string) (string, string) {
+	switch sort {
+	case "severity", "cvss_score", "affected_sbom_count", "affected_purl_count", "published_at", "canonical_id":
+	default:
+		sort = "severity"
+	}
+	switch dir {
+	case "asc", "desc":
+	default:
+		dir = "desc"
+	}
+	return sort, dir
+}
+
 func (s *searchService) ListTopVulnerabilities(ctx context.Context, filter TopVulnFilter) (PagedResult[TopVulnEntry], error) {
 	q := repository.New(s.db)
 	isAdmin := visAdminBool(filter.Visibility)
@@ -18,10 +36,14 @@ func (s *searchService) ListTopVulnerabilities(ctx context.Context, filter TopVu
 		severity = pgtype.Text{String: filter.Severity, Valid: true}
 	}
 
+	sortBy, sortDir := normalizeTopVulnSort(filter.Sort, filter.SortDir)
+
 	params := repository.ListTopVulnerabilitiesParams{
 		UserID:    filter.Visibility.UserID,
 		IsAdmin:   isAdmin,
 		Severity:  severity,
+		SortBy:    sortBy,
+		SortDir:   sortDir,
 		RowLimit:  pgtype.Int4{Int32: filter.Limit, Valid: true},
 		RowOffset: pgtype.Int4{Int32: filter.Offset, Valid: true},
 	}
