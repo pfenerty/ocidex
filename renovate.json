@@ -5,6 +5,7 @@
   "postUpdateOptions": ["gomodTidy", "npmDedupe"],
   "minimumReleaseAge": "3 days",
   "prHourlyLimit": 10,
+  "prCreation": "immediate",
   "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": {
     "automerge": false,
