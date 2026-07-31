@@ -126,6 +126,66 @@ describe("DiffTreeView", () => {
         expect(getByText("pkg-C")).toBeDefined();
     });
 
+    it("renders a change on a transitive grandchild instead of counting it and hiding it", () => {
+        // Regression: the header read "↑1 upgraded" over an empty table because
+        // expandedRefs started empty, so the DFS never recursed past the root.
+        const dc = { added: 0, removed: 0, upgraded: 1, downgraded: 0, modified: 0 };
+        const tree = makeTree({
+            roots: ["R"],
+            nodes: [
+                makeNode({ id: "n-R", name: "pkg-R", bomRef: "R", purl: "pkg:maven/test/pkg-R@1.0", isDirect: true, descendantChanges: dc }),
+                makeNode({ id: "n-C", name: "pkg-C", bomRef: "C", purl: "pkg:maven/test/pkg-C@1.0", isDirect: true, descendantChanges: dc }),
+                makeNode({ id: "n-G", name: "pkg-G", bomRef: "G", purl: "pkg:maven/test/pkg-G@2.0", isDirect: false }),
+            ],
+            edges: [{ from: "R", to: "C" }, { from: "C", to: "G" }],
+            changes: [
+                {
+                    type: "modified",
+                    direction: "upgraded",
+                    name: "pkg-G",
+                    purl: "pkg:maven/test/pkg-G@2.0",
+                    version: "2.0",
+                    previousVersion: "1.0",
+                    nodeRef: "n-G",
+                },
+            ],
+            summary: { added: 0, removed: 0, upgraded: 1, downgraded: 0, modified: 0 },
+        });
+
+        const { getByText, container } = render(() => <DiffTreeView tree={tree} />);
+        expect(getByText("pkg-G")).toBeDefined();
+        expect(getByText("upgraded")).toBeDefined();
+        // Every counted change is on screen, so there is nothing to reconcile.
+        expect(container.textContent).not.toMatch(/hidden under indirect dependencies/);
+    });
+
+    it("surfaces a change with no node in the graph under its own direction", () => {
+        // The orphan list used to be removals only and hardcoded a "removed"
+        // badge, so any other direction that lost its node vanished silently.
+        const tree = makeTree({
+            roots: [],
+            nodes: [],
+            edges: [],
+            changes: [
+                {
+                    type: "modified",
+                    direction: "downgraded",
+                    name: "pkg-orphan",
+                    purl: "pkg:maven/test/pkg-orphan@1.0",
+                    version: "1.0",
+                    previousVersion: "2.0",
+                    nodeRef: "n-missing",
+                },
+            ],
+            summary: { added: 0, removed: 0, upgraded: 0, downgraded: 1, modified: 0 },
+        });
+
+        const { getByText, container } = render(() => <DiffTreeView tree={tree} />);
+        expect(getByText("pkg-orphan")).toBeDefined();
+        expect(getByText("downgraded")).toBeDefined();
+        expect(container.textContent).not.toMatch(/hidden under indirect dependencies/);
+    });
+
     it("shows fallback message when both roots and orphans are empty", () => {
         const tree = makeTree({ roots: [], nodes: [], edges: [], changes: [] });
         const { getByText } = render(() => <DiffTreeView tree={tree} />);

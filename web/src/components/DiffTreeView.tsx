@@ -1,4 +1,4 @@
-import { createMemo, createSignal, Show, For } from "solid-js";
+import { createEffect, createMemo, createSignal, Show, For } from "solid-js";
 import { createLocalStorageSignal } from "~/utils/prefs";
 import { A } from "@solidjs/router";
 import { relativeDate } from "~/utils/format";
@@ -31,6 +31,15 @@ function purlBase(purl: string): string {
     return atIdx > 0 ? purl.slice(0, atIdx) : purl.split("?")[0];
 }
 
+// changeBadgeClass maps a change direction to its badge class. Shared by the
+// tree rows and the orphan rows so the two can't disagree about a direction's
+// colour.
+function changeBadgeClass(kind: string | undefined): string {
+    if (kind === "added" || kind === "upgraded") return "badge badge-primary";
+    if (kind === "removed" || kind === "downgraded") return "badge badge-warning";
+    return "badge";
+}
+
 export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
     const treeData = createMemo(() => {
         // Filter to non-file changes once; we use this set for the orphan list and for
@@ -55,6 +64,7 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
         // Build the TreeNode map keyed on bomRef directly from props.tree.nodes.
         const nodes = new Map<string, TreeNode>();
         const inGraphPurls = new Set<string>();
+        const inGraphIDs = new Set<string>();
         for (const node of props.tree.nodes ?? []) {
             const type = parsePurl(node.purl ?? "")?.type ?? node.type;
             if (type === "file") continue;
@@ -88,20 +98,24 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
                 inGraphPurls.add(node.purl);
                 inGraphPurls.add(purlBase(node.purl));
             }
+            inGraphIDs.add(node.id);
         }
 
         // Use backend-computed roots (anchored on metadata.component.bom-ref per ADR-0021 §B5).
         const rootRefs = props.tree.roots ?? [];
 
-        // Removed packages with no node in the graph — surfaced separately so the user
-        // doesn't lose them, since by definition they have no tree position.
-        const removedOrphans = filteredChanges.filter((c) => {
-            if (c.direction !== "removed") return false;
+        // Changes with no node in the graph — surfaced separately so the user doesn't
+        // lose them, since by definition they have no tree position. Removals are the
+        // common case, but any direction can land here (a nodeRef pointing at a
+        // file-typed node we skipped, an edge the backend couldn't resolve), and a
+        // change counted in the header must always be reachable somewhere.
+        const orphanChanges = filteredChanges.filter((c) => {
+            if (c.nodeRef !== undefined && c.nodeRef !== "" && inGraphIDs.has(c.nodeRef)) return false;
             if (c.purl !== undefined && (inGraphPurls.has(c.purl) || inGraphPurls.has(purlBase(c.purl)))) return false;
             return true;
         });
 
-        return { roots: rootRefs, nodes, removedOrphans };
+        return { roots: rootRefs, nodes, orphanChanges, changes: filteredChanges };
     });
 
     const [expandedRefs, setExpandedRefs] = createSignal(new Set<string>(), { equals: false });
@@ -124,6 +138,16 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
         }
         setExpandedRefs(() => toExpand);
     };
+
+    // A change under an unexpanded ancestor is counted in the header and rendered
+    // nowhere, which reads as "↑1 upgraded" over an empty table. Expanding the
+    // ancestors of every change on mount (and again whenever a new tree arrives)
+    // makes the default view self-consistent. Safe as an effect: expandAllChanged
+    // reads treeData but never expandedRefs, so this can't loop.
+    createEffect(() => {
+        treeData();
+        expandAllChanged();
+    });
 
     // DFS over roots → flat array of visible rows in traversal order.
     // pathSet tracks ancestors on the current path for cycle detection (same semantics as the
@@ -164,10 +188,26 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
         return result;
     });
 
+    // Every change the tree renders, counted by distinct node so a diamond
+    // dependency rendered under two parents still counts once.
+    const renderedChangeIDs = createMemo(() => {
+        const ids = new Set<string>();
+        for (const row of visibleRows()) {
+            if (row.node.changeKind !== undefined) ids.add(row.node.id ?? row.node.ref);
+        }
+        return ids;
+    });
+
+    const shownChangeCount  = () => renderedChangeIDs().size + treeData().orphanChanges.length;
+    const hiddenChangeCount = () => Math.max(0, changes().length - shownChangeCount());
+
+    const revealHidden = () => {
+        setShowTransitive(true);
+        expandAllChanged();
+    };
+
     // Summary counts for the header badges.
-    const changes = () => (props.tree.changes ?? []).filter(
-        (c) => c.purl !== undefined && parsePurl(c.purl)?.type !== "file",
-    );
+    const changes = () => treeData().changes;
     const addedCount   = () => changes().filter((c) => c.type === "added").length;
     const removedCount = () => changes().filter((c) => c.type === "removed").length;
     const upgradedCount   = () => changes().filter((c) => c.direction === "upgraded").length;
@@ -239,8 +279,17 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
                     Show transitive
                 </label>
             </div>
+            <Show when={hiddenChangeCount() > 0}>
+                <p class="text-muted text-sm" style={{ padding: "0 0 0.5rem" }}>
+                    Showing {shownChangeCount()} of {changes().length} changes —{" "}
+                    {hiddenChangeCount()} hidden under indirect dependencies.{" "}
+                    <button class="btn btn-sm" onClick={revealHidden}>
+                        Show hidden changes
+                    </button>
+                </p>
+            </Show>
             <Show
-                when={treeData().roots.length > 0 || treeData().removedOrphans.length > 0}
+                when={treeData().roots.length > 0 || treeData().orphanChanges.length > 0}
                 fallback={
                     <p class="text-muted text-sm" style={{ padding: "1rem 0" }}>
                         No dependency tree available for this diff. Switch to list view to see all changes.
@@ -261,12 +310,7 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
                                 {(row) => {
                                     const isExpanded = () => expandedRefs().has(row.node.ref);
                                     const isChanged = () => row.node.changeKind !== undefined;
-                                    const changeCls = () => {
-                                        const k = row.node.changeKind;
-                                        if (k === "added" || k === "upgraded") return "badge-primary";
-                                        if (k === "removed" || k === "downgraded") return "badge-warning";
-                                        return "";
-                                    };
+                                    const changeCls = () => changeBadgeClass(row.node.changeKind);
                                     return (
                                         <tr
                                             style={{
@@ -329,7 +373,7 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
                                             </td>
                                             <td>
                                                 <Show when={isChanged()}>
-                                                    <span class={`badge ${changeCls()}`}>
+                                                    <span class={changeCls()}>
                                                         {row.node.changeKind}
                                                     </span>
                                                 </Show>
@@ -366,8 +410,8 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
                                     );
                                 }}
                             </For>
-                            <Show when={treeData().removedOrphans.length > 0}>
-                                <For each={treeData().removedOrphans}>
+                            <Show when={treeData().orphanChanges.length > 0}>
+                                <For each={treeData().orphanChanges}>
                                     {(c) => (
                                         <tr>
                                             <td>
@@ -386,14 +430,16 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
                                                 </span>
                                             </td>
                                             <td>
-                                                <span class="badge badge-warning">
-                                                    removed
+                                                <span class={changeBadgeClass(c.direction)}>
+                                                    {c.direction !== "" ? c.direction : c.type}
                                                 </span>
                                             </td>
                                             <td class="font-mono" style={{ "font-size": "0.85rem" }}>
-                                                <span class="text-muted">
-                                                    {c.previousVersion ?? "—"}
-                                                </span>
+                                                <Show when={c.previousVersion}>
+                                                    <span class="text-muted">{c.previousVersion}</span>
+                                                    {" → "}
+                                                </Show>
+                                                {c.version ?? <span class="text-muted">—</span>}
                                             </td>
                                         </tr>
                                     )}

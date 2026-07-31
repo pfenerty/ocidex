@@ -844,6 +844,14 @@
             "description": "Allow HTTP (non-TLS) connections",
             "type": "boolean"
           },
+          "managed_by": {
+            "description": "External system that owns this registry's configuration (e.g. kubernetes); set by that system's controller, not by hand",
+            "type": "string"
+          },
+          "managed_ref": {
+            "description": "Identifier within the managing system, e.g. '\u003cnamespace\u003e/\u003cname\u003e' of the OCIRegistry resource",
+            "type": "string"
+          },
           "name": {
             "description": "Human-readable registry name",
             "maxLength": 100,
@@ -989,6 +997,14 @@
             "type": "boolean"
           },
           "last_polled_at": {
+            "type": "string"
+          },
+          "managed_by": {
+            "description": "External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API",
+            "type": "string"
+          },
+          "managed_ref": {
+            "description": "Identifier within the managing system, e.g. '\u003cnamespace\u003e/\u003cname\u003e' of the OCIRegistry resource",
             "type": "string"
           },
           "name": {
@@ -2787,6 +2803,14 @@
           "last_polled_at": {
             "type": "string"
           },
+          "managed_by": {
+            "description": "External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API",
+            "type": "string"
+          },
+          "managed_ref": {
+            "description": "Identifier within the managing system, e.g. '\u003cnamespace\u003e/\u003cname\u003e' of the OCIRegistry resource",
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
@@ -3575,6 +3599,14 @@
           },
           "insecure": {
             "type": "boolean"
+          },
+          "managed_by": {
+            "description": "External system that owns this registry's configuration; omit to leave the existing marker untouched",
+            "type": "string"
+          },
+          "managed_ref": {
+            "description": "Identifier within the managing system; omit to leave the existing value untouched",
+            "type": "string"
           },
           "name": {
             "maxLength": 100,
@@ -6873,6 +6905,38 @@
                 "HIGH",
                 "MEDIUM",
                 "LOW"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort field",
+            "explode": false,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Sort field",
+              "enum": [
+                "severity",
+                "cvss_score",
+                "affected_sbom_count",
+                "affected_purl_count",
+                "published_at",
+                "canonical_id"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction (asc or desc)",
+            "explode": false,
+            "in": "query",
+            "name": "sort_dir",
+            "schema": {
+              "description": "Sort direction (asc or desc)",
+              "enum": [
+                "asc",
+                "desc"
               ],
               "type": "string"
             }

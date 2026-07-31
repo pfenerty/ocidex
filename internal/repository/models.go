@@ -179,6 +179,8 @@ type Registry struct {
 	TrustPublicKey      pgtype.Text        `json:"trust_public_key"`
 	TrustIdentity       pgtype.Text        `json:"trust_identity"`
 	TrustIssuer         pgtype.Text        `json:"trust_issuer"`
+	ManagedBy           pgtype.Text        `json:"managed_by"`
+	ManagedRef          pgtype.Text        `json:"managed_ref"`
 }
 
 type Sbom struct {

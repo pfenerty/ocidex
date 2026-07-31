@@ -551,6 +551,54 @@ func (e ListTopVulnerabilitiesParamsSeverity) Valid() bool {
 	}
 }
 
+// Defines values for ListTopVulnerabilitiesParamsSort.
+const (
+	AffectedPurlCount ListTopVulnerabilitiesParamsSort = "affected_purl_count"
+	AffectedSbomCount ListTopVulnerabilitiesParamsSort = "affected_sbom_count"
+	CanonicalId       ListTopVulnerabilitiesParamsSort = "canonical_id"
+	CvssScore         ListTopVulnerabilitiesParamsSort = "cvss_score"
+	PublishedAt       ListTopVulnerabilitiesParamsSort = "published_at"
+	Severity          ListTopVulnerabilitiesParamsSort = "severity"
+)
+
+// Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSort enum.
+func (e ListTopVulnerabilitiesParamsSort) Valid() bool {
+	switch e {
+	case AffectedPurlCount:
+		return true
+	case AffectedSbomCount:
+		return true
+	case CanonicalId:
+		return true
+	case CvssScore:
+		return true
+	case PublishedAt:
+		return true
+	case Severity:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListTopVulnerabilitiesParamsSortDir.
+const (
+	Asc  ListTopVulnerabilitiesParamsSortDir = "asc"
+	Desc ListTopVulnerabilitiesParamsSortDir = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSortDir enum.
+func (e ListTopVulnerabilitiesParamsSortDir) Valid() bool {
+	switch e {
+	case Asc:
+		return true
+	case Desc:
+		return true
+	default:
+		return false
+	}
+}
+
 // AffectedArtifact defines model for AffectedArtifact.
 type AffectedArtifact struct {
 	AffectedPurlCount int64   `json:"affectedPurlCount"`
@@ -810,6 +858,12 @@ type CreateRegistryInputBody struct {
 	// Insecure Allow HTTP (non-TLS) connections
 	Insecure bool `json:"insecure"`
 
+	// ManagedBy External system that owns this registry's configuration (e.g. kubernetes); set by that system's controller, not by hand
+	ManagedBy *string `json:"managed_by,omitempty"`
+
+	// ManagedRef Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource
+	ManagedRef *string `json:"managed_ref,omitempty"`
+
 	// Name Human-readable registry name
 	Name string `json:"name"`
 
@@ -879,7 +933,13 @@ type CreateRegistryResponseBody struct {
 	IncludeUntagged bool    `json:"include_untagged"`
 	Insecure        bool    `json:"insecure"`
 	LastPolledAt    *string `json:"last_polled_at,omitempty"`
-	Name            string  `json:"name"`
+
+	// ManagedBy External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API
+	ManagedBy *string `json:"managed_by,omitempty"`
+
+	// ManagedRef Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource
+	ManagedRef *string `json:"managed_ref,omitempty"`
+	Name       string  `json:"name"`
 
 	// OwnerId UUID of the registry owner
 	OwnerId *string `json:"owner_id,omitempty"`
@@ -1130,6 +1190,13 @@ type GetComponentVulnsOutputBody struct {
 	Data   *[]ComponentVulnEntry `json:"data"`
 }
 
+// GetRegistryTrustSummaryOutputBody defines model for GetRegistryTrustSummaryOutputBody.
+type GetRegistryTrustSummaryOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string               `json:"$schema,omitempty"`
+	Data   *[]RegistryTrustCount `json:"data"`
+}
+
 // GetVulnerabilityOutputBody defines model for GetVulnerabilityOutputBody.
 type GetVulnerabilityOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -1285,6 +1352,14 @@ type ListLicensesOutputBody struct {
 	Pagination PaginationMeta  `json:"pagination"`
 }
 
+// ListRecentDriftOutputBody defines model for ListRecentDriftOutputBody.
+type ListRecentDriftOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema     *string             `json:"$schema,omitempty"`
+	Data       *[]RecentDriftEntry `json:"data"`
+	Pagination PaginationMeta      `json:"pagination"`
+}
+
 // ListRegistriesOutputBody defines model for ListRegistriesOutputBody.
 type ListRegistriesOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -1299,6 +1374,14 @@ type ListSBOMComponentsOutputBody struct {
 	Schema     *string             `json:"$schema,omitempty"`
 	Components *[]ComponentSummary `json:"components"`
 	Pagination CursorMeta          `json:"pagination"`
+}
+
+// ListSBOMDriftHistoryOutputBody defines model for ListSBOMDriftHistoryOutputBody.
+type ListSBOMDriftHistoryOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema     *string                   `json:"$schema,omitempty"`
+	Data       *[]ProvenanceDriftSummary `json:"data"`
+	Pagination PaginationMeta            `json:"pagination"`
 }
 
 // ListSBOMsOutputBody defines model for ListSBOMsOutputBody.
@@ -1394,6 +1477,20 @@ type ReadinessCheckOutputBody struct {
 	Status string `json:"status"`
 }
 
+// RecentDriftEntry defines model for RecentDriftEntry.
+type RecentDriftEntry struct {
+	ArtifactId     *string   `json:"artifactId,omitempty"`
+	ArtifactName   *string   `json:"artifactName,omitempty"`
+	ArtifactType   *string   `json:"artifactType,omitempty"`
+	DetectedAt     time.Time `json:"detectedAt"`
+	NewStatus      string    `json:"newStatus"`
+	PreviousStatus string    `json:"previousStatus"`
+	Reason         string    `json:"reason"`
+	RegistryId     *string   `json:"registryId,omitempty"`
+	RegistryName   *string   `json:"registryName,omitempty"`
+	SbomId         string    `json:"sbomId"`
+}
+
 // RegenerateWebhookSecretOutputBody defines model for RegenerateWebhookSecretOutputBody.
 type RegenerateWebhookSecretOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -1417,7 +1514,13 @@ type RegistryResponse struct {
 	IncludeUntagged bool    `json:"include_untagged"`
 	Insecure        bool    `json:"insecure"`
 	LastPolledAt    *string `json:"last_polled_at,omitempty"`
-	Name            string  `json:"name"`
+
+	// ManagedBy External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API
+	ManagedBy *string `json:"managed_by,omitempty"`
+
+	// ManagedRef Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource
+	ManagedRef *string `json:"managed_ref,omitempty"`
+	Name       string  `json:"name"`
 
 	// OwnerId UUID of the registry owner
 	OwnerId *string `json:"owner_id,omitempty"`
@@ -1458,6 +1561,13 @@ type RegistryResponse struct {
 
 // RegistryResponseVerificationMode Signature verification mode
 type RegistryResponseVerificationMode string
+
+// RegistryTrustCount defines model for RegistryTrustCount.
+type RegistryTrustCount struct {
+	Count         int64  `json:"count"`
+	RegistryId    string `json:"registryId"`
+	SigningStatus string `json:"signingStatus"`
+}
 
 // RegistryWebhookInputBody defines model for RegistryWebhookInputBody.
 type RegistryWebhookInputBody struct {
@@ -1507,6 +1617,7 @@ type SBOMDetail struct {
 	RawBom          interface{}             `json:"rawBom,omitempty"`
 	Revision        *string                 `json:"revision,omitempty"`
 	SerialNumber    *string                 `json:"serialNumber,omitempty"`
+	SigningStatus   string                  `json:"signingStatus"`
 	SourceUrl       *string                 `json:"sourceUrl,omitempty"`
 	SpecVersion     string                  `json:"specVersion"`
 	SubjectVersion  *string                 `json:"subjectVersion,omitempty"`
@@ -1681,9 +1792,15 @@ type UpdateRegistryInputBody struct {
 	Enabled      bool    `json:"enabled"`
 
 	// IncludeUntagged Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)
-	IncludeUntagged *bool  `json:"include_untagged,omitempty"`
-	Insecure        bool   `json:"insecure"`
-	Name            string `json:"name"`
+	IncludeUntagged *bool `json:"include_untagged,omitempty"`
+	Insecure        bool  `json:"insecure"`
+
+	// ManagedBy External system that owns this registry's configuration; omit to leave the existing marker untouched
+	ManagedBy *string `json:"managed_by,omitempty"`
+
+	// ManagedRef Identifier within the managing system; omit to leave the existing value untouched
+	ManagedRef *string `json:"managed_ref,omitempty"`
+	Name       string  `json:"name"`
 
 	// PollIntervalMinutes Minutes between polls
 	PollIntervalMinutes *int64    `json:"poll_interval_minutes,omitempty"`
@@ -2007,6 +2124,15 @@ type ListRegistriesParams struct {
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// ListRecentDriftParams defines parameters for ListRecentDrift.
+type ListRecentDriftParams struct {
+	// Limit Maximum number of results per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // ScanRegistryParams defines parameters for ScanRegistry.
 type ScanRegistryParams struct {
 	// Force Re-scan every image, including digests already ingested. Default false: already-scanned digests are skipped.
@@ -2078,6 +2204,15 @@ type ListSbomComponentsParams struct {
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
+// ListSbomDriftHistoryParams defines parameters for ListSbomDriftHistory.
+type ListSbomDriftHistoryParams struct {
+	// Limit Maximum number of results per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // ListTopVulnerabilitiesParams defines parameters for ListTopVulnerabilities.
 type ListTopVulnerabilitiesParams struct {
 	// Limit Maximum number of results per page
@@ -2088,10 +2223,22 @@ type ListTopVulnerabilitiesParams struct {
 
 	// Severity Filter by severity
 	Severity *ListTopVulnerabilitiesParamsSeverity `form:"severity,omitempty" json:"severity,omitempty"`
+
+	// Sort Sort field
+	Sort *ListTopVulnerabilitiesParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// SortDir Sort direction (asc or desc)
+	SortDir *ListTopVulnerabilitiesParamsSortDir `form:"sort_dir,omitempty" json:"sort_dir,omitempty"`
 }
 
 // ListTopVulnerabilitiesParamsSeverity defines parameters for ListTopVulnerabilities.
 type ListTopVulnerabilitiesParamsSeverity string
+
+// ListTopVulnerabilitiesParamsSort defines parameters for ListTopVulnerabilities.
+type ListTopVulnerabilitiesParamsSort string
+
+// ListTopVulnerabilitiesParamsSortDir defines parameters for ListTopVulnerabilities.
+type ListTopVulnerabilitiesParamsSortDir string
 
 // GetVulnerabilityParams defines parameters for GetVulnerability.
 type GetVulnerabilityParams struct {

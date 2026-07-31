@@ -34,6 +34,7 @@ type SearchService interface {
 	ListSBOMComponentsPage(ctx context.Context, sbomID pgtype.UUID, page ComponentPage, vis VisibilityFilter) (CursorPage[ComponentSummary], error)
 	ListComponentPurlTypes(ctx context.Context, vis VisibilityFilter) ([]string, error)
 	GetDashboardStats(ctx context.Context, vis VisibilityFilter) (*DashboardStats, error)
+	WarmDashboardStats(ctx context.Context, vis VisibilityFilter) (*DashboardStats, error)
 	ListTopVulnerabilities(ctx context.Context, filter TopVulnFilter) (PagedResult[TopVulnEntry], error)
 	GetArtifactVulnSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (*VulnSummary, error)
 	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (*VulnDetail, PagedResult[AffectedArtifact], PagedResult[AffectedComponent], error)
@@ -97,6 +98,8 @@ type TopVulnFilter struct {
 	Limit      int32
 	Offset     int32
 	Severity   string
+	Sort       string
+	SortDir    string
 	Visibility VisibilityFilter
 }
 

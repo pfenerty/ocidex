@@ -277,6 +277,8 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 		TrustPublicKey:      in.Body.TrustPublicKey,
 		TrustIdentity:       in.Body.TrustIdentity,
 		TrustIssuer:         in.Body.TrustIssuer,
+		ManagedBy:           in.Body.ManagedBy,
+		ManagedRef:          in.Body.ManagedRef,
 	})
 	if err != nil {
 		return nil, mapServiceError(err)
@@ -322,6 +324,8 @@ func (h *Handler) RegenerateWebhookSecret(ctx context.Context, in *RegenerateWeb
 		TrustPublicKey:      existing.TrustPublicKey,
 		TrustIdentity:       existing.TrustIdentity,
 		TrustIssuer:         existing.TrustIssuer,
+		ManagedBy:           existing.ManagedBy,
+		ManagedRef:          existing.ManagedRef,
 	})
 	if err != nil {
 		return nil, huma.Error500InternalServerError("updating webhook secret")
@@ -403,6 +407,10 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 		TrustPublicKey:      in.Body.TrustPublicKey,
 		TrustIdentity:       in.Body.TrustIdentity,
 		TrustIssuer:         in.Body.TrustIssuer,
+		// nil leaves the existing marker alone, so a UI edit of an
+		// operator-owned registry can't quietly claim it as unmanaged.
+		ManagedBy:  in.Body.ManagedBy,
+		ManagedRef: in.Body.ManagedRef,
 	})
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
@@ -553,6 +561,8 @@ func toRegistryResponse(r service.Registry, apiBaseURL string, ownerUsername *st
 		TrustPublicKey:      r.TrustPublicKey,
 		TrustIdentity:       r.TrustIdentity,
 		TrustIssuer:         r.TrustIssuer,
+		ManagedBy:           r.ManagedBy,
+		ManagedRef:          r.ManagedRef,
 	}
 	if r.LastPolledAt != nil {
 		s := r.LastPolledAt.UTC().Format("2006-01-02T15:04:05Z")

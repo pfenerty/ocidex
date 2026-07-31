@@ -15,6 +15,28 @@ function shortBuilder(id: string | undefined): string | undefined {
     return id.replace(/^https?:\/\//, "");
 }
 
+// provenanceSubline captions the provenance tile. It names the build that
+// produced the artifact when the attestation carries a builder id, and
+// otherwise falls back to the signing material that is actually present.
+//
+// It must never claim material is absent that the enrichment recorded as
+// present: this line previously printed "no signature" whenever `builderId`
+// was unset, so a signed artifact without build metadata read
+// "Signed / no signature".
+function provenanceSubline(p: Provenance | undefined): string {
+    if (p === undefined) return "—";
+
+    const builder = shortBuilder(p.builderId);
+    if (builder !== undefined) return builder;
+
+    const facts = [
+        p.signaturePresent === true ? "cosign signature" : undefined,
+        p.attestationPresent === true ? "SLSA attestation" : undefined,
+    ].filter((f) => f !== undefined);
+
+    return facts.length > 0 ? facts.join(" · ") : "no signing material";
+}
+
 export default function SummaryBand(props: {
     provenance: Provenance | undefined;
     signingStatus: string | undefined;
@@ -53,8 +75,7 @@ export default function SummaryBand(props: {
                     {(t) => <span class={`${trustBadgeClass(t().variant)} summary-tile-value`}>{t().label}</span>}
                 </Show>
                 <span class="summary-tile-sub">
-                    {shortBuilder(props.provenance?.builderId) ??
-                        (props.provenance !== undefined ? "no signature" : "—")}
+                    {provenanceSubline(props.provenance)}
                 </span>
             </button>
 

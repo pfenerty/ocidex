@@ -148,11 +148,21 @@ func run() error {
 
 	go runSessionCleaner(extCtx, authSvc)
 
+	// The dashboard aggregates take longer than any request timeout allows, so
+	// they are computed out-of-band and served from cache. Per-process cache,
+	// so this runs on every replica rather than behind leader election.
+	statsWarmer := service.NewStatsWarmer(searchSvc, service.StatsWarmInterval, logger)
+	go statsWarmer.Run(extCtx)
+	slog.Info("dashboard stats warmer started", "interval", service.StatsWarmInterval)
+
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.Port),
-		Handler:      router,
+		Addr:    fmt.Sprintf(":%d", cfg.Port),
+		Handler: router,
+		// WriteTimeout must exceed the chi request timeout in api.NewRouter:
+		// if it doesn't, a slow handler has its connection dropped before the
+		// middleware can turn the deadline into a response the client renders.
 		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		WriteTimeout: 45 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
 

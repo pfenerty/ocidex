@@ -1,6 +1,7 @@
 import { createQuery } from "@tanstack/solid-query";
 import { client, unwrap } from "~/api/client";
 import type { Accessor } from "solid-js";
+import type { paths } from "~/types/openapi";
 
 export function useVulnerabilityDetail(
     id: Accessor<string>,
@@ -26,13 +27,27 @@ export function useVulnerabilityDetail(
     });
 }
 
+// The sort field is an enum in the spec, so the union is the contract: adding a
+// sortable column here means adding it to ListTopVulnerabilitiesInput too.
+export type TopVulnSort = NonNullable<
+    NonNullable<
+        paths["/api/v1/vulns"]["get"]["parameters"]["query"]
+    >["sort"]
+>;
+
 export function useTopVulnerabilities(
-    params: Accessor<{ limit?: number; offset?: number; severity?: string }>,
+    params: Accessor<{
+        limit?: number;
+        offset?: number;
+        severity?: string;
+        sort?: TopVulnSort;
+        sort_dir?: "asc" | "desc";
+    }>,
 ) {
     return createQuery(() => {
         const p = params();
         return {
-            queryKey: ["vulns", "top", p.severity, p.limit, p.offset] as const,
+            queryKey: ["vulns", "top", p.severity, p.sort, p.sort_dir, p.limit, p.offset] as const,
             queryFn: () =>
                 unwrap(
                     client.GET("/api/v1/vulns", {
@@ -40,6 +55,8 @@ export function useTopVulnerabilities(
                             query: {
                                 limit: p.limit,
                                 offset: p.offset,
+                                sort: p.sort,
+                                sort_dir: p.sort_dir,
                                 severity: (p.severity !== "" ? p.severity : undefined) as
                                     | "CRITICAL"
                                     | "HIGH"

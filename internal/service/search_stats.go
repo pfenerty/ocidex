@@ -13,13 +13,19 @@ import (
 // are TTL-cached per visibility scope because the underlying aggregates scan the
 // whole component table; recomputing on every dashboard load does not scale.
 func (s *searchService) GetDashboardStats(ctx context.Context, vis VisibilityFilter) (*DashboardStats, error) {
-	cacheKey := statsCacheKey(vis)
 	if s.statsCache != nil {
-		if cached := s.statsCache.get(cacheKey); cached != nil {
+		if cached := s.statsCache.get(statsCacheKey(vis)); cached != nil {
 			return cached, nil
 		}
 	}
+	return s.WarmDashboardStats(ctx, vis)
+}
 
+// WarmDashboardStats recomputes dashboard stats for a visibility scope and
+// stores them in the cache, bypassing the cache read. The background warmer
+// calls this so entries are refreshed before they expire — going through
+// GetDashboardStats would find the entry still fresh and never recompute it.
+func (s *searchService) WarmDashboardStats(ctx context.Context, vis VisibilityFilter) (*DashboardStats, error) {
 	q := repository.New(s.db)
 	isAdmin := visAdminBool(vis)
 
@@ -107,7 +113,7 @@ func (s *searchService) GetDashboardStats(ctx context.Context, vis VisibilityFil
 	stats := buildDashboardStats(counts, cats, timeline, pkgGrowth, verGrowth, topRows, vulnStats)
 
 	if s.statsCache != nil {
-		s.statsCache.set(cacheKey, stats)
+		s.statsCache.set(statsCacheKey(vis), stats)
 	}
 
 	return stats, nil

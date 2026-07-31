@@ -528,6 +528,8 @@ type VulnSeverityEntry struct {
 type ListTopVulnerabilitiesInput struct {
 	PaginationParams
 	Severity string `query:"severity" enum:"CRITICAL,HIGH,MEDIUM,LOW" doc:"Filter by severity"`
+	Sort     string `query:"sort" enum:"severity,cvss_score,affected_sbom_count,affected_purl_count,published_at,canonical_id" doc:"Sort field"`
+	SortDir  string `query:"sort_dir" enum:"asc,desc" doc:"Sort direction (asc or desc)"`
 }
 
 // ListTopVulnerabilitiesOutput is the response for GET /api/v1/vulns.
@@ -740,6 +742,8 @@ type RegistryResponse struct {
 	TrustPublicKey      *string  `json:"trust_public_key,omitempty" doc:"PEM-encoded EC public key for public_key verification mode"`
 	TrustIdentity       *string  `json:"trust_identity,omitempty" doc:"Regex matched against the Fulcio certificate SAN; required for keyless verification mode"`
 	TrustIssuer         *string  `json:"trust_issuer,omitempty" doc:"Expected OIDC issuer URL; required for keyless verification mode"`
+	ManagedBy           *string  `json:"managed_by,omitempty" doc:"External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API"`
+	ManagedRef          *string  `json:"managed_ref,omitempty" doc:"Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource"`
 }
 
 // ListRegistriesInput is the request for GET /api/v1/registries.
@@ -796,6 +800,8 @@ type CreateRegistryInput struct {
 		TrustPublicKey      *string  `json:"trust_public_key,omitempty" doc:"PEM-encoded EC public key; required when verification_mode is public_key"`
 		TrustIdentity       *string  `json:"trust_identity,omitempty" doc:"Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless"`
 		TrustIssuer         *string  `json:"trust_issuer,omitempty" doc:"Expected OIDC issuer URL; required when verification_mode is keyless"`
+		ManagedBy           *string  `json:"managed_by,omitempty" doc:"External system that owns this registry's configuration (e.g. kubernetes); set by that system's controller, not by hand"`
+		ManagedRef          *string  `json:"managed_ref,omitempty" doc:"Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource"`
 	}
 }
 
@@ -845,6 +851,8 @@ type UpdateRegistryInput struct {
 		TrustPublicKey      *string  `json:"trust_public_key,omitempty" doc:"PEM-encoded EC public key; required when verification_mode is public_key"`
 		TrustIdentity       *string  `json:"trust_identity,omitempty" doc:"Regex matched against the Fulcio certificate SAN; required when verification_mode is keyless"`
 		TrustIssuer         *string  `json:"trust_issuer,omitempty" doc:"Expected OIDC issuer URL; required when verification_mode is keyless"`
+		ManagedBy           *string  `json:"managed_by,omitempty" doc:"External system that owns this registry's configuration; omit to leave the existing marker untouched"`
+		ManagedRef          *string  `json:"managed_ref,omitempty" doc:"Identifier within the managing system; omit to leave the existing value untouched"`
 	}
 }
 

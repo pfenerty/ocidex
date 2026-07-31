@@ -1221,6 +1221,10 @@ export interface components {
             include_untagged?: boolean;
             /** @description Allow HTTP (non-TLS) connections */
             insecure: boolean;
+            /** @description External system that owns this registry's configuration (e.g. kubernetes); set by that system's controller, not by hand */
+            managed_by?: string;
+            /** @description Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource */
+            managed_ref?: string;
             /** @description Human-readable registry name */
             name: string;
             /**
@@ -1282,6 +1286,10 @@ export interface components {
             include_untagged: boolean;
             insecure: boolean;
             last_polled_at?: string;
+            /** @description External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API */
+            managed_by?: string;
+            /** @description Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource */
+            managed_ref?: string;
             name: string;
             /** @description UUID of the registry owner */
             owner_id?: string;
@@ -1902,6 +1910,10 @@ export interface components {
             include_untagged: boolean;
             insecure: boolean;
             last_polled_at?: string;
+            /** @description External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API */
+            managed_by?: string;
+            /** @description Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource */
+            managed_ref?: string;
             name: string;
             /** @description UUID of the registry owner */
             owner_id?: string;
@@ -2191,6 +2203,10 @@ export interface components {
             /** @description Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr) */
             include_untagged?: boolean;
             insecure: boolean;
+            /** @description External system that owns this registry's configuration; omit to leave the existing marker untouched */
+            managed_by?: string;
+            /** @description Identifier within the managing system; omit to leave the existing value untouched */
+            managed_ref?: string;
             name: string;
             /**
              * Format: int64
@@ -4149,6 +4165,10 @@ export interface operations {
                 offset?: number;
                 /** @description Filter by severity */
                 severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+                /** @description Sort field */
+                sort?: "severity" | "cvss_score" | "affected_sbom_count" | "affected_purl_count" | "published_at" | "canonical_id";
+                /** @description Sort direction (asc or desc) */
+                sort_dir?: "asc" | "desc";
             };
             header?: never;
             path?: never;
