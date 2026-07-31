@@ -1,0 +1,27 @@
+.signing-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.25rem;
+    align-items: baseline;
+    margin-bottom: 0.75rem;
+    font-size: 0.8125rem;
+}
+
+.signing-legend-title {
+    color: var(--color-text-muted);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    font-size: 0.6875rem;
+}
+
+.signing-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    white-space: nowrap;
+}
+
+.signing-legend-meaning {
+    color: var(--color-text-muted);
+}

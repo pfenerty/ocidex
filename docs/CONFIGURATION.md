@@ -177,8 +177,8 @@ Claims `enricher_name='user'` rows. Derives enrichment from ingest-time paramete
 
 Claims `enricher_name='provenance'` rows. Fetches cosign signatures and SLSA attestations
 from the registry via the OCI 1.1 Referrers API (with cosign tag-scheme fallback). When a
-registry has a PEM trust anchor configured, performs native ECDSA verification (see
-[Per-Registry Trust Anchors](#per-registry-trust-anchors) below).
+registry has a trust anchor configured, delegates verification to cosign (see
+[Per-Registry Trust Anchors](#per-registry-trust-anchors) below and ADR-037).
 
 ### `enrichment-worker` (legacy)
 
@@ -199,7 +199,7 @@ there are no environment variables for it. Settings are stored on the registry r
 |-------|-----------|
 | `none` | Default. No verification attempted; provenance badge shows `signed` when referrers are found. |
 | `public_key` | Verify signatures with the registry's PEM public key; badge shows `verified` or `verification_failed`. |
-| `keyless` | Reserved for future Fulcio/sigstore-go support. Currently a no-op (treated as `none`). |
+| `keyless` | Verify against Fulcio/Rekor via `sigstore-go`, matching the configured `trust_identity` and `trust_issuer`; badge shows `verified` or `verification_failed`. See [ADR-037](adr/0037-cosign-delegated-provenance-verification.md). |
 
 ### `trust_public_key`
 
@@ -208,15 +208,24 @@ PEM-encoded ECDSA P-256 public key used for `public_key` verification. For
 
 ### Signing-status badge values
 
-| Value | Meaning |
-|-------|---------|
-| `unsigned` | No signature or attestation referrers found. |
-| `signed` | Referrers found; no trust anchor configured (`verification_mode=none`). |
-| `verified` | ECDSA verification passed against the registry's PEM anchor. |
-| `verification_failed` | Anchor present but verification failed, or an attestation payload was present but unparseable. |
+Five values, defined by `SigningStatus` (`internal/enrichment/provenance/status.go`) and mirrored
+by the `signing_status(jsonb)` SQL function. The frontend renders them from a single table,
+`web/src/utils/trust.ts`.
 
-`verification_failed` is displayed as a danger badge — distinct from `unsigned` — so
-operators can distinguish a potentially tampered image from an unsigned one.
+| Value | Badge | Meaning |
+|-------|-------|---------|
+| `verified` | blue | A cryptographic check ran and passed (`public_key` or `keyless`). |
+| `signed` | grey | Referrers found; no trust anchor configured (`verification_mode=none`), so nothing was checked. |
+| `unsigned` | grey | No signature or attestation referrers found. |
+| `artifact_missing` | amber | The digest no longer resolves in the registry, so provenance can't be re-checked. |
+| `verification_failed` | red | A check ran and failed, or a referrer payload was present but unparseable (fail-closed). |
+
+The colour axis separates *what OCIDex knows* from *what is wrong*: blue means OCIDex affirmed
+something, grey means it has no information, amber is an availability problem, red is a trust
+problem. In particular `signed` is deliberately neutral — it reflects an unconfigured trust anchor
+on the registry, not a defect in the artifact, and reads as a prompt to set `verification_mode`.
+`verification_failed` stays visually distinct from `unsigned` so operators can tell a potentially
+tampered image from an unsigned one.
 
 ### Admin UI path
 
