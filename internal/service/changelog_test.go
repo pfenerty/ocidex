@@ -1023,3 +1023,153 @@ func TestSbomToRef(t *testing.T) {
 	is.Equal(*ref.SubjectVersion, "v1.2.3")
 	is.Equal(ref.CreatedAt.UTC(), ts.UTC())
 }
+
+// ---------------------------------------------------------------------------
+// version comparison / direction classification
+// ---------------------------------------------------------------------------
+
+func TestPurlType(t *testing.T) {
+	is := is.New(t)
+
+	is.Equal(purlType("pkg:deb/ubuntu/curl@7.81.0"), "deb")
+	is.Equal(purlType("pkg:golang/github.com/pfenerty/ocidex@v0.0.1"), "golang")
+	is.Equal(purlType("pkg:npm/%40scope/pkg@1.0.0"), "npm")
+	is.Equal(purlType(""), "")
+	is.Equal(purlType("github.com/pfenerty/ocidex"), "")
+}
+
+func TestCompareVersions_DispatchesOnEcosystem(t *testing.T) {
+	is := is.New(t)
+
+	tests := []struct {
+		name string
+		purl string
+		a    string
+		b    string
+		want int
+	}{
+		// Semver: a prerelease PRECEDES its release. This is the reported bug —
+		// the deb comparator reads "-rc.2" as a packaging revision and scores
+		// the release as a downgrade.
+		{"semver release beats its prerelease", "pkg:golang/github.com/pfenerty/ocidex", "v0.0.1", "v0.0.1-rc.2", 1},
+		{"semver prerelease precedes release", "pkg:golang/github.com/pfenerty/ocidex", "v0.0.1-rc.2", "v0.0.1", -1},
+		{"semver prerelease ordering", "pkg:golang/x", "v0.0.1-rc.2", "v0.0.1-rc.1", 1},
+		{"semver patch bump", "pkg:golang/x", "v0.0.2", "v0.0.1", 1},
+		{"semver build metadata is not precedence", "pkg:npm/x", "1.0.0+build2", "1.0.0+build1", 0},
+
+		// Debian-family: the revision after the last "-" is real and sorts above
+		// an absent one. Preserved for deb/rpm/apk.
+		{"deb revision bump", "pkg:deb/ubuntu/curl", "1.2.3-2", "1.2.3-1", 1},
+		{"deb revision beats no revision", "pkg:deb/ubuntu/curl", "1.2.3-1", "1.2.3", 1},
+		{"rpm revision bump", "pkg:rpm/fedora/curl", "1.2.3-2", "1.2.3-1", 1},
+		{"apk revision bump", "pkg:apk/alpine/curl", "1.2.3-r1", "1.2.3-r0", 1},
+		{"deb tilde sorts below release", "pkg:deb/ubuntu/curl", "1.0~rc1", "1.0", -1},
+		{"deb epoch dominates", "pkg:deb/ubuntu/curl", "1:0.1", "9.9", 1},
+
+		// Neither semver nor a distro purl: fall back to the deb comparator so
+		// the ordering stays deterministic.
+		{"non-semver falls back", "pkg:generic/thing", "2024.10", "2024.9", 1},
+		{"empty purl falls back", "", "2024.10", "2024.9", 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			is.Equal(compareVersions(tt.purl, tt.a, tt.b), tt.want)
+		})
+	}
+
+	// A pair where only one side parses as semver is not a semver comparison,
+	// so it takes the deb fallback rather than being ordered by semver's
+	// "unparseable sorts below" rule.
+	is.Equal(
+		compareVersions("pkg:golang/x", "1.0.0", "not-a-version"),
+		debVersionCompare("1.0.0", "not-a-version"),
+	)
+}
+
+func TestClassifyDirection(t *testing.T) {
+	is := is.New(t)
+
+	str := func(s string) *string { return &s }
+
+	tests := []struct {
+		name string
+		diff ComponentDiff
+		want string
+	}{
+		{
+			// Regression: github.com/pfenerty/ocidex rc.2 -> v0.0.1 rendered as
+			// "downgraded" in every diff table.
+			name: "semver prerelease to release is an upgrade",
+			diff: ComponentDiff{
+				Type:            dirModified,
+				Purl:            str("pkg:golang/github.com/pfenerty/ocidex@v0.0.1"),
+				PreviousVersion: str("v0.0.1-rc.2"),
+				Version:         str("v0.0.1"),
+			},
+			want: dirUpgraded,
+		},
+		{
+			name: "semver release to prerelease is a downgrade",
+			diff: ComponentDiff{
+				Type:            dirModified,
+				Purl:            str("pkg:golang/github.com/pfenerty/ocidex@v0.0.1-rc.2"),
+				PreviousVersion: str("v0.0.1"),
+				Version:         str("v0.0.1-rc.2"),
+			},
+			want: dirDowngraded,
+		},
+		{
+			name: "semver build metadata alone is a modification",
+			diff: ComponentDiff{
+				Type:            dirModified,
+				Purl:            str("pkg:npm/thing@1.0.0+build2"),
+				PreviousVersion: str("1.0.0+build1"),
+				Version:         str("1.0.0+build2"),
+			},
+			want: dirModified,
+		},
+		{
+			name: "deb revision bump stays an upgrade",
+			diff: ComponentDiff{
+				Type:            dirModified,
+				Purl:            str("pkg:deb/ubuntu/curl@1.2.3-2"),
+				PreviousVersion: str("1.2.3-1"),
+				Version:         str("1.2.3-2"),
+			},
+			want: dirUpgraded,
+		},
+		{
+			name: "missing purl still classifies",
+			diff: ComponentDiff{
+				Type:            dirModified,
+				PreviousVersion: str("1.0.0"),
+				Version:         str("2.0.0"),
+			},
+			want: dirUpgraded,
+		},
+		{
+			name: "added passes through untouched",
+			diff: ComponentDiff{Type: dirAdded, Version: str("1.0.0")},
+			want: dirAdded,
+		},
+		{
+			name: "removed passes through untouched",
+			diff: ComponentDiff{Type: dirRemoved, Version: str("1.0.0")},
+			want: dirRemoved,
+		},
+		{
+			name: "modified without both versions is a modification",
+			diff: ComponentDiff{Type: dirModified, Version: str("1.0.0")},
+			want: dirModified,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			is.Equal(classifyDirection(tt.diff), tt.want)
+		})
+	}
+}

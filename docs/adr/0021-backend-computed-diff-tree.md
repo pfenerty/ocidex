@@ -62,7 +62,15 @@ True iff the node is reachable in exactly one hop from `metadata.component.bom-r
 
 #### 3. `ComponentDiff.direction string` (new field on each change) — `bqh.8` (B1)
 
-One of `added`, `removed`, `upgraded`, `downgraded`, `modified`. Computed server-side using a deb-version-aware comparator that handles epochs (`1:2.0` > `2.0`), tildes (`1.0~rc1` < `1.0`), and mixed alpha/numeric segments. Replaces the frontend `classifyChange` + `debVersionCompare`. The frontend's role is reduced to choosing a badge color from this single field.
+One of `added`, `removed`, `upgraded`, `downgraded`, `modified`. Computed server-side, replacing the frontend `classifyChange` + `debVersionCompare`. The frontend's role is reduced to choosing a badge color from this single field.
+
+**Amended:** this originally mandated a single deb-version-aware comparator for every ecosystem. That is wrong, because Debian and semver order a trailing `-suffix` in *opposite* directions: for a deb package `1.2.3-2` is a later packaging revision than `1.2.3`, while for semver `1.0.0-rc.2` is a prerelease of and therefore precedes `1.0.0`. Applying the deb comparator to a Go module reported `v0.0.1-rc.2 → v0.0.1` — an ordinary release — as a **downgrade**.
+
+Comparison now dispatches on the purl type (`compareVersions` in `internal/service/changelog.go`):
+
+* `pkg:deb`, `pkg:rpm`, `pkg:apk` — the deb comparator, which handles epochs (`1:2.0` > `2.0`), tildes (`1.0~rc1` < `1.0`), mixed alpha/numeric segments, and packaging revisions;
+* everything else, when both versions parse as semver — semver precedence (`compareSemver`, `internal/service/semver.go`), which handles prerelease ordering, build metadata, and a leading `v`;
+* anything fitting neither — the deb comparator as a deterministic fallback.
 
 #### 4. `ComponentDiff.nodeRef *string` (new field on each change) — `bqh.10` (B3)
 

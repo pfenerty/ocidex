@@ -816,6 +816,35 @@ func debVersionCompare(a, b string) int {
 	return debCmpStr(ra, rb)
 }
 
+// distroPurlTypes are the purl types whose versions follow Debian-style
+// "upstream-revision" semantics, where the segment after the last "-" is a
+// packaging revision that sorts ABOVE an absent one.
+var distroPurlTypes = map[string]bool{
+	"deb": true,
+	"rpm": true,
+	"apk": true,
+}
+
+// compareVersions orders two version strings for the ecosystem identified by
+// purl, returning -1, 0, or +1.
+//
+// Debian and semver order a trailing "-suffix" in OPPOSITE directions: for deb,
+// "1.2.3-2" is a later packaging revision than "1.2.3"; for semver, "1.0.0-rc.2"
+// is a prerelease of, and therefore precedes, "1.0.0". One comparator cannot
+// serve both, so dispatch on the purl type: distro packages keep the Debian
+// comparator, and everything else uses semver precedence when both versions
+// parse. Anything that fits neither falls back to the Debian comparator, which
+// degrades to a sensible segment-wise comparison for arbitrary strings.
+func compareVersions(purl, a, b string) int {
+	if distroPurlTypes[purlType(purl)] {
+		return debVersionCompare(a, b)
+	}
+	if isSemver(a) && isSemver(b) {
+		return compareSemver(a, b)
+	}
+	return debVersionCompare(a, b)
+}
+
 // addDirectionCount increments the appropriate field of counts based on direction.
 func addDirectionCount(counts *ChangeCounts, dir string) {
 	switch dir {
@@ -848,8 +877,8 @@ func addSummaryCount(s *ChangeSummary, dir string) {
 	}
 }
 
-// classifyDirection returns the direction of a ComponentDiff using deb-version-aware
-// comparison. Returns one of the dir* constants.
+// classifyDirection returns the direction of a ComponentDiff using
+// ecosystem-aware version comparison. Returns one of the dir* constants.
 func classifyDirection(d ComponentDiff) string {
 	if d.Type != dirModified {
 		return d.Type
@@ -857,7 +886,11 @@ func classifyDirection(d ComponentDiff) string {
 	if d.PreviousVersion == nil || d.Version == nil {
 		return dirModified
 	}
-	cmp := debVersionCompare(*d.Version, *d.PreviousVersion)
+	var purl string
+	if d.Purl != nil {
+		purl = *d.Purl
+	}
+	cmp := compareVersions(purl, *d.Version, *d.PreviousVersion)
 	switch {
 	case cmp > 0:
 		return dirUpgraded
