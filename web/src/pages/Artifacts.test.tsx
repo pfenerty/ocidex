@@ -116,8 +116,12 @@ describe("Artifacts", () => {
         mockUseArtifacts.mockReturnValue(
             makeQuery({ data: page([makeArtifact({ type: "library" })]) }) as never
         );
-        const { getByText } = renderArtifacts();
-        expect(getByText("library")).toBeDefined();
+        const { container } = renderArtifacts();
+        // The type filter renders an <option> with the same text, so scope the
+        // assertion to the row's badge — otherwise it passes on the filter and
+        // says nothing about whether the row rendered.
+        const badges = Array.from(container.querySelectorAll("td span.badge"));
+        expect(badges.some((b) => b.textContent === "library")).toBe(true);
     });
 
     it("renders SBOM count", () => {
