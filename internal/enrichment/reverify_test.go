@@ -1,7 +1,11 @@
 package enrichment
 
 import (
+	"bytes"
 	"context"
+	"io"
+	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -10,6 +14,10 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/repository"
 )
+
+func discardLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
 
 // fakeRecheckStore records ListSBOMsDueForProvenanceRecheck and
 // RequeueSucceededEnrichmentJob calls.
@@ -129,6 +137,139 @@ func TestReverifier_Tick_UsesBatchSizeAndIntervalCutoff(t *testing.T) {
 	}
 	if !arg.Cutoff.Valid {
 		t.Error("expected cutoff timestamp to be valid")
+	}
+}
+
+// drainingRecheckStore models a finite corpus of due SBOMs: each list call
+// returns up to RowLimit of what's left, so repeated ticks drain it.
+type drainingRecheckStore struct {
+	mu        sync.Mutex
+	remaining int
+	requeued  int
+}
+
+func (s *drainingRecheckStore) ListSBOMsDueForProvenanceRecheck(_ context.Context, arg repository.ListSBOMsDueForProvenanceRecheckParams) ([]pgtype.UUID, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := int(arg.RowLimit)
+	if n > s.remaining {
+		n = s.remaining
+	}
+	out := make([]pgtype.UUID, n)
+	for i := range out {
+		out[i] = pgtype.UUID{Bytes: [16]byte{byte(i)}, Valid: true}
+	}
+	s.remaining -= n
+	return out, nil
+}
+
+func (s *drainingRecheckStore) RequeueSucceededEnrichmentJob(_ context.Context, _ repository.RequeueSucceededEnrichmentJobParams) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.requeued++
+	return 1, nil
+}
+
+// A corpus larger than recheckBatchSize must still be swept in full within one
+// recheck interval. Regression test for the batch cap silently stretching
+// PROVENANCE_RECHECK_INTERVAL into a multi-day sweep: when the ticker ran once
+// per interval, only recheckBatchSize SBOMs could ever be rechecked per
+// interval, so a corpus of 3764 took ~8 days at a nominal 24h setting.
+func TestReverifier_SweepsWholeCorpusWithinOneInterval(t *testing.T) {
+	const corpus = 3764 // the ocidex-dev provenance corpus that exposed this
+	store := &drainingRecheckStore{remaining: corpus}
+	interval := 24 * time.Hour
+	r := NewReverifier(store, interval, discardLogger())
+
+	if r.sweepInterval > interval {
+		t.Fatalf("sweep interval %v must not exceed recheck interval %v", r.sweepInterval, interval)
+	}
+	sweeps := int(interval / r.sweepInterval)
+	for range sweeps {
+		r.tick(context.Background())
+	}
+
+	if store.remaining != 0 {
+		t.Errorf("expected corpus of %d fully swept in %d sweeps over one %v interval, %d left",
+			corpus, sweeps, interval, store.remaining)
+	}
+	if store.requeued != corpus {
+		t.Errorf("expected %d requeues, got %d", corpus, store.requeued)
+	}
+}
+
+// The staleness cutoff is the user-facing meaning of the interval, so it must
+// keep tracking interval even though the ticker now runs on sweepInterval.
+func TestReverifier_Tick_CutoffUsesIntervalNotSweepInterval(t *testing.T) {
+	store := &fakeRecheckStore{}
+	interval := 24 * time.Hour
+	r := NewReverifier(store, interval, discardLogger())
+
+	if r.sweepInterval >= interval {
+		t.Fatalf("expected sweep interval to be shorter than %v, got %v", interval, r.sweepInterval)
+	}
+
+	before := time.Now().Add(-interval)
+	r.tick(context.Background())
+	after := time.Now().Add(-interval)
+
+	cutoff := store.lastListArg().Cutoff.Time
+	if cutoff.Before(before) || cutoff.After(after) {
+		t.Errorf("expected cutoff within [%v, %v] (derived from interval), got %v", before, after, cutoff)
+	}
+}
+
+func TestReverifier_Tick_WarnsWhenBatchIsFull(t *testing.T) {
+	full := make([]pgtype.UUID, recheckBatchSize)
+	for i := range full {
+		full[i] = pgtype.UUID{Bytes: [16]byte{byte(i)}, Valid: true}
+	}
+
+	tests := []struct {
+		name     string
+		due      []pgtype.UUID
+		wantWarn bool
+	}{
+		{name: "full batch warns", due: full, wantWarn: true},
+		{name: "partial batch is quiet", due: full[:recheckBatchSize-1], wantWarn: false},
+		{name: "nothing due is quiet", due: nil, wantWarn: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+			store := &fakeRecheckStore{due: tt.due, requeueRows: 1}
+			r := NewReverifier(store, 24*time.Hour, logger)
+
+			r.tick(context.Background())
+
+			gotWarn := strings.Contains(buf.String(), "falling behind")
+			if gotWarn != tt.wantWarn {
+				t.Errorf("warn fired = %v, want %v (log: %q)", gotWarn, tt.wantWarn, buf.String())
+			}
+		})
+	}
+}
+
+func TestDeriveSweepInterval(t *testing.T) {
+	tests := []struct {
+		name     string
+		interval time.Duration
+		want     time.Duration
+	}{
+		{name: "default 24h sweeps hourly", interval: 24 * time.Hour, want: time.Hour},
+		{name: "divides evenly", interval: 48 * time.Hour, want: 2 * time.Hour},
+		{name: "short interval floored at the minimum", interval: 12 * time.Minute, want: minSweepInterval},
+		{name: "never sweeps less often than the interval", interval: 30 * time.Second, want: 30 * time.Second},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := deriveSweepInterval(tt.interval); got != tt.want {
+				t.Errorf("deriveSweepInterval(%v) = %v, want %v", tt.interval, got, tt.want)
+			}
+		})
 	}
 }
 
