@@ -42,7 +42,13 @@ type Registry struct {
 	TrustPublicKey      *string    // PEM-encoded EC public key; nil when mode != public_key
 	TrustIdentity       *string    // regex matched against the Fulcio cert SAN; nil when mode != keyless
 	TrustIssuer         *string    // exact OIDC issuer URL; nil when mode != keyless
+	ManagedBy           *string    // external owner of this config, e.g. "kubernetes"; nil = managed here
+	ManagedRef          *string    // identifier within that system, e.g. "<namespace>/<name>"
 }
+
+// IsManaged reports whether an external controller owns this registry's config
+// and will reconcile its own spec back over any edit made here.
+func (r Registry) IsManaged() bool { return r.ManagedBy != nil && *r.ManagedBy != "" }
 
 // HasAuth returns true if the registry has authentication credentials configured.
 func (r Registry) HasAuth() bool { return r.AuthToken != nil && *r.AuthToken != "" }
@@ -264,14 +270,17 @@ type CreateRegistryParams struct {
 	TrustPublicKey      *string
 	TrustIdentity       *string
 	TrustIssuer         *string
+	ManagedBy           *string
+	ManagedRef          *string
 }
 
 // UpdateRegistryParams holds the parameters for updating an existing registry.
 //
-// VerificationMode (when empty) and TrustPublicKey/TrustIdentity/TrustIssuer
-// (when nil) are preserved from the existing registry rather than wiped, so
-// any caller that omits them — the HTTP API, an operator reconciler, a CLI,
-// a test — can't accidentally erase provenance verification config.
+// VerificationMode (when empty), TrustPublicKey/TrustIdentity/TrustIssuer and
+// ManagedBy/ManagedRef (when nil) are preserved from the existing registry
+// rather than wiped, so any caller that omits them — the HTTP API, an operator
+// reconciler, a CLI, a test — can't accidentally erase provenance verification
+// config or the marker saying who owns the registry.
 type UpdateRegistryParams struct {
 	ID                  string
 	Name                string
@@ -293,6 +302,8 @@ type UpdateRegistryParams struct {
 	TrustPublicKey      *string
 	TrustIdentity       *string
 	TrustIssuer         *string
+	ManagedBy           *string
+	ManagedRef          *string
 }
 
 // RegistryService manages registry configuration.
@@ -361,6 +372,8 @@ func (s *registryService) Create(ctx context.Context, params CreateRegistryParam
 		TrustPublicKey:      toNullText(params.TrustPublicKey),
 		TrustIdentity:       toNullText(params.TrustIdentity),
 		TrustIssuer:         toNullText(params.TrustIssuer),
+		ManagedBy:           toNullText(params.ManagedBy),
+		ManagedRef:          toNullText(params.ManagedRef),
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -447,6 +460,8 @@ func (s *registryService) ListPaged(ctx context.Context, filter VisibilityFilter
 			TrustPublicKey:      r.TrustPublicKey,
 			TrustIdentity:       r.TrustIdentity,
 			TrustIssuer:         r.TrustIssuer,
+			ManagedBy:           r.ManagedBy,
+			ManagedRef:          r.ManagedRef,
 		})
 	}
 	return PagedResult[Registry]{Data: out, Total: total, Limit: limit, Offset: offset}, nil
@@ -486,6 +501,16 @@ func (s *registryService) Update(ctx context.Context, params UpdateRegistryParam
 	if trustIssuer == nil {
 		trustIssuer = existing.TrustIssuer
 	}
+	// The UI's PATCH doesn't carry the ownership marker, so preserving it here is
+	// what keeps a UI edit from silently un-marking an operator-owned registry.
+	managedBy := params.ManagedBy
+	if managedBy == nil {
+		managedBy = existing.ManagedBy
+	}
+	managedRef := params.ManagedRef
+	if managedRef == nil {
+		managedRef = existing.ManagedRef
+	}
 
 	r, err := s.repo.UpdateRegistry(ctx, repository.UpdateRegistryParams{
 		ID:                  uid,
@@ -508,6 +533,8 @@ func (s *registryService) Update(ctx context.Context, params UpdateRegistryParam
 		TrustPublicKey:      toNullText(trustPublicKey),
 		TrustIdentity:       toNullText(trustIdentity),
 		TrustIssuer:         toNullText(trustIssuer),
+		ManagedBy:           toNullText(managedBy),
+		ManagedRef:          toNullText(managedRef),
 	})
 	if err != nil {
 		return Registry{}, fmt.Errorf("updating registry: %w", err)
@@ -635,6 +662,14 @@ func fromRepo(r repository.Registry) Registry {
 	if r.TrustIssuer.Valid {
 		s := r.TrustIssuer.String
 		out.TrustIssuer = &s
+	}
+	if r.ManagedBy.Valid {
+		s := r.ManagedBy.String
+		out.ManagedBy = &s
+	}
+	if r.ManagedRef.Valid {
+		s := r.ManagedRef.String
+		out.ManagedRef = &s
 	}
 	return out
 }

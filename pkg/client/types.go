@@ -858,6 +858,12 @@ type CreateRegistryInputBody struct {
 	// Insecure Allow HTTP (non-TLS) connections
 	Insecure bool `json:"insecure"`
 
+	// ManagedBy External system that owns this registry's configuration (e.g. kubernetes); set by that system's controller, not by hand
+	ManagedBy *string `json:"managed_by,omitempty"`
+
+	// ManagedRef Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource
+	ManagedRef *string `json:"managed_ref,omitempty"`
+
 	// Name Human-readable registry name
 	Name string `json:"name"`
 
@@ -927,7 +933,13 @@ type CreateRegistryResponseBody struct {
 	IncludeUntagged bool    `json:"include_untagged"`
 	Insecure        bool    `json:"insecure"`
 	LastPolledAt    *string `json:"last_polled_at,omitempty"`
-	Name            string  `json:"name"`
+
+	// ManagedBy External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API
+	ManagedBy *string `json:"managed_by,omitempty"`
+
+	// ManagedRef Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource
+	ManagedRef *string `json:"managed_ref,omitempty"`
+	Name       string  `json:"name"`
 
 	// OwnerId UUID of the registry owner
 	OwnerId *string `json:"owner_id,omitempty"`
@@ -1502,7 +1514,13 @@ type RegistryResponse struct {
 	IncludeUntagged bool    `json:"include_untagged"`
 	Insecure        bool    `json:"insecure"`
 	LastPolledAt    *string `json:"last_polled_at,omitempty"`
-	Name            string  `json:"name"`
+
+	// ManagedBy External system that owns this registry's configuration (e.g. kubernetes); absent when managed through this API
+	ManagedBy *string `json:"managed_by,omitempty"`
+
+	// ManagedRef Identifier within the managing system, e.g. '<namespace>/<name>' of the OCIRegistry resource
+	ManagedRef *string `json:"managed_ref,omitempty"`
+	Name       string  `json:"name"`
 
 	// OwnerId UUID of the registry owner
 	OwnerId *string `json:"owner_id,omitempty"`
@@ -1774,9 +1792,15 @@ type UpdateRegistryInputBody struct {
 	Enabled      bool    `json:"enabled"`
 
 	// IncludeUntagged Scan untagged manifests via registry-specific APIs (supported: zot, harbor, ghcr)
-	IncludeUntagged *bool  `json:"include_untagged,omitempty"`
-	Insecure        bool   `json:"insecure"`
-	Name            string `json:"name"`
+	IncludeUntagged *bool `json:"include_untagged,omitempty"`
+	Insecure        bool  `json:"insecure"`
+
+	// ManagedBy External system that owns this registry's configuration; omit to leave the existing marker untouched
+	ManagedBy *string `json:"managed_by,omitempty"`
+
+	// ManagedRef Identifier within the managing system; omit to leave the existing value untouched
+	ManagedRef *string `json:"managed_ref,omitempty"`
+	Name       string  `json:"name"`
 
 	// PollIntervalMinutes Minutes between polls
 	PollIntervalMinutes *int64    `json:"poll_interval_minutes,omitempty"`

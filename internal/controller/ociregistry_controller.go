@@ -72,7 +72,7 @@ func (r *OCIRegistryReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	if cr.Status.RegistryID == "" {
-		resp, err := r.OCIDexClient.CreateRegistry(ctx, specToCreateBody(cr.Spec, username, token))
+		resp, err := r.OCIDexClient.CreateRegistry(ctx, specToCreateBody(cr.Spec, managedRef(cr), username, token))
 		if err != nil {
 			if errors.Is(err, ocidexclient.ErrConflict) {
 				existing, getErr := r.OCIDexClient.GetRegistryByName(ctx, cr.Spec.Name)
@@ -104,7 +104,7 @@ func (r *OCIRegistryReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 
-	if _, err := r.OCIDexClient.UpdateRegistry(ctx, cr.Status.RegistryID, specToUpdateBody(cr.Spec, username, token)); err != nil {
+	if _, err := r.OCIDexClient.UpdateRegistry(ctx, cr.Status.RegistryID, specToUpdateBody(cr.Spec, managedRef(cr), username, token)); err != nil {
 		SetCondition(&cr.Status.Conditions, "Ready", metav1.ConditionFalse, "APIError", err.Error(), cr.Generation)
 		_ = r.Status().Update(ctx, cr)
 		return ctrl.Result{}, err
@@ -148,12 +148,25 @@ func (r *OCIRegistryReconciler) readAuthSecret(ctx context.Context, cr *v1alpha1
 	return string(secret.Data["username"]), string(secret.Data["token"]), nil
 }
 
-func specToCreateBody(spec v1alpha1.OCIRegistrySpec, username, token string) ocidexclient.CreateRegistryInputBody {
+// managedByKubernetes is the value stamped on registries this operator owns. The
+// UI reads it to warn that edits made there are reverted on the next reconcile.
+const managedByKubernetes = "kubernetes"
+
+// managedRef identifies the CR behind a registry, so an admin looking at the UI
+// can find the resource that actually owns the configuration.
+func managedRef(cr *v1alpha1.OCIRegistry) string {
+	return cr.Namespace + "/" + cr.Name
+}
+
+func specToCreateBody(spec v1alpha1.OCIRegistrySpec, ref, username, token string) ocidexclient.CreateRegistryInputBody {
+	managedBy := managedByKubernetes
 	body := ocidexclient.CreateRegistryInputBody{
-		Url:      spec.URL,
-		Name:     spec.Name,
-		Type:     ocidexclient.CreateRegistryInputBodyType(spec.Type),
-		Insecure: spec.Insecure,
+		Url:        spec.URL,
+		Name:       spec.Name,
+		Type:       ocidexclient.CreateRegistryInputBodyType(spec.Type),
+		Insecure:   spec.Insecure,
+		ManagedBy:  &managedBy,
+		ManagedRef: &ref,
 	}
 	if spec.Visibility != "" {
 		v := ocidexclient.CreateRegistryInputBodyVisibility(spec.Visibility)
@@ -196,13 +209,19 @@ func specToCreateBody(spec v1alpha1.OCIRegistrySpec, username, token string) oci
 	return body
 }
 
-func specToUpdateBody(spec v1alpha1.OCIRegistrySpec, username, token string) ocidexclient.UpdateRegistryInputBody {
+// specToUpdateBody re-stamps the ownership marker on every reconcile, which is
+// what claims a registry the operator adopted after a name conflict — that path
+// never runs create, so this is the only place the marker can land.
+func specToUpdateBody(spec v1alpha1.OCIRegistrySpec, ref, username, token string) ocidexclient.UpdateRegistryInputBody {
+	managedBy := managedByKubernetes
 	body := ocidexclient.UpdateRegistryInputBody{
-		Url:      spec.URL,
-		Name:     spec.Name,
-		Type:     ocidexclient.UpdateRegistryInputBodyType(spec.Type),
-		Insecure: spec.Insecure,
-		Enabled:  true,
+		Url:        spec.URL,
+		Name:       spec.Name,
+		Type:       ocidexclient.UpdateRegistryInputBodyType(spec.Type),
+		Insecure:   spec.Insecure,
+		Enabled:    true,
+		ManagedBy:  &managedBy,
+		ManagedRef: &ref,
 	}
 	if spec.Visibility != "" {
 		v := ocidexclient.UpdateRegistryInputBodyVisibility(spec.Visibility)

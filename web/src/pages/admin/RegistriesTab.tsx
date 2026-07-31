@@ -125,7 +125,13 @@ export function RegistriesTab() {
     const [testResult, setTestResult] = createSignal<{ reachable: boolean; message: string } | null>(null);
     const [editingID, setEditingID] = createSignal<string | null>(null);
     const [editEnabled, setEditEnabled] = createSignal(true);
+    const [editManagedRef, setEditManagedRef] = createSignal<string | null>(null);
     const [revealedSecret, setRevealedSecret] = createSignal<string | null>(null);
+
+    // An external controller reconciles its own spec over whatever is stored, so
+    // a save here would be reverted within seconds. Locking the form is more
+    // honest than accepting an edit that silently disappears.
+    const editingManaged = () => editingID() !== null && editManagedRef() !== null;
 
     const showPollOptions = () =>
         statusQuery.data?.scanner.poller_enabled === true ||
@@ -136,6 +142,7 @@ export function RegistriesTab() {
         setForm(emptyForm());
         setEditingID(null);
         setEditEnabled(true);
+        setEditManagedRef(null);
         setTestResult(null);
     }
 
@@ -144,9 +151,13 @@ export function RegistriesTab() {
         dialogRef?.showModal();
     }
 
-    function startEdit(reg: { id: string; name: string; type: string; url: string; insecure: boolean; has_secret: boolean; has_auth: boolean; enabled: boolean; repositories?: string[] | null; repository_patterns?: string[] | null; tag_patterns?: string[] | null; scan_mode?: string; poll_interval_minutes?: number; visibility?: string; include_untagged?: boolean; verification_mode?: string; trust_public_key?: string | null; trust_identity?: string | null; trust_issuer?: string | null }) {
+    function startEdit(reg: { id: string; name: string; type: string; url: string; insecure: boolean; has_secret: boolean; has_auth: boolean; enabled: boolean; repositories?: string[] | null; repository_patterns?: string[] | null; tag_patterns?: string[] | null; scan_mode?: string; poll_interval_minutes?: number; visibility?: string; include_untagged?: boolean; verification_mode?: string; trust_public_key?: string | null; trust_identity?: string | null; trust_issuer?: string | null; managed_by?: string | null; managed_ref?: string | null }) {
         setEditingID(reg.id);
         setEditEnabled(reg.enabled);
+        // Fall back to the owner name when the ref is absent, so the dialog can
+        // always say *something* about who owns a marked registry.
+        const owner = reg.managed_by ?? "";
+        setEditManagedRef(owner === "" ? null : (reg.managed_ref ?? owner));
         setForm({
             name: reg.name,
             type: reg.type as RegType,
@@ -219,7 +230,23 @@ export function RegistriesTab() {
         reg.scan_mode !== "poll" && TYPE_CAPS[reg.type as RegType].webhook;
 
     const columns: Column<Registry>[] = [
-        { header: "Name", render: (reg) => <>{reg.name}</> },
+        {
+            header: "Name",
+            render: (reg) => (
+                <div style={{ display: "flex", "align-items": "center", gap: "0.4rem", "flex-wrap": "wrap" }}>
+                    {reg.name}
+                    <Show when={(reg.managed_by ?? "") !== ""}>
+                        <span
+                            class="badge"
+                            style={{ "font-size": "0.7rem" }}
+                            title={`Configured by ${reg.managed_by ?? ""}${(reg.managed_ref ?? "") === "" ? "" : ` (${reg.managed_ref ?? ""})`} — edits made here are reverted on the next reconcile`}
+                        >
+                            {reg.managed_by === "kubernetes" ? "Managed by Kubernetes" : `Managed by ${reg.managed_by ?? ""}`}
+                        </span>
+                    </Show>
+                </div>
+            ),
+        },
         { header: "Type", render: (reg) => <code>{regTypeLabel(reg.type)}</code> },
         { header: "URL", render: (reg) => <code>{reg.url}</code> },
         { header: "Visibility", render: (reg) => <span class="badge">{reg.visibility}</span> },
@@ -388,7 +415,20 @@ export function RegistriesTab() {
                 <div class="card-header">
                     <h3>{editingID() !== null ? "Edit Registry" : "Add Registry"}</h3>
                 </div>
+                    <Show when={editingManaged()}>
+                        <div
+                            class="card"
+                            data-testid="managed-notice"
+                            style={{ "border-color": "var(--color-warning, #d69e2e)", "margin-bottom": "0.75rem", "font-size": "0.85rem" }}
+                        >
+                            This registry is configured by Kubernetes
+                            (<code>{editManagedRef()}</code>). Its settings are reconciled from
+                            the <code>OCIRegistry</code> resource, so changes saved here would be
+                            overwritten. Edit the resource instead.
+                        </div>
+                    </Show>
                     <form onSubmit={handleSubmit}>
+                    <fieldset disabled={editingManaged()} style={{ border: "none", padding: "0", margin: "0" }}>
                         <div style={{ display: "grid", "grid-template-columns": "1fr 1fr", gap: "0.75rem", "margin-bottom": "0.75rem" }}>
                             <div>
                                 <label style={{ display: "block", "margin-bottom": "0.25rem", "font-size": "0.85rem" }}>Name</label>
@@ -656,8 +696,9 @@ export function RegistriesTab() {
                                 </label>
                             </Show>
                         </div>
+                    </fieldset>
                         <div style={{ display: "flex", gap: "0.5rem" }}>
-                            <button class="btn btn-primary" type="submit" disabled={createReg.isPending || updateReg.isPending}>
+                            <button class="btn btn-primary" type="submit" disabled={createReg.isPending || updateReg.isPending || editingManaged()}>
                                 {editingID() !== null ? "Save" : "Create"}
                             </button>
                             <button class="btn" type="button" onClick={() => dialogRef?.close()}>

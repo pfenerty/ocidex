@@ -327,6 +327,133 @@ func TestRegistryUpdate_PreservesTrustFieldsWhenUnset(t *testing.T) {
 	is.Equal(captured.TrustIssuer.String, existingIssuer)
 }
 
+func TestRegistryCreate_RoundTripsManagedMarker(t *testing.T) {
+	is := is.New(t)
+	managedBy := "kubernetes"
+	managedRef := "ocidex-system/prod-registry"
+	svc := newTestRegistryService(&fakeRegistryRepo{
+		createFn: func(_ context.Context, arg repository.CreateRegistryParams) (repository.Registry, error) {
+			// Echo the params back as a stored row, so the assertions below
+			// cover both halves of the mapping: *string -> pgtype.Text on the
+			// way in, and pgtype.Text -> *string on the way out.
+			return repository.Registry{
+				Name:       arg.Name,
+				ManagedBy:  arg.ManagedBy,
+				ManagedRef: arg.ManagedRef,
+			}, nil
+		},
+	})
+
+	reg, err := svc.Create(context.Background(), CreateRegistryParams{
+		Name:       "prod",
+		Type:       "generic",
+		URL:        "https://r.example.com",
+		ScanMode:   "webhook",
+		ManagedBy:  &managedBy,
+		ManagedRef: &managedRef,
+	})
+
+	is.NoErr(err)
+	is.True(reg.ManagedBy != nil)
+	is.Equal(*reg.ManagedBy, managedBy)
+	is.True(reg.ManagedRef != nil)
+	is.Equal(*reg.ManagedRef, managedRef)
+	is.True(reg.IsManaged())
+}
+
+func TestRegistryCreate_UnmanagedLeavesMarkerNull(t *testing.T) {
+	is := is.New(t)
+	var captured repository.CreateRegistryParams
+	svc := newTestRegistryService(&fakeRegistryRepo{
+		createFn: func(_ context.Context, arg repository.CreateRegistryParams) (repository.Registry, error) {
+			captured = arg
+			return repository.Registry{ManagedBy: arg.ManagedBy, ManagedRef: arg.ManagedRef}, nil
+		},
+	})
+
+	reg, err := svc.Create(context.Background(), CreateRegistryParams{
+		Name:     "prod",
+		Type:     "generic",
+		URL:      "https://r.example.com",
+		ScanMode: "webhook",
+	})
+
+	is.NoErr(err)
+	is.Equal(captured.ManagedBy.Valid, false)
+	is.Equal(captured.ManagedRef.Valid, false)
+	is.Equal(reg.IsManaged(), false)
+}
+
+func TestRegistryUpdate_PreservesManagedMarkerWhenUnset(t *testing.T) {
+	is := is.New(t)
+	var captured repository.UpdateRegistryParams
+	svc := newTestRegistryService(&fakeRegistryRepo{
+		getFn: func(_ context.Context, _ pgtype.UUID) (repository.Registry, error) {
+			return repository.Registry{
+				VerificationMode: "none",
+				ManagedBy:        pgtype.Text{String: "kubernetes", Valid: true},
+				ManagedRef:       pgtype.Text{String: "ocidex-system/prod-registry", Valid: true},
+			}, nil
+		},
+		updateFn: func(_ context.Context, arg repository.UpdateRegistryParams) (repository.Registry, error) {
+			captured = arg
+			return repository.Registry{}, nil
+		},
+	})
+
+	// The UI's PATCH doesn't carry the ownership marker. UpdateRegistry writes
+	// every column, so without the preserve-if-nil guard this save would quietly
+	// un-mark a registry the operator owns.
+	_, err := svc.Update(context.Background(), UpdateRegistryParams{
+		ID:       "01020304-0506-0708-090a-0b0c0d0e0f10",
+		Name:     "r",
+		Type:     "generic",
+		URL:      "https://r.example.com",
+		Enabled:  true,
+		ScanMode: "webhook",
+	})
+
+	is.NoErr(err)
+	is.Equal(captured.ManagedBy.String, "kubernetes")
+	is.Equal(captured.ManagedRef.String, "ocidex-system/prod-registry")
+}
+
+func TestRegistryUpdate_OverwritesManagedMarkerWhenSet(t *testing.T) {
+	is := is.New(t)
+	managedBy := "kubernetes"
+	managedRef := "ocidex-system/renamed"
+	var captured repository.UpdateRegistryParams
+	svc := newTestRegistryService(&fakeRegistryRepo{
+		getFn: func(_ context.Context, _ pgtype.UUID) (repository.Registry, error) {
+			return repository.Registry{
+				VerificationMode: "none",
+				ManagedBy:        pgtype.Text{String: "kubernetes", Valid: true},
+				ManagedRef:       pgtype.Text{String: "ocidex-system/old", Valid: true},
+			}, nil
+		},
+		updateFn: func(_ context.Context, arg repository.UpdateRegistryParams) (repository.Registry, error) {
+			captured = arg
+			return repository.Registry{}, nil
+		},
+	})
+
+	// The operator re-stamps the marker on every reconcile; a renamed CR has to
+	// win over the stored value rather than being preserved.
+	_, err := svc.Update(context.Background(), UpdateRegistryParams{
+		ID:         "01020304-0506-0708-090a-0b0c0d0e0f10",
+		Name:       "r",
+		Type:       "generic",
+		URL:        "https://r.example.com",
+		Enabled:    true,
+		ScanMode:   "webhook",
+		ManagedBy:  &managedBy,
+		ManagedRef: &managedRef,
+	})
+
+	is.NoErr(err)
+	is.Equal(captured.ManagedRef.String, managedRef)
+}
+
 // ---------------------------------------------------------------------------
 // matchPatternList tests
 // ---------------------------------------------------------------------------
