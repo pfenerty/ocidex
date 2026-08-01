@@ -13,15 +13,22 @@ SELECT
        WHERE artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
     ) AS artifact_count,
     (SELECT COUNT(*)::bigint FROM visible_sbom) AS sbom_count,
+    -- Package and version counts come from component_rollup: it is already
+    -- deduplicated to (registry, identity) grain, so this reads 121k rows
+    -- instead of 10.9M (ocidex-ckv.2). visible_registry_ids() is exactly the
+    -- visible_sbom predicate above, evaluated per registry rather than per SBOM.
     (SELECT COUNT(*)::bigint FROM (
-        SELECT DISTINCT c.name, COALESCE(c.group_name,'') AS g, c.type
-        FROM component c
-        JOIN visible_sbom vs ON vs.id = c.sbom_id
+        SELECT DISTINCT r.name, COALESCE(r.group_name,'') AS g, r.type
+        FROM component_rollup r
+        WHERE (r.registry_id IS NULL OR r.registry_id IN (
+                SELECT visible_registry_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
     ) t) AS package_count,
     (SELECT COUNT(*)::bigint FROM (
-        SELECT DISTINCT c.name, COALESCE(c.group_name,'') AS g, COALESCE(c.version,'') AS v, c.type
-        FROM component c
-        JOIN visible_sbom vs ON vs.id = c.sbom_id
+        SELECT DISTINCT r.name, COALESCE(r.group_name,'') AS g, COALESCE(v.version,'') AS v, r.type
+        FROM component_rollup r
+        LEFT JOIN LATERAL unnest(r.versions) AS v(version) ON true
+        WHERE (r.registry_id IS NULL OR r.registry_id IN (
+                SELECT visible_registry_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
     ) t) AS version_count,
     (SELECT COUNT(*)::bigint FROM license) AS license_count;
 
@@ -123,24 +130,21 @@ FROM daily_new
 ORDER BY first_seen;
 
 -- name: GetTopPackagesByVersionCount :many
-WITH visible_sbom AS (
-    SELECT s.id
-    FROM sbom s
-    LEFT JOIN registry r ON r.id = s.registry_id
-    WHERE s.registry_id IS NULL
-       OR r.visibility = 'public'
-       OR r.owner_id = sqlc.narg('user_id')::uuid
-       OR COALESCE(sqlc.narg('is_admin')::boolean, false)
-)
+-- Reads component_rollup (ocidex-ckv.2). The rollup is per-registry, so the
+-- version set is re-counted distinct across the visible rows while sbom_count
+-- sums; the ordinality filter charges each rollup row once, since unnesting
+-- versions multiplies the rows SUM would otherwise see.
 SELECT
-    c.name,
-    c.group_name,
-    c.type,
-    COUNT(DISTINCT COALESCE(c.version, ''))::bigint AS version_count,
-    COUNT(DISTINCT c.sbom_id)::bigint               AS sbom_count
-FROM component c
-JOIN visible_sbom vs ON vs.id = c.sbom_id
-GROUP BY c.name, c.group_name, c.type
+    r.name,
+    r.group_name,
+    r.type,
+    COUNT(DISTINCT COALESCE(v.version, ''))::bigint AS version_count,
+    COALESCE(SUM(r.sbom_count) FILTER (WHERE COALESCE(v.ord, 1) = 1), 0)::bigint AS sbom_count
+FROM component_rollup r
+LEFT JOIN LATERAL unnest(r.versions) WITH ORDINALITY AS v(version, ord) ON true
+WHERE (r.registry_id IS NULL OR r.registry_id IN (
+        SELECT visible_registry_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
+GROUP BY r.name, r.group_name, r.type
 ORDER BY version_count DESC
 LIMIT @top_n::int;
 

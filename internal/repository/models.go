@@ -72,6 +72,17 @@ type ComponentLicense struct {
 	LicenseID   pgtype.UUID `json:"license_id"`
 }
 
+type ComponentRollup struct {
+	RegistryID pgtype.UUID `json:"registry_id"`
+	Type       string      `json:"type"`
+	Name       string      `json:"name"`
+	GroupName  pgtype.Text `json:"group_name"`
+	// Distinct purl type prefixes seen for this identity. A purl_type filter selects the whole group, so for the rare identity that spans two ecosystems the filtered version/sbom counts cover both.
+	PurlTypes []string `json:"purl_types"`
+	Versions  []string `json:"versions"`
+	SbomCount int64    `json:"sbom_count"`
+}
+
 type Dependency struct {
 	ID        pgtype.UUID `json:"id"`
 	SbomID    pgtype.UUID `json:"sbom_id"`
@@ -120,6 +131,12 @@ type License struct {
 	SpdxID pgtype.Text `json:"spdx_id"`
 	Name   string      `json:"name"`
 	Url    pgtype.Text `json:"url"`
+}
+
+type LicenseRollup struct {
+	LicenseID   pgtype.UUID `json:"license_id"`
+	RegistryID  pgtype.UUID `json:"registry_id"`
+	IdentityKey string      `json:"identity_key"`
 }
 
 type OcidexUser struct {
@@ -235,6 +252,13 @@ type VulnEcosystemState struct {
 type VulnRefreshState struct {
 	ID              bool               `json:"id"`
 	LastRefreshedAt pgtype.Timestamptz `json:"last_refreshed_at"`
+}
+
+type VulnRollup struct {
+	CanonicalID string      `json:"canonical_id"`
+	RegistryID  pgtype.UUID `json:"registry_id"`
+	SbomCount   int64       `json:"sbom_count"`
+	Purls       []string    `json:"purls"`
 }
 
 type Vulnerability struct {

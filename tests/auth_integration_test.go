@@ -31,6 +31,17 @@ func registryBody(name string) string {
 
 func setupServerWithAuth(t *testing.T, pool *pgxpool.Pool) (*httptest.Server, service.AuthService) {
 	t.Helper()
+	srv, authSvc, _ := setupServerWithStats(t, pool)
+	return srv, authSvc
+}
+
+// setupServerWithStats is setupServerWithAuth plus the server's search service.
+//
+// The dashboard-stats endpoint serves the TTL cache and no longer computes on a
+// miss, so a test asserting on stats has to warm that cache — and it has to warm
+// the very instance the server reads, which means getting hold of it here.
+func setupServerWithStats(t *testing.T, pool *pgxpool.Pool) (*httptest.Server, service.AuthService, service.SearchService) {
+	t.Helper()
 	cfg := &config.Config{SessionSecret: testSessionSecret}
 	authSvc := service.NewAuthService(pool, cfg, event.NewBus(slog.Default()))
 	sbomSvc := service.NewSBOMService(pool, nil, nil)
@@ -38,7 +49,34 @@ func setupServerWithAuth(t *testing.T, pool *pgxpool.Pool) (*httptest.Server, se
 	registrySvc := service.NewRegistryService(pool)
 	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, nil, nil, pool, nil, cfg)
 	router := api.NewRouter(handler, "*", "", "")
-	return httptest.NewServer(router), authSvc
+	return httptest.NewServer(router), authSvc, searchSvc
+}
+
+// warmStats populates the dashboard-stats cache for the anonymous scope, which
+// is what an unauthenticated GET /api/v1/stats reads.
+func warmStats(t *testing.T, searchSvc service.SearchService) {
+	t.Helper()
+	if _, err := searchSvc.WarmDashboardStats(t.Context(), service.VisibilityFilter{}); err != nil {
+		t.Fatalf("warming dashboard stats: %v", err)
+	}
+}
+
+// refreshRollups rebuilds the list-page rollup tables synchronously.
+//
+// In the running server a background refresher does this, so a component
+// ingested seconds ago is not on the Components page yet. Tests that assert on
+// list endpoints immediately after an ingest need the rollups current; running
+// the real refresher is what makes those assertions test the production read
+// path rather than a fixture.
+func refreshRollups(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	ran, err := service.NewRollupRefresher(pool, 0, slog.Default()).RefreshNow(t.Context())
+	if err != nil {
+		t.Fatalf("refreshing rollups: %v", err)
+	}
+	if !ran {
+		t.Fatal("refreshing rollups: advisory lock unexpectedly held by another pass")
+	}
 }
 
 func seedUser(t *testing.T, pool *pgxpool.Pool, githubID int64, username, role string) pgtype.UUID {

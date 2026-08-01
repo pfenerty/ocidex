@@ -158,6 +158,19 @@ func run() error {
 	go statsWarmer.Run(extCtx)
 	slog.Info("dashboard stats warmer started", "interval", service.StatsWarmInterval)
 
+	// The list pages read precomputed rollups rather than aggregating the
+	// component table per request. Unlike the stats cache these are shared
+	// database state, so every replica runs the refresher and an advisory lock
+	// inside the pass decides which one actually does the work. It shares the
+	// background pool with the warmer for the same reason: a refresh must never
+	// hold a connection the request path needs.
+	rollupRefresher := service.NewRollupRefresher(bgPool, service.RollupRefreshInterval, logger)
+	go rollupRefresher.Run(extCtx)
+	slog.Info("rollup refresher started",
+		"backstop_interval", service.RollupRefreshInterval,
+		"poll_interval", service.RollupPollInterval,
+		"lock_key", rollupRefresher.LockKey())
+
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
 		Handler: router,
@@ -193,7 +206,11 @@ func run() error {
 // request pool: those jobs run multi-minute aggregates, and when they shared
 // the request pool they held every connection continuously, so HTTP handlers
 // queued for a connection until they hit the 30s request timeout.
-const backgroundPoolMaxConns = 2
+//
+// Three, not two: a refresh pass holds one connection for the length of its
+// transaction, and the warmer runs two aggregates at a time. At two the
+// refresher would silently halve the warmer's concurrency whenever it ran.
+const backgroundPoolMaxConns = 3
 
 // setupDatabase opens the request pool and the small background pool. Callers
 // must close both.

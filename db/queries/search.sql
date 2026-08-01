@@ -96,19 +96,29 @@ FROM external_reference
 WHERE component_id = $1;
 
 -- name: ListLicenses :many
+-- Reads license_rollup rather than joining component_license to component: the
+-- old plan did 266k random heap lookups on component_pkey per request
+-- (ocidex-ckv.2). identity_key is the same (name, group, version, type) tuple
+-- the old COUNT(DISTINCT (...)) built, pre-joined into one text column.
+-- The visibility test lives in the JOIN condition, not the WHERE clause, so a
+-- license whose only components sit in registries the viewer cannot see still
+-- appears rather than vanishing from the list.
+--
+-- Such a license now counts 0, where the old query counted 1. That is a fix,
+-- not a regression: COUNT(DISTINCT (c.name, COALESCE(c.group_name,''), ...))
+-- over a non-matching LEFT JOIN row yielded the composite (NULL,'','',NULL),
+-- which is not the NULL row, so COUNT counted it. Every license with no
+-- visible components reported exactly one. 14 licenses in dev were affected.
 SELECT l.id, l.spdx_id, l.name, l.url,
-       COUNT(DISTINCT (c.name, COALESCE(c.group_name, ''), COALESCE(c.version, ''), c.type)) AS component_count,
+       COUNT(DISTINCT lr.identity_key) AS component_count,
        COUNT(*) OVER() AS total_count
 FROM license l
-LEFT JOIN component_license cl ON cl.license_id = l.id
-LEFT JOIN component c ON c.id = cl.component_id
+LEFT JOIN license_rollup lr ON lr.license_id = l.id
+  AND (lr.registry_id IS NULL OR lr.registry_id IN (
+        SELECT visible_registry_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
 WHERE (sqlc.narg('spdx_id')::text IS NULL OR l.spdx_id = sqlc.narg('spdx_id'))
   AND (sqlc.narg('name')::text IS NULL OR l.name ILIKE sqlc.narg('name'))
   AND (sqlc.narg('category')::text IS NULL OR license_category(l.spdx_id) = sqlc.narg('category')::text)
-  AND (c.id IS NULL OR EXISTS (
-    SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-      AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
-  ))
 GROUP BY l.id, l.spdx_id, l.name, l.url
 ORDER BY component_count DESC, l.name
 LIMIT @row_limit OFFSET @row_offset;
@@ -213,39 +223,51 @@ WHERE sbom_id = ANY(@sbom_ids::uuid[]) AND type != 'file'
 ORDER BY sbom_id, name, group_name;
 
 -- name: ListComponentPurlTypes :many
-SELECT DISTINCT split_part(replace(purl, 'pkg:', ''), '/', 1)::text AS purl_type
-FROM component
-WHERE purl IS NOT NULL
-  AND EXISTS (
-    SELECT 1 FROM sbom s WHERE s.id = component.sbom_id
-      AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
-  )
+-- Reads component_rollup (ocidex-ckv.2). This populates the filter dropdown on
+-- the same page as SearchDistinctComponents, so leaving it scanning all 10.9M
+-- component rows for a DISTINCT would have kept that page slow regardless.
+-- The rollup already stores the split_part result per identity.
+SELECT DISTINCT p.purl_type::text AS purl_type
+FROM component_rollup r
+CROSS JOIN LATERAL unnest(r.purl_types) AS p(purl_type)
+WHERE (r.registry_id IS NULL OR r.registry_id IN (
+        SELECT visible_registry_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
 ORDER BY 1
 -- Safety cap: purl types are a small, fixed vocabulary; bound the scan.
 LIMIT 200;
 
 -- name: SearchDistinctComponents :many
-SELECT c.name, c.group_name, c.type,
-       COALESCE(string_agg(DISTINCT split_part(replace(c.purl, 'pkg:', ''), '/', 1), ',' ORDER BY split_part(replace(c.purl, 'pkg:', ''), '/', 1)) FILTER (WHERE c.purl IS NOT NULL), '') AS purl_types,
-       COUNT(DISTINCT c.version) FILTER (WHERE c.version IS NOT NULL) AS version_count,
-       COUNT(DISTINCT c.sbom_id) AS sbom_count,
+-- Reads component_rollup rather than the component table: aggregating 10.9M raw
+-- rows per request took ~53s against a 30s HTTP timeout (ocidex-ckv.2).
+--
+-- The rollup is per-registry, so a row set restricted by sbom_visible() must be
+-- re-aggregated here. version_count and purl_types use COUNT/string_agg
+-- DISTINCT and so are immune to the row multiplication the two unnests cause.
+-- SUM is not, hence the ordinality filter: it charges each rollup row's
+-- sbom_count exactly once, on the single expanded row where both unnests are at
+-- their first element. COALESCE covers an empty array, where the LEFT JOIN
+-- yields one row with a NULL ordinal.
+SELECT r.name, r.group_name, r.type,
+       COALESCE(string_agg(DISTINCT p.purl_type, ',' ORDER BY p.purl_type), '') AS purl_types,
+       COUNT(DISTINCT v.version) AS version_count,
+       COALESCE(SUM(r.sbom_count) FILTER (WHERE COALESCE(v.ord, 1) = 1 AND COALESCE(p.ord, 1) = 1), 0)::bigint AS sbom_count,
        COUNT(*) OVER() AS total_count
-FROM component c
-WHERE (sqlc.narg('name')::text IS NULL OR c.name ILIKE sqlc.narg('name'))
-  AND (sqlc.narg('group_name')::text IS NULL OR c.group_name = sqlc.narg('group_name'))
-  AND (sqlc.narg('type')::text IS NULL OR c.type = sqlc.narg('type'))
-  AND (sqlc.narg('purl_type')::text IS NULL OR split_part(replace(c.purl, 'pkg:', ''), '/', 1) = sqlc.narg('purl_type'))
-  AND EXISTS (
-    SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-      AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
-  )
-GROUP BY c.name, c.group_name, c.type
+FROM component_rollup r
+LEFT JOIN LATERAL unnest(r.versions) WITH ORDINALITY AS v(version, ord) ON true
+LEFT JOIN LATERAL unnest(r.purl_types) WITH ORDINALITY AS p(purl_type, ord) ON true
+WHERE (sqlc.narg('name')::text IS NULL OR r.name ILIKE sqlc.narg('name'))
+  AND (sqlc.narg('group_name')::text IS NULL OR r.group_name = sqlc.narg('group_name'))
+  AND (sqlc.narg('type')::text IS NULL OR r.type = sqlc.narg('type'))
+  AND (sqlc.narg('purl_type')::text IS NULL OR sqlc.narg('purl_type')::text = ANY(r.purl_types))
+  AND (r.registry_id IS NULL OR r.registry_id IN (
+        SELECT visible_registry_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
+GROUP BY r.name, r.group_name, r.type
 ORDER BY
   CASE @sort_by::text
-    WHEN 'version_count' THEN COUNT(DISTINCT c.version) FILTER (WHERE c.version IS NOT NULL)
-    WHEN 'sbom_count' THEN COUNT(DISTINCT c.sbom_id)
+    WHEN 'version_count' THEN COUNT(DISTINCT v.version)
+    WHEN 'sbom_count' THEN COALESCE(SUM(r.sbom_count) FILTER (WHERE COALESCE(v.ord, 1) = 1 AND COALESCE(p.ord, 1) = 1), 0)
   END * CASE @sort_dir::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
-  c.name, c.group_name
+  r.name, r.group_name
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: GetComponentVersions :many

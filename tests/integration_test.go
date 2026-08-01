@@ -244,6 +244,11 @@ func TestFullLifecycle(t *testing.T) {
 	is.Equal(sbom["subjectVersion"], "24.04")
 
 	// --- Verify components searchable ---
+	// The component list reads component_rollup, which a background refresher
+	// rebuilds; in the server it lags ingest by up to a poll interval. Drive one
+	// pass explicitly rather than sleeping for it.
+	refreshRollups(t, pool)
+
 	resp, err = doGet(t, srv.URL+"/api/v1/components?name=adduser")
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusOK)

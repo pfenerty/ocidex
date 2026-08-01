@@ -140,6 +140,9 @@ func TestVulnSBOMSummaryJoin(t *testing.T) {
 	is.Equal(aptComp["highCount"], float64(1))
 
 	// --- Assert GET /api/v1/vulns lists all seeded CVEs ---
+	// The list reads vuln_rollup, which the background refresher fills.
+	refreshRollups(t, pool)
+
 	resp, err = doGet(t, srv.URL+"/api/v1/vulns")
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusOK)
@@ -187,7 +190,7 @@ func TestVulnAliasDedup(t *testing.T) {
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	srv, authSvc := setupServerWithAuth(t, pool)
+	srv, authSvc, searchSvc := setupServerWithStats(t, pool)
 	defer srv.Close()
 
 	is := is.New(t)
@@ -254,6 +257,12 @@ func TestVulnAliasDedup(t *testing.T) {
 	artSummary := artVulnResp["summary"].(map[string]any)
 	is.Equal(artSummary["critical"], float64(1))
 	is.Equal(artSummary["total"], float64(1))
+
+	// The remaining assertions read precomputed state: /api/v1/vulns reads
+	// vuln_rollup and /api/v1/stats reads the stats cache, both of which are
+	// filled out of band in the running server.
+	refreshRollups(t, pool)
+	warmStats(t, searchSvc)
 
 	// Top-vulns list must show exactly 1 row for this canonical_id (not 2 alias rows).
 	resp, err = doGet(t, srv.URL+"/api/v1/vulns")
