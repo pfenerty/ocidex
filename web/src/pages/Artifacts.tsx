@@ -4,7 +4,6 @@ import { useArtifactsInfinite } from "~/api/queries";
 import { ErrorBox, EmptyState } from "~/components/Feedback";
 import { SkeletonTable } from "~/components/Skeleton";
 import LoadMore from "~/components/LoadMore";
-import SigningLegend from "~/components/SigningLegend";
 import { artifactDisplayName, plural } from "~/utils/format";
 import { SigningBadge, TypeBadge } from "~/components/cells";
 import { DEFAULT_PAGE_SIZE, type ArtifactSummary } from "~/api/client";
@@ -120,7 +119,6 @@ export default function Artifacts() {
                             />
                         }
                     >
-                        <SigningLegend />
                         <div class="card">
                             <div class="table-wrapper">
                                 <table>

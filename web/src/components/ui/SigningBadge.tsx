@@ -2,6 +2,7 @@ import { Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { Shield } from "lucide-solid";
 import { Badge } from "./Badge";
+import { Tooltip } from "./Tooltip";
 import { trustStatus, trustBadgeVariant } from "~/utils/trust";
 
 const iconStyle = { "vertical-align": "middle", "margin-right": "3px" };
@@ -10,6 +11,11 @@ const iconStyle = { "vertical-align": "middle", "margin-right": "3px" };
 // tooltip. Presentation is derived entirely from trust.ts so this component
 // cannot drift from the other consumers of that table — it previously kept its
 // own copy, which is how `artifact_missing` came to render as "Unsigned".
+//
+// The description carries the whole explanation of the status, so it has to be
+// reachable rather than merely present: a native `title` is invisible to
+// keyboard users and unstyleable. It is the sole explanation now that the
+// Artifacts page no longer carries a standing legend block.
 //
 // An unrecognized status renders as its raw value rather than being relabelled,
 // so a new server-side status is visibly unhandled instead of silently
@@ -23,10 +29,12 @@ export function SigningBadge(props: { status: string }) {
             fallback={<Badge><Shield size={12} style={iconStyle} />{props.status}</Badge>}
         >
             {(t) => (
-                <Badge variant={trustBadgeVariant(t().variant)} title={t().description}>
-                    <Dynamic component={t().icon} size={12} style={iconStyle} />
-                    {t().label}
-                </Badge>
+                <Tooltip content={t().description}>
+                    <Badge variant={trustBadgeVariant(t().variant)}>
+                        <Dynamic component={t().icon} size={12} style={iconStyle} />
+                        {t().label}
+                    </Badge>
+                </Tooltip>
             )}
         </Show>
     );
