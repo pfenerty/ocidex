@@ -7,6 +7,12 @@ metadata:
     {{- include "ocidex-operator.labels" . | nindent 4 }}
 spec:
   replicas: 1
+  # Recreate, not RollingUpdate: with replicas=1 the default maxSurge of 25%
+  # rounds up to 1, so two operator pods overlap during an upgrade and contend
+  # for the lease. Recreate keeps leader election a safety net for a future
+  # scale-up rather than a load-bearing part of every rollout.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "ocidex-operator.name" . }}
@@ -52,6 +58,12 @@ spec:
                   fieldPath: metadata.namespace
             - name: WATCH_NAMESPACE
               value: {{ .Values.watchNamespace | quote }}
+            - name: LEADER_ELECTION_LEASE_DURATION
+              value: {{ .Values.leaderElection.leaseDuration | quote }}
+            - name: LEADER_ELECTION_RENEW_DEADLINE
+              value: {{ .Values.leaderElection.renewDeadline | quote }}
+            - name: LEADER_ELECTION_RETRY_PERIOD
+              value: {{ .Values.leaderElection.retryPeriod | quote }}
           livenessProbe:
             httpGet:
               path: /healthz

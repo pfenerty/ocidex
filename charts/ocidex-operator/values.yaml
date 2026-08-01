@@ -29,6 +29,17 @@ watchNamespace: ""
 # leaderElect enables leader election for multi-replica deployments.
 leaderElect: true
 
+# leaderElection tunes the lease timings. Defaults are wider than
+# controller-runtime's 15s/10s/2s because the per-request API-server timeout is
+# derived as renewDeadline/2 — the 5s that controller-runtime's defaults imply is
+# not enough headroom on a loaded control plane, and a single slow Lease GET
+# terminates the process (ocidex-vh6). Invariants enforced at startup:
+# leaseDuration > renewDeadline > retryPeriod * 1.2.
+leaderElection:
+  leaseDuration: 60s
+  renewDeadline: 40s
+  retryPeriod: 10s
+
 resources:
   requests:
     cpu: "50m"

@@ -163,7 +163,22 @@ func (c *VulnWorkerConfig) SlogLevel() slog.Level {
 type OperatorConfig struct {
 	LogLevel    string `env:"LOG_LEVEL"    envDefault:"info"`
 	Environment string `env:"ENVIRONMENT"  envDefault:"development"`
+
+	// Leader-election timings. These are deliberately wider than
+	// controller-runtime's defaults of 15s/10s/2s. controller-runtime derives the
+	// per-request API-server client timeout as max(RenewDeadline/2, 1s), so its
+	// defaults allow only 5s for a single Lease GET — which a loaded control plane
+	// can exceed, losing leadership and killing the process (ocidex-vh6). A 40s
+	// renew deadline gives each request a 20s budget instead.
+	LeaderElectionLeaseDuration time.Duration `env:"LEADER_ELECTION_LEASE_DURATION" envDefault:"60s"`
+	LeaderElectionRenewDeadline time.Duration `env:"LEADER_ELECTION_RENEW_DEADLINE" envDefault:"40s"`
+	LeaderElectionRetryPeriod   time.Duration `env:"LEADER_ELECTION_RETRY_PERIOD"   envDefault:"10s"`
 }
+
+// leaderElectionJitterFactor mirrors client-go's leaderelection.JitterFactor.
+// The renew deadline must exceed RetryPeriod*JitterFactor, or client-go rejects
+// the config when constructing the leader elector.
+const leaderElectionJitterFactor = 1.2
 
 // LoadOperator reads operator-specific configuration from environment variables.
 func LoadOperator() (*OperatorConfig, error) {
@@ -171,7 +186,31 @@ func LoadOperator() (*OperatorConfig, error) {
 	if err := env.Parse(cfg); err != nil {
 		return nil, fmt.Errorf("parsing config: %w", err)
 	}
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
 	return cfg, nil
+}
+
+// validate enforces the same leader-election timing invariants client-go checks
+// in NewLeaderElector, so a misconfiguration is reported at config load with the
+// offending env var named rather than surfacing later from manager construction.
+func (c *OperatorConfig) validate() error {
+	if c.LeaderElectionLeaseDuration <= 0 || c.LeaderElectionRenewDeadline <= 0 || c.LeaderElectionRetryPeriod <= 0 {
+		return fmt.Errorf("leader election durations must all be positive")
+	}
+	if c.LeaderElectionLeaseDuration <= c.LeaderElectionRenewDeadline {
+		return fmt.Errorf(
+			"LEADER_ELECTION_LEASE_DURATION (%s) must be greater than LEADER_ELECTION_RENEW_DEADLINE (%s)",
+			c.LeaderElectionLeaseDuration, c.LeaderElectionRenewDeadline)
+	}
+	minRenew := time.Duration(float64(c.LeaderElectionRetryPeriod) * leaderElectionJitterFactor)
+	if c.LeaderElectionRenewDeadline <= minRenew {
+		return fmt.Errorf(
+			"LEADER_ELECTION_RENEW_DEADLINE (%s) must be greater than LEADER_ELECTION_RETRY_PERIOD*%.1f (%s)",
+			c.LeaderElectionRenewDeadline, leaderElectionJitterFactor, minRenew)
+	}
+	return nil
 }
 
 // SlogLevel returns the slog.Level for an OperatorConfig.

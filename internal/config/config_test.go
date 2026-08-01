@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/matryer/is"
 	"github.com/pfenerty/ocidex/internal/config"
@@ -107,6 +108,102 @@ func TestLoad(t *testing.T) {
 			}
 
 			cfg, err := config.Load()
+
+			if tt.wantErr {
+				is.True(err != nil)
+				return
+			}
+			is.NoErr(err)
+			if tt.check != nil {
+				tt.check(is, cfg)
+			}
+		})
+	}
+}
+
+// TestLoadOperator covers the leader-election timings added for ocidex-vh6. The
+// defaults must stay wider than controller-runtime's 15s/10s/2s, because the
+// per-request API-server timeout is derived as RenewDeadline/2 and a 5s budget
+// is not enough for a loaded control plane.
+func TestLoadOperator(t *testing.T) {
+	leaderElectionVars := []string{
+		"LEADER_ELECTION_LEASE_DURATION",
+		"LEADER_ELECTION_RENEW_DEADLINE",
+		"LEADER_ELECTION_RETRY_PERIOD",
+	}
+
+	tests := []struct {
+		name    string
+		env     map[string]string
+		wantErr bool
+		check   func(*is.I, *config.OperatorConfig)
+	}{
+		{
+			name: "defaults applied",
+			env:  map[string]string{},
+			check: func(is *is.I, cfg *config.OperatorConfig) {
+				is.Equal(cfg.LogLevel, "info")
+				is.Equal(cfg.Environment, "development")
+				is.Equal(cfg.LeaderElectionLeaseDuration, 60*time.Second)
+				is.Equal(cfg.LeaderElectionRenewDeadline, 40*time.Second)
+				is.Equal(cfg.LeaderElectionRetryPeriod, 10*time.Second)
+			},
+		},
+		{
+			name: "overrides",
+			env: map[string]string{
+				"LEADER_ELECTION_LEASE_DURATION": "30s",
+				"LEADER_ELECTION_RENEW_DEADLINE": "25s",
+				"LEADER_ELECTION_RETRY_PERIOD":   "5s",
+			},
+			check: func(is *is.I, cfg *config.OperatorConfig) {
+				is.Equal(cfg.LeaderElectionLeaseDuration, 30*time.Second)
+				is.Equal(cfg.LeaderElectionRenewDeadline, 25*time.Second)
+				is.Equal(cfg.LeaderElectionRetryPeriod, 5*time.Second)
+			},
+		},
+		{
+			name: "renew deadline must be below lease duration",
+			env: map[string]string{
+				"LEADER_ELECTION_LEASE_DURATION": "30s",
+				"LEADER_ELECTION_RENEW_DEADLINE": "30s",
+				"LEADER_ELECTION_RETRY_PERIOD":   "5s",
+			},
+			wantErr: true,
+		},
+		{
+			// client-go panics unless RenewDeadline > RetryPeriod*JitterFactor(1.2).
+			name: "renew deadline must exceed retry period times jitter factor",
+			env: map[string]string{
+				"LEADER_ELECTION_LEASE_DURATION": "60s",
+				"LEADER_ELECTION_RENEW_DEADLINE": "12s",
+				"LEADER_ELECTION_RETRY_PERIOD":   "10s",
+			},
+			wantErr: true,
+		},
+		{
+			name: "zero durations rejected",
+			env: map[string]string{
+				"LEADER_ELECTION_RETRY_PERIOD": "0s",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+
+			// Clear inherited values so defaults are exercised faithfully.
+			for _, k := range append([]string{"LOG_LEVEL", "ENVIRONMENT"}, leaderElectionVars...) {
+				t.Setenv(k, "")
+				os.Unsetenv(k) //nolint:errcheck
+			}
+			for k, v := range tt.env {
+				t.Setenv(k, v)
+			}
+
+			cfg, err := config.LoadOperator()
 
 			if tt.wantErr {
 				is.True(err != nil)

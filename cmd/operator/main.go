@@ -88,6 +88,9 @@ func run() error {
 		LeaderElection:          *leaderElect,
 		LeaderElectionID:        "ocidex-operator-leader",
 		LeaderElectionNamespace: operatorNS,
+		LeaseDuration:           &cfg.LeaderElectionLeaseDuration,
+		RenewDeadline:           &cfg.LeaderElectionRenewDeadline,
+		RetryPeriod:             &cfg.LeaderElectionRetryPeriod,
 		GracefulShutdownTimeout: &shutdownTimeout,
 		Cache: cache.Options{
 			DefaultNamespaces: map[string]cache.Config{
@@ -137,6 +140,9 @@ func run() error {
 		"environment", cfg.Environment,
 		"ocidex_server", serverURL,
 		"leader_elect", *leaderElect,
+		"lease_duration", cfg.LeaderElectionLeaseDuration,
+		"renew_deadline", cfg.LeaderElectionRenewDeadline,
+		"retry_period", cfg.LeaderElectionRetryPeriod,
 	)
 	if err := mgr.Start(ctx); err != nil {
 		return fmt.Errorf("running manager: %w", err)
