@@ -120,12 +120,8 @@ export function useScanRegistry() {
 export function useRegenerateWebhookSecret() {
     return createMutation(() => ({
         mutationFn: (id: string) =>
-            fetch(`/api/v1/registries/${id}/webhook-secret`, {
-                method: "POST",
-                credentials: "include",
-            }).then(async (res) => {
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                return res.json() as Promise<{ webhook_secret: string }>;
-            }),
+            unwrap(client.POST("/api/v1/registries/{id}/webhook-secret", {
+                params: { path: { id } },
+            })),
     }));
 }

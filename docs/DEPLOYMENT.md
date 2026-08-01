@@ -22,10 +22,11 @@ walkthrough connecting it to the cluster.
 
 ```
           ┌─ HTTPRoute (ocidex.app, cloudflare-gateway) ─┐
-          ▼                                              │
+          │  /api,/auth,/health,/ready ─┐                 │
+          ▼  everything else            ▼                 │
    ┌────────────┐    ┌───────────┐    ┌────────────────┐ │
    │ ocidex-web │    │ ocidex-api│◀───┤ ocidex-secrets │ │  Secret
-   │  (Caddy)   │───▶│ (Deploy×2)│    └────────────────┘ │  (SOPS,
+   │  (nginx)   │    │ (Deploy×2)│    └────────────────┘ │  (SOPS,
    └────────────┘    └─────┬─────┘                       │   homelab)
                            │ NATS JetStream              │
                 ┌──────────┴──────────┐                  │
@@ -115,10 +116,21 @@ Runs the API image (`ocidex-api:<tag>`) with `command: ["/ocidex"]`, `args: ["mi
 | `POSTGRES_PASSWORD` | Secret | `openssl rand -base64 24` (`0my.10`) |
 | `PGDATA` | Deployment env | `/var/lib/postgresql/data/pgdata` |
 
-### `ocidex-web` (Caddy, static SolidJS bundle)
+### `ocidex-web` (nginx, static SolidJS bundle)
 
-No application env vars. The image bakes `web/dist/` + a `Caddyfile` that
-reverse-proxies `/api/*` and `/auth/*` to `ocidex-api:8080`.
+No application env vars. The image (`cgr.dev/chainguard/nginx`) bakes
+`web/dist/` + `web/nginx.conf`, which serves static assets with an
+`index.html` SPA fallback and **nothing else** — it contains no reverse proxy.
+
+`/api`, `/auth`, `/health` and `/ready` are routed to `ocidex-api` by the
+`ocidex-web` HTTPRoute (`charts/ocidex/templates/httproutes.yaml`), which lists
+them ahead of the `/` catch-all. That is what gives the SPA a same-origin API,
+so a deployment with `gatewayApi.enabled=false` must supply equivalent Ingress
+rules or build the frontend with `VITE_API_URL` set to the API's origin.
+
+nginx runs as UID 65532 and listens on **8080**; the Service maps 80 → 8080.
+Under `docker-compose`, which has no L7 router, `web/nginx.compose.conf` is
+bind-mounted into `/etc/nginx/ocidex.d/` to reinstate the four proxy rules.
 
 ---
 

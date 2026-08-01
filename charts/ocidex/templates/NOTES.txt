@@ -28,6 +28,16 @@ See k8s/base/secrets.yaml.example for the full list of supported fields.
 {{- end }}
 {{- if .Values.gatewayApi.enabled }}
   Gateway API: HTTPRoutes created for api={{ .Values.gatewayApi.apiHostname }} web={{ .Values.gatewayApi.webHostname }}
+                The web route sends /api, /auth, /health and /ready to the API
+                Service, so the SPA has a same-origin API.
+{{- else }}
+
+  WARNING: gatewayApi is disabled, so nothing routes /api and /auth to the API.
+  The web container serves static assets only — it has no reverse proxy. Either:
+    - set gatewayApi.enabled=true (with gatewayName/apiHostname/webHostname), or
+    - add equivalent Ingress rules for /api, /auth, /health, /ready, or
+    - rebuild the frontend with VITE_API_URL=<api-origin> and set
+      api.env.corsAllowedOrigins to the frontend's origin.
 {{- end }}
 {{- if .Values.cilium.enabled }}
   Cilium: CiliumNetworkPolicy created.

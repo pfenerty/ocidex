@@ -139,6 +139,11 @@ migrate:
 
 # --- NATS JetStream ----------------------------------------------------------
 nats:
+  # Declared here rather than inline in the StatefulSet so Renovate's
+  # helm-values manager can see and bump it.
+  image:
+    repository: docker.io/nats
+    tag: "2-alpine"
   storage:
     emptyDir: false
     size: 1Gi
@@ -183,6 +188,13 @@ monitoring:
 
 # --- Gateway API (optional) --------------------------------------------------
 # Requires Gateway API CRDs (v1) and a conformant Gateway controller (e.g. Cilium).
+#
+# The web container serves static assets only — it contains no reverse proxy.
+# The webHostname HTTPRoute is what routes /api, /auth, /health and /ready to the
+# API, giving the SPA a same-origin API. With gatewayApi.enabled=false you must
+# supply that routing yourself, either with equivalent Ingress rules or by
+# building the frontend with VITE_API_URL set to the API's own origin (and
+# listing the frontend origin in api.env.corsAllowedOrigins).
 gatewayApi:
   enabled: false
   gatewayName: ""

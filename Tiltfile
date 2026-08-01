@@ -58,9 +58,9 @@ docker_build('ocidex-scanner-worker',    target='scanner-worker',    **_build_ct
 docker_build('ocidex-enrichment-worker', target='enrichment-worker', **_build_ctx)
 docker_build('ocidex-git-worker',        target='git-worker',        **_build_ctx)
 
-# Web image (Caddy + built SPA). Built so the in-cluster ocidex-web Deployment
-# has an image to pull. The Vite local_resource below still serves HMR on
-# http://localhost:3000 for day-to-day frontend work.
+# Web image (nginx + built SPA, static assets only). Built so the in-cluster
+# ocidex-web Deployment has an image to pull. The Vite local_resource below
+# still serves HMR on http://localhost:3000 for day-to-day frontend work.
 docker_build(
     'ocidex-web',
     context='.',

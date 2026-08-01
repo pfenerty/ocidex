@@ -454,6 +454,7 @@ bd close <epic-id>
 | 034 | Component Provenance | CycloneDX retained (SPDX is a lateral move, no new capability); capability-driven typed columns (no generic property hoarding); base-vs-app layer caveat (ordinal-0-only, package-DB-layer granularity) |
 | 035 | Enricher Dependency Chaining | Completion-driven dependent enqueue via deps.go graph; reuses enrichment_jobs outbox + `.enrich.hint` doorbell; no new tables/subjects; `--once` mode does not chain |
 | 037 | Cosign-Delegated Provenance Verification | Three trust tiers (none/public_key/keyless) via cosign.CheckOpts; five status values incl. artifact_missing; adopted cosign/sigstore-go (786 transitive deps), reversing ADR-032 |
+| 038 | Web Serving & Base Image Policy | Chainguard nginx (178→19 pkgs) serving static only; L7 routing moved to the Gateway HTTPRoute; distroless static-debian13 for Go; Renovate `pinDigests` on runtime/build images, CI images excluded |
 
 **When working on diff, dependency-tree, or changelog code, read ADRs 0019–0021 first.** They are the normative contract; the implementation issues (`ocidex-bqh.*`) reference them by section.
 
