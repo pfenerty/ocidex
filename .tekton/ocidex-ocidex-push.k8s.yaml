@@ -142,6 +142,7 @@ spec:
           - name: revision
             value: $(params.revision)
         runAfter:
+          - go-build
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task

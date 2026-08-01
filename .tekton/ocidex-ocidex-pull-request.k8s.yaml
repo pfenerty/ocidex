@@ -203,6 +203,7 @@ spec:
           - name: revision
             value: $(params.revision)
         runAfter:
+          - go-build
           - set-status-pending-ocidex-pull-request
         taskRef:
           kind: Task
