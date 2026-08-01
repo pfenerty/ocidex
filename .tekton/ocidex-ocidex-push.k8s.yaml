@@ -413,7 +413,7 @@ spec:
           type: RuntimeDefault
     serviceAccountName: default
   timeouts:
-    pipeline: 2h
+    pipeline: 4h
   workspaces:
     - name: workspace
       volumeClaimTemplate:
