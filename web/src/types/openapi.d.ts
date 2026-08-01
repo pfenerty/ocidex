@@ -1370,6 +1370,8 @@ export interface components {
             /** Format: int64 */
             vuln_count: number;
             vuln_severity: components["schemas"]["VulnSeverityEntry"];
+            /** @description No snapshot is available yet and every count is a zero placeholder; render a loading state and retry */
+            warming: boolean;
         };
         DependencyEdge: {
             from: string;

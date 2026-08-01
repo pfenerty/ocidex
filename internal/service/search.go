@@ -69,6 +69,12 @@ type DashboardStats struct {
 	TopPackages           []PackageSummary
 	VulnCount             int64
 	VulnSeverity          VulnSeverityBreakdown
+
+	// Warming reports that no computed snapshot was available and every count
+	// above is a zero placeholder. Clients must render their loading state
+	// rather than "0 artifacts" — the stats are computed out-of-band by the
+	// background warmer and appear on a later poll.
+	Warming bool
 }
 
 // VulnSeverityBreakdown is a per-severity count of distinct tracked vulnerabilities.
@@ -528,12 +534,44 @@ type DependencyEdge struct {
 
 type searchService struct {
 	db         repository.DBTX
+	warmDB     repository.DBTX
 	statsCache *statsCache
 }
 
+// warmHandle is the database handle for out-of-band aggregates, falling back to
+// the request handle when none was configured (as when the struct is built
+// directly rather than through NewSearchService).
+func (s *searchService) warmHandle() repository.DBTX {
+	if s.warmDB != nil {
+		return s.warmDB
+	}
+	return s.db
+}
+
+// SearchOption customizes a SearchService at construction.
+type SearchOption func(*searchService)
+
+// WithWarmDB routes the out-of-band dashboard aggregates at a separate database
+// handle. Those queries run for minutes; pointing them at a small dedicated
+// pool keeps them from occupying connections the request path is waiting on.
+// The cache they fill is still the one requests read, so this must be applied
+// to the same SearchService the handlers use — not a second instance, which
+// would warm a cache nobody reads.
+func WithWarmDB(db repository.DBTX) SearchOption {
+	return func(s *searchService) {
+		if db != nil {
+			s.warmDB = db
+		}
+	}
+}
+
 // NewSearchService creates a new SearchService.
-func NewSearchService(db repository.DBTX) SearchService {
-	return &searchService{db: db, statsCache: newStatsCache(statsCacheTTL)}
+func NewSearchService(db repository.DBTX, opts ...SearchOption) SearchService {
+	s := &searchService{db: db, warmDB: db, statsCache: newStatsCache(statsCacheTTL)}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // Ensure *Queries satisfies SearchRepository.

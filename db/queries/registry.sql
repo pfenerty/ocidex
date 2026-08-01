@@ -9,6 +9,14 @@ SELECT * FROM registry WHERE id = $1;
 -- name: GetRegistryByName :one
 SELECT * FROM registry WHERE name = $1;
 
+-- name: CountOwnedPrivateRegistries :one
+-- A viewer who owns no private registry sees exactly the public set, i.e. the
+-- same data as an anonymous viewer. The dashboard-stats cache uses this to
+-- collapse such viewers onto the shared anonymous scope instead of minting a
+-- per-user scope that the background warmer can never enumerate.
+SELECT COUNT(*) FROM registry
+WHERE owner_id = @owner_id AND visibility <> 'public';
+
 -- name: ListRegistries :many
 SELECT * FROM registry
 WHERE (

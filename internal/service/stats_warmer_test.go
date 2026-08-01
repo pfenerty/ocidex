@@ -22,9 +22,24 @@ type warmRecorder struct {
 	scopes []string
 	err    error
 	calls  chan struct{}
+
+	// delay/before/after let a test observe how long a warm takes and how many
+	// run at once.
+	delay  time.Duration
+	before func()
+	after  func()
 }
 
 func (w *warmRecorder) WarmDashboardStats(_ context.Context, vis VisibilityFilter) (*DashboardStats, error) {
+	if w.before != nil {
+		w.before()
+	}
+	if w.after != nil {
+		defer w.after()
+	}
+	if w.delay > 0 {
+		time.Sleep(w.delay)
+	}
 	w.mu.Lock()
 	w.scopes = append(w.scopes, statsCacheKey(vis))
 	w.mu.Unlock()
@@ -123,6 +138,71 @@ func TestStatsWarmerKeepsTickingAfterAFailure(t *testing.T) {
 	}
 
 	is.True(len(rec.seen()) >= 4)
+}
+
+// Regression: the warmer used a fixed ticker, so once a pass outlasted the
+// interval — which it did in production, ~5.6 minutes against a 5 minute
+// period — the next pass started while the previous was still running. Passes
+// piled up without bound and held the connection pool permanently, so ordinary
+// requests queued for a connection until they hit the HTTP timeout. The
+// interval must be a gap between passes, not a period.
+func TestStatsWarmerNeverOverlapsPasses(t *testing.T) {
+	is := is.New(t)
+
+	var (
+		mu      sync.Mutex
+		inFlt   int
+		maxInFl int
+	)
+	rec := &warmRecorder{calls: make(chan struct{}, 64)}
+	rec.before = func() {
+		mu.Lock()
+		inFlt++
+		if inFlt > maxInFl {
+			maxInFl = inFlt
+		}
+		mu.Unlock()
+	}
+	rec.after = func() {
+		mu.Lock()
+		inFlt--
+		mu.Unlock()
+	}
+
+	// Each warm outlasts the interval several times over: a ticker-driven loop
+	// would have a second pass running before the first finished.
+	w := NewStatsWarmer(rec, time.Millisecond, discardLogger())
+	rec.delay = 20 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		w.Run(ctx)
+		close(done)
+	}()
+
+	for i := 0; i < 4; i++ {
+		select {
+		case <-rec.calls:
+		case <-time.After(5 * time.Second):
+			t.Fatalf("warmer stopped after %d calls", i)
+		}
+	}
+
+	cancel()
+	go func() {
+		for range rec.calls {
+		}
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("warmer did not stop on context cancellation")
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	is.Equal(maxInFl, 1)
 }
 
 func TestNewStatsWarmerDefaultsNonPositiveInterval(t *testing.T) {

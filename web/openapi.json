@@ -1260,6 +1260,10 @@
           },
           "vuln_severity": {
             "$ref": "#/components/schemas/VulnSeverityEntry"
+          },
+          "warming": {
+            "description": "No snapshot is available yet and every count is a zero placeholder; render a loading state and retry",
+            "type": "boolean"
           }
         },
         "required": [
@@ -1274,7 +1278,8 @@
           "version_growth_timeline",
           "top_packages",
           "vuln_count",
-          "vuln_severity"
+          "vuln_severity",
+          "warming"
         ],
         "type": "object"
       },

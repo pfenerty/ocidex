@@ -76,11 +76,12 @@ func run() error {
 	)
 
 	ctx := context.Background()
-	pool, err := setupDatabase(ctx, cfg)
+	pool, bgPool, err := setupDatabase(ctx, cfg)
 	if err != nil {
 		return err
 	}
 	defer pool.Close()
+	defer bgPool.Close()
 
 	natsClient, err := setupNATSClient(cfg)
 	if err != nil {
@@ -101,7 +102,7 @@ func run() error {
 
 	ociValidator := ocivalidate.NewValidator(ocivalidate.WithInsecureResolver(insecureResolver))
 	sbomSvc := service.NewSBOMService(pool, bus, ociValidator)
-	searchSvc := service.NewSearchService(pool)
+	searchSvc := service.NewSearchService(pool, service.WithWarmDB(bgPool))
 	authSvc := service.NewAuthService(pool, cfg, bus)
 
 	jobSvc := service.NewJobService(pool)
@@ -150,7 +151,9 @@ func run() error {
 
 	// The dashboard aggregates take longer than any request timeout allows, so
 	// they are computed out-of-band and served from cache. Per-process cache,
-	// so this runs on every replica rather than behind leader election.
+	// so this runs on every replica rather than behind leader election. It gets
+	// its own search service on the small background pool so a warm pass can
+	// never occupy connections the request path needs.
 	statsWarmer := service.NewStatsWarmer(searchSvc, service.StatsWarmInterval, logger)
 	go statsWarmer.Run(extCtx)
 	slog.Info("dashboard stats warmer started", "interval", service.StatsWarmInterval)
@@ -185,13 +188,42 @@ func run() error {
 	return nil
 }
 
-func setupDatabase(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
-	poolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+// backgroundPoolMaxConns bounds the pool used by out-of-band work (the stats
+// warmer and rollup refresher). It is deliberately tiny and separate from the
+// request pool: those jobs run multi-minute aggregates, and when they shared
+// the request pool they held every connection continuously, so HTTP handlers
+// queued for a connection until they hit the 30s request timeout.
+const backgroundPoolMaxConns = 2
+
+// setupDatabase opens the request pool and the small background pool. Callers
+// must close both.
+func setupDatabase(ctx context.Context, cfg *config.Config) (request, background *pgxpool.Pool, err error) {
+	var requestMaxConns int32
+	if cfg.DatabaseMaxConns > 0 {
+		requestMaxConns = int32(cfg.DatabaseMaxConns) //nolint:gosec // G115: value is a configured pool size
+	}
+	request, err = openPool(ctx, cfg.DatabaseURL, requestMaxConns)
+	if err != nil {
+		return nil, nil, fmt.Errorf("opening request pool: %w", err)
+	}
+	background, err = openPool(ctx, cfg.DatabaseURL, backgroundPoolMaxConns)
+	if err != nil {
+		request.Close()
+		return nil, nil, fmt.Errorf("opening background pool: %w", err)
+	}
+	slog.Info("database connected", "background_max_conns", backgroundPoolMaxConns)
+	return request, background, nil
+}
+
+// openPool connects a pool and verifies it, overriding MaxConns when maxConns
+// is positive so the pgx default stands otherwise.
+func openPool(ctx context.Context, url string, maxConns int32) (*pgxpool.Pool, error) {
+	poolCfg, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, fmt.Errorf("parsing database config: %w", err)
 	}
-	if cfg.DatabaseMaxConns > 0 {
-		poolCfg.MaxConns = int32(cfg.DatabaseMaxConns) //nolint:gosec // G115: value is a configured pool size
+	if maxConns > 0 {
+		poolCfg.MaxConns = maxConns
 	}
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
@@ -201,7 +233,6 @@ func setupDatabase(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, erro
 		pool.Close()
 		return nil, fmt.Errorf("pinging database: %w", err)
 	}
-	slog.Info("database connected")
 	return pool, nil
 }
 

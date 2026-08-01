@@ -512,6 +512,7 @@ type DashboardStatsOutput struct {
 		TopPackages           []PackageSummaryEntry `json:"top_packages"`
 		VulnCount             int64                 `json:"vuln_count"`
 		VulnSeverity          VulnSeverityEntry     `json:"vuln_severity"`
+		Warming               bool                  `json:"warming" doc:"No snapshot is available yet and every count is a zero placeholder; render a loading state and retry"`
 	}
 }
 
