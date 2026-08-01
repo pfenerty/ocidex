@@ -34,7 +34,7 @@ SELECT
     COALESCE(s.subject_version, '')::text     AS subject_version,
     COALESCE(a.type, '')::text                AS artifact_type,
     COALESCE(a.name, '')::text                AS artifact_name,
-    s.registry_id                             AS registry_id
+    s.source_id                               AS source_id
 FROM claimed c
 JOIN sbom s ON s.id = c.sbom_id
 JOIN artifact a ON a.id = s.artifact_id
@@ -56,7 +56,7 @@ type ClaimEnrichmentJobByIDRow struct {
 	SubjectVersion string      `json:"subject_version"`
 	ArtifactType   string      `json:"artifact_type"`
 	ArtifactName   string      `json:"artifact_name"`
-	RegistryID     pgtype.UUID `json:"registry_id"`
+	SourceID       pgtype.UUID `json:"source_id"`
 }
 
 func (q *Queries) ClaimEnrichmentJobByID(ctx context.Context, arg ClaimEnrichmentJobByIDParams) (ClaimEnrichmentJobByIDRow, error) {
@@ -73,7 +73,7 @@ func (q *Queries) ClaimEnrichmentJobByID(ctx context.Context, arg ClaimEnrichmen
 		&i.SubjectVersion,
 		&i.ArtifactType,
 		&i.ArtifactName,
-		&i.RegistryID,
+		&i.SourceID,
 	)
 	return i, err
 }
@@ -109,7 +109,7 @@ SELECT
     COALESCE(s.subject_version, '')::text     AS subject_version,
     COALESCE(a.type, '')::text                AS artifact_type,
     COALESCE(a.name, '')::text                AS artifact_name,
-    s.registry_id                             AS registry_id
+    s.source_id                               AS source_id
 FROM claimed c
 JOIN sbom s ON s.id = c.sbom_id
 JOIN artifact a ON a.id = s.artifact_id
@@ -132,7 +132,7 @@ type ClaimNextEnrichmentJobRow struct {
 	SubjectVersion string      `json:"subject_version"`
 	ArtifactType   string      `json:"artifact_type"`
 	ArtifactName   string      `json:"artifact_name"`
-	RegistryID     pgtype.UUID `json:"registry_id"`
+	SourceID       pgtype.UUID `json:"source_id"`
 }
 
 func (q *Queries) ClaimNextEnrichmentJob(ctx context.Context, arg ClaimNextEnrichmentJobParams) (ClaimNextEnrichmentJobRow, error) {
@@ -150,7 +150,7 @@ func (q *Queries) ClaimNextEnrichmentJob(ctx context.Context, arg ClaimNextEnric
 		&i.SubjectVersion,
 		&i.ArtifactType,
 		&i.ArtifactName,
-		&i.RegistryID,
+		&i.SourceID,
 	)
 	return i, err
 }

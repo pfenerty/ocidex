@@ -29,10 +29,10 @@ type Artifact struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
-type ArtifactRegistry struct {
-	ArtifactID pgtype.UUID        `json:"artifact_id"`
-	RegistryID pgtype.UUID        `json:"registry_id"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+type ArtifactNamespace struct {
+	ArtifactID  pgtype.UUID        `json:"artifact_id"`
+	NamespaceID pgtype.UUID        `json:"namespace_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
 type Component struct {
@@ -73,10 +73,10 @@ type ComponentLicense struct {
 }
 
 type ComponentRollup struct {
-	RegistryID pgtype.UUID `json:"registry_id"`
-	Type       string      `json:"type"`
-	Name       string      `json:"name"`
-	GroupName  pgtype.Text `json:"group_name"`
+	NamespaceID pgtype.UUID `json:"namespace_id"`
+	Type        string      `json:"type"`
+	Name        string      `json:"name"`
+	GroupName   pgtype.Text `json:"group_name"`
 	// Distinct purl type prefixes seen for this identity. A purl_type filter selects the whole group, so for the rare identity that spans two ecosystems the filtered version/sbom counts cover both.
 	PurlTypes []string `json:"purl_types"`
 	Versions  []string `json:"versions"`
@@ -135,8 +135,19 @@ type License struct {
 
 type LicenseRollup struct {
 	LicenseID   pgtype.UUID `json:"license_id"`
-	RegistryID  pgtype.UUID `json:"registry_id"`
+	NamespaceID pgtype.UUID `json:"namespace_id"`
 	IdentityKey string      `json:"identity_key"`
+}
+
+// Tenancy boundary. The only table carrying ownership and visibility (ADR-039). A namespace may hold several sources.
+type Namespace struct {
+	ID      pgtype.UUID `json:"id"`
+	Name    string      `json:"name"`
+	OwnerID pgtype.UUID `json:"owner_id"`
+	// Defaults to private. Namespaces migrated from registries keep the registry's existing value, so this default only applies to namespaces created after the migration.
+	Visibility string             `json:"visibility"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
 
 type OcidexUser struct {
@@ -171,9 +182,9 @@ type PurlVulnState struct {
 	CheckedAt pgtype.Timestamptz `json:"checked_at"`
 }
 
+// OCI-specific discovery and trust config. Subtype of source: registry.id IS the source id. Ownership lives on namespace (ADR-039).
 type Registry struct {
 	ID                  pgtype.UUID        `json:"id"`
-	Name                string             `json:"name"`
 	Type                string             `json:"type"`
 	Url                 string             `json:"url"`
 	Insecure            bool               `json:"insecure"`
@@ -189,8 +200,6 @@ type Registry struct {
 	Repositories        []string           `json:"repositories"`
 	AuthUsername        pgtype.Text        `json:"auth_username"`
 	AuthToken           pgtype.Text        `json:"auth_token"`
-	OwnerID             pgtype.UUID        `json:"owner_id"`
-	Visibility          string             `json:"visibility"`
 	IncludeUntagged     bool               `json:"include_untagged"`
 	VerificationMode    string             `json:"verification_mode"`
 	TrustPublicKey      pgtype.Text        `json:"trust_public_key"`
@@ -211,9 +220,12 @@ type Sbom struct {
 	SubjectVersion       pgtype.Text        `json:"subject_version"`
 	Digest               pgtype.Text        `json:"digest"`
 	EnrichmentSufficient bool               `json:"enrichment_sufficient"`
-	RegistryID           pgtype.UUID        `json:"registry_id"`
-	Flavor               pgtype.Text        `json:"flavor"`
-	IndexDigest          pgtype.Text        `json:"index_digest"`
+	// Who may see this SBOM. Still nullable: legacy uploaded rows have no owner until ocidex-0gp.3 assigns one.
+	NamespaceID pgtype.UUID `json:"namespace_id"`
+	Flavor      pgtype.Text `json:"flavor"`
+	IndexDigest pgtype.Text `json:"index_digest"`
+	// How this SBOM arrived. ON DELETE SET NULL: removing a channel loses attribution, never the SBOM and never its visibility.
+	SourceID pgtype.UUID `json:"source_id"`
 }
 
 type ScanJob struct {
@@ -243,6 +255,17 @@ type Session struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+// How an SBOM reached OCIDex. kind is the subtype discriminator; an oci_registry source has a matching registry row, an upload source has none.
+type Source struct {
+	ID          pgtype.UUID `json:"id"`
+	NamespaceID pgtype.UUID `json:"namespace_id"`
+	// Not to be confused with registry.type (zot/harbor/docker/generic), which is an OCI-flavour hint for the scanner and is meaningless for an upload.
+	Kind      string             `json:"kind"`
+	Name      string             `json:"name"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type VulnEcosystemState struct {
 	Ecosystem      string             `json:"ecosystem"`
 	LastModifiedAt pgtype.Timestamptz `json:"last_modified_at"`
@@ -256,7 +279,7 @@ type VulnRefreshState struct {
 
 type VulnRollup struct {
 	CanonicalID string      `json:"canonical_id"`
-	RegistryID  pgtype.UUID `json:"registry_id"`
+	NamespaceID pgtype.UUID `json:"namespace_id"`
 	SbomCount   int64       `json:"sbom_count"`
 	Purls       []string    `json:"purls"`
 }

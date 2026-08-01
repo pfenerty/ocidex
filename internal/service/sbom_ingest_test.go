@@ -657,18 +657,18 @@ func TestDeleteSBOM_Success(t *testing.T) {
 	is.Equal(publisher.events[0], event.SBOMDeleted)
 }
 
-// TestListDigestsByRegistry_InvalidUUID verifies that a malformed registry ID
+// TestListDigestsBySource_InvalidUUID verifies that a malformed source ID
 // returns a parsing error.
-func TestListDigestsByRegistry_InvalidUUID(t *testing.T) {
+func TestListDigestsBySource_InvalidUUID(t *testing.T) {
 	is := is.New(t)
 	svc := NewSBOMService(&fakeDB{}, nil, nil)
-	_, err := svc.ListDigestsByRegistry(context.Background(), "not-a-uuid")
+	_, err := svc.ListDigestsBySource(context.Background(), "not-a-uuid")
 	is.True(err != nil)
 }
 
-// TestListDigestsByRegistry_Results verifies that digests returned by the
+// TestListDigestsBySource_Results verifies that digests returned by the
 // repository are mapped into a boolean set, skipping null entries.
-func TestListDigestsByRegistry_Results(t *testing.T) {
+func TestListDigestsBySource_Results(t *testing.T) {
 	is := is.New(t)
 
 	digests := []pgtype.Text{
@@ -683,14 +683,14 @@ func TestListDigestsByRegistry_Results(t *testing.T) {
 		},
 	}
 	svc := NewSBOMService(db, nil, nil)
-	result, err := svc.ListDigestsByRegistry(context.Background(), "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")
+	result, err := svc.ListDigestsBySource(context.Background(), "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")
 	is.NoErr(err)
 	is.Equal(len(result), 2)
 	is.True(result["sha256:aaa"])
 	is.True(result["sha256:bbb"])
 }
 
-// fakeRows implements pgx.Rows for ListDigestsByRegistry.
+// fakeRows implements pgx.Rows for ListDigestsBySource.
 type fakeRows struct {
 	rows []pgtype.Text
 	idx  *int
@@ -887,18 +887,18 @@ func TestValidateContainerDigest_ValidatorFailure(t *testing.T) {
 	is.True(errors.As(err, &ve))
 }
 
-// TestLinkArtifactRegistry_NilRegistryID verifies that a nil registry ID is skipped.
-func TestLinkArtifactRegistry_NilRegistryID(t *testing.T) {
+// TestLinkArtifactNamespace_NilNamespaceID verifies that a nil namespace ID is skipped.
+func TestLinkArtifactNamespace_NilNamespaceID(t *testing.T) {
 	is := is.New(t)
 	db := &fakeDB{}
 	q := repository.New(db)
 	// Neither ID valid → should be a no-op.
-	err := linkArtifactRegistry(context.Background(), q, pgtype.UUID{}, pgtype.UUID{})
+	err := linkArtifactNamespace(context.Background(), q, pgtype.UUID{}, pgtype.UUID{})
 	is.NoErr(err)
 }
 
-// TestLinkArtifactRegistry_Success verifies the junction table upsert is called.
-func TestLinkArtifactRegistry_Success(t *testing.T) {
+// TestLinkArtifactNamespace_Success verifies the junction table upsert is called.
+func TestLinkArtifactNamespace_Success(t *testing.T) {
 	is := is.New(t)
 	called := false
 	db := &fakeDB{
@@ -908,7 +908,7 @@ func TestLinkArtifactRegistry_Success(t *testing.T) {
 		},
 	}
 	q := repository.New(db)
-	err := linkArtifactRegistry(context.Background(), q, newUUID(t), newUUID2(t))
+	err := linkArtifactNamespace(context.Background(), q, newUUID(t), newUUID2(t))
 	is.NoErr(err)
 	is.True(called)
 }

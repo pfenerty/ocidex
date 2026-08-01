@@ -28,7 +28,7 @@ func (s *searchService) normalizeStatsScope(ctx context.Context, vis VisibilityF
 	if vis.IsAdmin || !vis.UserID.Valid {
 		return vis
 	}
-	n, err := repository.New(s.db).CountOwnedPrivateRegistries(ctx, vis.UserID)
+	n, err := repository.New(s.db).CountOwnedPrivateNamespaces(ctx, vis.UserID)
 	if err != nil || n > 0 {
 		// On error keep the viewer's own scope: over-narrowing the cache key is
 		// a performance loss, but widening it on a failed check could serve

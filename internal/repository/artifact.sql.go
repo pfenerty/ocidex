@@ -21,7 +21,7 @@ FROM sbom s
 LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
 LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user'         AND u.status = 'success'
 WHERE s.artifact_id = $1
-  AND sbom_visible(s.registry_id, $2::uuid, $3::boolean)
+  AND sbom_visible(s.namespace_id, $2::uuid, $3::boolean)
 `
 
 type CountArtifactVersionsParams struct {
@@ -41,7 +41,7 @@ const countSBOMsByArtifact = `-- name: CountSBOMsByArtifact :one
 SELECT COUNT(*)
 FROM sbom s
 WHERE s.artifact_id = $1
-  AND sbom_visible(s.registry_id, $2::uuid, $3::boolean)
+  AND sbom_visible(s.namespace_id, $2::uuid, $3::boolean)
 `
 
 type CountSBOMsByArtifactParams struct {
@@ -150,10 +150,10 @@ func (q *Queries) GetArtifact(ctx context.Context, id pgtype.UUID) (GetArtifactR
 }
 
 const getArtifactOwnerID = `-- name: GetArtifactOwnerID :one
-SELECT r.owner_id
-FROM artifact_registry ar
-JOIN registry r ON r.id = ar.registry_id
-WHERE ar.artifact_id = $1 AND r.owner_id IS NOT NULL
+SELECT n.owner_id
+FROM artifact_namespace an
+JOIN namespace n ON n.id = an.namespace_id
+WHERE an.artifact_id = $1 AND n.owner_id IS NOT NULL
 LIMIT 1
 `
 
@@ -184,7 +184,7 @@ WITH sboms_meta AS (
     LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user'         AND u.status = 'success'
     LEFT JOIN enrichment p ON p.sbom_id = s.id AND p.enricher_name = 'provenance'   AND p.status = 'success'
     WHERE s.artifact_id = $1
-      AND sbom_visible(s.registry_id, $4::uuid, $5::boolean)
+      AND sbom_visible(s.namespace_id, $4::uuid, $5::boolean)
 ),
 newest_per_version AS (
     SELECT DISTINCT ON (version_key)
@@ -418,7 +418,7 @@ WHERE s.artifact_id = $1
   AND ($2::text IS NULL OR s.subject_version = $2)
   AND ($3::text IS NULL
        OR COALESCE(e.data->>'imageVersion', u.data->>'imageVersion') = $3)
-  AND sbom_visible(s.registry_id, $4::uuid, $5::boolean)
+  AND sbom_visible(s.namespace_id, $4::uuid, $5::boolean)
   AND (
     NOT $6::boolean
     OR (s.created_at, s.id) < ($7::timestamptz, $8::uuid)
@@ -534,18 +534,18 @@ func (q *Queries) UpsertArtifact(ctx context.Context, arg UpsertArtifactParams) 
 	return id, err
 }
 
-const upsertArtifactRegistry = `-- name: UpsertArtifactRegistry :exec
-INSERT INTO artifact_registry (artifact_id, registry_id)
+const upsertArtifactNamespace = `-- name: UpsertArtifactNamespace :exec
+INSERT INTO artifact_namespace (artifact_id, namespace_id)
 VALUES ($1, $2)
 ON CONFLICT DO NOTHING
 `
 
-type UpsertArtifactRegistryParams struct {
-	ArtifactID pgtype.UUID `json:"artifact_id"`
-	RegistryID pgtype.UUID `json:"registry_id"`
+type UpsertArtifactNamespaceParams struct {
+	ArtifactID  pgtype.UUID `json:"artifact_id"`
+	NamespaceID pgtype.UUID `json:"namespace_id"`
 }
 
-func (q *Queries) UpsertArtifactRegistry(ctx context.Context, arg UpsertArtifactRegistryParams) error {
-	_, err := q.db.Exec(ctx, upsertArtifactRegistry, arg.ArtifactID, arg.RegistryID)
+func (q *Queries) UpsertArtifactNamespace(ctx context.Context, arg UpsertArtifactNamespaceParams) error {
+	_, err := q.db.Exec(ctx, upsertArtifactNamespace, arg.ArtifactID, arg.NamespaceID)
 	return err
 }

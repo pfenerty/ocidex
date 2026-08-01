@@ -381,7 +381,12 @@ func (s *registryService) Create(ctx context.Context, params CreateRegistryParam
 		}
 		return Registry{}, fmt.Errorf("creating registry: %w", err)
 	}
-	return fromRepo(r), nil
+	return fromRepo(registryComposite{
+		reg:        r,
+		name:       params.Name,
+		ownerID:    params.OwnerID,
+		visibility: visibility,
+	}), nil
 }
 
 func (s *registryService) GetByName(ctx context.Context, name string) (Registry, error) {
@@ -389,7 +394,9 @@ func (s *registryService) GetByName(ctx context.Context, name string) (Registry,
 	if err != nil {
 		return Registry{}, ErrNotFound
 	}
-	return fromRepo(r), nil
+	return fromRepo(registryComposite{
+		reg: r.Registry, name: r.Name, ownerID: r.OwnerID, visibility: r.Visibility,
+	}), nil
 }
 
 func (s *registryService) Get(ctx context.Context, id string) (Registry, error) {
@@ -401,7 +408,9 @@ func (s *registryService) Get(ctx context.Context, id string) (Registry, error) 
 	if err != nil {
 		return Registry{}, ErrNotFound
 	}
-	return fromRepo(r), nil
+	return fromRepo(registryComposite{
+		reg: r.Registry, name: r.Name, ownerID: r.OwnerID, visibility: r.Visibility,
+	}), nil
 }
 
 func (s *registryService) List(ctx context.Context, filter VisibilityFilter) ([]Registry, error) {
@@ -414,7 +423,9 @@ func (s *registryService) List(ctx context.Context, filter VisibilityFilter) ([]
 	}
 	out := make([]Registry, len(rows))
 	for i, r := range rows {
-		out[i] = fromRepo(r)
+		out[i] = fromRepo(registryComposite{
+			reg: r.Registry, name: r.Name, ownerID: r.OwnerID, visibility: r.Visibility,
+		})
 	}
 	return out, nil
 }
@@ -435,33 +446,8 @@ func (s *registryService) ListPaged(ctx context.Context, filter VisibilityFilter
 	}
 	out := make([]Registry, len(rows))
 	for i, r := range rows {
-		out[i] = fromRepo(repository.Registry{
-			ID:                  r.ID,
-			Name:                r.Name,
-			Type:                r.Type,
-			Url:                 r.Url,
-			Insecure:            r.Insecure,
-			WebhookSecret:       r.WebhookSecret,
-			Enabled:             r.Enabled,
-			CreatedAt:           r.CreatedAt,
-			UpdatedAt:           r.UpdatedAt,
-			RepositoryPatterns:  r.RepositoryPatterns,
-			TagPatterns:         r.TagPatterns,
-			ScanMode:            r.ScanMode,
-			PollIntervalMinutes: r.PollIntervalMinutes,
-			LastPolledAt:        r.LastPolledAt,
-			Repositories:        r.Repositories,
-			AuthUsername:        r.AuthUsername,
-			AuthToken:           r.AuthToken,
-			OwnerID:             r.OwnerID,
-			Visibility:          r.Visibility,
-			IncludeUntagged:     r.IncludeUntagged,
-			VerificationMode:    r.VerificationMode,
-			TrustPublicKey:      r.TrustPublicKey,
-			TrustIdentity:       r.TrustIdentity,
-			TrustIssuer:         r.TrustIssuer,
-			ManagedBy:           r.ManagedBy,
-			ManagedRef:          r.ManagedRef,
+		out[i] = fromRepo(registryComposite{
+			reg: r.Registry, name: r.Name, ownerID: r.OwnerID, visibility: r.Visibility,
 		})
 	}
 	return PagedResult[Registry]{Data: out, Total: total, Limit: limit, Offset: offset}, nil
@@ -476,7 +462,12 @@ func (s *registryService) Update(ctx context.Context, params UpdateRegistryParam
 	if err != nil {
 		return Registry{}, ErrNotFound
 	}
-	existing := fromRepo(existingRow)
+	existing := fromRepo(registryComposite{
+		reg:        existingRow.Registry,
+		name:       existingRow.Name,
+		ownerID:    existingRow.OwnerID,
+		visibility: existingRow.Visibility,
+	})
 
 	visibility := params.Visibility
 	if visibility == "" {
@@ -539,7 +530,12 @@ func (s *registryService) Update(ctx context.Context, params UpdateRegistryParam
 	if err != nil {
 		return Registry{}, fmt.Errorf("updating registry: %w", err)
 	}
-	return fromRepo(r), nil
+	return fromRepo(registryComposite{
+		reg:        r,
+		name:       params.Name,
+		ownerID:    existingRow.OwnerID,
+		visibility: visibility,
+	}), nil
 }
 
 func (s *registryService) ListPollable(ctx context.Context) ([]Registry, error) {
@@ -549,7 +545,9 @@ func (s *registryService) ListPollable(ctx context.Context) ([]Registry, error) 
 	}
 	out := make([]Registry, len(rows))
 	for i, r := range rows {
-		out[i] = fromRepo(r)
+		out[i] = fromRepo(registryComposite{
+			reg: r.Registry, name: r.Name, ownerID: r.OwnerID, visibility: r.Visibility,
+		})
 	}
 	return out, nil
 }
@@ -559,11 +557,10 @@ func (s *registryService) MarkPolled(ctx context.Context, id string) (Registry, 
 	if err != nil {
 		return Registry{}, ErrNotFound
 	}
-	r, err := s.repo.UpdateRegistryLastPolled(ctx, uid)
-	if err != nil {
+	if _, err := s.repo.UpdateRegistryLastPolled(ctx, uid); err != nil {
 		return Registry{}, fmt.Errorf("marking registry polled: %w", err)
 	}
-	return fromRepo(r), nil
+	return s.Get(ctx, id)
 }
 
 func (s *registryService) SetEnabled(ctx context.Context, id string, enabled bool) (Registry, error) {
@@ -571,14 +568,14 @@ func (s *registryService) SetEnabled(ctx context.Context, id string, enabled boo
 	if err != nil {
 		return Registry{}, ErrNotFound
 	}
-	r, err := s.repo.SetRegistryEnabled(ctx, repository.SetRegistryEnabledParams{
+	_, err = s.repo.SetRegistryEnabled(ctx, repository.SetRegistryEnabledParams{
 		ID:      uid,
 		Enabled: enabled,
 	})
 	if err != nil {
 		return Registry{}, fmt.Errorf("setting registry enabled: %w", err)
 	}
-	return fromRepo(r), nil
+	return s.Get(ctx, id)
 }
 
 func (s *registryService) Delete(ctx context.Context, id string) error {
@@ -612,10 +609,21 @@ func (s *registryService) TrustSummary(ctx context.Context) ([]RegistryTrustCoun
 	return out, nil
 }
 
-func fromRepo(r repository.Registry) Registry {
+// registryComposite pairs the OCI-config row with the identity and ownership
+// fields ADR-039 moved onto namespace. sqlc emits a distinct Row type per joined
+// query, so each read path adapts into this one shape before mapping.
+type registryComposite struct {
+	reg        repository.Registry
+	name       string
+	ownerID    pgtype.UUID
+	visibility string
+}
+
+func fromRepo(c registryComposite) Registry {
+	r := c.reg
 	out := Registry{
 		ID:                  uuidToStr(r.ID),
-		Name:                r.Name,
+		Name:                c.name,
 		Type:                r.Type,
 		URL:                 r.Url,
 		Insecure:            r.Insecure,
@@ -627,7 +635,7 @@ func fromRepo(r repository.Registry) Registry {
 		TagPatterns:         r.TagPatterns,
 		ScanMode:            r.ScanMode,
 		PollIntervalMinutes: int(r.PollIntervalMinutes),
-		Visibility:          r.Visibility,
+		Visibility:          c.visibility,
 		IncludeUntagged:     r.IncludeUntagged,
 	}
 	if r.WebhookSecret.Valid {
@@ -646,8 +654,8 @@ func fromRepo(r repository.Registry) Registry {
 		s := r.AuthToken.String
 		out.AuthToken = &s
 	}
-	if r.OwnerID.Valid {
-		s := uuidToStr(r.OwnerID)
+	if c.ownerID.Valid {
+		s := uuidToStr(c.ownerID)
 		out.OwnerID = &s
 	}
 	out.VerificationMode = r.VerificationMode

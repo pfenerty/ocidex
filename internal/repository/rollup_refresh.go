@@ -35,36 +35,36 @@ var rollupTargets = []struct {
 	{"vuln_rollup", vulnRollupAggregate},
 }
 
-// One row per (registry, package identity). array_agg(DISTINCT c.version) keeps
+// One row per (namespace, package identity). array_agg(DISTINCT c.version) keeps
 // a NULL version as an array element on purpose: a component with no recorded
 // version is a distinct thing from one versioned "", and the read queries
 // distinguish them.
 const componentRollupAggregate = `
-SELECT s.registry_id, c.type, c.name, c.group_name,
+SELECT s.namespace_id, c.type, c.name, c.group_name,
        COALESCE(array_agg(DISTINCT split_part(replace(c.purl, 'pkg:', ''), '/', 1))
                 FILTER (WHERE c.purl IS NOT NULL), '{}')::text[] AS purl_types,
        array_agg(DISTINCT c.version)::text[] AS versions,
        count(DISTINCT c.sbom_id)::bigint AS sbom_count
 FROM component c
 JOIN sbom s ON s.id = c.sbom_id
-GROUP BY s.registry_id, c.type, c.name, c.group_name`
+GROUP BY s.namespace_id, c.type, c.name, c.group_name`
 
-// Distinct (license, registry, component identity) triples. The identity is the
+// Distinct (license, namespace, component identity) triples. The identity is the
 // same four-part tuple ListLicenses used to count distinct, pre-joined with a
 // unit separator so the read side counts one text column instead of a row
 // constructor.
 const licenseRollupAggregate = `
-SELECT DISTINCT cl.license_id, s.registry_id,
+SELECT DISTINCT cl.license_id, s.namespace_id,
        c.name || E'\x1f' || COALESCE(c.group_name, '') || E'\x1f' || COALESCE(c.version, '') || E'\x1f' || c.type AS identity_key
 FROM component_license cl
 JOIN component c ON c.id = cl.component_id
 JOIN sbom s ON s.id = c.sbom_id`
 
-// One row per (canonical vulnerability, registry). purls is a set because the
-// same package can be affected in several registries and the list reports a
+// One row per (canonical vulnerability, namespace). purls is a set because the
+// same package can be affected in several namespaces and the list reports a
 // count distinct across all of them.
 const vulnRollupAggregate = `
-SELECT v.canonical_id, s.registry_id,
+SELECT v.canonical_id, s.namespace_id,
        count(DISTINCT comp.sbom_id)::bigint AS sbom_count,
        array_agg(DISTINCT pv.purl)::text[] AS purls
 FROM vulnerability v
@@ -72,7 +72,7 @@ JOIN package_vulnerability pv ON pv.vulnerability_id = v.id
 JOIN component comp ON comp.purl = pv.purl
 JOIN sbom s ON s.id = comp.sbom_id
 WHERE v.canonical_id <> '' AND comp.purl IS NOT NULL
-GROUP BY v.canonical_id, s.registry_id`
+GROUP BY v.canonical_id, s.namespace_id`
 
 // RollupWatermark summarises the ingest state the rollups were built from. Two
 // passes that observe the same watermark would compute the same component and

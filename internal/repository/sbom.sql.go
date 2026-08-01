@@ -162,8 +162,8 @@ func (q *Queries) InsertExternalReference(ctx context.Context, arg InsertExterna
 }
 
 const insertSBOM = `-- name: InsertSBOM :one
-INSERT INTO sbom (serial_number, spec_version, version, raw_bom, artifact_id, subject_version, digest, registry_id, flavor, index_digest)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+INSERT INTO sbom (serial_number, spec_version, version, raw_bom, artifact_id, subject_version, digest, namespace_id, source_id, flavor, index_digest)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 RETURNING id, serial_number, spec_version, version, created_at
 `
 
@@ -175,7 +175,8 @@ type InsertSBOMParams struct {
 	ArtifactID     pgtype.UUID `json:"artifact_id"`
 	SubjectVersion pgtype.Text `json:"subject_version"`
 	Digest         pgtype.Text `json:"digest"`
-	RegistryID     pgtype.UUID `json:"registry_id"`
+	NamespaceID    pgtype.UUID `json:"namespace_id"`
+	SourceID       pgtype.UUID `json:"source_id"`
 	Flavor         pgtype.Text `json:"flavor"`
 	IndexDigest    pgtype.Text `json:"index_digest"`
 }
@@ -197,7 +198,8 @@ func (q *Queries) InsertSBOM(ctx context.Context, arg InsertSBOMParams) (InsertS
 		arg.ArtifactID,
 		arg.SubjectVersion,
 		arg.Digest,
-		arg.RegistryID,
+		arg.NamespaceID,
+		arg.SourceID,
 		arg.Flavor,
 		arg.IndexDigest,
 	)
@@ -212,13 +214,16 @@ func (q *Queries) InsertSBOM(ctx context.Context, arg InsertSBOMParams) (InsertS
 	return i, err
 }
 
-const listDigestsByRegistry = `-- name: ListDigestsByRegistry :many
+const listDigestsBySource = `-- name: ListDigestsBySource :many
 SELECT DISTINCT digest FROM sbom
-WHERE registry_id = $1 AND digest IS NOT NULL
+WHERE source_id = $1 AND digest IS NOT NULL
 `
 
-func (q *Queries) ListDigestsByRegistry(ctx context.Context, registryID pgtype.UUID) ([]pgtype.Text, error) {
-	rows, err := q.db.Query(ctx, listDigestsByRegistry, registryID)
+// Digests already ingested through one channel, so a rescan can skip them. Keyed
+// on source rather than namespace: two sources in one namespace are scanned
+// independently.
+func (q *Queries) ListDigestsBySource(ctx context.Context, sourceID pgtype.UUID) ([]pgtype.Text, error) {
+	rows, err := q.db.Query(ctx, listDigestsBySource, sourceID)
 	if err != nil {
 		return nil, err
 	}

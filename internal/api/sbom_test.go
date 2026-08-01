@@ -125,7 +125,7 @@ func TestDeleteSBOM(t *testing.T) {
 		id         string
 		wantStatus int
 	}{
-		// fakeSBOMService.GetSBOMRegistryID returns zero UUID → no owner → member allowed
+		// fakeSBOMService.GetSBOMNamespaceID returns zero UUID → no owner → member allowed
 		{"valid uuid", "01020304-0506-0708-090a-0b0c0d0e0f10", http.StatusNoContent},
 		// invalid UUID: test router has nil registryService so middleware skips ownership
 		// check and calls next; huma then validates format:"uuid" → 422

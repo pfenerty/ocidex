@@ -1,6 +1,6 @@
 -- name: InsertSBOM :one
-INSERT INTO sbom (serial_number, spec_version, version, raw_bom, artifact_id, subject_version, digest, registry_id, flavor, index_digest)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+INSERT INTO sbom (serial_number, spec_version, version, raw_bom, artifact_id, subject_version, digest, namespace_id, source_id, flavor, index_digest)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 RETURNING id, serial_number, spec_version, version, created_at;
 
 -- name: UpdateSBOMFlavor :exec
@@ -79,9 +79,12 @@ WHERE id = $1;
 -- name: DeleteSBOM :execrows
 DELETE FROM sbom WHERE id = $1;
 
--- name: ListDigestsByRegistry :many
+-- name: ListDigestsBySource :many
+-- Digests already ingested through one channel, so a rescan can skip them. Keyed
+-- on source rather than namespace: two sources in one namespace are scanned
+-- independently.
 SELECT DISTINCT digest FROM sbom
-WHERE registry_id = $1 AND digest IS NOT NULL;
+WHERE source_id = $1 AND digest IS NOT NULL;
 
 -- name: UpdateSBOMSubjectVersion :exec
 UPDATE sbom SET subject_version = $2 WHERE id = $1;

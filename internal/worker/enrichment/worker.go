@@ -216,7 +216,7 @@ func RunOnce(ctx context.Context, pool *pgxpool.Pool, factory EnricherFactory) e
 
 	ref := enrichment.SubjectRef{
 		SBOMId:         sbomID,
-		RegistryID:     sbomRow.RegistryID,
+		RegistryID:     sbomRow.SourceID,
 		ArtifactType:   artifact.Type,
 		ArtifactName:   artifact.Name,
 		Digest:         sbomRow.Digest.String,

@@ -20,7 +20,7 @@ type SBOMRepository interface {
 	InsertDependency(ctx context.Context, arg InsertDependencyParams) error
 	InsertExternalReference(ctx context.Context, arg InsertExternalReferenceParams) error
 	DeleteSBOM(ctx context.Context, id pgtype.UUID) (int64, error)
-	UpsertArtifactRegistry(ctx context.Context, arg UpsertArtifactRegistryParams) error
+	UpsertArtifactNamespace(ctx context.Context, arg UpsertArtifactNamespaceParams) error
 }
 
 // SearchRepository defines read-only data access methods for search and retrieval.
@@ -78,14 +78,14 @@ type ArtifactRepository interface {
 // RegistryRepository defines data access methods for registry management.
 type RegistryRepository interface {
 	CreateRegistry(ctx context.Context, arg CreateRegistryParams) (Registry, error)
-	GetRegistry(ctx context.Context, id pgtype.UUID) (Registry, error)
-	GetRegistryByName(ctx context.Context, name string) (Registry, error)
-	ListRegistries(ctx context.Context, arg ListRegistriesParams) ([]Registry, error)
+	GetRegistry(ctx context.Context, id pgtype.UUID) (GetRegistryRow, error)
+	GetRegistryByName(ctx context.Context, name string) (GetRegistryByNameRow, error)
+	ListRegistries(ctx context.Context, arg ListRegistriesParams) ([]ListRegistriesRow, error)
 	ListRegistriesPaged(ctx context.Context, arg ListRegistriesPagedParams) ([]ListRegistriesPagedRow, error)
 	UpdateRegistry(ctx context.Context, arg UpdateRegistryParams) (Registry, error)
 	SetRegistryEnabled(ctx context.Context, arg SetRegistryEnabledParams) (Registry, error)
 	DeleteRegistry(ctx context.Context, id pgtype.UUID) (int64, error)
-	ListPollableRegistries(ctx context.Context) ([]Registry, error)
+	ListPollableRegistries(ctx context.Context) ([]ListPollableRegistriesRow, error)
 	UpdateRegistryLastPolled(ctx context.Context, id pgtype.UUID) (Registry, error)
 	ListRegistryTrustSummary(ctx context.Context) ([]ListRegistryTrustSummaryRow, error)
 }

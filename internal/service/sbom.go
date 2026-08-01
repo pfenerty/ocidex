@@ -36,7 +36,8 @@ type IngestParams struct {
 	Version      string      // image tag / subject version
 	Architecture string      // e.g. "amd64"
 	BuildDate    string      // RFC3339 or date string
-	RegistryID   pgtype.UUID // links SBOM to the registry it came from
+	NamespaceID  pgtype.UUID // tenancy + visibility anchor (ADR-039)
+	SourceID     pgtype.UUID // ingest channel the SBOM arrived through
 	IndexDigest  string      // multi-arch index this child was scanned from; empty for single-arch
 }
 
@@ -45,11 +46,11 @@ type SBOMService interface {
 	Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (pgtype.UUID, error)
 	DeleteSBOM(ctx context.Context, id pgtype.UUID) error
 	DeleteArtifact(ctx context.Context, id pgtype.UUID) error
-	ListDigestsByRegistry(ctx context.Context, registryID string) (map[string]bool, error)
-	// GetSBOMRegistryID returns the registry_id for the given SBOM.
+	ListDigestsBySource(ctx context.Context, sourceID string) (map[string]bool, error)
+	// GetSBOMNamespaceID returns the namespace_id for the given SBOM.
 	// Returns a zero UUID (with Valid=false) when the SBOM has no registry association.
 	// Returns ErrNotFound if no SBOM with that ID exists.
-	GetSBOMRegistryID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
+	GetSBOMNamespaceID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
 	// GetArtifactOwnerID returns the owner_id of any registry linked to the artifact.
 	// Returns a zero UUID (with Valid=false) when no registry with an owner is linked.
 	// Returns ErrNotFound if no artifact with that ID exists.
@@ -180,7 +181,8 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		ArtifactID:     info.artifactID,
 		SubjectVersion: info.subjectVersion,
 		Digest:         info.digest,
-		RegistryID:     params.RegistryID,
+		NamespaceID:    params.NamespaceID,
+		SourceID:       params.SourceID,
 		Flavor:         pgtype.Text{String: flavor, Valid: true},
 		IndexDigest:    pgtype.Text{String: params.IndexDigest, Valid: params.IndexDigest != ""},
 	})
@@ -194,7 +196,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		"artifact_id", info.artifactID,
 	)
 
-	if err := linkArtifactRegistry(ctx, q, info.artifactID, params.RegistryID); err != nil {
+	if err := linkArtifactNamespace(ctx, q, info.artifactID, params.NamespaceID); err != nil {
 		return pgtype.UUID{}, err
 	}
 
@@ -263,16 +265,16 @@ func (s *sbomService) insertBOMContent(ctx context.Context, tx copyFromer, q *re
 	return nil
 }
 
-// linkArtifactRegistry records the artifact→registry relationship in the junction table.
-func linkArtifactRegistry(ctx context.Context, q *repository.Queries, artifactID, registryID pgtype.UUID) error {
-	if !artifactID.Valid || !registryID.Valid {
+// linkArtifactNamespace records the artifact→namespace relationship in the junction table.
+func linkArtifactNamespace(ctx context.Context, q *repository.Queries, artifactID, namespaceID pgtype.UUID) error {
+	if !artifactID.Valid || !namespaceID.Valid {
 		return nil
 	}
-	if err := q.UpsertArtifactRegistry(ctx, repository.UpsertArtifactRegistryParams{
-		ArtifactID: artifactID,
-		RegistryID: registryID,
+	if err := q.UpsertArtifactNamespace(ctx, repository.UpsertArtifactNamespaceParams{
+		ArtifactID:  artifactID,
+		NamespaceID: namespaceID,
 	}); err != nil {
-		return fmt.Errorf("linking artifact to registry: %w", err)
+		return fmt.Errorf("linking artifact to namespace: %w", err)
 	}
 	return nil
 }
@@ -329,14 +331,15 @@ func (s *sbomService) DeleteArtifact(ctx context.Context, id pgtype.UUID) error 
 	return nil
 }
 
-// ListDigestsByRegistry returns a set of known SBOM digests for a registry.
-func (s *sbomService) ListDigestsByRegistry(ctx context.Context, registryID string) (map[string]bool, error) {
-	var regUUID pgtype.UUID
-	if err := regUUID.Scan(registryID); err != nil {
-		return nil, fmt.Errorf("parsing registry ID: %w", err)
+// ListDigestsBySource returns the set of SBOM digests already ingested through
+// a source, so a rescan can skip them.
+func (s *sbomService) ListDigestsBySource(ctx context.Context, sourceID string) (map[string]bool, error) {
+	var srcUUID pgtype.UUID
+	if err := srcUUID.Scan(sourceID); err != nil {
+		return nil, fmt.Errorf("parsing source ID: %w", err)
 	}
 	q := repository.New(s.pool)
-	rows, err := q.ListDigestsByRegistry(ctx, regUUID)
+	rows, err := q.ListDigestsBySource(ctx, srcUUID)
 	if err != nil {
 		return nil, fmt.Errorf("listing digests: %w", err)
 	}
@@ -349,13 +352,13 @@ func (s *sbomService) ListDigestsByRegistry(ctx context.Context, registryID stri
 	return out, nil
 }
 
-func (s *sbomService) GetSBOMRegistryID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
+func (s *sbomService) GetSBOMNamespaceID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
 	q := repository.New(s.pool)
 	row, err := q.GetSBOM(ctx, id)
 	if err != nil {
 		return pgtype.UUID{}, ErrNotFound
 	}
-	return row.RegistryID, nil
+	return row.NamespaceID, nil
 }
 
 func (s *sbomService) GetArtifactOwnerID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {

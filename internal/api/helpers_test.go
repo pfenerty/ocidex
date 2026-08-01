@@ -34,11 +34,11 @@ func (f *fakeSBOMService) DeleteArtifact(_ context.Context, _ pgtype.UUID) error
 	return nil
 }
 
-func (f *fakeSBOMService) ListDigestsByRegistry(_ context.Context, _ string) (map[string]bool, error) {
+func (f *fakeSBOMService) ListDigestsBySource(_ context.Context, _ string) (map[string]bool, error) {
 	return nil, nil
 }
 
-func (f *fakeSBOMService) GetSBOMRegistryID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
+func (f *fakeSBOMService) GetSBOMNamespaceID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
 	return pgtype.UUID{}, nil
 }
 
@@ -61,11 +61,11 @@ func (f *failSBOMService) DeleteArtifact(_ context.Context, _ pgtype.UUID) error
 	return errors.New("database unavailable")
 }
 
-func (f *failSBOMService) ListDigestsByRegistry(_ context.Context, _ string) (map[string]bool, error) {
+func (f *failSBOMService) ListDigestsBySource(_ context.Context, _ string) (map[string]bool, error) {
 	return nil, errors.New("database unavailable")
 }
 
-func (f *failSBOMService) GetSBOMRegistryID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
+func (f *failSBOMService) GetSBOMNamespaceID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
 	return pgtype.UUID{}, errors.New("database unavailable")
 }
 

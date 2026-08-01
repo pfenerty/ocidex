@@ -2,7 +2,7 @@
 SELECT id FROM sbom WHERE digest = $1;
 
 -- name: GetSBOM :one
-SELECT id, serial_number, spec_version, version, artifact_id, subject_version, digest, created_at, registry_id, index_digest
+SELECT id, serial_number, spec_version, version, artifact_id, subject_version, digest, created_at, namespace_id, source_id, index_digest
 FROM sbom
 WHERE id = $1;
 
@@ -26,7 +26,7 @@ FROM sbom
 WHERE id = $1;
 
 -- name: IsSBOMVisible :one
-SELECT sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean) AS visible
+SELECT sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean) AS visible
 FROM sbom s WHERE s.id = $1;
 
 -- name: IsArtifactVisible :one
@@ -39,7 +39,7 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subjec
 FROM sbom s
 WHERE (sqlc.narg('serial_number')::text IS NULL OR s.serial_number = sqlc.narg('serial_number'))
   AND (sqlc.narg('digest')::text IS NULL OR s.digest = sqlc.narg('digest'))
-  AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
   AND (
     NOT sqlc.narg('has_cursor')::boolean
     OR (s.created_at, s.id) < (sqlc.narg('cursor_created_at')::timestamptz, sqlc.narg('cursor_id')::uuid)
@@ -52,7 +52,7 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subjec
        COUNT(*) OVER() AS total_count
 FROM sbom s
 WHERE s.digest = $1
-  AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
 ORDER BY s.created_at DESC
 LIMIT @row_limit OFFSET @row_offset;
 
@@ -65,7 +65,7 @@ WHERE c.name = @name
   AND (sqlc.narg('version')::text IS NULL OR c.version = sqlc.narg('version'))
   AND EXISTS (
     SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-      AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+      AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
   )
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
@@ -101,7 +101,7 @@ WHERE component_id = $1;
 -- (ocidex-ckv.2). identity_key is the same (name, group, version, type) tuple
 -- the old COUNT(DISTINCT (...)) built, pre-joined into one text column.
 -- The visibility test lives in the JOIN condition, not the WHERE clause, so a
--- license whose only components sit in registries the viewer cannot see still
+-- license whose only components sit in namespaces the viewer cannot see still
 -- appears rather than vanishing from the list.
 --
 -- Such a license now counts 0, where the old query counted 1. That is a fix,
@@ -114,8 +114,8 @@ SELECT l.id, l.spdx_id, l.name, l.url,
        COUNT(*) OVER() AS total_count
 FROM license l
 LEFT JOIN license_rollup lr ON lr.license_id = l.id
-  AND (lr.registry_id IS NULL OR lr.registry_id IN (
-        SELECT visible_registry_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
+  AND (lr.namespace_id IS NULL OR lr.namespace_id IN (
+        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
 WHERE (sqlc.narg('spdx_id')::text IS NULL OR l.spdx_id = sqlc.narg('spdx_id'))
   AND (sqlc.narg('name')::text IS NULL OR l.name ILIKE sqlc.narg('name'))
   AND (sqlc.narg('category')::text IS NULL OR license_category(l.spdx_id) = sqlc.narg('category')::text)
@@ -136,7 +136,7 @@ WITH ranked AS (
     WHERE cl.license_id = @license_id
       AND EXISTS (
         SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-          AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+          AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
       )
 )
 SELECT id, sbom_id, type, name, group_name, version, purl,
@@ -230,8 +230,8 @@ ORDER BY sbom_id, name, group_name;
 SELECT DISTINCT p.purl_type::text AS purl_type
 FROM component_rollup r
 CROSS JOIN LATERAL unnest(r.purl_types) AS p(purl_type)
-WHERE (r.registry_id IS NULL OR r.registry_id IN (
-        SELECT visible_registry_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
+WHERE (r.namespace_id IS NULL OR r.namespace_id IN (
+        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
 ORDER BY 1
 -- Safety cap: purl types are a small, fixed vocabulary; bound the scan.
 LIMIT 200;
@@ -240,7 +240,7 @@ LIMIT 200;
 -- Reads component_rollup rather than the component table: aggregating 10.9M raw
 -- rows per request took ~53s against a 30s HTTP timeout (ocidex-ckv.2).
 --
--- The rollup is per-registry, so a row set restricted by sbom_visible() must be
+-- The rollup is per-namespace, so a row set restricted by sbom_visible() must be
 -- re-aggregated here. version_count and purl_types use COUNT/string_agg
 -- DISTINCT and so are immune to the row multiplication the two unnests cause.
 -- SUM is not, hence the ordinality filter: it charges each rollup row's
@@ -259,8 +259,8 @@ WHERE (sqlc.narg('name')::text IS NULL OR r.name ILIKE sqlc.narg('name'))
   AND (sqlc.narg('group_name')::text IS NULL OR r.group_name = sqlc.narg('group_name'))
   AND (sqlc.narg('type')::text IS NULL OR r.type = sqlc.narg('type'))
   AND (sqlc.narg('purl_type')::text IS NULL OR sqlc.narg('purl_type')::text = ANY(r.purl_types))
-  AND (r.registry_id IS NULL OR r.registry_id IN (
-        SELECT visible_registry_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
+  AND (r.namespace_id IS NULL OR r.namespace_id IN (
+        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
 GROUP BY r.name, r.group_name, r.type
 ORDER BY
   CASE @sort_by::text
@@ -285,7 +285,7 @@ WHERE c.name = @name
   AND (sqlc.narg('group_name')::text IS NULL OR c.group_name = sqlc.narg('group_name'))
   AND (sqlc.narg('version')::text IS NULL OR c.version = sqlc.narg('version'))
   AND (sqlc.narg('type')::text IS NULL OR c.type = sqlc.narg('type'))
-  AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST,

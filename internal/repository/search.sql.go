@@ -105,7 +105,7 @@ WHERE c.name = $1
   AND ($2::text IS NULL OR c.group_name = $2)
   AND ($3::text IS NULL OR c.version = $3)
   AND ($4::text IS NULL OR c.type = $4)
-  AND sbom_visible(s.registry_id, $5::uuid, $6::boolean)
+  AND sbom_visible(s.namespace_id, $5::uuid, $6::boolean)
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST,
@@ -181,7 +181,7 @@ func (q *Queries) GetComponentVersions(ctx context.Context, arg GetComponentVers
 }
 
 const getSBOM = `-- name: GetSBOM :one
-SELECT id, serial_number, spec_version, version, artifact_id, subject_version, digest, created_at, registry_id, index_digest
+SELECT id, serial_number, spec_version, version, artifact_id, subject_version, digest, created_at, namespace_id, source_id, index_digest
 FROM sbom
 WHERE id = $1
 `
@@ -195,7 +195,8 @@ type GetSBOMRow struct {
 	SubjectVersion pgtype.Text        `json:"subject_version"`
 	Digest         pgtype.Text        `json:"digest"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	RegistryID     pgtype.UUID        `json:"registry_id"`
+	NamespaceID    pgtype.UUID        `json:"namespace_id"`
+	SourceID       pgtype.UUID        `json:"source_id"`
 	IndexDigest    pgtype.Text        `json:"index_digest"`
 }
 
@@ -211,7 +212,8 @@ func (q *Queries) GetSBOM(ctx context.Context, id pgtype.UUID) (GetSBOMRow, erro
 		&i.SubjectVersion,
 		&i.Digest,
 		&i.CreatedAt,
-		&i.RegistryID,
+		&i.NamespaceID,
+		&i.SourceID,
 		&i.IndexDigest,
 	)
 	return i, err
@@ -309,7 +311,7 @@ func (q *Queries) IsArtifactVisible(ctx context.Context, arg IsArtifactVisiblePa
 }
 
 const isSBOMVisible = `-- name: IsSBOMVisible :one
-SELECT sbom_visible(s.registry_id, $2::uuid, $3::boolean) AS visible
+SELECT sbom_visible(s.namespace_id, $2::uuid, $3::boolean) AS visible
 FROM sbom s WHERE s.id = $1
 `
 
@@ -473,8 +475,8 @@ const listComponentPurlTypes = `-- name: ListComponentPurlTypes :many
 SELECT DISTINCT p.purl_type::text AS purl_type
 FROM component_rollup r
 CROSS JOIN LATERAL unnest(r.purl_types) AS p(purl_type)
-WHERE (r.registry_id IS NULL OR r.registry_id IN (
-        SELECT visible_registry_ids($1::uuid, $2::boolean)))
+WHERE (r.namespace_id IS NULL OR r.namespace_id IN (
+        SELECT visible_namespace_ids($1::uuid, $2::boolean)))
 ORDER BY 1
 LIMIT 200
 `
@@ -522,7 +524,7 @@ WITH ranked AS (
     WHERE cl.license_id = $3
       AND EXISTS (
         SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-          AND sbom_visible(s.registry_id, $4::uuid, $5::boolean)
+          AND sbom_visible(s.namespace_id, $4::uuid, $5::boolean)
       )
 )
 SELECT id, sbom_id, type, name, group_name, version, purl,
@@ -628,8 +630,8 @@ SELECT l.id, l.spdx_id, l.name, l.url,
        COUNT(*) OVER() AS total_count
 FROM license l
 LEFT JOIN license_rollup lr ON lr.license_id = l.id
-  AND (lr.registry_id IS NULL OR lr.registry_id IN (
-        SELECT visible_registry_ids($1::uuid, $2::boolean)))
+  AND (lr.namespace_id IS NULL OR lr.namespace_id IN (
+        SELECT visible_namespace_ids($1::uuid, $2::boolean)))
 WHERE ($3::text IS NULL OR l.spdx_id = $3)
   AND ($4::text IS NULL OR l.name ILIKE $4)
   AND ($5::text IS NULL OR license_category(l.spdx_id) = $5::text)
@@ -662,7 +664,7 @@ type ListLicensesRow struct {
 // (ocidex-ckv.2). identity_key is the same (name, group, version, type) tuple
 // the old COUNT(DISTINCT (...)) built, pre-joined into one text column.
 // The visibility test lives in the JOIN condition, not the WHERE clause, so a
-// license whose only components sit in registries the viewer cannot see still
+// license whose only components sit in namespaces the viewer cannot see still
 // appears rather than vanishing from the list.
 //
 // Such a license now counts 0, where the old query counted 1. That is a fix,
@@ -924,7 +926,7 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subjec
 FROM sbom s
 WHERE ($1::text IS NULL OR s.serial_number = $1)
   AND ($2::text IS NULL OR s.digest = $2)
-  AND sbom_visible(s.registry_id, $3::uuid, $4::boolean)
+  AND sbom_visible(s.namespace_id, $3::uuid, $4::boolean)
   AND (
     NOT $5::boolean
     OR (s.created_at, s.id) < ($6::timestamptz, $7::uuid)
@@ -1000,7 +1002,7 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subjec
        COUNT(*) OVER() AS total_count
 FROM sbom s
 WHERE s.digest = $1
-  AND sbom_visible(s.registry_id, $2::uuid, $3::boolean)
+  AND sbom_visible(s.namespace_id, $2::uuid, $3::boolean)
 ORDER BY s.created_at DESC
 LIMIT $5 OFFSET $4
 `
@@ -1070,7 +1072,7 @@ WHERE c.name = $1
   AND ($3::text IS NULL OR c.version = $3)
   AND EXISTS (
     SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-      AND sbom_visible(s.registry_id, $4::uuid, $5::boolean)
+      AND sbom_visible(s.namespace_id, $4::uuid, $5::boolean)
   )
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
@@ -1149,8 +1151,8 @@ WHERE ($1::text IS NULL OR r.name ILIKE $1)
   AND ($2::text IS NULL OR r.group_name = $2)
   AND ($3::text IS NULL OR r.type = $3)
   AND ($4::text IS NULL OR $4::text = ANY(r.purl_types))
-  AND (r.registry_id IS NULL OR r.registry_id IN (
-        SELECT visible_registry_ids($5::uuid, $6::boolean)))
+  AND (r.namespace_id IS NULL OR r.namespace_id IN (
+        SELECT visible_namespace_ids($5::uuid, $6::boolean)))
 GROUP BY r.name, r.group_name, r.type
 ORDER BY
   CASE $7::text
@@ -1187,7 +1189,7 @@ type SearchDistinctComponentsRow struct {
 // Reads component_rollup rather than the component table: aggregating 10.9M raw
 // rows per request took ~53s against a 30s HTTP timeout (ocidex-ckv.2).
 //
-// The rollup is per-registry, so a row set restricted by sbom_visible() must be
+// The rollup is per-namespace, so a row set restricted by sbom_visible() must be
 // re-aggregated here. version_count and purl_types use COUNT/string_agg
 // DISTINCT and so are immune to the row multiplication the two unnests cause.
 // SUM is not, hence the ordinality filter: it charges each rollup row's

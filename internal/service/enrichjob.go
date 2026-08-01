@@ -296,7 +296,7 @@ func enrichClaimFromRow(r repository.ClaimEnrichmentJobByIDRow) EnrichJobClaim {
 		SubjectVersion: r.SubjectVersion,
 		ArtifactType:   r.ArtifactType,
 		ArtifactName:   r.ArtifactName,
-		RegistryID:     r.RegistryID,
+		RegistryID:     r.SourceID,
 	}
 }
 
@@ -313,6 +313,6 @@ func enrichClaimFromNextRow(r repository.ClaimNextEnrichmentJobRow) EnrichJobCla
 		SubjectVersion: r.SubjectVersion,
 		ArtifactType:   r.ArtifactType,
 		ArtifactName:   r.ArtifactName,
-		RegistryID:     r.RegistryID,
+		RegistryID:     r.SourceID,
 	}
 }

@@ -205,16 +205,18 @@ func RequireSBOMOwner(api huma.API, sbomSvc service.SBOMService, regSvc service.
 			_ = huma.WriteErr(api, ctx, http.StatusNotFound, "sbom not found")
 			return
 		}
-		registryID, err := sbomSvc.GetSBOMRegistryID(ctx.Context(), id)
+		namespaceID, err := sbomSvc.GetSBOMNamespaceID(ctx.Context(), id)
 		if err != nil {
 			_ = huma.WriteErr(api, ctx, http.StatusNotFound, "sbom not found")
 			return
 		}
-		if !registryID.Valid {
+		if !namespaceID.Valid {
 			next(ctx)
 			return
 		}
-		reg, err := regSvc.Get(ctx.Context(), uuidToStr(registryID))
+		// registry.id is the namespace id for OCI-created registries (ADR-039),
+		// so this still resolves the owner until the namespace service lands.
+		reg, err := regSvc.Get(ctx.Context(), uuidToStr(namespaceID))
 		if err != nil || !canManageRegistry(user, reg) {
 			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
 			return

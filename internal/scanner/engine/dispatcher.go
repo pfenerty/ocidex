@@ -55,8 +55,10 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (p
 		Version:      version,
 		Architecture: req.Architecture,
 		BuildDate:    req.BuildDate,
-		RegistryID:   registryID,
-		IndexDigest:  req.IndexDigest,
+		// A registry's id is both its namespace and its source id (ADR-039).
+		NamespaceID: registryID,
+		SourceID:    registryID,
+		IndexDigest: req.IndexDigest,
 	})
 	if err != nil {
 		return pgtype.UUID{}, fmt.Errorf("ingest: %w", err)

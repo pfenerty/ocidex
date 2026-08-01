@@ -117,14 +117,14 @@ func (q *Queries) ListProvenanceDriftBySBOM(ctx context.Context, arg ListProvena
 const listRecentProvenanceDrift = `-- name: ListRecentProvenanceDrift :many
 SELECT
     d.id, d.sbom_id, d.previous_status, d.new_status, d.reason, d.detected_at,
-    s.registry_id, s.artifact_id,
+    s.source_id, s.artifact_id,
     a.name AS artifact_name, a.type AS artifact_type,
-    r.name AS registry_name,
+    src.name AS source_name,
     COUNT(*) OVER() AS total_count
 FROM provenance_drift_events d
 JOIN sbom s ON s.id = d.sbom_id
 LEFT JOIN artifact a ON a.id = s.artifact_id
-LEFT JOIN registry r ON r.id = s.registry_id
+LEFT JOIN source src ON src.id = s.source_id
 ORDER BY d.detected_at DESC
 LIMIT $2 OFFSET $1
 `
@@ -141,11 +141,11 @@ type ListRecentProvenanceDriftRow struct {
 	NewStatus      string             `json:"new_status"`
 	Reason         string             `json:"reason"`
 	DetectedAt     pgtype.Timestamptz `json:"detected_at"`
-	RegistryID     pgtype.UUID        `json:"registry_id"`
+	SourceID       pgtype.UUID        `json:"source_id"`
 	ArtifactID     pgtype.UUID        `json:"artifact_id"`
 	ArtifactName   pgtype.Text        `json:"artifact_name"`
 	ArtifactType   pgtype.Text        `json:"artifact_type"`
-	RegistryName   pgtype.Text        `json:"registry_name"`
+	SourceName     pgtype.Text        `json:"source_name"`
 	TotalCount     int64              `json:"total_count"`
 }
 
@@ -165,11 +165,11 @@ func (q *Queries) ListRecentProvenanceDrift(ctx context.Context, arg ListRecentP
 			&i.NewStatus,
 			&i.Reason,
 			&i.DetectedAt,
-			&i.RegistryID,
+			&i.SourceID,
 			&i.ArtifactID,
 			&i.ArtifactName,
 			&i.ArtifactType,
-			&i.RegistryName,
+			&i.SourceName,
 			&i.TotalCount,
 		); err != nil {
 			return nil, err
