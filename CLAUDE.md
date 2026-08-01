@@ -455,6 +455,7 @@ bd close <epic-id>
 | 035 | Enricher Dependency Chaining | Completion-driven dependent enqueue via deps.go graph; reuses enrichment_jobs outbox + `.enrich.hint` doorbell; no new tables/subjects; `--once` mode does not chain |
 | 037 | Cosign-Delegated Provenance Verification | Three trust tiers (none/public_key/keyless) via cosign.CheckOpts; five status values incl. artifact_missing; adopted cosign/sigstore-go (786 transitive deps), reversing ADR-032 |
 | 038 | Web Serving & Base Image Policy | Chainguard nginx (178→19 pkgs) serving static only; L7 routing moved to the Gateway HTTPRoute; distroless static-debian13 for Go; Renovate `pinDigests` on runtime/build images, CI images excluded |
+| 039 | Namespace & Source Model | Split `registry`'s four jobs: `namespace` (owner/visibility) → `source` (ingest channel) → `registry` (OCI config + trust); rollups rekey to `namespace_id`; `scan_jobs` unchanged; amends ADR-025 |
 
 **When working on diff, dependency-tree, or changelog code, read ADRs 0019–0021 first.** They are the normative contract; the implementation issues (`ocidex-bqh.*`) reference them by section.
 
