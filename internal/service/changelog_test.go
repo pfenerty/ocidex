@@ -1006,6 +1006,94 @@ func TestDiffComponents_DistroFamiliesStayDistinct(t *testing.T) {
 	is.Equal(entry.Summary.Upgraded, 0)
 }
 
+// TestDiffComponents_MultiSegmentModuleNames pins the reported name for purls
+// whose path has more than one segment. Deriving a name from the key takes the
+// last path segment, which turns "pkg:golang/github.com/sigstore/cosign/v2"
+// into "v2" — the recorded name has to win. Every direction is covered because
+// the three ComponentDiff construction sites are separate code paths, and only
+// one of them needs to regress for the changelog to start showing "v2" again.
+func TestDiffComponents_MultiSegmentModuleNames(t *testing.T) {
+	tx := func(s string) pgtype.Text { return pgtype.Text{String: s, Valid: true} }
+	cosign := func(version string) repository.ListSBOMPackagesRow {
+		return repository.ListSBOMPackagesRow{
+			Type:    "library",
+			Name:    "github.com/sigstore/cosign/v2",
+			Version: tx(version),
+			Purl:    tx("pkg:golang/github.com/sigstore/cosign/v2@" + version),
+		}
+	}
+
+	tests := []struct {
+		name         string
+		old, new     []repository.ListSBOMPackagesRow
+		wantType     string
+		wantGroup    *string
+		wantVersion  string
+		wantPrevious string
+	}{
+		{
+			name:        "added",
+			new:         []repository.ListSBOMPackagesRow{cosign("v2.6.4")},
+			wantType:    dirAdded,
+			wantVersion: "v2.6.4",
+		},
+		{
+			name:        "removed",
+			old:         []repository.ListSBOMPackagesRow{cosign("v2.6.4")},
+			wantType:    dirRemoved,
+			wantVersion: "v2.6.4",
+		},
+		{
+			name:         "modified",
+			old:          []repository.ListSBOMPackagesRow{cosign("v2.6.3")},
+			new:          []repository.ListSBOMPackagesRow{cosign("v2.6.4")},
+			wantType:     dirModified,
+			wantVersion:  "v2.6.4",
+			wantPrevious: "v2.6.3",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+
+			entry := diffComponents(
+				SBOMRef{ID: "a"}, SBOMRef{ID: "b"},
+				buildPackageMap(tt.old), buildPackageMap(tt.new),
+			)
+
+			is.Equal(len(entry.Changes), 1)
+			c := entry.Changes[0]
+			is.Equal(c.Type, tt.wantType)
+			is.Equal(c.Name, "github.com/sigstore/cosign/v2")
+			// The row carries no group, so a nil group is the recorded value
+			// rather than a missing one.
+			is.Equal(c.Group, tt.wantGroup)
+			is.Equal(*c.Version, tt.wantVersion)
+			if tt.wantPrevious != "" {
+				is.Equal(*c.PreviousVersion, tt.wantPrevious)
+			}
+		})
+	}
+}
+
+// TestDiffComponents_NameFallsBackToKey covers the other half of displayName:
+// an identity with no recorded name (a key-only construction) must still
+// produce something usable rather than an empty column.
+func TestDiffComponents_NameFallsBackToKey(t *testing.T) {
+	is := is.New(t)
+
+	v := "1.0"
+	entry := diffComponents(
+		SBOMRef{ID: "a"}, SBOMRef{ID: "b"},
+		map[string]componentIdentity{},
+		map[string]componentIdentity{"pkg:deb/ubuntu/curl": {version: &v}},
+	)
+
+	is.Equal(len(entry.Changes), 1)
+	is.Equal(entry.Changes[0].Name, "curl")
+}
+
 func TestSbomToRef(t *testing.T) {
 	is := is.New(t)
 	id := pgtype.UUID{Bytes: [16]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}, Valid: true}

@@ -285,6 +285,8 @@ func buildPackageMap(rows []repository.ListSBOMPackagesRow) map[string]component
 		m[key] = componentIdentity{
 			version: textToPtr(row.Version),
 			purl:    textToPtr(row.Purl),
+			name:    row.Name,
+			group:   textToPtr(row.GroupName),
 		}
 	}
 	return m
@@ -967,9 +969,38 @@ func nonEmptyStrPtr(s string) *string {
 }
 
 // componentIdentity holds the fields used to match a component across SBOMs.
+//
+// name and group are carried alongside the matching fields purely so the diff
+// can report them. They are not part of the identity — the map key already is —
+// but without them the only source of a display name is the key itself, and
+// deriving one from a purl key loses information: nameFromKey takes the last
+// path segment, which turns "pkg:golang/github.com/sigstore/cosign/v2" into
+// "v2". The real name was read from the database and then thrown away.
 type componentIdentity struct {
 	version *string
 	purl    *string
+	name    string
+	group   *string
+}
+
+// displayName returns the component's recorded name, falling back to deriving
+// one from the map key for identities built before the name was carried (or by
+// a caller that has none).
+func (c componentIdentity) displayName(key string) string {
+	if c.name != "" {
+		return c.name
+	}
+	return nameFromKey(key)
+}
+
+// displayGroup mirrors displayName. The recorded group is authoritative even
+// when it is nil, so the key-derived fallback applies only when the whole
+// identity lacks a name.
+func (c componentIdentity) displayGroup(key string) *string {
+	if c.name != "" {
+		return c.group
+	}
+	return groupFromKey(key)
 }
 
 // buildComponentMap creates a map of component identity key → component info.
@@ -980,6 +1011,8 @@ func buildComponentMap(rows []repository.ListSBOMComponentsRow) map[string]compo
 		m[key] = componentIdentity{
 			version: textToPtr(row.Version),
 			purl:    textToPtr(row.Purl),
+			name:    row.Name,
+			group:   textToPtr(row.GroupName),
 		}
 	}
 	return m
@@ -1054,16 +1087,16 @@ func diffComponents(from, to SBOMRef, oldMap, newMap map[string]componentIdentit
 		if !exists {
 			entry.Changes = append(entry.Changes, ComponentDiff{
 				Type:    dirAdded,
-				Name:    nameFromKey(key),
-				Group:   groupFromKey(key),
+				Name:    curr.displayName(key),
+				Group:   curr.displayGroup(key),
 				Version: curr.version,
 				Purl:    curr.purl,
 			})
 		} else if !versionsEqual(prev.version, curr.version) {
 			entry.Changes = append(entry.Changes, ComponentDiff{
 				Type:            dirModified,
-				Name:            nameFromKey(key),
-				Group:           groupFromKey(key),
+				Name:            curr.displayName(key),
+				Group:           curr.displayGroup(key),
 				Version:         curr.version,
 				Purl:            curr.purl,
 				PreviousVersion: prev.version,
@@ -1074,8 +1107,8 @@ func diffComponents(from, to SBOMRef, oldMap, newMap map[string]componentIdentit
 		if _, exists := newMap[key]; !exists {
 			entry.Changes = append(entry.Changes, ComponentDiff{
 				Type:    dirRemoved,
-				Name:    nameFromKey(key),
-				Group:   groupFromKey(key),
+				Name:    prev.displayName(key),
+				Group:   prev.displayGroup(key),
 				Version: prev.version,
 				Purl:    prev.purl,
 			})
