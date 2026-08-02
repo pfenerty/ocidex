@@ -420,6 +420,44 @@ bd close <epic-id>
 - Before closing an issue, always record how it was resolved: `bd update <id> --notes "Files: <key files>\nApproach: <what was done and why>"`. For trivial changes, `bd close <id> --reason "..."` is sufficient. Never close without recording something.
 - Beads auto-commits its database to Dolt; `git push` to remote happens only on epic completion.
 
+### Chained epics
+
+Epics are never nested. An epic that depends on another is a **sibling** linked with
+`bd dep add <epic> <depends-on>` — `bd list --type=epic` renders that chain as a tree, and the
+dependency carries blocking semantics that parentage would not. Nesting breaks both the
+branch model (a parent epic's branch would hold every child epic's work) and `/work-epic`
+(its loop implements one story per iteration and cannot implement a child epic).
+
+If a "sub-epic" doesn't deserve its own branch and its own `/work-epic` run, it's a story.
+To group epics into an initiative without ordering them, use a label, not a parent.
+
+**Default: merge to `main` in dependency order, one epic at a time. Do not stack branches.**
+
+```bash
+# Per epic, start to finish:
+git checkout main && git pull --rebase
+git checkout -b <epic-id>
+# ... all child stories committed here, no pushes ...
+# --- epic done: human reviews `git log main..<epic-id>` ---
+git checkout main && git pull --rebase
+git merge <epic-id> --no-ff -m "feat: complete <epic-title> (<epic-id>)"
+git push                       # one CI run per epic
+bd close <epic-id>             # unblocks dependents
+git branch -d <epic-id>
+```
+
+The next epic branches from the *new* `main`, so it starts with its dependency's work already
+in place and never rebases.
+
+**Siblings that share a parent but not each other** (e.g. `ocidex-0gp` and `ocidex-rj4`, both
+blocked only on `ocidex-9xs`) branch from `main` in parallel once the parent merges. Each
+rebases on `main` before its own merge; whichever finishes first merges first.
+
+**Stacking (`git checkout -b <next> <prev>`) is the exception**, justified only when the
+previous epic's review is blocked on someone unavailable and the work cannot wait. The cost is
+real: any review change to the parent forces a rebase of every dependent commit. If you stack,
+merge strictly in dependency order and rebase the child onto `main` as soon as the parent lands.
+
 ## ADR Summary
 
 | # | Decision | Choice |
