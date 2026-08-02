@@ -169,7 +169,7 @@ func TestDiffTreeEndpoint(t *testing.T) {
 	is.NoErr(err)
 
 	// --- Ingest "from" SBOM (alpine-3.14) ---
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", diffTreeFromSBOM, memberKey)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), diffTreeFromSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	var fromIngest map[string]any
@@ -178,7 +178,7 @@ func TestDiffTreeEndpoint(t *testing.T) {
 	fromID := fromIngest["id"].(string)
 
 	// --- Ingest "to" SBOM (alpine-3.15) ---
-	resp, err = doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", diffTreeToSBOM, memberKey)
+	resp, err = doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), diffTreeToSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	var toIngest map[string]any

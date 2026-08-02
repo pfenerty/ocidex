@@ -76,9 +76,19 @@ type VersionOutput struct {
 // IngestSBOMInput is the request for POST /api/v1/sbom.
 type IngestSBOMInput struct {
 	RawBody      []byte
+	Source       string `query:"source"       doc:"Ingest channel this SBOM arrived through, as a source UUID or <namespace>/<name>. Required — the source's namespace owns the SBOM."`
 	Version      string `query:"version"      doc:"Image version/tag (overrides BOM-extracted value for subject_version and imageVersion)"`
 	Architecture string `query:"architecture" doc:"Image architecture (e.g. amd64, arm64)"`
 	BuildDate    string `query:"build_date"   doc:"Image build date (RFC3339 or date string)"`
+
+	// Caller-declared subject identity (ADR-040). A `syft dir:` BOM describes
+	// the directory it walked, so a non-container uploader has to say what the
+	// SBOM is about; each field overrides its BOM-extracted counterpart.
+	SubjectType  string `query:"subject_type"  doc:"CycloneDX component type of the subject (e.g. application, library, file)"`
+	SubjectName  string `query:"subject_name"  doc:"Subject name (e.g. ocidex)"`
+	SubjectGroup string `query:"subject_group" doc:"Subject group/namespace (e.g. github.com/pfenerty)"`
+	SubjectPurl  string `query:"subject_purl"  doc:"Subject package URL (e.g. pkg:golang/github.com/pfenerty/ocidex@v1.2.3)"`
+	Digest       string `query:"digest"        doc:"sha256 of the artifact file itself, not of this SBOM document. Required for a non-container subject."`
 }
 
 // IngestSBOMOutput is the response for POST /api/v1/sbom.

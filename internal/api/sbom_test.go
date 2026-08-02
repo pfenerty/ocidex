@@ -90,7 +90,7 @@ func TestIngestSBOM(t *testing.T) {
 			is := is.New(t)
 			router := memberRouter(&fakeSBOMService{})
 
-			r := httptest.NewRequest(http.MethodPost, "/api/v1/sboms", strings.NewReader(tt.body))
+			r := httptest.NewRequest(http.MethodPost, ingestPath, strings.NewReader(tt.body))
 			r.Header.Set("Content-Type", "application/json")
 			r.Header.Set("Authorization", "Bearer member-token")
 			w := httptest.NewRecorder()
@@ -111,7 +111,7 @@ func TestIngestSBOM_Unauthenticated(t *testing.T) {
 		"specVersion": "1.5",
 		"components": [{"type": "library", "name": "lib", "version": "1.0"}]
 	}`
-	r := httptest.NewRequest(http.MethodPost, "/api/v1/sboms", strings.NewReader(body))
+	r := httptest.NewRequest(http.MethodPost, ingestPath, strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, r)
@@ -127,9 +127,9 @@ func TestDeleteSBOM(t *testing.T) {
 	}{
 		// fakeSBOMService.GetSBOMNamespaceID returns zero UUID → no owner → member allowed
 		{"valid uuid", "01020304-0506-0708-090a-0b0c0d0e0f10", http.StatusNoContent},
-		// invalid UUID: test router has nil registryService so middleware skips ownership
-		// check and calls next; huma then validates format:"uuid" → 422
-		{"bad uuid", "not-a-uuid", http.StatusUnprocessableEntity},
+		// invalid UUID: RequireSBOMOwner parses the id before huma's format check
+		// runs, so it answers 404 rather than 422.
+		{"bad uuid", "not-a-uuid", http.StatusNotFound},
 	}
 
 	for _, tt := range tests {
@@ -166,9 +166,9 @@ func TestDeleteArtifact(t *testing.T) {
 	}{
 		// fakeSBOMService.GetArtifactOwnerID returns zero UUID → no owner → member allowed
 		{"valid uuid", "01020304-0506-0708-090a-0b0c0d0e0f10", http.StatusNoContent},
-		// invalid UUID: test router has nil registryService so middleware skips ownership
-		// check and calls next; huma then validates format:"uuid" → 422
-		{"bad uuid", "not-a-uuid", http.StatusUnprocessableEntity},
+		// invalid UUID: RequireArtifactOwner parses the id before huma's format
+		// check runs, so it answers 404 rather than 422.
+		{"bad uuid", "not-a-uuid", http.StatusNotFound},
 	}
 
 	for _, tt := range tests {
@@ -208,7 +208,7 @@ func TestIngestSBOM_ServiceError(t *testing.T) {
 			{"type": "library", "name": "test-lib", "version": "1.0.0"}
 		]
 	}`
-	r := httptest.NewRequest(http.MethodPost, "/api/v1/sboms", strings.NewReader(body))
+	r := httptest.NewRequest(http.MethodPost, ingestPath, strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
 	r.Header.Set("Authorization", "Bearer member-token")
 	w := httptest.NewRecorder()

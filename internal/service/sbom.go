@@ -36,8 +36,7 @@ type IngestParams struct {
 	Version      string      // image tag / subject version
 	Architecture string      // e.g. "amd64"
 	BuildDate    string      // RFC3339 or date string
-	NamespaceID  pgtype.UUID // tenancy + visibility anchor (ADR-039)
-	SourceID     pgtype.UUID // ingest channel the SBOM arrived through
+	SourceID     pgtype.UUID // ingest channel the SBOM arrived through; required (ADR-039)
 	IndexDigest  string      // multi-arch index this child was scanned from; empty for single-arch
 
 	// Caller-declared subject identity (ADR-040). A `syft dir:` BOM describes
@@ -202,6 +201,12 @@ func resolveArtifact(ctx context.Context, q *repository.Queries, bom *cdx.BOM, p
 
 // Ingest decomposes a CycloneDX BOM and persists it in a single transaction.
 func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (pgtype.UUID, error) {
+	// An SBOM cannot exist unowned, so resolve the owner before doing any work.
+	namespaceID, err := s.resolveIngestNamespace(ctx, params.SourceID)
+	if err != nil {
+		return pgtype.UUID{}, err
+	}
+
 	// Validate container digests before starting the transaction.
 	// This makes a network call to the registry, so it runs outside the tx.
 	if err := s.validateContainerDigest(ctx, bom); err != nil {
@@ -244,7 +249,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 	}
 
 	// Mandatory validation for non-container (uploaded) SBOMs.
-	if err := validateUploadRequired(info); err != nil {
+	if err := validateUploadRequired(info, params); err != nil {
 		return pgtype.UUID{}, err
 	}
 
@@ -256,7 +261,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		ArtifactID:     info.artifactID,
 		SubjectVersion: info.subjectVersion,
 		Digest:         info.digest,
-		NamespaceID:    params.NamespaceID,
+		NamespaceID:    namespaceID,
 		SourceID:       params.SourceID,
 		Flavor:         pgtype.Text{String: flavor, Valid: true},
 		IndexDigest:    pgtype.Text{String: params.IndexDigest, Valid: params.IndexDigest != ""},
@@ -271,7 +276,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		"artifact_id", info.artifactID,
 	)
 
-	if err := linkArtifactNamespace(ctx, q, info.artifactID, params.NamespaceID); err != nil {
+	if err := linkArtifactNamespace(ctx, q, info.artifactID, namespaceID); err != nil {
 		return pgtype.UUID{}, err
 	}
 
@@ -331,12 +336,51 @@ func validateContainerRequired(bom *cdx.BOM, info artifactInfo, arch, bd string)
 // produces container subjects exclusively, so a non-container subject can only
 // have arrived through the upload path. Type and name are not checked here —
 // without them no artifact is resolved at all, and info.artifactID is invalid.
-func validateUploadRequired(info artifactInfo) error {
+// resolveIngestNamespace derives the tenancy anchor for an ingest from the
+// source it arrived through.
+//
+// The namespace is deliberately not a second input. Deriving it from exactly
+// one place means a caller cannot name a source in one namespace and have the
+// row land in another, and it retires the assumption — previously duplicated at
+// every call site — that a registry's id doubles as its namespace id. That
+// holds only for a registry that created its own namespace; when the operator
+// creates a registry inside an existing namespace, source id and namespace id
+// differ (ADR-039, `CreateRegistry` in db/queries/registry.sql).
+//
+// A missing or unknown source is a ValidationError, which the API layer renders
+// as 400. Since 00054 the column is NOT NULL, so there is no unowned fallback.
+func (s *sbomService) resolveIngestNamespace(ctx context.Context, sourceID pgtype.UUID) (pgtype.UUID, error) {
+	if !sourceID.Valid {
+		return pgtype.UUID{}, &ValidationError{
+			Message: "sbom ingest requires a source; pass ?source=<uuid|namespace/name> so the SBOM lands in a namespace that owns it",
+		}
+	}
+	src, err := repository.New(s.pool).GetSource(ctx, sourceID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return pgtype.UUID{}, &ValidationError{Message: "ingest source not found"}
+		}
+		return pgtype.UUID{}, fmt.Errorf("resolving ingest source: %w", err)
+	}
+	return src.NamespaceID, nil
+}
+
+func validateUploadRequired(info artifactInfo, params IngestParams) error {
 	if !info.artifactID.Valid || info.subjectType == "" ||
 		info.subjectType == string(cdx.ComponentTypeContainer) {
 		return nil
 	}
 	var missing []string
+	// Type and name must be *declared*, not merely resolved. A `syft dir:` BOM
+	// always supplies both — describing the scratch directory it walked — so
+	// accepting the BOM's values is how an artifact ends up named `.sbom-bins`.
+	// Requiring the declaration is the whole point of ADR-040.
+	if params.SubjectType == "" {
+		missing = append(missing, "subject_type")
+	}
+	if params.SubjectName == "" {
+		missing = append(missing, "subject_name")
+	}
 	if !info.subjectVersion.Valid || info.subjectVersion.String == "" {
 		missing = append(missing, "subject_version")
 	}

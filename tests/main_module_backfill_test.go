@@ -78,7 +78,7 @@ func TestMainModuleVersionBackfill(t *testing.T) {
 	is.NoErr(err)
 
 	// Ingest the SBOM.
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", mainModuleBackfillSBOM, memberKey)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), mainModuleBackfillSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	var ingest map[string]any
@@ -147,17 +147,24 @@ func TestMainModuleVersionBackfillMigration(t *testing.T) {
 		}
 	}`
 
-	// Seed an artifact + sbom + components by hand.
-	var artifactID, sbomID string
+	// Seed a namespace + artifact + sbom + components by hand. sbom.namespace_id
+	// is NOT NULL since 00054; this test is about the version backfill rather
+	// than visibility, so an unowned private namespace is enough.
+	var namespaceID, artifactID, sbomID string
 	err := pool.QueryRow(ctx,
+		`INSERT INTO namespace (name, visibility) VALUES ('legacy-ns', 'private') RETURNING id::text`,
+	).Scan(&namespaceID)
+	is.NoErr(err)
+
+	err = pool.QueryRow(ctx,
 		`INSERT INTO artifact (type, name) VALUES ('container', 'legacy/svc') RETURNING id`,
 	).Scan(&artifactID)
 	is.NoErr(err)
 
 	err = pool.QueryRow(ctx,
-		`INSERT INTO sbom (artifact_id, spec_version, version, raw_bom, subject_version)
-		 VALUES ($1, '1.6', 1, $2::jsonb, $3) RETURNING id`,
-		artifactID, rawBom, "v0.9.0",
+		`INSERT INTO sbom (artifact_id, namespace_id, spec_version, version, raw_bom, subject_version)
+		 VALUES ($1, $2, '1.6', 1, $3::jsonb, $4) RETURNING id`,
+		artifactID, namespaceID, rawBom, "v0.9.0",
 	).Scan(&sbomID)
 	is.NoErr(err)
 

@@ -141,7 +141,7 @@ func TestKeysetPagination_NoGapsOrDupes(t *testing.T) {
 	is.NoErr(err)
 
 	ingest := func(body string) string {
-		resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", body, key)
+		resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), body, key)
 		is.NoErr(err)
 		is.Equal(resp.StatusCode, http.StatusCreated)
 		var r map[string]any
@@ -215,7 +215,7 @@ func TestSBOMComponents_ExcludesFiles(t *testing.T) {
 	// 120 files + 5 packages: with a page size of 50, an unfiltered endpoint
 	// would return only files on the first pages.
 	body := fileDominatedSBOM("docker.io/files", "sha256:"+strings.Repeat("f", 64), 120, 5)
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", body, key)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), body, key)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	var r map[string]any

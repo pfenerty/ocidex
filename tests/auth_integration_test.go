@@ -47,7 +47,12 @@ func setupServerWithStats(t *testing.T, pool *pgxpool.Pool) (*httptest.Server, s
 	sbomSvc := service.NewSBOMService(pool, nil, nil)
 	searchSvc := service.NewSearchService(pool)
 	registrySvc := service.NewRegistryService(pool)
-	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, nil, nil, nil, nil, pool, nil, cfg)
+	// Ingest resolves its namespace through the source (ADR-039), so both of
+	// these are on the write path, not just the /namespaces and /sources routes.
+	namespaceSvc := service.NewNamespaceService(pool)
+	sourceSvc := service.NewSourceService(pool)
+	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc,
+		namespaceSvc, sourceSvc, nil, nil, pool, nil, cfg)
 	router := api.NewRouter(handler, "*", "", "")
 	return httptest.NewServer(router), authSvc, searchSvc
 }
@@ -147,6 +152,15 @@ func TestAuthBoundaries(t *testing.T) {
 	resp.Body.Close()
 	memberRegID := regResp["id"].(string)
 
+	// A second registry owned by admin, so ingest can be aimed at a namespace
+	// the member does not own.
+	resp, err = doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/registries", registryBody("admin-reg"), adminKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&regResp))
+	resp.Body.Close()
+	adminRegID := regResp["id"].(string)
+
 	type authCase struct {
 		name       string
 		method     string
@@ -164,8 +178,15 @@ func TestAuthBoundaries(t *testing.T) {
 		{"list artifacts", http.MethodGet, "/api/v1/artifacts", "", 200, 200, 200, 200},
 		{"search components", http.MethodGet, "/api/v1/components?name=bash", "", 200, 200, 200, 200},
 		{"stats", http.MethodGet, "/api/v1/stats", "", 200, 200, 200, 200},
-		// SBOM ingest — requires member or admin role.
-		{"ingest sbom", http.MethodPost, "/api/v1/sboms", minimalSBOM, 401, 403, 201, 201},
+		// SBOM ingest — requires member or admin role, plus a source in a
+		// namespace the caller owns (ADR-039). Admin manages every namespace,
+		// so it lands in the member's namespace too.
+		{"ingest sbom", http.MethodPost, "/api/v1/sboms?source=" + memberRegID, minimalSBOM, 401, 403, 201, 201},
+		// No source means no owner, and an SBOM cannot exist unowned.
+		{"ingest without source", http.MethodPost, "/api/v1/sboms", minimalSBOM, 401, 403, 400, 400},
+		// Naming someone else's namespace is a 403, not a quiet reassignment.
+		{"ingest into another's namespace", http.MethodPost, "/api/v1/sboms?source=" + adminRegID,
+			alpineSBOM, 401, 403, 403, 201},
 		// Any authenticated user.
 		{"list registries", http.MethodGet, "/api/v1/registries", "", 401, 200, 200, 200},
 		{"get me", http.MethodGet, "/api/v1/users/me", "", 401, 200, 200, 200},

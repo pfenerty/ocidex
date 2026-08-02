@@ -2,9 +2,8 @@
 WITH visible_sbom AS (
     SELECT s.id
     FROM sbom s
-    LEFT JOIN namespace n ON n.id = s.namespace_id
-    WHERE s.namespace_id IS NULL
-       OR n.visibility = 'public'
+    JOIN namespace n ON n.id = s.namespace_id
+    WHERE n.visibility = 'public'
        OR n.owner_id = sqlc.narg('user_id')::uuid
        OR COALESCE(sqlc.narg('is_admin')::boolean, false)
 )
@@ -20,14 +19,14 @@ SELECT
     (SELECT COUNT(*)::bigint FROM (
         SELECT DISTINCT r.name, COALESCE(r.group_name,'') AS g, r.type
         FROM component_rollup r
-        WHERE (r.namespace_id IS NULL OR r.namespace_id IN (
+        WHERE (r.namespace_id IN (
                 SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
     ) t) AS package_count,
     (SELECT COUNT(*)::bigint FROM (
         SELECT DISTINCT r.name, COALESCE(r.group_name,'') AS g, COALESCE(v.version,'') AS v, r.type
         FROM component_rollup r
         LEFT JOIN LATERAL unnest(r.versions) AS v(version) ON true
-        WHERE (r.namespace_id IS NULL OR r.namespace_id IN (
+        WHERE (r.namespace_id IN (
                 SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
     ) t) AS version_count,
     (SELECT COUNT(*)::bigint FROM license) AS license_count;
@@ -36,9 +35,8 @@ SELECT
 WITH visible_sbom AS (
     SELECT s.id
     FROM sbom s
-    LEFT JOIN namespace n ON n.id = s.namespace_id
-    WHERE s.namespace_id IS NULL
-       OR n.visibility = 'public'
+    JOIN namespace n ON n.id = s.namespace_id
+    WHERE n.visibility = 'public'
        OR n.owner_id = sqlc.narg('user_id')::uuid
        OR COALESCE(sqlc.narg('is_admin')::boolean, false)
 )
@@ -56,9 +54,8 @@ ORDER BY component_count DESC;
 WITH visible_sbom AS (
     SELECT s.id, s.created_at
     FROM sbom s
-    LEFT JOIN namespace n ON n.id = s.namespace_id
-    WHERE s.namespace_id IS NULL
-       OR n.visibility = 'public'
+    JOIN namespace n ON n.id = s.namespace_id
+    WHERE n.visibility = 'public'
        OR n.owner_id = sqlc.narg('user_id')::uuid
        OR COALESCE(sqlc.narg('is_admin')::boolean, false)
 )
@@ -76,9 +73,8 @@ ORDER BY day;
 WITH visible_sbom AS (
     SELECT s.id, s.created_at
     FROM sbom s
-    LEFT JOIN namespace n ON n.id = s.namespace_id
-    WHERE s.namespace_id IS NULL
-       OR n.visibility = 'public'
+    JOIN namespace n ON n.id = s.namespace_id
+    WHERE n.visibility = 'public'
        OR n.owner_id = sqlc.narg('user_id')::uuid
        OR COALESCE(sqlc.narg('is_admin')::boolean, false)
 ),
@@ -105,9 +101,8 @@ ORDER BY first_seen;
 WITH visible_sbom AS (
     SELECT s.id, s.created_at
     FROM sbom s
-    LEFT JOIN namespace n ON n.id = s.namespace_id
-    WHERE s.namespace_id IS NULL
-       OR n.visibility = 'public'
+    JOIN namespace n ON n.id = s.namespace_id
+    WHERE n.visibility = 'public'
        OR n.owner_id = sqlc.narg('user_id')::uuid
        OR COALESCE(sqlc.narg('is_admin')::boolean, false)
 ),
@@ -142,7 +137,7 @@ SELECT
     COALESCE(SUM(r.sbom_count) FILTER (WHERE COALESCE(v.ord, 1) = 1), 0)::bigint AS sbom_count
 FROM component_rollup r
 LEFT JOIN LATERAL unnest(r.versions) WITH ORDINALITY AS v(version, ord) ON true
-WHERE (r.namespace_id IS NULL OR r.namespace_id IN (
+WHERE (r.namespace_id IN (
         SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
 GROUP BY r.name, r.group_name, r.type
 ORDER BY version_count DESC
@@ -155,9 +150,8 @@ LIMIT @top_n::int;
 WITH visible_sbom AS (
     SELECT s.id
     FROM sbom s
-    LEFT JOIN namespace n ON n.id = s.namespace_id
-    WHERE s.namespace_id IS NULL
-       OR n.visibility = 'public'
+    JOIN namespace n ON n.id = s.namespace_id
+    WHERE n.visibility = 'public'
        OR n.owner_id = sqlc.narg('user_id')::uuid
        OR COALESCE(sqlc.narg('is_admin')::boolean, false)
 )

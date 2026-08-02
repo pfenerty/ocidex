@@ -202,7 +202,7 @@ func TestFullLifecycle(t *testing.T) {
 	is.NoErr(err)
 
 	// --- Ingest first SBOM ---
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", minimalSBOM, memberKey)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), minimalSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 
@@ -264,7 +264,7 @@ func TestFullLifecycle(t *testing.T) {
 	// Small delay so created_at differs for changelog ordering.
 	time.Sleep(100 * time.Millisecond)
 
-	resp, err = doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", secondSBOM, memberKey)
+	resp, err = doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), secondSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 
@@ -394,12 +394,12 @@ func TestDigestNormalization(t *testing.T) {
 	}`
 
 	// Ingest both
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", syftSBOM, memberKey)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), syftSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	resp.Body.Close()
 
-	resp, err = doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", trivySBOM, memberKey)
+	resp, err = doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), trivySBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	resp.Body.Close()
@@ -465,7 +465,7 @@ func TestArtifactDetailSigningStatusParity(t *testing.T) {
 	is.NoErr(err)
 
 	// Ingest an SBOM.
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", minimalSBOM, memberKey)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), minimalSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	var ingestResp map[string]any
@@ -591,7 +591,7 @@ func TestSigningStatusParity_AllStatuses(t *testing.T) {
 
 			// Ingest a fixture-specific SBOM (distinct digest per fixture).
 			sbomJSON := fmt.Sprintf(signingStatusSBOMTemplate, i, i)
-			resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", sbomJSON, memberKey)
+			resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), sbomJSON, memberKey)
 			is.NoErr(err)
 			is.Equal(resp.StatusCode, http.StatusCreated)
 			var ingestResp map[string]any
@@ -657,7 +657,7 @@ func TestArtifactRollupSigningStatus_ArtifactMissingDominates(t *testing.T) {
 	is.NoErr(err)
 
 	// First SBOM: verified.
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", minimalSBOM, memberKey)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), minimalSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	var ingest1 map[string]any
@@ -672,7 +672,7 @@ func TestArtifactRollupSigningStatus_ArtifactMissingDominates(t *testing.T) {
 	is.NoErr(err)
 
 	// Second SBOM under the SAME artifact: artifact_missing.
-	resp, err = doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", secondSBOM, memberKey)
+	resp, err = doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), secondSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	var ingest2 map[string]any
@@ -727,7 +727,7 @@ func TestProvenanceRecheckErrorPreservesData(t *testing.T) {
 	is.NoErr(err)
 
 	sbomJSON := fmt.Sprintf(signingStatusSBOMTemplate, 99, 99)
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", sbomJSON, memberKey)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), sbomJSON, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	var ingestResp map[string]any
@@ -830,7 +830,7 @@ func TestProvenanceDriftFullCycle(t *testing.T) {
 	is.NoErr(err)
 
 	sbomJSON := fmt.Sprintf(signingStatusSBOMTemplate, 98, 98)
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", sbomJSON, memberKey)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), sbomJSON, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	var ingestResp map[string]any

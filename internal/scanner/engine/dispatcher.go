@@ -55,8 +55,9 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (p
 		Version:      version,
 		Architecture: req.Architecture,
 		BuildDate:    req.BuildDate,
-		// A registry's id is both its namespace and its source id (ADR-039).
-		NamespaceID: registryID,
+		// A registry shares its id with its source row; the namespace it belongs
+		// to is a different row whenever the registry was created inside an
+		// existing namespace, so Ingest resolves it from the source (ADR-039).
 		SourceID:    registryID,
 		IndexDigest: req.IndexDigest,
 	})

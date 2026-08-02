@@ -94,7 +94,7 @@ func TestIngestParity_CopyFromRoundTrip(t *testing.T) {
 	is.NoErr(err)
 
 	// --- Ingest ---
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", richSBOM, memberKey)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), richSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	var ingest map[string]any

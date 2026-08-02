@@ -120,7 +120,7 @@ SELECT l.id, l.spdx_id, l.name, l.url,
        COUNT(*) OVER() AS total_count
 FROM license l
 LEFT JOIN license_rollup lr ON lr.license_id = l.id
-  AND (lr.namespace_id IS NULL OR lr.namespace_id IN (
+  AND (lr.namespace_id IN (
         SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
 WHERE (sqlc.narg('spdx_id')::text IS NULL OR l.spdx_id = sqlc.narg('spdx_id'))
   AND (sqlc.narg('name')::text IS NULL OR l.name ILIKE sqlc.narg('name'))
@@ -236,7 +236,7 @@ ORDER BY sbom_id, name, group_name;
 SELECT DISTINCT p.purl_type::text AS purl_type
 FROM component_rollup r
 CROSS JOIN LATERAL unnest(r.purl_types) AS p(purl_type)
-WHERE (r.namespace_id IS NULL OR r.namespace_id IN (
+WHERE (r.namespace_id IN (
         SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
 ORDER BY 1
 -- Safety cap: purl types are a small, fixed vocabulary; bound the scan.
@@ -265,7 +265,7 @@ WHERE (sqlc.narg('name')::text IS NULL OR r.name ILIKE sqlc.narg('name'))
   AND (sqlc.narg('group_name')::text IS NULL OR r.group_name = sqlc.narg('group_name'))
   AND (sqlc.narg('type')::text IS NULL OR r.type = sqlc.narg('type'))
   AND (sqlc.narg('purl_type')::text IS NULL OR sqlc.narg('purl_type')::text = ANY(r.purl_types))
-  AND (r.namespace_id IS NULL OR r.namespace_id IN (
+  AND (r.namespace_id IN (
         SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
 GROUP BY r.name, r.group_name, r.type
 ORDER BY

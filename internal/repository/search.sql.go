@@ -483,7 +483,7 @@ const listComponentPurlTypes = `-- name: ListComponentPurlTypes :many
 SELECT DISTINCT p.purl_type::text AS purl_type
 FROM component_rollup r
 CROSS JOIN LATERAL unnest(r.purl_types) AS p(purl_type)
-WHERE (r.namespace_id IS NULL OR r.namespace_id IN (
+WHERE (r.namespace_id IN (
         SELECT visible_namespace_ids($1::uuid, $2::boolean)))
 ORDER BY 1
 LIMIT 200
@@ -638,7 +638,7 @@ SELECT l.id, l.spdx_id, l.name, l.url,
        COUNT(*) OVER() AS total_count
 FROM license l
 LEFT JOIN license_rollup lr ON lr.license_id = l.id
-  AND (lr.namespace_id IS NULL OR lr.namespace_id IN (
+  AND (lr.namespace_id IN (
         SELECT visible_namespace_ids($1::uuid, $2::boolean)))
 WHERE ($3::text IS NULL OR l.spdx_id = $3)
   AND ($4::text IS NULL OR l.name ILIKE $4)
@@ -1159,7 +1159,7 @@ WHERE ($1::text IS NULL OR r.name ILIKE $1)
   AND ($2::text IS NULL OR r.group_name = $2)
   AND ($3::text IS NULL OR r.type = $3)
   AND ($4::text IS NULL OR $4::text = ANY(r.purl_types))
-  AND (r.namespace_id IS NULL OR r.namespace_id IN (
+  AND (r.namespace_id IN (
         SELECT visible_namespace_ids($5::uuid, $6::boolean)))
 GROUP BY r.name, r.group_name, r.type
 ORDER BY

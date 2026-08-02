@@ -220,7 +220,7 @@ type Sbom struct {
 	SubjectVersion       pgtype.Text        `json:"subject_version"`
 	Digest               pgtype.Text        `json:"digest"`
 	EnrichmentSufficient bool               `json:"enrichment_sufficient"`
-	// Who may see this SBOM. Still nullable: legacy uploaded rows have no owner until ocidex-0gp.3 assigns one.
+	// Who may see this SBOM. NOT NULL since 00054: ingest resolves a source, and through it a namespace, or fails (ADR-039, ocidex-0gp.3).
 	NamespaceID pgtype.UUID `json:"namespace_id"`
 	Flavor      pgtype.Text `json:"flavor"`
 	IndexDigest pgtype.Text `json:"index_digest"`

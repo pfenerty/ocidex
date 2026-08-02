@@ -74,6 +74,99 @@ func (f *failSBOMService) GetArtifactOwnerID(_ context.Context, _ pgtype.UUID) (
 }
 
 // ---------------------------------------------------------------------------
+// Fake namespace / source services
+// ---------------------------------------------------------------------------
+
+const (
+	// testSourceID is the source every ingest test posts to, and
+	// testNamespaceID the namespace that owns it — owned in turn by ownerUUID,
+	// the user memberAuthSvc authenticates.
+	testSourceID    = "0a0b0c0d-0e0f-1011-1213-141516171819"
+	testNamespaceID = "1a1b1c1d-1e1f-2021-2223-242526272829"
+
+	// ingestPath is the ingest route bound to that source. Ingest derives the
+	// owning namespace from the source, so posting without one is a 400
+	// (ADR-039) — every ingest test needs a source in the URL.
+	ingestPath = "/api/v1/sboms?source=" + testSourceID
+)
+
+// fakeNamespaceService resolves any id or name to a single namespace owned by
+// ownerUUID, so ownership checks pass for the member token and fail for anyone
+// else.
+type fakeNamespaceService struct{}
+
+func (f *fakeNamespaceService) Create(_ context.Context, _ service.CreateNamespaceParams) (service.Namespace, error) {
+	return f.ns(), nil
+}
+
+func (f *fakeNamespaceService) Get(_ context.Context, _ string) (service.Namespace, error) {
+	return f.ns(), nil
+}
+
+func (f *fakeNamespaceService) GetByName(_ context.Context, _ string) (service.Namespace, error) {
+	return f.ns(), nil
+}
+
+func (f *fakeNamespaceService) List(_ context.Context, _ service.VisibilityFilter) ([]service.Namespace, error) {
+	return []service.Namespace{f.ns()}, nil
+}
+
+func (f *fakeNamespaceService) Update(_ context.Context, _ service.UpdateNamespaceParams) (service.Namespace, error) {
+	return f.ns(), nil
+}
+
+func (f *fakeNamespaceService) Delete(_ context.Context, _ string) error { return nil }
+
+func (f *fakeNamespaceService) ns() service.Namespace {
+	owner := ownerIDStr
+	return service.Namespace{
+		ID:         testNamespaceID,
+		Name:       "test-ns",
+		OwnerID:    &owner,
+		Visibility: "private",
+	}
+}
+
+// fakeSourceService resolves any reference to a single upload source inside
+// testNamespaceID.
+type fakeSourceService struct{}
+
+func (f *fakeSourceService) Create(_ context.Context, _ service.CreateSourceParams) (service.Source, error) {
+	return f.src(), nil
+}
+
+func (f *fakeSourceService) Get(_ context.Context, _ string) (service.Source, error) {
+	return f.src(), nil
+}
+
+func (f *fakeSourceService) GetByName(_ context.Context, _, _ string) (service.Source, error) {
+	return f.src(), nil
+}
+
+func (f *fakeSourceService) ListByNamespace(_ context.Context, _ string) ([]service.Source, error) {
+	return []service.Source{f.src()}, nil
+}
+
+func (f *fakeSourceService) List(_ context.Context, _ service.VisibilityFilter) ([]service.Source, error) {
+	return []service.Source{f.src()}, nil
+}
+
+func (f *fakeSourceService) Update(_ context.Context, _ service.UpdateSourceParams) (service.Source, error) {
+	return f.src(), nil
+}
+
+func (f *fakeSourceService) Delete(_ context.Context, _ string) error { return nil }
+
+func (f *fakeSourceService) src() service.Source {
+	return service.Source{
+		ID:          testSourceID,
+		NamespaceID: testNamespaceID,
+		Kind:        "upload",
+		Name:        "ci",
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Router / handler builders
 // ---------------------------------------------------------------------------
 
@@ -87,7 +180,8 @@ func newTestRouter(sbomSvc service.SBOMService, searchSvc service.SearchService)
 // newTestRouterWithAuth builds a router with an auth service wired so that
 // OptionalAuthenticate and huma auth-gate middlewares function properly.
 func newTestRouterWithAuth(sbomSvc service.SBOMService, searchSvc service.SearchService, authSvc service.AuthService) http.Handler {
-	h := api.NewHandler(sbomSvc, searchSvc, authSvc, nil, nil, nil, nil, nil, &fakePinger{}, nil, nil)
+	h := api.NewHandler(sbomSvc, searchSvc, authSvc, nil,
+		&fakeNamespaceService{}, &fakeSourceService{}, nil, nil, &fakePinger{}, nil, nil)
 	return api.NewRouter(h, "*", "", "")
 }
 

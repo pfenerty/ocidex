@@ -6781,6 +6781,16 @@
         "operationId": "ingest-sbom",
         "parameters": [
           {
+            "description": "Ingest channel this SBOM arrived through, as a source UUID or \u003cnamespace\u003e/\u003cname\u003e. Required — the source's namespace owns the SBOM.",
+            "explode": false,
+            "in": "query",
+            "name": "source",
+            "schema": {
+              "description": "Ingest channel this SBOM arrived through, as a source UUID or \u003cnamespace\u003e/\u003cname\u003e. Required — the source's namespace owns the SBOM.",
+              "type": "string"
+            }
+          },
+          {
             "description": "Image version/tag (overrides BOM-extracted value for subject_version and imageVersion)",
             "explode": false,
             "in": "query",
@@ -6807,6 +6817,56 @@
             "name": "build_date",
             "schema": {
               "description": "Image build date (RFC3339 or date string)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "CycloneDX component type of the subject (e.g. application, library, file)",
+            "explode": false,
+            "in": "query",
+            "name": "subject_type",
+            "schema": {
+              "description": "CycloneDX component type of the subject (e.g. application, library, file)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Subject name (e.g. ocidex)",
+            "explode": false,
+            "in": "query",
+            "name": "subject_name",
+            "schema": {
+              "description": "Subject name (e.g. ocidex)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Subject group/namespace (e.g. github.com/pfenerty)",
+            "explode": false,
+            "in": "query",
+            "name": "subject_group",
+            "schema": {
+              "description": "Subject group/namespace (e.g. github.com/pfenerty)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Subject package URL (e.g. pkg:golang/github.com/pfenerty/ocidex@v1.2.3)",
+            "explode": false,
+            "in": "query",
+            "name": "subject_purl",
+            "schema": {
+              "description": "Subject package URL (e.g. pkg:golang/github.com/pfenerty/ocidex@v1.2.3)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "sha256 of the artifact file itself, not of this SBOM document. Required for a non-container subject.",
+            "explode": false,
+            "in": "query",
+            "name": "digest",
+            "schema": {
+              "description": "sha256 of the artifact file itself, not of this SBOM document. Required for a non-container subject.",
               "type": "string"
             }
           }

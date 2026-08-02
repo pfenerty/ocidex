@@ -4170,12 +4170,24 @@ export interface operations {
     "ingest-sbom": {
         parameters: {
             query?: {
+                /** @description Ingest channel this SBOM arrived through, as a source UUID or <namespace>/<name>. Required — the source's namespace owns the SBOM. */
+                source?: string;
                 /** @description Image version/tag (overrides BOM-extracted value for subject_version and imageVersion) */
                 version?: string;
                 /** @description Image architecture (e.g. amd64, arm64) */
                 architecture?: string;
                 /** @description Image build date (RFC3339 or date string) */
                 build_date?: string;
+                /** @description CycloneDX component type of the subject (e.g. application, library, file) */
+                subject_type?: string;
+                /** @description Subject name (e.g. ocidex) */
+                subject_name?: string;
+                /** @description Subject group/namespace (e.g. github.com/pfenerty) */
+                subject_group?: string;
+                /** @description Subject package URL (e.g. pkg:golang/github.com/pfenerty/ocidex@v1.2.3) */
+                subject_purl?: string;
+                /** @description sha256 of the artifact file itself, not of this SBOM document. Required for a non-container subject. */
+                digest?: string;
             };
             header?: never;
             path?: never;

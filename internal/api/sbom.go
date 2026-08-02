@@ -3,7 +3,9 @@ package api
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/danielgtaylor/huma/v2"
@@ -11,10 +13,70 @@ import (
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
+// resolveIngestSource resolves the `source` query parameter to a source the
+// caller may write to, returning the huma error the handler should surface.
+//
+// Accepted forms are a source UUID and `<namespace>/<name>`. A bare name is
+// deliberately not accepted: source names are unique per namespace, not
+// globally (ADR-039), so resolving one means guessing which of the caller's
+// namespaces was meant — and a push that worked would start failing the day a
+// second namespace gained a source of the same name. Qualified references are
+// stable.
+//
+// An unresolvable source is a 400 rather than a 404: the request named
+// something that does not exist, the endpoint exists fine. Naming a source in a
+// namespace the caller does not own is a 403, whether or not they can read it.
+func (h *Handler) resolveIngestSource(ctx context.Context, ref string) (service.Source, error) {
+	if ref == "" {
+		return service.Source{}, huma.Error400BadRequest(
+			"source is required: pass ?source=<uuid> or ?source=<namespace>/<name>")
+	}
+
+	var (
+		src service.Source
+		err error
+	)
+	if nsName, srcName, qualified := strings.Cut(ref, "/"); qualified {
+		var ns service.Namespace
+		if ns, err = h.namespaceService.GetByName(ctx, nsName); err == nil {
+			src, err = h.sourceService.GetByName(ctx, ns.ID, srcName)
+		}
+	} else if _, perr := parseUUID(ref); perr != nil {
+		return service.Source{}, huma.Error400BadRequest(fmt.Sprintf(
+			"source %q is neither a UUID nor a <namespace>/<name> reference", ref))
+	} else {
+		src, err = h.sourceService.Get(ctx, ref)
+	}
+	if err != nil {
+		if errors.Is(err, service.ErrNotFound) {
+			return service.Source{}, huma.Error400BadRequest(fmt.Sprintf("source %q not found", ref))
+		}
+		return service.Source{}, mapServiceError(err)
+	}
+
+	ns, err := h.namespaceService.Get(ctx, src.NamespaceID)
+	if err != nil {
+		return service.Source{}, mapServiceError(err)
+	}
+	if user, ok := UserFromContext(ctx); ok && !canManageNamespace(user, ns) {
+		return service.Source{}, huma.Error403Forbidden(
+			"cannot ingest into namespace " + ns.Name + ": not owned by this API key")
+	}
+	return src, nil
+}
+
 // IngestSBOM accepts a CycloneDX JSON SBOM, validates it, and persists it.
 func (h *Handler) IngestSBOM(ctx context.Context, input *IngestSBOMInput) (*IngestSBOMOutput, error) {
 	if user, ok := UserFromContext(ctx); ok && !isWriteAllowed(user) {
 		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
+	}
+	src, err := h.resolveIngestSource(ctx, input.Source)
+	if err != nil {
+		return nil, err
+	}
+	sourceID, err := parseUUID(src.ID)
+	if err != nil {
+		return nil, err
 	}
 	bom := new(cdx.BOM)
 	decoder := cdx.NewBOMDecoder(bytes.NewReader(input.RawBody), cdx.BOMFileFormatJSON)
@@ -30,6 +92,12 @@ func (h *Handler) IngestSBOM(ctx context.Context, input *IngestSBOMInput) (*Inge
 		Version:      input.Version,
 		Architecture: input.Architecture,
 		BuildDate:    input.BuildDate,
+		SourceID:     sourceID,
+		SubjectType:  input.SubjectType,
+		SubjectName:  input.SubjectName,
+		SubjectGroup: input.SubjectGroup,
+		SubjectPurl:  input.SubjectPurl,
+		Digest:       input.Digest,
 	})
 	if err != nil {
 		return nil, mapServiceError(err)

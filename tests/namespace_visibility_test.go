@@ -3,8 +3,10 @@ package tests
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/matryer/is"
@@ -68,27 +70,18 @@ func seedSource(t *testing.T, pool *pgxpool.Pool, namespaceID, kind, name string
 	return id
 }
 
-// placeSBOM moves an already-ingested SBOM into a namespace via a source, and
-// links its artifact to the same namespace.
+// ingestPath returns the ingest path bound to a fresh public upload source
+// owned by ownerID.
 //
-// Ingest does not yet bind an uploaded SBOM to a source — that lands with the
-// non-container upload path — so the placement the API will eventually do is
-// done here directly. What is under test is the visibility rule downstream of
-// it, which is where ADR-039 actually changed behaviour.
-func placeSBOM(t *testing.T, pool *pgxpool.Pool, sbomID, namespaceID, sourceID string) {
+// Ingest has required a source since ocidex-0gp.3 — an SBOM cannot exist
+// unowned — so every test that posts one needs a namespace to post into. Public
+// visibility keeps this helper neutral for the tests that are not about
+// visibility; the ones that are seed their own namespace explicitly.
+func ingestPath(t *testing.T, pool *pgxpool.Pool, ownerID pgtype.UUID) string {
 	t.Helper()
-	if _, err := pool.Exec(t.Context(), `
-		WITH upd AS (
-			UPDATE sbom SET namespace_id = $2, source_id = $3
-			WHERE id = $1
-			RETURNING artifact_id
-		)
-		INSERT INTO artifact_namespace (artifact_id, namespace_id)
-		SELECT artifact_id, $2 FROM upd
-		ON CONFLICT DO NOTHING
-	`, sbomID, namespaceID, sourceID); err != nil {
-		t.Fatalf("place sbom %s: %v", sbomID, err)
-	}
+	name := "ingest-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
+	nsID := seedNamespace(t, pool, name, ownerID, "public")
+	return "/api/v1/sboms?source=" + seedSource(t, pool, nsID, "upload", "ci")
 }
 
 // artifactNames lists the artifact names the given API key can see.
@@ -164,16 +157,13 @@ func TestPrivateNamespaceHidesSBOMsFromNonOwner(t *testing.T) {
 	strangerKey, err := authSvc.CreateAPIKey(t.Context(), strangerID, "stranger", "read-write")
 	is.NoErr(err)
 
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", minimalSBOM, ownerKey)
-	is.NoErr(err)
-	is.Equal(resp.StatusCode, http.StatusCreated)
-	var ingested map[string]any
-	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingested))
-	resp.Body.Close()
-
 	nsID := seedNamespace(t, pool, "private-ns", ownerID, "private")
 	srcID := seedSource(t, pool, nsID, "upload", "ci")
-	placeSBOM(t, pool, ingested["id"].(string), nsID, srcID)
+
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms?source="+srcID, minimalSBOM, ownerKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	resp.Body.Close()
 	refreshRollups(t, pool)
 
 	is.Equal(artifactNames(t, srv.URL, ownerKey), []string{"docker.io/ubuntu"})
@@ -215,24 +205,19 @@ func TestSourcesInOneNamespaceShareVisibility(t *testing.T) {
 	strangerKey, err := authSvc.CreateAPIKey(t.Context(), strangerID, "stranger", "read-write")
 	is.NoErr(err)
 
-	ingest := func(body string) string {
-		t.Helper()
-		resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", body, ownerKey)
-		is.NoErr(err)
-		is.Equal(resp.StatusCode, http.StatusCreated)
-		var out map[string]any
-		is.NoErr(json.NewDecoder(resp.Body).Decode(&out))
-		resp.Body.Close()
-		return out["id"].(string)
-	}
-	fromRegistry := ingest(minimalSBOM)
-	fromUpload := ingest(alpineSBOM)
-
 	nsID := seedNamespace(t, pool, "shared-ns", ownerID, "private")
 	registrySrc := seedSource(t, pool, nsID, "oci_registry", "ghcr")
 	uploadSrc := seedSource(t, pool, nsID, "upload", "ci")
-	placeSBOM(t, pool, fromRegistry, nsID, registrySrc)
-	placeSBOM(t, pool, fromUpload, nsID, uploadSrc)
+
+	ingest := func(sourceID, body string) {
+		t.Helper()
+		resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms?source="+sourceID, body, ownerKey)
+		is.NoErr(err)
+		is.Equal(resp.StatusCode, http.StatusCreated)
+		resp.Body.Close()
+	}
+	ingest(registrySrc, minimalSBOM)
+	ingest(uploadSrc, alpineSBOM)
 	refreshRollups(t, pool)
 
 	is.Equal(len(artifactNames(t, srv.URL, ownerKey)), 2)

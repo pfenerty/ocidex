@@ -205,15 +205,36 @@ func fullContainerBOM(name, digest string) *cdx.BOM {
 
 // ---- tests ----
 
+// sourceRow answers a GetSource scan with an upload source in namespaceID.
+//
+// Ingest resolves the owning namespace from the source before doing any other
+// work (ADR-039), so this is the first pool-level query of every ingest and
+// every ingest test has to answer it.
+func sourceRow(sourceID, namespaceID pgtype.UUID) pgx.Row {
+	return &fakeRow{scanFn: func(dest ...any) error {
+		*(dest[0].(*pgtype.UUID)) = sourceID
+		*(dest[1].(*pgtype.UUID)) = namespaceID
+		*(dest[2].(*string)) = "upload"
+		*(dest[3].(*string)) = "ci"
+		return nil
+	}}
+}
+
 // TestIngest_IdempotencyOnDuplicateDigest verifies that when a BOM's digest is
 // already known, Ingest returns the existing SBOM ID without opening a transaction.
 func TestIngest_IdempotencyOnDuplicateDigest(t *testing.T) {
 	is := is.New(t)
 	existingID := newUUID(t)
+	sourceID := newUUID2(t)
 
+	calls := 0
 	db := &fakeDB{
 		queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
-			return &fakeRow{scanFn: func(dest ...any) error {
+			calls++
+			if calls == 1 { // resolveIngestNamespace
+				return sourceRow(sourceID, newUUID(t))
+			}
+			return &fakeRow{scanFn: func(dest ...any) error { // GetSBOMByDigest
 				*(dest[0].(*pgtype.UUID)) = existingID
 				return nil
 			}}
@@ -224,7 +245,7 @@ func TestIngest_IdempotencyOnDuplicateDigest(t *testing.T) {
 	bom := containerBOM("docker.io/ubuntu", "sha256:abc123def456", "22.04")
 
 	id, err := svc.Ingest(context.Background(), bom, []byte("{}"),
-		IngestParams{Version: "22.04", Architecture: "amd64", BuildDate: "2024-01-01"})
+		IngestParams{Version: "22.04", Architecture: "amd64", BuildDate: "2024-01-01", SourceID: sourceID})
 
 	is.NoErr(err)
 	is.Equal(id, existingID)
@@ -273,8 +294,14 @@ func TestIngest_HappyPath_ContainerSBOM(t *testing.T) {
 		fakeDB: fakeDB{queryRowFn: txQueryRow},
 	}
 
+	sourceID := newUUID(t)
+	poolCalls := 0
 	db := &fakeDB{
 		queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
+			poolCalls++
+			if poolCalls == 1 { // resolveIngestNamespace
+				return sourceRow(sourceID, newUUID2(t))
+			}
 			return noRowsRow{} // GetSBOMByDigest: no existing SBOM
 		},
 		beginFn: func(_ context.Context) (pgx.Tx, error) {
@@ -286,7 +313,7 @@ func TestIngest_HappyPath_ContainerSBOM(t *testing.T) {
 	bom := fullContainerBOM("docker.io/alpine", "sha256:deadbeef1234")
 
 	id, err := svc.Ingest(context.Background(), bom, []byte("{}"),
-		IngestParams{Version: "3.18.4", Architecture: "amd64", BuildDate: "2024-01-01"})
+		IngestParams{Version: "3.18.4", Architecture: "amd64", BuildDate: "2024-01-01", SourceID: sourceID})
 
 	is.NoErr(err)
 	is.Equal(id, sbomID)
@@ -535,8 +562,9 @@ func TestResolveArtifact_DeclaredIdentityWithoutSubjectComponent(t *testing.T) {
 }
 
 // TestValidateUploadRequired covers the ADR-040 upload contract: a non-container
-// subject must arrive with a version and an artifact-file digest, while
-// containers and unresolved subjects are left to validateContainerRequired.
+// subject must arrive with a declared type and name plus a version and an
+// artifact-file digest, while containers and unresolved subjects are left to
+// validateContainerRequired.
 func TestValidateUploadRequired(t *testing.T) {
 	is := is.New(t)
 
@@ -548,23 +576,30 @@ func TestValidateUploadRequired(t *testing.T) {
 			digest:         pgtype.Text{String: digest, Valid: digest != ""},
 		}
 	}
+	declared := IngestParams{SubjectType: "application", SubjectName: "ocidex"}
 
 	tests := []struct {
 		name    string
 		info    artifactInfo
+		params  IngestParams
 		wantErr bool
 	}{
-		{"complete non-container", resolved("application", "v1.2.3", "sha256:abc"), false},
-		{"missing digest", resolved("application", "v1.2.3", ""), true},
-		{"missing version", resolved("application", "", "sha256:abc"), true},
-		{"missing both", resolved("application", "", ""), true},
-		{"container is exempt", resolved("container", "", ""), false},
-		{"no artifact resolved", artifactInfo{}, false},
+		{"complete non-container", resolved("application", "v1.2.3", "sha256:abc"), declared, false},
+		{"missing digest", resolved("application", "v1.2.3", ""), declared, true},
+		{"missing version", resolved("application", "", "sha256:abc"), declared, true},
+		{"missing both", resolved("application", "", ""), declared, true},
+		// The subject resolved only because the BOM described the directory syft
+		// walked; without a declaration the artifact would be named after it.
+		{"undeclared identity", resolved("file", "v1.2.3", "sha256:abc"), IngestParams{}, true},
+		{"declared type but no name", resolved("application", "v1.2.3", "sha256:abc"),
+			IngestParams{SubjectType: "application"}, true},
+		{"container is exempt", resolved("container", "", ""), IngestParams{}, false},
+		{"no artifact resolved", artifactInfo{}, IngestParams{}, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateUploadRequired(tt.info)
+			err := validateUploadRequired(tt.info, tt.params)
 			if !tt.wantErr {
 				is.NoErr(err)
 				return
