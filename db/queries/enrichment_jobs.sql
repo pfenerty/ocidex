@@ -32,10 +32,12 @@ SELECT
     COALESCE(s.subject_version, '')::text     AS subject_version,
     COALESCE(a.type, '')::text                AS artifact_type,
     COALESCE(a.name, '')::text                AS artifact_name,
-    s.source_id                               AS source_id
+    s.source_id                               AS source_id,
+    COALESCE(src.kind, '')::text              AS source_kind
 FROM claimed c
 JOIN sbom s ON s.id = c.sbom_id
-JOIN artifact a ON a.id = s.artifact_id;
+JOIN artifact a ON a.id = s.artifact_id
+LEFT JOIN source src ON src.id = s.source_id;
 
 -- name: ClaimNextEnrichmentJob :one
 WITH next_id AS (
@@ -68,10 +70,12 @@ SELECT
     COALESCE(s.subject_version, '')::text     AS subject_version,
     COALESCE(a.type, '')::text                AS artifact_type,
     COALESCE(a.name, '')::text                AS artifact_name,
-    s.source_id                               AS source_id
+    s.source_id                               AS source_id,
+    COALESCE(src.kind, '')::text              AS source_kind
 FROM claimed c
 JOIN sbom s ON s.id = c.sbom_id
-JOIN artifact a ON a.id = s.artifact_id;
+JOIN artifact a ON a.id = s.artifact_id
+LEFT JOIN source src ON src.id = s.source_id;
 
 -- name: FinishEnrichmentJobByID :exec
 UPDATE enrichment_jobs

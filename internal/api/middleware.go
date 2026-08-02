@@ -182,10 +182,10 @@ func RequireMember(api huma.API) func(huma.Context, func(huma.Context)) {
 }
 
 // RequireSBOMOwner returns a huma middleware that requires auth + ownership of
-// the SBOM's linked registry OR admin role. If the SBOM has no registry
-// association, any authenticated member|admin is allowed. When sbomSvc or
-// regSvc is nil the ownership check is skipped but auth is still enforced.
-func RequireSBOMOwner(api huma.API, sbomSvc service.SBOMService, regSvc service.RegistryService) func(huma.Context, func(huma.Context)) {
+// the SBOM's namespace OR admin role. If the SBOM has no namespace association,
+// any authenticated member|admin is allowed. When sbomSvc or nsSvc is nil the
+// ownership check is skipped but auth is still enforced.
+func RequireSBOMOwner(api huma.API, sbomSvc service.SBOMService, nsSvc service.NamespaceService) func(huma.Context, func(huma.Context)) {
 	return func(ctx huma.Context, next func(huma.Context)) {
 		user, ok := UserFromContext(ctx.Context())
 		if !ok {
@@ -196,7 +196,7 @@ func RequireSBOMOwner(api huma.API, sbomSvc service.SBOMService, regSvc service.
 			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
 			return
 		}
-		if sbomSvc == nil || regSvc == nil {
+		if sbomSvc == nil || nsSvc == nil {
 			next(ctx)
 			return
 		}
@@ -214,10 +214,8 @@ func RequireSBOMOwner(api huma.API, sbomSvc service.SBOMService, regSvc service.
 			next(ctx)
 			return
 		}
-		// registry.id is the namespace id for OCI-created registries (ADR-039),
-		// so this still resolves the owner until the namespace service lands.
-		reg, err := regSvc.Get(ctx.Context(), uuidToStr(namespaceID))
-		if err != nil || !canManageRegistry(user, reg) {
+		ns, err := nsSvc.Get(ctx.Context(), uuidToStr(namespaceID))
+		if err != nil || !canManageNamespace(user, ns) {
 			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
 			return
 		}
@@ -226,10 +224,10 @@ func RequireSBOMOwner(api huma.API, sbomSvc service.SBOMService, regSvc service.
 }
 
 // RequireArtifactOwner returns a huma middleware that requires auth + ownership
-// of any registry linked to the artifact OR admin role. If the artifact has no
-// registry association, any authenticated member|admin is allowed. When sbomSvc
-// or regSvc is nil the ownership check is skipped but auth is still enforced.
-func RequireArtifactOwner(api huma.API, sbomSvc service.SBOMService, regSvc service.RegistryService) func(huma.Context, func(huma.Context)) {
+// of any namespace linked to the artifact OR admin role. If the artifact has no
+// namespace association, any authenticated member|admin is allowed. When sbomSvc
+// or nsSvc is nil the ownership check is skipped but auth is still enforced.
+func RequireArtifactOwner(api huma.API, sbomSvc service.SBOMService, nsSvc service.NamespaceService) func(huma.Context, func(huma.Context)) {
 	return func(ctx huma.Context, next func(huma.Context)) {
 		user, ok := UserFromContext(ctx.Context())
 		if !ok {
@@ -240,7 +238,7 @@ func RequireArtifactOwner(api huma.API, sbomSvc service.SBOMService, regSvc serv
 			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
 			return
 		}
-		if sbomSvc == nil || regSvc == nil {
+		if sbomSvc == nil || nsSvc == nil {
 			next(ctx)
 			return
 		}

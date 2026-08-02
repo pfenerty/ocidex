@@ -96,6 +96,8 @@ func run() error {
 	reg := extension.NewManager(bus, logger)
 
 	registrySvc := service.NewRegistryService(pool)
+	namespaceSvc := service.NewNamespaceService(pool)
+	sourceSvc := service.NewSourceService(pool)
 	insecureResolver := service.BuildInsecureHostLookup(registrySvc)
 
 	setupOptionalExts(cfg, reg, natsClient, logger)
@@ -115,7 +117,7 @@ func run() error {
 		return fmt.Errorf("initializing extensions: %w", err)
 	}
 
-	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, jobSvc, enrichJobSvc, pool, scanSubmitter, cfg)
+	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, pool, scanSubmitter, cfg)
 	router := api.NewRouter(handler, cfg.CORSAllowedOrigins, cfg.FrontendURL, cfg.APIBaseURL)
 
 	extCtx, extCancel := context.WithCancel(context.Background())

@@ -18,6 +18,21 @@ type Client interface {
 	TestRegistryConnection(ctx context.Context, body TestRegistryConnectionInputBody) (TestRegistryConnectionOutputBody, error)
 	RegenerateWebhookSecret(ctx context.Context, id string) (RegenerateWebhookSecretOutputBody, error)
 
+	// Namespace + source
+
+	ListNamespaces(ctx context.Context) ([]NamespaceResponse, error)
+	GetNamespace(ctx context.Context, id string) (NamespaceResponse, error)
+	GetNamespaceByName(ctx context.Context, name string) (NamespaceResponse, error)
+	CreateNamespace(ctx context.Context, body CreateNamespaceInputBody) (NamespaceResponse, error)
+	UpdateNamespace(ctx context.Context, id string, body UpdateNamespaceInputBody) (NamespaceResponse, error)
+	DeleteNamespace(ctx context.Context, id string) error
+
+	ListSources(ctx context.Context, namespaceID string) ([]SourceResponse, error)
+	GetSource(ctx context.Context, id string) (SourceResponse, error)
+	CreateSource(ctx context.Context, body CreateSourceInputBody) (SourceResponse, error)
+	UpdateSource(ctx context.Context, id string, body UpdateSourceInputBody) (SourceResponse, error)
+	DeleteSource(ctx context.Context, id string) error
+
 	CreateAPIKey(ctx context.Context, body CreateAPIKeyInputBody) (CreateAPIKeyOutputBody, error)
 	ListAPIKeys(ctx context.Context) ([]KeyMetaResponse, error)
 	DeleteAPIKey(ctx context.Context, id string) error

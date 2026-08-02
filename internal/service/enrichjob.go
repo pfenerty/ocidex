@@ -29,6 +29,7 @@ type EnrichJobClaim struct {
 	ArtifactType   string
 	ArtifactName   string
 	RegistryID     pgtype.UUID
+	SourceKind     string
 }
 
 func (c EnrichJobClaim) JobID() string      { return c.ID }
@@ -128,7 +129,7 @@ func (s *enrichJobService) Enqueue(ctx context.Context, sbomID pgtype.UUID, arch
 }
 
 func (s *enrichJobService) ClaimByID(ctx context.Context, id, workerID string) (EnrichJobClaim, bool, error) {
-	uid, err := parseRegistryUUID(id)
+	uid, err := parseUUID(id)
 	if err != nil {
 		return EnrichJobClaim{}, false, nil
 	}
@@ -160,7 +161,7 @@ func (s *enrichJobService) ClaimNext(ctx context.Context, workerID string) (Enri
 }
 
 func (s *enrichJobService) FinishByID(ctx context.Context, id string) error {
-	uid, err := parseRegistryUUID(id)
+	uid, err := parseUUID(id)
 	if err != nil {
 		return fmt.Errorf("invalid enrichment job id: %w", err)
 	}
@@ -168,7 +169,7 @@ func (s *enrichJobService) FinishByID(ctx context.Context, id string) error {
 }
 
 func (s *enrichJobService) FailOrRequeue(ctx context.Context, id, lastError string, maxAttempts int32) (string, error) {
-	uid, err := parseRegistryUUID(id)
+	uid, err := parseUUID(id)
 	if err != nil {
 		return "", fmt.Errorf("invalid enrichment job id: %w", err)
 	}
@@ -234,7 +235,7 @@ func (s *enrichJobService) Summary(ctx context.Context) ([]EnrichJobStateCount, 
 }
 
 func (s *enrichJobService) Retry(ctx context.Context, id string) error {
-	uid, err := parseRegistryUUID(id)
+	uid, err := parseUUID(id)
 	if err != nil {
 		return fmt.Errorf("invalid job id: %w", err)
 	}
@@ -297,6 +298,7 @@ func enrichClaimFromRow(r repository.ClaimEnrichmentJobByIDRow) EnrichJobClaim {
 		ArtifactType:   r.ArtifactType,
 		ArtifactName:   r.ArtifactName,
 		RegistryID:     r.SourceID,
+		SourceKind:     r.SourceKind,
 	}
 }
 
@@ -314,5 +316,6 @@ func enrichClaimFromNextRow(r repository.ClaimNextEnrichmentJobRow) EnrichJobCla
 		ArtifactType:   r.ArtifactType,
 		ArtifactName:   r.ArtifactName,
 		RegistryID:     r.SourceID,
+		SourceKind:     r.SourceKind,
 	}
 }

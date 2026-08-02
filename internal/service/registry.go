@@ -400,7 +400,7 @@ func (s *registryService) GetByName(ctx context.Context, name string) (Registry,
 }
 
 func (s *registryService) Get(ctx context.Context, id string) (Registry, error) {
-	uid, err := parseRegistryUUID(id)
+	uid, err := parseUUID(id)
 	if err != nil {
 		return Registry{}, ErrNotFound
 	}
@@ -454,7 +454,7 @@ func (s *registryService) ListPaged(ctx context.Context, filter VisibilityFilter
 }
 
 func (s *registryService) Update(ctx context.Context, params UpdateRegistryParams) (Registry, error) {
-	uid, err := parseRegistryUUID(params.ID)
+	uid, err := parseUUID(params.ID)
 	if err != nil {
 		return Registry{}, ErrNotFound
 	}
@@ -553,7 +553,7 @@ func (s *registryService) ListPollable(ctx context.Context) ([]Registry, error) 
 }
 
 func (s *registryService) MarkPolled(ctx context.Context, id string) (Registry, error) {
-	uid, err := parseRegistryUUID(id)
+	uid, err := parseUUID(id)
 	if err != nil {
 		return Registry{}, ErrNotFound
 	}
@@ -564,7 +564,7 @@ func (s *registryService) MarkPolled(ctx context.Context, id string) (Registry, 
 }
 
 func (s *registryService) SetEnabled(ctx context.Context, id string, enabled bool) (Registry, error) {
-	uid, err := parseRegistryUUID(id)
+	uid, err := parseUUID(id)
 	if err != nil {
 		return Registry{}, ErrNotFound
 	}
@@ -579,7 +579,7 @@ func (s *registryService) SetEnabled(ctx context.Context, id string, enabled boo
 }
 
 func (s *registryService) Delete(ctx context.Context, id string) error {
-	uid, err := parseRegistryUUID(id)
+	uid, err := parseUUID(id)
 	if err != nil {
 		return ErrNotFound
 	}
@@ -700,7 +700,7 @@ func nonEmpty(ss []string) []string {
 	return out
 }
 
-func parseRegistryUUID(s string) (pgtype.UUID, error) {
+func parseUUID(s string) (pgtype.UUID, error) {
 	var id pgtype.UUID
 	if err := id.Scan(s); err != nil || !id.Valid {
 		return pgtype.UUID{}, fmt.Errorf("invalid uuid: %s", s)

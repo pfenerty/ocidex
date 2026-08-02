@@ -2,9 +2,15 @@
 SELECT id FROM sbom WHERE digest = $1;
 
 -- name: GetSBOM :one
-SELECT id, serial_number, spec_version, version, artifact_id, subject_version, digest, created_at, namespace_id, source_id, index_digest
-FROM sbom
-WHERE id = $1;
+-- source_kind comes from the owning source so enrichers can tell an OCI-backed
+-- SBOM from an uploaded one without a second round-trip (ADR-039). It is '' for
+-- an SBOM with no source.
+SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subject_version,
+       s.digest, s.created_at, s.namespace_id, s.source_id, s.index_digest,
+       COALESCE(src.kind, '')::text AS source_kind
+FROM sbom s
+LEFT JOIN source src ON src.id = s.source_id
+WHERE s.id = $1;
 
 -- name: GetSBOMRef :one
 -- Lightweight SBOM lookup for building a SBOMRef: joins enrichments to get

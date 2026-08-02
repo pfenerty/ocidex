@@ -108,8 +108,15 @@ func NewEnricher(opts ...Option) *Enricher {
 // Name returns the enricher identifier.
 func (e *Enricher) Name() string { return enricherName }
 
-// CanEnrich returns true for container-type artifacts with a digest.
+// CanEnrich returns true for container-type artifacts with a digest that
+// arrived through a registry-backed source. An upload source has no registry
+// row and so no manifest to fetch signatures against — that is a "not
+// applicable", not a failure, so it is filtered here rather than erroring in
+// Enrich (ADR-039).
 func (e *Enricher) CanEnrich(ref subject.Ref) bool {
+	if ref.SourceKind == subject.KindUpload {
+		return false
+	}
 	return ref.ArtifactType == "container" && ref.Digest != ""
 }
 

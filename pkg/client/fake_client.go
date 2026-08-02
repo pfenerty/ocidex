@@ -16,6 +16,20 @@ type FakeClient struct {
 	TestRegistryConnectionFn  func(ctx context.Context, body TestRegistryConnectionInputBody) (TestRegistryConnectionOutputBody, error)
 	RegenerateWebhookSecretFn func(ctx context.Context, id string) (RegenerateWebhookSecretOutputBody, error)
 
+	// Namespace + source
+	ListNamespacesFn     func(ctx context.Context) ([]NamespaceResponse, error)
+	GetNamespaceFn       func(ctx context.Context, id string) (NamespaceResponse, error)
+	GetNamespaceByNameFn func(ctx context.Context, name string) (NamespaceResponse, error)
+	CreateNamespaceFn    func(ctx context.Context, body CreateNamespaceInputBody) (NamespaceResponse, error)
+	UpdateNamespaceFn    func(ctx context.Context, id string, body UpdateNamespaceInputBody) (NamespaceResponse, error)
+	DeleteNamespaceFn    func(ctx context.Context, id string) error
+
+	ListSourcesFn  func(ctx context.Context, namespaceID string) ([]SourceResponse, error)
+	GetSourceFn    func(ctx context.Context, id string) (SourceResponse, error)
+	CreateSourceFn func(ctx context.Context, body CreateSourceInputBody) (SourceResponse, error)
+	UpdateSourceFn func(ctx context.Context, id string, body UpdateSourceInputBody) (SourceResponse, error)
+	DeleteSourceFn func(ctx context.Context, id string) error
+
 	CreateAPIKeyFn   func(ctx context.Context, body CreateAPIKeyInputBody) (CreateAPIKeyOutputBody, error)
 	ListAPIKeysFn    func(ctx context.Context) ([]KeyMetaResponse, error)
 	DeleteAPIKeyFn   func(ctx context.Context, id string) error
@@ -292,6 +306,83 @@ func (f *FakeClient) GetDashboardStats(ctx context.Context) (DashboardStatsOutpu
 		return f.GetDashboardStatsFn(ctx)
 	}
 	return DashboardStatsOutputBody{}, nil
+}
+
+func (f *FakeClient) ListNamespaces(ctx context.Context) ([]NamespaceResponse, error) {
+	if f.ListNamespacesFn != nil {
+		return f.ListNamespacesFn(ctx)
+	}
+	return nil, nil
+}
+
+func (f *FakeClient) GetNamespace(ctx context.Context, id string) (NamespaceResponse, error) {
+	if f.GetNamespaceFn != nil {
+		return f.GetNamespaceFn(ctx, id)
+	}
+	return NamespaceResponse{}, nil
+}
+
+func (f *FakeClient) GetNamespaceByName(ctx context.Context, name string) (NamespaceResponse, error) {
+	if f.GetNamespaceByNameFn != nil {
+		return f.GetNamespaceByNameFn(ctx, name)
+	}
+	return NamespaceResponse{}, nil
+}
+
+func (f *FakeClient) CreateNamespace(ctx context.Context, body CreateNamespaceInputBody) (NamespaceResponse, error) {
+	if f.CreateNamespaceFn != nil {
+		return f.CreateNamespaceFn(ctx, body)
+	}
+	return NamespaceResponse{}, nil
+}
+
+func (f *FakeClient) UpdateNamespace(ctx context.Context, id string, body UpdateNamespaceInputBody) (NamespaceResponse, error) {
+	if f.UpdateNamespaceFn != nil {
+		return f.UpdateNamespaceFn(ctx, id, body)
+	}
+	return NamespaceResponse{}, nil
+}
+
+func (f *FakeClient) DeleteNamespace(ctx context.Context, id string) error {
+	if f.DeleteNamespaceFn != nil {
+		return f.DeleteNamespaceFn(ctx, id)
+	}
+	return nil
+}
+
+func (f *FakeClient) ListSources(ctx context.Context, namespaceID string) ([]SourceResponse, error) {
+	if f.ListSourcesFn != nil {
+		return f.ListSourcesFn(ctx, namespaceID)
+	}
+	return nil, nil
+}
+
+func (f *FakeClient) GetSource(ctx context.Context, id string) (SourceResponse, error) {
+	if f.GetSourceFn != nil {
+		return f.GetSourceFn(ctx, id)
+	}
+	return SourceResponse{}, nil
+}
+
+func (f *FakeClient) CreateSource(ctx context.Context, body CreateSourceInputBody) (SourceResponse, error) {
+	if f.CreateSourceFn != nil {
+		return f.CreateSourceFn(ctx, body)
+	}
+	return SourceResponse{}, nil
+}
+
+func (f *FakeClient) UpdateSource(ctx context.Context, id string, body UpdateSourceInputBody) (SourceResponse, error) {
+	if f.UpdateSourceFn != nil {
+		return f.UpdateSourceFn(ctx, id, body)
+	}
+	return SourceResponse{}, nil
+}
+
+func (f *FakeClient) DeleteSource(ctx context.Context, id string) error {
+	if f.DeleteSourceFn != nil {
+		return f.DeleteSourceFn(ctx, id)
+	}
+	return nil
 }
 
 // Compile-time assertion that *FakeClient satisfies Client.

@@ -47,7 +47,7 @@ func setupServerWithStats(t *testing.T, pool *pgxpool.Pool) (*httptest.Server, s
 	sbomSvc := service.NewSBOMService(pool, nil, nil)
 	searchSvc := service.NewSearchService(pool)
 	registrySvc := service.NewRegistryService(pool)
-	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, nil, nil, pool, nil, cfg)
+	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, nil, nil, nil, nil, pool, nil, cfg)
 	router := api.NewRouter(handler, "*", "", "")
 	return httptest.NewServer(router), authSvc, searchSvc
 }

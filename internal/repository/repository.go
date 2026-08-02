@@ -75,6 +75,31 @@ type ArtifactRepository interface {
 	DeleteArtifact(ctx context.Context, id pgtype.UUID) (int64, error)
 }
 
+// NamespaceRepository defines data access methods for namespace management.
+// Namespace is the authorization anchor: ownership and visibility live here
+// and nowhere else (ADR-039).
+type NamespaceRepository interface {
+	CreateNamespace(ctx context.Context, arg CreateNamespaceParams) (Namespace, error)
+	GetNamespace(ctx context.Context, id pgtype.UUID) (Namespace, error)
+	GetNamespaceByName(ctx context.Context, name string) (Namespace, error)
+	ListNamespaces(ctx context.Context, arg ListNamespacesParams) ([]Namespace, error)
+	UpdateNamespace(ctx context.Context, arg UpdateNamespaceParams) (Namespace, error)
+	DeleteNamespace(ctx context.Context, id pgtype.UUID) (int64, error)
+}
+
+// SourceRepository defines data access methods for source management. A source
+// is the ingest channel an SBOM arrived through (ADR-039); the oci_registry
+// subtype has a matching registry row sharing its id.
+type SourceRepository interface {
+	CreateSource(ctx context.Context, arg CreateSourceParams) (Source, error)
+	GetSource(ctx context.Context, id pgtype.UUID) (Source, error)
+	GetSourceByName(ctx context.Context, arg GetSourceByNameParams) (Source, error)
+	ListSourcesByNamespace(ctx context.Context, namespaceID pgtype.UUID) ([]Source, error)
+	ListSources(ctx context.Context, arg ListSourcesParams) ([]ListSourcesRow, error)
+	UpdateSource(ctx context.Context, arg UpdateSourceParams) (Source, error)
+	DeleteSource(ctx context.Context, id pgtype.UUID) (int64, error)
+}
+
 // RegistryRepository defines data access methods for registry management.
 type RegistryRepository interface {
 	CreateRegistry(ctx context.Context, arg CreateRegistryParams) (Registry, error)
