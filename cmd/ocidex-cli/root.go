@@ -6,23 +6,13 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/pfenerty/ocidex/cmd/ocidex-cli/output"
 	"github.com/pfenerty/ocidex/pkg/client"
 )
 
 // defaultServer is the last resort when no flag, environment variable, or
 // config file names a server.
 const defaultServer = "http://localhost:8080"
-
-// outputFormat is the rendering mode selected by --output. The renderers
-// themselves live in the output package (ocidex-e3g.3); this is the resolved
-// choice they are handed.
-type outputFormat string
-
-const (
-	outputTable outputFormat = "table"
-	outputJSON  outputFormat = "json"
-	outputYAML  outputFormat = "yaml"
-)
 
 // usageError marks a failure the user can fix by re-reading the usage text, as
 // opposed to one the server or the filesystem caused. main maps it to exit
@@ -42,7 +32,7 @@ func usagef(format string, a ...any) error {
 type rootConfig struct {
 	server string
 	apiKey string
-	output outputFormat
+	format output.Format
 
 	// api is the interface, never the concrete implementation, so command
 	// tests can substitute client.FakeClient.
@@ -115,12 +105,11 @@ func (c *rootConfig) resolve(cmd *cobra.Command) error {
 	// process table and echoed by any CI runner that logs its commands.
 	c.apiKey = firstNonEmpty(os.Getenv("OCIDEX_API_KEY"), file.APIKey)
 
-	switch out := firstNonEmpty(flagValue(cmd, "output", c.outputFlag), file.Output, string(outputTable)); outputFormat(out) {
-	case outputTable, outputJSON, outputYAML:
-		c.output = outputFormat(out)
-	default:
-		return usagef("--output must be one of table, json, yaml (got %q)", out)
+	format := output.Format(firstNonEmpty(flagValue(cmd, "output", c.outputFlag), file.Output, string(output.Table)))
+	if !output.Valid(format) {
+		return usagef("--output must be one of table, json, yaml (got %q)", format)
 	}
+	c.format = format
 
 	c.api = client.New(client.Config{BaseURL: c.server, APIKey: c.apiKey})
 	return nil

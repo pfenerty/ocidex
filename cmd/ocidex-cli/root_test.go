@@ -12,6 +12,7 @@ import (
 	"github.com/matryer/is"
 	"github.com/spf13/cobra"
 
+	"github.com/pfenerty/ocidex/cmd/ocidex-cli/output"
 	"github.com/pfenerty/ocidex/pkg/client"
 )
 
@@ -120,12 +121,12 @@ func TestResolveOutput(t *testing.T) {
 		name string
 		file string
 		args []string
-		want outputFormat
+		want output.Format
 		bad  bool
 	}{
-		{name: "default", want: outputTable},
-		{name: "config file", file: "output: json\n", want: outputJSON},
-		{name: "flag beats file", file: "output: json\n", args: []string{"-o", "yaml"}, want: outputYAML},
+		{name: "default", want: output.Table},
+		{name: "config file", file: "output: json\n", want: output.JSON},
+		{name: "flag beats file", file: "output: json\n", args: []string{"-o", "yaml"}, want: output.YAML},
 		{name: "unknown format", args: []string{"--output", "xml"}, bad: true},
 	}
 
@@ -139,7 +140,7 @@ func TestResolveOutput(t *testing.T) {
 				return
 			}
 			is.NoErr(err)
-			is.Equal(cfg.output, tt.want)
+			is.Equal(cfg.format, tt.want)
 		})
 	}
 }
