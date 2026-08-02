@@ -39,6 +39,16 @@ type IngestParams struct {
 	NamespaceID  pgtype.UUID // tenancy + visibility anchor (ADR-039)
 	SourceID     pgtype.UUID // ingest channel the SBOM arrived through
 	IndexDigest  string      // multi-arch index this child was scanned from; empty for single-arch
+
+	// Caller-declared subject identity (ADR-040). A `syft dir:` BOM describes
+	// the scratch directory it walked, so a non-container uploader must state
+	// what the SBOM is actually about. Applied field by field over
+	// bom.Metadata.Component, so a caller can correct only what is wrong.
+	SubjectType  string // CycloneDX component type, e.g. "application"
+	SubjectName  string // e.g. "ocidex"
+	SubjectGroup string // e.g. "github.com/pfenerty"
+	SubjectPurl  string // e.g. "pkg:golang/github.com/pfenerty/ocidex@v1.2.3"
+	Digest       string // sha256 of the artifact *file*, not of the SBOM
 }
 
 // SBOMService defines the business logic for SBOM ingestion and management.
@@ -80,47 +90,103 @@ type artifactInfo struct {
 	artifactID     pgtype.UUID
 	subjectVersion pgtype.Text
 	digest         pgtype.Text
+	subjectType    string
+}
+
+// subjectIdentity is the effective identity of an SBOM's subject: caller-declared
+// values layered over whatever bom.Metadata.Component carries.
+type subjectIdentity struct {
+	typ   string
+	name  string
+	group string
+	purl  string
+	cpe   string
+}
+
+// resolveSubjectIdentity applies IngestParams overrides over the BOM's subject
+// component, field by field. Params win, per the IngestParams contract, so an
+// uploader can correct just the name and purl of a `syft dir:` BOM without
+// having to restate everything else (ADR-040).
+func resolveSubjectIdentity(bom *cdx.BOM, params IngestParams) subjectIdentity {
+	var s subjectIdentity
+	if bom.Metadata != nil && bom.Metadata.Component != nil {
+		mc := bom.Metadata.Component
+		s = subjectIdentity{
+			typ:   string(mc.Type),
+			name:  mc.Name,
+			group: mc.Group,
+			purl:  mc.PackageURL,
+			cpe:   mc.CPE,
+		}
+	}
+	if params.SubjectType != "" {
+		s.typ = params.SubjectType
+	}
+	if params.SubjectName != "" {
+		s.name = params.SubjectName
+	}
+	if params.SubjectGroup != "" {
+		s.group = params.SubjectGroup
+	}
+	if params.SubjectPurl != "" {
+		s.purl = params.SubjectPurl
+	}
+	return s
 }
 
 // resolveArtifact extracts artifact identity from the BOM metadata and upserts
 // the artifact row. It returns the artifact ID, subject version, and image digest.
 func resolveArtifact(ctx context.Context, q *repository.Queries, bom *cdx.BOM, params IngestParams) (artifactInfo, error) {
-	if bom.Metadata == nil || bom.Metadata.Component == nil {
+	// A BOM with no subject component and no declared identity yields no
+	// artifact, as before.
+	hasSubjectComponent := bom.Metadata != nil && bom.Metadata.Component != nil
+	if !hasSubjectComponent && params.SubjectName == "" {
 		return artifactInfo{}, nil
 	}
 
-	mc := bom.Metadata.Component
+	subj := resolveSubjectIdentity(bom, params)
+	isContainer := subj.typ == string(cdx.ComponentTypeContainer)
+
+	// A declared digest wins: for an upload it is the sha256 of the artifact
+	// file, which the BOM has no way to carry (ADR-040).
 	var digest pgtype.Text
+	if params.Digest != "" {
+		digest = pgtype.Text{String: params.Digest, Valid: true}
+	}
 
 	// Normalize container image names: strip digest suffix so that
 	// "docker.io/ubuntu@sha256:abc..." and "docker.io/ubuntu" resolve
 	// to the same artifact. Capture the digest for indexing.
-	name := mc.Name
-	if mc.Type == cdx.ComponentTypeContainer {
+	name := subj.name
+	if isContainer {
 		if idx := strings.Index(name, "@sha256:"); idx != -1 {
-			digest = pgtype.Text{String: name[idx+1:], Valid: true}
+			if !digest.Valid {
+				digest = pgtype.Text{String: name[idx+1:], Valid: true}
+			}
 			name = name[:idx]
 		}
 	}
 
 	// Also check metadata.component.version for digest (e.g. "sha256:abc...").
-	if !digest.Valid && mc.Version != "" && strings.HasPrefix(mc.Version, "sha256:") {
-		digest = pgtype.Text{String: mc.Version, Valid: true}
+	if !digest.Valid && hasSubjectComponent {
+		if v := bom.Metadata.Component.Version; v != "" && strings.HasPrefix(v, "sha256:") {
+			digest = pgtype.Text{String: v, Valid: true}
+		}
 	}
 
 	// Container SBOMs must include a digest for reproducibility and enrichment.
-	if mc.Type == cdx.ComponentTypeContainer && !digest.Valid {
+	if isContainer && !digest.Valid {
 		return artifactInfo{}, &ValidationError{
 			Message: fmt.Sprintf("container SBOM for %q missing digest: include digest in component name (@sha256:...) or version", name),
 		}
 	}
 
 	artifactID, err := q.UpsertArtifact(ctx, repository.UpsertArtifactParams{
-		Type:      string(mc.Type),
+		Type:      subj.typ,
 		Name:      name,
-		GroupName: textOrNull(mc.Group),
-		Purl:      textOrNull(mc.PackageURL),
-		Cpe:       textOrNull(mc.CPE),
+		GroupName: textOrNull(subj.group),
+		Purl:      textOrNull(subj.purl),
+		Cpe:       textOrNull(subj.cpe),
 	})
 	if err != nil {
 		return artifactInfo{}, fmt.Errorf("upserting artifact: %w", err)
@@ -130,6 +196,7 @@ func resolveArtifact(ctx context.Context, q *repository.Queries, bom *cdx.BOM, p
 		artifactID:     artifactID,
 		subjectVersion: resolveSubjectVersion(bom, params),
 		digest:         digest,
+		subjectType:    subj.typ,
 	}, nil
 }
 
@@ -142,7 +209,10 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 	}
 
 	// Idempotency check: if we already have an SBOM for this digest, skip ingestion.
-	if digest := extractDigestFromBOM(bom); digest != "" {
+	// A declared digest wins — an upload's digest lives nowhere in the BOM, and
+	// missing it here would defer duplicate detection to the UNIQUE index, i.e.
+	// until after a full transaction and component decomposition (ADR-040).
+	if digest := resolveIngestDigest(bom, params); digest != "" {
 		existing, err := repository.New(s.pool).GetSBOMByDigest(ctx, pgtype.Text{String: digest, Valid: true})
 		if err == nil {
 			slog.InfoContext(ctx, "skipping duplicate sbom ingestion", "digest", digest, "existing_id", existing)
@@ -170,6 +240,11 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 
 	// Mandatory validation for container SBOMs.
 	if err := validateContainerRequired(bom, info, arch, bd); err != nil {
+		return pgtype.UUID{}, err
+	}
+
+	// Mandatory validation for non-container (uploaded) SBOMs.
+	if err := validateUploadRequired(info); err != nil {
 		return pgtype.UUID{}, err
 	}
 
@@ -244,6 +319,36 @@ func validateContainerRequired(bom *cdx.BOM, info artifactInfo, arch, bd string)
 	if len(missing) > 0 {
 		return &ValidationError{
 			Message: fmt.Sprintf("container SBOM missing required metadata: %s", strings.Join(missing, ", ")),
+		}
+	}
+	return nil
+}
+
+// validateUploadRequired returns a ValidationError if a non-container SBOM is
+// missing the subject identity its caller must declare (ADR-040).
+//
+// Subject type is the gate rather than the source kind: the registry scanner
+// produces container subjects exclusively, so a non-container subject can only
+// have arrived through the upload path. Type and name are not checked here —
+// without them no artifact is resolved at all, and info.artifactID is invalid.
+func validateUploadRequired(info artifactInfo) error {
+	if !info.artifactID.Valid || info.subjectType == "" ||
+		info.subjectType == string(cdx.ComponentTypeContainer) {
+		return nil
+	}
+	var missing []string
+	if !info.subjectVersion.Valid || info.subjectVersion.String == "" {
+		missing = append(missing, "subject_version")
+	}
+	if !info.digest.Valid || info.digest.String == "" {
+		missing = append(missing, "digest")
+	}
+	if len(missing) > 0 {
+		return &ValidationError{
+			Message: fmt.Sprintf(
+				"non-container SBOM missing required subject identity: %s; declare it at upload (digest is the sha256 of the artifact file)",
+				strings.Join(missing, ", "),
+			),
 		}
 	}
 	return nil
@@ -748,6 +853,12 @@ func isMoreSpecific(candidate, base string) bool {
 // params.Version takes precedence; then metadata.component.version when it is not
 // a digest; then well-known OCI label properties emitted by Syft and Trivy.
 func resolveSubjectVersion(bom *cdx.BOM, params IngestParams) pgtype.Text {
+	// Identity may be declared entirely by the caller, with no subject
+	// component in the BOM to fall back to (ADR-040).
+	if bom.Metadata == nil || bom.Metadata.Component == nil {
+		return pgtype.Text{String: params.Version, Valid: params.Version != ""}
+	}
+
 	if params.Version != "" {
 		mc := bom.Metadata.Component
 		if mc != nil && mc.Version != "" && !strings.HasPrefix(mc.Version, "sha256:") {
@@ -888,6 +999,15 @@ func intOrNull(v int) pgtype.Int4 {
 
 // extractDigestFromBOM returns the image digest from a BOM's metadata component,
 // mirroring the extraction logic in resolveArtifact.
+// resolveIngestDigest returns the digest that identifies this ingest's subject,
+// preferring the caller's declaration over the BOM (ADR-040).
+func resolveIngestDigest(bom *cdx.BOM, params IngestParams) string {
+	if params.Digest != "" {
+		return params.Digest
+	}
+	return extractDigestFromBOM(bom)
+}
+
 func extractDigestFromBOM(bom *cdx.BOM) string {
 	if bom.Metadata == nil || bom.Metadata.Component == nil {
 		return ""

@@ -399,6 +399,199 @@ func TestResolveArtifact_NonContainer(t *testing.T) {
 	is.True(!info.digest.Valid) // no digest for non-container
 }
 
+// upsertArtifactRecorder returns a fake DB that captures the arguments of the
+// single UpsertArtifact query resolveArtifact issues. Arg order matches
+// UpsertArtifactParams: type, name, group_name, purl, cpe.
+func upsertArtifactRecorder(artifactID pgtype.UUID, got *[]any) *fakeDB {
+	return &fakeDB{
+		queryRowFn: func(_ context.Context, _ string, args ...any) pgx.Row {
+			*got = args
+			return &fakeRow{scanFn: func(dest ...any) error {
+				*(dest[0].(*pgtype.UUID)) = artifactID
+				return nil
+			}}
+		},
+	}
+}
+
+// TestResolveArtifact_ParamsOverrideSubject covers the ADR-040 case: a `syft
+// dir:` BOM whose subject component describes the scratch directory it walked,
+// carrying no purl and no usable identity. The caller declares identity and
+// every declared field wins.
+func TestResolveArtifact_ParamsOverrideSubject(t *testing.T) {
+	is := is.New(t)
+	artifactID := newUUID(t)
+
+	var args []any
+	q := repository.New(upsertArtifactRecorder(artifactID, &args))
+
+	bom := &cdx.BOM{Metadata: &cdx.Metadata{Component: &cdx.Component{
+		Type: cdx.ComponentTypeFile,
+		Name: ".sbom-bins",
+	}}}
+
+	info, err := resolveArtifact(context.Background(), q, bom, IngestParams{
+		Version:      "v1.2.3",
+		SubjectType:  "application",
+		SubjectName:  "ocidex",
+		SubjectGroup: "github.com/pfenerty",
+		SubjectPurl:  "pkg:golang/github.com/pfenerty/ocidex@v1.2.3",
+		Digest:       "sha256:cafebabe",
+	})
+	is.NoErr(err)
+	is.Equal(info.artifactID, artifactID)
+	is.Equal(info.subjectType, "application")
+	is.Equal(info.digest, pgtype.Text{String: "sha256:cafebabe", Valid: true})
+	is.Equal(info.subjectVersion, pgtype.Text{String: "v1.2.3", Valid: true})
+
+	is.Equal(args[0], "application")
+	is.Equal(args[1], "ocidex")
+	is.Equal(args[2], pgtype.Text{String: "github.com/pfenerty", Valid: true})
+	is.Equal(args[3], pgtype.Text{String: "pkg:golang/github.com/pfenerty/ocidex@v1.2.3", Valid: true})
+}
+
+// TestResolveArtifact_PartialOverrideKeepsBOMFields verifies overrides apply
+// field by field: an unset param leaves the BOM's value in place.
+func TestResolveArtifact_PartialOverrideKeepsBOMFields(t *testing.T) {
+	is := is.New(t)
+
+	var args []any
+	q := repository.New(upsertArtifactRecorder(newUUID(t), &args))
+
+	bom := &cdx.BOM{Metadata: &cdx.Metadata{Component: &cdx.Component{
+		Type:       cdx.ComponentTypeLibrary,
+		Name:       "some-lib",
+		Group:      "acme",
+		PackageURL: "pkg:generic/some-lib@1.2.3",
+		Version:    "1.2.3",
+	}}}
+
+	_, err := resolveArtifact(context.Background(), q, bom, IngestParams{
+		SubjectName: "renamed-lib",
+		Digest:      "sha256:feedface",
+	})
+	is.NoErr(err)
+
+	is.Equal(args[0], "library")                                                      // from BOM
+	is.Equal(args[1], "renamed-lib")                                                  // overridden
+	is.Equal(args[2], pgtype.Text{String: "acme", Valid: true})                       // from BOM
+	is.Equal(args[3], pgtype.Text{String: "pkg:generic/some-lib@1.2.3", Valid: true}) // from BOM
+}
+
+// TestResolveArtifact_ContainerUnaffectedByParams pins the "container ingest is
+// unchanged" acceptance criterion: with no declared identity, a container BOM
+// resolves exactly as before.
+func TestResolveArtifact_ContainerUnaffectedByParams(t *testing.T) {
+	is := is.New(t)
+	artifactID := newUUID(t)
+
+	var args []any
+	q := repository.New(upsertArtifactRecorder(artifactID, &args))
+
+	bom := &cdx.BOM{Metadata: &cdx.Metadata{Component: &cdx.Component{
+		Type:    cdx.ComponentTypeContainer,
+		Name:    "docker.io/ubuntu@sha256:abc123",
+		Version: "22.04",
+	}}}
+
+	info, err := resolveArtifact(context.Background(), q, bom, IngestParams{Version: "22.04"})
+	is.NoErr(err)
+	is.Equal(info.digest, pgtype.Text{String: "sha256:abc123", Valid: true})
+	is.Equal(info.subjectType, "container")
+	is.Equal(args[0], "container")
+	is.Equal(args[1], "docker.io/ubuntu") // digest still stripped from the name
+}
+
+// TestResolveArtifact_NoSubjectAndNoParams verifies the pre-existing behaviour
+// for a BOM with no subject component: no artifact is resolved.
+func TestResolveArtifact_NoSubjectAndNoParams(t *testing.T) {
+	is := is.New(t)
+	q := repository.New(&fakeDB{})
+
+	info, err := resolveArtifact(context.Background(), q, &cdx.BOM{}, IngestParams{})
+	is.NoErr(err)
+	is.True(!info.artifactID.Valid)
+}
+
+// TestResolveArtifact_DeclaredIdentityWithoutSubjectComponent verifies identity
+// can come entirely from params when the BOM has no subject component at all.
+func TestResolveArtifact_DeclaredIdentityWithoutSubjectComponent(t *testing.T) {
+	is := is.New(t)
+	artifactID := newUUID(t)
+
+	var args []any
+	q := repository.New(upsertArtifactRecorder(artifactID, &args))
+
+	info, err := resolveArtifact(context.Background(), q, &cdx.BOM{}, IngestParams{
+		Version:     "v1.2.3",
+		SubjectType: "application",
+		SubjectName: "ocidex",
+		Digest:      "sha256:cafebabe",
+	})
+	is.NoErr(err)
+	is.Equal(info.artifactID, artifactID)
+	is.Equal(info.subjectVersion, pgtype.Text{String: "v1.2.3", Valid: true})
+	is.Equal(args[1], "ocidex")
+}
+
+// TestValidateUploadRequired covers the ADR-040 upload contract: a non-container
+// subject must arrive with a version and an artifact-file digest, while
+// containers and unresolved subjects are left to validateContainerRequired.
+func TestValidateUploadRequired(t *testing.T) {
+	is := is.New(t)
+
+	resolved := func(typ, version, digest string) artifactInfo {
+		return artifactInfo{
+			artifactID:     newUUID(t),
+			subjectType:    typ,
+			subjectVersion: pgtype.Text{String: version, Valid: version != ""},
+			digest:         pgtype.Text{String: digest, Valid: digest != ""},
+		}
+	}
+
+	tests := []struct {
+		name    string
+		info    artifactInfo
+		wantErr bool
+	}{
+		{"complete non-container", resolved("application", "v1.2.3", "sha256:abc"), false},
+		{"missing digest", resolved("application", "v1.2.3", ""), true},
+		{"missing version", resolved("application", "", "sha256:abc"), true},
+		{"missing both", resolved("application", "", ""), true},
+		{"container is exempt", resolved("container", "", ""), false},
+		{"no artifact resolved", artifactInfo{}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateUploadRequired(tt.info)
+			if !tt.wantErr {
+				is.NoErr(err)
+				return
+			}
+			is.True(err != nil)
+			var ve *ValidationError
+			is.True(errors.As(err, &ve))
+		})
+	}
+}
+
+// TestResolveIngestDigest verifies the pre-transaction idempotency check
+// consults the declared digest, which is the only digest an upload has.
+func TestResolveIngestDigest(t *testing.T) {
+	is := is.New(t)
+
+	containerBOM := &cdx.BOM{Metadata: &cdx.Metadata{Component: &cdx.Component{
+		Type: cdx.ComponentTypeContainer,
+		Name: "docker.io/ubuntu@sha256:abc123",
+	}}}
+
+	is.Equal(resolveIngestDigest(containerBOM, IngestParams{}), "sha256:abc123")
+	is.Equal(resolveIngestDigest(containerBOM, IngestParams{Digest: "sha256:declared"}), "sha256:declared")
+	is.Equal(resolveIngestDigest(&cdx.BOM{}, IngestParams{Digest: "sha256:declared"}), "sha256:declared")
+	is.Equal(resolveIngestDigest(&cdx.BOM{}, IngestParams{}), "")
+}
+
 // licenseTx builds a fakeTx whose QueryRow records which upsert path was hit and
 // always returns licenseID.
 func licenseTx(licenseID pgtype.UUID, spdxCalled, nameCalled *bool) *fakeTx {
