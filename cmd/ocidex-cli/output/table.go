@@ -87,7 +87,9 @@ func deriveColumns[T any]() []Column[T] {
 			continue
 		}
 		name, ok := jsonName(field.Tag.Get("json"), field.Name)
-		if !ok || !renderableType(field.Type) {
+		// $schema is on every huma response body and describes the response,
+		// not the thing described. It belongs in -o json, not in a table.
+		if !ok || strings.HasPrefix(name, "$") || !renderableType(field.Type) {
 			continue
 		}
 

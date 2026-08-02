@@ -38,6 +38,10 @@ type rootConfig struct {
 	// tests can substitute client.FakeClient.
 	api client.Client
 
+	// newClient builds api once the server URL and key are known. It is a field
+	// so tests can hand back a client.FakeClient without standing up a server.
+	newClient func(client.Config) client.Client
+
 	// resolved records that PersistentPreRunE ran to completion. Cobra reports
 	// flag-parsing, required-flag, and unknown-command failures the same way it
 	// reports a command's own error, and this is the difference: anything that
@@ -52,7 +56,9 @@ type rootConfig struct {
 }
 
 func newRootCmd() (*cobra.Command, *rootConfig) {
-	cfg := &rootConfig{}
+	cfg := &rootConfig{
+		newClient: func(c client.Config) client.Client { return client.New(c) },
+	}
 
 	cmd := &cobra.Command{
 		Use:   "ocidex-cli",
@@ -79,7 +85,7 @@ is deliberately not a flag — see docs/adr/0029-cli-design.md.`,
 	f.StringVarP(&cfg.outputFlag, "output", "o", "",
 		"output format: table, json, or yaml (config output, default table)")
 
-	cmd.AddCommand(newSBOMCmd(cfg))
+	cmd.AddCommand(newSBOMCmd(cfg), newRegistryCmd(cfg))
 	return cmd, cfg
 }
 
@@ -111,7 +117,7 @@ func (c *rootConfig) resolve(cmd *cobra.Command) error {
 	}
 	c.format = format
 
-	c.api = client.New(client.Config{BaseURL: c.server, APIKey: c.apiKey})
+	c.api = c.newClient(client.Config{BaseURL: c.server, APIKey: c.apiKey})
 	return nil
 }
 
