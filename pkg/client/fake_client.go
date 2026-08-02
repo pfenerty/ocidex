@@ -38,11 +38,11 @@ type FakeClient struct {
 	// SBOM + artifact
 	IngestSBOMFn                func(ctx context.Context, data []byte, params IngestSbomParams) (IngestSBOMOutputBody, error)
 	GetSBOMFn                   func(ctx context.Context, id string, includeRaw bool) (SBOMDetail, error)
-	ListSBOMsFn                 func(ctx context.Context, opts PageOpts) (CursorPage[SBOMSummary], error)
+	ListSBOMsFn                 func(ctx context.Context, filter SBOMFilter, opts PageOpts) (CursorPage[SBOMSummary], error)
 	DeleteSBOMFn                func(ctx context.Context, id string) error
 	DiffSBOMsFn                 func(ctx context.Context, fromID, toID string) (ChangelogEntry, error)
 	GetDiffTreeFn               func(ctx context.Context, fromID, toID string) (DiffTree, error)
-	ListArtifactsFn             func(ctx context.Context, opts PageOpts) (CursorPage[ArtifactSummary], error)
+	ListArtifactsFn             func(ctx context.Context, filter ArtifactFilter, opts PageOpts) (CursorPage[ArtifactSummary], error)
 	GetArtifactFn               func(ctx context.Context, id string) (ArtifactDetail, error)
 	GetArtifactChangelogFn      func(ctx context.Context, id string, params GetArtifactChangelogParams) (Changelog, error)
 	GetArtifactLicenseSummaryFn func(ctx context.Context, id string) (GetArtifactLicenseSummaryOutputBody, error)
@@ -50,16 +50,17 @@ type FakeClient struct {
 	ListArtifactVersionsFn      func(ctx context.Context, id string, opts PageOpts) (Page[ArtifactVersionSummary], error)
 
 	// Component + job + stats
-	SearchComponentsFn         func(ctx context.Context, query string, opts PageOpts) (Page[ComponentSummary], error)
-	SearchDistinctComponentsFn func(ctx context.Context, query string, opts PageOpts) (Page[DistinctComponentSummary], error)
+	SearchComponentsFn         func(ctx context.Context, filter ComponentFilter, opts PageOpts) (Page[ComponentSummary], error)
+	SearchDistinctComponentsFn func(ctx context.Context, filter DistinctComponentFilter, opts PageOpts) (Page[DistinctComponentSummary], error)
 	GetComponentFn             func(ctx context.Context, id string) (ComponentDetail, error)
 	GetComponentVersionsFn     func(ctx context.Context, params GetComponentVersionsParams) (GetComponentVersionsOutputBody, error)
 	ListComponentPurlTypesFn   func(ctx context.Context) ([]string, error)
 	ListSBOMComponentsFn       func(ctx context.Context, sbomID string) ([]ComponentSummary, error)
 	GetSBOMDependenciesFn      func(ctx context.Context, sbomID string) (DependencyGraph, error)
 
-	ListJobsFn          func(ctx context.Context, opts PageOpts) (Page[ScanJobResponse], error)
+	ListJobsFn          func(ctx context.Context, filter JobFilter, opts PageOpts) (Page[ScanJobResponse], error)
 	GetJobFn            func(ctx context.Context, id string) (ScanJobResponse, error)
+	RetryJobFn          func(ctx context.Context, id string) error
 	GetDashboardStatsFn func(ctx context.Context) (DashboardStatsOutputBody, error)
 }
 
@@ -168,9 +169,9 @@ func (f *FakeClient) GetSBOM(ctx context.Context, id string, includeRaw bool) (S
 	return SBOMDetail{}, nil
 }
 
-func (f *FakeClient) ListSBOMs(ctx context.Context, opts PageOpts) (CursorPage[SBOMSummary], error) {
+func (f *FakeClient) ListSBOMs(ctx context.Context, filter SBOMFilter, opts PageOpts) (CursorPage[SBOMSummary], error) {
 	if f.ListSBOMsFn != nil {
-		return f.ListSBOMsFn(ctx, opts)
+		return f.ListSBOMsFn(ctx, filter, opts)
 	}
 	return CursorPage[SBOMSummary]{}, nil
 }
@@ -196,9 +197,9 @@ func (f *FakeClient) GetDiffTree(ctx context.Context, fromID, toID string) (Diff
 	return DiffTree{}, nil
 }
 
-func (f *FakeClient) ListArtifacts(ctx context.Context, opts PageOpts) (CursorPage[ArtifactSummary], error) {
+func (f *FakeClient) ListArtifacts(ctx context.Context, filter ArtifactFilter, opts PageOpts) (CursorPage[ArtifactSummary], error) {
 	if f.ListArtifactsFn != nil {
-		return f.ListArtifactsFn(ctx, opts)
+		return f.ListArtifactsFn(ctx, filter, opts)
 	}
 	return CursorPage[ArtifactSummary]{}, nil
 }
@@ -238,16 +239,16 @@ func (f *FakeClient) ListArtifactVersions(ctx context.Context, id string, opts P
 	return Page[ArtifactVersionSummary]{}, nil
 }
 
-func (f *FakeClient) SearchComponents(ctx context.Context, query string, opts PageOpts) (Page[ComponentSummary], error) {
+func (f *FakeClient) SearchComponents(ctx context.Context, filter ComponentFilter, opts PageOpts) (Page[ComponentSummary], error) {
 	if f.SearchComponentsFn != nil {
-		return f.SearchComponentsFn(ctx, query, opts)
+		return f.SearchComponentsFn(ctx, filter, opts)
 	}
 	return Page[ComponentSummary]{}, nil
 }
 
-func (f *FakeClient) SearchDistinctComponents(ctx context.Context, query string, opts PageOpts) (Page[DistinctComponentSummary], error) {
+func (f *FakeClient) SearchDistinctComponents(ctx context.Context, filter DistinctComponentFilter, opts PageOpts) (Page[DistinctComponentSummary], error) {
 	if f.SearchDistinctComponentsFn != nil {
-		return f.SearchDistinctComponentsFn(ctx, query, opts)
+		return f.SearchDistinctComponentsFn(ctx, filter, opts)
 	}
 	return Page[DistinctComponentSummary]{}, nil
 }
@@ -287,11 +288,18 @@ func (f *FakeClient) GetSBOMDependencies(ctx context.Context, sbomID string) (De
 	return DependencyGraph{}, nil
 }
 
-func (f *FakeClient) ListJobs(ctx context.Context, opts PageOpts) (Page[ScanJobResponse], error) {
+func (f *FakeClient) ListJobs(ctx context.Context, filter JobFilter, opts PageOpts) (Page[ScanJobResponse], error) {
 	if f.ListJobsFn != nil {
-		return f.ListJobsFn(ctx, opts)
+		return f.ListJobsFn(ctx, filter, opts)
 	}
 	return Page[ScanJobResponse]{}, nil
+}
+
+func (f *FakeClient) RetryJob(ctx context.Context, id string) error {
+	if f.RetryJobFn != nil {
+		return f.RetryJobFn(ctx, id)
+	}
+	return nil
 }
 
 func (f *FakeClient) GetJob(ctx context.Context, id string) (ScanJobResponse, error) {

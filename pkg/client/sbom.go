@@ -39,9 +39,27 @@ func (c *httpClient) GetSBOM(ctx context.Context, id string, includeRaw bool) (S
 	return out, err
 }
 
-func (c *httpClient) ListSBOMs(ctx context.Context, opts PageOpts) (CursorPage[SBOMSummary], error) {
+// SBOMFilter narrows a SBOM listing. A zero value lists everything visible.
+type SBOMFilter struct {
+	// SerialNumber is the CycloneDX serial number, unique per document.
+	SerialNumber string
+	// Digest is the subject's digest, shared by every version of one artifact.
+	Digest string
+}
+
+func (f SBOMFilter) apply(p url.Values) url.Values {
+	if f.SerialNumber != "" {
+		p.Set("serial_number", f.SerialNumber)
+	}
+	if f.Digest != "" {
+		p.Set("digest", f.Digest)
+	}
+	return p
+}
+
+func (c *httpClient) ListSBOMs(ctx context.Context, filter SBOMFilter, opts PageOpts) (CursorPage[SBOMSummary], error) {
 	var out ListSBOMsOutputBody
-	if err := c.request(ctx, http.MethodGet, "/api/v1/sboms", pageParams(opts), nil, &out); err != nil {
+	if err := c.request(ctx, http.MethodGet, "/api/v1/sboms", filter.apply(pageParams(opts)), nil, &out); err != nil {
 		return CursorPage[SBOMSummary]{}, err
 	}
 	return CursorPage[SBOMSummary]{Data: derefSlice(out.Data), Pagination: out.Pagination}, nil

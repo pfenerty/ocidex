@@ -19,11 +19,37 @@ func TestListJobs(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	page, err := newTestClient(srv).ListJobs(context.Background(), PageOpts{})
+	page, err := newTestClient(srv).ListJobs(context.Background(), JobFilter{}, PageOpts{})
 	is.NoErr(err)
 	is.Equal(len(page.Data), 1)
 	is.Equal(page.Data[0].Id, "job-1")
 	is.Equal(string(page.Data[0].State), "succeeded")
+}
+
+func TestListJobs_StateFilter(t *testing.T) {
+	is := is.New(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		is.Equal(r.URL.Query().Get("state"), "failed")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[],"pagination":{"total":0,"limit":50,"offset":0}}`))
+	}))
+	defer srv.Close()
+
+	_, err := newTestClient(srv).ListJobs(context.Background(), JobFilter{State: "failed"}, PageOpts{})
+	is.NoErr(err)
+}
+
+func TestRetryJob(t *testing.T) {
+	is := is.New(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		is.Equal(r.Method, http.MethodPost)
+		is.Equal(r.URL.Path, "/api/v1/admin/jobs/job-1/retry")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	// Success is the absence of an error: the server returns no body.
+	is.NoErr(newTestClient(srv).RetryJob(context.Background(), "job-1"))
 }
 
 func TestGetJob(t *testing.T) {

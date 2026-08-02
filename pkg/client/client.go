@@ -42,12 +42,12 @@ type Client interface {
 
 	IngestSBOM(ctx context.Context, data []byte, params IngestSbomParams) (IngestSBOMOutputBody, error)
 	GetSBOM(ctx context.Context, id string, includeRaw bool) (SBOMDetail, error)
-	ListSBOMs(ctx context.Context, opts PageOpts) (CursorPage[SBOMSummary], error)
+	ListSBOMs(ctx context.Context, filter SBOMFilter, opts PageOpts) (CursorPage[SBOMSummary], error)
 	DeleteSBOM(ctx context.Context, id string) error
 	DiffSBOMs(ctx context.Context, fromID, toID string) (ChangelogEntry, error)
 	GetDiffTree(ctx context.Context, fromID, toID string) (DiffTree, error)
 
-	ListArtifacts(ctx context.Context, opts PageOpts) (CursorPage[ArtifactSummary], error)
+	ListArtifacts(ctx context.Context, filter ArtifactFilter, opts PageOpts) (CursorPage[ArtifactSummary], error)
 	GetArtifact(ctx context.Context, id string) (ArtifactDetail, error)
 	GetArtifactChangelog(ctx context.Context, id string, params GetArtifactChangelogParams) (Changelog, error)
 	GetArtifactLicenseSummary(ctx context.Context, id string) (GetArtifactLicenseSummaryOutputBody, error)
@@ -56,16 +56,17 @@ type Client interface {
 
 	// Component + job + stats
 
-	SearchComponents(ctx context.Context, query string, opts PageOpts) (Page[ComponentSummary], error)
-	SearchDistinctComponents(ctx context.Context, query string, opts PageOpts) (Page[DistinctComponentSummary], error)
+	SearchComponents(ctx context.Context, filter ComponentFilter, opts PageOpts) (Page[ComponentSummary], error)
+	SearchDistinctComponents(ctx context.Context, filter DistinctComponentFilter, opts PageOpts) (Page[DistinctComponentSummary], error)
 	GetComponent(ctx context.Context, id string) (ComponentDetail, error)
 	GetComponentVersions(ctx context.Context, params GetComponentVersionsParams) (GetComponentVersionsOutputBody, error)
 	ListComponentPurlTypes(ctx context.Context) ([]string, error)
 	ListSBOMComponents(ctx context.Context, sbomID string) ([]ComponentSummary, error)
 	GetSBOMDependencies(ctx context.Context, sbomID string) (DependencyGraph, error)
 
-	ListJobs(ctx context.Context, opts PageOpts) (Page[ScanJobResponse], error)
+	ListJobs(ctx context.Context, filter JobFilter, opts PageOpts) (Page[ScanJobResponse], error)
 	GetJob(ctx context.Context, id string) (ScanJobResponse, error)
+	RetryJob(ctx context.Context, id string) error
 
 	GetDashboardStats(ctx context.Context) (DashboardStatsOutputBody, error)
 }

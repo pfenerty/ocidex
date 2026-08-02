@@ -19,7 +19,7 @@ func TestListArtifacts(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	page, err := newTestClient(srv).ListArtifacts(context.Background(), PageOpts{})
+	page, err := newTestClient(srv).ListArtifacts(context.Background(), ArtifactFilter{}, PageOpts{})
 	is.NoErr(err)
 	is.Equal(len(page.Data), 1)
 	is.Equal(page.Data[0].Id, "art-1")
