@@ -145,7 +145,7 @@ func sbomColumns() []output.Column[client.SBOMSummary] {
 		{Header: "ARCH", Value: func(s client.SBOMSummary) string { return deref(s.Architecture) }},
 		{Header: "COMPONENTS", Value: func(s client.SBOMSummary) string { return derefInt(s.ComponentCount) }},
 		{Header: "SUFFICIENT", Value: func(s client.SBOMSummary) string { return fmt.Sprint(s.Sufficient) }},
-		{Header: "CREATED", Value: func(s client.SBOMSummary) string { return s.CreatedAt.Format(time.RFC3339) }},
+		{Header: colCreated, Value: func(s client.SBOMSummary) string { return s.CreatedAt.Format(time.RFC3339) }},
 	}
 }
 

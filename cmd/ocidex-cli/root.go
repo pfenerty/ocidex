@@ -25,6 +25,7 @@ const (
 	colVersion = "VERSION"
 	colSBOM    = "SBOM"
 	colVulns   = "VULNS"
+	colCreated = "CREATED"
 )
 
 // usageError marks a failure the user can fix by re-reading the usage text, as
@@ -99,7 +100,8 @@ is deliberately not a flag — see docs/adr/0029-cli-design.md.`,
 		"output format: table, json, or yaml (config output, default table)")
 
 	cmd.AddCommand(newSBOMCmd(cfg), newRegistryCmd(cfg), newArtifactCmd(cfg),
-		newComponentCmd(cfg), newJobCmd(cfg))
+		newComponentCmd(cfg), newJobCmd(cfg), newKeyCmd(cfg),
+		newLoginCmd(cfg), newLogoutCmd())
 	return cmd, cfg
 }
 

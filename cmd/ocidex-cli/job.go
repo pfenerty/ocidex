@@ -35,7 +35,7 @@ func jobColumns() []output.Column[client.ScanJobResponse] {
 		{Header: "REPOSITORY", Value: func(j client.ScanJobResponse) string { return j.Repository }},
 		{Header: "TAG", Value: func(j client.ScanJobResponse) string { return deref(j.Tag) }},
 		{Header: "ATTEMPTS", Value: func(j client.ScanJobResponse) string { return fmt.Sprint(j.Attempts) }},
-		{Header: "CREATED", Value: func(j client.ScanJobResponse) string { return j.CreatedAt }},
+		{Header: colCreated, Value: func(j client.ScanJobResponse) string { return j.CreatedAt }},
 	}
 }
 
