@@ -34,6 +34,19 @@ that SBOM carries — use it to answer "who ships the vulnerable version".`,
 	return cmd
 }
 
+// printPageHint reports how much of the result set is on screen. Stderr, so it
+// never lands in a piped table, and table mode only: -o json is for machines,
+// which already have the array and the pagination block.
+func printPageHint(cmd *cobra.Command, cfg *rootConfig, shown int, offset int32, total int64) {
+	if cfg.format != output.Table {
+		return
+	}
+	fmt.Fprintf(cmd.ErrOrStderr(), "\n%d of %d\n", shown, total)
+	if next := int64(offset) + int64(shown); next < total {
+		fmt.Fprintf(cmd.ErrOrStderr(), "more available (use --offset %d)\n", next)
+	}
+}
+
 func distinctComponentColumns() []output.Column[client.DistinctComponentSummary] {
 	return []output.Column[client.DistinctComponentSummary]{
 		{Header: colName, Value: func(c client.DistinctComponentSummary) string {
@@ -97,9 +110,9 @@ func componentColumns() []output.Column[client.ComponentSummary] {
 		{Header: colName, Value: func(c client.ComponentSummary) string {
 			return qualifiedName(c.Group, c.Name)
 		}},
-		{Header: "VERSION", Value: func(c client.ComponentSummary) string { return deref(c.Version) }},
-		{Header: "SBOM", Value: func(c client.ComponentSummary) string { return c.SbomId }},
-		{Header: "VULNS", Value: func(c client.ComponentSummary) string { return derefInt(c.VulnCount) }},
+		{Header: colVersion, Value: func(c client.ComponentSummary) string { return deref(c.Version) }},
+		{Header: colSBOM, Value: func(c client.ComponentSummary) string { return c.SbomId }},
+		{Header: colVulns, Value: func(c client.ComponentSummary) string { return derefInt(c.VulnCount) }},
 		{Header: "MAX SEVERITY", Value: func(c client.ComponentSummary) string { return deref(c.MaxSeverity) }},
 	}
 }
@@ -142,7 +155,7 @@ here.`,
 
 func newComponentGetCmd(cfg *rootConfig) *cobra.Command {
 	return &cobra.Command{
-		Use:   "get <id>",
+		Use:   verbGet,
 		Short: "Show one package occurrence in full",
 		Long: `Show one package occurrence in full.
 
@@ -173,14 +186,14 @@ func renderComponent(w io.Writer, c client.ComponentDetail) {
 		output.Column[client.ComponentDetail]{Header: colName, Value: func(c client.ComponentDetail) string {
 			return qualifiedName(c.Group, c.Name)
 		}},
-		output.Column[client.ComponentDetail]{Header: "VERSION", Value: func(c client.ComponentDetail) string { return deref(c.Version) }},
+		output.Column[client.ComponentDetail]{Header: colVersion, Value: func(c client.ComponentDetail) string { return deref(c.Version) }},
 		output.Column[client.ComponentDetail]{Header: colType, Value: func(c client.ComponentDetail) string { return c.Type }},
 		output.Column[client.ComponentDetail]{Header: "PURL", Value: func(c client.ComponentDetail) string { return deref(c.Purl) }},
 		output.Column[client.ComponentDetail]{Header: "CPE", Value: func(c client.ComponentDetail) string { return deref(c.Cpe) }},
-		output.Column[client.ComponentDetail]{Header: "SBOM", Value: func(c client.ComponentDetail) string { return c.SbomId }},
+		output.Column[client.ComponentDetail]{Header: colSBOM, Value: func(c client.ComponentDetail) string { return c.SbomId }},
 		output.Column[client.ComponentDetail]{Header: "PUBLISHER", Value: func(c client.ComponentDetail) string { return deref(c.Publisher) }},
 		output.Column[client.ComponentDetail]{Header: "FOUND BY", Value: func(c client.ComponentDetail) string { return deref(c.FoundBy) }},
-		output.Column[client.ComponentDetail]{Header: "VULNS", Value: func(c client.ComponentDetail) string { return derefInt(c.VulnCount) }},
+		output.Column[client.ComponentDetail]{Header: colVulns, Value: func(c client.ComponentDetail) string { return derefInt(c.VulnCount) }},
 	)
 
 	for _, l := range derefSlice(c.Licenses) {
@@ -200,16 +213,16 @@ func licenseLabel(l client.LicenseSummary) string {
 	if id := deref(l.SpdxId); id != "" {
 		return id
 	}
-	return deref(l.Name)
+	return l.Name
 }
 
 func componentVersionColumns() []output.Column[client.ComponentVersionEntry] {
 	return []output.Column[client.ComponentVersionEntry]{
-		{Header: "VERSION", Value: func(v client.ComponentVersionEntry) string { return deref(v.Version) }},
+		{Header: colVersion, Value: func(v client.ComponentVersionEntry) string { return deref(v.Version) }},
 		{Header: "ARTIFACT", Value: func(v client.ComponentVersionEntry) string { return deref(v.ArtifactName) }},
 		{Header: "SUBJECT VERSION", Value: func(v client.ComponentVersionEntry) string { return deref(v.SubjectVersion) }},
 		{Header: "ARCH", Value: func(v client.ComponentVersionEntry) string { return deref(v.Architecture) }},
-		{Header: "VULNS", Value: func(v client.ComponentVersionEntry) string { return fmt.Sprint(v.VulnCount) }},
+		{Header: colVulns, Value: func(v client.ComponentVersionEntry) string { return fmt.Sprint(v.VulnCount) }},
 		{Header: "MAX SEVERITY", Value: func(v client.ComponentVersionEntry) string { return deref(v.MaxSeverity) }},
 	}
 }

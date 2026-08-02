@@ -18,9 +18,13 @@ const defaultServer = "http://localhost:8080"
 // headers appear in every noun, and they should stay spelled the same way.
 const (
 	verbList = "list"
+	verbGet  = "get <id>"
 
-	colName = "NAME"
-	colType = "TYPE"
+	colName    = "NAME"
+	colType    = "TYPE"
+	colVersion = "VERSION"
+	colSBOM    = "SBOM"
+	colVulns   = "VULNS"
 )
 
 // usageError marks a failure the user can fix by re-reading the usage text, as
@@ -94,7 +98,8 @@ is deliberately not a flag — see docs/adr/0029-cli-design.md.`,
 	f.StringVarP(&cfg.outputFlag, "output", "o", "",
 		"output format: table, json, or yaml (config output, default table)")
 
-	cmd.AddCommand(newSBOMCmd(cfg), newRegistryCmd(cfg), newArtifactCmd(cfg))
+	cmd.AddCommand(newSBOMCmd(cfg), newRegistryCmd(cfg), newArtifactCmd(cfg),
+		newComponentCmd(cfg), newJobCmd(cfg))
 	return cmd, cfg
 }
 

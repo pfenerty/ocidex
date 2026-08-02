@@ -140,7 +140,7 @@ func runSBOMPush(cmd *cobra.Command, cfg *rootConfig, o *pushOpts, sbomPath stri
 func sbomColumns() []output.Column[client.SBOMSummary] {
 	return []output.Column[client.SBOMSummary]{
 		{Header: "ID", Value: func(s client.SBOMSummary) string { return s.Id }},
-		{Header: "VERSION", Value: func(s client.SBOMSummary) string { return deref(s.SubjectVersion) }},
+		{Header: colVersion, Value: func(s client.SBOMSummary) string { return deref(s.SubjectVersion) }},
 		{Header: "FLAVOR", Value: func(s client.SBOMSummary) string { return deref(s.Flavor) }},
 		{Header: "ARCH", Value: func(s client.SBOMSummary) string { return deref(s.Architecture) }},
 		{Header: "COMPONENTS", Value: func(s client.SBOMSummary) string { return derefInt(s.ComponentCount) }},
@@ -191,7 +191,7 @@ func newSBOMGetCmd(cfg *rootConfig) *cobra.Command {
 	var raw bool
 
 	cmd := &cobra.Command{
-		Use:   "get <id>",
+		Use:   verbGet,
 		Short: "Show one SBOM in full",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

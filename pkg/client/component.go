@@ -6,6 +6,10 @@ import (
 	"net/url"
 )
 
+// paramName is the server's query key for a component name, shared by the three
+// endpoints below so a rename stays a one-line change.
+const paramName = "name"
+
 // ComponentFilter narrows a component occurrence search. Name is required by
 // the server: this endpoint answers "where does this component appear", one row
 // per SBOM it appears in. DistinctComponentFilter is the browse counterpart.
@@ -16,7 +20,7 @@ type ComponentFilter struct {
 }
 
 func (f ComponentFilter) apply(p url.Values) url.Values {
-	p.Set("name", f.Name)
+	p.Set(paramName, f.Name)
 	if f.Group != "" {
 		p.Set("group", f.Group)
 	}
@@ -39,7 +43,7 @@ type DistinctComponentFilter struct {
 
 func (f DistinctComponentFilter) apply(p url.Values) url.Values {
 	for k, v := range map[string]string{
-		"name": f.Name, "group": f.Group, "type": f.Type,
+		paramName: f.Name, "group": f.Group, "type": f.Type,
 		"purl_type": f.PurlType, "sort": f.Sort, "sort_dir": f.SortDir,
 	} {
 		if v != "" {
@@ -72,7 +76,7 @@ func (c *httpClient) GetComponent(ctx context.Context, id string) (ComponentDeta
 }
 
 func (c *httpClient) GetComponentVersions(ctx context.Context, params GetComponentVersionsParams) (GetComponentVersionsOutputBody, error) {
-	p := url.Values{"name": {params.Name}}
+	p := url.Values{paramName: {params.Name}}
 	if params.Group != nil {
 		p.Set("group", *params.Group)
 	}

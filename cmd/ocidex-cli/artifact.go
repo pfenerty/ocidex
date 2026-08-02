@@ -81,7 +81,7 @@ sufficiently enriched SBOM unless --include-insufficient is given.`,
 
 func newArtifactGetCmd(cfg *rootConfig) *cobra.Command {
 	return &cobra.Command{
-		Use:   "get <id>",
+		Use:   verbGet,
 		Short: "Show one artifact in full",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
