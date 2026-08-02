@@ -57,9 +57,17 @@ export const sbomPush = new Task({
     {
       name: "build-binaries",
       image: goImage,
+      // Requests are deliberately far below the limits. Kubernetes schedules on the
+      // *sum* of a pod's container requests, but Tekton steps run one at a time, so
+      // every milli requested here is held for the whole task and counted again for
+      // each of the other five steps. This task has twice the step count of any other
+      // in the pipeline, and on a cluster with one untainted worker the honest
+      // per-step numbers added up to more CPU than the node had free — the pod pended
+      // until the task timed out, which then skipped the remaining image builds.
+      // Limits still let the build burst to 2 CPUs when the node is idle.
       computeResources: {
         limits: { cpu: "2", memory: "2Gi", "ephemeral-storage": "4Gi" },
-        requests: { cpu: "500m", memory: "1Gi", "ephemeral-storage": "2Gi" },
+        requests: { cpu: "250m", memory: "1Gi", "ephemeral-storage": "2Gi" },
       },
       script: nu`
 ${goSetup}
@@ -78,7 +86,7 @@ log "OK: binaries built"
       image: syftImage,
       computeResources: {
         limits: { cpu: "1", memory: "1Gi" },
-        requests: { cpu: "200m", memory: "256Mi" },
+        requests: { cpu: "50m", memory: "256Mi" },
       },
       // CycloneDX rather than syft's native JSON: OCIDex ingests CycloneDX only.
       script: nu`
@@ -97,7 +105,7 @@ log "OK: SBOMs written to .sbom-out"
       image: goImage,
       computeResources: {
         limits: { cpu: "1", memory: "512Mi" },
-        requests: { cpu: "100m", memory: "128Mi" },
+        requests: { cpu: "50m", memory: "128Mi" },
       },
       env: [
         {
