@@ -9,14 +9,20 @@ import (
 
 func (c *httpClient) IngestSBOM(ctx context.Context, data []byte, params IngestSbomParams) (IngestSBOMOutputBody, error) {
 	p := url.Values{}
-	if params.Version != nil {
-		p.Set("version", *params.Version)
-	}
-	if params.Architecture != nil {
-		p.Set("architecture", *params.Architecture)
-	}
-	if params.BuildDate != nil {
-		p.Set("build_date", *params.BuildDate)
+	for name, v := range map[string]*string{
+		"source":        params.Source,
+		"version":       params.Version,
+		"architecture":  params.Architecture,
+		"build_date":    params.BuildDate,
+		"subject_type":  params.SubjectType,
+		"subject_name":  params.SubjectName,
+		"subject_group": params.SubjectGroup,
+		"subject_purl":  params.SubjectPurl,
+		"digest":        params.Digest,
+	} {
+		if v != nil && *v != "" {
+			p.Set(name, *v)
+		}
 	}
 	var out IngestSBOMOutputBody
 	err := c.do(ctx, http.MethodPost, "/api/v1/sboms", p, bytes.NewReader(data), "application/octet-stream", &out)

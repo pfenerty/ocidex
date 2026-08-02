@@ -31,6 +31,39 @@ func TestIngestSBOM(t *testing.T) {
 	is.Equal(resp.Status, "accepted")
 }
 
+// TestIngestSBOM_SubjectParams covers the declared-identity parameters, which
+// the upload path depends on entirely: a source the SBOM cannot name itself,
+// and a subject a `syft dir:` scan describes as the scratch directory.
+func TestIngestSBOM_SubjectParams(t *testing.T) {
+	is := is.New(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		is.Equal(q.Get("source"), "myorg/ci")
+		is.Equal(q.Get("subject_type"), "application")
+		is.Equal(q.Get("subject_name"), "ocidex")
+		is.Equal(q.Get("subject_group"), "github.com/pfenerty")
+		is.Equal(q.Get("subject_purl"), "pkg:golang/github.com/pfenerty/ocidex@v1.2.3")
+		is.Equal(q.Get("digest"), "sha256:abc")
+		// An unset optional parameter must be absent, not empty.
+		_, present := q["architecture"]
+		is.True(!present)
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"id":"sbom-1","status":"accepted","specVersion":"1.6","componentCount":3}`))
+	}))
+	defer srv.Close()
+
+	str := func(s string) *string { return &s }
+	_, err := newTestClient(srv).IngestSBOM(context.Background(), []byte(`{}`), IngestSbomParams{
+		Source:       str("myorg/ci"),
+		SubjectType:  str("application"),
+		SubjectName:  str("ocidex"),
+		SubjectGroup: str("github.com/pfenerty"),
+		SubjectPurl:  str("pkg:golang/github.com/pfenerty/ocidex@v1.2.3"),
+		Digest:       str("sha256:abc"),
+	})
+	is.NoErr(err)
+}
+
 func TestGetSBOM(t *testing.T) {
 	is := is.New(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

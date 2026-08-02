@@ -2346,6 +2346,9 @@ type ListSbomsParams struct {
 
 // IngestSbomParams defines parameters for IngestSbom.
 type IngestSbomParams struct {
+	// Source Ingest channel this SBOM arrived through, as a source UUID or <namespace>/<name>. Required — the source's namespace owns the SBOM.
+	Source *string `form:"source,omitempty" json:"source,omitempty"`
+
 	// Version Image version/tag (overrides BOM-extracted value for subject_version and imageVersion)
 	Version *string `form:"version,omitempty" json:"version,omitempty"`
 
@@ -2354,6 +2357,21 @@ type IngestSbomParams struct {
 
 	// BuildDate Image build date (RFC3339 or date string)
 	BuildDate *string `form:"build_date,omitempty" json:"build_date,omitempty"`
+
+	// SubjectType CycloneDX component type of the subject (e.g. application, library, file)
+	SubjectType *string `form:"subject_type,omitempty" json:"subject_type,omitempty"`
+
+	// SubjectName Subject name (e.g. ocidex)
+	SubjectName *string `form:"subject_name,omitempty" json:"subject_name,omitempty"`
+
+	// SubjectGroup Subject group/namespace (e.g. github.com/pfenerty)
+	SubjectGroup *string `form:"subject_group,omitempty" json:"subject_group,omitempty"`
+
+	// SubjectPurl Subject package URL (e.g. pkg:golang/github.com/pfenerty/ocidex@v1.2.3)
+	SubjectPurl *string `form:"subject_purl,omitempty" json:"subject_purl,omitempty"`
+
+	// Digest sha256 of the artifact file itself, not of this SBOM document. Required for a non-container subject.
+	Digest *string `form:"digest,omitempty" json:"digest,omitempty"`
 }
 
 // DiffSbomsParams defines parameters for DiffSboms.
