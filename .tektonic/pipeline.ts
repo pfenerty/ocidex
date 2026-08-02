@@ -16,6 +16,7 @@ import { helmPublish } from "./jobs/helm-publish/spec";
 import { helmRelease } from "./jobs/helm-release/spec";
 import { ghRelease } from "./jobs/gh-release/spec";
 import { tektonCheck } from "./jobs/tekton-check/spec";
+import { sbomPush } from "./jobs/sbom-push/spec";
 
 // ─── Task groups ──────────────────────────────────────────────────────────────
 // Core build/verify tasks + the always-on security scans. Run ungated on push so
@@ -47,7 +48,7 @@ const pushPipeline = new GitPipeline({
   // pre-build tasks + 9 × ~16 min + helm ≈ 2h40m, so 4h leaves real headroom rather
   // than the ~13% that 3h would give. Revisit if the builds are ever parallelised.
   timeout: "4h",
-  tasks: [...coreTasks, ...securityTasks, ...imageBuilds, helmPublish],
+  tasks: [...coreTasks, ...securityTasks, ...imageBuilds, helmPublish, sbomPush],
 });
 
 // PR pipeline: gate the expensive Go jobs on whether the branch touched Go/Docker/db
@@ -89,7 +90,9 @@ const tagPipeline = new GitPipeline({
   // Same serial image-build chain as the push pipeline, plus helm-release and
   // gh-release — see the note there for why 2h was too tight.
   timeout: "4h",
-  tasks: [...imageBuildsTag, helmRelease, ghRelease],
+  // sbomPush pulls goBuild in via `needs` (it must not race another Go task's cache
+  // restore). That extra compile is the price of cataloguing the tagged binaries.
+  tasks: [...imageBuildsTag, helmRelease, ghRelease, sbomPush],
 });
 
 // ─── Synthesize ─────────────────────────────────────────────────────────────

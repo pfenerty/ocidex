@@ -1,0 +1,123 @@
+import * as path from "path";
+import { Task, nu, scriptFromFile } from "@pfenerty/tektonic";
+import {
+  goImage,
+  syftImage,
+  goEnv,
+  goCacheVulncheck,
+  reportOnlyStatusReporter,
+  sourceBranchParam,
+} from "../../shared";
+import { goBuild } from "../go-build/spec";
+import { goSetup } from "../../script-lib";
+
+// The binaries OCIDex ships — one image each in docker/Dockerfile, so one uploaded
+// SBOM each. ocidex-cli is built alongside them but is the tool doing the pushing,
+// not a subject of it.
+const shippedBinaries = [
+  "ocidex",
+  "scanner-worker",
+  "enrichment-worker",
+  "oci-metadata-worker",
+  "git-worker",
+  "user-enricher-worker",
+  "provenance-worker",
+  "vuln-worker",
+  "operator",
+];
+
+const nuList = (xs: string[]) => `[${xs.map((x) => `"${x}"`).join(" ")}]`;
+
+// OCIDex cataloguing its own binaries and pushing them to itself (ocidex-0gp.5).
+//
+// Each binary is catalogued on its own rather than as `syft dir:.sbom-bins`: a
+// directory scan produces one BOM whose metadata.component is the scratch directory,
+// which is precisely the unidentifiable subject the declared-subject parameters were
+// added to fix. Per-binary `syft file:` scans let the go-binary cataloger read the
+// linker-embedded module versions — one version per module, what actually ships —
+// instead of go.sum's every-version-ever set.
+//
+// Report-only, and deliberately so: this is dogfooding, not a release gate. An OCIDex
+// that is down, unreachable, or missing the API key must not fail a tag pipeline that
+// has already built and published nine images.
+export const sbomPush = new Task({
+  name: "sbom-push",
+  params: [sourceBranchParam],
+  statusReporter: reportOnlyStatusReporter,
+  // Ordered after go-build for the same reason govulncheck-scan is: goEnv points
+  // GOMODCACHE/GOCACHE into the shared source workspace, and a cache restore starts by
+  // rm -rf'ing them. skipRestoreIfPathsExist removes that destructive step, but only
+  // `needs` guarantees the paths are already populated when this task starts.
+  needs: [goBuild],
+  caches: [goCacheVulncheck],
+  stepTemplate: {
+    env: goEnv,
+  },
+  steps: [
+    {
+      name: "build-binaries",
+      image: goImage,
+      computeResources: {
+        limits: { cpu: "2", memory: "2Gi", "ephemeral-storage": "4Gi" },
+        requests: { cpu: "500m", memory: "1Gi", "ephemeral-storage": "2Gi" },
+      },
+      script: nu`
+${goSetup}
+mkdir .sbom-bins
+for b in ${nuList([...shippedBinaries, "ocidex-cli"])} {
+  log $"Building ($b)"
+  ^go build -o $".sbom-bins/($b)" $"./cmd/($b)"
+}
+log "OK: binaries built"
+`,
+      onError: "continue",
+    },
+
+    {
+      name: "syft-catalog",
+      image: syftImage,
+      computeResources: {
+        limits: { cpu: "1", memory: "1Gi" },
+        requests: { cpu: "200m", memory: "256Mi" },
+      },
+      // CycloneDX rather than syft's native JSON: OCIDex ingests CycloneDX only.
+      script: nu`
+mkdir .sbom-out
+for b in ${nuList(shippedBinaries)} {
+  log $"Cataloging ($b)"
+  ^syft $"file:.sbom-bins/($b)" -o $"cyclonedx-json=.sbom-out/($b).cdx.json"
+}
+log "OK: SBOMs written to .sbom-out"
+`,
+      onError: "continue",
+    },
+
+    {
+      name: "push-sboms",
+      image: goImage,
+      computeResources: {
+        limits: { cpu: "1", memory: "512Mi" },
+        requests: { cpu: "100m", memory: "128Mi" },
+      },
+      env: [
+        {
+          name: "OCIDEX_URL",
+          value: "http://ocidex-dev-api.ocidex-dev.svc.cluster.local",
+        },
+        {
+          // optional so a cluster without the secret gets an empty key and the
+          // skip path below, rather than a CreateContainerConfigError that would
+          // fail the pod before any step runs.
+          name: "OCIDEX_API_KEY",
+          valueFrom: {
+            secretKeyRef: { name: "ocidex-api-key", key: "key", optional: true },
+          },
+        },
+        { name: "OCIDEX_SOURCE", value: "ocidex/ci" },
+        { name: "OCIDEX_BINARIES", value: shippedBinaries.join(" ") },
+      ],
+      script: scriptFromFile(path.join(__dirname, "push-sboms.nu")),
+      onError: "continue",
+    },
+  ],
+});
