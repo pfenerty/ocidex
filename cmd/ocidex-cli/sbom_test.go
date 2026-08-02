@@ -33,6 +33,9 @@ type ingestStub struct {
 // newIngestStub starts a stub answering with status (or 201 when zero).
 func newIngestStub(t *testing.T, status int) *ingestStub {
 	t.Helper()
+	// Point config resolution at an empty directory so the developer's own
+	// ~/.config/ocidex/config.yaml cannot supply a server or an API key.
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	s := &ingestStub{status: status}
 	s.srv = httptest.NewServer(http.HandlerFunc(s.serve))
 	t.Cleanup(s.srv.Close)
@@ -57,7 +60,7 @@ func (s *ingestStub) serve(w http.ResponseWriter, r *http.Request) {
 // push executes `sbom push` against the stub and returns anything it printed.
 func (s *ingestStub) push(args ...string) (string, error) {
 	out := &bytes.Buffer{}
-	cmd := newRootCmd()
+	cmd, _ := newRootCmd()
 	cmd.SetOut(out)
 	cmd.SetErr(out)
 	cmd.SetArgs(append([]string{"sbom", "push", "--server", s.srv.URL}, args...))

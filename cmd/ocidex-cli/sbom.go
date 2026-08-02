@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,7 +14,7 @@ import (
 	"github.com/pfenerty/ocidex/pkg/client"
 )
 
-func newSBOMCmd(cfg *serverConfig) *cobra.Command {
+func newSBOMCmd(cfg *rootConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sbom",
 		Short: "Work with SBOMs",
@@ -36,7 +35,7 @@ type pushOpts struct {
 	version      string
 }
 
-func newSBOMPushCmd(cfg *serverConfig) *cobra.Command {
+func newSBOMPushCmd(cfg *rootConfig) *cobra.Command {
 	o := &pushOpts{}
 
 	cmd := &cobra.Command{
@@ -48,7 +47,8 @@ The SBOM lands in the namespace that owns --source. For a non-container subject
 the server requires the subject to be declared rather than inferred, because a
 ` + "`syft dir:`" + ` scan describes the directory it scanned, not the thing you built.
 
-Authentication is via the OCIDEX_API_KEY environment variable.`,
+Authentication is via the OCIDEX_API_KEY environment variable, or the api-key
+key in ~/.config/ocidex/config.yaml.`,
 		Example: `  ocidex-cli sbom push ./ocidex.cdx.json \
     --source myorg/ci \
     --artifact-file ./bin/ocidex \
@@ -72,18 +72,17 @@ Authentication is via the OCIDEX_API_KEY environment variable.`,
 	f.StringVar(&o.subjectPurl, "subject-purl", "", "subject package URL")
 	f.StringVar(&o.version, "version", "", "subject version, e.g. v1.2.3")
 
-	_ = cmd.MarkFlagRequired("source")
 	cmd.MarkFlagsMutuallyExclusive("artifact-file", "digest")
 
 	return cmd
 }
 
-func runSBOMPush(cmd *cobra.Command, cfg *serverConfig, o *pushOpts, sbomPath string) error {
+func runSBOMPush(cmd *cobra.Command, cfg *rootConfig, o *pushOpts, sbomPath string) error {
 	if err := validateSource(o.source); err != nil {
 		return err
 	}
 
-	key, err := apiKey()
+	api, err := cfg.authed()
 	if err != nil {
 		return err
 	}
@@ -103,16 +102,15 @@ func runSBOMPush(cmd *cobra.Command, cfg *serverConfig, o *pushOpts, sbomPath st
 		}
 	}
 
-	out, err := client.New(client.Config{BaseURL: cfg.baseURL, APIKey: key}).
-		IngestSBOM(cmd.Context(), data, client.IngestSbomParams{
-			Source:       &o.source,
-			Version:      optional(o.version),
-			SubjectType:  optional(o.subjectType),
-			SubjectName:  optional(o.subjectName),
-			SubjectGroup: optional(o.subjectGroup),
-			SubjectPurl:  optional(o.subjectPurl),
-			Digest:       optional(digest),
-		})
+	out, err := api.IngestSBOM(cmd.Context(), data, client.IngestSbomParams{
+		Source:       &o.source,
+		Version:      optional(o.version),
+		SubjectType:  optional(o.subjectType),
+		SubjectName:  optional(o.subjectName),
+		SubjectGroup: optional(o.subjectGroup),
+		SubjectPurl:  optional(o.subjectPurl),
+		Digest:       optional(digest),
+	})
 	if err != nil {
 		return fmt.Errorf("pushing SBOM: %w", err)
 	}
@@ -126,13 +124,19 @@ func runSBOMPush(cmd *cobra.Command, cfg *serverConfig, o *pushOpts, sbomPath st
 // Source names are unique per namespace, not globally, so the server has no way
 // to resolve one on its own. Catching it here costs a round trip less than the
 // 400 does and says which of the two forms is missing.
+//
+// This stands in for MarkFlagRequired so that a missing or malformed --source
+// exits as a usage error rather than a generic failure.
 func validateSource(source string) error {
+	if source == "" {
+		return usagef("--source is required: a UUID or <namespace>/<name>")
+	}
 	if _, err := uuid.Parse(source); err == nil {
 		return nil
 	}
 	ns, name, ok := strings.Cut(source, "/")
 	if !ok || ns == "" || name == "" || strings.Contains(name, "/") {
-		return errors.New("--source must be a UUID or <namespace>/<name>")
+		return usagef("--source must be a UUID or <namespace>/<name>")
 	}
 	return nil
 }

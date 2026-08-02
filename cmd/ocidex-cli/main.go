@@ -1,9 +1,7 @@
 // Command ocidex-cli is a command-line client for the OCIDex API.
 //
-// This is the minimal slice: a root command and `sbom push`, enough for CI to
-// upload an SBOM for a build artifact. The full subcommand surface — output
-// formatting, config files, the rest of the API — is epic ocidex-e3g and is
-// deliberately not pre-empted here.
+// Its design — binary name, noun-verb grammar, configuration precedence, output
+// formats and exit codes — is recorded in docs/adr/0029-cli-design.md.
 package main
 
 import (
@@ -11,54 +9,59 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
+	"github.com/pfenerty/ocidex/pkg/client"
+)
+
+// Exit codes. 3 and 4 exist because "absent" and "not allowed to see" is the
+// distinction a script most often branches on, and pkg/client's typed sentinels
+// make it free. Anything more granular belongs in the stderr message.
+const (
+	exitOK        = 0
+	exitFailure   = 1
+	exitUsage     = 2
+	exitNotFound  = 3
+	exitForbidden = 4
 )
 
 func main() {
-	if err := newRootCmd().Execute(); err != nil {
-		// cobra has already printed usage for flag/arg errors; everything else
-		// needs printing here. Either way the exit code is what CI reads.
-		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
-	}
+	os.Exit(run())
 }
 
-// serverConfig is the connection detail every subcommand needs.
-type serverConfig struct {
-	baseURL string
+func run() int {
+	root, cfg := newRootCmd()
+
+	// ExecuteC, not Execute: on failure it returns the command that failed, so
+	// usage can be printed for that command rather than for the root.
+	cmd, err := root.ExecuteC()
+	if err == nil {
+		return exitOK
+	}
+
+	fmt.Fprintln(os.Stderr, "error:", err)
+
+	code := exitCode(err, cfg.resolved)
+	if code == exitUsage {
+		fmt.Fprint(os.Stderr, cmd.UsageString())
+	}
+	return code
 }
 
-// apiKey reads the API key from the environment.
-//
-// It is env-only on purpose: a --api-key flag would put the credential in the
-// process table and in CI logs that echo their commands.
-func apiKey() (string, error) {
-	key := os.Getenv("OCIDEX_API_KEY")
-	if key == "" {
-		return "", errors.New("OCIDEX_API_KEY is not set")
+// exitCode classifies a failure. resolved reports whether the root command's
+// PersistentPreRunE ran: cobra surfaces flag-parsing, required-flag and
+// unknown-command failures the same way it surfaces a command's own error, and
+// happening before resolution is what distinguishes them.
+func exitCode(err error, resolved bool) int {
+	var usageErr *usageError
+	switch {
+	case err == nil:
+		return exitOK
+	case errors.As(err, &usageErr), !resolved:
+		return exitUsage
+	case errors.Is(err, client.ErrNotFound):
+		return exitNotFound
+	case errors.Is(err, client.ErrForbidden):
+		return exitForbidden
+	default:
+		return exitFailure
 	}
-	return key, nil
-}
-
-func newRootCmd() *cobra.Command {
-	cfg := &serverConfig{}
-
-	cmd := &cobra.Command{
-		Use:   "ocidex-cli",
-		Short: "Command-line client for OCIDex",
-		// Errors returned by RunE are reported by main; cobra printing them a
-		// second time, with usage attached, buries the actual message.
-		SilenceErrors: true,
-		SilenceUsage:  true,
-	}
-
-	defaultURL := os.Getenv("OCIDEX_URL")
-	if defaultURL == "" {
-		defaultURL = "http://localhost:8080"
-	}
-	cmd.PersistentFlags().StringVar(&cfg.baseURL, "server", defaultURL,
-		"OCIDex base URL (env OCIDEX_URL)")
-
-	cmd.AddCommand(newSBOMCmd(cfg))
-	return cmd
 }
