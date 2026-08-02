@@ -1345,6 +1345,8 @@ export interface components {
             managed_ref?: string;
             /** @description Human-readable registry name */
             name: string;
+            /** @description Namespace to create the registry in, created on first use; omit to give the registry a namespace of its own named after it */
+            namespace?: string;
             /**
              * Format: int64
              * @description Minutes between polls

@@ -17,6 +17,13 @@ type OCIRegistrySpec struct {
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
 
+	// Namespace is the OCIDex namespace this registry belongs to — the
+	// ownership and visibility boundary (ADR-039), not a Kubernetes namespace.
+	// Defaults to the CR's own Kubernetes namespace, so every OCIRegistry in a
+	// K8s namespace shares one OCIDex tenancy boundary by default.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+
 	// Type is the registry implementation.
 	// +kubebuilder:validation:Enum=docker;generic;ghcr;harbor;zot
 	// +kubebuilder:validation:Required

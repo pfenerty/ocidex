@@ -890,6 +890,11 @@
             "minLength": 1,
             "type": "string"
           },
+          "namespace": {
+            "description": "Namespace to create the registry in, created on first use; omit to give the registry a namespace of its own named after it",
+            "maxLength": 100,
+            "type": "string"
+          },
           "poll_interval_minutes": {
             "description": "Minutes between polls",
             "format": "int64",

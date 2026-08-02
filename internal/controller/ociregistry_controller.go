@@ -72,7 +72,7 @@ func (r *OCIRegistryReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	if cr.Status.RegistryID == "" {
-		resp, err := r.OCIDexClient.CreateRegistry(ctx, specToCreateBody(cr.Spec, managedRef(cr), username, token))
+		resp, err := r.OCIDexClient.CreateRegistry(ctx, specToCreateBody(cr.Spec, managedRef(cr), ocidexNamespace(cr), username, token))
 		if err != nil {
 			if errors.Is(err, ocidexclient.ErrConflict) {
 				existing, getErr := r.OCIDexClient.GetRegistryByName(ctx, cr.Spec.Name)
@@ -158,7 +158,20 @@ func managedRef(cr *v1alpha1.OCIRegistry) string {
 	return cr.Namespace + "/" + cr.Name
 }
 
-func specToCreateBody(spec v1alpha1.OCIRegistrySpec, ref, username, token string) ocidexclient.CreateRegistryInputBody {
+// ocidexNamespace resolves the OCIDex namespace (ADR-039: the ownership and
+// visibility boundary) a CR's registry belongs to. These are two different
+// namespaces that happen to share a word, so keep both sides of this named in
+// full: cr.Namespace is Kubernetes, the return value is OCIDex. Defaulting one
+// from the other means every OCIRegistry in a K8s namespace lands in one OCIDex
+// tenancy boundary unless the spec says otherwise.
+func ocidexNamespace(cr *v1alpha1.OCIRegistry) string {
+	if cr.Spec.Namespace != "" {
+		return cr.Spec.Namespace
+	}
+	return cr.Namespace
+}
+
+func specToCreateBody(spec v1alpha1.OCIRegistrySpec, ref, ocidexNS, username, token string) ocidexclient.CreateRegistryInputBody {
 	managedBy := managedByKubernetes
 	body := ocidexclient.CreateRegistryInputBody{
 		Url:        spec.URL,
@@ -167,6 +180,9 @@ func specToCreateBody(spec v1alpha1.OCIRegistrySpec, ref, username, token string
 		Insecure:   spec.Insecure,
 		ManagedBy:  &managedBy,
 		ManagedRef: &ref,
+	}
+	if ocidexNS != "" {
+		body.Namespace = &ocidexNS
 	}
 	if spec.Visibility != "" {
 		v := ocidexclient.CreateRegistryInputBodyVisibility(spec.Visibility)

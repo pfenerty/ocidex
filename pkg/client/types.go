@@ -954,6 +954,9 @@ type CreateRegistryInputBody struct {
 	// Name Human-readable registry name
 	Name string `json:"name"`
 
+	// Namespace Namespace to create the registry in, created on first use; omit to give the registry a namespace of its own named after it
+	Namespace *string `json:"namespace,omitempty"`
+
 	// PollIntervalMinutes Minutes between polls
 	PollIntervalMinutes *int64 `json:"poll_interval_minutes,omitempty"`
 

@@ -82,6 +82,13 @@ spec:
               name:
                 description: Name is a human-readable label for the registry.
                 type: string
+              namespace:
+                description: |-
+                  Namespace is the OCIDex namespace this registry belongs to — the
+                  ownership and visibility boundary (ADR-039), not a Kubernetes namespace.
+                  Defaults to the CR's own Kubernetes namespace, so every OCIRegistry in a
+                  K8s namespace shares one OCIDex tenancy boundary by default.
+                type: string
               pollIntervalMinutes:
                 description: PollIntervalMinutes is the time between registry polls.
                 format: int64

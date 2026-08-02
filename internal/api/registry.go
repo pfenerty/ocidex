@@ -259,6 +259,7 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 	}
 	reg, err := h.registryService.Create(ctx, service.CreateRegistryParams{
 		Name:                in.Body.Name,
+		Namespace:           in.Body.Namespace,
 		Type:                regType,
 		URL:                 regURL,
 		Insecure:            in.Body.Insecure,

@@ -18,12 +18,17 @@ WITH new_id AS (
 ),
 ns AS (
     INSERT INTO namespace (id, name, owner_id, visibility)
-    SELECT n.id, $19::text, $20::uuid, $21::text FROM new_id n
+    SELECT n.id, $19::text, $20::uuid, $21::text
+    FROM new_id n
+    WHERE $22::uuid IS NULL
     RETURNING id
+),
+target_ns AS (
+    SELECT COALESCE($22::uuid, (SELECT id FROM ns)) AS id
 ),
 src AS (
     INSERT INTO source (id, namespace_id, kind, name)
-    SELECT ns.id, ns.id, 'oci_registry', $19::text FROM ns
+    SELECT n.id, t.id, 'oci_registry', $19::text FROM new_id n, target_ns t
     RETURNING id
 )
 INSERT INTO registry (
@@ -65,6 +70,7 @@ type CreateRegistryParams struct {
 	Name                string      `json:"name"`
 	OwnerID             pgtype.UUID `json:"owner_id"`
 	Visibility          string      `json:"visibility"`
+	NamespaceID         pgtype.UUID `json:"namespace_id"`
 }
 
 // Registry is the oci_registry subtype of source (ADR-039): it holds discovery
@@ -73,8 +79,13 @@ type CreateRegistryParams struct {
 // namespace and are joined back in on read so the API surface is unchanged.
 // Writes namespace, source and registry in one statement. Data-modifying CTEs
 // share a snapshot and FK triggers fire once at statement end, so the three
-// rows may reference each other. All three share an id, matching the shape
-// migration 00053 produced for pre-existing registries.
+// rows may reference each other.
+//
+// When namespace_id is NULL the registry gets a namespace of its own named
+// after it, and all three rows share an id — the shape migration 00053 produced
+// for pre-existing registries. When namespace_id is supplied (the operator
+// defaulting an OCIDex namespace from the CR's K8s namespace) only source and
+// registry are written, and they share an id inside the existing namespace.
 func (q *Queries) CreateRegistry(ctx context.Context, arg CreateRegistryParams) (Registry, error) {
 	row := q.db.QueryRow(ctx, createRegistry,
 		arg.Type,
@@ -98,6 +109,7 @@ func (q *Queries) CreateRegistry(ctx context.Context, arg CreateRegistryParams) 
 		arg.Name,
 		arg.OwnerID,
 		arg.Visibility,
+		arg.NamespaceID,
 	)
 	var i Registry
 	err := row.Scan(
@@ -144,7 +156,7 @@ func (q *Queries) DeleteRegistry(ctx context.Context, id pgtype.UUID) (int64, er
 }
 
 const getRegistry = `-- name: GetRegistry :one
-SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, n.name, n.owner_id, n.visibility
+SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, src.name, n.owner_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -193,11 +205,13 @@ func (q *Queries) GetRegistry(ctx context.Context, id pgtype.UUID) (GetRegistryR
 }
 
 const getRegistryByName = `-- name: GetRegistryByName :one
-SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, n.name, n.owner_id, n.visibility
+SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, src.name, n.owner_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
-WHERE n.name = $1
+WHERE src.name = $1
+ORDER BY r.created_at ASC
+LIMIT 1
 `
 
 type GetRegistryByNameRow struct {
@@ -207,7 +221,10 @@ type GetRegistryByNameRow struct {
 	Visibility string      `json:"visibility"`
 }
 
-// namespace.name is globally unique, so this stays a :one lookup.
+// Matches on the source name, which is what the caller supplied as the registry
+// name. source.name is unique per namespace, not globally, so once registries
+// share a namespace this can in principle match more than one row; the oldest
+// wins. Callers that need an exact handle should use the id.
 func (q *Queries) GetRegistryByName(ctx context.Context, name string) (GetRegistryByNameRow, error) {
 	row := q.db.QueryRow(ctx, getRegistryByName, name)
 	var i GetRegistryByNameRow
@@ -243,7 +260,7 @@ func (q *Queries) GetRegistryByName(ctx context.Context, name string) (GetRegist
 }
 
 const listPollableRegistries = `-- name: ListPollableRegistries :many
-SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, n.name, n.owner_id, n.visibility
+SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, src.name, n.owner_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -306,7 +323,7 @@ func (q *Queries) ListPollableRegistries(ctx context.Context) ([]ListPollableReg
 }
 
 const listRegistries = `-- name: ListRegistries :many
-SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, n.name, n.owner_id, n.visibility
+SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, src.name, n.owner_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -378,7 +395,7 @@ func (q *Queries) ListRegistries(ctx context.Context, arg ListRegistriesParams) 
 }
 
 const listRegistriesPaged = `-- name: ListRegistriesPaged :many
-SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, n.name, n.owner_id, n.visibility, COUNT(*) OVER() AS total_count
+SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, src.name, n.owner_id, n.visibility, COUNT(*) OVER() AS total_count
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -558,7 +575,7 @@ WITH ns AS (
     SET name       = $21::text,
         visibility = $22::text,
         updated_at = now()
-    WHERE namespace.id = (SELECT s.namespace_id FROM source s WHERE s.id = $20)
+    WHERE namespace.id = $20
     RETURNING namespace.id
 ),
 src AS (
@@ -618,8 +635,14 @@ type UpdateRegistryParams struct {
 	Visibility          string      `json:"visibility"`
 }
 
-// Mirror of CreateRegistry: name and visibility land on namespace, the channel
-// name on source, everything else on registry, in one statement.
+// Mirror of CreateRegistry: the channel name lands on source, everything else
+// on registry, in one statement.
+//
+// Name and visibility only propagate to the namespace when the registry owns it
+// outright — the id-sharing case CreateRegistry produces for a registry with no
+// explicit namespace. A registry that was created into an existing namespace
+// must not rename it or flip its visibility out from under its siblings; that
+// goes through PATCH /api/v1/namespaces/{id}.
 func (q *Queries) UpdateRegistry(ctx context.Context, arg UpdateRegistryParams) (Registry, error) {
 	row := q.db.QueryRow(ctx, updateRegistry,
 		arg.Type,

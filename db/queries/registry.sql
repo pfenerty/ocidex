@@ -6,19 +6,29 @@
 -- name: CreateRegistry :one
 -- Writes namespace, source and registry in one statement. Data-modifying CTEs
 -- share a snapshot and FK triggers fire once at statement end, so the three
--- rows may reference each other. All three share an id, matching the shape
--- migration 00053 produced for pre-existing registries.
+-- rows may reference each other.
+--
+-- When namespace_id is NULL the registry gets a namespace of its own named
+-- after it, and all three rows share an id — the shape migration 00053 produced
+-- for pre-existing registries. When namespace_id is supplied (the operator
+-- defaulting an OCIDex namespace from the CR's K8s namespace) only source and
+-- registry are written, and they share an id inside the existing namespace.
 WITH new_id AS (
     SELECT gen_random_uuid() AS id
 ),
 ns AS (
     INSERT INTO namespace (id, name, owner_id, visibility)
-    SELECT n.id, @name::text, sqlc.narg('owner_id')::uuid, @visibility::text FROM new_id n
+    SELECT n.id, @name::text, sqlc.narg('owner_id')::uuid, @visibility::text
+    FROM new_id n
+    WHERE sqlc.narg('namespace_id')::uuid IS NULL
     RETURNING id
+),
+target_ns AS (
+    SELECT COALESCE(sqlc.narg('namespace_id')::uuid, (SELECT id FROM ns)) AS id
 ),
 src AS (
     INSERT INTO source (id, namespace_id, kind, name)
-    SELECT ns.id, ns.id, 'oci_registry', @name::text FROM ns
+    SELECT n.id, t.id, 'oci_registry', @name::text FROM new_id n, target_ns t
     RETURNING id
 )
 INSERT INTO registry (
@@ -38,22 +48,27 @@ FROM src
 RETURNING *;
 
 -- name: GetRegistry :one
-SELECT sqlc.embed(r), n.name, n.owner_id, n.visibility
+SELECT sqlc.embed(r), src.name, n.owner_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
 WHERE r.id = $1;
 
 -- name: GetRegistryByName :one
--- namespace.name is globally unique, so this stays a :one lookup.
-SELECT sqlc.embed(r), n.name, n.owner_id, n.visibility
+-- Matches on the source name, which is what the caller supplied as the registry
+-- name. source.name is unique per namespace, not globally, so once registries
+-- share a namespace this can in principle match more than one row; the oldest
+-- wins. Callers that need an exact handle should use the id.
+SELECT sqlc.embed(r), src.name, n.owner_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
-WHERE n.name = $1;
+WHERE src.name = $1
+ORDER BY r.created_at ASC
+LIMIT 1;
 
 -- name: ListRegistries :many
-SELECT sqlc.embed(r), n.name, n.owner_id, n.visibility
+SELECT sqlc.embed(r), src.name, n.owner_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -65,7 +80,7 @@ WHERE (
 ORDER BY r.created_at ASC;
 
 -- name: ListRegistriesPaged :many
-SELECT sqlc.embed(r), n.name, n.owner_id, n.visibility, COUNT(*) OVER() AS total_count
+SELECT sqlc.embed(r), src.name, n.owner_id, n.visibility, COUNT(*) OVER() AS total_count
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -78,14 +93,20 @@ ORDER BY r.created_at ASC
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: UpdateRegistry :one
--- Mirror of CreateRegistry: name and visibility land on namespace, the channel
--- name on source, everything else on registry, in one statement.
+-- Mirror of CreateRegistry: the channel name lands on source, everything else
+-- on registry, in one statement.
+--
+-- Name and visibility only propagate to the namespace when the registry owns it
+-- outright — the id-sharing case CreateRegistry produces for a registry with no
+-- explicit namespace. A registry that was created into an existing namespace
+-- must not rename it or flip its visibility out from under its siblings; that
+-- goes through PATCH /api/v1/namespaces/{id}.
 WITH ns AS (
     UPDATE namespace
     SET name       = @name::text,
         visibility = @visibility::text,
         updated_at = now()
-    WHERE namespace.id = (SELECT s.namespace_id FROM source s WHERE s.id = @id)
+    WHERE namespace.id = @id
     RETURNING namespace.id
 ),
 src AS (
@@ -133,7 +154,7 @@ WHERE id = $1
 RETURNING *;
 
 -- name: ListPollableRegistries :many
-SELECT sqlc.embed(r), n.name, n.owner_id, n.visibility
+SELECT sqlc.embed(r), src.name, n.owner_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id

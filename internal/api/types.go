@@ -784,6 +784,7 @@ type GetRegistryByNameOutput struct {
 type CreateRegistryInput struct {
 	Body struct {
 		Name                string   `json:"name" minLength:"1" maxLength:"100" doc:"Human-readable registry name"`
+		Namespace           string   `json:"namespace,omitempty" maxLength:"100" doc:"Namespace to create the registry in, created on first use; omit to give the registry a namespace of its own named after it"`
 		Type                string   `json:"type" enum:"zot,harbor,docker,generic,ghcr" doc:"Registry type"`
 		URL                 string   `json:"url" minLength:"1" doc:"Registry address (e.g. zot:5000)"`
 		Insecure            bool     `json:"insecure" doc:"Allow HTTP (non-TLS) connections"`

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"regexp"
@@ -9,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -272,6 +274,13 @@ type CreateRegistryParams struct {
 	TrustIssuer         *string
 	ManagedBy           *string
 	ManagedRef          *string
+
+	// Namespace is the name of the namespace to create the registry in. Empty
+	// means "give it a namespace of its own named after it", the pre-ADR-039
+	// shape. The operator sets this from the CR's K8s namespace so every
+	// OCIRegistry in a K8s namespace shares one OCIDex tenancy boundary.
+	// A namespace named here is created on first use.
+	Namespace string
 }
 
 // UpdateRegistryParams holds the parameters for updating an existing registry.
@@ -352,7 +361,12 @@ func (s *registryService) Create(ctx context.Context, params CreateRegistryParam
 	if verificationMode == "" {
 		verificationMode = "none"
 	}
+	namespaceID, err := s.resolveNamespace(ctx, params, visibility)
+	if err != nil {
+		return Registry{}, err
+	}
 	r, err := s.repo.CreateRegistry(ctx, repository.CreateRegistryParams{
+		NamespaceID:         namespaceID,
 		Name:                params.Name,
 		Type:                params.Type,
 		Url:                 params.URL,
@@ -387,6 +401,40 @@ func (s *registryService) Create(ctx context.Context, params CreateRegistryParam
 		ownerID:    params.OwnerID,
 		visibility: visibility,
 	}), nil
+}
+
+// resolveNamespace turns params.Namespace into the id CreateRegistry should
+// place the source under. An empty name yields an invalid (NULL) UUID, which
+// tells the query to mint a namespace of the registry's own. A named namespace
+// is looked up and created on first use — the operator reconciles many
+// OCIRegistry CRs into one K8s namespace and cannot order their creation.
+func (s *registryService) resolveNamespace(ctx context.Context, params CreateRegistryParams, visibility string) (pgtype.UUID, error) {
+	if params.Namespace == "" {
+		return pgtype.UUID{}, nil
+	}
+	ns, err := s.repo.GetNamespaceByName(ctx, params.Namespace)
+	if err == nil {
+		return ns.ID, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return pgtype.UUID{}, fmt.Errorf("looking up namespace %q: %w", params.Namespace, err)
+	}
+	created, err := s.repo.CreateNamespace(ctx, repository.CreateNamespaceParams{
+		Name:       params.Namespace,
+		OwnerID:    params.OwnerID,
+		Visibility: visibility,
+	})
+	if err != nil {
+		// A concurrent reconcile won the race; re-read rather than fail.
+		if isUniqueViolation(err) {
+			ns, getErr := s.repo.GetNamespaceByName(ctx, params.Namespace)
+			if getErr == nil {
+				return ns.ID, nil
+			}
+		}
+		return pgtype.UUID{}, fmt.Errorf("creating namespace %q: %w", params.Namespace, err)
+	}
+	return created.ID, nil
 }
 
 func (s *registryService) GetByName(ctx context.Context, name string) (Registry, error) {

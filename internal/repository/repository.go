@@ -113,6 +113,11 @@ type RegistryRepository interface {
 	ListPollableRegistries(ctx context.Context) ([]ListPollableRegistriesRow, error)
 	UpdateRegistryLastPolled(ctx context.Context, id pgtype.UUID) (Registry, error)
 	ListRegistryTrustSummary(ctx context.Context) ([]ListRegistryTrustSummaryRow, error)
+
+	// Creating a registry into a named namespace needs these two: the namespace
+	// is created on first use, since nothing orders OCIRegistry reconciles.
+	GetNamespaceByName(ctx context.Context, name string) (Namespace, error)
+	CreateNamespace(ctx context.Context, arg CreateNamespaceParams) (Namespace, error)
 }
 
 // EnrichmentJobRepository defines data access methods for enrichment job lifecycle.
