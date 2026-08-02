@@ -38,7 +38,7 @@ type FakeClient struct {
 	// SBOM + artifact
 	IngestSBOMFn                func(ctx context.Context, data []byte, params IngestSbomParams) (IngestSBOMOutputBody, error)
 	GetSBOMFn                   func(ctx context.Context, id string, includeRaw bool) (SBOMDetail, error)
-	ListSBOMsFn                 func(ctx context.Context, opts PageOpts) (CursorPage[SBOMSummary], error)
+	ListSBOMsFn                 func(ctx context.Context, filter SBOMFilter, opts PageOpts) (CursorPage[SBOMSummary], error)
 	DeleteSBOMFn                func(ctx context.Context, id string) error
 	DiffSBOMsFn                 func(ctx context.Context, fromID, toID string) (ChangelogEntry, error)
 	GetDiffTreeFn               func(ctx context.Context, fromID, toID string) (DiffTree, error)
@@ -168,9 +168,9 @@ func (f *FakeClient) GetSBOM(ctx context.Context, id string, includeRaw bool) (S
 	return SBOMDetail{}, nil
 }
 
-func (f *FakeClient) ListSBOMs(ctx context.Context, opts PageOpts) (CursorPage[SBOMSummary], error) {
+func (f *FakeClient) ListSBOMs(ctx context.Context, filter SBOMFilter, opts PageOpts) (CursorPage[SBOMSummary], error) {
 	if f.ListSBOMsFn != nil {
-		return f.ListSBOMsFn(ctx, opts)
+		return f.ListSBOMsFn(ctx, filter, opts)
 	}
 	return CursorPage[SBOMSummary]{}, nil
 }

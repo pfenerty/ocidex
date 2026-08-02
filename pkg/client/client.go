@@ -42,7 +42,7 @@ type Client interface {
 
 	IngestSBOM(ctx context.Context, data []byte, params IngestSbomParams) (IngestSBOMOutputBody, error)
 	GetSBOM(ctx context.Context, id string, includeRaw bool) (SBOMDetail, error)
-	ListSBOMs(ctx context.Context, opts PageOpts) (CursorPage[SBOMSummary], error)
+	ListSBOMs(ctx context.Context, filter SBOMFilter, opts PageOpts) (CursorPage[SBOMSummary], error)
 	DeleteSBOM(ctx context.Context, id string) error
 	DiffSBOMs(ctx context.Context, fromID, toID string) (ChangelogEntry, error)
 	GetDiffTree(ctx context.Context, fromID, toID string) (DiffTree, error)

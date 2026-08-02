@@ -102,11 +102,28 @@ func TestListSBOMs(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	page, err := newTestClient(srv).ListSBOMs(context.Background(), PageOpts{})
+	page, err := newTestClient(srv).ListSBOMs(context.Background(), SBOMFilter{}, PageOpts{})
 	is.NoErr(err)
 	is.Equal(len(page.Data), 1)
 	is.Equal(page.Data[0].Id, "sbom-1")
 	is.Equal(page.Pagination.HasMore, false)
+}
+
+func TestListSBOMs_Filter(t *testing.T) {
+	is := is.New(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		is.Equal(q.Get("serial_number"), "urn:uuid:abc")
+		is.Equal(q.Get("digest"), "sha256:def")
+		is.Equal(q.Get("limit"), "5")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[],"pagination":{"limit":5,"hasMore":false}}`))
+	}))
+	defer srv.Close()
+
+	filter := SBOMFilter{SerialNumber: "urn:uuid:abc", Digest: "sha256:def"}
+	_, err := newTestClient(srv).ListSBOMs(context.Background(), filter, PageOpts{Limit: 5})
+	is.NoErr(err)
 }
 
 func TestDeleteSBOM(t *testing.T) {

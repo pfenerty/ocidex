@@ -3,14 +3,18 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
+	"github.com/pfenerty/ocidex/cmd/ocidex-cli/output"
 	"github.com/pfenerty/ocidex/pkg/client"
 )
 
@@ -19,7 +23,14 @@ func newSBOMCmd(cfg *rootConfig) *cobra.Command {
 		Use:   "sbom",
 		Short: "Work with SBOMs",
 	}
-	cmd.AddCommand(newSBOMPushCmd(cfg))
+	cmd.AddCommand(
+		newSBOMPushCmd(cfg),
+		newSBOMListCmd(cfg),
+		newSBOMGetCmd(cfg),
+		newSBOMDeleteCmd(cfg),
+		newSBOMDiffCmd(cfg),
+		newSBOMDiffTreeCmd(cfg),
+	)
 	return cmd
 }
 
@@ -39,8 +50,12 @@ func newSBOMPushCmd(cfg *rootConfig) *cobra.Command {
 	o := &pushOpts{}
 
 	cmd := &cobra.Command{
-		Use:   "push <sbom-file>",
-		Short: "Upload a CycloneDX SBOM",
+		Use: "push <sbom-file>",
+		// The endpoint is called ingest and the issue that specified this
+		// command called it ingest; the Tekton task and ADR-029 both say push.
+		// The alias costs nothing and spares anyone who learned the other word.
+		Aliases: []string{"ingest"},
+		Short:   "Upload a CycloneDX SBOM",
 		Long: `Upload a CycloneDX SBOM for a build artifact.
 
 The SBOM lands in the namespace that owns --source. For a non-container subject
@@ -117,6 +132,122 @@ func runSBOMPush(cmd *cobra.Command, cfg *rootConfig, o *pushOpts, sbomPath stri
 
 	fmt.Fprintf(cmd.OutOrStdout(), "%s (%d components)\n", out.Id, out.ComponentCount)
 	return nil
+}
+
+// sbomColumns is the table view of a SBOM: which build it describes and how
+// big it is. Serial number and digest are filters rather than columns — they
+// are too wide to read in a row and are in -o json when they are needed.
+func sbomColumns() []output.Column[client.SBOMSummary] {
+	return []output.Column[client.SBOMSummary]{
+		{Header: "ID", Value: func(s client.SBOMSummary) string { return s.Id }},
+		{Header: "VERSION", Value: func(s client.SBOMSummary) string { return deref(s.SubjectVersion) }},
+		{Header: "FLAVOR", Value: func(s client.SBOMSummary) string { return deref(s.Flavor) }},
+		{Header: "ARCH", Value: func(s client.SBOMSummary) string { return deref(s.Architecture) }},
+		{Header: "COMPONENTS", Value: func(s client.SBOMSummary) string { return derefInt(s.ComponentCount) }},
+		{Header: "SUFFICIENT", Value: func(s client.SBOMSummary) string { return fmt.Sprint(s.Sufficient) }},
+		{Header: "CREATED", Value: func(s client.SBOMSummary) string { return s.CreatedAt.Format(time.RFC3339) }},
+	}
+}
+
+func newSBOMListCmd(cfg *rootConfig) *cobra.Command {
+	var filter client.SBOMFilter
+	var limit, offset int32
+
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List visible SBOMs",
+		Long: `List visible SBOMs.
+
+--serial-number identifies one document; --digest identifies one subject, so it
+returns every SBOM recorded for that image or artifact.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			page, err := cfg.api.ListSBOMs(cmd.Context(), filter, client.PageOpts{Limit: limit, Offset: offset})
+			if err != nil {
+				return fmt.Errorf("listing SBOMs: %w", err)
+			}
+			if err := output.List(cmd.OutOrStdout(), cfg.format, page.Data, sbomColumns()...); err != nil {
+				return err
+			}
+			// Stderr, and only in table mode: -o json is for machines, which
+			// already have the array and the pagination block.
+			if cfg.format == output.Table && page.Pagination.HasMore {
+				fmt.Fprintf(cmd.ErrOrStderr(), "\n%d shown; more available (use --offset %d)\n",
+					len(page.Data), int(offset)+len(page.Data))
+			}
+			return nil
+		},
+	}
+
+	f := cmd.Flags()
+	f.StringVar(&filter.SerialNumber, "serial-number", "", "return only the SBOM with this CycloneDX serial number")
+	f.StringVar(&filter.Digest, "digest", "", "return only SBOMs whose subject has this digest")
+	f.Int32Var(&limit, "limit", 0, "maximum SBOMs to return (server default 50)")
+	f.Int32Var(&offset, "offset", 0, "index of the first SBOM to return")
+	return cmd
+}
+
+func newSBOMGetCmd(cfg *rootConfig) *cobra.Command {
+	var raw bool
+
+	cmd := &cobra.Command{
+		Use:   "get <id>",
+		Short: "Show one SBOM in full",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			sbom, err := cfg.api.GetSBOM(cmd.Context(), args[0], raw)
+			if err != nil {
+				return fmt.Errorf("getting SBOM: %w", err)
+			}
+			if raw {
+				// The stored document, byte-for-byte what OCIDex was given, so
+				// it can be piped straight into another SBOM tool.
+				if sbom.RawBom == nil {
+					return fmt.Errorf("getting SBOM: %s has no stored raw document", args[0])
+				}
+				enc := json.NewEncoder(cmd.OutOrStdout())
+				enc.SetIndent("", "  ")
+				return enc.Encode(sbom.RawBom)
+			}
+			return output.Item(cmd.OutOrStdout(), cfg.format, sbom)
+		},
+	}
+
+	cmd.Flags().BoolVar(&raw, "raw", false, "print the stored CycloneDX document instead of OCIDex's summary")
+	return cmd
+}
+
+func newSBOMDeleteCmd(cfg *rootConfig) *cobra.Command {
+	var yes bool
+
+	cmd := &cobra.Command{
+		Use:   "delete <id>",
+		Short: "Delete a SBOM",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id := args[0]
+			if err := confirm(cmd, yes, fmt.Sprintf("Delete SBOM %s?", id)); err != nil {
+				return err
+			}
+			if err := cfg.api.DeleteSBOM(cmd.Context(), id); err != nil {
+				return fmt.Errorf("deleting SBOM: %w", err)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "deleted %s\n", id)
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "delete without confirming")
+	return cmd
+}
+
+// derefInt renders an absent count as an empty cell rather than as 0, because
+// "no SBOM component count recorded" and "zero components" are different facts.
+func derefInt(n *int64) string {
+	if n == nil {
+		return ""
+	}
+	return strconv.FormatInt(*n, 10)
 }
 
 // validateSource rejects a bare source name before the request is made.
