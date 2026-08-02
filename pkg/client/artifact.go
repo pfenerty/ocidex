@@ -6,9 +6,34 @@ import (
 	"net/url"
 )
 
-func (c *httpClient) ListArtifacts(ctx context.Context, opts PageOpts) (CursorPage[ArtifactSummary], error) {
+// ArtifactFilter narrows an artifact listing. A zero value lists artifacts with
+// sufficiently enriched SBOMs, which is what the server returns by default.
+type ArtifactFilter struct {
+	// Type is a CycloneDX component type, e.g. container or application.
+	Type string
+	// Name matches the artifact name.
+	Name string
+	// IncludeInsufficient also returns artifacts whose SBOMs are not enriched
+	// enough to be trusted, which the server hides unless asked.
+	IncludeInsufficient bool
+}
+
+func (f ArtifactFilter) apply(p url.Values) url.Values {
+	if f.Type != "" {
+		p.Set("type", f.Type)
+	}
+	if f.Name != "" {
+		p.Set("name", f.Name)
+	}
+	if f.IncludeInsufficient {
+		p.Set("sufficient", "false")
+	}
+	return p
+}
+
+func (c *httpClient) ListArtifacts(ctx context.Context, filter ArtifactFilter, opts PageOpts) (CursorPage[ArtifactSummary], error) {
 	var out ListArtifactsOutputBody
-	if err := c.request(ctx, http.MethodGet, "/api/v1/artifacts", pageParams(opts), nil, &out); err != nil {
+	if err := c.request(ctx, http.MethodGet, "/api/v1/artifacts", filter.apply(pageParams(opts)), nil, &out); err != nil {
 		return CursorPage[ArtifactSummary]{}, err
 	}
 	return CursorPage[ArtifactSummary]{Data: derefSlice(out.Data), Pagination: out.Pagination}, nil

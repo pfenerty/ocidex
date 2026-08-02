@@ -14,6 +14,15 @@ import (
 // config file names a server.
 const defaultServer = "http://localhost:8080"
 
+// Vocabulary shared across the command files: the same verb and the same table
+// headers appear in every noun, and they should stay spelled the same way.
+const (
+	verbList = "list"
+
+	colName = "NAME"
+	colType = "TYPE"
+)
+
 // usageError marks a failure the user can fix by re-reading the usage text, as
 // opposed to one the server or the filesystem caused. main maps it to exit
 // code 2 and prints usage alongside the message.
@@ -85,7 +94,7 @@ is deliberately not a flag — see docs/adr/0029-cli-design.md.`,
 	f.StringVarP(&cfg.outputFlag, "output", "o", "",
 		"output format: table, json, or yaml (config output, default table)")
 
-	cmd.AddCommand(newSBOMCmd(cfg), newRegistryCmd(cfg))
+	cmd.AddCommand(newSBOMCmd(cfg), newRegistryCmd(cfg), newArtifactCmd(cfg))
 	return cmd, cfg
 }
 

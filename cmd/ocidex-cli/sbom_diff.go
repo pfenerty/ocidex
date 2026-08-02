@@ -93,8 +93,8 @@ the counts underneath it.`,
 func diffColumns() []output.Column[client.ComponentDiff] {
 	return []output.Column[client.ComponentDiff]{
 		{Header: "CHANGE", Value: func(d client.ComponentDiff) string { return d.Direction }},
-		{Header: "TYPE", Value: func(d client.ComponentDiff) string { return d.Type }},
-		{Header: "NAME", Value: func(d client.ComponentDiff) string { return qualifiedName(d.Group, d.Name) }},
+		{Header: colType, Value: func(d client.ComponentDiff) string { return d.Type }},
+		{Header: colName, Value: func(d client.ComponentDiff) string { return qualifiedName(d.Group, d.Name) }},
 		{Header: "FROM", Value: func(d client.ComponentDiff) string { return deref(d.PreviousVersion) }},
 		{Header: "TO", Value: func(d client.ComponentDiff) string { return deref(d.Version) }},
 	}
@@ -203,15 +203,22 @@ func subtreeChanged(tn treeNode) bool {
 	return d.Added+d.Removed+d.Upgraded+d.Downgraded+d.Modified > 0
 }
 
+// The server's ComponentDiff.Direction values. Upgraded, downgraded and
+// modified all render the same way here, so only these two are named.
+const (
+	dirAdded   = "added"
+	dirRemoved = "removed"
+)
+
 // changeMark is the leading glyph: what happened to this node itself.
 func changeMark(c *client.ComponentDiff) string {
 	if c == nil {
 		return " "
 	}
 	switch c.Direction {
-	case "added":
+	case dirAdded:
 		return "+"
-	case "removed":
+	case dirRemoved:
 		return "-"
 	default:
 		return "~"

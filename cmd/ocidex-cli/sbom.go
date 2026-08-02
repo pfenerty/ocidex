@@ -154,7 +154,7 @@ func newSBOMListCmd(cfg *rootConfig) *cobra.Command {
 	var limit, offset int32
 
 	cmd := &cobra.Command{
-		Use:   "list",
+		Use:   verbList,
 		Short: "List visible SBOMs",
 		Long: `List visible SBOMs.
 

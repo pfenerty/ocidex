@@ -47,7 +47,7 @@ type Client interface {
 	DiffSBOMs(ctx context.Context, fromID, toID string) (ChangelogEntry, error)
 	GetDiffTree(ctx context.Context, fromID, toID string) (DiffTree, error)
 
-	ListArtifacts(ctx context.Context, opts PageOpts) (CursorPage[ArtifactSummary], error)
+	ListArtifacts(ctx context.Context, filter ArtifactFilter, opts PageOpts) (CursorPage[ArtifactSummary], error)
 	GetArtifact(ctx context.Context, id string) (ArtifactDetail, error)
 	GetArtifactChangelog(ctx context.Context, id string, params GetArtifactChangelogParams) (Changelog, error)
 	GetArtifactLicenseSummary(ctx context.Context, id string) (GetArtifactLicenseSummaryOutputBody, error)

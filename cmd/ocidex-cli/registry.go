@@ -38,9 +38,9 @@ is resolved through /api/v1/registries/by-name before the call.`,
 // and whether OCIDex is actually polling it. Everything else is in -o json.
 func registryColumns() []output.Column[client.RegistryResponse] {
 	return []output.Column[client.RegistryResponse]{
-		{Header: "NAME", Value: func(r client.RegistryResponse) string { return r.Name }},
+		{Header: colName, Value: func(r client.RegistryResponse) string { return r.Name }},
 		{Header: "URL", Value: func(r client.RegistryResponse) string { return r.Url }},
-		{Header: "TYPE", Value: func(r client.RegistryResponse) string { return r.Type }},
+		{Header: colType, Value: func(r client.RegistryResponse) string { return r.Type }},
 		{Header: "SCAN MODE", Value: func(r client.RegistryResponse) string { return r.ScanMode }},
 		{Header: "ENABLED", Value: func(r client.RegistryResponse) string { return fmt.Sprint(r.Enabled) }},
 		{Header: "VISIBILITY", Value: func(r client.RegistryResponse) string { return r.Visibility }},
@@ -52,7 +52,7 @@ func newRegistryListCmd(cfg *rootConfig) *cobra.Command {
 	var limit, offset int32
 
 	cmd := &cobra.Command{
-		Use:   "list",
+		Use:   verbList,
 		Short: "List visible registries",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {

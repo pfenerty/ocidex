@@ -42,7 +42,7 @@ type FakeClient struct {
 	DeleteSBOMFn                func(ctx context.Context, id string) error
 	DiffSBOMsFn                 func(ctx context.Context, fromID, toID string) (ChangelogEntry, error)
 	GetDiffTreeFn               func(ctx context.Context, fromID, toID string) (DiffTree, error)
-	ListArtifactsFn             func(ctx context.Context, opts PageOpts) (CursorPage[ArtifactSummary], error)
+	ListArtifactsFn             func(ctx context.Context, filter ArtifactFilter, opts PageOpts) (CursorPage[ArtifactSummary], error)
 	GetArtifactFn               func(ctx context.Context, id string) (ArtifactDetail, error)
 	GetArtifactChangelogFn      func(ctx context.Context, id string, params GetArtifactChangelogParams) (Changelog, error)
 	GetArtifactLicenseSummaryFn func(ctx context.Context, id string) (GetArtifactLicenseSummaryOutputBody, error)
@@ -196,9 +196,9 @@ func (f *FakeClient) GetDiffTree(ctx context.Context, fromID, toID string) (Diff
 	return DiffTree{}, nil
 }
 
-func (f *FakeClient) ListArtifacts(ctx context.Context, opts PageOpts) (CursorPage[ArtifactSummary], error) {
+func (f *FakeClient) ListArtifacts(ctx context.Context, filter ArtifactFilter, opts PageOpts) (CursorPage[ArtifactSummary], error) {
 	if f.ListArtifactsFn != nil {
-		return f.ListArtifactsFn(ctx, opts)
+		return f.ListArtifactsFn(ctx, filter, opts)
 	}
 	return CursorPage[ArtifactSummary]{}, nil
 }
