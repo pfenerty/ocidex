@@ -22,6 +22,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/api"
 	"github.com/pfenerty/ocidex/internal/audit"
 	"github.com/pfenerty/ocidex/internal/config"
+	"github.com/pfenerty/ocidex/internal/dbaudit"
 	"github.com/pfenerty/ocidex/internal/enrichment"
 	"github.com/pfenerty/ocidex/internal/enrichment/ocivalidate"
 	"github.com/pfenerty/ocidex/internal/event"
@@ -360,12 +361,12 @@ func serveAndWait(srv *http.Server) error {
 	return nil
 }
 
-// runMigrate dispatches `ocidex migrate up|down|status`. It deliberately
+// runMigrate dispatches `ocidex migrate up|down|status|audit`. It deliberately
 // avoids config.Load() because the migration tool has no business depending
 // on NATS connectivity — only DATABASE_URL is required.
 func runMigrate(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: ocidex migrate up|down|status")
+		return errors.New("usage: ocidex migrate up|down|status|audit")
 	}
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
@@ -384,12 +385,46 @@ func runMigrate(args []string) error {
 
 	switch args[0] {
 	case "up":
+		if err := ownershipPreflight(context.Background(), conn); err != nil {
+			return err
+		}
 		return goose.Up(conn, "migrations")
 	case "down":
 		return goose.Down(conn, "migrations")
 	case "status":
 		return goose.Status(conn, "migrations")
+	case "audit":
+		return ownershipPreflight(context.Background(), conn)
 	default:
-		return fmt.Errorf("unknown migrate subcommand %q (want up|down|status)", args[0])
+		return fmt.Errorf("unknown migrate subcommand %q (want up|down|status|audit)", args[0])
 	}
+}
+
+// ownershipPreflight fails the migration before goose touches the schema if any
+// public-schema object is owned by another role. Such objects — created by hand
+// as a superuser rather than by a migration — cannot be replaced, dropped,
+// altered or truncated by the app role, so both the migration and the runtime
+// paths that use them fail, the latter silently as HTTP 500s. Only a superuser
+// can repair it, so the check reports the exact ALTER statements and stops.
+//
+// Set OCIDEX_MIGRATE_SKIP_OWNERSHIP_CHECK=1 to bypass, for the case where the
+// check itself is wrong and a deploy must go out regardless.
+func ownershipPreflight(ctx context.Context, conn *sql.DB) error {
+	if os.Getenv("OCIDEX_MIGRATE_SKIP_OWNERSHIP_CHECK") == "1" {
+		slog.Warn("ownership preflight skipped by OCIDEX_MIGRATE_SKIP_OWNERSHIP_CHECK")
+		return nil
+	}
+	role, err := dbaudit.CurrentUser(ctx, conn)
+	if err != nil {
+		return err
+	}
+	objs, err := dbaudit.Misowned(ctx, conn)
+	if err != nil {
+		return err
+	}
+	if len(objs) == 0 {
+		slog.Info("ownership preflight passed", "role", role)
+		return nil
+	}
+	return fmt.Errorf("ownership preflight failed:\n\n%s", dbaudit.Report(objs, role))
 }

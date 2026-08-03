@@ -106,6 +106,15 @@ Runs the API image (`ocidex-api:<tag>`) with `command: ["/ocidex"]`, `args: ["mi
 | Variable | Source | Production value |
 |---|---|---|
 | `DATABASE_URL` | Secret | same as API |
+| `OCIDEX_MIGRATE_SKIP_OWNERSHIP_CHECK` | Deployment env *(optional)* | unset |
+
+`migrate up` runs an ownership preflight before goose touches the schema: if any
+`public`-schema object is owned by a role other than the app role, the Job fails
+with the exact `ALTER ... OWNER TO` statements to run as a superuser. That state
+only arises from hand-run DDL on a deployed database — see
+[DEVELOPMENT.md § Database Ownership](DEVELOPMENT.md#database-ownership). Job
+pods are reaped a few minutes after failure, so if the logs are already gone,
+`ocidex migrate audit` in a throwaway pod reproduces the check read-only.
 
 ### `postgres` StatefulSet
 
