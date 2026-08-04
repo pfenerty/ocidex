@@ -7,12 +7,31 @@ metadata:
     {{- include "ocidex-operator.labels" . | nindent 4 }}
 spec:
   replicas: 1
-  # Recreate, not RollingUpdate: with replicas=1 the default maxSurge of 25%
-  # rounds up to 1, so two operator pods overlap during an upgrade and contend
-  # for the lease. Recreate keeps leader election a safety net for a future
-  # scale-up rather than a load-bearing part of every rollout.
+  # maxSurge 0 so a rollout never runs two operator pods at once: with the
+  # default 25% surge, replicas=1 rounds up to 1 extra pod and the two contend
+  # for the lease on every upgrade. This keeps leader election a safety net for
+  # a future scale-up rather than a load-bearing part of every rollout.
+  #
+  # Deliberately NOT `type: Recreate`, which expresses the same intent but
+  # cannot be applied to a Deployment that already exists. The API server
+  # defaults spec.strategy.rollingUpdate on any object created without an
+  # explicit strategy, and a defaulted field is owned by no field manager —
+  # so server-side apply has nothing to prune and leaves it in place, while
+  # validation rejects rollingUpdate alongside type Recreate. The upgrade then
+  # fails permanently with:
+  #
+  #   spec.strategy.rollingUpdate: Forbidden: may not be specified when
+  #   strategy `type` is 'Recreate'
+  #
+  # An explicit `rollingUpdate: null` does not help: SSA removes only fields
+  # the applier previously owned. Setting the subfields instead takes ownership
+  # of them and is schema-valid against both a fresh and an existing object
+  # (ocidex-vh6).
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "ocidex-operator.name" . }}
