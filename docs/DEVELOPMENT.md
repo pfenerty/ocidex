@@ -137,6 +137,34 @@ var (
 
 Never call `http.Error()` or write directly to `http.ResponseWriter` in a huma handler — return errors instead. Huma serializes them as RFC 7807 problem details.
 
+## Database Ownership
+
+**Every object in the `public` schema must be owned by the application role (`ocidex`).** Postgres requires ownership — not merely privileges — for `CREATE OR REPLACE FUNCTION`, `DROP`, `ALTER TABLE` and `TRUNCATE`. An object owned by anyone else is permanently out of reach of both migrations and runtime.
+
+**Never run psql against a deployed database as `postgres`.** Connect as `ocidex`. A table or function you create as the superuser cannot afterwards be replaced, altered or truncated by the app — and because `ALTER ... OWNER TO` also requires ownership, neither a migration nor the app can repair it. Only a superuser can, by hand.
+
+This is not hypothetical: hand-run DDL left `visible_registry_ids` and the three rollup tables owned by `postgres` in ocidex-dev. Migration `00052` failed on every retry (`must be owner of function visible_registry_ids`), and once unblocked the components, licenses and vulnerabilities pages all returned 500 because the rollup refresh could not `TRUNCATE` its own tables.
+
+**The guard.** `ocidex migrate up` runs an ownership preflight before goose touches the schema and refuses to migrate if anything in `public` is out of reach, printing the exact repair statements:
+
+```
+$ ocidex migrate audit
+ownership preflight failed:
+
+2 public-schema object(s) are not owned by "ocidex":
+  FUNCTION           public.visible_registry_ids(uuid, boolean) (owner: postgres)
+  TABLE              public.component_rollup (owner: postgres)
+...
+  ALTER FUNCTION public.visible_registry_ids(uuid, boolean) OWNER TO ocidex;
+  ALTER TABLE public.component_rollup OWNER TO ocidex;
+```
+
+`ocidex migrate audit` runs the same check on its own — read-only, safe against any environment, and the right thing to run in a throwaway pod when diagnosing a stuck migration. Run the printed statements as a superuser, then re-run the migration.
+
+Extension members (the `pg_trgm` functions) are excluded — they are owned by whoever ran `CREATE EXTENSION`, which is normal. Indexes are excluded because their ownership always follows their table. `OCIDEX_MIGRATE_SKIP_OWNERSHIP_CHECK=1` bypasses the preflight, for the case where the check itself is wrong and a deploy must ship regardless.
+
+Implementation: `internal/dbaudit`.
+
 ## Test-Driven Development
 
 **Workflow:** Write test → run it (expect failure) → implement → run it (expect pass) → refactor.

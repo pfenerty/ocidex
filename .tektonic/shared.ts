@@ -71,6 +71,22 @@ export const goCacheTest = {
   skipRestoreIfPathsExist: true,
 };
 
+// govulncheck-scan needs the same treatment, and for a sharper reason than go-test does
+// (ocidex-plh). goEnv points GOMODCACHE/GOCACHE at two directories in the *shared* source
+// workspace, so every Go task in the run reads and writes the same .go-mod/.go-build. A
+// cache restore begins by `rm -rf`ing them. That is safe only while nothing else is using
+// them — and govulncheck-scan is the one Go task Tekton may schedule at any moment, so its
+// restore can land in the middle of another task's build. In ocidex-ocidex-push-hh77k it
+// did: openapi-verify (which declares no cache of its own and just uses what go-build
+// leaves behind) died with "package encoding/json is not in std" when the module cache
+// vanished under it, and govulncheck's own `rm -rf` failed ENOTEMPTY against openapi-verify
+// still writing. Skipping the restore when the paths are already populated removes the
+// destructive step; go-vulncheck's `needs: [goBuild]` is what guarantees they are.
+export const goCacheVulncheck = {
+  ...goCache,
+  skipRestoreIfPathsExist: true,
+};
+
 export const nodeModulesCache = {
   name: "node-modules",
   key: ["package-lock.json"],

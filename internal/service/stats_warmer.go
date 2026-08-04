@@ -40,8 +40,13 @@ func NewStatsWarmer(svc SearchService, interval time.Duration, logger *slog.Logg
 }
 
 // warmedScopes are the visibility scopes the warmer refreshes: the two that
-// exist without a session. Per-user scopes are unbounded and can't be
-// enumerated, so they are still computed on demand.
+// exist without a session.
+//
+// These cover every viewer except one who owns a private registry — see
+// statsScopeKey, which collapses viewers with no private registry of their own
+// onto the anonymous scope, because they see exactly the public set. Scopes
+// that remain per-user are unbounded and cannot be enumerated, so they are
+// served stale-or-empty rather than computed on the request path.
 func warmedScopes() []VisibilityFilter {
 	return []VisibilityFilter{
 		{},              // anonymous — public registries only
@@ -49,16 +54,32 @@ func warmedScopes() []VisibilityFilter {
 	}
 }
 
-// Run warms once immediately, then every interval, until ctx is cancelled.
+// Run warms once immediately, then waits interval *after each pass finishes*
+// before starting the next, until ctx is cancelled.
+//
+// The interval is a gap between passes, not a period. A ticker would fire again
+// while the previous pass was still running whenever a pass outlasts the
+// interval — which is exactly what happened in production, where a pass took
+// ~5.6 minutes against a 5 minute period. Passes then overlapped without bound
+// and permanently consumed the connection pool, so ordinary requests queued for
+// a connection until they hit the 30s HTTP timeout.
 func (w *StatsWarmer) Run(ctx context.Context) {
-	ticker := time.NewTicker(w.interval)
-	defer ticker.Stop()
+	timer := time.NewTimer(w.interval)
+	defer timer.Stop()
 
-	w.tick(ctx)
 	for {
+		w.tick(ctx)
+
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+		timer.Reset(w.interval)
+
 		select {
-		case <-ticker.C:
-			w.tick(ctx)
+		case <-timer.C:
 		case <-ctx.Done():
 			return
 		}

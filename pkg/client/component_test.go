@@ -20,10 +20,51 @@ func TestSearchComponents(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	page, err := newTestClient(srv).SearchComponents(context.Background(), "openssl", PageOpts{})
+	page, err := newTestClient(srv).SearchComponents(context.Background(), ComponentFilter{Name: "openssl"}, PageOpts{})
 	is.NoErr(err)
 	is.Equal(len(page.Data), 1)
 	is.Equal(page.Data[0].Name, "openssl")
+}
+
+func TestSearchComponents_FilterPassthrough(t *testing.T) {
+	is := is.New(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		is.Equal(q.Get("name"), "openssl")
+		is.Equal(q.Get("group"), "org.example")
+		is.Equal(q.Get("version"), "3.0.1")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[],"pagination":{"total":0,"limit":50,"offset":0}}`))
+	}))
+	defer srv.Close()
+
+	_, err := newTestClient(srv).SearchComponents(context.Background(),
+		ComponentFilter{Name: "openssl", Group: "org.example", Version: "3.0.1"}, PageOpts{})
+	is.NoErr(err)
+}
+
+func TestSearchDistinctComponents_FilterPassthrough(t *testing.T) {
+	is := is.New(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		is.Equal(q.Get("name"), "curl")
+		is.Equal(q.Get("group"), "org.example")
+		is.Equal(q.Get("type"), "library")
+		// Snake case on the wire, camel case on the struct: the server names
+		// these, and a silent rename here would just return unfiltered rows.
+		is.Equal(q.Get("purl_type"), "deb")
+		is.Equal(q.Get("sort"), "name")
+		is.Equal(q.Get("sort_dir"), "desc")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[],"pagination":{"total":0,"limit":50,"offset":0}}`))
+	}))
+	defer srv.Close()
+
+	_, err := newTestClient(srv).SearchDistinctComponents(context.Background(), DistinctComponentFilter{
+		Name: "curl", Group: "org.example", Type: "library",
+		PurlType: "deb", Sort: "name", SortDir: "desc",
+	}, PageOpts{})
+	is.NoErr(err)
 }
 
 func TestSearchDistinctComponents_WithQuery(t *testing.T) {
@@ -36,7 +77,7 @@ func TestSearchDistinctComponents_WithQuery(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	page, err := newTestClient(srv).SearchDistinctComponents(context.Background(), "curl", PageOpts{})
+	page, err := newTestClient(srv).SearchDistinctComponents(context.Background(), DistinctComponentFilter{Name: "curl"}, PageOpts{})
 	is.NoErr(err)
 	is.Equal(len(page.Data), 1)
 	is.Equal(page.Data[0].Name, "curl")
@@ -51,7 +92,7 @@ func TestSearchDistinctComponents_EmptyQuery(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	page, err := newTestClient(srv).SearchDistinctComponents(context.Background(), "", PageOpts{})
+	page, err := newTestClient(srv).SearchDistinctComponents(context.Background(), DistinctComponentFilter{}, PageOpts{})
 	is.NoErr(err)
 	is.Equal(len(page.Data), 0)
 }

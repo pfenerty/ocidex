@@ -120,7 +120,7 @@ type fakeLister struct {
 	err     error
 }
 
-func (f *fakeLister) ListDigestsByRegistry(_ context.Context, _ string) (map[string]bool, error) {
+func (f *fakeLister) ListDigestsBySource(_ context.Context, _ string) (map[string]bool, error) {
 	return f.digests, f.err
 }
 

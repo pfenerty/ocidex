@@ -20,7 +20,7 @@ type SBOMRepository interface {
 	InsertDependency(ctx context.Context, arg InsertDependencyParams) error
 	InsertExternalReference(ctx context.Context, arg InsertExternalReferenceParams) error
 	DeleteSBOM(ctx context.Context, id pgtype.UUID) (int64, error)
-	UpsertArtifactRegistry(ctx context.Context, arg UpsertArtifactRegistryParams) error
+	UpsertArtifactNamespace(ctx context.Context, arg UpsertArtifactNamespaceParams) error
 }
 
 // SearchRepository defines read-only data access methods for search and retrieval.
@@ -75,19 +75,49 @@ type ArtifactRepository interface {
 	DeleteArtifact(ctx context.Context, id pgtype.UUID) (int64, error)
 }
 
+// NamespaceRepository defines data access methods for namespace management.
+// Namespace is the authorization anchor: ownership and visibility live here
+// and nowhere else (ADR-039).
+type NamespaceRepository interface {
+	CreateNamespace(ctx context.Context, arg CreateNamespaceParams) (Namespace, error)
+	GetNamespace(ctx context.Context, id pgtype.UUID) (Namespace, error)
+	GetNamespaceByName(ctx context.Context, name string) (Namespace, error)
+	ListNamespaces(ctx context.Context, arg ListNamespacesParams) ([]Namespace, error)
+	UpdateNamespace(ctx context.Context, arg UpdateNamespaceParams) (Namespace, error)
+	DeleteNamespace(ctx context.Context, id pgtype.UUID) (int64, error)
+}
+
+// SourceRepository defines data access methods for source management. A source
+// is the ingest channel an SBOM arrived through (ADR-039); the oci_registry
+// subtype has a matching registry row sharing its id.
+type SourceRepository interface {
+	CreateSource(ctx context.Context, arg CreateSourceParams) (Source, error)
+	GetSource(ctx context.Context, id pgtype.UUID) (Source, error)
+	GetSourceByName(ctx context.Context, arg GetSourceByNameParams) (Source, error)
+	ListSourcesByNamespace(ctx context.Context, namespaceID pgtype.UUID) ([]Source, error)
+	ListSources(ctx context.Context, arg ListSourcesParams) ([]ListSourcesRow, error)
+	UpdateSource(ctx context.Context, arg UpdateSourceParams) (Source, error)
+	DeleteSource(ctx context.Context, id pgtype.UUID) (int64, error)
+}
+
 // RegistryRepository defines data access methods for registry management.
 type RegistryRepository interface {
 	CreateRegistry(ctx context.Context, arg CreateRegistryParams) (Registry, error)
-	GetRegistry(ctx context.Context, id pgtype.UUID) (Registry, error)
-	GetRegistryByName(ctx context.Context, name string) (Registry, error)
-	ListRegistries(ctx context.Context, arg ListRegistriesParams) ([]Registry, error)
+	GetRegistry(ctx context.Context, id pgtype.UUID) (GetRegistryRow, error)
+	GetRegistryByName(ctx context.Context, name string) (GetRegistryByNameRow, error)
+	ListRegistries(ctx context.Context, arg ListRegistriesParams) ([]ListRegistriesRow, error)
 	ListRegistriesPaged(ctx context.Context, arg ListRegistriesPagedParams) ([]ListRegistriesPagedRow, error)
 	UpdateRegistry(ctx context.Context, arg UpdateRegistryParams) (Registry, error)
 	SetRegistryEnabled(ctx context.Context, arg SetRegistryEnabledParams) (Registry, error)
 	DeleteRegistry(ctx context.Context, id pgtype.UUID) (int64, error)
-	ListPollableRegistries(ctx context.Context) ([]Registry, error)
+	ListPollableRegistries(ctx context.Context) ([]ListPollableRegistriesRow, error)
 	UpdateRegistryLastPolled(ctx context.Context, id pgtype.UUID) (Registry, error)
 	ListRegistryTrustSummary(ctx context.Context) ([]ListRegistryTrustSummaryRow, error)
+
+	// Creating a registry into a named namespace needs these two: the namespace
+	// is created on first use, since nothing orders OCIRegistry reconciles.
+	GetNamespaceByName(ctx context.Context, name string) (Namespace, error)
+	CreateNamespace(ctx context.Context, arg CreateNamespaceParams) (Namespace, error)
 }
 
 // EnrichmentJobRepository defines data access methods for enrichment job lifecycle.

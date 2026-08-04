@@ -21,7 +21,7 @@ type Submitter interface {
 
 // DigestLister returns known SBOM digests for a registry, used to skip re-scanning.
 type DigestLister interface {
-	ListDigestsByRegistry(ctx context.Context, registryID string) (map[string]bool, error)
+	ListDigestsBySource(ctx context.Context, sourceID string) (map[string]bool, error)
 }
 
 // RegistryWalker performs a catalog walk for a single registry.
@@ -55,7 +55,7 @@ func FetchKnownDigests(ctx context.Context, dl DigestLister, registryID string) 
 	if dl == nil || registryID == "" {
 		return nil
 	}
-	digests, err := dl.ListDigestsByRegistry(ctx, registryID)
+	digests, err := dl.ListDigestsBySource(ctx, registryID)
 	if err != nil {
 		return nil
 	}

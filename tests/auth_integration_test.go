@@ -31,14 +31,57 @@ func registryBody(name string) string {
 
 func setupServerWithAuth(t *testing.T, pool *pgxpool.Pool) (*httptest.Server, service.AuthService) {
 	t.Helper()
+	srv, authSvc, _ := setupServerWithStats(t, pool)
+	return srv, authSvc
+}
+
+// setupServerWithStats is setupServerWithAuth plus the server's search service.
+//
+// The dashboard-stats endpoint serves the TTL cache and no longer computes on a
+// miss, so a test asserting on stats has to warm that cache — and it has to warm
+// the very instance the server reads, which means getting hold of it here.
+func setupServerWithStats(t *testing.T, pool *pgxpool.Pool) (*httptest.Server, service.AuthService, service.SearchService) {
+	t.Helper()
 	cfg := &config.Config{SessionSecret: testSessionSecret}
 	authSvc := service.NewAuthService(pool, cfg, event.NewBus(slog.Default()))
 	sbomSvc := service.NewSBOMService(pool, nil, nil)
 	searchSvc := service.NewSearchService(pool)
 	registrySvc := service.NewRegistryService(pool)
-	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, nil, nil, pool, nil, cfg)
+	// Ingest resolves its namespace through the source (ADR-039), so both of
+	// these are on the write path, not just the /namespaces and /sources routes.
+	namespaceSvc := service.NewNamespaceService(pool)
+	sourceSvc := service.NewSourceService(pool)
+	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc,
+		namespaceSvc, sourceSvc, nil, nil, pool, nil, cfg)
 	router := api.NewRouter(handler, "*", "", "")
-	return httptest.NewServer(router), authSvc
+	return httptest.NewServer(router), authSvc, searchSvc
+}
+
+// warmStats populates the dashboard-stats cache for the anonymous scope, which
+// is what an unauthenticated GET /api/v1/stats reads.
+func warmStats(t *testing.T, searchSvc service.SearchService) {
+	t.Helper()
+	if _, err := searchSvc.WarmDashboardStats(t.Context(), service.VisibilityFilter{}); err != nil {
+		t.Fatalf("warming dashboard stats: %v", err)
+	}
+}
+
+// refreshRollups rebuilds the list-page rollup tables synchronously.
+//
+// In the running server a background refresher does this, so a component
+// ingested seconds ago is not on the Components page yet. Tests that assert on
+// list endpoints immediately after an ingest need the rollups current; running
+// the real refresher is what makes those assertions test the production read
+// path rather than a fixture.
+func refreshRollups(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	ran, err := service.NewRollupRefresher(pool, 0, slog.Default()).RefreshNow(t.Context())
+	if err != nil {
+		t.Fatalf("refreshing rollups: %v", err)
+	}
+	if !ran {
+		t.Fatal("refreshing rollups: advisory lock unexpectedly held by another pass")
+	}
 }
 
 func seedUser(t *testing.T, pool *pgxpool.Pool, githubID int64, username, role string) pgtype.UUID {
@@ -109,6 +152,15 @@ func TestAuthBoundaries(t *testing.T) {
 	resp.Body.Close()
 	memberRegID := regResp["id"].(string)
 
+	// A second registry owned by admin, so ingest can be aimed at a namespace
+	// the member does not own.
+	resp, err = doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/registries", registryBody("admin-reg"), adminKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&regResp))
+	resp.Body.Close()
+	adminRegID := regResp["id"].(string)
+
 	type authCase struct {
 		name       string
 		method     string
@@ -126,8 +178,15 @@ func TestAuthBoundaries(t *testing.T) {
 		{"list artifacts", http.MethodGet, "/api/v1/artifacts", "", 200, 200, 200, 200},
 		{"search components", http.MethodGet, "/api/v1/components?name=bash", "", 200, 200, 200, 200},
 		{"stats", http.MethodGet, "/api/v1/stats", "", 200, 200, 200, 200},
-		// SBOM ingest — requires member or admin role.
-		{"ingest sbom", http.MethodPost, "/api/v1/sboms", minimalSBOM, 401, 403, 201, 201},
+		// SBOM ingest — requires member or admin role, plus a source in a
+		// namespace the caller owns (ADR-039). Admin manages every namespace,
+		// so it lands in the member's namespace too.
+		{"ingest sbom", http.MethodPost, "/api/v1/sboms?source=" + memberRegID, minimalSBOM, 401, 403, 201, 201},
+		// No source means no owner, and an SBOM cannot exist unowned.
+		{"ingest without source", http.MethodPost, "/api/v1/sboms", minimalSBOM, 401, 403, 400, 400},
+		// Naming someone else's namespace is a 403, not a quiet reassignment.
+		{"ingest into another's namespace", http.MethodPost, "/api/v1/sboms?source=" + adminRegID,
+			alpineSBOM, 401, 403, 403, 201},
 		// Any authenticated user.
 		{"list registries", http.MethodGet, "/api/v1/registries", "", 401, 200, 200, 200},
 		{"get me", http.MethodGet, "/api/v1/users/me", "", 401, 200, 200, 200},

@@ -12,7 +12,14 @@ export const API_BASE_URL: string = import.meta.env.VITE_API_URL ?? "";
  */
 export const DEFAULT_PAGE_SIZE = 20;
 
-export const client = createClient<paths>({ baseUrl: API_BASE_URL });
+// credentials: "include" so the session cookie also flows when VITE_API_URL
+// points at a different origin than the one serving the SPA — the supported
+// deployment shape when there is no Gateway/Ingress giving a same-origin /api.
+// Requires the API's CORS_ALLOWED_ORIGINS to list the frontend origin.
+export const client = createClient<paths>({
+    baseUrl: API_BASE_URL,
+    credentials: "include",
+});
 
 /**
  * APIClientError wraps a non-2xx response from the API.

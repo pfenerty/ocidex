@@ -169,7 +169,7 @@ func (s *jobService) List(ctx context.Context, state string, limit, offset int32
 }
 
 func (s *jobService) Get(ctx context.Context, id string) (ScanJob, error) {
-	uid, err := parseRegistryUUID(id)
+	uid, err := parseUUID(id)
 	if err != nil {
 		return ScanJob{}, ErrNotFound
 	}
@@ -254,7 +254,7 @@ func (s *jobService) CountByState(ctx context.Context) (int64, int64, int64, int
 }
 
 func (s *jobService) ClaimByID(ctx context.Context, id, workerID string) (ScanJobClaim, bool, error) {
-	uid, err := parseRegistryUUID(id)
+	uid, err := parseUUID(id)
 	if err != nil {
 		return ScanJobClaim{}, false, nil
 	}
@@ -285,7 +285,7 @@ func (s *jobService) ClaimNext(ctx context.Context, workerID string) (ScanJobCla
 }
 
 func (s *jobService) FinishByID(ctx context.Context, id string, sbomID pgtype.UUID) error {
-	uid, err := parseRegistryUUID(id)
+	uid, err := parseUUID(id)
 	if err != nil {
 		return fmt.Errorf("invalid job id: %w", err)
 	}
@@ -296,7 +296,7 @@ func (s *jobService) FinishByID(ctx context.Context, id string, sbomID pgtype.UU
 }
 
 func (s *jobService) FailOrRequeue(ctx context.Context, id, lastError string, maxAttempts int32) (string, error) {
-	uid, err := parseRegistryUUID(id)
+	uid, err := parseUUID(id)
 	if err != nil {
 		return "", fmt.Errorf("invalid job id: %w", err)
 	}
@@ -324,7 +324,7 @@ func (s *jobService) RequeueStuckRunning(ctx context.Context, stuckThreshold tim
 }
 
 func (s *jobService) Retry(ctx context.Context, id string) error {
-	uid, err := parseRegistryUUID(id)
+	uid, err := parseUUID(id)
 	if err != nil {
 		return fmt.Errorf("invalid job id: %w", err)
 	}

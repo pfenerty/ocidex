@@ -816,6 +816,38 @@
         ],
         "type": "object"
       },
+      "CreateNamespaceInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/CreateNamespaceInputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "name": {
+            "description": "Human-readable namespace name",
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "visibility": {
+            "description": "Namespace visibility; defaults to private",
+            "enum": [
+              "public",
+              "private"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
       "CreateRegistryInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -856,6 +888,11 @@
             "description": "Human-readable registry name",
             "maxLength": 100,
             "minLength": 1,
+            "type": "string"
+          },
+          "namespace": {
+            "description": "Namespace to create the registry in, created on first use; omit to give the registry a namespace of its own named after it",
+            "maxLength": 100,
             "type": "string"
           },
           "poll_interval_minutes": {
@@ -1120,6 +1157,36 @@
         ],
         "type": "object"
       },
+      "CreateSourceInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/CreateSourceInputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "name": {
+            "description": "Source name, unique within the namespace",
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "namespace_id": {
+            "description": "Owning namespace UUID",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "namespace_id",
+          "name"
+        ],
+        "type": "object"
+      },
       "CursorMeta": {
         "additionalProperties": false,
         "properties": {
@@ -1260,6 +1327,10 @@
           },
           "vuln_severity": {
             "$ref": "#/components/schemas/VulnSeverityEntry"
+          },
+          "warming": {
+            "description": "No snapshot is available yet and every count is a zero placeholder; render a loading state and retry",
+            "type": "boolean"
           }
         },
         "required": [
@@ -1274,7 +1345,8 @@
           "version_growth_timeline",
           "top_packages",
           "vuln_count",
-          "vuln_severity"
+          "vuln_severity",
+          "warming"
         ],
         "type": "object"
       },
@@ -2299,6 +2371,33 @@
         ],
         "type": "object"
       },
+      "ListNamespacesOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListNamespacesOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/NamespaceResponse"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
       "ListRecentDriftOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -2485,6 +2584,33 @@
         ],
         "type": "object"
       },
+      "ListSourcesOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListSourcesOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SourceResponse"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
       "ListTopVulnerabilitiesOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -2588,6 +2714,56 @@
         "required": [
           "enabled",
           "url"
+        ],
+        "type": "object"
+      },
+      "NamespaceResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/NamespaceResponse.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner_id": {
+            "description": "UUID of the namespace owner",
+            "type": "string"
+          },
+          "owner_username": {
+            "description": "GitHub username of the namespace owner",
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "visibility": {
+            "description": "Namespace visibility: public or private",
+            "enum": [
+              "public",
+              "private"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "visibility",
+          "created_at",
+          "updated_at"
         ],
         "type": "object"
       },
@@ -3421,6 +3597,56 @@
         ],
         "type": "object"
       },
+      "SourceResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/SourceResponse.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "description": "Ingest channel kind",
+            "enum": [
+              "oci_registry",
+              "upload"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "namespace_id": {
+            "type": "string"
+          },
+          "namespace_name": {
+            "description": "Owning namespace name; populated on list responses",
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "namespace_id",
+          "kind",
+          "name",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
       "SystemStatusOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -3572,6 +3798,34 @@
         ],
         "type": "object"
       },
+      "UpdateNamespaceInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/UpdateNamespaceInputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "name": {
+            "description": "New namespace name; omit to keep the current one",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "visibility": {
+            "description": "New visibility; omit to keep the current one",
+            "enum": [
+              "public",
+              "private"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "UpdateRegistryInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -3705,6 +3959,30 @@
           "url",
           "insecure",
           "enabled"
+        ],
+        "type": "object"
+      },
+      "UpdateSourceInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/UpdateSourceInputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "name": {
+            "description": "New source name",
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
         ],
         "type": "object"
       },
@@ -5612,6 +5890,252 @@
         ]
       }
     },
+    "/api/v1/namespaces": {
+      "get": {
+        "description": "Namespaces owned by the caller plus every public namespace.",
+        "operationId": "list-namespaces",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListNamespacesOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List namespaces",
+        "tags": [
+          "Namespaces"
+        ]
+      },
+      "post": {
+        "operationId": "create-namespace",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNamespaceInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NamespaceResponse"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create a namespace",
+        "tags": [
+          "Namespaces"
+        ]
+      }
+    },
+    "/api/v1/namespaces/by-name/{name}": {
+      "get": {
+        "operationId": "get-namespace-by-name",
+        "parameters": [
+          {
+            "description": "Namespace name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "Namespace name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NamespaceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a namespace by name",
+        "tags": [
+          "Namespaces"
+        ]
+      }
+    },
+    "/api/v1/namespaces/{id}": {
+      "delete": {
+        "description": "Removes the namespace and everything ingested under it. Owner or admin only.",
+        "operationId": "delete-namespace",
+        "parameters": [
+          {
+            "description": "Namespace UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Namespace UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Delete a namespace",
+        "tags": [
+          "Namespaces"
+        ]
+      },
+      "get": {
+        "operationId": "get-namespace",
+        "parameters": [
+          {
+            "description": "Namespace UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Namespace UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NamespaceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a namespace",
+        "tags": [
+          "Namespaces"
+        ]
+      },
+      "patch": {
+        "operationId": "update-namespace",
+        "parameters": [
+          {
+            "description": "Namespace UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Namespace UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNamespaceInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NamespaceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Update a namespace (partial)",
+        "tags": [
+          "Namespaces"
+        ]
+      }
+    },
     "/api/v1/registries": {
       "get": {
         "operationId": "list-registries",
@@ -6257,6 +6781,16 @@
         "operationId": "ingest-sbom",
         "parameters": [
           {
+            "description": "Ingest channel this SBOM arrived through, as a source UUID or \u003cnamespace\u003e/\u003cname\u003e. Required — the source's namespace owns the SBOM.",
+            "explode": false,
+            "in": "query",
+            "name": "source",
+            "schema": {
+              "description": "Ingest channel this SBOM arrived through, as a source UUID or \u003cnamespace\u003e/\u003cname\u003e. Required — the source's namespace owns the SBOM.",
+              "type": "string"
+            }
+          },
+          {
             "description": "Image version/tag (overrides BOM-extracted value for subject_version and imageVersion)",
             "explode": false,
             "in": "query",
@@ -6283,6 +6817,56 @@
             "name": "build_date",
             "schema": {
               "description": "Image build date (RFC3339 or date string)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "CycloneDX component type of the subject (e.g. application, library, file)",
+            "explode": false,
+            "in": "query",
+            "name": "subject_type",
+            "schema": {
+              "description": "CycloneDX component type of the subject (e.g. application, library, file)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Subject name (e.g. ocidex)",
+            "explode": false,
+            "in": "query",
+            "name": "subject_name",
+            "schema": {
+              "description": "Subject name (e.g. ocidex)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Subject group/namespace (e.g. github.com/pfenerty)",
+            "explode": false,
+            "in": "query",
+            "name": "subject_group",
+            "schema": {
+              "description": "Subject group/namespace (e.g. github.com/pfenerty)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Subject package URL (e.g. pkg:golang/github.com/pfenerty/ocidex@v1.2.3)",
+            "explode": false,
+            "in": "query",
+            "name": "subject_purl",
+            "schema": {
+              "description": "Subject package URL (e.g. pkg:golang/github.com/pfenerty/ocidex@v1.2.3)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "sha256 of the artifact file itself, not of this SBOM document. Required for a non-container subject.",
+            "explode": false,
+            "in": "query",
+            "name": "digest",
+            "schema": {
+              "description": "sha256 of the artifact file itself, not of this SBOM document. Required for a non-container subject.",
               "type": "string"
             }
           }
@@ -6712,6 +7296,221 @@
         "summary": "List provenance drift history for an SBOM",
         "tags": [
           "SBOMs"
+        ]
+      }
+    },
+    "/api/v1/sources": {
+      "get": {
+        "description": "Ingest channels visible to the caller, optionally scoped to one namespace.",
+        "operationId": "list-sources",
+        "parameters": [
+          {
+            "description": "Limit to sources in this namespace",
+            "explode": false,
+            "in": "query",
+            "name": "namespace_id",
+            "schema": {
+              "description": "Limit to sources in this namespace",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSourcesOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List sources",
+        "tags": [
+          "Sources"
+        ]
+      },
+      "post": {
+        "description": "Creates a source with kind 'upload'. OCI registry sources are created via POST /api/v1/registries.",
+        "operationId": "create-source",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSourceInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceResponse"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Create an upload source",
+        "tags": [
+          "Sources"
+        ]
+      }
+    },
+    "/api/v1/sources/{id}": {
+      "delete": {
+        "operationId": "delete-source",
+        "parameters": [
+          {
+            "description": "Source UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Source UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Delete a source",
+        "tags": [
+          "Sources"
+        ]
+      },
+      "get": {
+        "operationId": "get-source",
+        "parameters": [
+          {
+            "description": "Source UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Source UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a source",
+        "tags": [
+          "Sources"
+        ]
+      },
+      "patch": {
+        "operationId": "update-source",
+        "parameters": [
+          {
+            "description": "Source UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Source UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSourceInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Rename a source",
+        "tags": [
+          "Sources"
         ]
       }
     },

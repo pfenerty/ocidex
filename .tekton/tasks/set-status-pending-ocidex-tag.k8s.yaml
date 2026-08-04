@@ -567,3 +567,37 @@ spec:
           log $"status-pending [gh-release]: error: ($e.msg)"
           exit 1
         }
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: pending-sbom-push
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: "pending", context: "sbom-push", description: "Running" }
+
+        log $"status-pending [sbom-push]: POST ($url)"
+        log $"status-pending [sbom-push]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "status-pending [sbom-push]: done"
+        } catch { |e|
+          log $"status-pending [sbom-push]: error: ($e.msg)"
+          exit 1
+        }

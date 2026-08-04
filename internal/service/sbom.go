@@ -36,8 +36,18 @@ type IngestParams struct {
 	Version      string      // image tag / subject version
 	Architecture string      // e.g. "amd64"
 	BuildDate    string      // RFC3339 or date string
-	RegistryID   pgtype.UUID // links SBOM to the registry it came from
+	SourceID     pgtype.UUID // ingest channel the SBOM arrived through; required (ADR-039)
 	IndexDigest  string      // multi-arch index this child was scanned from; empty for single-arch
+
+	// Caller-declared subject identity (ADR-040). A `syft dir:` BOM describes
+	// the scratch directory it walked, so a non-container uploader must state
+	// what the SBOM is actually about. Applied field by field over
+	// bom.Metadata.Component, so a caller can correct only what is wrong.
+	SubjectType  string // CycloneDX component type, e.g. "application"
+	SubjectName  string // e.g. "ocidex"
+	SubjectGroup string // e.g. "github.com/pfenerty"
+	SubjectPurl  string // e.g. "pkg:golang/github.com/pfenerty/ocidex@v1.2.3"
+	Digest       string // sha256 of the artifact *file*, not of the SBOM
 }
 
 // SBOMService defines the business logic for SBOM ingestion and management.
@@ -45,11 +55,11 @@ type SBOMService interface {
 	Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (pgtype.UUID, error)
 	DeleteSBOM(ctx context.Context, id pgtype.UUID) error
 	DeleteArtifact(ctx context.Context, id pgtype.UUID) error
-	ListDigestsByRegistry(ctx context.Context, registryID string) (map[string]bool, error)
-	// GetSBOMRegistryID returns the registry_id for the given SBOM.
+	ListDigestsBySource(ctx context.Context, sourceID string) (map[string]bool, error)
+	// GetSBOMNamespaceID returns the namespace_id for the given SBOM.
 	// Returns a zero UUID (with Valid=false) when the SBOM has no registry association.
 	// Returns ErrNotFound if no SBOM with that ID exists.
-	GetSBOMRegistryID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
+	GetSBOMNamespaceID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
 	// GetArtifactOwnerID returns the owner_id of any registry linked to the artifact.
 	// Returns a zero UUID (with Valid=false) when no registry with an owner is linked.
 	// Returns ErrNotFound if no artifact with that ID exists.
@@ -79,47 +89,103 @@ type artifactInfo struct {
 	artifactID     pgtype.UUID
 	subjectVersion pgtype.Text
 	digest         pgtype.Text
+	subjectType    string
+}
+
+// subjectIdentity is the effective identity of an SBOM's subject: caller-declared
+// values layered over whatever bom.Metadata.Component carries.
+type subjectIdentity struct {
+	typ   string
+	name  string
+	group string
+	purl  string
+	cpe   string
+}
+
+// resolveSubjectIdentity applies IngestParams overrides over the BOM's subject
+// component, field by field. Params win, per the IngestParams contract, so an
+// uploader can correct just the name and purl of a `syft dir:` BOM without
+// having to restate everything else (ADR-040).
+func resolveSubjectIdentity(bom *cdx.BOM, params IngestParams) subjectIdentity {
+	var s subjectIdentity
+	if bom.Metadata != nil && bom.Metadata.Component != nil {
+		mc := bom.Metadata.Component
+		s = subjectIdentity{
+			typ:   string(mc.Type),
+			name:  mc.Name,
+			group: mc.Group,
+			purl:  mc.PackageURL,
+			cpe:   mc.CPE,
+		}
+	}
+	if params.SubjectType != "" {
+		s.typ = params.SubjectType
+	}
+	if params.SubjectName != "" {
+		s.name = params.SubjectName
+	}
+	if params.SubjectGroup != "" {
+		s.group = params.SubjectGroup
+	}
+	if params.SubjectPurl != "" {
+		s.purl = params.SubjectPurl
+	}
+	return s
 }
 
 // resolveArtifact extracts artifact identity from the BOM metadata and upserts
 // the artifact row. It returns the artifact ID, subject version, and image digest.
 func resolveArtifact(ctx context.Context, q *repository.Queries, bom *cdx.BOM, params IngestParams) (artifactInfo, error) {
-	if bom.Metadata == nil || bom.Metadata.Component == nil {
+	// A BOM with no subject component and no declared identity yields no
+	// artifact, as before.
+	hasSubjectComponent := bom.Metadata != nil && bom.Metadata.Component != nil
+	if !hasSubjectComponent && params.SubjectName == "" {
 		return artifactInfo{}, nil
 	}
 
-	mc := bom.Metadata.Component
+	subj := resolveSubjectIdentity(bom, params)
+	isContainer := subj.typ == string(cdx.ComponentTypeContainer)
+
+	// A declared digest wins: for an upload it is the sha256 of the artifact
+	// file, which the BOM has no way to carry (ADR-040).
 	var digest pgtype.Text
+	if params.Digest != "" {
+		digest = pgtype.Text{String: params.Digest, Valid: true}
+	}
 
 	// Normalize container image names: strip digest suffix so that
 	// "docker.io/ubuntu@sha256:abc..." and "docker.io/ubuntu" resolve
 	// to the same artifact. Capture the digest for indexing.
-	name := mc.Name
-	if mc.Type == cdx.ComponentTypeContainer {
+	name := subj.name
+	if isContainer {
 		if idx := strings.Index(name, "@sha256:"); idx != -1 {
-			digest = pgtype.Text{String: name[idx+1:], Valid: true}
+			if !digest.Valid {
+				digest = pgtype.Text{String: name[idx+1:], Valid: true}
+			}
 			name = name[:idx]
 		}
 	}
 
 	// Also check metadata.component.version for digest (e.g. "sha256:abc...").
-	if !digest.Valid && mc.Version != "" && strings.HasPrefix(mc.Version, "sha256:") {
-		digest = pgtype.Text{String: mc.Version, Valid: true}
+	if !digest.Valid && hasSubjectComponent {
+		if v := bom.Metadata.Component.Version; v != "" && strings.HasPrefix(v, "sha256:") {
+			digest = pgtype.Text{String: v, Valid: true}
+		}
 	}
 
 	// Container SBOMs must include a digest for reproducibility and enrichment.
-	if mc.Type == cdx.ComponentTypeContainer && !digest.Valid {
+	if isContainer && !digest.Valid {
 		return artifactInfo{}, &ValidationError{
 			Message: fmt.Sprintf("container SBOM for %q missing digest: include digest in component name (@sha256:...) or version", name),
 		}
 	}
 
 	artifactID, err := q.UpsertArtifact(ctx, repository.UpsertArtifactParams{
-		Type:      string(mc.Type),
+		Type:      subj.typ,
 		Name:      name,
-		GroupName: textOrNull(mc.Group),
-		Purl:      textOrNull(mc.PackageURL),
-		Cpe:       textOrNull(mc.CPE),
+		GroupName: textOrNull(subj.group),
+		Purl:      textOrNull(subj.purl),
+		Cpe:       textOrNull(subj.cpe),
 	})
 	if err != nil {
 		return artifactInfo{}, fmt.Errorf("upserting artifact: %w", err)
@@ -129,11 +195,18 @@ func resolveArtifact(ctx context.Context, q *repository.Queries, bom *cdx.BOM, p
 		artifactID:     artifactID,
 		subjectVersion: resolveSubjectVersion(bom, params),
 		digest:         digest,
+		subjectType:    subj.typ,
 	}, nil
 }
 
 // Ingest decomposes a CycloneDX BOM and persists it in a single transaction.
 func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, params IngestParams) (pgtype.UUID, error) {
+	// An SBOM cannot exist unowned, so resolve the owner before doing any work.
+	namespaceID, err := s.resolveIngestNamespace(ctx, params.SourceID)
+	if err != nil {
+		return pgtype.UUID{}, err
+	}
+
 	// Validate container digests before starting the transaction.
 	// This makes a network call to the registry, so it runs outside the tx.
 	if err := s.validateContainerDigest(ctx, bom); err != nil {
@@ -141,7 +214,10 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 	}
 
 	// Idempotency check: if we already have an SBOM for this digest, skip ingestion.
-	if digest := extractDigestFromBOM(bom); digest != "" {
+	// A declared digest wins — an upload's digest lives nowhere in the BOM, and
+	// missing it here would defer duplicate detection to the UNIQUE index, i.e.
+	// until after a full transaction and component decomposition (ADR-040).
+	if digest := resolveIngestDigest(bom, params); digest != "" {
 		existing, err := repository.New(s.pool).GetSBOMByDigest(ctx, pgtype.Text{String: digest, Valid: true})
 		if err == nil {
 			slog.InfoContext(ctx, "skipping duplicate sbom ingestion", "digest", digest, "existing_id", existing)
@@ -172,6 +248,11 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		return pgtype.UUID{}, err
 	}
 
+	// Mandatory validation for non-container (uploaded) SBOMs.
+	if err := validateUploadRequired(info, params); err != nil {
+		return pgtype.UUID{}, err
+	}
+
 	sbomRow, err := q.InsertSBOM(ctx, repository.InsertSBOMParams{
 		SerialNumber:   textOrNull(bom.SerialNumber),
 		SpecVersion:    bom.SpecVersion.String(),
@@ -180,7 +261,8 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		ArtifactID:     info.artifactID,
 		SubjectVersion: info.subjectVersion,
 		Digest:         info.digest,
-		RegistryID:     params.RegistryID,
+		NamespaceID:    namespaceID,
+		SourceID:       params.SourceID,
 		Flavor:         pgtype.Text{String: flavor, Valid: true},
 		IndexDigest:    pgtype.Text{String: params.IndexDigest, Valid: params.IndexDigest != ""},
 	})
@@ -194,7 +276,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		"artifact_id", info.artifactID,
 	)
 
-	if err := linkArtifactRegistry(ctx, q, info.artifactID, params.RegistryID); err != nil {
+	if err := linkArtifactNamespace(ctx, q, info.artifactID, namespaceID); err != nil {
 		return pgtype.UUID{}, err
 	}
 
@@ -247,6 +329,75 @@ func validateContainerRequired(bom *cdx.BOM, info artifactInfo, arch, bd string)
 	return nil
 }
 
+// validateUploadRequired returns a ValidationError if a non-container SBOM is
+// missing the subject identity its caller must declare (ADR-040).
+//
+// Subject type is the gate rather than the source kind: the registry scanner
+// produces container subjects exclusively, so a non-container subject can only
+// have arrived through the upload path. Type and name are not checked here —
+// without them no artifact is resolved at all, and info.artifactID is invalid.
+// resolveIngestNamespace derives the tenancy anchor for an ingest from the
+// source it arrived through.
+//
+// The namespace is deliberately not a second input. Deriving it from exactly
+// one place means a caller cannot name a source in one namespace and have the
+// row land in another, and it retires the assumption — previously duplicated at
+// every call site — that a registry's id doubles as its namespace id. That
+// holds only for a registry that created its own namespace; when the operator
+// creates a registry inside an existing namespace, source id and namespace id
+// differ (ADR-039, `CreateRegistry` in db/queries/registry.sql).
+//
+// A missing or unknown source is a ValidationError, which the API layer renders
+// as 400. Since 00054 the column is NOT NULL, so there is no unowned fallback.
+func (s *sbomService) resolveIngestNamespace(ctx context.Context, sourceID pgtype.UUID) (pgtype.UUID, error) {
+	if !sourceID.Valid {
+		return pgtype.UUID{}, &ValidationError{
+			Message: "sbom ingest requires a source; pass ?source=<uuid|namespace/name> so the SBOM lands in a namespace that owns it",
+		}
+	}
+	src, err := repository.New(s.pool).GetSource(ctx, sourceID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return pgtype.UUID{}, &ValidationError{Message: "ingest source not found"}
+		}
+		return pgtype.UUID{}, fmt.Errorf("resolving ingest source: %w", err)
+	}
+	return src.NamespaceID, nil
+}
+
+func validateUploadRequired(info artifactInfo, params IngestParams) error {
+	if !info.artifactID.Valid || info.subjectType == "" ||
+		info.subjectType == string(cdx.ComponentTypeContainer) {
+		return nil
+	}
+	var missing []string
+	// Type and name must be *declared*, not merely resolved. A `syft dir:` BOM
+	// always supplies both — describing the scratch directory it walked — so
+	// accepting the BOM's values is how an artifact ends up named `.sbom-bins`.
+	// Requiring the declaration is the whole point of ADR-040.
+	if params.SubjectType == "" {
+		missing = append(missing, "subject_type")
+	}
+	if params.SubjectName == "" {
+		missing = append(missing, "subject_name")
+	}
+	if !info.subjectVersion.Valid || info.subjectVersion.String == "" {
+		missing = append(missing, "subject_version")
+	}
+	if !info.digest.Valid || info.digest.String == "" {
+		missing = append(missing, "digest")
+	}
+	if len(missing) > 0 {
+		return &ValidationError{
+			Message: fmt.Sprintf(
+				"non-container SBOM missing required subject identity: %s; declare it at upload (digest is the sha256 of the artifact file)",
+				strings.Join(missing, ", "),
+			),
+		}
+	}
+	return nil
+}
+
 // insertBOMContent inserts components and dependencies for an SBOM within a transaction.
 func (s *sbomService) insertBOMContent(ctx context.Context, tx copyFromer, q *repository.Queries, sbomID pgtype.UUID, bom *cdx.BOM, subjectVersion, flavor string) error {
 	mainModule := extractMainModulePath(bom)
@@ -263,16 +414,16 @@ func (s *sbomService) insertBOMContent(ctx context.Context, tx copyFromer, q *re
 	return nil
 }
 
-// linkArtifactRegistry records the artifact→registry relationship in the junction table.
-func linkArtifactRegistry(ctx context.Context, q *repository.Queries, artifactID, registryID pgtype.UUID) error {
-	if !artifactID.Valid || !registryID.Valid {
+// linkArtifactNamespace records the artifact→namespace relationship in the junction table.
+func linkArtifactNamespace(ctx context.Context, q *repository.Queries, artifactID, namespaceID pgtype.UUID) error {
+	if !artifactID.Valid || !namespaceID.Valid {
 		return nil
 	}
-	if err := q.UpsertArtifactRegistry(ctx, repository.UpsertArtifactRegistryParams{
-		ArtifactID: artifactID,
-		RegistryID: registryID,
+	if err := q.UpsertArtifactNamespace(ctx, repository.UpsertArtifactNamespaceParams{
+		ArtifactID:  artifactID,
+		NamespaceID: namespaceID,
 	}); err != nil {
-		return fmt.Errorf("linking artifact to registry: %w", err)
+		return fmt.Errorf("linking artifact to namespace: %w", err)
 	}
 	return nil
 }
@@ -329,14 +480,15 @@ func (s *sbomService) DeleteArtifact(ctx context.Context, id pgtype.UUID) error 
 	return nil
 }
 
-// ListDigestsByRegistry returns a set of known SBOM digests for a registry.
-func (s *sbomService) ListDigestsByRegistry(ctx context.Context, registryID string) (map[string]bool, error) {
-	var regUUID pgtype.UUID
-	if err := regUUID.Scan(registryID); err != nil {
-		return nil, fmt.Errorf("parsing registry ID: %w", err)
+// ListDigestsBySource returns the set of SBOM digests already ingested through
+// a source, so a rescan can skip them.
+func (s *sbomService) ListDigestsBySource(ctx context.Context, sourceID string) (map[string]bool, error) {
+	var srcUUID pgtype.UUID
+	if err := srcUUID.Scan(sourceID); err != nil {
+		return nil, fmt.Errorf("parsing source ID: %w", err)
 	}
 	q := repository.New(s.pool)
-	rows, err := q.ListDigestsByRegistry(ctx, regUUID)
+	rows, err := q.ListDigestsBySource(ctx, srcUUID)
 	if err != nil {
 		return nil, fmt.Errorf("listing digests: %w", err)
 	}
@@ -349,13 +501,13 @@ func (s *sbomService) ListDigestsByRegistry(ctx context.Context, registryID stri
 	return out, nil
 }
 
-func (s *sbomService) GetSBOMRegistryID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
+func (s *sbomService) GetSBOMNamespaceID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
 	q := repository.New(s.pool)
 	row, err := q.GetSBOM(ctx, id)
 	if err != nil {
 		return pgtype.UUID{}, ErrNotFound
 	}
-	return row.RegistryID, nil
+	return row.NamespaceID, nil
 }
 
 func (s *sbomService) GetArtifactOwnerID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
@@ -745,6 +897,12 @@ func isMoreSpecific(candidate, base string) bool {
 // params.Version takes precedence; then metadata.component.version when it is not
 // a digest; then well-known OCI label properties emitted by Syft and Trivy.
 func resolveSubjectVersion(bom *cdx.BOM, params IngestParams) pgtype.Text {
+	// Identity may be declared entirely by the caller, with no subject
+	// component in the BOM to fall back to (ADR-040).
+	if bom.Metadata == nil || bom.Metadata.Component == nil {
+		return pgtype.Text{String: params.Version, Valid: params.Version != ""}
+	}
+
 	if params.Version != "" {
 		mc := bom.Metadata.Component
 		if mc != nil && mc.Version != "" && !strings.HasPrefix(mc.Version, "sha256:") {
@@ -885,6 +1043,15 @@ func intOrNull(v int) pgtype.Int4 {
 
 // extractDigestFromBOM returns the image digest from a BOM's metadata component,
 // mirroring the extraction logic in resolveArtifact.
+// resolveIngestDigest returns the digest that identifies this ingest's subject,
+// preferring the caller's declaration over the BOM (ADR-040).
+func resolveIngestDigest(bom *cdx.BOM, params IngestParams) string {
+	if params.Digest != "" {
+		return params.Digest
+	}
+	return extractDigestFromBOM(bom)
+}
+
 func extractDigestFromBOM(bom *cdx.BOM) string {
 	if bom.Metadata == nil || bom.Metadata.Component == nil {
 		return ""

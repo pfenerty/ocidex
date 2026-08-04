@@ -110,9 +110,22 @@ func enqueueScanJob(t *testing.T, pool *pgxpool.Pool, submitter *scanner.NATSSub
 
 	regID := pgtype.UUID{}
 	_ = regID.Scan("11111111-1111-4111-8111-111111111111")
+	// A registry is the oci_registry subtype of source, and shares its id with
+	// both the source and the owning namespace (ADR-039).
 	if _, err := pool.Exec(t.Context(), `
-		INSERT INTO registry (id, name, url, type, enabled)
-		VALUES ($1, $2, $3, 'generic', true)
+		WITH ns AS (
+			INSERT INTO namespace (id, name, visibility)
+			VALUES ($1, $2, 'public')
+			ON CONFLICT (id) DO NOTHING
+			RETURNING id
+		), src AS (
+			INSERT INTO source (id, namespace_id, kind, name)
+			VALUES ($1, $1, 'oci_registry', $2)
+			ON CONFLICT (id) DO NOTHING
+			RETURNING id
+		)
+		INSERT INTO registry (id, url, type, enabled)
+		VALUES ($1, $3, 'generic', true)
 		ON CONFLICT (id) DO NOTHING
 	`, regID, "redhat-"+digest[7:15], testRegistryURL); err != nil {
 		t.Fatalf("insert registry: %v", err)

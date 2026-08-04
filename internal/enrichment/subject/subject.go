@@ -8,11 +8,20 @@ package subject
 
 import "github.com/jackc/pgx/v5/pgtype"
 
+// Source kinds, mirroring source.kind in the schema. An enricher that needs to
+// pull from an OCI registry has nothing to work with on an upload source
+// (ADR-039); an empty kind means the caller did not resolve one.
+const (
+	KindOCIRegistry = "oci_registry"
+	KindUpload      = "upload"
+)
+
 // Ref identifies what to enrich. It carries the SBOM identity and the
 // artifact metadata needed by enrichers.
 type Ref struct {
 	SBOMId         pgtype.UUID
-	RegistryID     pgtype.UUID // registry this SBOM was ingested under; scopes per-registry trust config
+	RegistryID     pgtype.UUID // source this SBOM was ingested under; for OCI sources this is also the registry id, scoping per-registry trust config
+	SourceKind     string      // "oci_registry" | "upload" | "" when unresolved
 	ArtifactType   string
 	ArtifactName   string
 	Digest         string

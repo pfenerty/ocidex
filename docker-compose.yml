@@ -210,10 +210,13 @@ services:
     restart: unless-stopped
     depends_on:
       - ocidex
-    environment:
-      BACKEND_URL: http://ocidex:8080
+    # The image serves static assets only. In k8s the Gateway HTTPRoute routes
+    # /api and /auth to the API; compose has no L7 router, so it mounts the
+    # equivalent nginx rules here. nginx runs as UID 65532, hence 8080.
+    volumes:
+      - ./web/nginx.compose.conf:/etc/nginx/ocidex.d/proxy.conf:ro
     ports:
-      - "3000:80"
+      - "3000:8080"
 
 volumes:
   db-data:

@@ -97,8 +97,8 @@ export function trustBadgeClass(variant: TrustVariant): string {
     return badgeVariant === "default" ? "badge" : `badge badge-${badgeVariant}`;
 }
 
-// signingStatuses lists every known status in escalating order of concern,
-// for rendering legends and tests without duplicating the table.
+// signingStatuses lists every known status in escalating order of concern, so
+// tests can enumerate the table without duplicating it.
 export const signingStatuses = [
     "verified",
     "signed",

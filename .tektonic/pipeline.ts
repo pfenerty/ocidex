@@ -16,6 +16,7 @@ import { helmPublish } from "./jobs/helm-publish/spec";
 import { helmRelease } from "./jobs/helm-release/spec";
 import { ghRelease } from "./jobs/gh-release/spec";
 import { tektonCheck } from "./jobs/tekton-check/spec";
+import { sbomPush } from "./jobs/sbom-push/spec";
 
 // ─── Task groups ──────────────────────────────────────────────────────────────
 // Core build/verify tasks + the always-on security scans. Run ungated on push so
@@ -40,8 +41,14 @@ const pushPipeline = new GitPipeline({
   // merge-base. The repo is tiny (~150 commits), so full clone is negligible.
   cloneDepth: "full",
   // Multi-arch image builds + helm exceed Tekton's 1h default on the homelab node.
-  timeout: "2h",
-  tasks: [...coreTasks, ...securityTasks, ...imageBuilds, helmPublish],
+  // 2h wasn't enough either: the image builds run serially (chained so two builds
+  // never overlap and burst the single node's memory), and each takes ~15-18 min on
+  // that node. Run push-khjtq hit PipelineRunTimeout at exactly 2h with 7 of 9 images
+  // built and image-build-vuln-worker cancelled before it started. Budget is ~8 min of
+  // pre-build tasks + 9 × ~16 min + helm ≈ 2h40m, so 4h leaves real headroom rather
+  // than the ~13% that 3h would give. Revisit if the builds are ever parallelised.
+  timeout: "4h",
+  tasks: [...coreTasks, ...securityTasks, ...imageBuilds, helmPublish, sbomPush],
 });
 
 // PR pipeline: gate the expensive Go jobs on whether the branch touched Go/Docker/db
@@ -80,8 +87,12 @@ const tagPipeline = new GitPipeline({
   name: "ocidex-tag",
   trigger: { rules: [{ on: TRIGGER_EVENTS.TAG, branch: "refs/tags/*" }], cancelInProgress: true },
   cloneDepth: "full",
-  timeout: "2h",
-  tasks: [...imageBuildsTag, helmRelease, ghRelease],
+  // Same serial image-build chain as the push pipeline, plus helm-release and
+  // gh-release — see the note there for why 2h was too tight.
+  timeout: "4h",
+  // sbomPush pulls goBuild in via `needs` (it must not race another Go task's cache
+  // restore). That extra compile is the price of cataloguing the tagged binaries.
+  tasks: [...imageBuildsTag, helmRelease, ghRelease, sbomPush],
 });
 
 // ─── Synthesize ─────────────────────────────────────────────────────────────

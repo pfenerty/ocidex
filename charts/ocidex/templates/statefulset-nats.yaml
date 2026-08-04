@@ -24,7 +24,7 @@ spec:
       {{- end }}
       containers:
         - name: nats
-          image: docker.io/nats:2-alpine
+          image: "{{ .Values.nats.image.repository }}:{{ .Values.nats.image.tag }}"
           args: ["-js", "--store_dir", "/data", "-m", "8222"]
           ports:
             - name: client

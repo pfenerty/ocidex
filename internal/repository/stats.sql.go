@@ -15,10 +15,9 @@ const getLicenseCategoryCounts = `-- name: GetLicenseCategoryCounts :many
 WITH visible_sbom AS (
     SELECT s.id
     FROM sbom s
-    LEFT JOIN registry r ON r.id = s.registry_id
-    WHERE s.registry_id IS NULL
-       OR r.visibility = 'public'
-       OR r.owner_id = $1::uuid
+    JOIN namespace n ON n.id = s.namespace_id
+    WHERE n.visibility = 'public'
+       OR n.owner_id = $1::uuid
        OR COALESCE($2::boolean, false)
 )
 SELECT
@@ -66,10 +65,9 @@ const getPackageGrowthTimeline = `-- name: GetPackageGrowthTimeline :many
 WITH visible_sbom AS (
     SELECT s.id, s.created_at
     FROM sbom s
-    LEFT JOIN registry r ON r.id = s.registry_id
-    WHERE s.registry_id IS NULL
-       OR r.visibility = 'public'
-       OR r.owner_id = $1::uuid
+    JOIN namespace n ON n.id = s.namespace_id
+    WHERE n.visibility = 'public'
+       OR n.owner_id = $1::uuid
        OR COALESCE($2::boolean, false)
 ),
 pkg_first_seen AS (
@@ -126,10 +124,9 @@ const getSBOMIngestionTimeline = `-- name: GetSBOMIngestionTimeline :many
 WITH visible_sbom AS (
     SELECT s.id, s.created_at
     FROM sbom s
-    LEFT JOIN registry r ON r.id = s.registry_id
-    WHERE s.registry_id IS NULL
-       OR r.visibility = 'public'
-       OR r.owner_id = $2::uuid
+    JOIN namespace n ON n.id = s.namespace_id
+    WHERE n.visibility = 'public'
+       OR n.owner_id = $2::uuid
        OR COALESCE($3::boolean, false)
 )
 SELECT
@@ -177,10 +174,9 @@ const getSummaryCounts = `-- name: GetSummaryCounts :one
 WITH visible_sbom AS (
     SELECT s.id
     FROM sbom s
-    LEFT JOIN registry r ON r.id = s.registry_id
-    WHERE s.registry_id IS NULL
-       OR r.visibility = 'public'
-       OR r.owner_id = $1::uuid
+    JOIN namespace n ON n.id = s.namespace_id
+    WHERE n.visibility = 'public'
+       OR n.owner_id = $1::uuid
        OR COALESCE($2::boolean, false)
 )
 SELECT
@@ -188,15 +184,22 @@ SELECT
        WHERE artifact_visible(a.id, $1::uuid, $2::boolean)
     ) AS artifact_count,
     (SELECT COUNT(*)::bigint FROM visible_sbom) AS sbom_count,
+    -- Package and version counts come from component_rollup: it is already
+    -- deduplicated to (namespace, identity) grain, so this reads 121k rows
+    -- instead of 10.9M (ocidex-ckv.2). visible_namespace_ids() is exactly the
+    -- visible_sbom predicate above, evaluated per namespace rather than per SBOM.
     (SELECT COUNT(*)::bigint FROM (
-        SELECT DISTINCT c.name, COALESCE(c.group_name,'') AS g, c.type
-        FROM component c
-        JOIN visible_sbom vs ON vs.id = c.sbom_id
+        SELECT DISTINCT r.name, COALESCE(r.group_name,'') AS g, r.type
+        FROM component_rollup r
+        WHERE (r.namespace_id IN (
+                SELECT visible_namespace_ids($1::uuid, $2::boolean)))
     ) t) AS package_count,
     (SELECT COUNT(*)::bigint FROM (
-        SELECT DISTINCT c.name, COALESCE(c.group_name,'') AS g, COALESCE(c.version,'') AS v, c.type
-        FROM component c
-        JOIN visible_sbom vs ON vs.id = c.sbom_id
+        SELECT DISTINCT r.name, COALESCE(r.group_name,'') AS g, COALESCE(v.version,'') AS v, r.type
+        FROM component_rollup r
+        LEFT JOIN LATERAL unnest(r.versions) AS v(version) ON true
+        WHERE (r.namespace_id IN (
+                SELECT visible_namespace_ids($1::uuid, $2::boolean)))
     ) t) AS version_count,
     (SELECT COUNT(*)::bigint FROM license) AS license_count
 `
@@ -228,32 +231,25 @@ func (q *Queries) GetSummaryCounts(ctx context.Context, arg GetSummaryCountsPara
 }
 
 const getTopPackagesByVersionCount = `-- name: GetTopPackagesByVersionCount :many
-WITH visible_sbom AS (
-    SELECT s.id
-    FROM sbom s
-    LEFT JOIN registry r ON r.id = s.registry_id
-    WHERE s.registry_id IS NULL
-       OR r.visibility = 'public'
-       OR r.owner_id = $2::uuid
-       OR COALESCE($3::boolean, false)
-)
 SELECT
-    c.name,
-    c.group_name,
-    c.type,
-    COUNT(DISTINCT COALESCE(c.version, ''))::bigint AS version_count,
-    COUNT(DISTINCT c.sbom_id)::bigint               AS sbom_count
-FROM component c
-JOIN visible_sbom vs ON vs.id = c.sbom_id
-GROUP BY c.name, c.group_name, c.type
+    r.name,
+    r.group_name,
+    r.type,
+    COUNT(DISTINCT COALESCE(v.version, ''))::bigint AS version_count,
+    COALESCE(SUM(r.sbom_count) FILTER (WHERE COALESCE(v.ord, 1) = 1), 0)::bigint AS sbom_count
+FROM component_rollup r
+LEFT JOIN LATERAL unnest(r.versions) WITH ORDINALITY AS v(version, ord) ON true
+WHERE (r.namespace_id IN (
+        SELECT visible_namespace_ids($1::uuid, $2::boolean)))
+GROUP BY r.name, r.group_name, r.type
 ORDER BY version_count DESC
-LIMIT $1::int
+LIMIT $3::int
 `
 
 type GetTopPackagesByVersionCountParams struct {
-	TopN    int32       `json:"top_n"`
 	UserID  pgtype.UUID `json:"user_id"`
 	IsAdmin pgtype.Bool `json:"is_admin"`
+	TopN    int32       `json:"top_n"`
 }
 
 type GetTopPackagesByVersionCountRow struct {
@@ -264,8 +260,12 @@ type GetTopPackagesByVersionCountRow struct {
 	SbomCount    int64       `json:"sbom_count"`
 }
 
+// Reads component_rollup (ocidex-ckv.2). The rollup is per-namespace, so the
+// version set is re-counted distinct across the visible rows while sbom_count
+// sums; the ordinality filter charges each rollup row once, since unnesting
+// versions multiplies the rows SUM would otherwise see.
 func (q *Queries) GetTopPackagesByVersionCount(ctx context.Context, arg GetTopPackagesByVersionCountParams) ([]GetTopPackagesByVersionCountRow, error) {
-	rows, err := q.db.Query(ctx, getTopPackagesByVersionCount, arg.TopN, arg.UserID, arg.IsAdmin)
+	rows, err := q.db.Query(ctx, getTopPackagesByVersionCount, arg.UserID, arg.IsAdmin, arg.TopN)
 	if err != nil {
 		return nil, err
 	}
@@ -294,10 +294,9 @@ const getVersionGrowthTimeline = `-- name: GetVersionGrowthTimeline :many
 WITH visible_sbom AS (
     SELECT s.id, s.created_at
     FROM sbom s
-    LEFT JOIN registry r ON r.id = s.registry_id
-    WHERE s.registry_id IS NULL
-       OR r.visibility = 'public'
-       OR r.owner_id = $1::uuid
+    JOIN namespace n ON n.id = s.namespace_id
+    WHERE n.visibility = 'public'
+       OR n.owner_id = $1::uuid
        OR COALESCE($2::boolean, false)
 ),
 ver_first_seen AS (
@@ -354,10 +353,9 @@ const getVulnStats = `-- name: GetVulnStats :one
 WITH visible_sbom AS (
     SELECT s.id
     FROM sbom s
-    LEFT JOIN registry r ON r.id = s.registry_id
-    WHERE s.registry_id IS NULL
-       OR r.visibility = 'public'
-       OR r.owner_id = $1::uuid
+    JOIN namespace n ON n.id = s.namespace_id
+    WHERE n.visibility = 'public'
+       OR n.owner_id = $1::uuid
        OR COALESCE($2::boolean, false)
 )
 SELECT

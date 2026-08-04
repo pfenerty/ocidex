@@ -6,7 +6,7 @@ metadata:
     pipelinesascode.tekton.dev/max-keep-runs: "5"
     pipelinesascode.tekton.dev/on-event: "[push]"
     pipelinesascode.tekton.dev/on-target-branch: "[main]"
-    pipelinesascode.tekton.dev/task: "[.tekton/tasks/set-status-pending-ocidex-push.k8s.yaml, .tekton/tasks/git-clone.k8s.yaml, .tekton/tasks/gofmt-check.k8s.yaml, .tekton/tasks/go-test.k8s.yaml, .tekton/tasks/go-build.k8s.yaml, .tekton/tasks/openapi-verify.k8s.yaml, .tekton/tasks/eslint-lint-web.k8s.yaml, .tekton/tasks/govulncheck-scan.k8s.yaml, .tekton/tasks/grype-vuln-web.k8s.yaml, .tekton/tasks/gitleaks-secrets.k8s.yaml, .tekton/tasks/semgrep-sast.k8s.yaml, .tekton/tasks/image-build-api.k8s.yaml, .tekton/tasks/image-build-scanner-worker.k8s.yaml, .tekton/tasks/image-build-enrichment-worker.k8s.yaml, .tekton/tasks/image-build-oci-metadata-worker.k8s.yaml, .tekton/tasks/image-build-git-worker.k8s.yaml, .tekton/tasks/image-build-user-enricher-worker.k8s.yaml, .tekton/tasks/image-build-provenance-worker.k8s.yaml, .tekton/tasks/image-build-vuln-worker.k8s.yaml, .tekton/tasks/image-build-web.k8s.yaml, .tekton/tasks/image-build-operator.k8s.yaml, .tekton/tasks/helm-publish.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-pull-request.k8s.yaml, .tekton/tasks/detect-go.k8s.yaml, .tekton/tasks/detect-node.k8s.yaml, .tekton/tasks/detect-source.k8s.yaml, .tekton/tasks/detect-pipeline.k8s.yaml, .tekton/tasks/tekton-check.k8s.yaml, .tekton/tasks/resolve-skipped-status-ocidex-pull-request.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-tag.k8s.yaml, .tekton/tasks/image-release-api.k8s.yaml, .tekton/tasks/image-release-scanner-worker.k8s.yaml, .tekton/tasks/image-release-enrichment-worker.k8s.yaml, .tekton/tasks/image-release-oci-metadata-worker.k8s.yaml, .tekton/tasks/image-release-git-worker.k8s.yaml, .tekton/tasks/image-release-user-enricher-worker.k8s.yaml, .tekton/tasks/image-release-provenance-worker.k8s.yaml, .tekton/tasks/image-release-vuln-worker.k8s.yaml, .tekton/tasks/image-release-web.k8s.yaml, .tekton/tasks/image-release-operator.k8s.yaml, .tekton/tasks/helm-release.k8s.yaml, .tekton/tasks/gh-release.k8s.yaml]"
+    pipelinesascode.tekton.dev/task: "[.tekton/tasks/set-status-pending-ocidex-push.k8s.yaml, .tekton/tasks/git-clone.k8s.yaml, .tekton/tasks/gofmt-check.k8s.yaml, .tekton/tasks/go-test.k8s.yaml, .tekton/tasks/go-build.k8s.yaml, .tekton/tasks/openapi-verify.k8s.yaml, .tekton/tasks/eslint-lint-web.k8s.yaml, .tekton/tasks/govulncheck-scan.k8s.yaml, .tekton/tasks/grype-vuln-web.k8s.yaml, .tekton/tasks/gitleaks-secrets.k8s.yaml, .tekton/tasks/semgrep-sast.k8s.yaml, .tekton/tasks/image-build-api.k8s.yaml, .tekton/tasks/image-build-scanner-worker.k8s.yaml, .tekton/tasks/image-build-enrichment-worker.k8s.yaml, .tekton/tasks/image-build-oci-metadata-worker.k8s.yaml, .tekton/tasks/image-build-git-worker.k8s.yaml, .tekton/tasks/image-build-user-enricher-worker.k8s.yaml, .tekton/tasks/image-build-provenance-worker.k8s.yaml, .tekton/tasks/image-build-vuln-worker.k8s.yaml, .tekton/tasks/image-build-web.k8s.yaml, .tekton/tasks/image-build-operator.k8s.yaml, .tekton/tasks/helm-publish.k8s.yaml, .tekton/tasks/sbom-push.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-pull-request.k8s.yaml, .tekton/tasks/detect-go.k8s.yaml, .tekton/tasks/detect-node.k8s.yaml, .tekton/tasks/detect-source.k8s.yaml, .tekton/tasks/detect-pipeline.k8s.yaml, .tekton/tasks/tekton-check.k8s.yaml, .tekton/tasks/resolve-skipped-status-ocidex-pull-request.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-tag.k8s.yaml, .tekton/tasks/image-release-api.k8s.yaml, .tekton/tasks/image-release-scanner-worker.k8s.yaml, .tekton/tasks/image-release-enrichment-worker.k8s.yaml, .tekton/tasks/image-release-oci-metadata-worker.k8s.yaml, .tekton/tasks/image-release-git-worker.k8s.yaml, .tekton/tasks/image-release-user-enricher-worker.k8s.yaml, .tekton/tasks/image-release-provenance-worker.k8s.yaml, .tekton/tasks/image-release-vuln-worker.k8s.yaml, .tekton/tasks/image-release-web.k8s.yaml, .tekton/tasks/image-release-operator.k8s.yaml, .tekton/tasks/helm-release.k8s.yaml, .tekton/tasks/gh-release.k8s.yaml]"
   name: ocidex-ocidex-push
 spec:
   params:
@@ -142,6 +142,7 @@ spec:
           - name: revision
             value: $(params.revision)
         runAfter:
+          - go-build
           - set-status-pending-ocidex-push
         taskRef:
           kind: Task
@@ -390,6 +391,25 @@ spec:
         workspaces:
           - name: workspace
             workspace: workspace
+      - name: sbom-push
+        params:
+          - name: source-branch
+            value: $(params.source-branch)
+          - name: repo-full-name
+            value: $(params.repo-full-name)
+          - name: revision
+            value: $(params.revision)
+        runAfter:
+          - go-build
+          - set-status-pending-ocidex-push
+        taskRef:
+          kind: Task
+          name: ocidex-sbom-push
+        workspaces:
+          - name: go-cache
+            workspace: go-cache
+          - name: workspace
+            workspace: workspace
     workspaces:
       - name: workspace
       - name: go-cache
@@ -412,7 +432,7 @@ spec:
           type: RuntimeDefault
     serviceAccountName: default
   timeouts:
-    pipeline: 2h
+    pipeline: 4h
   workspaces:
     - name: workspace
       volumeClaimTemplate:

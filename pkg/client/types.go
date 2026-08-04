@@ -59,6 +59,24 @@ func (e CreateAPIKeyInputBodyScope) Valid() bool {
 	}
 }
 
+// Defines values for CreateNamespaceInputBodyVisibility.
+const (
+	CreateNamespaceInputBodyVisibilityPrivate CreateNamespaceInputBodyVisibility = "private"
+	CreateNamespaceInputBodyVisibilityPublic  CreateNamespaceInputBodyVisibility = "public"
+)
+
+// Valid indicates whether the value is a known member of the CreateNamespaceInputBodyVisibility enum.
+func (e CreateNamespaceInputBodyVisibility) Valid() bool {
+	switch e {
+	case CreateNamespaceInputBodyVisibilityPrivate:
+		return true
+	case CreateNamespaceInputBodyVisibilityPublic:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateRegistryInputBodyScanMode.
 const (
 	CreateRegistryInputBodyScanModeBoth    CreateRegistryInputBodyScanMode = "both"
@@ -248,6 +266,24 @@ func (e ListArtifactVersionsOutputBodyResolvedMode) Valid() bool {
 	}
 }
 
+// Defines values for NamespaceResponseVisibility.
+const (
+	NamespaceResponseVisibilityPrivate NamespaceResponseVisibility = "private"
+	NamespaceResponseVisibilityPublic  NamespaceResponseVisibility = "public"
+)
+
+// Valid indicates whether the value is a known member of the NamespaceResponseVisibility enum.
+func (e NamespaceResponseVisibility) Valid() bool {
+	switch e {
+	case NamespaceResponseVisibilityPrivate:
+		return true
+	case NamespaceResponseVisibilityPublic:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RegistryResponseVerificationMode.
 const (
 	RegistryResponseVerificationModeKeyless   RegistryResponseVerificationMode = "keyless"
@@ -287,6 +323,42 @@ func (e ScanJobResponseState) Valid() bool {
 	case ScanJobResponseStateRunning:
 		return true
 	case ScanJobResponseStateSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SourceResponseKind.
+const (
+	OciRegistry SourceResponseKind = "oci_registry"
+	Upload      SourceResponseKind = "upload"
+)
+
+// Valid indicates whether the value is a known member of the SourceResponseKind enum.
+func (e SourceResponseKind) Valid() bool {
+	switch e {
+	case OciRegistry:
+		return true
+	case Upload:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateNamespaceInputBodyVisibility.
+const (
+	UpdateNamespaceInputBodyVisibilityPrivate UpdateNamespaceInputBodyVisibility = "private"
+	UpdateNamespaceInputBodyVisibilityPublic  UpdateNamespaceInputBodyVisibility = "public"
+)
+
+// Valid indicates whether the value is a known member of the UpdateNamespaceInputBodyVisibility enum.
+func (e UpdateNamespaceInputBodyVisibility) Valid() bool {
+	switch e {
+	case UpdateNamespaceInputBodyVisibilityPrivate:
+		return true
+	case UpdateNamespaceInputBodyVisibilityPublic:
 		return true
 	default:
 		return false
@@ -364,16 +436,16 @@ func (e UpdateRegistryInputBodyVerificationMode) Valid() bool {
 
 // Defines values for UpdateRegistryInputBodyVisibility.
 const (
-	UpdateRegistryInputBodyVisibilityPrivate UpdateRegistryInputBodyVisibility = "private"
-	UpdateRegistryInputBodyVisibilityPublic  UpdateRegistryInputBodyVisibility = "public"
+	Private UpdateRegistryInputBodyVisibility = "private"
+	Public  UpdateRegistryInputBodyVisibility = "public"
 )
 
 // Valid indicates whether the value is a known member of the UpdateRegistryInputBodyVisibility enum.
 func (e UpdateRegistryInputBodyVisibility) Valid() bool {
 	switch e {
-	case UpdateRegistryInputBodyVisibilityPrivate:
+	case Private:
 		return true
-	case UpdateRegistryInputBodyVisibilityPublic:
+	case Public:
 		return true
 	default:
 		return false
@@ -841,6 +913,21 @@ type CreateAPIKeyOutputBody struct {
 	Key string `json:"key"`
 }
 
+// CreateNamespaceInputBody defines model for CreateNamespaceInputBody.
+type CreateNamespaceInputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// Name Human-readable namespace name
+	Name string `json:"name"`
+
+	// Visibility Namespace visibility; defaults to private
+	Visibility *CreateNamespaceInputBodyVisibility `json:"visibility,omitempty"`
+}
+
+// CreateNamespaceInputBodyVisibility Namespace visibility; defaults to private
+type CreateNamespaceInputBodyVisibility string
+
 // CreateRegistryInputBody defines model for CreateRegistryInputBody.
 type CreateRegistryInputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -866,6 +953,9 @@ type CreateRegistryInputBody struct {
 
 	// Name Human-readable registry name
 	Name string `json:"name"`
+
+	// Namespace Namespace to create the registry in, created on first use; omit to give the registry a namespace of its own named after it
+	Namespace *string `json:"namespace,omitempty"`
 
 	// PollIntervalMinutes Minutes between polls
 	PollIntervalMinutes *int64 `json:"poll_interval_minutes,omitempty"`
@@ -984,6 +1074,18 @@ type CreateRegistryResponseBody struct {
 // CreateRegistryResponseBodyVerificationMode Signature verification mode
 type CreateRegistryResponseBodyVerificationMode string
 
+// CreateSourceInputBody defines model for CreateSourceInputBody.
+type CreateSourceInputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// Name Source name, unique within the namespace
+	Name string `json:"name"`
+
+	// NamespaceId Owning namespace UUID
+	NamespaceId openapi_types.UUID `json:"namespace_id"`
+}
+
 // CursorMeta defines model for CursorMeta.
 type CursorMeta struct {
 	// HasMore Whether more results exist after this page
@@ -1024,6 +1126,9 @@ type DashboardStatsOutputBody struct {
 	VersionGrowthTimeline *[]DailyCountEntry     `json:"version_growth_timeline"`
 	VulnCount             int64                  `json:"vuln_count"`
 	VulnSeverity          VulnSeverityEntry      `json:"vuln_severity"`
+
+	// Warming No snapshot is available yet and every count is a zero placeholder; render a loading state and retry
+	Warming bool `json:"warming"`
 }
 
 // DependencyEdge defines model for DependencyEdge.
@@ -1352,6 +1457,13 @@ type ListLicensesOutputBody struct {
 	Pagination PaginationMeta  `json:"pagination"`
 }
 
+// ListNamespacesOutputBody defines model for ListNamespacesOutputBody.
+type ListNamespacesOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string              `json:"$schema,omitempty"`
+	Data   *[]NamespaceResponse `json:"data"`
+}
+
 // ListRecentDriftOutputBody defines model for ListRecentDriftOutputBody.
 type ListRecentDriftOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -1400,6 +1512,13 @@ type ListScanJobsOutputBody struct {
 	Pagination PaginationMeta     `json:"pagination"`
 }
 
+// ListSourcesOutputBody defines model for ListSourcesOutputBody.
+type ListSourcesOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string           `json:"$schema,omitempty"`
+	Data   *[]SourceResponse `json:"data"`
+}
+
 // ListTopVulnerabilitiesOutputBody defines model for ListTopVulnerabilitiesOutputBody.
 type ListTopVulnerabilitiesOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -1435,6 +1554,28 @@ type NATSStatus struct {
 	Enabled bool   `json:"enabled"`
 	Url     string `json:"url"`
 }
+
+// NamespaceResponse defines model for NamespaceResponse.
+type NamespaceResponse struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema    *string `json:"$schema,omitempty"`
+	CreatedAt string  `json:"created_at"`
+	Id        string  `json:"id"`
+	Name      string  `json:"name"`
+
+	// OwnerId UUID of the namespace owner
+	OwnerId *string `json:"owner_id,omitempty"`
+
+	// OwnerUsername GitHub username of the namespace owner
+	OwnerUsername *string `json:"owner_username,omitempty"`
+	UpdatedAt     string  `json:"updated_at"`
+
+	// Visibility Namespace visibility: public or private
+	Visibility NamespaceResponseVisibility `json:"visibility"`
+}
+
+// NamespaceResponseVisibility Namespace visibility: public or private
+type NamespaceResponseVisibility string
 
 // PackageSummaryEntry defines model for PackageSummaryEntry.
 type PackageSummaryEntry struct {
@@ -1729,6 +1870,26 @@ type SearchDistinctComponentsOutputBody struct {
 	Pagination PaginationMeta              `json:"pagination"`
 }
 
+// SourceResponse defines model for SourceResponse.
+type SourceResponse struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema    *string `json:"$schema,omitempty"`
+	CreatedAt string  `json:"created_at"`
+	Id        string  `json:"id"`
+
+	// Kind Ingest channel kind
+	Kind        SourceResponseKind `json:"kind"`
+	Name        string             `json:"name"`
+	NamespaceId string             `json:"namespace_id"`
+
+	// NamespaceName Owning namespace name; populated on list responses
+	NamespaceName *string `json:"namespace_name,omitempty"`
+	UpdatedAt     string  `json:"updated_at"`
+}
+
+// SourceResponseKind Ingest channel kind
+type SourceResponseKind string
+
 // SystemStatusOutputBody defines model for SystemStatusOutputBody.
 type SystemStatusOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -1782,6 +1943,21 @@ type TopVulnEntry struct {
 	Severity          string     `json:"severity"`
 	Summary           *string    `json:"summary,omitempty"`
 }
+
+// UpdateNamespaceInputBody defines model for UpdateNamespaceInputBody.
+type UpdateNamespaceInputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// Name New namespace name; omit to keep the current one
+	Name *string `json:"name,omitempty"`
+
+	// Visibility New visibility; omit to keep the current one
+	Visibility *UpdateNamespaceInputBodyVisibility `json:"visibility,omitempty"`
+}
+
+// UpdateNamespaceInputBodyVisibility New visibility; omit to keep the current one
+type UpdateNamespaceInputBodyVisibility string
 
 // UpdateRegistryInputBody defines model for UpdateRegistryInputBody.
 type UpdateRegistryInputBody struct {
@@ -1840,6 +2016,15 @@ type UpdateRegistryInputBodyVerificationMode string
 
 // UpdateRegistryInputBodyVisibility Registry visibility
 type UpdateRegistryInputBodyVisibility string
+
+// UpdateSourceInputBody defines model for UpdateSourceInputBody.
+type UpdateSourceInputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// Name New source name
+	Name string `json:"name"`
+}
 
 // UpdateUserRoleInputBody defines model for UpdateUserRoleInputBody.
 type UpdateUserRoleInputBody struct {
@@ -2161,6 +2346,9 @@ type ListSbomsParams struct {
 
 // IngestSbomParams defines parameters for IngestSbom.
 type IngestSbomParams struct {
+	// Source Ingest channel this SBOM arrived through, as a source UUID or <namespace>/<name>. Required — the source's namespace owns the SBOM.
+	Source *string `form:"source,omitempty" json:"source,omitempty"`
+
 	// Version Image version/tag (overrides BOM-extracted value for subject_version and imageVersion)
 	Version *string `form:"version,omitempty" json:"version,omitempty"`
 
@@ -2169,6 +2357,21 @@ type IngestSbomParams struct {
 
 	// BuildDate Image build date (RFC3339 or date string)
 	BuildDate *string `form:"build_date,omitempty" json:"build_date,omitempty"`
+
+	// SubjectType CycloneDX component type of the subject (e.g. application, library, file)
+	SubjectType *string `form:"subject_type,omitempty" json:"subject_type,omitempty"`
+
+	// SubjectName Subject name (e.g. ocidex)
+	SubjectName *string `form:"subject_name,omitempty" json:"subject_name,omitempty"`
+
+	// SubjectGroup Subject group/namespace (e.g. github.com/pfenerty)
+	SubjectGroup *string `form:"subject_group,omitempty" json:"subject_group,omitempty"`
+
+	// SubjectPurl Subject package URL (e.g. pkg:golang/github.com/pfenerty/ocidex@v1.2.3)
+	SubjectPurl *string `form:"subject_purl,omitempty" json:"subject_purl,omitempty"`
+
+	// Digest sha256 of the artifact file itself, not of this SBOM document. Required for a non-container subject.
+	Digest *string `form:"digest,omitempty" json:"digest,omitempty"`
 }
 
 // DiffSbomsParams defines parameters for DiffSboms.
@@ -2213,6 +2416,12 @@ type ListSbomDriftHistoryParams struct {
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// ListSourcesParams defines parameters for ListSources.
+type ListSourcesParams struct {
+	// NamespaceId Limit to sources in this namespace
+	NamespaceId *string `form:"namespace_id,omitempty" json:"namespace_id,omitempty"`
+}
+
 // ListTopVulnerabilitiesParams defines parameters for ListTopVulnerabilities.
 type ListTopVulnerabilitiesParams struct {
 	// Limit Maximum number of results per page
@@ -2252,6 +2461,12 @@ type GetVulnerabilityParams struct {
 // CreateApiKeyJSONRequestBody defines body for CreateApiKey for application/json ContentType.
 type CreateApiKeyJSONRequestBody = CreateAPIKeyInputBody
 
+// CreateNamespaceJSONRequestBody defines body for CreateNamespace for application/json ContentType.
+type CreateNamespaceJSONRequestBody = CreateNamespaceInputBody
+
+// UpdateNamespaceJSONRequestBody defines body for UpdateNamespace for application/json ContentType.
+type UpdateNamespaceJSONRequestBody = UpdateNamespaceInputBody
+
 // CreateRegistryJSONRequestBody defines body for CreateRegistry for application/json ContentType.
 type CreateRegistryJSONRequestBody = CreateRegistryInputBody
 
@@ -2263,6 +2478,12 @@ type UpdateRegistryJSONRequestBody = UpdateRegistryInputBody
 
 // RegistryWebhookJSONRequestBody defines body for RegistryWebhook for application/json ContentType.
 type RegistryWebhookJSONRequestBody = RegistryWebhookInputBody
+
+// CreateSourceJSONRequestBody defines body for CreateSource for application/json ContentType.
+type CreateSourceJSONRequestBody = CreateSourceInputBody
+
+// UpdateSourceJSONRequestBody defines body for UpdateSource for application/json ContentType.
+type UpdateSourceJSONRequestBody = UpdateSourceInputBody
 
 // UpdateUserRoleJSONRequestBody defines body for UpdateUserRole for application/json ContentType.
 type UpdateUserRoleJSONRequestBody = UpdateUserRoleInputBody

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
@@ -18,40 +19,57 @@ import (
 
 type fakeRegistryRepo struct {
 	createFn       func(ctx context.Context, arg repository.CreateRegistryParams) (repository.Registry, error)
-	getFn          func(ctx context.Context, id pgtype.UUID) (repository.Registry, error)
-	getByNameFn    func(ctx context.Context, name string) (repository.Registry, error)
-	listFn         func(ctx context.Context, arg repository.ListRegistriesParams) ([]repository.Registry, error)
+	getFn          func(ctx context.Context, id pgtype.UUID) (repository.GetRegistryRow, error)
+	getByNameFn    func(ctx context.Context, name string) (repository.GetRegistryByNameRow, error)
+	listFn         func(ctx context.Context, arg repository.ListRegistriesParams) ([]repository.ListRegistriesRow, error)
 	listPagedFn    func(ctx context.Context, arg repository.ListRegistriesPagedParams) ([]repository.ListRegistriesPagedRow, error)
 	updateFn       func(ctx context.Context, arg repository.UpdateRegistryParams) (repository.Registry, error)
 	setEnabledFn   func(ctx context.Context, arg repository.SetRegistryEnabledParams) (repository.Registry, error)
 	deleteFn       func(ctx context.Context, id pgtype.UUID) (int64, error)
-	listPollFn     func(ctx context.Context) ([]repository.Registry, error)
+	listPollFn     func(ctx context.Context) ([]repository.ListPollableRegistriesRow, error)
 	markPolledFn   func(ctx context.Context, id pgtype.UUID) (repository.Registry, error)
 	trustSummaryFn func(ctx context.Context) ([]repository.ListRegistryTrustSummaryRow, error)
+
+	getNamespaceByNameFn func(ctx context.Context, name string) (repository.Namespace, error)
+	createNamespaceFn    func(ctx context.Context, arg repository.CreateNamespaceParams) (repository.Namespace, error)
+}
+
+func (f *fakeRegistryRepo) GetNamespaceByName(ctx context.Context, name string) (repository.Namespace, error) {
+	if f.getNamespaceByNameFn != nil {
+		return f.getNamespaceByNameFn(ctx, name)
+	}
+	return repository.Namespace{}, pgx.ErrNoRows
+}
+
+func (f *fakeRegistryRepo) CreateNamespace(ctx context.Context, arg repository.CreateNamespaceParams) (repository.Namespace, error) {
+	if f.createNamespaceFn != nil {
+		return f.createNamespaceFn(ctx, arg)
+	}
+	return repository.Namespace{Name: arg.Name, OwnerID: arg.OwnerID, Visibility: arg.Visibility}, nil
 }
 
 func (f *fakeRegistryRepo) CreateRegistry(ctx context.Context, arg repository.CreateRegistryParams) (repository.Registry, error) {
 	if f.createFn != nil {
 		return f.createFn(ctx, arg)
 	}
-	return repository.Registry{Visibility: arg.Visibility, Name: arg.Name, Type: arg.Type, Url: arg.Url, ScanMode: arg.ScanMode}, nil
+	return repository.Registry{Type: arg.Type, Url: arg.Url, ScanMode: arg.ScanMode}, nil
 }
 
-func (f *fakeRegistryRepo) GetRegistry(ctx context.Context, id pgtype.UUID) (repository.Registry, error) {
+func (f *fakeRegistryRepo) GetRegistry(ctx context.Context, id pgtype.UUID) (repository.GetRegistryRow, error) {
 	if f.getFn != nil {
 		return f.getFn(ctx, id)
 	}
-	return repository.Registry{}, errors.New("not found")
+	return repository.GetRegistryRow{}, errors.New("not found")
 }
 
-func (f *fakeRegistryRepo) GetRegistryByName(ctx context.Context, name string) (repository.Registry, error) {
+func (f *fakeRegistryRepo) GetRegistryByName(ctx context.Context, name string) (repository.GetRegistryByNameRow, error) {
 	if f.getByNameFn != nil {
 		return f.getByNameFn(ctx, name)
 	}
-	return repository.Registry{}, errors.New("not found")
+	return repository.GetRegistryByNameRow{}, errors.New("not found")
 }
 
-func (f *fakeRegistryRepo) ListRegistries(ctx context.Context, arg repository.ListRegistriesParams) ([]repository.Registry, error) {
+func (f *fakeRegistryRepo) ListRegistries(ctx context.Context, arg repository.ListRegistriesParams) ([]repository.ListRegistriesRow, error) {
 	if f.listFn != nil {
 		return f.listFn(ctx, arg)
 	}
@@ -86,7 +104,7 @@ func (f *fakeRegistryRepo) DeleteRegistry(ctx context.Context, id pgtype.UUID) (
 	return 1, nil
 }
 
-func (f *fakeRegistryRepo) ListPollableRegistries(ctx context.Context) ([]repository.Registry, error) {
+func (f *fakeRegistryRepo) ListPollableRegistries(ctx context.Context) ([]repository.ListPollableRegistriesRow, error) {
 	if f.listPollFn != nil {
 		return f.listPollFn(ctx)
 	}
@@ -121,7 +139,7 @@ func TestRegistryCreate_DefaultVisibility(t *testing.T) {
 	svc := newTestRegistryService(&fakeRegistryRepo{
 		createFn: func(_ context.Context, arg repository.CreateRegistryParams) (repository.Registry, error) {
 			capturedVis = arg.Visibility
-			return repository.Registry{Visibility: arg.Visibility}, nil
+			return repository.Registry{}, nil
 		},
 	})
 
@@ -142,7 +160,7 @@ func TestRegistryCreate_ExplicitVisibility(t *testing.T) {
 	svc := newTestRegistryService(&fakeRegistryRepo{
 		createFn: func(_ context.Context, arg repository.CreateRegistryParams) (repository.Registry, error) {
 			capturedVis = arg.Visibility
-			return repository.Registry{Visibility: arg.Visibility}, nil
+			return repository.Registry{}, nil
 		},
 	})
 
@@ -156,6 +174,121 @@ func TestRegistryCreate_ExplicitVisibility(t *testing.T) {
 
 	is.NoErr(err)
 	is.Equal(capturedVis, "private")
+}
+
+// A registry created without a namespace keeps the pre-ADR-039 shape: the query
+// mints a namespace of its own, signalled by a NULL namespace_id.
+func TestRegistryCreate_NoNamespaceLeavesNamespaceIDNull(t *testing.T) {
+	is := is.New(t)
+	var captured pgtype.UUID
+	svc := newTestRegistryService(&fakeRegistryRepo{
+		createFn: func(_ context.Context, arg repository.CreateRegistryParams) (repository.Registry, error) {
+			captured = arg.NamespaceID
+			return repository.Registry{}, nil
+		},
+		getNamespaceByNameFn: func(_ context.Context, _ string) (repository.Namespace, error) {
+			t.Fatal("namespace should not be looked up when none was requested")
+			return repository.Namespace{}, nil
+		},
+	})
+
+	_, err := svc.Create(context.Background(), CreateRegistryParams{
+		Name: "r", Type: "generic", URL: "https://r.example.com", ScanMode: "webhook",
+	})
+
+	is.NoErr(err)
+	is.Equal(captured.Valid, false)
+}
+
+func TestRegistryCreate_ReusesExistingNamespace(t *testing.T) {
+	is := is.New(t)
+	existing := pgtype.UUID{Bytes: [16]byte{9}, Valid: true}
+	var captured pgtype.UUID
+	svc := newTestRegistryService(&fakeRegistryRepo{
+		createFn: func(_ context.Context, arg repository.CreateRegistryParams) (repository.Registry, error) {
+			captured = arg.NamespaceID
+			return repository.Registry{}, nil
+		},
+		getNamespaceByNameFn: func(_ context.Context, name string) (repository.Namespace, error) {
+			is.Equal(name, "team-a")
+			return repository.Namespace{ID: existing}, nil
+		},
+		createNamespaceFn: func(_ context.Context, _ repository.CreateNamespaceParams) (repository.Namespace, error) {
+			t.Fatal("existing namespace should not be re-created")
+			return repository.Namespace{}, nil
+		},
+	})
+
+	_, err := svc.Create(context.Background(), CreateRegistryParams{
+		Name: "r", Namespace: "team-a", Type: "generic",
+		URL: "https://r.example.com", ScanMode: "webhook",
+	})
+
+	is.NoErr(err)
+	is.Equal(captured, existing)
+}
+
+// Nothing orders OCIRegistry reconciles, so the first registry into a namespace
+// creates it.
+func TestRegistryCreate_CreatesNamespaceOnFirstUse(t *testing.T) {
+	is := is.New(t)
+	minted := pgtype.UUID{Bytes: [16]byte{7}, Valid: true}
+	var capturedName, capturedVis string
+	var captured pgtype.UUID
+	svc := newTestRegistryService(&fakeRegistryRepo{
+		createFn: func(_ context.Context, arg repository.CreateRegistryParams) (repository.Registry, error) {
+			captured = arg.NamespaceID
+			return repository.Registry{}, nil
+		},
+		createNamespaceFn: func(_ context.Context, arg repository.CreateNamespaceParams) (repository.Namespace, error) {
+			capturedName, capturedVis = arg.Name, arg.Visibility
+			return repository.Namespace{ID: minted}, nil
+		},
+	})
+
+	_, err := svc.Create(context.Background(), CreateRegistryParams{
+		Name: "r", Namespace: "team-a", Type: "generic",
+		URL: "https://r.example.com", ScanMode: "webhook", Visibility: "private",
+	})
+
+	is.NoErr(err)
+	is.Equal(captured, minted)
+	is.Equal(capturedName, "team-a")
+	is.Equal(capturedVis, "private")
+}
+
+// Two reconciles racing on the same new namespace: the loser re-reads instead of
+// failing the whole registry create.
+func TestRegistryCreate_NamespaceRaceReReads(t *testing.T) {
+	is := is.New(t)
+	winner := pgtype.UUID{Bytes: [16]byte{3}, Valid: true}
+	lookups := 0
+	var captured pgtype.UUID
+	svc := newTestRegistryService(&fakeRegistryRepo{
+		createFn: func(_ context.Context, arg repository.CreateRegistryParams) (repository.Registry, error) {
+			captured = arg.NamespaceID
+			return repository.Registry{}, nil
+		},
+		getNamespaceByNameFn: func(_ context.Context, _ string) (repository.Namespace, error) {
+			lookups++
+			if lookups == 1 {
+				return repository.Namespace{}, pgx.ErrNoRows
+			}
+			return repository.Namespace{ID: winner}, nil
+		},
+		createNamespaceFn: func(_ context.Context, _ repository.CreateNamespaceParams) (repository.Namespace, error) {
+			return repository.Namespace{}, &pgconn.PgError{Code: "23505"}
+		},
+	})
+
+	_, err := svc.Create(context.Background(), CreateRegistryParams{
+		Name: "r", Namespace: "team-a", Type: "generic",
+		URL: "https://r.example.com", ScanMode: "webhook",
+	})
+
+	is.NoErr(err)
+	is.Equal(captured, winner)
+	is.Equal(lookups, 2)
 }
 
 func TestRegistryCreate_UniqueViolationReturnsConflict(t *testing.T) {
@@ -187,8 +320,8 @@ func TestRegistryGet_InvalidUUID(t *testing.T) {
 func TestRegistryGet_NotFound(t *testing.T) {
 	is := is.New(t)
 	svc := newTestRegistryService(&fakeRegistryRepo{
-		getFn: func(_ context.Context, _ pgtype.UUID) (repository.Registry, error) {
-			return repository.Registry{}, errors.New("no rows")
+		getFn: func(_ context.Context, _ pgtype.UUID) (repository.GetRegistryRow, error) {
+			return repository.GetRegistryRow{}, errors.New("no rows")
 		},
 	})
 
@@ -199,8 +332,11 @@ func TestRegistryGet_NotFound(t *testing.T) {
 func TestRegistryGet_Valid(t *testing.T) {
 	is := is.New(t)
 	svc := newTestRegistryService(&fakeRegistryRepo{
-		getFn: func(_ context.Context, _ pgtype.UUID) (repository.Registry, error) {
-			return repository.Registry{Name: "myreg", Type: "harbor", ScanMode: "poll"}, nil
+		getFn: func(_ context.Context, _ pgtype.UUID) (repository.GetRegistryRow, error) {
+			return repository.GetRegistryRow{
+				Registry: repository.Registry{Type: "harbor", ScanMode: "poll"},
+				Name:     "myreg",
+			}, nil
 		},
 	})
 
@@ -213,8 +349,8 @@ func TestRegistryGet_Valid(t *testing.T) {
 func TestRegistryGetByName_NotFound(t *testing.T) {
 	is := is.New(t)
 	svc := newTestRegistryService(&fakeRegistryRepo{
-		getByNameFn: func(_ context.Context, _ string) (repository.Registry, error) {
-			return repository.Registry{}, errors.New("no rows")
+		getByNameFn: func(_ context.Context, _ string) (repository.GetRegistryByNameRow, error) {
+			return repository.GetRegistryByNameRow{}, errors.New("no rows")
 		},
 	})
 
@@ -225,8 +361,11 @@ func TestRegistryGetByName_NotFound(t *testing.T) {
 func TestRegistryGetByName_Valid(t *testing.T) {
 	is := is.New(t)
 	svc := newTestRegistryService(&fakeRegistryRepo{
-		getByNameFn: func(_ context.Context, name string) (repository.Registry, error) {
-			return repository.Registry{Name: name, Type: "harbor", ScanMode: "poll"}, nil
+		getByNameFn: func(_ context.Context, name string) (repository.GetRegistryByNameRow, error) {
+			return repository.GetRegistryByNameRow{
+				Registry: repository.Registry{Type: "harbor", ScanMode: "poll"},
+				Name:     name,
+			}, nil
 		},
 	})
 
@@ -268,12 +407,12 @@ func TestRegistryUpdate_DefaultVisibility(t *testing.T) {
 	is := is.New(t)
 	var capturedVis string
 	svc := newTestRegistryService(&fakeRegistryRepo{
-		getFn: func(_ context.Context, _ pgtype.UUID) (repository.Registry, error) {
-			return repository.Registry{VerificationMode: "none"}, nil
+		getFn: func(_ context.Context, _ pgtype.UUID) (repository.GetRegistryRow, error) {
+			return repository.GetRegistryRow{Registry: repository.Registry{VerificationMode: "none"}}, nil
 		},
 		updateFn: func(_ context.Context, arg repository.UpdateRegistryParams) (repository.Registry, error) {
 			capturedVis = arg.Visibility
-			return repository.Registry{Visibility: arg.Visibility}, nil
+			return repository.Registry{}, nil
 		},
 	})
 
@@ -296,12 +435,12 @@ func TestRegistryUpdate_PreservesTrustFieldsWhenUnset(t *testing.T) {
 	existingIssuer := "existing-issuer"
 	var captured repository.UpdateRegistryParams
 	svc := newTestRegistryService(&fakeRegistryRepo{
-		getFn: func(_ context.Context, _ pgtype.UUID) (repository.Registry, error) {
-			return repository.Registry{
+		getFn: func(_ context.Context, _ pgtype.UUID) (repository.GetRegistryRow, error) {
+			return repository.GetRegistryRow{Registry: repository.Registry{
 				VerificationMode: "keyless",
 				TrustIdentity:    pgtype.Text{String: existingIdentity, Valid: true},
 				TrustIssuer:      pgtype.Text{String: existingIssuer, Valid: true},
-			}, nil
+			}}, nil
 		},
 		updateFn: func(_ context.Context, arg repository.UpdateRegistryParams) (repository.Registry, error) {
 			captured = arg
@@ -337,7 +476,6 @@ func TestRegistryCreate_RoundTripsManagedMarker(t *testing.T) {
 			// cover both halves of the mapping: *string -> pgtype.Text on the
 			// way in, and pgtype.Text -> *string on the way out.
 			return repository.Registry{
-				Name:       arg.Name,
 				ManagedBy:  arg.ManagedBy,
 				ManagedRef: arg.ManagedRef,
 			}, nil
@@ -388,12 +526,12 @@ func TestRegistryUpdate_PreservesManagedMarkerWhenUnset(t *testing.T) {
 	is := is.New(t)
 	var captured repository.UpdateRegistryParams
 	svc := newTestRegistryService(&fakeRegistryRepo{
-		getFn: func(_ context.Context, _ pgtype.UUID) (repository.Registry, error) {
-			return repository.Registry{
+		getFn: func(_ context.Context, _ pgtype.UUID) (repository.GetRegistryRow, error) {
+			return repository.GetRegistryRow{Registry: repository.Registry{
 				VerificationMode: "none",
 				ManagedBy:        pgtype.Text{String: "kubernetes", Valid: true},
 				ManagedRef:       pgtype.Text{String: "ocidex-system/prod-registry", Valid: true},
-			}, nil
+			}}, nil
 		},
 		updateFn: func(_ context.Context, arg repository.UpdateRegistryParams) (repository.Registry, error) {
 			captured = arg
@@ -424,12 +562,12 @@ func TestRegistryUpdate_OverwritesManagedMarkerWhenSet(t *testing.T) {
 	managedRef := "ocidex-system/renamed"
 	var captured repository.UpdateRegistryParams
 	svc := newTestRegistryService(&fakeRegistryRepo{
-		getFn: func(_ context.Context, _ pgtype.UUID) (repository.Registry, error) {
-			return repository.Registry{
+		getFn: func(_ context.Context, _ pgtype.UUID) (repository.GetRegistryRow, error) {
+			return repository.GetRegistryRow{Registry: repository.Registry{
 				VerificationMode: "none",
 				ManagedBy:        pgtype.Text{String: "kubernetes", Valid: true},
 				ManagedRef:       pgtype.Text{String: "ocidex-system/old", Valid: true},
-			}, nil
+			}}, nil
 		},
 		updateFn: func(_ context.Context, arg repository.UpdateRegistryParams) (repository.Registry, error) {
 			captured = arg
@@ -797,9 +935,9 @@ func TestRegistryMatchesImage(t *testing.T) {
 func TestRegistryList(t *testing.T) {
 	is := is.New(t)
 	svc := newTestRegistryService(&fakeRegistryRepo{
-		listFn: func(_ context.Context, arg repository.ListRegistriesParams) ([]repository.Registry, error) {
-			return []repository.Registry{
-				{Name: "reg1", Type: "harbor", ScanMode: "webhook"},
+		listFn: func(_ context.Context, arg repository.ListRegistriesParams) ([]repository.ListRegistriesRow, error) {
+			return []repository.ListRegistriesRow{
+				{Registry: repository.Registry{Type: "harbor", ScanMode: "webhook"}, Name: "reg1"},
 			}, nil
 		},
 	})
@@ -813,7 +951,7 @@ func TestRegistryList(t *testing.T) {
 func TestRegistryList_RepoError(t *testing.T) {
 	is := is.New(t)
 	svc := newTestRegistryService(&fakeRegistryRepo{
-		listFn: func(_ context.Context, _ repository.ListRegistriesParams) ([]repository.Registry, error) {
+		listFn: func(_ context.Context, _ repository.ListRegistriesParams) ([]repository.ListRegistriesRow, error) {
 			return nil, errors.New("db error")
 		},
 	})
@@ -825,9 +963,9 @@ func TestRegistryList_RepoError(t *testing.T) {
 func TestRegistryListPollable(t *testing.T) {
 	is := is.New(t)
 	svc := newTestRegistryService(&fakeRegistryRepo{
-		listPollFn: func(_ context.Context) ([]repository.Registry, error) {
-			return []repository.Registry{
-				{Name: "pollable", ScanMode: "poll"},
+		listPollFn: func(_ context.Context) ([]repository.ListPollableRegistriesRow, error) {
+			return []repository.ListPollableRegistriesRow{
+				{Registry: repository.Registry{ScanMode: "poll"}, Name: "pollable"},
 			}, nil
 		},
 	})
@@ -841,7 +979,11 @@ func TestRegistryMarkPolled_Valid(t *testing.T) {
 	is := is.New(t)
 	svc := newTestRegistryService(&fakeRegistryRepo{
 		markPolledFn: func(_ context.Context, _ pgtype.UUID) (repository.Registry, error) {
-			return repository.Registry{Name: "polled"}, nil
+			return repository.Registry{}, nil
+		},
+		// UPDATE ... RETURNING cannot join to namespace, so the service re-reads.
+		getFn: func(_ context.Context, _ pgtype.UUID) (repository.GetRegistryRow, error) {
+			return repository.GetRegistryRow{Name: "polled"}, nil
 		},
 	})
 
@@ -862,7 +1004,13 @@ func TestRegistrySetEnabled_Valid(t *testing.T) {
 	is := is.New(t)
 	svc := newTestRegistryService(&fakeRegistryRepo{
 		setEnabledFn: func(_ context.Context, arg repository.SetRegistryEnabledParams) (repository.Registry, error) {
-			return repository.Registry{Name: "r", Enabled: arg.Enabled}, nil
+			return repository.Registry{Enabled: arg.Enabled}, nil
+		},
+		getFn: func(_ context.Context, _ pgtype.UUID) (repository.GetRegistryRow, error) {
+			return repository.GetRegistryRow{
+				Registry: repository.Registry{Enabled: true},
+				Name:     "r",
+			}, nil
 		},
 	})
 

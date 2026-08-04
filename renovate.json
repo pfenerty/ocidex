@@ -14,9 +14,19 @@
   "labels": ["renovate"],
   "packageRules": [
     {
-      "description": "Automerge minor and patch updates across all managers. Group rules below set groupName only — no automerge, so this rule remains the single source of truth for automerge.",
-      "matchUpdateTypes": ["minor", "patch"],
+      "description": "Automerge minor, patch and digest updates across all managers. Group rules below set groupName only — no automerge, so this rule remains the single source of truth for automerge.",
+      "matchUpdateTypes": ["minor", "patch", "digest"],
       "automerge": true
+    },
+    {
+      "description": "Digest-pin runtime and build images so every build is reproducible and Renovate owns the rebase. Deliberately excludes the .tekton/ CI images: ghcr.io/pfenerty/apko-cicd/base:stable is a moving tag used 100+ times, so pinning it would force a Renovate PR plus a `make tekton-synth` on every upstream base rebuild.",
+      "matchManagers": ["dockerfile", "docker-compose", "helm-values"],
+      "pinDigests": true
+    },
+    {
+      "description": "Chainguard publishes only :latest on the free tier, so the digest IS the version — and a new digest is usually the CVE fix we picked this image for. Skip the global 3-day hold.",
+      "matchPackageNames": ["cgr.dev/chainguard/nginx"],
+      "minimumReleaseAge": "0"
     },
     {
       "description": "Group all Go module updates into one PR",

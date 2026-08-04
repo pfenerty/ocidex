@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from "vitest";
-import { render } from "@solidjs/testing-library";
+import { render, fireEvent } from "@solidjs/testing-library";
 import { SigningBadge } from "./SigningBadge";
-import { signingStatuses } from "~/utils/trust";
+import { signingStatuses, trustStatus } from "~/utils/trust";
 
 function badge(status: string): HTMLElement {
     const { container } = render(() => <SigningBadge status={status} />);
@@ -57,10 +57,33 @@ describe("SigningBadge", () => {
         expect(badge("verification_failed").className).toContain("badge-danger");
     });
 
-    it("gives every status an explanatory tooltip", () => {
+    // The badge is now the only place a status is explained — the Artifacts
+    // page dropped its standing legend block. The description therefore has to
+    // be reachable by keyboard, not just on hover, and has to be associated
+    // with the badge rather than merely rendered somewhere on the page.
+    it("exposes every status description on focus, wired by aria-describedby", () => {
         for (const status of signingStatuses) {
-            const title = badge(status).getAttribute("title");
-            expect(title, `missing tooltip for ${status}`).toBeTruthy();
+            const { container, unmount } = render(() => <SigningBadge status={status} />);
+            const trigger = container.querySelector("span.tooltip-trigger");
+            if (trigger === null) throw new Error(`no tooltip trigger for ${status}`);
+
+            fireEvent.focus(trigger);
+
+            const id = trigger.getAttribute("aria-describedby");
+            if (id === null) throw new Error(`no tooltip shown for ${status}`);
+            expect(document.getElementById(id)?.textContent).toBe(
+                trustStatus(status)?.description,
+            );
+
+            unmount();
+        }
+    });
+
+    // A native title would render a second, unstyled tooltip alongside the
+    // real one on hover.
+    it("does not also carry a native title attribute", () => {
+        for (const status of signingStatuses) {
+            expect(badge(status).getAttribute("title")).toBe(null);
         }
     });
 

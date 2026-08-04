@@ -38,7 +38,7 @@ func TestMapServiceError_InternalError(t *testing.T) {
 			{"type": "library", "name": "test-lib", "version": "1.0.0"}
 		]
 	}`
-	r := httptest.NewRequest(http.MethodPost, "/api/v1/sboms", strings.NewReader(body))
+	r := httptest.NewRequest(http.MethodPost, ingestPath, strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
 	r.Header.Set("Authorization", "Bearer member-token")
 	w := httptest.NewRecorder()

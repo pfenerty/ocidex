@@ -43,6 +43,27 @@ spec:
   hostnames:
     - {{ .Values.gatewayApi.webHostname | quote }}
   rules:
+    # The web container serves static assets only — it holds no reverse proxy.
+    # These rules are what give the SPA a same-origin /api and /auth (the OAuth
+    # flow and web/src/api/client.ts both depend on it), so they must precede
+    # the catch-all below. Ordering matters for controllers that translate
+    # HTTPRoutes into first-match-wins rule lists (e.g. Cloudflare Tunnel).
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+        - path:
+            type: PathPrefix
+            value: /auth
+        - path:
+            type: Exact
+            value: /health
+        - path:
+            type: Exact
+            value: /ready
+      backendRefs:
+        - name: {{ include "ocidex.fullname" . }}-api
+          port: 80
     - matches:
         - path:
             type: PathPrefix

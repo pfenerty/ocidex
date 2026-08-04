@@ -486,6 +486,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/namespaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List namespaces
+         * @description Namespaces owned by the caller plus every public namespace.
+         */
+        get: operations["list-namespaces"];
+        put?: never;
+        /** Create a namespace */
+        post: operations["create-namespace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/namespaces/by-name/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a namespace by name */
+        get: operations["get-namespace-by-name"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/namespaces/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a namespace */
+        get: operations["get-namespace"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a namespace
+         * @description Removes the namespace and everything ingested under it. Owner or admin only.
+         */
+        delete: operations["delete-namespace"];
+        options?: never;
+        head?: never;
+        /** Update a namespace (partial) */
+        patch: operations["update-namespace"];
+        trace?: never;
+    };
     "/api/v1/registries": {
         parameters: {
             query?: never;
@@ -788,6 +848,49 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List sources
+         * @description Ingest channels visible to the caller, optionally scoped to one namespace.
+         */
+        get: operations["list-sources"];
+        put?: never;
+        /**
+         * Create an upload source
+         * @description Creates a source with kind 'upload'. OCI registry sources are created via POST /api/v1/registries.
+         */
+        post: operations["create-source"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a source */
+        get: operations["get-source"];
+        put?: never;
+        post?: never;
+        /** Delete a source */
+        delete: operations["delete-source"];
+        options?: never;
+        head?: never;
+        /** Rename a source */
+        patch: operations["update-source"];
         trace?: never;
     };
     "/api/v1/stats": {
@@ -1206,6 +1309,21 @@ export interface components {
             /** @description Full API key — shown once, store securely */
             key: string;
         };
+        CreateNamespaceInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/CreateNamespaceInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Human-readable namespace name */
+            name: string;
+            /**
+             * @description Namespace visibility; defaults to private
+             * @enum {string}
+             */
+            visibility?: "public" | "private";
+        };
         CreateRegistryInputBody: {
             /**
              * Format: uri
@@ -1227,6 +1345,8 @@ export interface components {
             managed_ref?: string;
             /** @description Human-readable registry name */
             name: string;
+            /** @description Namespace to create the registry in, created on first use; omit to give the registry a namespace of its own named after it */
+            namespace?: string;
             /**
              * Format: int64
              * @description Minutes between polls
@@ -1324,6 +1444,21 @@ export interface components {
             webhook_secret?: string;
             webhook_url: string;
         };
+        CreateSourceInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/CreateSourceInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Source name, unique within the namespace */
+            name: string;
+            /**
+             * Format: uuid
+             * @description Owning namespace UUID
+             */
+            namespace_id: string;
+        };
         CursorMeta: {
             /** @description Whether more results exist after this page */
             hasMore: boolean;
@@ -1370,6 +1505,8 @@ export interface components {
             /** Format: int64 */
             vuln_count: number;
             vuln_severity: components["schemas"]["VulnSeverityEntry"];
+            /** @description No snapshot is available yet and every count is a zero placeholder; render a loading state and retry */
+            warming: boolean;
         };
         DependencyEdge: {
             from: string;
@@ -1726,6 +1863,15 @@ export interface components {
             data: components["schemas"]["LicenseCount"][] | null;
             pagination: components["schemas"]["PaginationMeta"];
         };
+        ListNamespacesOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListNamespacesOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["NamespaceResponse"][] | null;
+        };
         ListRecentDriftOutputBody: {
             /**
              * Format: uri
@@ -1786,6 +1932,15 @@ export interface components {
             data: components["schemas"]["ScanJobResponse"][] | null;
             pagination: components["schemas"]["PaginationMeta"];
         };
+        ListSourcesOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListSourcesOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["SourceResponse"][] | null;
+        };
         ListTopVulnerabilitiesOutputBody: {
             /**
              * Format: uri
@@ -1822,6 +1977,27 @@ export interface components {
         NATSStatus: {
             enabled: boolean;
             url: string;
+        };
+        NamespaceResponse: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/NamespaceResponse.json
+             */
+            readonly $schema?: string;
+            created_at: string;
+            id: string;
+            name: string;
+            /** @description UUID of the namespace owner */
+            owner_id?: string;
+            /** @description GitHub username of the namespace owner */
+            owner_username?: string;
+            updated_at: string;
+            /**
+             * @description Namespace visibility: public or private
+             * @enum {string}
+             */
+            visibility: "public" | "private";
         };
         PackageSummaryEntry: {
             group?: string;
@@ -2134,6 +2310,26 @@ export interface components {
             data: components["schemas"]["DistinctComponentSummary"][] | null;
             pagination: components["schemas"]["PaginationMeta"];
         };
+        SourceResponse: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/SourceResponse.json
+             */
+            readonly $schema?: string;
+            created_at: string;
+            id: string;
+            /**
+             * @description Ingest channel kind
+             * @enum {string}
+             */
+            kind: "oci_registry" | "upload";
+            name: string;
+            namespace_id: string;
+            /** @description Owning namespace name; populated on list responses */
+            namespace_name?: string;
+            updated_at: string;
+        };
         SystemStatusOutputBody: {
             /**
              * Format: uri
@@ -2190,6 +2386,21 @@ export interface components {
             severity: string;
             summary?: string;
         };
+        UpdateNamespaceInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/UpdateNamespaceInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description New namespace name; omit to keep the current one */
+            name?: string;
+            /**
+             * @description New visibility; omit to keep the current one
+             * @enum {string}
+             */
+            visibility?: "public" | "private";
+        };
         UpdateRegistryInputBody: {
             /**
              * Format: uri
@@ -2240,6 +2451,16 @@ export interface components {
              * @enum {string}
              */
             visibility?: "public" | "private";
+        };
+        UpdateSourceInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/UpdateSourceInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description New source name */
+            name: string;
         };
         UpdateUserRoleInputBody: {
             /**
@@ -3320,6 +3541,198 @@ export interface operations {
             };
         };
     };
+    "list-namespaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListNamespacesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "create-namespace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateNamespaceInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NamespaceResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-namespace-by-name": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Namespace name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NamespaceResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-namespace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Namespace UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NamespaceResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "delete-namespace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Namespace UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-namespace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Namespace UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateNamespaceInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NamespaceResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "list-registries": {
         parameters: {
             query?: {
@@ -3757,12 +4170,24 @@ export interface operations {
     "ingest-sbom": {
         parameters: {
             query?: {
+                /** @description Ingest channel this SBOM arrived through, as a source UUID or <namespace>/<name>. Required — the source's namespace owns the SBOM. */
+                source?: string;
                 /** @description Image version/tag (overrides BOM-extracted value for subject_version and imageVersion) */
                 version?: string;
                 /** @description Image architecture (e.g. amd64, arm64) */
                 architecture?: string;
                 /** @description Image build date (RFC3339 or date string) */
                 build_date?: string;
+                /** @description CycloneDX component type of the subject (e.g. application, library, file) */
+                subject_type?: string;
+                /** @description Subject name (e.g. ocidex) */
+                subject_name?: string;
+                /** @description Subject group/namespace (e.g. github.com/pfenerty) */
+                subject_group?: string;
+                /** @description Subject package URL (e.g. pkg:golang/github.com/pfenerty/ocidex@v1.2.3) */
+                subject_purl?: string;
+                /** @description sha256 of the artifact file itself, not of this SBOM document. Required for a non-container subject. */
+                digest?: string;
             };
             header?: never;
             path?: never;
@@ -4020,6 +4445,169 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListSBOMDriftHistoryOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-sources": {
+        parameters: {
+            query?: {
+                /** @description Limit to sources in this namespace */
+                namespace_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListSourcesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "create-source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSourceInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Source UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "delete-source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Source UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Source UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSourceInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceResponse"];
                 };
             };
             /** @description Error */

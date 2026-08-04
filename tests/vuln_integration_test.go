@@ -62,7 +62,7 @@ func TestVulnSBOMSummaryJoin(t *testing.T) {
 	is.NoErr(err)
 
 	// Ingest SBOM — at this point no vulns exist, so summary should be absent.
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", minimalSBOM, memberKey)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), minimalSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	var ingestResp map[string]any
@@ -140,6 +140,9 @@ func TestVulnSBOMSummaryJoin(t *testing.T) {
 	is.Equal(aptComp["highCount"], float64(1))
 
 	// --- Assert GET /api/v1/vulns lists all seeded CVEs ---
+	// The list reads vuln_rollup, which the background refresher fills.
+	refreshRollups(t, pool)
+
 	resp, err = doGet(t, srv.URL+"/api/v1/vulns")
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusOK)
@@ -187,7 +190,7 @@ func TestVulnAliasDedup(t *testing.T) {
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	srv, authSvc := setupServerWithAuth(t, pool)
+	srv, authSvc, searchSvc := setupServerWithStats(t, pool)
 	defer srv.Close()
 
 	is := is.New(t)
@@ -198,7 +201,7 @@ func TestVulnAliasDedup(t *testing.T) {
 	is.NoErr(err)
 
 	// Ingest SBOM.
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", minimalSBOM, memberKey)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), minimalSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	var ingestResp map[string]any
@@ -254,6 +257,12 @@ func TestVulnAliasDedup(t *testing.T) {
 	artSummary := artVulnResp["summary"].(map[string]any)
 	is.Equal(artSummary["critical"], float64(1))
 	is.Equal(artSummary["total"], float64(1))
+
+	// The remaining assertions read precomputed state: /api/v1/vulns reads
+	// vuln_rollup and /api/v1/stats reads the stats cache, both of which are
+	// filled out of band in the running server.
+	refreshRollups(t, pool)
+	warmStats(t, searchSvc)
 
 	// Top-vulns list must show exactly 1 row for this canonical_id (not 2 alias rows).
 	resp, err = doGet(t, srv.URL+"/api/v1/vulns")
@@ -332,7 +341,7 @@ func TestVulnAliasDetailResolution(t *testing.T) {
 	is.NoErr(err)
 
 	// Ingest SBOM to create artifact + component rows.
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", minimalSBOM, memberKey)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), minimalSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	resp.Body.Close()
@@ -431,7 +440,7 @@ func TestVulnLiveJoinSemantics(t *testing.T) {
 	is.NoErr(err)
 
 	// Ingest SBOM.
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", minimalSBOM, memberKey)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), minimalSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	var ingestResp map[string]any
@@ -485,7 +494,7 @@ func TestVulnDuplicatePurlSummaryParity(t *testing.T) {
 	is.NoErr(err)
 
 	// Ingest SBOM with two components sharing addUserPurl.
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", duplicatePurlSBOM, memberKey)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), duplicatePurlSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	var ingestResp map[string]any
@@ -548,7 +557,7 @@ func TestPurlVulnStateSkipsCleanPurls(t *testing.T) {
 	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "purl-state-test", "read-write")
 	is.NoErr(err)
 
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", minimalSBOM, memberKey)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), minimalSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	var ingestResp map[string]any
@@ -619,7 +628,7 @@ func TestSourcePurlIncludedInGatherQueries(t *testing.T) {
 	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "source-purl-test", "read-write")
 	is.NoErr(err)
 
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", minimalSBOM, memberKey)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), minimalSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	var ingestResp map[string]any
@@ -689,7 +698,7 @@ func TestComponentVulnsMatchSourcePurl(t *testing.T) {
 	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "source-purl-vuln-test", "read-write")
 	is.NoErr(err)
 
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", minimalSBOM, memberKey)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), minimalSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	var ingestResp map[string]any

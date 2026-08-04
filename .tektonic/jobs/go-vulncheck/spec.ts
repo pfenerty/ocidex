@@ -1,5 +1,6 @@
 import { Task, nu } from "@pfenerty/tektonic";
-import { govulncheckImage, goEnv, goCache, reportOnlyStatusReporter } from "../../shared";
+import { govulncheckImage, goEnv, goCacheVulncheck, reportOnlyStatusReporter } from "../../shared";
+import { goBuild } from "../go-build/spec";
 import { goSetup } from "../../script-lib";
 
 // Reachability-aware Go vuln scan. Unlike grype-on-SBOM (jobs/go-security), govulncheck
@@ -9,8 +10,13 @@ import { goSetup } from "../../script-lib";
 // task's GitHub check while the PipelineRun stays green.
 export const goVulncheck = new Task({
   name: "govulncheck-scan",
+  // Ordered after goBuild so the shared workspace Go cache is already populated when this
+  // task starts, which is the precondition goCacheVulncheck's skip-restore relies on. It
+  // also stops the two tasks racing each other's restore at t=0. goBuild runs ungated on
+  // every pipeline (it is pulled in via `needs`), so this never leaves the task orphaned.
+  needs: [goBuild],
   statusReporter: reportOnlyStatusReporter,
-  caches: [goCache],
+  caches: [goCacheVulncheck],
   stepTemplate: {
     env: goEnv,
   },

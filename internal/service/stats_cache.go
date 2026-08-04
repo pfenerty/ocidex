@@ -44,6 +44,11 @@ func newStatsCache(ttl time.Duration) *statsCache {
 // statsCacheKey collapses a VisibilityFilter to the distinct data scopes:
 // admins share the full dataset, each authenticated user has their own scope
 // (public + owned), and anonymous viewers share the public scope.
+//
+// Callers on the request path should key on the *normalized* filter from
+// searchService.normalizeStatsScope rather than the raw one — a viewer who owns
+// no private registry sees the same data as an anonymous viewer, and giving
+// them their own key would mint a scope the warmer never fills.
 func statsCacheKey(vis VisibilityFilter) string {
 	switch {
 	case vis.IsAdmin:

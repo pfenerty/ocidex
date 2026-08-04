@@ -26,6 +26,7 @@ interface StatsQuery {
               package_count: number;
               license_count: number;
               vuln_count: number;
+              warming?: boolean;
           }
         | undefined;
 }
@@ -64,5 +65,24 @@ describe("Home catalog stats", () => {
         const { container } = renderHome({ isLoading: true, isError: false, data: undefined });
         expect(container.querySelector(".skeleton")).not.toBeNull();
         expect(container.textContent).not.toContain("Catalog stats are unavailable");
+    });
+
+    // A warming response is a successful 200 whose counts are all zero
+    // placeholders — the snapshot is computed out of band by the background
+    // warmer. Rendering it verbatim claims an empty catalog.
+    it("keeps the placeholder when the server reports it is still warming", () => {
+        const { container } = renderHome({
+            isLoading: false,
+            isError: false,
+            data: {
+                artifact_count: 0,
+                package_count: 0,
+                license_count: 0,
+                vuln_count: 0,
+                warming: true,
+            },
+        });
+        expect(container.querySelector(".skeleton")).not.toBeNull();
+        expect(container.textContent).not.toContain("0 artifacts");
     });
 });

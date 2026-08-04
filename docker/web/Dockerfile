@@ -10,9 +10,13 @@ COPY web/ .
 RUN npx tsc && npx vite build
 
 # Serve stage (labels injected via buildctl CLI flags, not Dockerfile)
-FROM docker.io/caddy:2-alpine
+#
+# Static assets only — no reverse proxy. /api and /auth are routed to the API by
+# the Gateway HTTPRoute in k8s, and by web/nginx.compose.conf under compose.
+# Runs as UID 65532, hence 8080 rather than 80.
+FROM cgr.dev/chainguard/nginx
 
-COPY web/Caddyfile /etc/caddy/Caddyfile
+COPY web/nginx.conf /etc/nginx/nginx.conf
 COPY --from=build /app/dist /srv
 
-EXPOSE 80
+EXPOSE 8080

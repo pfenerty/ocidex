@@ -22,19 +22,20 @@ spec:
           image: {{ include "ocidex.image" (dict "root" . "name" "web") }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
+            # nginx runs as UID 65532 and so cannot bind a privileged port.
             - name: http
-              containerPort: 80
+              containerPort: 8080
           resources:
             {{- toYaml .Values.web.resources | nindent 12 }}
           livenessProbe:
             httpGet:
               path: /
-              port: 80
+              port: 8080
             initialDelaySeconds: 10
             periodSeconds: 30
           readinessProbe:
             httpGet:
               path: /
-              port: 80
+              port: 8080
             initialDelaySeconds: 3
             periodSeconds: 10

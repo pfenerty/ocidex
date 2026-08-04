@@ -76,9 +76,19 @@ type VersionOutput struct {
 // IngestSBOMInput is the request for POST /api/v1/sbom.
 type IngestSBOMInput struct {
 	RawBody      []byte
+	Source       string `query:"source"       doc:"Ingest channel this SBOM arrived through, as a source UUID or <namespace>/<name>. Required — the source's namespace owns the SBOM."`
 	Version      string `query:"version"      doc:"Image version/tag (overrides BOM-extracted value for subject_version and imageVersion)"`
 	Architecture string `query:"architecture" doc:"Image architecture (e.g. amd64, arm64)"`
 	BuildDate    string `query:"build_date"   doc:"Image build date (RFC3339 or date string)"`
+
+	// Caller-declared subject identity (ADR-040). A `syft dir:` BOM describes
+	// the directory it walked, so a non-container uploader has to say what the
+	// SBOM is about; each field overrides its BOM-extracted counterpart.
+	SubjectType  string `query:"subject_type"  doc:"CycloneDX component type of the subject (e.g. application, library, file)"`
+	SubjectName  string `query:"subject_name"  doc:"Subject name (e.g. ocidex)"`
+	SubjectGroup string `query:"subject_group" doc:"Subject group/namespace (e.g. github.com/pfenerty)"`
+	SubjectPurl  string `query:"subject_purl"  doc:"Subject package URL (e.g. pkg:golang/github.com/pfenerty/ocidex@v1.2.3)"`
+	Digest       string `query:"digest"        doc:"sha256 of the artifact file itself, not of this SBOM document. Required for a non-container subject."`
 }
 
 // IngestSBOMOutput is the response for POST /api/v1/sbom.
@@ -512,6 +522,7 @@ type DashboardStatsOutput struct {
 		TopPackages           []PackageSummaryEntry `json:"top_packages"`
 		VulnCount             int64                 `json:"vuln_count"`
 		VulnSeverity          VulnSeverityEntry     `json:"vuln_severity"`
+		Warming               bool                  `json:"warming" doc:"No snapshot is available yet and every count is a zero placeholder; render a loading state and retry"`
 	}
 }
 
@@ -783,6 +794,7 @@ type GetRegistryByNameOutput struct {
 type CreateRegistryInput struct {
 	Body struct {
 		Name                string   `json:"name" minLength:"1" maxLength:"100" doc:"Human-readable registry name"`
+		Namespace           string   `json:"namespace,omitempty" maxLength:"100" doc:"Namespace to create the registry in, created on first use; omit to give the registry a namespace of its own named after it"`
 		Type                string   `json:"type" enum:"zot,harbor,docker,generic,ghcr" doc:"Registry type"`
 		URL                 string   `json:"url" minLength:"1" doc:"Registry address (e.g. zot:5000)"`
 		Insecure            bool     `json:"insecure" doc:"Allow HTTP (non-TLS) connections"`
@@ -1052,4 +1064,156 @@ type RetryAllFailedEnrichmentJobsOutput struct {
 	Body struct {
 		Count int64 `json:"count" doc:"Number of rows transitioned from 'failed' to 'queued'"`
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Namespaces
+// ---------------------------------------------------------------------------
+
+// NamespaceResponse is a namespace as returned by the API. A namespace is the
+// authorization anchor (ADR-039): ownership and visibility live here, not on
+// the sources or registries beneath it.
+type NamespaceResponse struct {
+	ID            string  `json:"id"`
+	Name          string  `json:"name"`
+	Visibility    string  `json:"visibility" enum:"public,private" doc:"Namespace visibility: public or private"`
+	OwnerID       *string `json:"owner_id,omitempty" doc:"UUID of the namespace owner"`
+	OwnerUsername *string `json:"owner_username,omitempty" doc:"GitHub username of the namespace owner"`
+	CreatedAt     string  `json:"created_at"`
+	UpdatedAt     string  `json:"updated_at"`
+}
+
+// ListNamespacesInput is the request for GET /api/v1/namespaces.
+type ListNamespacesInput struct{}
+
+// ListNamespacesOutput is the response for GET /api/v1/namespaces.
+type ListNamespacesOutput struct {
+	Body struct {
+		Data []NamespaceResponse `json:"data"`
+	}
+}
+
+// GetNamespaceInput is the request for GET /api/v1/namespaces/{id}.
+type GetNamespaceInput struct {
+	ID string `path:"id" doc:"Namespace UUID" format:"uuid"`
+}
+
+// GetNamespaceOutput is the response for GET /api/v1/namespaces/{id}.
+type GetNamespaceOutput struct {
+	Body NamespaceResponse
+}
+
+// GetNamespaceByNameInput is the request for GET /api/v1/namespaces/by-name/{name}.
+type GetNamespaceByNameInput struct {
+	Name string `path:"name" doc:"Namespace name"`
+}
+
+// GetNamespaceByNameOutput is the response for GET /api/v1/namespaces/by-name/{name}.
+type GetNamespaceByNameOutput struct {
+	Body NamespaceResponse
+}
+
+// CreateNamespaceInput is the request for POST /api/v1/namespaces.
+type CreateNamespaceInput struct {
+	Body struct {
+		Name       string `json:"name" minLength:"1" maxLength:"100" doc:"Human-readable namespace name"`
+		Visibility string `json:"visibility,omitempty" enum:"public,private" doc:"Namespace visibility; defaults to private"`
+	}
+}
+
+// CreateNamespaceOutput is the response for POST /api/v1/namespaces.
+type CreateNamespaceOutput struct {
+	Body NamespaceResponse
+}
+
+// UpdateNamespaceInput is the request for PATCH /api/v1/namespaces/{id}.
+type UpdateNamespaceInput struct {
+	ID   string `path:"id" doc:"Namespace UUID" format:"uuid"`
+	Body struct {
+		Name       string `json:"name,omitempty" maxLength:"100" doc:"New namespace name; omit to keep the current one"`
+		Visibility string `json:"visibility,omitempty" enum:"public,private" doc:"New visibility; omit to keep the current one"`
+	}
+}
+
+// UpdateNamespaceOutput is the response for PATCH /api/v1/namespaces/{id}.
+type UpdateNamespaceOutput struct {
+	Body NamespaceResponse
+}
+
+// DeleteNamespaceInput is the request for DELETE /api/v1/namespaces/{id}.
+type DeleteNamespaceInput struct {
+	ID string `path:"id" doc:"Namespace UUID" format:"uuid"`
+}
+
+// ---------------------------------------------------------------------------
+// Sources
+// ---------------------------------------------------------------------------
+
+// SourceResponse is a source as returned by the API. A source is the ingest
+// channel an SBOM arrived through (ADR-039); an 'oci_registry' source has a
+// matching registry row carrying its pull config and trust policy.
+type SourceResponse struct {
+	ID            string `json:"id"`
+	NamespaceID   string `json:"namespace_id"`
+	NamespaceName string `json:"namespace_name,omitempty" doc:"Owning namespace name; populated on list responses"`
+	Kind          string `json:"kind" enum:"oci_registry,upload" doc:"Ingest channel kind"`
+	Name          string `json:"name"`
+	CreatedAt     string `json:"created_at"`
+	UpdatedAt     string `json:"updated_at"`
+}
+
+// ListSourcesInput is the request for GET /api/v1/sources.
+type ListSourcesInput struct {
+	NamespaceID string `query:"namespace_id" doc:"Limit to sources in this namespace"`
+}
+
+// ListSourcesOutput is the response for GET /api/v1/sources.
+type ListSourcesOutput struct {
+	Body struct {
+		Data []SourceResponse `json:"data"`
+	}
+}
+
+// GetSourceInput is the request for GET /api/v1/sources/{id}.
+type GetSourceInput struct {
+	ID string `path:"id" doc:"Source UUID" format:"uuid"`
+}
+
+// GetSourceOutput is the response for GET /api/v1/sources/{id}.
+type GetSourceOutput struct {
+	Body SourceResponse
+}
+
+// CreateSourceInput is the request for POST /api/v1/sources. Only upload
+// sources are created here; an OCI registry source is created together with
+// its registry row via POST /api/v1/registries.
+type CreateSourceInput struct {
+	Body struct {
+		NamespaceID string `json:"namespace_id" format:"uuid" doc:"Owning namespace UUID"`
+		Name        string `json:"name" minLength:"1" maxLength:"100" doc:"Source name, unique within the namespace"`
+	}
+}
+
+// CreateSourceOutput is the response for POST /api/v1/sources.
+type CreateSourceOutput struct {
+	Body SourceResponse
+}
+
+// UpdateSourceInput is the request for PATCH /api/v1/sources/{id}. Kind is
+// immutable: changing it would strand or orphan the registry subtype row.
+type UpdateSourceInput struct {
+	ID   string `path:"id" doc:"Source UUID" format:"uuid"`
+	Body struct {
+		Name string `json:"name" minLength:"1" maxLength:"100" doc:"New source name"`
+	}
+}
+
+// UpdateSourceOutput is the response for PATCH /api/v1/sources/{id}.
+type UpdateSourceOutput struct {
+	Body SourceResponse
+}
+
+// DeleteSourceInput is the request for DELETE /api/v1/sources/{id}.
+type DeleteSourceInput struct {
+	ID string `path:"id" doc:"Source UUID" format:"uuid"`
 }

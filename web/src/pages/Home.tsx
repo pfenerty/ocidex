@@ -22,9 +22,12 @@ export default function Home() {
                 </p>
                 {/* Stats have three states and all three are visible: an
                     unadorned <Show> rendered a failure as silence, which is
-                    indistinguishable from a catalog that is simply empty. */}
+                    indistinguishable from a catalog that is simply empty.
+                    A `warming` payload carries zero placeholders rather than
+                    real counts, so it belongs in the loading state too — the
+                    query keeps polling until a computed snapshot lands. */}
                 <Show
-                    when={stats.data}
+                    when={stats.data && !stats.data.warming ? stats.data : undefined}
                     fallback={
                         <div class="landing-stats">
                             <Show

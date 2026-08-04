@@ -85,7 +85,7 @@ func ingestChainSBOM(t *testing.T, pool *pgxpool.Pool) pgtype.UUID {
 	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "chain-test", "read-write")
 	is.NoErr(err)
 
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+"/api/v1/sboms", chainTestSBOM, memberKey)
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), chainTestSBOM, memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusCreated)
 	var ingest map[string]any

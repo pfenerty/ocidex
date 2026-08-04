@@ -105,7 +105,7 @@ WHERE c.name = $1
   AND ($2::text IS NULL OR c.group_name = $2)
   AND ($3::text IS NULL OR c.version = $3)
   AND ($4::text IS NULL OR c.type = $4)
-  AND sbom_visible(s.registry_id, $5::uuid, $6::boolean)
+  AND sbom_visible(s.namespace_id, $5::uuid, $6::boolean)
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST,
@@ -181,9 +181,12 @@ func (q *Queries) GetComponentVersions(ctx context.Context, arg GetComponentVers
 }
 
 const getSBOM = `-- name: GetSBOM :one
-SELECT id, serial_number, spec_version, version, artifact_id, subject_version, digest, created_at, registry_id, index_digest
-FROM sbom
-WHERE id = $1
+SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subject_version,
+       s.digest, s.created_at, s.namespace_id, s.source_id, s.index_digest,
+       COALESCE(src.kind, '')::text AS source_kind
+FROM sbom s
+LEFT JOIN source src ON src.id = s.source_id
+WHERE s.id = $1
 `
 
 type GetSBOMRow struct {
@@ -195,10 +198,15 @@ type GetSBOMRow struct {
 	SubjectVersion pgtype.Text        `json:"subject_version"`
 	Digest         pgtype.Text        `json:"digest"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	RegistryID     pgtype.UUID        `json:"registry_id"`
+	NamespaceID    pgtype.UUID        `json:"namespace_id"`
+	SourceID       pgtype.UUID        `json:"source_id"`
 	IndexDigest    pgtype.Text        `json:"index_digest"`
+	SourceKind     string             `json:"source_kind"`
 }
 
+// source_kind comes from the owning source so enrichers can tell an OCI-backed
+// SBOM from an uploaded one without a second round-trip (ADR-039). It is ” for
+// an SBOM with no source.
 func (q *Queries) GetSBOM(ctx context.Context, id pgtype.UUID) (GetSBOMRow, error) {
 	row := q.db.QueryRow(ctx, getSBOM, id)
 	var i GetSBOMRow
@@ -211,8 +219,10 @@ func (q *Queries) GetSBOM(ctx context.Context, id pgtype.UUID) (GetSBOMRow, erro
 		&i.SubjectVersion,
 		&i.Digest,
 		&i.CreatedAt,
-		&i.RegistryID,
+		&i.NamespaceID,
+		&i.SourceID,
 		&i.IndexDigest,
+		&i.SourceKind,
 	)
 	return i, err
 }
@@ -309,7 +319,7 @@ func (q *Queries) IsArtifactVisible(ctx context.Context, arg IsArtifactVisiblePa
 }
 
 const isSBOMVisible = `-- name: IsSBOMVisible :one
-SELECT sbom_visible(s.registry_id, $2::uuid, $3::boolean) AS visible
+SELECT sbom_visible(s.namespace_id, $2::uuid, $3::boolean) AS visible
 FROM sbom s WHERE s.id = $1
 `
 
@@ -470,13 +480,11 @@ func (q *Queries) ListComponentLicenses(ctx context.Context, componentID pgtype.
 }
 
 const listComponentPurlTypes = `-- name: ListComponentPurlTypes :many
-SELECT DISTINCT split_part(replace(purl, 'pkg:', ''), '/', 1)::text AS purl_type
-FROM component
-WHERE purl IS NOT NULL
-  AND EXISTS (
-    SELECT 1 FROM sbom s WHERE s.id = component.sbom_id
-      AND sbom_visible(s.registry_id, $1::uuid, $2::boolean)
-  )
+SELECT DISTINCT p.purl_type::text AS purl_type
+FROM component_rollup r
+CROSS JOIN LATERAL unnest(r.purl_types) AS p(purl_type)
+WHERE (r.namespace_id IN (
+        SELECT visible_namespace_ids($1::uuid, $2::boolean)))
 ORDER BY 1
 LIMIT 200
 `
@@ -486,6 +494,10 @@ type ListComponentPurlTypesParams struct {
 	IsAdmin pgtype.Bool `json:"is_admin"`
 }
 
+// Reads component_rollup (ocidex-ckv.2). This populates the filter dropdown on
+// the same page as SearchDistinctComponents, so leaving it scanning all 10.9M
+// component rows for a DISTINCT would have kept that page slow regardless.
+// The rollup already stores the split_part result per identity.
 // Safety cap: purl types are a small, fixed vocabulary; bound the scan.
 func (q *Queries) ListComponentPurlTypes(ctx context.Context, arg ListComponentPurlTypesParams) ([]string, error) {
 	rows, err := q.db.Query(ctx, listComponentPurlTypes, arg.UserID, arg.IsAdmin)
@@ -520,7 +532,7 @@ WITH ranked AS (
     WHERE cl.license_id = $3
       AND EXISTS (
         SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-          AND sbom_visible(s.registry_id, $4::uuid, $5::boolean)
+          AND sbom_visible(s.namespace_id, $4::uuid, $5::boolean)
       )
 )
 SELECT id, sbom_id, type, name, group_name, version, purl,
@@ -622,29 +634,26 @@ func (q *Queries) ListDependenciesBySBOM(ctx context.Context, sbomID pgtype.UUID
 
 const listLicenses = `-- name: ListLicenses :many
 SELECT l.id, l.spdx_id, l.name, l.url,
-       COUNT(DISTINCT (c.name, COALESCE(c.group_name, ''), COALESCE(c.version, ''), c.type)) AS component_count,
+       COUNT(DISTINCT lr.identity_key) AS component_count,
        COUNT(*) OVER() AS total_count
 FROM license l
-LEFT JOIN component_license cl ON cl.license_id = l.id
-LEFT JOIN component c ON c.id = cl.component_id
-WHERE ($1::text IS NULL OR l.spdx_id = $1)
-  AND ($2::text IS NULL OR l.name ILIKE $2)
-  AND ($3::text IS NULL OR license_category(l.spdx_id) = $3::text)
-  AND (c.id IS NULL OR EXISTS (
-    SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-      AND sbom_visible(s.registry_id, $4::uuid, $5::boolean)
-  ))
+LEFT JOIN license_rollup lr ON lr.license_id = l.id
+  AND (lr.namespace_id IN (
+        SELECT visible_namespace_ids($1::uuid, $2::boolean)))
+WHERE ($3::text IS NULL OR l.spdx_id = $3)
+  AND ($4::text IS NULL OR l.name ILIKE $4)
+  AND ($5::text IS NULL OR license_category(l.spdx_id) = $5::text)
 GROUP BY l.id, l.spdx_id, l.name, l.url
 ORDER BY component_count DESC, l.name
 LIMIT $7 OFFSET $6
 `
 
 type ListLicensesParams struct {
+	UserID    pgtype.UUID `json:"user_id"`
+	IsAdmin   pgtype.Bool `json:"is_admin"`
 	SpdxID    pgtype.Text `json:"spdx_id"`
 	Name      pgtype.Text `json:"name"`
 	Category  pgtype.Text `json:"category"`
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
 	RowOffset int32       `json:"row_offset"`
 	RowLimit  int32       `json:"row_limit"`
 }
@@ -658,13 +667,26 @@ type ListLicensesRow struct {
 	TotalCount     int64       `json:"total_count"`
 }
 
+// Reads license_rollup rather than joining component_license to component: the
+// old plan did 266k random heap lookups on component_pkey per request
+// (ocidex-ckv.2). identity_key is the same (name, group, version, type) tuple
+// the old COUNT(DISTINCT (...)) built, pre-joined into one text column.
+// The visibility test lives in the JOIN condition, not the WHERE clause, so a
+// license whose only components sit in namespaces the viewer cannot see still
+// appears rather than vanishing from the list.
+//
+// Such a license now counts 0, where the old query counted 1. That is a fix,
+// not a regression: COUNT(DISTINCT (c.name, COALESCE(c.group_name,”), ...))
+// over a non-matching LEFT JOIN row yielded the composite (NULL,”,”,NULL),
+// which is not the NULL row, so COUNT counted it. Every license with no
+// visible components reported exactly one. 14 licenses in dev were affected.
 func (q *Queries) ListLicenses(ctx context.Context, arg ListLicensesParams) ([]ListLicensesRow, error) {
 	rows, err := q.db.Query(ctx, listLicenses,
+		arg.UserID,
+		arg.IsAdmin,
 		arg.SpdxID,
 		arg.Name,
 		arg.Category,
-		arg.UserID,
-		arg.IsAdmin,
 		arg.RowOffset,
 		arg.RowLimit,
 	)
@@ -912,7 +934,7 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subjec
 FROM sbom s
 WHERE ($1::text IS NULL OR s.serial_number = $1)
   AND ($2::text IS NULL OR s.digest = $2)
-  AND sbom_visible(s.registry_id, $3::uuid, $4::boolean)
+  AND sbom_visible(s.namespace_id, $3::uuid, $4::boolean)
   AND (
     NOT $5::boolean
     OR (s.created_at, s.id) < ($6::timestamptz, $7::uuid)
@@ -988,7 +1010,7 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subjec
        COUNT(*) OVER() AS total_count
 FROM sbom s
 WHERE s.digest = $1
-  AND sbom_visible(s.registry_id, $2::uuid, $3::boolean)
+  AND sbom_visible(s.namespace_id, $2::uuid, $3::boolean)
 ORDER BY s.created_at DESC
 LIMIT $5 OFFSET $4
 `
@@ -1058,7 +1080,7 @@ WHERE c.name = $1
   AND ($3::text IS NULL OR c.version = $3)
   AND EXISTS (
     SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-      AND sbom_visible(s.registry_id, $4::uuid, $5::boolean)
+      AND sbom_visible(s.namespace_id, $4::uuid, $5::boolean)
   )
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
@@ -1125,27 +1147,27 @@ func (q *Queries) SearchComponents(ctx context.Context, arg SearchComponentsPara
 }
 
 const searchDistinctComponents = `-- name: SearchDistinctComponents :many
-SELECT c.name, c.group_name, c.type,
-       COALESCE(string_agg(DISTINCT split_part(replace(c.purl, 'pkg:', ''), '/', 1), ',' ORDER BY split_part(replace(c.purl, 'pkg:', ''), '/', 1)) FILTER (WHERE c.purl IS NOT NULL), '') AS purl_types,
-       COUNT(DISTINCT c.version) FILTER (WHERE c.version IS NOT NULL) AS version_count,
-       COUNT(DISTINCT c.sbom_id) AS sbom_count,
+SELECT r.name, r.group_name, r.type,
+       COALESCE(string_agg(DISTINCT p.purl_type, ',' ORDER BY p.purl_type), '') AS purl_types,
+       COUNT(DISTINCT v.version) AS version_count,
+       COALESCE(SUM(r.sbom_count) FILTER (WHERE COALESCE(v.ord, 1) = 1 AND COALESCE(p.ord, 1) = 1), 0)::bigint AS sbom_count,
        COUNT(*) OVER() AS total_count
-FROM component c
-WHERE ($1::text IS NULL OR c.name ILIKE $1)
-  AND ($2::text IS NULL OR c.group_name = $2)
-  AND ($3::text IS NULL OR c.type = $3)
-  AND ($4::text IS NULL OR split_part(replace(c.purl, 'pkg:', ''), '/', 1) = $4)
-  AND EXISTS (
-    SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-      AND sbom_visible(s.registry_id, $5::uuid, $6::boolean)
-  )
-GROUP BY c.name, c.group_name, c.type
+FROM component_rollup r
+LEFT JOIN LATERAL unnest(r.versions) WITH ORDINALITY AS v(version, ord) ON true
+LEFT JOIN LATERAL unnest(r.purl_types) WITH ORDINALITY AS p(purl_type, ord) ON true
+WHERE ($1::text IS NULL OR r.name ILIKE $1)
+  AND ($2::text IS NULL OR r.group_name = $2)
+  AND ($3::text IS NULL OR r.type = $3)
+  AND ($4::text IS NULL OR $4::text = ANY(r.purl_types))
+  AND (r.namespace_id IN (
+        SELECT visible_namespace_ids($5::uuid, $6::boolean)))
+GROUP BY r.name, r.group_name, r.type
 ORDER BY
   CASE $7::text
-    WHEN 'version_count' THEN COUNT(DISTINCT c.version) FILTER (WHERE c.version IS NOT NULL)
-    WHEN 'sbom_count' THEN COUNT(DISTINCT c.sbom_id)
+    WHEN 'version_count' THEN COUNT(DISTINCT v.version)
+    WHEN 'sbom_count' THEN COALESCE(SUM(r.sbom_count) FILTER (WHERE COALESCE(v.ord, 1) = 1 AND COALESCE(p.ord, 1) = 1), 0)
   END * CASE $8::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
-  c.name, c.group_name
+  r.name, r.group_name
 LIMIT $10 OFFSET $9
 `
 
@@ -1172,6 +1194,16 @@ type SearchDistinctComponentsRow struct {
 	TotalCount   int64       `json:"total_count"`
 }
 
+// Reads component_rollup rather than the component table: aggregating 10.9M raw
+// rows per request took ~53s against a 30s HTTP timeout (ocidex-ckv.2).
+//
+// The rollup is per-namespace, so a row set restricted by sbom_visible() must be
+// re-aggregated here. version_count and purl_types use COUNT/string_agg
+// DISTINCT and so are immune to the row multiplication the two unnests cause.
+// SUM is not, hence the ordinality filter: it charges each rollup row's
+// sbom_count exactly once, on the single expanded row where both unnests are at
+// their first element. COALESCE covers an empty array, where the LEFT JOIN
+// yields one row with a NULL ordinal.
 func (q *Queries) SearchDistinctComponents(ctx context.Context, arg SearchDistinctComponentsParams) ([]SearchDistinctComponentsRow, error) {
 	rows, err := q.db.Query(ctx, searchDistinctComponents,
 		arg.Name,

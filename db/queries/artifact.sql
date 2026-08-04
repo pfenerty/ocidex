@@ -97,17 +97,17 @@ LIMIT @row_limit;
 SELECT COUNT(*)
 FROM sbom s
 WHERE s.artifact_id = $1
-  AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
+  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
 
 -- name: GetArtifactOwnerID :one
-SELECT r.owner_id
-FROM artifact_registry ar
-JOIN registry r ON r.id = ar.registry_id
-WHERE ar.artifact_id = $1 AND r.owner_id IS NOT NULL
+SELECT n.owner_id
+FROM artifact_namespace an
+JOIN namespace n ON n.id = an.namespace_id
+WHERE an.artifact_id = $1 AND n.owner_id IS NOT NULL
 LIMIT 1;
 
--- name: UpsertArtifactRegistry :exec
-INSERT INTO artifact_registry (artifact_id, registry_id)
+-- name: UpsertArtifactNamespace :exec
+INSERT INTO artifact_namespace (artifact_id, namespace_id)
 VALUES ($1, $2)
 ON CONFLICT DO NOTHING;
 
@@ -134,7 +134,7 @@ WHERE s.artifact_id = $1
   AND (sqlc.narg('subject_version')::text IS NULL OR s.subject_version = sqlc.narg('subject_version'))
   AND (sqlc.narg('image_version')::text IS NULL
        OR COALESCE(e.data->>'imageVersion', u.data->>'imageVersion') = sqlc.narg('image_version'))
-  AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
   AND (
     NOT sqlc.narg('has_cursor')::boolean
     OR (s.created_at, s.id) < (sqlc.narg('cursor_created_at')::timestamptz, sqlc.narg('cursor_id')::uuid)
@@ -162,7 +162,7 @@ WITH sboms_meta AS (
     LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user'         AND u.status = 'success'
     LEFT JOIN enrichment p ON p.sbom_id = s.id AND p.enricher_name = 'provenance'   AND p.status = 'success'
     WHERE s.artifact_id = $1
-      AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+      AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
 ),
 newest_per_version AS (
     SELECT DISTINCT ON (version_key)
@@ -211,4 +211,4 @@ FROM sbom s
 LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
 LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user'         AND u.status = 'success'
 WHERE s.artifact_id = $1
-  AND sbom_visible(s.registry_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
+  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);

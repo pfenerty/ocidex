@@ -327,6 +327,57 @@ func TestOCIRegistryReconciler_AuthSecret(t *testing.T) {
 	is.Equal(gotToken, "s3cr3t")
 }
 
+func TestOCIRegistryReconciler_DefaultsOCIDexNamespaceFromK8sNamespace(t *testing.T) {
+	is := is.New(t)
+	cr := newTestRegistry()
+	cr.Namespace = "foo"
+
+	k8s := fake.NewClientBuilder().
+		WithScheme(testScheme).
+		WithObjects(cr).
+		WithStatusSubresource(cr).
+		Build()
+
+	var gotNamespace *string
+	ocidex := &ocidexclient.FakeClient{
+		CreateRegistryFn: func(_ context.Context, body ocidexclient.CreateRegistryInputBody) (ocidexclient.CreateRegistryResponseBody, error) {
+			gotNamespace = body.Namespace
+			return ocidexclient.CreateRegistryResponseBody{Id: "reg-uuid"}, nil
+		},
+	}
+
+	_, err := reconcile(t, k8s, ocidex, cr)
+	is.NoErr(err)
+	is.True(gotNamespace != nil)
+	is.Equal(*gotNamespace, "foo")
+}
+
+func TestOCIRegistryReconciler_ExplicitOCIDexNamespaceWins(t *testing.T) {
+	is := is.New(t)
+	cr := newTestRegistry()
+	cr.Namespace = "foo"
+	cr.Spec.Namespace = "team-a"
+
+	k8s := fake.NewClientBuilder().
+		WithScheme(testScheme).
+		WithObjects(cr).
+		WithStatusSubresource(cr).
+		Build()
+
+	var gotNamespace *string
+	ocidex := &ocidexclient.FakeClient{
+		CreateRegistryFn: func(_ context.Context, body ocidexclient.CreateRegistryInputBody) (ocidexclient.CreateRegistryResponseBody, error) {
+			gotNamespace = body.Namespace
+			return ocidexclient.CreateRegistryResponseBody{Id: "reg-uuid"}, nil
+		},
+	}
+
+	_, err := reconcile(t, k8s, ocidex, cr)
+	is.NoErr(err)
+	is.True(gotNamespace != nil)
+	is.Equal(*gotNamespace, "team-a")
+}
+
 func TestOCIRegistryReconciler_Verification(t *testing.T) {
 	is := is.New(t)
 	cr := newTestRegistry()

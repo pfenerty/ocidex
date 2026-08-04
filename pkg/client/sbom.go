@@ -9,14 +9,20 @@ import (
 
 func (c *httpClient) IngestSBOM(ctx context.Context, data []byte, params IngestSbomParams) (IngestSBOMOutputBody, error) {
 	p := url.Values{}
-	if params.Version != nil {
-		p.Set("version", *params.Version)
-	}
-	if params.Architecture != nil {
-		p.Set("architecture", *params.Architecture)
-	}
-	if params.BuildDate != nil {
-		p.Set("build_date", *params.BuildDate)
+	for name, v := range map[string]*string{
+		"source":        params.Source,
+		"version":       params.Version,
+		"architecture":  params.Architecture,
+		"build_date":    params.BuildDate,
+		"subject_type":  params.SubjectType,
+		"subject_name":  params.SubjectName,
+		"subject_group": params.SubjectGroup,
+		"subject_purl":  params.SubjectPurl,
+		"digest":        params.Digest,
+	} {
+		if v != nil && *v != "" {
+			p.Set(name, *v)
+		}
 	}
 	var out IngestSBOMOutputBody
 	err := c.do(ctx, http.MethodPost, "/api/v1/sboms", p, bytes.NewReader(data), "application/octet-stream", &out)
@@ -33,9 +39,27 @@ func (c *httpClient) GetSBOM(ctx context.Context, id string, includeRaw bool) (S
 	return out, err
 }
 
-func (c *httpClient) ListSBOMs(ctx context.Context, opts PageOpts) (CursorPage[SBOMSummary], error) {
+// SBOMFilter narrows a SBOM listing. A zero value lists everything visible.
+type SBOMFilter struct {
+	// SerialNumber is the CycloneDX serial number, unique per document.
+	SerialNumber string
+	// Digest is the subject's digest, shared by every version of one artifact.
+	Digest string
+}
+
+func (f SBOMFilter) apply(p url.Values) url.Values {
+	if f.SerialNumber != "" {
+		p.Set("serial_number", f.SerialNumber)
+	}
+	if f.Digest != "" {
+		p.Set("digest", f.Digest)
+	}
+	return p
+}
+
+func (c *httpClient) ListSBOMs(ctx context.Context, filter SBOMFilter, opts PageOpts) (CursorPage[SBOMSummary], error) {
 	var out ListSBOMsOutputBody
-	if err := c.request(ctx, http.MethodGet, "/api/v1/sboms", pageParams(opts), nil, &out); err != nil {
+	if err := c.request(ctx, http.MethodGet, "/api/v1/sboms", filter.apply(pageParams(opts)), nil, &out); err != nil {
 		return CursorPage[SBOMSummary]{}, err
 	}
 	return CursorPage[SBOMSummary]{Data: derefSlice(out.Data), Pagination: out.Pagination}, nil

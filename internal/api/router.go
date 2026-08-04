@@ -82,6 +82,8 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	registerDiffOps(api, h)
 	registerWebhookOps(api, h)
 	registerRegistryOps(api, h)
+	registerNamespaceOps(api, h)
+	registerSourceOps(api, h)
 	registerStatsOps(api, h)
 	registerVulnOps(api, h)
 	registerJobOps(api, h)
@@ -136,7 +138,7 @@ func registerVersionOps(api huma.API, h *Handler) {
 
 func registerSBOMOps(api huma.API, h *Handler) {
 	memberMW := RequireMember(api)
-	sbomOwnerMW := RequireSBOMOwner(api, h.sbomService, h.registryService)
+	sbomOwnerMW := RequireSBOMOwner(api, h.sbomService, h.namespaceService)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "ingest-sbom",
@@ -283,7 +285,7 @@ func registerLicenseOps(api huma.API, h *Handler) {
 // ---------------------------------------------------------------------------
 
 func registerArtifactOps(api huma.API, h *Handler) {
-	artifactOwnerMW := RequireArtifactOwner(api, h.sbomService, h.registryService)
+	artifactOwnerMW := RequireArtifactOwner(api, h.sbomService, h.namespaceService)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-artifacts",
@@ -500,6 +502,114 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Tags:        []string{"Registries"},
 		Middlewares: huma.Middlewares{ownerMW},
 	}, h.RegenerateWebhookSecret)
+}
+
+// ---------------------------------------------------------------------------
+// Namespaces
+// ---------------------------------------------------------------------------
+
+func registerNamespaceOps(api huma.API, h *Handler) {
+	huma.Register(api, huma.Operation{
+		OperationID: "list-namespaces",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/namespaces",
+		Summary:     "List namespaces",
+		Description: "Namespaces owned by the caller plus every public namespace.",
+		Tags:        []string{"Namespaces"},
+	}, h.ListNamespaces)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "create-namespace",
+		Method:        http.MethodPost,
+		Path:          "/api/v1/namespaces",
+		Summary:       "Create a namespace",
+		Tags:          []string{"Namespaces"},
+		DefaultStatus: http.StatusCreated,
+	}, h.CreateNamespace)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-namespace-by-name",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/namespaces/by-name/{name}",
+		Summary:     "Get a namespace by name",
+		Tags:        []string{"Namespaces"},
+	}, h.GetNamespaceByName)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-namespace",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/namespaces/{id}",
+		Summary:     "Get a namespace",
+		Tags:        []string{"Namespaces"},
+	}, h.GetNamespace)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "update-namespace",
+		Method:      http.MethodPatch,
+		Path:        "/api/v1/namespaces/{id}",
+		Summary:     "Update a namespace (partial)",
+		Tags:        []string{"Namespaces"},
+	}, h.UpdateNamespace)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "delete-namespace",
+		Method:        http.MethodDelete,
+		Path:          "/api/v1/namespaces/{id}",
+		Summary:       "Delete a namespace",
+		Description:   "Removes the namespace and everything ingested under it. Owner or admin only.",
+		Tags:          []string{"Namespaces"},
+		DefaultStatus: http.StatusNoContent,
+	}, h.DeleteNamespace)
+}
+
+// ---------------------------------------------------------------------------
+// Sources
+// ---------------------------------------------------------------------------
+
+func registerSourceOps(api huma.API, h *Handler) {
+	huma.Register(api, huma.Operation{
+		OperationID: "list-sources",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/sources",
+		Summary:     "List sources",
+		Description: "Ingest channels visible to the caller, optionally scoped to one namespace.",
+		Tags:        []string{"Sources"},
+	}, h.ListSources)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "create-source",
+		Method:        http.MethodPost,
+		Path:          "/api/v1/sources",
+		Summary:       "Create an upload source",
+		Description:   "Creates a source with kind 'upload'. OCI registry sources are created via POST /api/v1/registries.",
+		Tags:          []string{"Sources"},
+		DefaultStatus: http.StatusCreated,
+	}, h.CreateSource)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-source",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/sources/{id}",
+		Summary:     "Get a source",
+		Tags:        []string{"Sources"},
+	}, h.GetSource)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "update-source",
+		Method:      http.MethodPatch,
+		Path:        "/api/v1/sources/{id}",
+		Summary:     "Rename a source",
+		Tags:        []string{"Sources"},
+	}, h.UpdateSource)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "delete-source",
+		Method:        http.MethodDelete,
+		Path:          "/api/v1/sources/{id}",
+		Summary:       "Delete a source",
+		Tags:          []string{"Sources"},
+		DefaultStatus: http.StatusNoContent,
+	}, h.DeleteSource)
 }
 
 // ---------------------------------------------------------------------------
