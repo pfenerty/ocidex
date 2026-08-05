@@ -135,6 +135,8 @@ spec:
           kind: Task
           name: ocidex-image-release-api
         workspaces:
+          - name: buildkit-release-cache
+            workspace: buildkit-release-cache
           - name: workspace
             workspace: workspace
       - name: image-release-scanner-worker
@@ -152,6 +154,8 @@ spec:
           kind: Task
           name: ocidex-image-release-scanner-worker
         workspaces:
+          - name: buildkit-release-cache
+            workspace: buildkit-release-cache
           - name: workspace
             workspace: workspace
       - name: image-release-enrichment-worker
@@ -169,6 +173,8 @@ spec:
           kind: Task
           name: ocidex-image-release-enrichment-worker
         workspaces:
+          - name: buildkit-release-cache
+            workspace: buildkit-release-cache
           - name: workspace
             workspace: workspace
       - name: image-release-oci-metadata-worker
@@ -186,6 +192,8 @@ spec:
           kind: Task
           name: ocidex-image-release-oci-metadata-worker
         workspaces:
+          - name: buildkit-release-cache
+            workspace: buildkit-release-cache
           - name: workspace
             workspace: workspace
       - name: image-release-git-worker
@@ -203,6 +211,8 @@ spec:
           kind: Task
           name: ocidex-image-release-git-worker
         workspaces:
+          - name: buildkit-release-cache
+            workspace: buildkit-release-cache
           - name: workspace
             workspace: workspace
       - name: image-release-user-enricher-worker
@@ -220,6 +230,8 @@ spec:
           kind: Task
           name: ocidex-image-release-user-enricher-worker
         workspaces:
+          - name: buildkit-release-cache
+            workspace: buildkit-release-cache
           - name: workspace
             workspace: workspace
       - name: image-release-provenance-worker
@@ -237,6 +249,8 @@ spec:
           kind: Task
           name: ocidex-image-release-provenance-worker
         workspaces:
+          - name: buildkit-release-cache
+            workspace: buildkit-release-cache
           - name: workspace
             workspace: workspace
       - name: image-release-vuln-worker
@@ -254,6 +268,8 @@ spec:
           kind: Task
           name: ocidex-image-release-vuln-worker
         workspaces:
+          - name: buildkit-release-cache
+            workspace: buildkit-release-cache
           - name: workspace
             workspace: workspace
       - name: image-release-web
@@ -271,6 +287,8 @@ spec:
           kind: Task
           name: ocidex-image-release-web
         workspaces:
+          - name: buildkit-release-cache
+            workspace: buildkit-release-cache
           - name: workspace
             workspace: workspace
       - name: image-release-operator
@@ -288,6 +306,8 @@ spec:
           kind: Task
           name: ocidex-image-release-operator
         workspaces:
+          - name: buildkit-release-cache
+            workspace: buildkit-release-cache
           - name: workspace
             workspace: workspace
       - name: helm-release
@@ -359,6 +379,7 @@ spec:
             workspace: workspace
     workspaces:
       - name: workspace
+      - name: buildkit-release-cache
       - name: go-cache
       - name: node-cache
   taskRunTemplate:
@@ -390,6 +411,9 @@ spec:
             requests:
               storage: 5Gi
           storageClassName: local-path
+    - name: buildkit-release-cache
+      persistentVolumeClaim:
+        claimName: ocidex-buildkit-release-cache
     - name: go-cache
       persistentVolumeClaim:
         claimName: ocidex-go-cache

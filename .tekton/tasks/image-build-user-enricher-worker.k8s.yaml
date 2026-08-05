@@ -33,6 +33,82 @@ spec:
   steps:
     - computeResources:
         limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: prepare-buildkit-root
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def main [] {
+        mkdir "$(workspaces.buildkit-cache.path)/root"
+        ^chmod 0777 "$(workspaces.buildkit-cache.path)/root"
+        '[worker.oci]
+          gc = true
+
+        [[worker.oci.gcpolicy]]
+          keepBytes = 15032385536
+          all = true
+        ' | save --force "$(workspaces.buildkit-cache.path)/buildkitd.toml"
+        # Size of the carried-over store, for tuning keepBytes against reality. Best-effort:
+        # a missing du must not fail the build.
+        try { ^du -sh "$(workspaces.buildkit-cache.path)/root" } catch { print "du unavailable" }
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
+    - computeResources:
+        limits:
+          cpu: 500m
+          memory: 256Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: prepare-build-context
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def main [] {
+        let rev = "$(params.revision)"
+        let stamp = ".buildctx/.ctxrev"
+
+        if ($stamp | path exists) and (open --raw $stamp | str trim) == $rev {
+          log "build context already materialised for this revision"
+        } else {
+          rm --recursive --force ".buildctx"
+          rm --force ".buildctx.tar"
+          # Never pipe git archive into tar here: nushell coerces pipeline data to text and
+          # corrupts the tar stream. Stage it as a file instead.
+          #
+          # -c safe.directory: the workspace PVC's contents are not owned by this step's uid, so
+          # git's dubious-ownership guard refuses to operate on it. Passing the exemption on the
+          # command line keeps it scoped to this one invocation — writing it into a config file
+          # would need a writable GIT_CONFIG_GLOBAL that the other Go tasks already point elsewhere.
+          ^git -c safe.directory='*' archive --format=tar --output ".buildctx.tar" $rev
+          mkdir ".buildctx"
+          ^tar -xf ".buildctx.tar" -C ".buildctx"
+          rm --force ".buildctx.tar"
+          $rev | save --force $stamp
+          log "materialised clean build context"
+        }
+        ^du -sh ".buildctx"
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
+      workingDir: $(workspaces.workspace.path)
+    - computeResources:
+        limits:
           cpu: "4"
           memory: 2Gi
         requests:
@@ -42,7 +118,7 @@ spec:
         - name: DOCKER_CONFIG
           value: /tmp/docker-auth
         - name: BUILDKITD_FLAGS
-          value: --oci-worker-snapshotter=native --oci-worker-no-process-sandbox
+          value: --oci-worker-snapshotter=native --oci-worker-no-process-sandbox --root $(workspaces.buildkit-cache.path)/root --config $(workspaces.buildkit-cache.path)/buildkitd.toml
         - name: CHAINS_IMAGE_URL_PATH
           value: $(results.user-enricher-worker-IMAGE_URL.path)
         - name: CHAINS_IMAGE_DIGEST_PATH
@@ -68,6 +144,8 @@ spec:
         # Per-image values come from step env: DOCKERFILE, IMAGE, optional TARGET,
         # IMAGE_TITLE, IMAGE_DESCRIPTION.
         # buildctl's exit code is captured in $rc and re-exited after writing Chains hints.
+        # Context is .buildctx (the commit tree, written by the prepare-build-context step),
+        # not the shared workspace — see spec.ts.
         SHORT_SHA=$(echo "$(params.revision)" | cut -c1-8)
         VERSION="main-$SHORT_SHA"
         CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -94,8 +172,8 @@ spec:
 
         buildctl-daemonless.sh build \
           --frontend dockerfile.v0 \
-          --local context=. \
-          --local dockerfile=. \
+          --local context=.buildctx \
+          --local dockerfile=.buildctx \
           --opt filename="$DOCKERFILE" \
           $TARGET_OPT \
           --opt platform=linux/amd64 \
@@ -188,4 +266,5 @@ spec:
       secret:
         secretName: ghcr-docker-config
   workspaces:
+    - name: buildkit-cache
     - name: workspace

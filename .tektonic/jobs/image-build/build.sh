@@ -3,6 +3,8 @@
 # Per-image values come from step env: DOCKERFILE, IMAGE, optional TARGET,
 # IMAGE_TITLE, IMAGE_DESCRIPTION.
 # buildctl's exit code is captured in $rc and re-exited after writing Chains hints.
+# Context is .buildctx (the commit tree, written by the prepare-build-context step),
+# not the shared workspace — see spec.ts.
 SHORT_SHA=$(echo "$(params.revision)" | cut -c1-8)
 VERSION="main-$SHORT_SHA"
 CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -29,8 +31,8 @@ if [ -n "$TARGET" ]; then TARGET_OPT="--opt target=$TARGET"; fi
 
 buildctl-daemonless.sh build \
   --frontend dockerfile.v0 \
-  --local context=. \
-  --local dockerfile=. \
+  --local context=.buildctx \
+  --local dockerfile=.buildctx \
   --opt filename="$DOCKERFILE" \
   $TARGET_OPT \
   --opt platform=linux/amd64 \

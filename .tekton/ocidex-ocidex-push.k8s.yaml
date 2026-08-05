@@ -212,6 +212,8 @@ spec:
           kind: Task
           name: ocidex-image-build-api
         workspaces:
+          - name: buildkit-cache
+            workspace: buildkit-cache
           - name: workspace
             workspace: workspace
       - name: image-build-scanner-worker
@@ -229,6 +231,8 @@ spec:
           kind: Task
           name: ocidex-image-build-scanner-worker
         workspaces:
+          - name: buildkit-cache
+            workspace: buildkit-cache
           - name: workspace
             workspace: workspace
       - name: image-build-enrichment-worker
@@ -246,6 +250,8 @@ spec:
           kind: Task
           name: ocidex-image-build-enrichment-worker
         workspaces:
+          - name: buildkit-cache
+            workspace: buildkit-cache
           - name: workspace
             workspace: workspace
       - name: image-build-oci-metadata-worker
@@ -263,6 +269,8 @@ spec:
           kind: Task
           name: ocidex-image-build-oci-metadata-worker
         workspaces:
+          - name: buildkit-cache
+            workspace: buildkit-cache
           - name: workspace
             workspace: workspace
       - name: image-build-git-worker
@@ -280,6 +288,8 @@ spec:
           kind: Task
           name: ocidex-image-build-git-worker
         workspaces:
+          - name: buildkit-cache
+            workspace: buildkit-cache
           - name: workspace
             workspace: workspace
       - name: image-build-user-enricher-worker
@@ -297,6 +307,8 @@ spec:
           kind: Task
           name: ocidex-image-build-user-enricher-worker
         workspaces:
+          - name: buildkit-cache
+            workspace: buildkit-cache
           - name: workspace
             workspace: workspace
       - name: image-build-provenance-worker
@@ -314,6 +326,8 @@ spec:
           kind: Task
           name: ocidex-image-build-provenance-worker
         workspaces:
+          - name: buildkit-cache
+            workspace: buildkit-cache
           - name: workspace
             workspace: workspace
       - name: image-build-vuln-worker
@@ -331,6 +345,8 @@ spec:
           kind: Task
           name: ocidex-image-build-vuln-worker
         workspaces:
+          - name: buildkit-cache
+            workspace: buildkit-cache
           - name: workspace
             workspace: workspace
       - name: image-build-web
@@ -348,6 +364,8 @@ spec:
           kind: Task
           name: ocidex-image-build-web
         workspaces:
+          - name: buildkit-cache
+            workspace: buildkit-cache
           - name: workspace
             workspace: workspace
       - name: image-build-operator
@@ -365,6 +383,8 @@ spec:
           kind: Task
           name: ocidex-image-build-operator
         workspaces:
+          - name: buildkit-cache
+            workspace: buildkit-cache
           - name: workspace
             workspace: workspace
       - name: helm-publish
@@ -414,6 +434,7 @@ spec:
       - name: workspace
       - name: go-cache
       - name: node-cache
+      - name: buildkit-cache
   taskRunTemplate:
     podTemplate:
       env:
@@ -449,3 +470,6 @@ spec:
     - name: node-cache
       persistentVolumeClaim:
         claimName: ocidex-node-cache
+    - name: buildkit-cache
+      persistentVolumeClaim:
+        claimName: ocidex-buildkit-cache

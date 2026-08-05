@@ -52,6 +52,19 @@ export const reportOnlyStatusReporter = new GitHubStatusReporter({
 export const goCacheWs = new Workspace({ name: "go-cache" });
 export const nodeCacheWs = new Workspace({ name: "node-cache" });
 
+// buildkitd state directories (ocidex-2vr.2). Unlike goCacheWs/nodeCacheWs these are NOT
+// used with tektonic's `caches:` restore/save archives — the PVC is mounted directly and
+// buildkitd's --root points into it, so the content store, snapshots and the Dockerfile
+// `--mount=type=cache` mounts survive both across the ten serial builds in one run and
+// across runs. Without this, buildctl-daemonless.sh's throwaway daemon discards all of it
+// every time, and each build re-pays the base pull + `go mod download` + builder-base.
+//
+// Two workspaces, not one: the push chain (linux/amd64) and the tag chain (multi-arch) are
+// separate task chains that can overlap in wall-clock time, and buildkitd takes an
+// exclusive lock on its root. Their cache contents differ anyway.
+export const buildkitCacheWs = new Workspace({ name: "buildkit-cache" });
+export const buildkitReleaseCacheWs = new Workspace({ name: "buildkit-release-cache" });
+
 export const goCache = {
   name: "go-cache",
   key: ["go.sum"],

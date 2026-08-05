@@ -1,6 +1,6 @@
 import { GitPipeline, TektonicProject, TRIGGER_EVENTS, gated } from "@pfenerty/tektonic";
 
-import { goCacheWs, nodeCacheWs } from "./shared";
+import { goCacheWs, nodeCacheWs, buildkitCacheWs, buildkitReleaseCacheWs } from "./shared";
 import { goChanged, nodeChanged, sourceChanged, pipelineChanged, detectTasks } from "./changes";
 import { goFmt } from "./jobs/go-fmt/spec";
 import { goBuild } from "./jobs/go-build/spec";
@@ -134,6 +134,22 @@ new TektonicProject({
     {
       workspace: nodeCacheWs,
       storageSize: "2Gi",
+      storageClassName: "local-path",
+    },
+    // buildkitd roots for the two image-build chains. 25Gi because
+    // --oci-worker-snapshotter=native copies rather than overlays, so every derived stage
+    // is a full copy of builder-base; buildkitd.toml caps the working set well below this
+    // with a keepBytes GC policy, so the claim size is headroom, not the expected usage.
+    // The PVCs themselves live in homelab (talos-cluster/flux/apps/ocidex-ci/cache-pvcs.yaml)
+    // — tektonic emits the `claimName: ocidex-<workspace-name>` reference, not the claim.
+    {
+      workspace: buildkitCacheWs,
+      storageSize: "25Gi",
+      storageClassName: "local-path",
+    },
+    {
+      workspace: buildkitReleaseCacheWs,
+      storageSize: "25Gi",
       storageClassName: "local-path",
     },
   ],
