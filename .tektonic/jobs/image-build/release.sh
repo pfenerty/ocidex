@@ -6,6 +6,9 @@
 # buildctl's exit code is captured in $rc and re-exited after writing Chains hints.
 # Context is .buildctx (the commit tree, written by the prepare-build-context step),
 # not the shared workspace — see spec.ts.
+#
+# No --export-cache/--import-cache: see build.sh (ocidex-2vr.3). The persistent buildkitd root
+# replaces the registry build cache; the export cost 85-96s per build for zero import hits.
 TAG="$(params.source-branch)"
 TAG="${TAG#refs/tags/}"
 BARE="${TAG#v}"
@@ -59,8 +62,6 @@ buildctl-daemonless.sh build \
   --opt "label:$A.description=$IMAGE_DESCRIPTION" \
   --opt attest:provenance=mode=max \
   --opt attest:sbom= \
-  --export-cache "type=registry,ref=$IMAGE:buildcache,mode=max,image-manifest=true,oci-mediatypes=true" \
-  --import-cache "type=registry,ref=$IMAGE:buildcache" \
   --metadata-file /tmp/buildctl-metadata.json \
   --output "type=image,\"name=$NAMES\",push=true,attestation-manifest-referrers=true,$ANN"
 rc=$?

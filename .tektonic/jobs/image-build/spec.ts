@@ -197,10 +197,11 @@ function imageEnv(
   return env;
 }
 
-// The single CI worker has limited spare CPU (~0.8 core free of 4), so the five
-// image builds run SEQUENTIALLY — each chained after the previous via `extraNeeds`
-// — instead of 5-wide in parallel, which overcommits the node and leaves pods
-// Pending ("Insufficient cpu"). The registry build cache keeps reruns fast.
+// The single CI worker has limited spare CPU (~0.8 core free of 4), so the image builds
+// run SEQUENTIALLY — each chained after the previous via `extraNeeds` — instead of in
+// parallel, which overcommits the node and leaves pods Pending ("Insufficient cpu").
+// The shared buildkit root (see buildImageTask) is what makes the serial order cheap:
+// each build inherits the previous one's base image, module cache and builder-base.
 type ImageSpec = [
   name: string,
   dockerfile: string,

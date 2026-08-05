@@ -5,6 +5,11 @@
 # buildctl's exit code is captured in $rc and re-exited after writing Chains hints.
 # Context is .buildctx (the commit tree, written by the prepare-build-context step),
 # not the shared workspace — see spec.ts.
+#
+# No --export-cache/--import-cache: the registry build cache was measured (ocidex-2vr.3) at
+# 85-96s of export per build for zero CACHED steps on import. The persistent buildkitd root
+# (ocidex-2vr.2) supersedes it — it caches both within a run and across runs on the same node,
+# at no export cost. Do not re-add these flags without re-measuring both sides.
 SHORT_SHA=$(echo "$(params.revision)" | cut -c1-8)
 VERSION="main-$SHORT_SHA"
 CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -50,8 +55,6 @@ buildctl-daemonless.sh build \
   --opt "label:$A.description=$IMAGE_DESCRIPTION" \
   --opt attest:provenance=mode=max \
   --opt attest:sbom= \
-  --export-cache "type=registry,ref=$IMAGE:buildcache,mode=max,image-manifest=true,oci-mediatypes=true" \
-  --import-cache "type=registry,ref=$IMAGE:buildcache" \
   --metadata-file /tmp/buildctl-metadata.json \
   --output "type=image,\"name=$IMAGE:sha-$SHORT_SHA,$IMAGE:main\",push=true,attestation-manifest-referrers=true,$ANN"
 rc=$?
