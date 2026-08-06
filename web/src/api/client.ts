@@ -58,6 +58,7 @@ export type { paths, components };
 export type ArtifactSummary = components["schemas"]["ArtifactSummary"];
 export type ArtifactDetail = components["schemas"]["ArtifactDetail"];
 export type ArtifactVersionSummary = components["schemas"]["ArtifactVersionSummary"];
+export type ArtifactRelation = components["schemas"]["ArtifactRelation"];
 export type SBOMSummary = components["schemas"]["SBOMSummary"];
 export type SBOMDetail = components["schemas"]["SBOMDetail"];
 export type ProvenanceDriftSummary = components["schemas"]["ProvenanceDriftSummary"];

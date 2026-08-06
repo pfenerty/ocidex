@@ -233,6 +233,49 @@ export function useArtifactLicenseSummary(
 }
 
 // ---------------------------------------------------------------------------
+// useArtifactUsages — GET /api/v1/artifacts/{id}/usages
+// useArtifactContains — GET /api/v1/artifacts/{id}/contains
+// ---------------------------------------------------------------------------
+
+/** Artifacts whose latest SBOM contains a component matching this artifact
+ *  ("ocidex v1.2.3 ships in these images" — ADR-041). */
+export function useArtifactUsages(
+    id: Accessor<string>,
+    options?: { enabled?: Accessor<boolean> },
+) {
+    return createQuery(() => ({
+        queryKey: ["artifact", id(), "usages"] as const,
+        queryFn: () =>
+            unwrap(
+                client.GET("/api/v1/artifacts/{id}/usages", {
+                    params: { path: { id: id() } },
+                }),
+            ),
+        enabled: options?.enabled?.() ?? true,
+        select: (resp) => ({ ...resp, usages: resp.usages ?? [] }),
+    }));
+}
+
+/** Tracked artifacts appearing as components of this artifact's latest SBOM
+ *  (the inverse direction of useArtifactUsages). */
+export function useArtifactContains(
+    id: Accessor<string>,
+    options?: { enabled?: Accessor<boolean> },
+) {
+    return createQuery(() => ({
+        queryKey: ["artifact", id(), "contains"] as const,
+        queryFn: () =>
+            unwrap(
+                client.GET("/api/v1/artifacts/{id}/contains", {
+                    params: { path: { id: id() } },
+                }),
+            ),
+        enabled: options?.enabled?.() ?? true,
+        select: (resp) => ({ ...resp, contains: resp.contains ?? [] }),
+    }));
+}
+
+// ---------------------------------------------------------------------------
 // useArtifactVulnSummary — GET /api/v1/artifacts/{id}/vuln-summary
 // ---------------------------------------------------------------------------
 

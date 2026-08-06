@@ -6,6 +6,7 @@ import {
     useArtifactVersions,
     useArtifactChangelog,
     useArtifactLicenseSummary,
+    useArtifactUsages,
     useArtifactVulnSummary,
 } from "~/api/queries";
 import { ErrorBox, EmptyState } from "~/components/Feedback";
@@ -24,13 +25,14 @@ import { containerRegistryUrl, detectRegistry } from "~/utils/oci";
 import { VersionsTab } from "./VersionsTab";
 import { LicensesTab } from "./LicensesTab";
 import { ChangelogTab } from "./ChangelogTab";
+import { RelationshipsTab } from "./RelationshipsTab";
 
 export default function ArtifactDetail() {
     const params = useParams<{ id: string }>();
     const [versionOffset, setVersionOffset] = createSignal(0);
-    const [tab, setTab] = createSignal<"versions" | "changelog" | "licenses">(
-        "versions",
-    );
+    const [tab, setTab] = createSignal<
+        "versions" | "changelog" | "licenses" | "relationships"
+    >("versions");
     const [selectedArch, setSelectedArch] = createSignal<string | undefined>(
         "amd64",
     );
@@ -74,6 +76,10 @@ export default function ArtifactDetail() {
 
     const licenseQuery = useArtifactLicenseSummary(() => params.id, {
         enabled: () => tab() === "licenses",
+    });
+
+    const usagesQuery = useArtifactUsages(() => params.id, {
+        enabled: () => tab() === "relationships",
     });
 
     const vulnSummaryQuery = useArtifactVulnSummary(() => params.id);
@@ -295,6 +301,18 @@ export default function ArtifactDetail() {
                                     >
                                         Licenses
                                     </button>
+                                    <button
+                                        class={
+                                            tab() === "relationships"
+                                                ? "active"
+                                                : ""
+                                        }
+                                        onClick={() =>
+                                            setTab("relationships")
+                                        }
+                                    >
+                                        Relationships
+                                    </button>
                                 </div>
 
                                 <Show
@@ -404,6 +422,16 @@ export default function ArtifactDetail() {
                                         loading={licenseQuery.isFetching}
                                         isError={licenseQuery.isError}
                                         error={licenseQuery.error}
+                                    />
+                                </Show>
+
+                                <Show when={tab() === "relationships"}>
+                                    <RelationshipsTab
+                                        artifactName={artifactDisplayName(a())}
+                                        relations={usagesQuery.data?.usages}
+                                        loading={usagesQuery.isFetching}
+                                        isError={usagesQuery.isError}
+                                        error={usagesQuery.error}
                                     />
                                 </Show>
                             </>
