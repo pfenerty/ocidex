@@ -170,6 +170,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/artifacts/{id}/contains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List tracked artifacts this artifact ships
+         * @description Tracked artifacts matched by components of this artifact's latest SBOM (ADR-041).
+         */
+        get: operations["get-artifact-contains"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/artifacts/{id}/license-summary": {
         parameters: {
             query?: never;
@@ -196,6 +216,26 @@ export interface paths {
         };
         /** List SBOMs for an artifact */
         get: operations["list-artifact-sboms"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/artifacts/{id}/usages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List artifacts that ship this artifact
+         * @description Artifacts whose latest SBOM contains a component matching this artifact (ADR-041).
+         */
+        get: operations["get-artifact-usages"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1075,6 +1115,21 @@ export interface components {
             /** Format: int64 */
             versionCount: number;
         };
+        ArtifactRelation: {
+            artifactGroup?: string;
+            artifactId: string;
+            artifactName: string;
+            artifactType: string;
+            currentVersion?: string;
+            digest?: string;
+            flavor?: string;
+            isCurrent?: boolean;
+            matchedVersion?: string;
+            /** Format: date-time */
+            observedAt?: string;
+            sbomId: string;
+            subjectVersion?: string;
+        };
         ArtifactSummary: {
             group?: string;
             id: string;
@@ -1648,6 +1703,15 @@ export interface components {
             type: string;
             url: string;
         };
+        GetArtifactContainsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/GetArtifactContainsOutputBody.json
+             */
+            readonly $schema?: string;
+            contains: components["schemas"]["ArtifactRelation"][] | null;
+        };
         GetArtifactLicenseSummaryOutputBody: {
             /**
              * Format: uri
@@ -1656,6 +1720,15 @@ export interface components {
              */
             readonly $schema?: string;
             licenses: components["schemas"]["LicenseCount"][] | null;
+        };
+        GetArtifactUsagesOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/GetArtifactUsagesOutputBody.json
+             */
+            readonly $schema?: string;
+            usages: components["schemas"]["ArtifactRelation"][] | null;
         };
         GetArtifactVulnSummaryOutputBody: {
             /**
@@ -2876,6 +2949,38 @@ export interface operations {
             };
         };
     };
+    "get-artifact-contains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Artifact UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetArtifactContainsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "get-artifact-license-summary": {
         parameters: {
             query?: never;
@@ -2936,6 +3041,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListArtifactSBOMsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-artifact-usages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Artifact UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GetArtifactUsagesOutputBody"];
                 };
             };
             /** @description Error */

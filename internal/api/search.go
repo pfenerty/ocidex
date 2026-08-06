@@ -508,6 +508,42 @@ func (h *Handler) GetArtifactVulnSummary(ctx context.Context, input *GetArtifact
 	return out, nil
 }
 
+// GetArtifactUsages handles GET /api/v1/artifacts/{id}/usages.
+func (h *Handler) GetArtifactUsages(ctx context.Context, input *GetArtifactUsagesInput) (*GetArtifactUsagesOutput, error) {
+	id, err := parseUUID(input.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	vis := visibilityFilterFromContext(ctx)
+	usages, err := h.searchService.GetArtifactUsages(ctx, id, vis)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	out := &GetArtifactUsagesOutput{}
+	out.Body.Usages = usages
+	return out, nil
+}
+
+// GetArtifactContains handles GET /api/v1/artifacts/{id}/contains.
+func (h *Handler) GetArtifactContains(ctx context.Context, input *GetArtifactContainsInput) (*GetArtifactContainsOutput, error) {
+	id, err := parseUUID(input.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	vis := visibilityFilterFromContext(ctx)
+	contains, err := h.searchService.GetArtifactContains(ctx, id, vis)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	out := &GetArtifactContainsOutput{}
+	out.Body.Contains = contains
+	return out, nil
+}
+
 // GetDashboardStats handles GET /api/v1/stats/summary.
 func (h *Handler) GetDashboardStats(ctx context.Context, _ *struct{}) (*DashboardStatsOutput, error) {
 	vis := visibilityFilterFromContext(ctx)

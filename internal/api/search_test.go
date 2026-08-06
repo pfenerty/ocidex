@@ -200,6 +200,14 @@ func (f *fakeSearchService) GetArtifactVulnSummary(_ context.Context, _ pgtype.U
 	return nil, nil
 }
 
+func (f *fakeSearchService) GetArtifactUsages(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) ([]service.ArtifactRelation, error) {
+	return nil, nil
+}
+
+func (f *fakeSearchService) GetArtifactContains(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) ([]service.ArtifactRelation, error) {
+	return nil, nil
+}
+
 func (f *fakeSearchService) GetVulnerabilityDetail(_ context.Context, _ string, limit, offset int32, _ service.VisibilityFilter) (*service.VulnDetail, service.PagedResult[service.AffectedArtifact], service.PagedResult[service.AffectedComponent], error) {
 	return &service.VulnDetail{ID: "CVE-2021-0001", Severity: "HIGH", Aliases: []string{}}, service.PagedResult[service.AffectedArtifact]{Limit: limit, Offset: offset}, service.PagedResult[service.AffectedComponent]{}, nil
 }

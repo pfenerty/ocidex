@@ -115,6 +115,55 @@
         ],
         "type": "object"
       },
+      "ArtifactRelation": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactGroup": {
+            "type": "string"
+          },
+          "artifactId": {
+            "type": "string"
+          },
+          "artifactName": {
+            "type": "string"
+          },
+          "artifactType": {
+            "type": "string"
+          },
+          "currentVersion": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "flavor": {
+            "type": "string"
+          },
+          "isCurrent": {
+            "type": "boolean"
+          },
+          "matchedVersion": {
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sbomId": {
+            "type": "string"
+          },
+          "subjectVersion": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "artifactType",
+          "artifactName",
+          "sbomId"
+        ],
+        "type": "object"
+      },
       "ArtifactSummary": {
         "additionalProperties": false,
         "properties": {
@@ -1760,6 +1809,33 @@
         ],
         "type": "object"
       },
+      "GetArtifactContainsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/GetArtifactContainsOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "contains": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactRelation"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "contains"
+        ],
+        "type": "object"
+      },
       "GetArtifactLicenseSummaryOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -1784,6 +1860,33 @@
         },
         "required": [
           "licenses"
+        ],
+        "type": "object"
+      },
+      "GetArtifactUsagesOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/GetArtifactUsagesOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "usages": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactRelation"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "usages"
         ],
         "type": "object"
       },
@@ -4713,6 +4816,51 @@
         ]
       }
     },
+    "/api/v1/artifacts/{id}/contains": {
+      "get": {
+        "description": "Tracked artifacts matched by components of this artifact's latest SBOM (ADR-041).",
+        "operationId": "get-artifact-contains",
+        "parameters": [
+          {
+            "description": "Artifact UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Artifact UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetArtifactContainsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List tracked artifacts this artifact ships",
+        "tags": [
+          "Artifacts"
+        ]
+      }
+    },
     "/api/v1/artifacts/{id}/license-summary": {
       "get": {
         "operationId": "get-artifact-license-summary",
@@ -4840,6 +4988,51 @@
           }
         },
         "summary": "List SBOMs for an artifact",
+        "tags": [
+          "Artifacts"
+        ]
+      }
+    },
+    "/api/v1/artifacts/{id}/usages": {
+      "get": {
+        "description": "Artifacts whose latest SBOM contains a component matching this artifact (ADR-041).",
+        "operationId": "get-artifact-usages",
+        "parameters": [
+          {
+            "description": "Artifact UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Artifact UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetArtifactUsagesOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List artifacts that ship this artifact",
         "tags": [
           "Artifacts"
         ]

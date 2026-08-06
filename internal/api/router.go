@@ -352,6 +352,24 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Summary:     "Get artifact vulnerability summary",
 		Tags:        []string{"Artifacts"},
 	}, h.GetArtifactVulnSummary)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-artifact-usages",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/artifacts/{id}/usages",
+		Summary:     "List artifacts that ship this artifact",
+		Description: "Artifacts whose latest SBOM contains a component matching this artifact (ADR-041).",
+		Tags:        []string{"Artifacts"},
+	}, h.GetArtifactUsages)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-artifact-contains",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/artifacts/{id}/contains",
+		Summary:     "List tracked artifacts this artifact ships",
+		Description: "Tracked artifacts matched by components of this artifact's latest SBOM (ADR-041).",
+		Tags:        []string{"Artifacts"},
+	}, h.GetArtifactContains)
 }
 
 // ---------------------------------------------------------------------------

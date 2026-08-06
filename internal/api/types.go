@@ -503,6 +503,30 @@ type GetArtifactVulnSummaryOutput struct {
 	}
 }
 
+// GetArtifactUsagesInput is the request for GET /api/v1/artifacts/{id}/usages.
+type GetArtifactUsagesInput struct {
+	ID string `path:"id" doc:"Artifact UUID" format:"uuid"`
+}
+
+// GetArtifactUsagesOutput is the response for GET /api/v1/artifacts/{id}/usages.
+type GetArtifactUsagesOutput struct {
+	Body struct {
+		Usages []service.ArtifactRelation `json:"usages"`
+	}
+}
+
+// GetArtifactContainsInput is the request for GET /api/v1/artifacts/{id}/contains.
+type GetArtifactContainsInput struct {
+	ID string `path:"id" doc:"Artifact UUID" format:"uuid"`
+}
+
+// GetArtifactContainsOutput is the response for GET /api/v1/artifacts/{id}/contains.
+type GetArtifactContainsOutput struct {
+	Body struct {
+		Contains []service.ArtifactRelation `json:"contains"`
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Stats — Dashboard Summary
 // ---------------------------------------------------------------------------
