@@ -189,7 +189,7 @@ func (d *Dispatcher) processSubject(ctx context.Context, ref SubjectRef) error {
 				d.applyOCIVersion(ctx, ref.SBOMId, data)
 			}
 			if e.Name() == "oci-metadata" || e.Name() == "user" {
-				d.applyEnrichmentSufficiency(ctx, ref.SBOMId, data)
+				d.applyEnrichmentSufficiency(ctx, ref, data)
 			}
 			if e.Name() == "provenance" && priorProvenance != nil && priorProvenance.Status == "success" {
 				d.recordProvenanceDrift(ctx, ref.SBOMId, priorProvenance.Data, data)
@@ -199,9 +199,21 @@ func (d *Dispatcher) processSubject(ctx context.Context, ref SubjectRef) error {
 	return nil
 }
 
-// applyEnrichmentSufficiency reads imageVersion and architecture from OCI enrichment
-// JSON and marks the SBOM as sufficiently enriched when both are present.
-func (d *Dispatcher) applyEnrichmentSufficiency(ctx context.Context, sbomID pgtype.UUID, data []byte) {
+// requiresArchitecture reports whether an artifact type has an architecture
+// worth waiting for. Architecture is an OCI image concept: a library or a
+// source archive has none, so demanding one hides the artifact forever.
+//
+// An empty type counts as a container. That is what every artifact was before
+// ADR-040, and defaulting the other way would silently promote half-enriched
+// images to sufficient.
+func requiresArchitecture(artifactType string) bool {
+	return artifactType == "" || artifactType == "container"
+}
+
+// applyEnrichmentSufficiency reads imageVersion and architecture from enrichment
+// JSON and marks the SBOM as sufficiently enriched. A version is always required;
+// architecture only for the types that can actually have one.
+func (d *Dispatcher) applyEnrichmentSufficiency(ctx context.Context, ref SubjectRef, data []byte) {
 	var meta struct {
 		ImageVersion string `json:"imageVersion"`
 		Architecture string `json:"architecture"`
@@ -209,13 +221,14 @@ func (d *Dispatcher) applyEnrichmentSufficiency(ctx context.Context, sbomID pgty
 	if err := json.Unmarshal(data, &meta); err != nil {
 		return
 	}
-	sufficient := meta.ImageVersion != "" && meta.Architecture != ""
+	sufficient := meta.ImageVersion != "" &&
+		(!requiresArchitecture(ref.ArtifactType) || meta.Architecture != "")
 	if err := d.store.UpdateSBOMEnrichmentSufficient(ctx, repository.UpdateSBOMEnrichmentSufficientParams{
-		ID:                   sbomID,
+		ID:                   ref.SBOMId,
 		EnrichmentSufficient: sufficient,
 	}); err != nil {
 		d.logger.Error("failed to update enrichment_sufficient",
-			"sbom_id", sbomID,
+			"sbom_id", ref.SBOMId,
 			"err", err,
 		)
 	}

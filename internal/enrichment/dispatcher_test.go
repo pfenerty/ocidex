@@ -337,29 +337,58 @@ func TestDispatcher_OCIVersionPromotion_SkipsNonOCI(t *testing.T) {
 
 func TestDispatcher_EnrichmentSufficiency(t *testing.T) {
 	tests := []struct {
-		name    string
-		data    map[string]string
-		wantSuf bool
+		name         string
+		artifactType string
+		data         map[string]string
+		wantSuf      bool
 	}{
 		{
-			name:    "both imageVersion and architecture present",
-			data:    map[string]string{"imageVersion": "1.0.0", "architecture": "amd64"},
-			wantSuf: true,
+			name:         "both imageVersion and architecture present",
+			artifactType: "container",
+			data:         map[string]string{"imageVersion": "1.0.0", "architecture": "amd64"},
+			wantSuf:      true,
 		},
 		{
-			name:    "missing architecture",
-			data:    map[string]string{"imageVersion": "1.0.0"},
-			wantSuf: false,
+			name:         "missing architecture",
+			artifactType: "container",
+			data:         map[string]string{"imageVersion": "1.0.0"},
+			wantSuf:      false,
 		},
 		{
-			name:    "missing imageVersion",
-			data:    map[string]string{"architecture": "amd64"},
-			wantSuf: false,
+			name:         "missing imageVersion",
+			artifactType: "container",
+			data:         map[string]string{"architecture": "amd64"},
+			wantSuf:      false,
 		},
 		{
-			name:    "both empty",
-			data:    map[string]string{},
-			wantSuf: false,
+			name:         "both empty",
+			artifactType: "container",
+			data:         map[string]string{},
+			wantSuf:      false,
+		},
+		// Architecture is an OCI image concept (ocidex-m7vv). Requiring it of a
+		// non-container is asking for a field that does not exist, which left
+		// every uploaded binary permanently below the sufficiency bar and so
+		// invisible in the default artifact list.
+		{
+			name:         "non-container needs no architecture",
+			artifactType: "application",
+			data:         map[string]string{"imageVersion": "0.0.0-abc1234"},
+			wantSuf:      true,
+		},
+		{
+			name:         "non-container still needs a version",
+			artifactType: "library",
+			data:         map[string]string{},
+			wantSuf:      false,
+		},
+		{
+			// Pre-ADR-040 rows carry no type; they were all images, so they keep
+			// the stricter rule rather than being promoted by the absence of data.
+			name:         "empty type is treated as a container",
+			artifactType: "",
+			data:         map[string]string{"imageVersion": "1.0.0"},
+			wantSuf:      false,
 		},
 	}
 
@@ -383,7 +412,7 @@ func TestDispatcher_EnrichmentSufficiency(t *testing.T) {
 			sbomID := pgtype.UUID{Bytes: [16]byte{5}, Valid: true}
 			d.Submit(SubjectRef{
 				SBOMId:       sbomID,
-				ArtifactType: "container",
+				ArtifactType: tt.artifactType,
 				ArtifactName: "docker.io/myapp",
 				Digest:       "sha256:suf123",
 			})
