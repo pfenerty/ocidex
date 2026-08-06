@@ -131,39 +131,39 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 # ---- Final stages (labels injected via buildctl CLI flags, not Dockerfile) ---
 
-FROM gcr.io/distroless/static-debian13:nonroot AS api
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:f7f8f729987ad0fdf6b05eeeae94b26e6a0f613bdf46feea7fc40f7bd72953e6 AS api
 COPY --from=build-api /app/bin/ocidex /ocidex
 EXPOSE 8080
 ENTRYPOINT ["/ocidex"]
 
-FROM gcr.io/distroless/static-debian13:nonroot AS scanner-worker
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:f7f8f729987ad0fdf6b05eeeae94b26e6a0f613bdf46feea7fc40f7bd72953e6 AS scanner-worker
 COPY --from=build-scanner-worker /app/bin/scanner-worker /scanner-worker
 ENTRYPOINT ["/scanner-worker"]
 
-FROM gcr.io/distroless/static-debian13:nonroot AS enrichment-worker
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:f7f8f729987ad0fdf6b05eeeae94b26e6a0f613bdf46feea7fc40f7bd72953e6 AS enrichment-worker
 COPY --from=build-enrichment-worker /app/bin/enrichment-worker /enrichment-worker
 ENTRYPOINT ["/enrichment-worker"]
 
-FROM gcr.io/distroless/static-debian13:nonroot AS oci-metadata-worker
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:f7f8f729987ad0fdf6b05eeeae94b26e6a0f613bdf46feea7fc40f7bd72953e6 AS oci-metadata-worker
 COPY --from=build-oci-metadata-worker /app/bin/oci-metadata-worker /oci-metadata-worker
 ENTRYPOINT ["/oci-metadata-worker"]
 
-FROM gcr.io/distroless/static-debian13:nonroot AS git-worker
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:f7f8f729987ad0fdf6b05eeeae94b26e6a0f613bdf46feea7fc40f7bd72953e6 AS git-worker
 COPY --from=build-git-worker /app/bin/git-worker /git-worker
 ENTRYPOINT ["/git-worker"]
 
-FROM gcr.io/distroless/static-debian13:nonroot AS user-enricher-worker
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:f7f8f729987ad0fdf6b05eeeae94b26e6a0f613bdf46feea7fc40f7bd72953e6 AS user-enricher-worker
 COPY --from=build-user-enricher-worker /app/bin/user-enricher-worker /user-enricher-worker
 ENTRYPOINT ["/user-enricher-worker"]
 
-FROM gcr.io/distroless/static-debian13:nonroot AS provenance-worker
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:f7f8f729987ad0fdf6b05eeeae94b26e6a0f613bdf46feea7fc40f7bd72953e6 AS provenance-worker
 COPY --from=build-provenance-worker /app/bin/provenance-worker /provenance-worker
 ENTRYPOINT ["/provenance-worker"]
 
-FROM gcr.io/distroless/static-debian13:nonroot AS vuln-worker
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:f7f8f729987ad0fdf6b05eeeae94b26e6a0f613bdf46feea7fc40f7bd72953e6 AS vuln-worker
 COPY --from=build-vuln-worker /app/bin/vuln-worker /vuln-worker
 ENTRYPOINT ["/vuln-worker"]
 
-FROM gcr.io/distroless/static-debian13:nonroot AS operator
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:f7f8f729987ad0fdf6b05eeeae94b26e6a0f613bdf46feea7fc40f7bd72953e6 AS operator
 COPY --from=build-operator /app/bin/operator /operator
 ENTRYPOINT ["/operator"]
