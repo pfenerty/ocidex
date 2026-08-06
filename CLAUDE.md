@@ -495,6 +495,7 @@ merge strictly in dependency order and rebase the child onto `main` as soon as t
 | 038 | Web Serving & Base Image Policy | Chainguard nginx (178→19 pkgs) serving static only; L7 routing moved to the Gateway HTTPRoute; distroless static-debian13 for Go; Renovate `pinDigests` on runtime/build images, CI images excluded |
 | 039 | Namespace & Source Model | Split `registry`'s four jobs: `namespace` (owner/visibility) → `source` (ingest channel) → `registry` (OCI config + trust); rollups rekey to `namespace_id`; `scan_jobs` unchanged; amends ADR-025 |
 | 040 | Non-Container Artifact Identity | Caller-declared at upload (type/name/group/purl/version on `IngestParams`, precedence over BOM); digest = sha256 of the artifact *file*, preserving the `sbom.digest` UNIQUE idempotency guarantee; `validateUploadRequired` beside `validateContainerRequired` |
+| 041 | Derived Artifact Relationships | Relationships derived at query time from `component`, never stored; match key REUSES `componentKey` (ADR-019 Rules 1–2) so relationships cannot drift from diff; ADR-019 Rule 3 explicitly excluded; version compared separately as drift; both directions (`usages`/`contains`) filtered via `visible_namespace_ids` |
 
 **When working on diff, dependency-tree, or changelog code, read ADRs 0019–0021 first.** They are the normative contract; the implementation issues (`ocidex-bqh.*`) reference them by section.
 
