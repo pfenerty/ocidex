@@ -40,14 +40,18 @@ const pushPipeline = new GitPipeline({
   // consistent: the PR pipeline's onChanges needs full history for a reachable
   // merge-base. The repo is tiny (~150 commits), so full clone is negligible.
   cloneDepth: "full",
-  // Multi-arch image builds + helm exceed Tekton's 1h default on the homelab node.
-  // 2h wasn't enough either: the image builds run serially (chained so two builds
-  // never overlap and burst the single node's memory), and each takes ~15-18 min on
-  // that node. Run push-khjtq hit PipelineRunTimeout at exactly 2h with 7 of 9 images
-  // built and image-build-vuln-worker cancelled before it started. Budget is ~8 min of
-  // pre-build tasks + 9 × ~16 min + helm ≈ 2h40m, so 4h leaves real headroom rather
-  // than the ~13% that 3h would give. Revisit if the builds are ever parallelised.
-  timeout: "4h",
+  // The image builds run serially (chained so two builds never overlap and burst the
+  // single node's memory), so the timeout tracks 10 × per-build time. This was 4h when
+  // each build took ~12-16 min; ocidex-2vr cut that with a persistent buildkitd root,
+  // and run push-t2t4l came in at 70 min end to end (61 min of image builds).
+  //
+  // 2h30m, not 2h: the number that has to fit is not the 70 min warm run but a COLD
+  // one — first run after the cache PVC is recreated or rebinds to another node. Cold
+  // builds measured ~11 min single-arch, so 10 × that plus the web (~14 min) and
+  // operator (~9 min) outliers plus ~8 min of pre-build tasks lands close to 2h, and a
+  // 2h ceiling would turn a cache miss into a pipeline failure. Revisit if the builds
+  // are ever parallelised, or if ocidex-2j2 lands and cuts the per-binary compile.
+  timeout: "2h30m",
   tasks: [...coreTasks, ...securityTasks, ...imageBuilds, helmPublish, sbomPush],
 });
 
@@ -88,7 +92,10 @@ const tagPipeline = new GitPipeline({
   trigger: { rules: [{ on: TRIGGER_EVENTS.TAG, branch: "refs/tags/*" }], cancelInProgress: true },
   cloneDepth: "full",
   // Same serial image-build chain as the push pipeline, plus helm-release and
-  // gh-release — see the note there for why 2h was too tight.
+  // gh-release. Deliberately still 4h while push is 2h30m: these builds are multi-arch
+  // (linux/amd64,linux/arm64), roughly double the work per image, and no tag pipeline
+  // has yet run since ocidex-2vr — buildkit-release-cache is a separate, still-cold
+  // PVC. Lower this only once a real tag run has been measured.
   timeout: "4h",
   // sbomPush pulls goBuild in via `needs` (it must not race another Go task's cache
   // restore). That extra compile is the price of cataloguing the tagged binaries.
