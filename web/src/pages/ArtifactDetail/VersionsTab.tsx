@@ -7,6 +7,9 @@ import { SigningBadge, TimestampCell } from "~/components/cells";
 
 export function VersionsTab(props: {
     artifactId: string;
+    /** Architecture and signing are OCI concepts; both columns are dropped for
+     *  other artifact types rather than shown as a column of em-dashes. */
+    isContainer: boolean;
     versions: ArtifactVersionSummary[] | undefined;
     pagination: PaginationMeta | undefined;
     loading: boolean;
@@ -14,7 +17,36 @@ export function VersionsTab(props: {
     error?: unknown;
     onPageChange: (offset: number) => void;
 }) {
-    const columns: Column<ArtifactVersionSummary>[] = [
+    const imageColumns: Column<ArtifactVersionSummary>[] = [
+        {
+            header: "Architectures",
+            render: (version) => (
+                <Show
+                    when={
+                        version.architectures && version.architectures.length > 0
+                    }
+                    fallback={<span class="text-muted">—</span>}
+                >
+                    <For each={version.architectures ?? []}>
+                        {(arch) => (
+                            <span
+                                class="badge badge-primary"
+                                style={{ "margin-right": "4px" }}
+                            >
+                                {arch}
+                            </span>
+                        )}
+                    </For>
+                </Show>
+            ),
+        },
+        {
+            header: "Signing",
+            render: (version) => <SigningBadge status={version.signingStatus} />,
+        },
+    ];
+
+    const columns = (): Column<ArtifactVersionSummary>[] => [
         {
             header: "Version",
             render: (version) => (
@@ -55,32 +87,7 @@ export function VersionsTab(props: {
                 <TimestampCell iso={version.buildDate ?? version.createdAt} />
             ),
         },
-        {
-            header: "Architectures",
-            render: (version) => (
-                <Show
-                    when={
-                        version.architectures && version.architectures.length > 0
-                    }
-                    fallback={<span class="text-muted">—</span>}
-                >
-                    <For each={version.architectures ?? []}>
-                        {(arch) => (
-                            <span
-                                class="badge badge-primary"
-                                style={{ "margin-right": "4px" }}
-                            >
-                                {arch}
-                            </span>
-                        )}
-                    </For>
-                </Show>
-            ),
-        },
-        {
-            header: "Signing",
-            render: (version) => <SigningBadge status={version.signingStatus} />,
-        },
+        ...(props.isContainer ? imageColumns : []),
         {
             header: "",
             render: (version) => (
@@ -109,7 +116,7 @@ export function VersionsTab(props: {
 
     return (
         <DataTable
-            columns={columns}
+            columns={columns()}
             rows={props.versions}
             loading={props.loading}
             isError={props.isError}

@@ -41,6 +41,12 @@ export default function ArtifactDetail() {
 
     const artifactQuery = useArtifact(() => params.id);
 
+    // Image-specific chrome — signing/provenance, the registry link, the
+    // architecture column — is meaningless for an uploaded binary or library and
+    // renders as a row of em-dashes if left in. detectRegistry below already
+    // branches on this; everything type-aware on this page goes through here.
+    const isContainer = () => artifactQuery.data?.type === "container";
+
     const versionsQuery = useArtifactVersions(
         () => params.id,
         () => ({ limit: versionLimit, offset: versionOffset(), mode: viewMode() }),
@@ -188,14 +194,16 @@ export default function ArtifactDetail() {
                                                 <TypeBadge type={a().type} />
                                             </span>
                                         </div>
-                                        <div class="detail-field">
-                                            <span class="detail-label">
-                                                Signing
-                                            </span>
-                                            <span class="detail-value">
-                                                <SigningBadge status={a().signingStatus} />
-                                            </span>
-                                        </div>
+                                        <Show when={isContainer()}>
+                                            <div class="detail-field">
+                                                <span class="detail-label">
+                                                    Signing
+                                                </span>
+                                                <span class="detail-value">
+                                                    <SigningBadge status={a().signingStatus} />
+                                                </span>
+                                            </div>
+                                        </Show>
                                         <Show when={a().group}>
                                             <div class="detail-field">
                                                 <span class="detail-label">
@@ -328,6 +336,7 @@ export default function ArtifactDetail() {
                                 <Show when={tab() === "versions"}>
                                     <VersionsTab
                                         artifactId={params.id}
+                                        isContainer={isContainer()}
                                         versions={versionsQuery.data?.data}
                                         pagination={
                                             versionsQuery.data?.pagination

@@ -65,10 +65,23 @@ export function ChangelogTab(props: {
             <Show
                 when={props.entries.length > 0}
                 fallback={
-                    <EmptyState
-                        title="No changes for this architecture"
-                        message="Select a different architecture to see changelog entries, or ingest another SBOM to generate a diff."
-                    />
+                    // The architecture wording only makes sense when an
+                    // architecture selector is actually on screen — a non-container
+                    // artifact has no arch to switch to.
+                    <Show
+                        when={props.availableArchitectures.length > 1}
+                        fallback={
+                            <EmptyState
+                                title="No changes yet"
+                                message="Ingest another SBOM for this artifact to generate a diff."
+                            />
+                        }
+                    >
+                        <EmptyState
+                            title="No changes for this architecture"
+                            message="Select a different architecture to see changelog entries, or ingest another SBOM to generate a diff."
+                        />
+                    </Show>
                 }
             >
                 <For each={props.entries}>
