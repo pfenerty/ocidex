@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
-import { useListRegistries } from "~/api/queries";
-import { RegistriesTab } from "~/pages/admin/RegistriesTab";
+import { useListRegistries, useListSources } from "~/api/queries";
+import { SourcesTab } from "~/pages/admin/SourcesTab";
 import type { JSX } from "solid-js";
 
 const idleMutation = () => ({ mutate: vi.fn(), isPending: false, data: undefined });
@@ -10,6 +10,7 @@ const idleQuery = () => ({ data: undefined, isLoading: false, isError: false, er
 
 vi.mock("~/api/queries", () => ({
     useListRegistries: vi.fn(),
+    useListSources: vi.fn(),
     useCreateRegistry: () => idleMutation(),
     useUpdateRegistry: () => idleMutation(),
     useDeleteRegistry: () => idleMutation(),
@@ -34,6 +35,7 @@ vi.mock("@solidjs/router", () => ({
 }));
 
 const mockUseListRegistries = vi.mocked(useListRegistries);
+const mockUseListSources = vi.mocked(useListSources);
 
 const baseRegistry = {
     id: "11111111-1111-1111-1111-111111111111",
@@ -57,14 +59,33 @@ const managedRegistry = {
     managed_ref: "ocidex-system/prod-registry",
 };
 
-function renderTab(rows: unknown[]) {
+/** The `source` row that ADR-039 puts behind a registry. Migration 00053 makes
+ *  registry.id a foreign key onto source.id, so the ids are the same value —
+ *  which is exactly what the tab joins on. */
+function sourceFor(reg: { id: string; name: string }, namespace = "acme") {
+    return {
+        id: reg.id,
+        name: reg.name,
+        kind: "oci_registry",
+        namespace_id: `ns-${namespace}`,
+        namespace_name: namespace,
+    };
+}
+
+function renderTab(rows: { id: string; name: string }[], sources?: unknown[]) {
     mockUseListRegistries.mockImplementation((() => ({
         data: { data: rows },
         isLoading: false,
         isError: false,
         error: null,
     })) as unknown as typeof useListRegistries);
-    return render(() => <RegistriesTab />);
+    mockUseListSources.mockImplementation((() => ({
+        data: { data: sources ?? rows.map((r) => sourceFor(r)) },
+        isLoading: false,
+        isError: false,
+        error: null,
+    })) as unknown as typeof useListSources);
+    return render(() => <SourcesTab />);
 }
 
 function must<T>(value: T | null | undefined, what: string): T {
@@ -99,7 +120,7 @@ const saveButton = (container: HTMLElement) =>
         "Save button",
     ) as HTMLButtonElement;
 
-describe("RegistriesTab managed-registry guard", () => {
+describe("SourcesTab managed-registry guard", () => {
     beforeEach(() => {
         vi.clearAllMocks();
     });
@@ -148,5 +169,70 @@ describe("RegistriesTab managed-registry guard", () => {
         expect(container.querySelector('[data-testid="managed-notice"]')).toBeNull();
         expect(formFieldset(container).disabled).toBe(false);
         expect(saveButton(container).disabled).toBe(false);
+    });
+});
+
+// --- ADR-039 source model (ocidex-rj4.5) --------------------------------------
+// The tab lists *sources*, not registries: namespace is the ownership axis, and
+// an OCI registry is only one of the kinds a source can be.
+
+const headings = (container: HTMLElement) =>
+    [...container.querySelectorAll('[data-testid="namespace-heading"]')].map((h) =>
+        // Drop the trailing count badge so assertions read as the label.
+        h.textContent.replace(/\s*\d+\s*$/, "").trim(),
+    );
+
+describe("SourcesTab namespace grouping", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it("groups sources under the namespace that owns them", () => {
+        const { container } = renderTab([baseRegistry, managedRegistry], [
+            sourceFor(baseRegistry, "acme"),
+            sourceFor(managedRegistry, "widgets"),
+        ]);
+
+        expect(headings(container).sort()).toEqual(["acme", "widgets"]);
+    });
+
+    it("lists an upload source without any OCI configuration", () => {
+        const { container } = renderTab([], [
+            {
+                id: "33333333-3333-3333-3333-333333333333",
+                name: "ci-uploads",
+                kind: "upload",
+                namespace_id: "ns-acme",
+                namespace_name: "acme",
+            },
+        ]);
+
+        const row = must(
+            container.querySelector('[data-testid="upload-source"]'),
+            "upload source row",
+        );
+        expect(row.textContent).toContain("ci-uploads");
+        expect(row.textContent).toContain("upload");
+        // An upload source has no URL, scan mode or webhook, so it must not be
+        // rendered into the registry table where those columns would show as
+        // em-dashes implying unset settings that don't exist.
+        expect(container.querySelector("table")).toBeNull();
+    });
+
+    it("keeps a registry and an upload in the same namespace under one heading", () => {
+        const { container } = renderTab([baseRegistry], [
+            sourceFor(baseRegistry, "acme"),
+            {
+                id: "44444444-4444-4444-4444-444444444444",
+                name: "ci-uploads",
+                kind: "upload",
+                namespace_id: "ns-acme",
+                namespace_name: "acme",
+            },
+        ]);
+
+        expect(headings(container)).toEqual(["acme"]);
+        expect(container.querySelectorAll('[data-testid="upload-source"]').length).toBe(1);
+        expect(container.querySelector("table")).not.toBeNull();
     });
 });

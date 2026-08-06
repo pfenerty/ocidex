@@ -24,9 +24,33 @@ const ARTIFACT_TYPES = [
     "platform",
 ];
 
-function extractNamespace(name: string): string {
-    const parts = name.split("/");
-    return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : parts[0];
+/** How a group of artifacts got its heading, which decides how it renders. */
+type GroupKind = "path" | "group" | "type";
+
+interface ArtifactGroup {
+    key: string;
+    kind: GroupKind;
+    items: ArtifactSummary[];
+}
+
+// Grouping used to parse *every* artifact name as an OCI repository path. That
+// is only meaningful for containers: a library named "mylib" became a group of
+// one called "mylib", and a binary with no slash in its name got a heading that
+// just repeated the row beneath it. Now that ADR-040 admits non-container
+// artifacts, the heading follows the identity the type actually has —
+// registry path for containers, purl group where there is one, type otherwise.
+function groupOf(a: ArtifactSummary): { key: string; kind: GroupKind } {
+    if (a.type === "container") {
+        const parts = a.name.split("/");
+        return {
+            key: parts.length >= 2 ? `${parts[0]}/${parts[1]}` : parts[0],
+            kind: "path",
+        };
+    }
+    if (a.group !== undefined && a.group !== "") {
+        return { key: a.group, kind: "group" };
+    }
+    return { key: a.type, kind: "type" };
 }
 
 export default function Artifacts() {
@@ -49,19 +73,27 @@ export default function Artifacts() {
 
     const artifacts = () => query.data?.pages.flatMap((p) => p.data ?? []) ?? [];
 
-    const grouped = createMemo(() => {
-        const map = new Map<string, ArtifactSummary[]>();
+    const grouped = createMemo((): ArtifactGroup[] => {
+        const map = new Map<string, ArtifactGroup>();
         for (const a of artifacts()) {
-            const ns = extractNamespace(a.name);
-            const bucket = map.get(ns);
+            const { key, kind } = groupOf(a);
+            // Key on kind too: a purl group could legitimately be called
+            // "library" and must not silently merge into the type bucket.
+            const mapKey = `${kind}:${key}`;
+            const bucket = map.get(mapKey);
             if (bucket) {
-                bucket.push(a);
+                bucket.items.push(a);
             } else {
-                map.set(ns, [a]);
+                map.set(mapKey, { key, kind, items: [a] });
             }
         }
-        return [...map.entries()];
+        return [...map.values()];
     });
+
+    // A single heading spanning the whole table is noise — it repeats what the
+    // filters already say. Headings earn their row only once there is more than
+    // one thing to tell apart.
+    const showGroupHeadings = () => grouped().length > 1;
 
     return (
         <>
@@ -132,14 +164,22 @@ export default function Artifacts() {
                                     </thead>
                                     <tbody>
                                         <For each={grouped()}>
-                                            {([ns, items]) => (
+                                            {(group) => (
                                                 <>
-                                                    <tr class="group-header-row">
-                                                        <td colspan={4}>
-                                                            {ns} <span class="group-header-count">{items.length}</span>
-                                                        </td>
-                                                    </tr>
-                                                    <For each={items}>
+                                                    <Show when={showGroupHeadings()}>
+                                                        <tr class="group-header-row">
+                                                            <td colspan={4}>
+                                                                <Show
+                                                                    when={group.kind === "type"}
+                                                                    fallback={group.key}
+                                                                >
+                                                                    <TypeBadge type={group.key} />
+                                                                </Show>{" "}
+                                                                <span class="group-header-count">{group.items.length}</span>
+                                                            </td>
+                                                        </tr>
+                                                    </Show>
+                                                    <For each={group.items}>
                                                         {(artifact) => (
                                                             <tr>
                                                                 <td>

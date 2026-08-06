@@ -88,6 +88,7 @@ export type PaginationMeta = components["schemas"]["PaginationMeta"];
 export type ScanJob = components["schemas"]["ScanJobResponse"];
 export type EnrichmentJob = components["schemas"]["EnrichmentJobResponse"];
 export type Registry = components["schemas"]["RegistryResponse"];
+export type Source = components["schemas"]["SourceResponse"];
 export type APIKey = components["schemas"]["KeyMetaResponse"];
 export type UserAccount = components["schemas"]["UserResponse"];
 export type ErrorModel = components["schemas"]["ErrorModel"];

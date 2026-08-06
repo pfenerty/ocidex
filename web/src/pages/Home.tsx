@@ -14,11 +14,11 @@ export default function Home() {
                 <h1 class="brand landing-title">
                     OCI<span>Dex</span>
                 </h1>
-                <p class="landing-tagline">The supply-chain catalog for OCI artifacts.</p>
+                <p class="landing-tagline">The supply-chain catalog for the software you ship.</p>
                 <p class="landing-pitch">
                     Ingest SBOMs, track packages across versions, and understand your license
-                    exposure — all from a single searchable index. Know what's in your containers
-                    before your next incident does.
+                    exposure — all from a single searchable index. Know what's inside every
+                    image, binary and library you ship before your next incident does.
                 </p>
                 {/* Stats have three states and all three are visible: an
                     unadorned <Show> rendered a failure as silence, which is
@@ -77,8 +77,8 @@ export default function Home() {
                         <Package size={28} class="landing-card-icon" />
                         <h3 class="landing-card-title">Artifacts</h3>
                         <p class="landing-card-desc">
-                            Browse tracked OCI images and Helm charts, each with full SBOM history
-                            and version timeline.
+                            Browse every tracked artifact — container images, binaries, libraries,
+                            applications — each with full SBOM history and version timeline.
                         </p>
                     </A>
 

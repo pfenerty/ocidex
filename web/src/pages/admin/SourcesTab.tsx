@@ -1,11 +1,11 @@
-import "./RegistriesTab.css";
+import "./SourcesTab.css";
 import { For, Show, createSignal, createMemo } from "solid-js";
 import { A } from "@solidjs/router";
 import { copyText } from "~/utils/clipboard";
 import { useToast } from "~/context/toast";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
-import type { Registry } from "~/api/client";
+import type { Registry, Source } from "~/api/client";
 import { trustBadgeClass, signingStatusLabel, trustStatus, driftReasonLabel } from "~/utils/trust";
 import { formatDateTime } from "~/utils/format";
 import {
@@ -20,6 +20,7 @@ import {
     useListScanJobs,
     useRegistryTrustSummary,
     useRecentDrift,
+    useListSources,
 } from "~/api/queries";
 
 type RegType = "zot" | "harbor" | "docker" | "generic" | "ghcr";
@@ -83,8 +84,16 @@ function toPatternArray(s: string): string[] {
     return s.split("\n").map(p => p.trim()).filter(p => p !== "");
 }
 
-export function RegistriesTab() {
+/** One namespace's ingest channels, split by what there is to configure. */
+interface NamespaceGroup {
+    namespace: string;
+    registries: Registry[];
+    uploads: Source[];
+}
+
+export function SourcesTab() {
     const query = useListRegistries();
+    const sourcesQuery = useListSources();
     const createReg = useCreateRegistry();
     const updateReg = useUpdateRegistry();
     const deleteReg = useDeleteRegistry();
@@ -115,6 +124,41 @@ export function RegistriesTab() {
             statuses.set(row.signingStatus, row.count);
         }
         return byRegistry;
+    });
+
+    // Namespace is the ownership axis (ADR-039), so it is the axis this list is
+    // organised by. Registry rows join to their source on `id` — migration
+    // 00053 made registry.id a foreign key *onto* source.id, so they are the
+    // same value and no extra lookup is needed.
+    const namespaceGroups = createMemo((): NamespaceGroup[] => {
+        const registriesByID = new Map<string, Registry>();
+        for (const reg of query.data?.data ?? []) {
+            registriesByID.set(reg.id, reg);
+        }
+
+        const groups = new Map<string, NamespaceGroup>();
+        const groupFor = (name: string): NamespaceGroup => {
+            let g = groups.get(name);
+            if (g === undefined) {
+                g = { namespace: name, registries: [], uploads: [] };
+                groups.set(name, g);
+            }
+            return g;
+        };
+
+        for (const src of sourcesQuery.data?.data ?? []) {
+            // namespace_name is documented as list-only; fall back to the id so
+            // a heading is never blank.
+            const g = groupFor(src.namespace_name ?? src.namespace_id);
+            const reg = registriesByID.get(src.id);
+            if (src.kind === "oci_registry" && reg !== undefined) {
+                g.registries.push(reg);
+            } else if (src.kind === "upload") {
+                g.uploads.push(src);
+            }
+        }
+
+        return [...groups.values()].sort((a, b) => a.namespace.localeCompare(b.namespace));
     });
 
     const recentDrift = useRecentDrift(() => ({ limit: 20 }));
@@ -709,14 +753,79 @@ export function RegistriesTab() {
                 </div>
             </dialog>
 
-            <DataTable
-                columns={columns}
-                rows={query.data?.data ?? undefined}
-                loading={query.isLoading}
-                isError={query.isError}
-                error={query.error}
-                emptyTitle="No registries found"
-            />
+            <Show
+                when={!sourcesQuery.isLoading && !query.isLoading && !sourcesQuery.isError && !query.isError}
+                fallback={
+                    <DataTable
+                        columns={columns}
+                        rows={undefined}
+                        loading={sourcesQuery.isLoading || query.isLoading}
+                        isError={sourcesQuery.isError || query.isError}
+                        error={sourcesQuery.error ?? query.error}
+                        emptyTitle="No sources found"
+                    />
+                }
+            >
+                <Show
+                    when={namespaceGroups().length > 0}
+                    fallback={
+                        <DataTable
+                            columns={columns}
+                            rows={[]}
+                            loading={false}
+                            isError={false}
+                            emptyTitle="No sources found"
+                        />
+                    }
+                >
+                    <For each={namespaceGroups()}>
+                        {(group) => (
+                            <div style={{ "margin-bottom": "1.5rem" }}>
+                                <h3
+                                    data-testid="namespace-heading"
+                                    style={{ "font-size": "1rem", "margin-bottom": "0.5rem" }}
+                                >
+                                    {group.namespace}{" "}
+                                    <span class="group-header-count">{group.registries.length + group.uploads.length}</span>
+                                </h3>
+
+                                <Show when={group.registries.length > 0}>
+                                    <DataTable
+                                        columns={columns}
+                                        rows={group.registries}
+                                        loading={false}
+                                        isError={false}
+                                        emptyTitle="No registries found"
+                                    />
+                                </Show>
+
+                                {/* Upload sources have no OCI configuration at all — no URL,
+                                    no scan mode, no webhook. Listing them in the registry table
+                                    would be a row of em-dashes claiming those settings exist
+                                    but are unset, so they get their own short list instead. */}
+                                <Show when={group.uploads.length > 0}>
+                                    <div class="card" style={{ "margin-top": group.registries.length > 0 ? "0.75rem" : "0" }}>
+                                        <For each={group.uploads}>
+                                            {(src) => (
+                                                <div
+                                                    data-testid="upload-source"
+                                                    style={{ display: "flex", "align-items": "center", gap: "0.5rem", padding: "0.35rem 0" }}
+                                                >
+                                                    <span class="badge">upload</span>
+                                                    <span>{src.name}</span>
+                                                    <span style={{ color: "var(--color-text-muted)", "font-size": "0.85rem" }}>
+                                                        SBOMs pushed to the API — nothing to configure
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </For>
+                                    </div>
+                                </Show>
+                            </div>
+                        )}
+                    </For>
+                </Show>
+            </Show>
 
             <div class="card" style={{ "margin-top": "1.5rem" }}>
                 <div class="card-header">

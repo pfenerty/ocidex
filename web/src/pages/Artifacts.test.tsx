@@ -139,4 +139,74 @@ describe("Artifacts", () => {
         const { getByText } = renderArtifacts();
         expect(getByText("org.example/mylib")).toBeDefined();
     });
+
+    // --- grouping (ocidex-rj4.5) --------------------------------------------
+    // The list is no longer container-only, so the heading has to follow the
+    // identity each type actually has instead of parsing every name as an OCI
+    // repository path.
+
+    function headings(container: HTMLElement): string[] {
+        return [...container.querySelectorAll("tr.group-header-row td")].map((td) =>
+            // Strip the trailing count badge so assertions read as the label.
+            td.textContent.replace(/\s*\d+\s*$/, "").trim()
+        );
+    }
+
+    it("groups containers by their registry path", () => {
+        mockUseArtifacts.mockReturnValue(
+            makeQuery({
+                data: page([
+                    makeArtifact({ id: "a", name: "ghcr.io/pfenerty/ocidex-api" }),
+                    makeArtifact({ id: "b", name: "docker.io/library/postgres" }),
+                ]),
+            }) as never
+        );
+        const { container } = renderArtifacts();
+        expect(headings(container)).toEqual(["ghcr.io/pfenerty", "docker.io/library"]);
+    });
+
+    it("groups a non-container by its package group, not by an OCI path parse", () => {
+        mockUseArtifacts.mockReturnValue(
+            makeQuery({
+                data: page([
+                    makeArtifact({ id: "a", name: "ghcr.io/pfenerty/ocidex-api" }),
+                    makeArtifact({ id: "b", name: "mylib", type: "library", group: "org.example" }),
+                ]),
+            }) as never
+        );
+        const { container } = renderArtifacts();
+        const hs = headings(container);
+        expect(hs).toContain("org.example");
+        // The old behaviour bucketed a slash-free name under itself, producing a
+        // heading that just repeated the single row beneath it.
+        expect(hs).not.toContain("mylib");
+    });
+
+    it("falls back to the type when a non-container has no package group", () => {
+        mockUseArtifacts.mockReturnValue(
+            makeQuery({
+                data: page([
+                    makeArtifact({ id: "a", name: "ghcr.io/pfenerty/ocidex-api" }),
+                    makeArtifact({ id: "b", name: "ocidex-cli", type: "application" }),
+                ]),
+            }) as never
+        );
+        const { container } = renderArtifacts();
+        const hs = headings(container);
+        expect(hs).toContain("application");
+        expect(hs).not.toContain("ocidex-cli");
+    });
+
+    it("omits group headings entirely when there is only one group", () => {
+        mockUseArtifacts.mockReturnValue(
+            makeQuery({
+                data: page([
+                    makeArtifact({ id: "a", name: "ghcr.io/pfenerty/ocidex-api" }),
+                    makeArtifact({ id: "b", name: "ghcr.io/pfenerty/ocidex-web" }),
+                ]),
+            }) as never
+        );
+        const { container } = renderArtifacts();
+        expect(container.querySelector("tr.group-header-row")).toBeNull();
+    });
 });

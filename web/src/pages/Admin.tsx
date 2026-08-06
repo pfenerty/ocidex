@@ -3,7 +3,7 @@ import { useLocation, A } from "@solidjs/router";
 import { UsersTab } from "./admin/UsersTab";
 import { APIKeysTab } from "./admin/APIKeysTab";
 import { StatusTab } from "./admin/StatusTab";
-import { RegistriesTab } from "./admin/RegistriesTab";
+import { SourcesTab } from "./admin/SourcesTab";
 import { JobsTab } from "./admin/JobsTab";
 
 export default function Admin() {
@@ -12,7 +12,10 @@ export default function Admin() {
     const isUsersTab = () => location.pathname === "/admin";
     const isKeysTab = () => location.pathname === "/admin/keys";
     const isStatusTab = () => location.pathname === "/admin/status";
-    const isRegistriesTab = () => location.pathname === "/admin/registries";
+    // /admin/registries stays a live path: the tab was called Registries until
+    // ADR-039 split that concept, and existing bookmarks should not 404.
+    const isSourcesTab = () =>
+        location.pathname === "/admin/sources" || location.pathname === "/admin/registries";
     const isJobsTab = () => location.pathname === "/admin/jobs";
 
     return (
@@ -52,16 +55,16 @@ export default function Admin() {
                     API Keys
                 </A>
                 <A
-                    href="/admin/registries"
+                    href="/admin/sources"
                     style={{
                         padding: "0.5rem 1rem",
-                        "border-bottom": isRegistriesTab() ? "2px solid var(--color-primary)" : "2px solid transparent",
-                        color: isRegistriesTab() ? "var(--color-primary)" : "inherit",
-                        "font-weight": isRegistriesTab() ? "600" : "400",
+                        "border-bottom": isSourcesTab() ? "2px solid var(--color-primary)" : "2px solid transparent",
+                        color: isSourcesTab() ? "var(--color-primary)" : "inherit",
+                        "font-weight": isSourcesTab() ? "600" : "400",
                         "margin-bottom": "-1px",
                     }}
                 >
-                    Registries
+                    Sources
                 </A>
                 <A
                     href="/admin/status"
@@ -95,8 +98,8 @@ export default function Admin() {
             <Show when={isKeysTab()}>
                 <APIKeysTab />
             </Show>
-            <Show when={isRegistriesTab()}>
-                <RegistriesTab />
+            <Show when={isSourcesTab()}>
+                <SourcesTab />
             </Show>
             <Show when={isStatusTab()}>
                 <StatusTab />
