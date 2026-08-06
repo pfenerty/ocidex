@@ -100,6 +100,7 @@ func TestSBOMPush_DeclaredSubject(t *testing.T) {
 		"--subject-name", "ocidex",
 		"--subject-purl", "pkg:golang/github.com/pfenerty/ocidex@v1.2.3",
 		"--version", "v1.2.3",
+		"--arch", "amd64",
 	)
 	is.NoErr(err)
 
@@ -110,6 +111,9 @@ func TestSBOMPush_DeclaredSubject(t *testing.T) {
 	is.Equal(stub.query.Get("subject_name"), "ocidex")
 	is.Equal(stub.query.Get("subject_purl"), "pkg:golang/github.com/pfenerty/ocidex@v1.2.3")
 	is.Equal(stub.query.Get("version"), "v1.2.3")
+	// Architecture is what the sufficiency gate looks for; without it a
+	// non-container SBOM only becomes visible via the relaxed type-aware rule.
+	is.Equal(stub.query.Get("architecture"), "amd64")
 	// The SBOM body goes up untouched.
 	is.Equal(string(stub.body), testSBOM)
 	// The new SBOM's id is printed so CI can capture it.

@@ -76,7 +76,10 @@ for b in ${nuList([...shippedBinaries, "ocidex-cli"])} {
   log $"Building ($b)"
   ^go build -o $".sbom-bins/($b)" $"./cmd/($b)"
 }
-log "OK: binaries built"
+# Recorded here rather than assumed at push time: these are native builds, so the
+# architecture is whatever the CI node happens to be, and only this step knows it.
+^go env GOARCH | str trim | save -f .sbom-bins/.goarch
+log $"OK: binaries built for (open .sbom-bins/.goarch | str trim)"
 `,
       onError: "continue",
     },

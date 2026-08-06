@@ -14,6 +14,15 @@ let version = if ($ref | str starts-with "refs/tags/") {
   $"0.0.0-($rev | str substring 0..7)"
 }
 
+# Written by the build step. Absent only if that step failed, in which case the
+# flag is simply omitted rather than guessed — a wrong architecture would be
+# recorded as fact against every binary.
+let arch = if (".sbom-bins/.goarch" | path exists) {
+  open .sbom-bins/.goarch | str trim
+} else {
+  ""
+}
+
 let binaries = ($env.OCIDEX_BINARIES | split row " ")
 log $"pushing ($binaries | length) SBOMs as version ($version) to ($env.OCIDEX_URL)"
 
@@ -34,7 +43,7 @@ for b in $binaries {
     "--subject-group" "github.com/pfenerty/ocidex"
     "--subject-purl" $"pkg:golang/github.com/pfenerty/ocidex/cmd/($b)@($version)"
     "--version" $version
-  ]
+  ] | append (if ($arch | is-empty) { [] } else { ["--arch" $arch] })
   let result = (do { ^.sbom-bins/ocidex-cli ...$args } | complete)
 
   if $result.exit_code == 0 {

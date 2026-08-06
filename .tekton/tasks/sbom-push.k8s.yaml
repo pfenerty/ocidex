@@ -90,7 +90,10 @@ spec:
           log $"Building ($b)"
           ^go build -o $".sbom-bins/($b)" $"./cmd/($b)"
         }
-        log "OK: binaries built"
+        # Recorded here rather than assumed at push time: these are native builds, so the
+        # architecture is whatever the CI node happens to be, and only this step knows it.
+        ^go env GOARCH | str trim | save -f .sbom-bins/.goarch
+        log $"OK: binaries built for (open .sbom-bins/.goarch | str trim)"
         }
         let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
         let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
@@ -165,6 +168,15 @@ spec:
           $"0.0.0-($rev | str substring 0..7)"
         }
 
+        # Written by the build step. Absent only if that step failed, in which case the
+        # flag is simply omitted rather than guessed — a wrong architecture would be
+        # recorded as fact against every binary.
+        let arch = if (".sbom-bins/.goarch" | path exists) {
+          open .sbom-bins/.goarch | str trim
+        } else {
+          ""
+        }
+
         let binaries = ($env.OCIDEX_BINARIES | split row " ")
         log $"pushing ($binaries | length) SBOMs as version ($version) to ($env.OCIDEX_URL)"
 
@@ -185,7 +197,7 @@ spec:
             "--subject-group" "github.com/pfenerty/ocidex"
             "--subject-purl" $"pkg:golang/github.com/pfenerty/ocidex/cmd/($b)@($version)"
             "--version" $version
-          ]
+          ] | append (if ($arch | is-empty) { [] } else { ["--arch" $arch] })
           let result = (do { ^.sbom-bins/ocidex-cli ...$args } | complete)
 
           if $result.exit_code == 0 {

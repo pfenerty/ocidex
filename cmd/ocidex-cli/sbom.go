@@ -44,6 +44,7 @@ type pushOpts struct {
 	subjectGroup string
 	subjectPurl  string
 	version      string
+	arch         string
 }
 
 func newSBOMPushCmd(cfg *rootConfig) *cobra.Command {
@@ -70,7 +71,8 @@ key in ~/.config/ocidex/config.yaml.`,
     --subject-type application \
     --subject-name ocidex \
     --subject-purl pkg:golang/github.com/pfenerty/ocidex@v1.2.3 \
-    --version v1.2.3`,
+    --version v1.2.3 \
+    --arch amd64`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSBOMPush(cmd, cfg, o, args[0])
@@ -86,6 +88,10 @@ key in ~/.config/ocidex/config.yaml.`,
 	f.StringVar(&o.subjectGroup, "subject-group", "", "subject group, e.g. github.com/pfenerty")
 	f.StringVar(&o.subjectPurl, "subject-purl", "", "subject package URL")
 	f.StringVar(&o.version, "version", "", "subject version, e.g. v1.2.3")
+	// Deliberately not defaulted to runtime.GOARCH: the machine running the
+	// push is not necessarily the machine the artifact was built for, and a
+	// wrong architecture is worse than an absent one.
+	f.StringVar(&o.arch, "arch", "", "architecture the artifact was built for, e.g. amd64")
 
 	cmd.MarkFlagsMutuallyExclusive("artifact-file", "digest")
 
@@ -124,6 +130,7 @@ func runSBOMPush(cmd *cobra.Command, cfg *rootConfig, o *pushOpts, sbomPath stri
 		SubjectName:  optional(o.subjectName),
 		SubjectGroup: optional(o.subjectGroup),
 		SubjectPurl:  optional(o.subjectPurl),
+		Architecture: optional(o.arch),
 		Digest:       optional(digest),
 	})
 	if err != nil {
