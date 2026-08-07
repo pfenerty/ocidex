@@ -163,7 +163,11 @@ const duplicatePurlSBOM = `{
 		"component": {
 			"type": "container",
 			"name": "docker.io/ubuntu@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-			"version": "24.04"
+			"version": "24.04",
+			"properties": [
+				{"name": "syft:image:labels:org.opencontainers.image.architecture", "value": "amd64"},
+				{"name": "syft:image:labels:org.opencontainers.image.created", "value": "2024-03-01T00:00:00Z"}
+			]
 		}
 	},
 	"components": [
@@ -534,6 +538,13 @@ var signingStatusFixtures = []struct {
 
 // signingStatusSBOMTemplate is a minimal container SBOM parameterized by an
 // index so each fixture resolves to a distinct artifact/digest.
+//
+// The index has to vary the *repository* name, not just the digest: artifact
+// identity is the repository, so a shared one would put all five SBOMs under a
+// single artifact and the artifact endpoint would return the rollup across
+// them rather than this fixture's own status. That rollup is deliberate — see
+// TestArtifactRollupSigningStatus_ArtifactMissingDominates — which is exactly
+// why a parity test must not straddle it.
 const signingStatusSBOMTemplate = `{
 	"bomFormat": "CycloneDX",
 	"specVersion": "1.6",
@@ -542,10 +553,11 @@ const signingStatusSBOMTemplate = `{
 	"metadata": {
 		"component": {
 			"type": "container",
-			"name": "docker.io/signing-status-fixture@sha256:%064d",
+			"name": "docker.io/signing-status-fixture-%d@sha256:%064d",
 			"version": "1.0",
 			"properties": [
-				{"name": "syft:image:labels:org.opencontainers.image.architecture", "value": "amd64"}
+				{"name": "syft:image:labels:org.opencontainers.image.architecture", "value": "amd64"},
+				{"name": "syft:image:labels:org.opencontainers.image.created", "value": "2026-02-01T00:00:00Z"}
 			]
 		}
 	},
@@ -590,24 +602,18 @@ func TestSigningStatusParity_AllStatuses(t *testing.T) {
 			is.Equal(provenance.SigningStatus(p), fx.want)
 
 			// Ingest a fixture-specific SBOM (distinct digest per fixture).
-			sbomJSON := fmt.Sprintf(signingStatusSBOMTemplate, i, i)
-			resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), sbomJSON, memberKey)
-			is.NoErr(err)
-			is.Equal(resp.StatusCode, http.StatusCreated)
-			var ingestResp map[string]any
-			is.NoErr(json.NewDecoder(resp.Body).Decode(&ingestResp))
-			resp.Body.Close()
-			sbomID := ingestResp["id"].(string)
+			sbomJSON := fmt.Sprintf(signingStatusSBOMTemplate, i, i, i)
+			sbomID := mustIngest(t, srv.URL, ingestPath(t, pool, memberID), sbomJSON, memberKey)
 
 			// Seed the provenance enrichment.
-			_, err = pool.Exec(t.Context(),
+			_, err := pool.Exec(t.Context(),
 				`INSERT INTO enrichment (sbom_id, enricher_name, status, data)
 				 VALUES ($1::uuid, 'provenance', 'success', $2::jsonb)`,
 				sbomID, fx.data)
 			is.NoErr(err)
 
 			// SBOM detail endpoint: Go-computed signingStatus.
-			resp, err = doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomID))
+			resp, err := doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomID))
 			is.NoErr(err)
 			is.Equal(resp.StatusCode, http.StatusOK)
 			var sbomDetail map[string]any
@@ -726,14 +732,8 @@ func TestProvenanceRecheckErrorPreservesData(t *testing.T) {
 	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "test", "read-write")
 	is.NoErr(err)
 
-	sbomJSON := fmt.Sprintf(signingStatusSBOMTemplate, 99, 99)
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), sbomJSON, memberKey)
-	is.NoErr(err)
-	is.Equal(resp.StatusCode, http.StatusCreated)
-	var ingestResp map[string]any
-	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingestResp))
-	resp.Body.Close()
-	sbomIDStr := ingestResp["id"].(string)
+	sbomJSON := fmt.Sprintf(signingStatusSBOMTemplate, 99, 99, 99)
+	sbomIDStr := mustIngest(t, srv.URL, ingestPath(t, pool, memberID), sbomJSON, memberKey)
 
 	var sbomID pgtype.UUID
 	is.NoErr(sbomID.Scan(sbomIDStr))
@@ -769,7 +769,7 @@ func TestProvenanceRecheckErrorPreservesData(t *testing.T) {
 
 	// The user-visible signing status must still read "verified", not fall back
 	// to "unsigned" because the enrichment status flipped away from 'success'.
-	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomIDStr))
+	resp, err := doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomIDStr))
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusOK)
 	var sbomDetail map[string]any
@@ -829,14 +829,8 @@ func TestProvenanceDriftFullCycle(t *testing.T) {
 	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "test", "read-write")
 	is.NoErr(err)
 
-	sbomJSON := fmt.Sprintf(signingStatusSBOMTemplate, 98, 98)
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), sbomJSON, memberKey)
-	is.NoErr(err)
-	is.Equal(resp.StatusCode, http.StatusCreated)
-	var ingestResp map[string]any
-	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingestResp))
-	resp.Body.Close()
-	sbomIDStr := ingestResp["id"].(string)
+	sbomJSON := fmt.Sprintf(signingStatusSBOMTemplate, 98, 98, 98)
+	sbomIDStr := mustIngest(t, srv.URL, ingestPath(t, pool, memberID), sbomJSON, memberKey)
 
 	var sbomID pgtype.UUID
 	is.NoErr(sbomID.Scan(sbomIDStr))
@@ -853,7 +847,7 @@ func TestProvenanceDriftFullCycle(t *testing.T) {
 		Data:         verifiedData,
 	}))
 
-	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomIDStr))
+	resp, err := doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomIDStr))
 	is.NoErr(err)
 	var before map[string]any
 	is.NoErr(json.NewDecoder(resp.Body).Decode(&before))

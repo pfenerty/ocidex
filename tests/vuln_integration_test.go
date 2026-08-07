@@ -494,19 +494,13 @@ func TestVulnDuplicatePurlSummaryParity(t *testing.T) {
 	is.NoErr(err)
 
 	// Ingest SBOM with two components sharing addUserPurl.
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), duplicatePurlSBOM, memberKey)
-	is.NoErr(err)
-	is.Equal(resp.StatusCode, http.StatusCreated)
-	var ingestResp map[string]any
-	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingestResp))
-	resp.Body.Close()
-	sbomID := ingestResp["id"].(string)
+	sbomID := mustIngest(t, srv.URL, ingestPath(t, pool, memberID), duplicatePurlSBOM, memberKey)
 
 	// Seed one CRITICAL vuln for the duplicate purl.
 	seedVuln(t, store, "CVE-2024-dup-0001", "CRITICAL", addUserPurl)
 
 	// --- SBOM summary (GetSBOMVulnSummary) ---
-	resp, err = doWithAuth(t, http.MethodGet, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomID), "", memberKey)
+	resp, err := doWithAuth(t, http.MethodGet, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomID), "", memberKey)
 	is.NoErr(err)
 	is.Equal(resp.StatusCode, http.StatusOK)
 	var sbomDetail map[string]any

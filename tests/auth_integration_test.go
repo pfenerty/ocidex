@@ -116,6 +116,34 @@ func doWithAuth(t *testing.T, method, url, body, apiKey string) (*http.Response,
 	return http.DefaultClient.Do(req)
 }
 
+// mustIngest POSTs an SBOM to path and returns the new SBOM's id, failing the
+// test with the server's error body when the status is not 201.
+//
+// Asserting bare status equality discards that body, and the two ingest
+// validation gates both report which field they rejected: validateBOM returns
+// 422 with an `errors[]` array, validateContainerRequired returns 400 with the
+// missing field names in `detail`. Losing it turns a stale fixture into an
+// unattributable "400 != 201" (ocidex-784).
+func mustIngest(t *testing.T, baseURL, path, sbomJSON, apiKey string) string {
+	t.Helper()
+	resp, err := doWithAuth(t, http.MethodPost, baseURL+path, sbomJSON, apiKey)
+	if err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("ingest: status %d (want 201): %s", resp.StatusCode, body)
+	}
+	var out struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("ingest: decode response: %v", err)
+	}
+	return out.ID
+}
+
 func TestAuthBoundaries(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")

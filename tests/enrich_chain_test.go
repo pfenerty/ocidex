@@ -39,8 +39,13 @@ const chainTestCommitJSON = `{
 	"parents": []
 }`
 
-// chainTestSBOM is a minimal container-type CycloneDX SBOM with a digest —
-// the only field the enrichment pipeline under test needs.
+// chainTestSBOM is a container-type CycloneDX SBOM with a digest — the only
+// field the enrichment pipeline under test cares about. The three properties
+// and the single component are not used by the chain assertions; they are the
+// minimum the ingest contract accepts — validateBOM requires one component,
+// and validateContainerRequired requires subject_version (the component's own
+// version is a digest, so it must come from a property), architecture, and
+// build_date.
 const chainTestSBOM = `{
 	"bomFormat": "CycloneDX",
 	"specVersion": "1.6",
@@ -49,10 +54,22 @@ const chainTestSBOM = `{
 		"component": {
 			"type": "container",
 			"name": "ghcr.io/example/chain@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-			"version": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+			"version": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+			"properties": [
+				{"name": "syft:image:labels:org.opencontainers.image.version", "value": "1.0.0"},
+				{"name": "syft:image:labels:org.opencontainers.image.architecture", "value": "amd64"},
+				{"name": "syft:image:labels:org.opencontainers.image.created", "value": "2026-01-01T00:00:00Z"}
+			]
 		}
 	},
-	"components": []
+	"components": [
+		{
+			"type": "library",
+			"name": "adduser",
+			"version": "3.118ubuntu2",
+			"purl": "pkg:deb/ubuntu/adduser@3.118ubuntu2?arch=all&distro=ubuntu-24.04"
+		}
+	]
 }`
 
 // hostRewriteTransport redirects every request's scheme/host to target,
@@ -85,15 +102,10 @@ func ingestChainSBOM(t *testing.T, pool *pgxpool.Pool) pgtype.UUID {
 	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "chain-test", "read-write")
 	is.NoErr(err)
 
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), chainTestSBOM, memberKey)
-	is.NoErr(err)
-	is.Equal(resp.StatusCode, http.StatusCreated)
-	var ingest map[string]any
-	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingest))
-	resp.Body.Close()
+	id := mustIngest(t, srv.URL, ingestPath(t, pool, memberID), chainTestSBOM, memberKey)
 
 	var sbomID pgtype.UUID
-	is.NoErr(sbomID.Scan(ingest["id"].(string)))
+	is.NoErr(sbomID.Scan(id))
 	return sbomID
 }
 

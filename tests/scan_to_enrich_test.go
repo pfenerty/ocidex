@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"testing"
@@ -243,7 +244,15 @@ func TestScanToEnrichFlow(t *testing.T) {
 	enrichReg.Register(ocienricher.NewEnricher())
 	enrichDisp := enrichment.NewDispatcher(repoQ, enrichReg)
 
-	enrichJobSvc := service.NewEnrichJobService(pool, "all")
+	// The name scopes ClaimNext to one queue partition (ADR-033), and the
+	// submitter enqueues a row per root enricher — "user", "oci-metadata",
+	// "provenance" — never "all". Claiming "all" matched nothing, so the job sat
+	// queued until the test timed out (ocidex-784). oci-metadata is the partition
+	// this test asserts on, and the only enricher registered below.
+	//
+	// cmd/ocidex and cmd/scanner-worker also pass "all", but only ever call
+	// Enqueue, which takes the name per call — inert there, not here.
+	enrichJobSvc := service.NewEnrichJobService(pool, "oci-metadata")
 
 	// The submitter enqueues enrichment_jobs rows when SBOMIngested fires.
 	enrichSubmitter := enrichment.NewNATSSubmitter(natsClient, streamName, enrichJobSvc, logger)
@@ -301,18 +310,65 @@ func TestScanToEnrichFlow(t *testing.T) {
 		}
 		time.Sleep(5 * time.Second)
 	}
-	is.True(sbomID.Valid) // SBOM must appear in DB within 4 minutes
+	if !sbomID.Valid {
+		// The jobqueue worker swallows the ingest error and records it on the
+		// scan_jobs row, so a bare assertion here is a blind 4-minute wait that
+		// says nothing about why (ocidex-784). Report the row instead.
+		var state string
+		var attempts int32
+		var lastErr string
+		err := pool.QueryRow(ctx,
+			"SELECT state, attempts, COALESCE(last_error, '') FROM scan_jobs WHERE digest = $1",
+			digest).Scan(&state, &attempts, &lastErr)
+		if err != nil {
+			t.Fatalf("SBOM never appeared for digest %s; scan_jobs row unreadable: %v", digest, err)
+		}
+		t.Fatalf("SBOM never appeared for digest %s; scan_jobs state=%s attempts=%d last_error=%q",
+			digest, state, attempts, lastErr)
+	}
 
 	// Wait for the enrichment record to be written.
+	//
+	// This needs its own deadline: reusing the ingest one meant a slow syft pull
+	// consumed the whole budget, so the loop below never ran a single iteration
+	// and the assertion failed on a nil slice with zero waiting (ocidex-784).
+	enrichDeadline := time.Now().Add(1 * time.Minute)
 	var enrichments []repository.ListEnrichmentsBySBOMRow
-	for time.Now().Before(deadline) {
+	for time.Now().Before(enrichDeadline) {
 		enrichments, _ = repoQ.ListEnrichmentsBySBOM(ctx, sbomID)
 		if len(enrichments) > 0 {
 			break
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
-	is.True(len(enrichments) >= 1)
+	if len(enrichments) == 0 {
+		// Same reasoning as the scan_jobs report above: the worker records the
+		// failure on the job row rather than surfacing it here.
+		// One row per root enricher, so report them all — which partition is
+		// still queued is the diagnosis.
+		rows, err := pool.Query(ctx,
+			"SELECT enricher_name, state, attempts, COALESCE(last_error, '') "+
+				"FROM enrichment_jobs WHERE sbom_id = $1 ORDER BY enricher_name",
+			sbomID)
+		if err != nil {
+			t.Fatalf("no enrichment for sbom %v; enrichment_jobs unreadable: %v", sbomID, err)
+		}
+		defer rows.Close()
+		var report string
+		for rows.Next() {
+			var name, state, lastErr string
+			var attempts int32
+			if err := rows.Scan(&name, &state, &attempts, &lastErr); err != nil {
+				t.Fatalf("no enrichment for sbom %v; scanning enrichment_jobs: %v", sbomID, err)
+			}
+			report += fmt.Sprintf("\n  %s: state=%s attempts=%d last_error=%q",
+				name, state, attempts, lastErr)
+		}
+		if report == "" {
+			report = " (no enrichment_jobs rows)"
+		}
+		t.Fatalf("no enrichment for sbom %v; enrichment_jobs:%s", sbomID, report)
+	}
 	is.Equal(enrichments[0].EnricherName, "oci-metadata")
 	is.Equal(enrichments[0].Status, "success")
 
