@@ -83,7 +83,58 @@ The submitter inserts the row + publishes a hint. If a row with the same `(regis
 
 **Should not happen under the outbox model.** If you see `skipping duplicate sbom ingestion` log lines from the scanner-worker, something has regressed — file an issue. Under the old (NATS-as-queue) design this was caused by the orphan reconciler republishing slow-but-not-orphaned rows; the redesign removed that path entirely.
 
+### 7. Namespace stuck `Terminating` on `registry-protection` finalizers
+
+**Symptom.** A namespace sits in `Terminating` indefinitely. `kubectl get ns <ns> -o yaml` names the cause in its conditions:
+
+```
+NamespaceContentRemaining=True      ociregistries.ocidex.io has N resource instances
+NamespaceFinalizersRemaining=True   ocidex.io/registry-protection in N resource instances
+NamespaceDeletionContentFailure=False
+```
+
+**Cause.** The operator watches only the namespaces in `WATCH_NAMESPACE`. `OCIRegistry` objects outside that scope never reach `handleDeletion`, so their `ocidex.io/registry-protection` finalizer is never removed and the namespace can never drain. Operator health is irrelevant — a perfectly healthy operator still cannot see these objects. This is what a retarget or uninstall leaves behind when the CRs were not drained first.
+
+**Recovery.** Check whether each object ever registered server-side:
+
+```bash
+kubectl get ociregistries -n <ns> \
+  -o custom-columns='NAME:.metadata.name,REGID:.status.registryID'
+```
+
+- `REGID` empty — the object never registered. `handleDeletion` guards its server-side delete with `if cr.Status.RegistryID != ""`, so removing the finalizer by hand is behaviourally identical to what the controller would do, with no orphan rows:
+
+  ```bash
+  kubectl patch ociregistry <name> -n <ns> --type=merge \
+    -p '{"metadata":{"finalizers":null}}'
+  ```
+
+- `REGID` set — **do not patch first.** Delete that registry server-side (UI or `DELETE /api/v1/registries/<id>`), then patch. Patching first strands the registry row with no CR pointing at it.
+
+The namespace drains within seconds of the last finalizer clearing.
+
 ## Routine maintenance
+
+### Retargeting or uninstalling the operator
+
+The `registry-protection` finalizer is a promise that some operator watching that namespace will remove it. Changing `watchNamespace` or uninstalling while `OCIRegistry` objects still exist in the watched namespace breaks that promise and strands them (incident 7 above). Both procedures below avoid it; pick by whether the registries need to stay alive.
+
+**Draining (the registries are going away):**
+
+```bash
+kubectl delete ociregistry --all -n <old-ns>   # operator still watching
+kubectl get ociregistries -n <old-ns>          # wait for: No resources found
+# only now change watchNamespace, or `helm uninstall`
+```
+
+**Live migration (the registries must keep running):** `watchNamespace` is comma-separated, so the old and new scopes can overlap for the duration of the move.
+
+1. `helm upgrade --set watchNamespace=<old-ns>,<new-ns>` — the operator now reconciles both.
+2. Recreate the CRs in `<new-ns>`, then delete them from `<old-ns>`. The finalizers release normally because `<old-ns>` is still watched.
+3. Confirm `kubectl get ociregistries -n <old-ns>` is empty.
+4. `helm upgrade --set watchNamespace=<new-ns>` to drop the old scope.
+
+The operator logs its live scope as `watch_namespaces` at startup — check there first when the deployed value is in doubt.
 
 - **PVC backups** — back up the Postgres volume. The NATS volume is now no-data: at worst, losing it costs you queue latency until workers' next poll, which is bounded by `SCANNER_POLL_INTERVAL`.
 - **Tuning concurrency** — `SCANNER_MAX_CONCURRENCY` directly maps to active worker goroutines. Watch pod memory: Syft is the cost. There is no longer a `SCANNER_MAX_ACK_PENDING` to tune in lockstep.

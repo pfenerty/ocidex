@@ -73,12 +73,15 @@ func run() error {
 		return fmt.Errorf("OPERATOR_NAMESPACE must be set")
 	}
 
-	watchNS := os.Getenv("WATCH_NAMESPACE")
-	if watchNS == "" {
-		return fmt.Errorf("WATCH_NAMESPACE must be set")
-	}
-
 	ocidexClient := client.New(client.Config{BaseURL: serverURL, APIKey: apiKey})
+
+	// WATCH_NAMESPACE is validated in config.LoadOperator, which guarantees at
+	// least one non-empty entry — an empty key here would widen the cache to
+	// every namespace rather than narrowing it.
+	nsCache := make(map[string]cache.Config, len(cfg.WatchNamespaces))
+	for _, ns := range cfg.WatchNamespaces {
+		nsCache[ns] = cache.Config{}
+	}
 
 	shutdownTimeout := 30 * time.Second
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
@@ -93,9 +96,7 @@ func run() error {
 		RetryPeriod:             &cfg.LeaderElectionRetryPeriod,
 		GracefulShutdownTimeout: &shutdownTimeout,
 		Cache: cache.Options{
-			DefaultNamespaces: map[string]cache.Config{
-				watchNS: {},
-			},
+			DefaultNamespaces: nsCache,
 		},
 	})
 	if err != nil {
@@ -139,6 +140,10 @@ func run() error {
 	slog.Info("starting operator manager",
 		"environment", cfg.Environment,
 		"ocidex_server", serverURL,
+		// Logged because the watch scope is an operational contract, not just a
+		// tuning knob: CRs outside it keep their finalizers forever. Reading it
+		// back from the pod env was the only way to diagnose ocidex-1eo.
+		"watch_namespaces", cfg.WatchNamespaces,
 		"leader_elect", *leaderElect,
 		"lease_duration", cfg.LeaderElectionLeaseDuration,
 		"renew_deadline", cfg.LeaderElectionRenewDeadline,

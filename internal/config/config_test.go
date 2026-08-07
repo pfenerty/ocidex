@@ -188,6 +188,42 @@ func TestLoadOperator(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			// The deployed configuration. A single name must keep parsing as a
+			// one-element list, or making WATCH_NAMESPACE comma-separated would
+			// silently change the watch scope of every existing install.
+			name: "single namespace",
+			env:  map[string]string{"WATCH_NAMESPACE": "ocidex-dev"},
+			check: func(is *is.I, cfg *config.OperatorConfig) {
+				is.Equal(cfg.WatchNamespaces, []string{"ocidex-dev"})
+			},
+		},
+		{
+			name: "multiple namespaces",
+			env:  map[string]string{"WATCH_NAMESPACE": "ocidex-dev,ocidex"},
+			check: func(is *is.I, cfg *config.OperatorConfig) {
+				is.Equal(cfg.WatchNamespaces, []string{"ocidex-dev", "ocidex"})
+			},
+		},
+		{
+			name: "surrounding whitespace and empty entries dropped",
+			env:  map[string]string{"WATCH_NAMESPACE": " ocidex-dev , , ocidex "},
+			check: func(is *is.I, cfg *config.OperatorConfig) {
+				is.Equal(cfg.WatchNamespaces, []string{"ocidex-dev", "ocidex"})
+			},
+		},
+		{
+			name:    "empty watch namespace rejected",
+			env:     map[string]string{"WATCH_NAMESPACE": ""},
+			wantErr: true,
+		},
+		{
+			// Would otherwise normalise to an empty list, and an empty cache key
+			// widens the watch to every namespace instead of narrowing it.
+			name:    "separators only rejected",
+			env:     map[string]string{"WATCH_NAMESPACE": " , "},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -199,6 +235,10 @@ func TestLoadOperator(t *testing.T) {
 				t.Setenv(k, "")
 				os.Unsetenv(k) //nolint:errcheck
 			}
+			// WATCH_NAMESPACE is required, so give every case a valid one by
+			// default — otherwise the leader-election cases would fail for the
+			// wrong reason. Cases exercising the watch scope override it.
+			t.Setenv("WATCH_NAMESPACE", "ocidex-dev")
 			for k, v := range tt.env {
 				t.Setenv(k, v)
 			}

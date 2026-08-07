@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/caarlos0/env/v11"
@@ -164,6 +165,14 @@ type OperatorConfig struct {
 	LogLevel    string `env:"LOG_LEVEL"    envDefault:"info"`
 	Environment string `env:"ENVIRONMENT"  envDefault:"development"`
 
+	// WatchNamespaces scopes the manager cache. Comma-separated because a
+	// namespace-scoped operator that cuts straight over to a new namespace
+	// strands the registry-protection finalizers it left behind: nothing
+	// watches the old namespace any more, so handleDeletion never runs and the
+	// namespace stays Terminating forever (ocidex-1eo). Listing both lets a
+	// retarget add the new namespace, drain the old one, then drop it.
+	WatchNamespaces []string `env:"WATCH_NAMESPACE" envSeparator:","`
+
 	// Leader-election timings. These are deliberately wider than
 	// controller-runtime's defaults of 15s/10s/2s. controller-runtime derives the
 	// per-request API-server client timeout as max(RenewDeadline/2, 1s), so its
@@ -196,6 +205,21 @@ func LoadOperator() (*OperatorConfig, error) {
 // in NewLeaderElector, so a misconfiguration is reported at config load with the
 // offending env var named rather than surfacing later from manager construction.
 func (c *OperatorConfig) validate() error {
+	// env.Parse yields []string{""} for an unset var and keeps empty entries
+	// from a trailing or doubled comma, so normalise before the required check
+	// — an empty name in the cache config would silently widen the watch to
+	// every namespace.
+	watch := make([]string, 0, len(c.WatchNamespaces))
+	for _, ns := range c.WatchNamespaces {
+		if ns = strings.TrimSpace(ns); ns != "" {
+			watch = append(watch, ns)
+		}
+	}
+	c.WatchNamespaces = watch
+	if len(c.WatchNamespaces) == 0 {
+		return fmt.Errorf("WATCH_NAMESPACE is required")
+	}
+
 	if c.LeaderElectionLeaseDuration <= 0 || c.LeaderElectionRenewDeadline <= 0 || c.LeaderElectionRetryPeriod <= 0 {
 		return fmt.Errorf("leader election durations must all be positive")
 	}

@@ -63,6 +63,21 @@ Condition type: `Ready`
 3. **Delete**: finalizer `ocidex.io/registry-protection` → call `DeleteRegistry` → remove finalizer
 4. Idempotent: re-queuing after a transient error re-runs step 2; `GetRegistry` → `UpdateRegistry` is safe
 
+#### Finalizer lifecycle and watch scope
+
+The `ocidex.io/registry-protection` finalizer is a promise that a controller watching the object's namespace will remove it. Nothing else can: `handleDeletion` only runs for objects inside the manager cache, which `WATCH_NAMESPACE` scopes.
+
+This makes the operator's watch scope an **operational contract, not a performance tuning knob**. Narrowing it — by retargeting `WATCH_NAMESPACE` or uninstalling the operator — while `OCIRegistry` objects still exist in the dropped namespace strands their finalizers permanently, and the namespace can never finish `Terminating` (ocidex-1eo, which left a namespace stuck for 26 days).
+
+Consequences:
+
+- `WATCH_NAMESPACE` accepts a **comma-separated list**, so a retarget can watch the old and new namespaces at once, drain the old, then drop it. RBAC is a ClusterRole (see §RBAC Requirements), so widening the watch costs no RBAC change.
+- The operator logs `watch_namespaces` at startup; the live scope must be observable without inspecting pod env.
+- Objects are safe to hand-patch **only** when `status.registryID` is empty, because step 3's server-side delete is guarded by `if cr.Status.RegistryID != ""` — with an empty ID the controller's own path reduces to exactly `RemoveFinalizer`. Otherwise the registry must be deleted server-side first, or its row is orphaned.
+- Draining CRs before retargeting or uninstalling is the procedure of record: `docs/OPERATIONS.md` § "Retargeting or uninstalling the operator".
+
+The same reasoning applies to any finalizer this operator owns, including `APIKey`.
+
 ## ScanRequest
 
 One-shot trigger: creates a scan job in OCIDex for the referenced registry.

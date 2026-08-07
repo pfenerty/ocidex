@@ -22,8 +22,15 @@ apiKey:
   secretName: ocidex-operator-secrets
   secretKey: OCIDEX_API_KEY
 
-# watchNamespace restricts the operator to reconciling CRs in a single namespace.
-# Required — prevents multiple operator instances from stepping on each other.
+# watchNamespace restricts the operator to reconciling CRs in the namespaces
+# listed here. Required — prevents multiple operator instances from stepping on
+# each other. Accepts a comma-separated list ("ocidex-dev,ocidex").
+#
+# Changing this value is an operational contract, not a tuning knob: OCIRegistry
+# resources carry an ocidex.io/registry-protection finalizer that only a watching
+# operator removes, so any CR left in a namespace that drops off this list keeps
+# its finalizer forever and leaves the namespace stuck Terminating (ocidex-1eo).
+# Follow the retarget procedure in docs/OPERATIONS.md before changing it.
 watchNamespace: ""
 
 # leaderElect enables leader election for multi-replica deployments.
