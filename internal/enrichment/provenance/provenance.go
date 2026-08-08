@@ -20,12 +20,13 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/pfenerty/ocidex/internal/enrichment/names"
 	"github.com/pfenerty/ocidex/internal/enrichment/subject"
 	"github.com/pfenerty/ocidex/internal/trust"
 )
 
 const (
-	enricherName = "provenance"
+	enricherName = names.Provenance
 
 	// OCI artifact types used by cosign / Tekton Chains / buildkit.
 	sigArtifactType    = "application/vnd.dev.cosign.artifact.sig.v1+json"
@@ -117,7 +118,7 @@ func (e *Enricher) CanEnrich(ref subject.Ref) bool {
 	if ref.SourceKind == subject.KindUpload {
 		return false
 	}
-	return ref.ArtifactType == "container" && ref.Digest != ""
+	return ref.ArtifactType == subject.TypeContainer && ref.Digest != ""
 }
 
 // insecureFor returns true when the given host should be contacted over plain HTTP.
@@ -221,9 +222,9 @@ func (e *Enricher) buildRemoteOptions(ctx context.Context, host string) []remote
 func (e *Enricher) applyTrust(ctx context.Context, p *Provenance, raw RawArtifacts, registryID pgtype.UUID, host, imageDigest string) {
 	cfg := e.trustResolver(ctx, registryID, host)
 	switch cfg.Mode {
-	case "public_key":
+	case trust.ModePublicKey:
 		applyVerification(ctx, p, raw, cfg.Mode, cfg.PublicKeyPEM, imageDigest)
-	case "keyless":
+	case trust.ModeKeyless:
 		applyKeylessVerification(ctx, p, raw, cfg, imageDigest, false)
 	}
 }

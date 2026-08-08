@@ -145,7 +145,7 @@ func TestAPIKeyReconciler_RecreateOnMissing(t *testing.T) {
 
 	result, err := reconcileKey(t, k8s, ocidex, cr)
 	is.NoErr(err)
-	is.True(result.Requeue)
+	is.True(result.RequeueAfter > 0)
 
 	updated := &v1alpha1.APIKey{}
 	is.NoErr(k8s.Get(context.Background(), types.NamespacedName{Name: "mykey", Namespace: "default"}, updated))

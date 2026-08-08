@@ -24,6 +24,11 @@ import (
 const (
 	apiKeyFinalizer    = "ocidex.io/apikey-protection" //nolint:gosec // Kubernetes finalizer, not a credential
 	apiKeyVerifyPeriod = 5 * time.Minute
+	// requeueAfterDrift re-runs the reconcile after the remote object was found
+	// to have been deleted externally, so the create path runs on the next pass.
+	// Replaces ctrl.Result{Requeue: true}, deprecated in controller-runtime; the
+	// delay is now explicit instead of the manager's rate-limiter backoff.
+	requeueAfterDrift = 5 * time.Second
 )
 
 // APIKeyReconciler reconciles APIKey resources.
@@ -126,7 +131,7 @@ func (r *APIKeyReconciler) verifyOrRotate(ctx context.Context, cr *v1alpha1.APIK
 		cr.Status.Prefix = ""
 		SetCondition(&cr.Status.Conditions, "Ready", metav1.ConditionFalse, "KeyMissing",
 			"API key deleted externally; will re-create", cr.Generation)
-		return ctrl.Result{Requeue: true}, r.Status().Update(ctx, cr)
+		return ctrl.Result{RequeueAfter: requeueAfterDrift}, r.Status().Update(ctx, cr)
 	}
 
 	// Check if spec changed since last successful reconcile.

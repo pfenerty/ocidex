@@ -131,7 +131,7 @@ func (s *enrichJobService) Enqueue(ctx context.Context, sbomID pgtype.UUID, arch
 func (s *enrichJobService) ClaimByID(ctx context.Context, id, workerID string) (EnrichJobClaim, bool, error) {
 	uid, err := parseUUID(id)
 	if err != nil {
-		return EnrichJobClaim{}, false, nil
+		return EnrichJobClaim{}, false, nil //nolint:nilerr // not-found is signalled by the bool, not the error.
 	}
 	row, err := s.repo.ClaimEnrichmentJobByID(ctx, repository.ClaimEnrichmentJobByIDParams{
 		ID:       uid,

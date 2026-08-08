@@ -13,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/pfenerty/ocidex/internal/enrichment/names"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
@@ -541,9 +542,9 @@ func buildEnrichmentMetaMap(ctx context.Context, q *repository.Queries, artifact
 		}
 		entry := enrichmentMeta{buildDate: raw.Created, architecture: raw.Architecture}
 		switch row.EnricherName {
-		case "oci-metadata":
+		case names.OCIMetadata:
 			oci[row.SbomID] = entry
-		case "user":
+		case names.User:
 			user[row.SbomID] = entry
 		}
 	}
@@ -822,9 +823,9 @@ func debVersionCompare(a, b string) int {
 // "upstream-revision" semantics, where the segment after the last "-" is a
 // packaging revision that sorts ABOVE an absent one.
 var distroPurlTypes = map[string]bool{
-	"deb": true,
-	"rpm": true,
-	"apk": true,
+	purlTypeDeb: true,
+	purlTypeRPM: true,
+	purlTypeAPK: true,
 }
 
 // compareVersions orders two version strings for the ecosystem identified by

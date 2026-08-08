@@ -218,7 +218,7 @@ func BuildTrustLookup(svc RegistryService) func(ctx context.Context, registryID 
 		if byID == nil || time.Since(fetchedAt) > resolverCacheTTL {
 			regs, err := svc.List(ctx, VisibilityFilter{IsAdmin: true})
 			if err != nil {
-				return trust.Config{Mode: "none"}
+				return trust.Config{Mode: trust.ModeNone}
 			}
 			byID = make(map[string]trust.Config, len(regs))
 			for _, r := range regs {
@@ -241,7 +241,7 @@ func BuildTrustLookup(svc RegistryService) func(ctx context.Context, registryID 
 				return cfg
 			}
 		}
-		return trust.Config{Mode: "none"}
+		return trust.Config{Mode: trust.ModeNone}
 	}
 }
 

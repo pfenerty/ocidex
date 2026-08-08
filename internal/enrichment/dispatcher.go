@@ -8,6 +8,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/pfenerty/ocidex/internal/enrichment/names"
+	"github.com/pfenerty/ocidex/internal/enrichment/subject"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
@@ -158,18 +160,18 @@ func (d *Dispatcher) processSubject(ctx context.Context, ref SubjectRef) error {
 				"artifact_name", ref.ArtifactName,
 				"err", err,
 			)
-			params.Status = "error"
+			params.Status = names.StatusError
 			params.ErrorMessage = pgtype.Text{String: err.Error(), Valid: true}
 		} else {
-			params.Status = "success"
+			params.Status = names.StatusSuccess
 			params.Data = data
 		}
 
 		var priorProvenance *repository.Enrichment
-		if err == nil && e.Name() == "provenance" {
+		if err == nil && e.Name() == names.Provenance {
 			if prior, getErr := d.store.GetEnrichment(ctx, repository.GetEnrichmentParams{
 				SbomID:       ref.SBOMId,
-				EnricherName: "provenance",
+				EnricherName: names.Provenance,
 			}); getErr == nil {
 				priorProvenance = &prior
 			}
@@ -185,13 +187,13 @@ func (d *Dispatcher) processSubject(ctx context.Context, ref SubjectRef) error {
 		}
 
 		if err == nil {
-			if e.Name() == "oci-metadata" {
+			if e.Name() == names.OCIMetadata {
 				d.applyOCIVersion(ctx, ref.SBOMId, data)
 			}
-			if e.Name() == "oci-metadata" || e.Name() == "user" {
+			if e.Name() == names.OCIMetadata || e.Name() == names.User {
 				d.applyEnrichmentSufficiency(ctx, ref, data)
 			}
-			if e.Name() == "provenance" && priorProvenance != nil && priorProvenance.Status == "success" {
+			if e.Name() == names.Provenance && priorProvenance != nil && priorProvenance.Status == names.StatusSuccess {
 				d.recordProvenanceDrift(ctx, ref.SBOMId, priorProvenance.Data, data)
 			}
 		}
@@ -207,7 +209,7 @@ func (d *Dispatcher) processSubject(ctx context.Context, ref SubjectRef) error {
 // ADR-040, and defaulting the other way would silently promote half-enriched
 // images to sufficient.
 func requiresArchitecture(artifactType string) bool {
-	return artifactType == "" || artifactType == "container"
+	return artifactType == "" || artifactType == subject.TypeContainer
 }
 
 // applyEnrichmentSufficiency reads imageVersion and architecture from enrichment

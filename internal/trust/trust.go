@@ -5,6 +5,14 @@
 // type without either importing the other.
 package trust
 
+// Verification modes — the values stored in a registry's trust settings and
+// carried on Config.Mode. See ADR-037.
+const (
+	ModeNone      = "none"
+	ModePublicKey = "public_key"
+	ModeKeyless   = "keyless"
+)
+
 // Config is the per-host signature verification configuration resolved from
 // a registry's stored trust settings.
 type Config struct {

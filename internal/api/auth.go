@@ -32,9 +32,9 @@ func deriveFrontendURL(r *http.Request, configuredFrontendURL string) string {
 	if err != nil {
 		return configuredFrontendURL
 	}
-	scheme := "http"
+	scheme := schemeHTTP
 	if r.TLS != nil {
-		scheme = "https"
+		scheme = schemeHTTPS
 	}
 	// r.Host may include a port (the API port); strip it to get just the hostname.
 	host := r.Host
@@ -67,14 +67,14 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is env-conditional; dev runs over http.
 		Name:     stateCookieName,
 		Value:    state,
 		Path:     "/",
 		MaxAge:   int(stateMaxAge.Seconds()),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   h.cfg.Environment == "production",
+		Secure:   h.cfg.Environment == envProduction,
 	})
 
 	http.Redirect(w, r, h.authService.BuildAuthURL(state), http.StatusTemporaryRedirect)
@@ -88,13 +88,18 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Clear the state cookie immediately.
-	http.SetCookie(w, &http.Cookie{
-		Name:    stateCookieName,
-		Value:   "",
-		Path:    "/",
-		MaxAge:  -1,
-		Expires: time.Unix(0, 0),
+	// Clear the state cookie immediately. The attributes must mirror the ones
+	// used when setting it — a clear sent with a stricter Secure than the
+	// original would be rejected by the browser over http and never take effect.
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is env-conditional; dev runs over http.
+		Name:     stateCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		Expires:  time.Unix(0, 0),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   h.cfg.Environment == envProduction,
 	})
 
 	var stateData map[string]string
@@ -125,12 +130,12 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	secure := h.cfg.Environment == "production"
+	secure := h.cfg.Environment == envProduction
 	sameSite := http.SameSiteNoneMode
 	if !secure {
 		sameSite = http.SameSiteLaxMode
 	}
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is env-conditional; dev runs over http.
 		Name:     sessionCookieName,
 		Value:    token,
 		Path:     "/",
@@ -153,12 +158,22 @@ func (h *Handler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		_ = h.authService.DeleteSession(r.Context(), c.Value)
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:    sessionCookieName,
-		Value:   "",
-		Path:    "/",
-		MaxAge:  -1,
-		Expires: time.Unix(0, 0),
+	// Attributes mirror HandleCallback's setter so the clear is accepted in
+	// both dev (http) and production (https).
+	secure := h.cfg.Environment == envProduction
+	sameSite := http.SameSiteNoneMode
+	if !secure {
+		sameSite = http.SameSiteLaxMode
+	}
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is env-conditional; dev runs over http.
+		Name:     sessionCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		Expires:  time.Unix(0, 0),
+		HttpOnly: true,
+		SameSite: sameSite,
+		Secure:   secure,
 	})
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -176,7 +191,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/users/me",
 		Summary:     "Get current user",
-		Tags:        []string{"Auth"},
+		Tags:        []string{tagAuth},
 	}, h.GetMe)
 
 	huma.Register(api, huma.Operation{
@@ -184,7 +199,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Method:        http.MethodPost,
 		Path:          "/api/v1/auth/keys",
 		Summary:       "Create API key",
-		Tags:          []string{"Auth"},
+		Tags:          []string{tagAuth},
 		DefaultStatus: http.StatusCreated,
 	}, h.CreateAPIKey)
 
@@ -193,7 +208,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/auth/keys",
 		Summary:     "List API keys",
-		Tags:        []string{"Auth"},
+		Tags:        []string{tagAuth},
 	}, h.ListAPIKeys)
 
 	huma.Register(api, huma.Operation{
@@ -201,7 +216,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Method:        http.MethodDelete,
 		Path:          "/api/v1/auth/keys/{id}",
 		Summary:       "Delete API key",
-		Tags:          []string{"Auth"},
+		Tags:          []string{tagAuth},
 		DefaultStatus: http.StatusNoContent,
 	}, h.DeleteAPIKey)
 
@@ -210,7 +225,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/users",
 		Summary:     "List users",
-		Tags:        []string{"Auth"},
+		Tags:        []string{tagAuth},
 	}, h.ListUsers)
 
 	huma.Register(api, huma.Operation{
@@ -218,7 +233,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Method:      http.MethodPatch,
 		Path:        "/api/v1/users/{id}/role",
 		Summary:     "Update user role",
-		Tags:        []string{"Auth"},
+		Tags:        []string{tagAuth},
 	}, h.UpdateUserRole)
 
 	huma.Register(api, huma.Operation{
@@ -226,7 +241,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/admin/status",
 		Summary:     "Get system status",
-		Tags:        []string{"Admin"},
+		Tags:        []string{tagAdmin},
 	}, h.GetSystemStatus)
 }
 

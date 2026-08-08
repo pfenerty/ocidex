@@ -13,6 +13,7 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/enrichment"
 	"github.com/pfenerty/ocidex/internal/enrichment/git"
+	"github.com/pfenerty/ocidex/internal/enrichment/names"
 	"github.com/pfenerty/ocidex/internal/enrichment/oci"
 	"github.com/pfenerty/ocidex/internal/repository"
 	enrichmentworker "github.com/pfenerty/ocidex/internal/worker/enrichment"
@@ -20,7 +21,7 @@ import (
 
 func main() {
 	if err := enrichmentworker.Run(buildEnrichers, enrichmentworker.RunConfig{
-		EnricherName: "git",
+		EnricherName: names.Git,
 		HintDurable:  "enrich-hint-git",
 	}); err != nil {
 		slog.Error("fatal", "err", err)
@@ -33,7 +34,7 @@ func buildEnrichers(pool *pgxpool.Pool) []enrichment.Enricher {
 	ociReader := func(ctx context.Context, sbomID pgtype.UUID) (string, string, error) {
 		e, err := store.GetEnrichment(ctx, repository.GetEnrichmentParams{
 			SbomID:       sbomID,
-			EnricherName: "oci-metadata",
+			EnricherName: names.OCIMetadata,
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", "", nil

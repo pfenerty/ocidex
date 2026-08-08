@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pfenerty/ocidex/internal/enrichment"
+	"github.com/pfenerty/ocidex/internal/enrichment/names"
 	"github.com/pfenerty/ocidex/internal/enrichment/oci"
 	"github.com/pfenerty/ocidex/internal/service"
 	enrichmentworker "github.com/pfenerty/ocidex/internal/worker/enrichment"
@@ -14,7 +15,7 @@ import (
 
 func main() {
 	if err := enrichmentworker.Run(buildEnrichers, enrichmentworker.RunConfig{
-		EnricherName: "oci-metadata",
+		EnricherName: names.OCIMetadata,
 		HintDurable:  "enrich-hint-oci-metadata",
 	}); err != nil {
 		slog.Error("fatal", "err", err)

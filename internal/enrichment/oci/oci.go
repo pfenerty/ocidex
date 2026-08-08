@@ -16,6 +16,8 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 
 	"github.com/pfenerty/ocidex/internal/enrichment"
+	"github.com/pfenerty/ocidex/internal/enrichment/names"
+	"github.com/pfenerty/ocidex/internal/enrichment/subject"
 )
 
 // Metadata is the structured data stored in the enrichment JSONB column.
@@ -112,11 +114,11 @@ func NewEnricher(opts ...Option) *Enricher {
 }
 
 // Name returns the enricher identifier.
-func (e *Enricher) Name() string { return "oci-metadata" }
+func (e *Enricher) Name() string { return names.OCIMetadata }
 
 // CanEnrich returns true for container-type artifacts with a digest.
 func (e *Enricher) CanEnrich(ref enrichment.SubjectRef) bool {
-	return ref.ArtifactType == "container" && ref.Digest != ""
+	return ref.ArtifactType == subject.TypeContainer && ref.Digest != ""
 }
 
 // Enrich fetches the OCI image config and extracts metadata.

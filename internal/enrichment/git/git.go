@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/enrichment"
+	"github.com/pfenerty/ocidex/internal/enrichment/names"
 )
 
 const (
@@ -79,7 +80,7 @@ func NewEnricher(opts ...Option) *Enricher {
 }
 
 // Name returns the enricher identifier.
-func (e *Enricher) Name() string { return "git" }
+func (e *Enricher) Name() string { return names.Git }
 
 // CanEnrich returns true for artifacts with a digest.
 func (e *Enricher) CanEnrich(ref enrichment.SubjectRef) bool {

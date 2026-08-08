@@ -256,7 +256,7 @@ func (s *jobService) CountByState(ctx context.Context) (int64, int64, int64, int
 func (s *jobService) ClaimByID(ctx context.Context, id, workerID string) (ScanJobClaim, bool, error) {
 	uid, err := parseUUID(id)
 	if err != nil {
-		return ScanJobClaim{}, false, nil
+		return ScanJobClaim{}, false, nil //nolint:nilerr // not-found is signalled by the bool, not the error.
 	}
 	row, err := s.repo.ClaimScanJobByID(ctx, repository.ClaimScanJobByIDParams{
 		ID:       uid,

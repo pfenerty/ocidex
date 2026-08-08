@@ -77,7 +77,7 @@ func findPropValue(propSets [][]cdx.Property, keys []string) string {
 // --- Layer 2: purl-type fingerprint ---
 
 // osPMTypes are the package-manager purl types considered "OS-level".
-var osPMTypes = []string{"apk", "deb", "rpm"}
+var osPMTypes = []string{purlTypeAPK, purlTypeDeb, purlTypeRPM}
 
 func flavorFromPURLs(bom *cdx.BOM) string {
 	if bom == nil || bom.Components == nil {

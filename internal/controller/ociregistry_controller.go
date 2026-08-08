@@ -97,7 +97,7 @@ func (r *OCIRegistryReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		if errors.Is(err, ocidexclient.ErrNotFound) {
 			cr.Status.RegistryID = ""
 			SetCondition(&cr.Status.Conditions, "Ready", metav1.ConditionFalse, "NotFound", "registry deleted externally; will re-create on next reconcile", cr.Generation)
-			return ctrl.Result{Requeue: true}, r.Status().Update(ctx, cr)
+			return ctrl.Result{RequeueAfter: requeueAfterDrift}, r.Status().Update(ctx, cr)
 		}
 		SetCondition(&cr.Status.Conditions, "Ready", metav1.ConditionFalse, "APIError", err.Error(), cr.Generation)
 		_ = r.Status().Update(ctx, cr)

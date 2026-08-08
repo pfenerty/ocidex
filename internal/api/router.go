@@ -15,6 +15,40 @@ import (
 
 const maxSBOMBodyBytes int64 = 10 << 20 // 10 MB
 
+// OpenAPI tag labels. Operations are grouped in the generated spec by exact
+// string match, so a typo silently splits a group instead of failing a build.
+const (
+	tagSBOMs      = "SBOMs"
+	tagComponents = "Components"
+	tagArtifacts  = "Artifacts"
+	tagRegistries = "Registries"
+	tagNamespaces = "Namespaces"
+	tagSources    = "Sources"
+	tagJobs       = "Jobs"
+	tagAuth       = "Auth"
+	tagAdmin      = "Admin"
+)
+
+// Route paths registered by more than one operation (GET/PATCH/DELETE on the
+// same resource). Kept together so the three stay in sync.
+const (
+	pathRegistryByID  = "/api/v1/registries/{id}"
+	pathNamespaceByID = "/api/v1/namespaces/{id}"
+	pathSourceByID    = "/api/v1/sources/{id}"
+)
+
+// URL schemes, and the ENVIRONMENT value that gates production-only behaviour
+// (secure cookies, https callback URLs).
+const (
+	schemeHTTP    = "http"
+	schemeHTTPS   = "https"
+	envProduction = "production"
+)
+
+// visibilityPrivate mirrors service.VisibilityPrivate; namespaces and registries
+// carry the same "public" | "private" vocabulary.
+const visibilityPrivate = "private"
+
 // NewRouter creates and configures the chi router with huma API registration.
 // corsOrigins is a comma-separated list of allowed origins (e.g. "http://localhost:3000,https://app.example.com").
 // frontendURL is used as the default when corsOrigins is empty.
@@ -24,7 +58,6 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 
 	// Middleware stack
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
 	r.Use(SlogLogger)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
@@ -146,7 +179,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 		Path:          "/api/v1/sboms",
 		Summary:       "Ingest an SBOM",
 		Description:   "Accepts a CycloneDX JSON SBOM, validates it, and persists it.",
-		Tags:          []string{"SBOMs"},
+		Tags:          []string{tagSBOMs},
 		MaxBodyBytes:  maxSBOMBodyBytes,
 		DefaultStatus: http.StatusCreated,
 		Middlewares:   huma.Middlewares{memberMW},
@@ -158,7 +191,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/sboms",
 		Summary:     "List SBOMs",
 		Description: "Supports filtering by serial_number and digest query parameters.",
-		Tags:        []string{"SBOMs"},
+		Tags:        []string{tagSBOMs},
 	}, h.ListSBOMs)
 
 	huma.Register(api, huma.Operation{
@@ -166,7 +199,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/sboms/{id}",
 		Summary:     "Get an SBOM",
-		Tags:        []string{"SBOMs"},
+		Tags:        []string{tagSBOMs},
 	}, h.GetSBOM)
 
 	huma.Register(api, huma.Operation{
@@ -174,7 +207,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/sboms/{id}/dependencies",
 		Summary:     "Get SBOM dependency graph",
-		Tags:        []string{"SBOMs"},
+		Tags:        []string{tagSBOMs},
 	}, h.GetSBOMDependencies)
 
 	huma.Register(api, huma.Operation{
@@ -182,7 +215,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/sboms/{id}/components",
 		Summary:     "List components in an SBOM",
-		Tags:        []string{"SBOMs"},
+		Tags:        []string{tagSBOMs},
 	}, h.ListSBOMComponents)
 
 	huma.Register(api, huma.Operation{
@@ -190,7 +223,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 		Method:        http.MethodDelete,
 		Path:          "/api/v1/sboms/{id}",
 		Summary:       "Delete an SBOM",
-		Tags:          []string{"SBOMs"},
+		Tags:          []string{tagSBOMs},
 		DefaultStatus: http.StatusNoContent,
 		Middlewares:   huma.Middlewares{sbomOwnerMW},
 	}, h.DeleteSBOM)
@@ -200,7 +233,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/sboms/{id}/drift",
 		Summary:     "List provenance drift history for an SBOM",
-		Tags:        []string{"SBOMs"},
+		Tags:        []string{tagSBOMs},
 	}, h.ListSBOMDriftHistory)
 }
 
@@ -214,7 +247,7 @@ func registerComponentOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/components",
 		Summary:     "Search components",
-		Tags:        []string{"Components"},
+		Tags:        []string{tagComponents},
 	}, h.SearchComponents)
 
 	huma.Register(api, huma.Operation{
@@ -222,7 +255,7 @@ func registerComponentOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/components/distinct",
 		Summary:     "Search distinct components",
-		Tags:        []string{"Components"},
+		Tags:        []string{tagComponents},
 	}, h.SearchDistinctComponents)
 
 	huma.Register(api, huma.Operation{
@@ -230,7 +263,7 @@ func registerComponentOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/components/purl-types",
 		Summary:     "List component PURL types",
-		Tags:        []string{"Components"},
+		Tags:        []string{tagComponents},
 	}, h.ListComponentPurlTypes)
 
 	huma.Register(api, huma.Operation{
@@ -238,7 +271,7 @@ func registerComponentOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/components/versions",
 		Summary:     "Get component versions",
-		Tags:        []string{"Components"},
+		Tags:        []string{tagComponents},
 	}, h.GetComponentVersions)
 
 	huma.Register(api, huma.Operation{
@@ -246,7 +279,7 @@ func registerComponentOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/components/{id}",
 		Summary:     "Get a component",
-		Tags:        []string{"Components"},
+		Tags:        []string{tagComponents},
 	}, h.GetComponent)
 
 	huma.Register(api, huma.Operation{
@@ -254,7 +287,7 @@ func registerComponentOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/components/{id}/vulns",
 		Summary:     "List vulnerabilities for a component",
-		Tags:        []string{"Components"},
+		Tags:        []string{tagComponents},
 	}, h.GetComponentVulns)
 }
 
@@ -292,7 +325,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/artifacts",
 		Summary:     "List artifacts",
-		Tags:        []string{"Artifacts"},
+		Tags:        []string{tagArtifacts},
 	}, h.ListArtifacts)
 
 	huma.Register(api, huma.Operation{
@@ -300,7 +333,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/artifacts/{id}",
 		Summary:     "Get an artifact",
-		Tags:        []string{"Artifacts"},
+		Tags:        []string{tagArtifacts},
 	}, h.GetArtifact)
 
 	huma.Register(api, huma.Operation{
@@ -308,7 +341,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Method:        http.MethodDelete,
 		Path:          "/api/v1/artifacts/{id}",
 		Summary:       "Delete an artifact",
-		Tags:          []string{"Artifacts"},
+		Tags:          []string{tagArtifacts},
 		DefaultStatus: http.StatusNoContent,
 		Middlewares:   huma.Middlewares{artifactOwnerMW},
 	}, h.DeleteArtifact)
@@ -318,7 +351,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/artifacts/{id}/sboms",
 		Summary:     "List SBOMs for an artifact",
-		Tags:        []string{"Artifacts"},
+		Tags:        []string{tagArtifacts},
 	}, h.ListArtifactSBOMs)
 
 	huma.Register(api, huma.Operation{
@@ -326,7 +359,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/artifacts/{id}/versions",
 		Summary:     "List versions for an artifact",
-		Tags:        []string{"Artifacts"},
+		Tags:        []string{tagArtifacts},
 	}, h.ListArtifactVersions)
 
 	huma.Register(api, huma.Operation{
@@ -334,7 +367,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/artifacts/{id}/changelog",
 		Summary:     "Get artifact changelog",
-		Tags:        []string{"Artifacts"},
+		Tags:        []string{tagArtifacts},
 	}, h.GetArtifactChangelog)
 
 	huma.Register(api, huma.Operation{
@@ -342,7 +375,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/artifacts/{id}/license-summary",
 		Summary:     "Get artifact license summary",
-		Tags:        []string{"Artifacts"},
+		Tags:        []string{tagArtifacts},
 	}, h.GetArtifactLicenseSummary)
 
 	huma.Register(api, huma.Operation{
@@ -350,7 +383,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/artifacts/{id}/vuln-summary",
 		Summary:     "Get artifact vulnerability summary",
-		Tags:        []string{"Artifacts"},
+		Tags:        []string{tagArtifacts},
 	}, h.GetArtifactVulnSummary)
 
 	huma.Register(api, huma.Operation{
@@ -359,7 +392,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/artifacts/{id}/usages",
 		Summary:     "List artifacts that ship this artifact",
 		Description: "Artifacts whose latest SBOM contains a component matching this artifact (ADR-041).",
-		Tags:        []string{"Artifacts"},
+		Tags:        []string{tagArtifacts},
 	}, h.GetArtifactUsages)
 
 	huma.Register(api, huma.Operation{
@@ -368,7 +401,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/artifacts/{id}/contains",
 		Summary:     "List tracked artifacts this artifact ships",
 		Description: "Tracked artifacts matched by components of this artifact's latest SBOM (ADR-041).",
-		Tags:        []string{"Artifacts"},
+		Tags:        []string{tagArtifacts},
 	}, h.GetArtifactContains)
 }
 
@@ -383,7 +416,7 @@ func registerDiffOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/sboms/diff",
 		Summary:     "Diff two SBOMs",
 		Description: "Computes the component diff between two SBOMs.",
-		Tags:        []string{"SBOMs"},
+		Tags:        []string{tagSBOMs},
 	}, h.DiffSBOMs)
 
 	huma.Register(api, huma.Operation{
@@ -392,7 +425,7 @@ func registerDiffOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/sboms/diff-tree",
 		Summary:     "Diff two SBOMs with dependency tree",
 		Description: "Returns the package-only diff between two SBOMs together with the filtered (non-file) dependency graph of the target SBOM for tree-structured rendering.",
-		Tags:        []string{"SBOMs"},
+		Tags:        []string{tagSBOMs},
 	}, h.GetDiffTree)
 }
 
@@ -406,7 +439,7 @@ func registerWebhookOps(api huma.API, h *Handler) {
 		Method:        http.MethodPost,
 		Path:          "/api/v1/registries/{id}/webhook",
 		Summary:       "Receive registry push notifications",
-		Tags:          []string{"Registries"},
+		Tags:          []string{tagRegistries},
 		MaxBodyBytes:  64 * 1024,
 		DefaultStatus: http.StatusAccepted,
 		Security:      []map[string][]string{},
@@ -426,7 +459,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Path:          "/api/v1/registries/test-connection",
 		Summary:       "Test registry connectivity",
 		Description:   "Probes the registry's /v2/ endpoint and reports whether it is reachable.",
-		Tags:          []string{"Registries"},
+		Tags:          []string{tagRegistries},
 		DefaultStatus: http.StatusOK,
 	}, h.TestRegistryConnection)
 
@@ -435,7 +468,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/registries",
 		Summary:     "List registries",
-		Tags:        []string{"Registries"},
+		Tags:        []string{tagRegistries},
 	}, h.ListRegistries)
 
 	huma.Register(api, huma.Operation{
@@ -444,7 +477,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/registries/trust-summary",
 		Summary:     "Per-registry signing-status counts",
 		Description: "Admin-only. Counts artifacts by current signing status, per registry, across all registries.",
-		Tags:        []string{"Registries"},
+		Tags:        []string{tagRegistries},
 	}, h.GetRegistryTrustSummary)
 
 	huma.Register(api, huma.Operation{
@@ -453,7 +486,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/registries/drift-feed",
 		Summary:     "Cross-registry recent provenance drift feed",
 		Description: "Admin-only. Most recent provenance drift events across all registries.",
-		Tags:        []string{"Registries"},
+		Tags:        []string{tagRegistries},
 	}, h.ListRecentDrift)
 
 	huma.Register(api, huma.Operation{
@@ -461,16 +494,16 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Method:        http.MethodPost,
 		Path:          "/api/v1/registries",
 		Summary:       "Create a registry",
-		Tags:          []string{"Registries"},
+		Tags:          []string{tagRegistries},
 		DefaultStatus: http.StatusCreated,
 	}, h.CreateRegistry)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "get-registry",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/registries/{id}",
+		Path:        pathRegistryByID,
 		Summary:     "Get a registry",
-		Tags:        []string{"Registries"},
+		Tags:        []string{tagRegistries},
 	}, h.GetRegistry)
 
 	huma.Register(api, huma.Operation{
@@ -478,24 +511,24 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/registries/by-name/{name}",
 		Summary:     "Get a registry by name",
-		Tags:        []string{"Registries"},
+		Tags:        []string{tagRegistries},
 	}, h.GetRegistryByName)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "update-registry",
 		Method:      http.MethodPatch,
-		Path:        "/api/v1/registries/{id}",
+		Path:        pathRegistryByID,
 		Summary:     "Update a registry (partial)",
-		Tags:        []string{"Registries"},
+		Tags:        []string{tagRegistries},
 		Middlewares: huma.Middlewares{ownerMW},
 	}, h.UpdateRegistry)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "delete-registry",
 		Method:        http.MethodDelete,
-		Path:          "/api/v1/registries/{id}",
+		Path:          pathRegistryByID,
 		Summary:       "Delete a registry",
-		Tags:          []string{"Registries"},
+		Tags:          []string{tagRegistries},
 		DefaultStatus: http.StatusNoContent,
 		Middlewares:   huma.Middlewares{ownerMW},
 	}, h.DeleteRegistry)
@@ -506,7 +539,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Path:          "/api/v1/registries/{id}/scan",
 		Summary:       "Trigger ad-hoc registry scan",
 		Description:   "Walks the registry catalog, filters by configured patterns, and queues scan requests for all matching images.",
-		Tags:          []string{"Registries"},
+		Tags:          []string{tagRegistries},
 		DefaultStatus: http.StatusAccepted,
 		Middlewares:   huma.Middlewares{ownerMW},
 	}, h.ScanRegistry)
@@ -517,7 +550,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/registries/{id}/webhook-secret",
 		Summary:     "Regenerate webhook secret",
 		Description: "Generates a new webhook secret for the registry. The previous secret is immediately invalidated.",
-		Tags:        []string{"Registries"},
+		Tags:        []string{tagRegistries},
 		Middlewares: huma.Middlewares{ownerMW},
 	}, h.RegenerateWebhookSecret)
 }
@@ -533,7 +566,7 @@ func registerNamespaceOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/namespaces",
 		Summary:     "List namespaces",
 		Description: "Namespaces owned by the caller plus every public namespace.",
-		Tags:        []string{"Namespaces"},
+		Tags:        []string{tagNamespaces},
 	}, h.ListNamespaces)
 
 	huma.Register(api, huma.Operation{
@@ -541,7 +574,7 @@ func registerNamespaceOps(api huma.API, h *Handler) {
 		Method:        http.MethodPost,
 		Path:          "/api/v1/namespaces",
 		Summary:       "Create a namespace",
-		Tags:          []string{"Namespaces"},
+		Tags:          []string{tagNamespaces},
 		DefaultStatus: http.StatusCreated,
 	}, h.CreateNamespace)
 
@@ -550,32 +583,32 @@ func registerNamespaceOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/namespaces/by-name/{name}",
 		Summary:     "Get a namespace by name",
-		Tags:        []string{"Namespaces"},
+		Tags:        []string{tagNamespaces},
 	}, h.GetNamespaceByName)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "get-namespace",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/namespaces/{id}",
+		Path:        pathNamespaceByID,
 		Summary:     "Get a namespace",
-		Tags:        []string{"Namespaces"},
+		Tags:        []string{tagNamespaces},
 	}, h.GetNamespace)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "update-namespace",
 		Method:      http.MethodPatch,
-		Path:        "/api/v1/namespaces/{id}",
+		Path:        pathNamespaceByID,
 		Summary:     "Update a namespace (partial)",
-		Tags:        []string{"Namespaces"},
+		Tags:        []string{tagNamespaces},
 	}, h.UpdateNamespace)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "delete-namespace",
 		Method:        http.MethodDelete,
-		Path:          "/api/v1/namespaces/{id}",
+		Path:          pathNamespaceByID,
 		Summary:       "Delete a namespace",
 		Description:   "Removes the namespace and everything ingested under it. Owner or admin only.",
-		Tags:          []string{"Namespaces"},
+		Tags:          []string{tagNamespaces},
 		DefaultStatus: http.StatusNoContent,
 	}, h.DeleteNamespace)
 }
@@ -591,7 +624,7 @@ func registerSourceOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/sources",
 		Summary:     "List sources",
 		Description: "Ingest channels visible to the caller, optionally scoped to one namespace.",
-		Tags:        []string{"Sources"},
+		Tags:        []string{tagSources},
 	}, h.ListSources)
 
 	huma.Register(api, huma.Operation{
@@ -600,32 +633,32 @@ func registerSourceOps(api huma.API, h *Handler) {
 		Path:          "/api/v1/sources",
 		Summary:       "Create an upload source",
 		Description:   "Creates a source with kind 'upload'. OCI registry sources are created via POST /api/v1/registries.",
-		Tags:          []string{"Sources"},
+		Tags:          []string{tagSources},
 		DefaultStatus: http.StatusCreated,
 	}, h.CreateSource)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "get-source",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/sources/{id}",
+		Path:        pathSourceByID,
 		Summary:     "Get a source",
-		Tags:        []string{"Sources"},
+		Tags:        []string{tagSources},
 	}, h.GetSource)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "update-source",
 		Method:      http.MethodPatch,
-		Path:        "/api/v1/sources/{id}",
+		Path:        pathSourceByID,
 		Summary:     "Rename a source",
-		Tags:        []string{"Sources"},
+		Tags:        []string{tagSources},
 	}, h.UpdateSource)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "delete-source",
 		Method:        http.MethodDelete,
-		Path:          "/api/v1/sources/{id}",
+		Path:          pathSourceByID,
 		Summary:       "Delete a source",
-		Tags:          []string{"Sources"},
+		Tags:          []string{tagSources},
 		DefaultStatus: http.StatusNoContent,
 	}, h.DeleteSource)
 }
@@ -676,7 +709,7 @@ func registerJobOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/jobs",
 		Summary:     "List scan jobs",
 		Description: "Returns a paginated list of scan pipeline jobs, optionally filtered by state.",
-		Tags:        []string{"Jobs"},
+		Tags:        []string{tagJobs},
 	}, h.ListScanJobs)
 
 	huma.Register(api, huma.Operation{
@@ -684,7 +717,7 @@ func registerJobOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/jobs/{id}",
 		Summary:     "Get a scan job",
-		Tags:        []string{"Jobs"},
+		Tags:        []string{tagJobs},
 	}, h.GetScanJob)
 
 	huma.Register(api, huma.Operation{
@@ -693,7 +726,7 @@ func registerJobOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/admin/jobs/{id}/retry",
 		Summary:     "Retry a failed scan job",
 		Description: "Resets a 'failed' scan_jobs row back to 'queued' so it gets reprocessed. Admin-only.",
-		Tags:        []string{"Jobs", "Admin"},
+		Tags:        []string{tagJobs, tagAdmin},
 	}, h.RetryScanJob)
 
 	huma.Register(api, huma.Operation{
@@ -702,7 +735,7 @@ func registerJobOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/admin/jobs/retry-failed",
 		Summary:     "Retry every failed scan job",
 		Description: "Resets every scan_jobs row whose state is 'failed' back to 'queued' and returns the row count. Admin-only.",
-		Tags:        []string{"Jobs", "Admin"},
+		Tags:        []string{tagJobs, tagAdmin},
 	}, h.RetryAllFailedScanJobs)
 
 	huma.Register(api, huma.Operation{
@@ -711,7 +744,7 @@ func registerJobOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/enrichment-jobs",
 		Summary:     "List enrichment jobs",
 		Description: "Returns a paginated list of enrichment pipeline jobs, optionally filtered by state and/or enricher.",
-		Tags:        []string{"Jobs"},
+		Tags:        []string{tagJobs},
 	}, h.ListEnrichmentJobs)
 
 	huma.Register(api, huma.Operation{
@@ -720,7 +753,7 @@ func registerJobOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/enrichment-jobs/summary",
 		Summary:     "Per-enricher enrichment job counts",
 		Description: "Returns one row per (enricher, state) with its count, for the per-enricher health matrix.",
-		Tags:        []string{"Jobs"},
+		Tags:        []string{tagJobs},
 	}, h.EnrichmentJobsSummary)
 
 	huma.Register(api, huma.Operation{
@@ -729,7 +762,7 @@ func registerJobOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/admin/enrichment-jobs/{id}/retry",
 		Summary:     "Retry a failed enrichment job",
 		Description: "Resets a 'failed' enrichment_jobs row back to 'queued' so it gets reprocessed. Admin-only.",
-		Tags:        []string{"Jobs", "Admin"},
+		Tags:        []string{tagJobs, tagAdmin},
 	}, h.RetryEnrichmentJob)
 
 	huma.Register(api, huma.Operation{
@@ -738,7 +771,7 @@ func registerJobOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/admin/enrichment-jobs/retry-failed",
 		Summary:     "Retry every failed enrichment job",
 		Description: "Resets every 'failed' enrichment_jobs row back to 'queued', optionally scoped to one enricher, and returns the row count. Admin-only.",
-		Tags:        []string{"Jobs", "Admin"},
+		Tags:        []string{tagJobs, tagAdmin},
 	}, h.RetryAllFailedEnrichmentJobs)
 }
 

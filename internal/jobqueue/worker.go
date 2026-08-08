@@ -144,14 +144,14 @@ func (w *Worker[C]) Start(ctx context.Context) error {
 	}
 	w.consume = cc
 
-	workerCtx, workerCancel := context.WithCancel(ctx)
+	workerCtx, workerCancel := context.WithCancel(ctx) //nolint:gosec // G118: cancel stored on the worker and invoked in Stop().
 	w.workerCancel = workerCancel
 	for range w.cfg.MaxConc {
 		w.wg.Add(1)
 		go w.workerLoop(workerCtx)
 	}
 
-	sweepCtx, sweepCancel := context.WithCancel(context.Background())
+	sweepCtx, sweepCancel := context.WithCancel(context.Background()) //nolint:gosec // G118: cancel stored on the worker and invoked in Stop().
 	w.sweepCancel = sweepCancel
 	go w.runStuckSweep(sweepCtx)
 

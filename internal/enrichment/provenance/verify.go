@@ -8,6 +8,8 @@ import (
 	"github.com/sigstore/cosign/v3/pkg/cosign"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
+
+	"github.com/pfenerty/ocidex/internal/trust"
 )
 
 // applyVerification sets p.Verified based on the registry trust configuration.
@@ -25,7 +27,7 @@ import (
 // preventing a valid signature from being transplanted from a different image
 // signed by the same key.
 func applyVerification(ctx context.Context, p *Provenance, raw RawArtifacts, mode, pemKey, imageDigest string) {
-	if mode != "public_key" || pemKey == "" {
+	if mode != trust.ModePublicKey || pemKey == "" {
 		return
 	}
 	if !raw.SigPresent && !raw.AttPresent {

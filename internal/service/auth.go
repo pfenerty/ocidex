@@ -298,9 +298,16 @@ func (s *authService) ListUsers(ctx context.Context) ([]AuthUser, error) {
 	return out, nil
 }
 
+// User roles — the values stored in users.role.
+const (
+	roleAdmin  = "admin"
+	roleMember = "member"
+	roleViewer = "viewer"
+)
+
 func (s *authService) UpdateUserRole(ctx context.Context, targetID pgtype.UUID, role string) (AuthUser, error) {
 	switch role {
-	case "admin", "member", "viewer":
+	case roleAdmin, roleMember, roleViewer:
 	default:
 		return AuthUser{}, fmt.Errorf("invalid role %q: must be admin, member, or viewer", role)
 	}

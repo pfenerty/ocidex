@@ -329,9 +329,9 @@ func registrySchemeHost(reg service.Registry) (scheme, host string) {
 	}
 	host = normalizeRegistryHost(strings.TrimSuffix(raw, "/"))
 	if reg.Insecure {
-		return "http", host
+		return schemeHTTP, host
 	}
-	return "https", host
+	return schemeHTTPS, host
 }
 
 type manifestInfo struct {
@@ -388,8 +388,8 @@ type platformEntry struct {
 func ociExpandIndex(ctx context.Context, c *http.Client, baseURL, repo, indexDigest string) ([]platformEntry, error) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/v2/"+repo+"/manifests/"+indexDigest, nil)
 	req.Header.Set("Accept", strings.Join([]string{
-		"application/vnd.oci.image.index.v1+json",
-		"application/vnd.docker.distribution.manifest.list.v2+json",
+		mediaTypeOCIIndex,
+		mediaTypeDockerList,
 	}, ","))
 	resp, err := c.Do(req) //nolint:gosec
 	if err != nil {
@@ -433,8 +433,8 @@ type imageMetadata struct {
 func ociGetImageMetadata(ctx context.Context, c *http.Client, baseURL, repo, digest string) imageMetadata {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/v2/"+repo+"/manifests/"+digest, nil)
 	req.Header.Set("Accept", strings.Join([]string{
-		"application/vnd.oci.image.manifest.v1+json",
-		"application/vnd.docker.distribution.manifest.v2+json",
+		mediaTypeOCIManifest,
+		mediaTypeDockerManifest,
 	}, ","))
 	resp, err := c.Do(req) //nolint:gosec
 	if err != nil {
@@ -514,10 +514,10 @@ func ociGetImageMetadata(ctx context.Context, c *http.Client, baseURL, repo, dig
 func ociHeadManifest(ctx context.Context, c *http.Client, baseURL, repo, tag string) (manifestInfo, error) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodHead, baseURL+"/v2/"+repo+"/manifests/"+tag, nil)
 	req.Header.Set("Accept", strings.Join([]string{
-		"application/vnd.oci.image.manifest.v1+json",
-		"application/vnd.docker.distribution.manifest.v2+json",
-		"application/vnd.oci.image.index.v1+json",
-		"application/vnd.docker.distribution.manifest.list.v2+json",
+		mediaTypeOCIManifest,
+		mediaTypeDockerManifest,
+		mediaTypeOCIIndex,
+		mediaTypeDockerList,
 	}, ","))
 	resp, err := c.Do(req) //nolint:gosec
 	if err != nil {
@@ -534,8 +534,8 @@ func ociHeadManifest(ctx context.Context, c *http.Client, baseURL, repo, tag str
 }
 
 func isIndexMediaType(mt string) bool {
-	return mt == "application/vnd.oci.image.index.v1+json" ||
-		mt == "application/vnd.docker.distribution.manifest.list.v2+json"
+	return mt == mediaTypeOCIIndex ||
+		mt == mediaTypeDockerList
 }
 
 // ociTokenTransport implements OCI Distribution Spec token authentication.

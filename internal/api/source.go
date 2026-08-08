@@ -24,7 +24,7 @@ func (h *Handler) ListSources(ctx context.Context, in *ListSourcesInput) (*ListS
 		if err != nil {
 			return nil, huma.Error404NotFound("namespace not found")
 		}
-		if !canManageNamespace(user, ns) && ns.Visibility == "private" {
+		if !canManageNamespace(user, ns) && ns.Visibility == visibilityPrivate {
 			return nil, huma.Error404NotFound("namespace not found")
 		}
 		rows, err := h.sourceService.ListByNamespace(ctx, in.NamespaceID)
@@ -67,7 +67,7 @@ func (h *Handler) GetSource(ctx context.Context, in *GetSourceInput) (*GetSource
 	if err != nil {
 		return nil, huma.Error404NotFound("source not found")
 	}
-	if !canManageNamespace(user, ns) && ns.Visibility == "private" {
+	if !canManageNamespace(user, ns) && ns.Visibility == visibilityPrivate {
 		return nil, huma.Error404NotFound("source not found")
 	}
 	src.NamespaceName = ns.Name

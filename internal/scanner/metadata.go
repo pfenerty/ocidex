@@ -16,9 +16,9 @@ func FillMetadata(ctx context.Context, req ScanRequest) ScanRequest {
 	if req.Architecture != "" && req.BuildDate != "" && req.ImageVersion != "" {
 		return req
 	}
-	scheme := "https"
+	scheme := schemeHTTPS
 	if req.Insecure {
-		scheme = "http"
+		scheme = schemeHTTP
 	}
 	baseURL := scheme + "://" + normalizeRegistryHost(req.RegistryURL)
 	client := &http.Client{Transport: newOCITokenTransport(req.AuthUsername, req.AuthToken)}

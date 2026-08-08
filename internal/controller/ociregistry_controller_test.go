@@ -137,7 +137,7 @@ func TestOCIRegistryReconciler_RecreateOnNotFound(t *testing.T) {
 
 	result, err := reconcile(t, k8s, ocidex, cr)
 	is.NoErr(err)
-	is.True(result.Requeue)
+	is.True(result.RequeueAfter > 0)
 
 	updated := &v1alpha1.OCIRegistry{}
 	is.NoErr(k8s.Get(context.Background(), types.NamespacedName{Name: "reg", Namespace: "default"}, updated))

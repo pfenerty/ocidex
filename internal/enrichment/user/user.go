@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 
 	"github.com/pfenerty/ocidex/internal/enrichment"
+	"github.com/pfenerty/ocidex/internal/enrichment/names"
 )
 
 // Enricher persists caller-supplied ingest metadata as a "user" enrichment
@@ -18,7 +19,7 @@ type Enricher struct{}
 func NewEnricher() *Enricher { return &Enricher{} }
 
 // Name returns "user".
-func (e *Enricher) Name() string { return "user" }
+func (e *Enricher) Name() string { return names.User }
 
 // CanEnrich returns true when the subject carries any caller-supplied metadata.
 func (e *Enricher) CanEnrich(ref enrichment.SubjectRef) bool {

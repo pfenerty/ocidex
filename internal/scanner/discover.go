@@ -52,10 +52,10 @@ func (u *unknownDiscoverer) DiscoverManifests(_ context.Context, _ *http.Client,
 // isImageManifestType returns true for OCI/Docker image manifest media types.
 func isImageManifestType(mt string) bool {
 	switch mt {
-	case "application/vnd.oci.image.manifest.v1+json",
-		"application/vnd.docker.distribution.manifest.v2+json",
-		"application/vnd.oci.image.index.v1+json",
-		"application/vnd.docker.distribution.manifest.list.v2+json":
+	case mediaTypeOCIManifest,
+		mediaTypeDockerManifest,
+		mediaTypeOCIIndex,
+		mediaTypeDockerList:
 		return true
 	}
 	return false

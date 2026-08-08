@@ -243,16 +243,6 @@ func (f *notFoundSearchService) GetComponentVulns(_ context.Context, _ pgtype.UU
 	return nil, service.ErrNotFound
 }
 
-// pagedBody is a helper for decoding offset-paginated JSON responses.
-type pagedBody struct {
-	Data       json.RawMessage `json:"data"`
-	Pagination struct {
-		Total  int64 `json:"total"`
-		Limit  int32 `json:"limit"`
-		Offset int32 `json:"offset"`
-	} `json:"pagination"`
-}
-
 // cursorBody is a helper for decoding keyset-paginated JSON responses.
 type cursorBody struct {
 	Data       json.RawMessage `json:"data"`

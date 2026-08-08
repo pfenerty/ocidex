@@ -69,7 +69,7 @@ func (h *Handler) GetNamespace(ctx context.Context, in *GetNamespaceInput) (*Get
 	if err != nil {
 		return nil, huma.Error404NotFound("namespace not found")
 	}
-	if !canManageNamespace(user, ns) && ns.Visibility == "private" {
+	if !canManageNamespace(user, ns) && ns.Visibility == visibilityPrivate {
 		return nil, huma.Error404NotFound("namespace not found")
 	}
 	return &GetNamespaceOutput{Body: toNamespaceResponse(ns, nil)}, nil
@@ -85,7 +85,7 @@ func (h *Handler) GetNamespaceByName(ctx context.Context, in *GetNamespaceByName
 	if err != nil {
 		return nil, huma.Error404NotFound("namespace not found")
 	}
-	if !canManageNamespace(user, ns) && ns.Visibility == "private" {
+	if !canManageNamespace(user, ns) && ns.Visibility == visibilityPrivate {
 		return nil, huma.Error404NotFound("namespace not found")
 	}
 	return &GetNamespaceByNameOutput{Body: toNamespaceResponse(ns, nil)}, nil
