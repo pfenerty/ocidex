@@ -16,6 +16,13 @@ const (
 	KindUpload      = "upload"
 )
 
+// Artifact types, mirroring artifact.type in the schema. TypeContainer is the
+// OCI-image case — the only one with an architecture or a registry to pull
+// from (ADR-040). An empty type predates ADR-040 and is treated as a container.
+const (
+	TypeContainer = "container"
+)
+
 // Ref identifies what to enrich. It carries the SBOM identity and the
 // artifact metadata needed by enrichers.
 type Ref struct {

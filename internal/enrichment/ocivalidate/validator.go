@@ -208,7 +208,7 @@ func splitImageName(imageName string) (host, repo string, err error) {
 // Mirrors the unexported helper in internal/scanner/catalog.go.
 func normalizeRegistryHost(host string) string {
 	switch host {
-	case "docker.io", "index.docker.io", "hub.docker.com":
+	case dockerHubHost, "index.docker.io", "hub.docker.com":
 		return "registry-1.docker.io"
 	}
 	return host

@@ -1,6 +1,13 @@
 version: "2"
 run:
   tests: true
+issues:
+  # golangci-lint's defaults (50 per linter, 3 per message) hid ~15 goconst
+  # hits behind a reported count of 61 while ocidex-sgf was open. At zero
+  # issues a cap can only ever mask a regression, which is the failure mode
+  # this gate exists to catch.
+  max-issues-per-linter: 0
+  max-same-issues: 0
 linters:
   enable:
     - bodyclose
@@ -27,6 +34,11 @@ linters:
   settings:
     goconst:
       min-occurrences: 3
+      # goconst findings in _test.go are already excluded below, but without
+      # this it still *counts* test occurrences — so repeated fixture data
+      # ("amd64" x20 across table-driven cases) manufactures a finding against
+      # a single production site. Count only what we would act on.
+      ignore-tests: true
     gocyclo:
       min-complexity: 15
     govet:
@@ -51,6 +63,19 @@ linters:
           - gosec
           - noctx
         path: _test\.go
+
+      # SPDX license lookup tables: the repeated strings ARE the data. Hoisting
+      # ~37 constants out of a literal ID -> name map makes it unreadable and
+      # unmaintainable against the upstream SPDX list.
+      - linters:
+          - goconst
+        path: internal/service/(license|search_license)\.go
+
+      # pkg/client: Client is an interface and FakeClient is its hand-written
+      # fake. Mirroring the method set is the point; dupl cannot express that.
+      - linters:
+          - dupl
+        path: pkg/client/
     paths:
       - third_party$
       - builtin$

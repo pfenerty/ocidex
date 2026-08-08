@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
+	"github.com/pfenerty/ocidex/internal/vuln"
 )
 
 // ociSourceKeys are the property names Syft and Trivy use for the source
@@ -96,7 +97,7 @@ func effectiveComponentVersion(version, name, purl, mainModule, subjectVersion s
 // isUnknownVersion is true for the literal Syft sentinel "UNKNOWN" and for
 // the empty string. Either signals that we don't know the version.
 func isUnknownVersion(v string) bool {
-	return v == "" || v == "UNKNOWN"
+	return v == "" || v == vuln.SeverityUnknown
 }
 
 // componentMatchesMainModule returns true when the component's purl path or

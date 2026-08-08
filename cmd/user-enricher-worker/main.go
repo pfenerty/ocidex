@@ -7,13 +7,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pfenerty/ocidex/internal/enrichment"
+	"github.com/pfenerty/ocidex/internal/enrichment/names"
 	"github.com/pfenerty/ocidex/internal/enrichment/user"
 	enrichmentworker "github.com/pfenerty/ocidex/internal/worker/enrichment"
 )
 
 func main() {
 	if err := enrichmentworker.Run(buildEnrichers, enrichmentworker.RunConfig{
-		EnricherName: "user",
+		EnricherName: names.User,
 		HintDurable:  "enrich-hint-user",
 	}); err != nil {
 		slog.Error("fatal", "err", err)

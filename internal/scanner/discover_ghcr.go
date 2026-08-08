@@ -95,7 +95,7 @@ func (g *ghcrDiscoverer) listVersions(ctx context.Context, ownerType, owner, nam
 			}
 			all = append(all, DiscoveredManifest{
 				Digest:    v.Name,
-				MediaType: "application/vnd.oci.image.manifest.v1+json", // GitHub API doesn't expose media type; assume OCI
+				MediaType: mediaTypeOCIManifest, // GitHub API doesn't expose media type; assume OCI
 				Tag:       tag,
 			})
 		}

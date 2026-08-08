@@ -648,12 +648,12 @@ func extractComponentProvenance(props *[]cdx.Property, purl, flavor string) comp
 
 	var srcPkg, srcVersion string
 	switch purlType(purl) {
-	case "deb":
+	case purlTypeDeb:
 		srcPkg = findPropValue(propSets, []string{"syft:metadata:source"})
 		srcVersion = findPropValue(propSets, []string{"syft:metadata:sourceVersion"})
-	case "apk":
+	case purlTypeAPK:
 		srcPkg = findPropValue(propSets, []string{"syft:metadata:originPackage"})
-	case "rpm":
+	case purlTypeRPM:
 		if sourceRpm := findPropValue(propSets, []string{"syft:metadata:sourceRpm"}); sourceRpm != "" {
 			srcPkg, srcVersion = parseSourceRpm(sourceRpm)
 		}

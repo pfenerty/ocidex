@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pfenerty/ocidex/internal/repository"
+	"github.com/pfenerty/ocidex/internal/vuln"
 )
 
 // normalizeTopVulnSort clamps the requested sort to the columns
@@ -20,9 +21,9 @@ func normalizeTopVulnSort(sort, dir string) (string, string) {
 		sort = "severity"
 	}
 	switch dir {
-	case "asc", "desc":
+	case sortAsc, sortDesc:
 	default:
-		dir = "desc"
+		dir = sortDesc
 	}
 	return sort, dir
 }
@@ -208,7 +209,7 @@ func severityOrUnknown(t pgtype.Text) string {
 	if t.Valid {
 		return t.String
 	}
-	return "UNKNOWN"
+	return vuln.SeverityUnknown
 }
 
 func float4ToPtr(f pgtype.Float4) *float32 {

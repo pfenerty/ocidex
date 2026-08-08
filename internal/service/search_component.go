@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/pfenerty/ocidex/internal/enrichment/names"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
@@ -55,15 +56,15 @@ func (s *searchService) SearchDistinctComponents(ctx context.Context, filter Com
 	}
 	sortBy := filter.Sort
 	switch sortBy {
-	case "name", "version_count", "sbom_count":
+	case sortByName, "version_count", "sbom_count":
 	default:
-		sortBy = "name"
+		sortBy = sortByName
 	}
 	sortDir := filter.SortDir
 	switch sortDir {
-	case "asc", "desc":
+	case sortAsc, sortDesc:
 	default:
-		sortDir = "asc"
+		sortDir = sortAsc
 	}
 
 	rows, err := q.SearchDistinctComponents(ctx, repository.SearchDistinctComponentsParams{
@@ -327,14 +328,14 @@ func (s *searchService) resolveComponentLayer(ctx context.Context, q *repository
 	}
 	id := layerID.String
 
-	enr, err := q.GetEnrichment(ctx, repository.GetEnrichmentParams{SbomID: sbomID, EnricherName: "oci-metadata"})
+	enr, err := q.GetEnrichment(ctx, repository.GetEnrichmentParams{SbomID: sbomID, EnricherName: names.OCIMetadata})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return &id, nil, false, nil
 		}
 		return nil, nil, false, fmt.Errorf("getting oci-metadata enrichment: %w", err)
 	}
-	if enr.Status != "success" {
+	if enr.Status != names.StatusSuccess {
 		return &id, nil, false, nil
 	}
 

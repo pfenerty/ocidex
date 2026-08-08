@@ -14,6 +14,7 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
+	"github.com/pfenerty/ocidex/internal/trust"
 )
 
 const (
@@ -90,11 +91,11 @@ func ensureWebhookSecret(scanMode string, provided *string) (secret *string, gen
 // public_key verification_mode that's missing trust_public_key.
 func validateVerificationConfig(verificationMode string, trustPublicKey, trustIdentity, trustIssuer *string) error {
 	switch verificationMode {
-	case "keyless":
+	case trust.ModeKeyless:
 		if trustIdentity == nil || *trustIdentity == "" || trustIssuer == nil || *trustIssuer == "" {
 			return huma.Error400BadRequest("trust_identity and trust_issuer are required when verification_mode is keyless")
 		}
-	case "public_key":
+	case trust.ModePublicKey:
 		if trustPublicKey == nil || *trustPublicKey == "" {
 			return huma.Error400BadRequest("trust_public_key is required when verification_mode is public_key")
 		}
@@ -189,7 +190,7 @@ func (h *Handler) GetRegistry(ctx context.Context, in *GetRegistryInput) (*GetRe
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}
-	if !canManageRegistry(user, reg) && reg.Visibility == "private" {
+	if !canManageRegistry(user, reg) && reg.Visibility == visibilityPrivate {
 		return nil, huma.Error404NotFound("registry not found")
 	}
 	return &GetRegistryOutput{Body: toRegistryResponse(reg, h.cfg.APIBaseURL, nil)}, nil
@@ -205,7 +206,7 @@ func (h *Handler) GetRegistryByName(ctx context.Context, in *GetRegistryByNameIn
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}
-	if !canManageRegistry(user, reg) && reg.Visibility == "private" {
+	if !canManageRegistry(user, reg) && reg.Visibility == visibilityPrivate {
 		return nil, huma.Error404NotFound("registry not found")
 	}
 	return &GetRegistryByNameOutput{Body: toRegistryResponse(reg, h.cfg.APIBaseURL, nil)}, nil
@@ -252,7 +253,7 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 
 	verificationMode := in.Body.VerificationMode
 	if verificationMode == "" {
-		verificationMode = "none"
+		verificationMode = trust.ModeNone
 	}
 	if err := validateVerificationConfig(verificationMode, in.Body.TrustPublicKey, in.Body.TrustIdentity, in.Body.TrustIssuer); err != nil {
 		return nil, err
@@ -443,9 +444,9 @@ func (h *Handler) TestRegistryConnection(ctx context.Context, in *TestRegistryCo
 		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
 	}
 
-	scheme := "https"
+	scheme := schemeHTTPS
 	if in.Body.Insecure {
-		scheme = "http"
+		scheme = schemeHTTP
 	}
 	target := fmt.Sprintf("%s://%s/v2/", scheme, in.Body.URL)
 

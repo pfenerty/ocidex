@@ -705,6 +705,22 @@ type ArtifactDetail struct {
 	VersionCount        int64     `json:"versionCount"`
 }
 
+// ArtifactRelation defines model for ArtifactRelation.
+type ArtifactRelation struct {
+	ArtifactGroup  *string    `json:"artifactGroup,omitempty"`
+	ArtifactId     string     `json:"artifactId"`
+	ArtifactName   string     `json:"artifactName"`
+	ArtifactType   string     `json:"artifactType"`
+	CurrentVersion *string    `json:"currentVersion,omitempty"`
+	Digest         *string    `json:"digest,omitempty"`
+	Flavor         *string    `json:"flavor,omitempty"`
+	IsCurrent      *bool      `json:"isCurrent,omitempty"`
+	MatchedVersion *string    `json:"matchedVersion,omitempty"`
+	ObservedAt     *time.Time `json:"observedAt,omitempty"`
+	SbomId         string     `json:"sbomId"`
+	SubjectVersion *string    `json:"subjectVersion,omitempty"`
+}
+
 // ArtifactSummary defines model for ArtifactSummary.
 type ArtifactSummary struct {
 	Group               *string `json:"group,omitempty"`
@@ -1267,11 +1283,25 @@ type ExternalRefEntry struct {
 	Url     string  `json:"url"`
 }
 
+// GetArtifactContainsOutputBody defines model for GetArtifactContainsOutputBody.
+type GetArtifactContainsOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema   *string             `json:"$schema,omitempty"`
+	Contains *[]ArtifactRelation `json:"contains"`
+}
+
 // GetArtifactLicenseSummaryOutputBody defines model for GetArtifactLicenseSummaryOutputBody.
 type GetArtifactLicenseSummaryOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema   *string         `json:"$schema,omitempty"`
 	Licenses *[]LicenseCount `json:"licenses"`
+}
+
+// GetArtifactUsagesOutputBody defines model for GetArtifactUsagesOutputBody.
+type GetArtifactUsagesOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string             `json:"$schema,omitempty"`
+	Usages *[]ArtifactRelation `json:"usages"`
 }
 
 // GetArtifactVulnSummaryOutputBody defines model for GetArtifactVulnSummaryOutputBody.

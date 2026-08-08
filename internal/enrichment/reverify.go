@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/pfenerty/ocidex/internal/enrichment/names"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
@@ -120,7 +121,7 @@ func (r *Reverifier) tick(ctx context.Context) {
 	for _, sbomID := range due {
 		n, err := r.store.RequeueSucceededEnrichmentJob(ctx, repository.RequeueSucceededEnrichmentJobParams{
 			SbomID:       sbomID,
-			EnricherName: "provenance",
+			EnricherName: names.Provenance,
 		})
 		if err != nil {
 			r.logger.Error("reverifier: requeuing provenance job", "sbom_id", sbomID, "err", err)

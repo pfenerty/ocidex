@@ -52,7 +52,7 @@ func newStatsCache(ttl time.Duration) *statsCache {
 func statsCacheKey(vis VisibilityFilter) string {
 	switch {
 	case vis.IsAdmin:
-		return "admin"
+		return roleAdmin
 	case vis.UserID.Valid:
 		return "u:" + uuidToString(vis.UserID)
 	default:

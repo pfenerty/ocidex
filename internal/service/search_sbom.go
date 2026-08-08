@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/pfenerty/ocidex/internal/enrichment/names"
 	"github.com/pfenerty/ocidex/internal/enrichment/provenance"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
@@ -96,7 +97,7 @@ func (s *searchService) GetSBOM(ctx context.Context, id pgtype.UUID, includeRaw 
 	// fail the whole SBOM detail request. See also recordProvenanceDrift in
 	// internal/enrichment/provenance_drift.go, which applies the same policy.
 	var signingProv provenance.Provenance
-	if raw, hasProvenance := detail.Enrichments["provenance"]; hasProvenance {
+	if raw, hasProvenance := detail.Enrichments[names.Provenance]; hasProvenance {
 		if err := json.Unmarshal(raw, &signingProv); err != nil {
 			slog.ErrorContext(ctx, "parsing provenance enrichment", "sbom_id", id, "err", err)
 		} else {
@@ -128,7 +129,7 @@ func fetchEnrichments(ctx context.Context, q *repository.Queries, sbomID pgtype.
 	}
 	var enrichments map[string]json.RawMessage
 	for _, e := range rows {
-		if e.Status != "success" || len(e.Data) == 0 {
+		if e.Status != names.StatusSuccess || len(e.Data) == 0 {
 			continue
 		}
 		if enrichments == nil {
