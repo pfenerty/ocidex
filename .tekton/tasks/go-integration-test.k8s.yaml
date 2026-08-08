@@ -1,0 +1,237 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-go-integration-test
+  namespace: ocidex-ci
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+    - name: revision
+      type: string
+  sidecars:
+    - computeResources:
+        limits:
+          cpu: "1"
+          ephemeral-storage: 2Gi
+          memory: 1Gi
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      env:
+        - name: POSTGRES_USER
+          value: test
+        - name: POSTGRES_PASSWORD
+          value: test
+      image: postgres:15-alpine
+      name: postgres
+      readinessProbe:
+        exec:
+          command:
+            - pg_isready
+            - -U
+            - test
+            - -d
+            - postgres
+        failureThreshold: 30
+        initialDelaySeconds: 3
+        periodSeconds: 2
+      securityContext:
+        runAsUser: 0
+    - args:
+        - -js
+        - -sd
+        - /tmp/js
+        - -m
+        - "8222"
+      computeResources:
+        limits:
+          cpu: 500m
+          ephemeral-storage: 1Gi
+          memory: 256Mi
+        requests:
+          cpu: 50m
+          memory: 64Mi
+      image: nats:2-alpine
+      name: nats
+      readinessProbe:
+        failureThreshold: 30
+        httpGet:
+          path: /healthz
+          port: 8222
+        initialDelaySeconds: 2
+        periodSeconds: 2
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    env:
+      - name: GOPATH
+        value: $(workspaces.workspace.path)/.go-path
+      - name: GOMODCACHE
+        value: $(workspaces.workspace.path)/.go-mod
+      - name: GOCACHE
+        value: $(workspaces.workspace.path)/.go-build
+      - name: GIT_CONFIG_GLOBAL
+        value: $(workspaces.workspace.path)/.gitconfig
+      - name: GOMAXPROCS
+        value: "2"
+      - name: GOMEMLIMIT
+        value: 2500MiB
+      - name: TEST_POSTGRES_URL
+        value: postgres://test:test@localhost:5432/postgres?sslmode=disable
+      - name: TEST_NATS_URL
+        value: nats://localhost:4222
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    workingDir: $(workspaces.workspace.path)
+  steps:
+    - image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: restore-go-cache-cache
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let hash = (
+          ["go.sum"]
+          | each { |f| if ($f | path exists) { open --raw $f } else { "" } }
+          | str join | hash sha256 | str substring 0..15
+        )
+        $hash | save -f /tekton/home/.cache-go-cache-hash
+        if ([".go-mod", ".go-build"] | any { |p| $p | path exists }) {
+          log $"restore-go-cache-cache: paths already exist, skipping restore ($hash)"
+          exit 0
+        }
+        let archive = $"$(workspaces.go-cache.path)/($hash).tar.zst"
+
+        if ($archive | path exists) {
+          let archive_size = (ls $archive | get size.0)
+          log $"restore-go-cache-cache: hit ($hash) size=($archive_size)"
+          let cache_paths = [".go-mod", ".go-build"]
+          for p in $cache_paths {
+            if ($p | path exists) { ^chmod -R u+w $p; rm -rf $p }
+          }
+          let t0 = (date now)
+          ^zstd -d -T1 -c $archive | ^tar xf - -o --no-same-permissions
+          let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+          log $"restore-go-cache-cache: restored in ($elapsed)s"
+        } else {
+          log $"restore-go-cache-cache: miss ($hash)"
+        }
+      workingDir: $(workspaces.workspace.path)
+    - computeResources:
+        limits:
+          cpu: "2"
+          ephemeral-storage: 4Gi
+          memory: 3Gi
+        requests:
+          cpu: 100m
+          ephemeral-storage: 2Gi
+          memory: 512Mi
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.26
+      name: go-integration-test
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        def main [] {
+        log "Running integration tests"
+        # -p 1: the tests package shares one Postgres and one NATS server (the sidecars),
+        # and isolates itself with a database-per-test — which only holds while packages
+        # don't run concurrently. -race is omitted to match go-test's memory posture.
+        ^go test -v -p 1 -timeout 25m ./tests/...
+        log "OK: integration tests passed"
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
+    - image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: save-go-cache-cache
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let hash = (try { open --raw /tekton/home/.cache-go-cache-hash | str trim } catch { "" })
+        if ($hash | is-empty) { log "save-go-cache-cache: no hash, skipping"; exit 0 }
+
+        let archive = $"$(workspaces.go-cache.path)/($hash).tar.zst"
+        if ($archive | path exists) { log $"save-go-cache-cache: ($hash) exists, skipping"; exit 0 }
+
+        let paths = [".go-mod", ".go-build"] | where { |p| ($p | path exists) }
+        if ($paths | is-empty) { log "save-go-cache-cache: no paths to cache"; exit 0 }
+
+        for p in $paths { ^chmod -R u+w $p }
+
+        let max = 3
+        if $max > 0 {
+          let entries = (try { ls $(workspaces.go-cache.path)/*.tar.zst | sort-by modified | reverse | skip $max } catch { [] })
+          for e in $entries { log $"save-go-cache-cache: evicting ($e.name | path basename)"; rm $e.name }
+        }
+
+        let uncompressed = ($paths | each { |p| try { du $p | get apparent.0 | into int } catch { 0 } } | math sum)
+        log $"save-go-cache-cache: compressing (($uncompressed / 1_000_000) | math round --precision 1)MB uncompressed ..."
+        let t0 = (date now)
+        # Write to a temp path and rename into place: a step killed mid-write (OOM, eviction,
+        # timeout) must never leave a truncated archive at the real hash-keyed path, since the
+        # skip-if-exists guard above means a corrupt archive there would never self-heal.
+        let tmp = $"($archive).tmp.(random uuid)"
+        # nushell aborts the enclosing block as soon as any external command in the pipe
+        # reports a non-zero exit (e.g. tar failing to read one of $paths), so cleanup must
+        # live in a catch — code placed after the pipe but outside try/catch never runs.
+        try {
+          ^tar cf - ...$paths | ^zstd -1 -T1 -o $tmp
+        } catch { |e|
+          rm -f $tmp
+          log $"save-go-cache-cache: compress failed (($e.msg)), discarding partial archive"
+          exit 1
+        }
+        mv -f $tmp $archive
+        let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
+        let compressed = (ls $archive | get size.0)
+        let ratio = ($uncompressed / ($compressed | into int) | math round --precision 1)
+        log $"save-go-cache-cache: saved ($compressed) ratio=($ratio)x in ($elapsed)s"
+      workingDir: $(workspaces.workspace.path)
+    - env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: report-status
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let exit_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        let state = if $exit_code == 0 { "success" } else { "failure" }
+        let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
+
+        log $"report-status [go-integration-test]: exit-code=($exit_code) state=($state)"
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "go-integration-test", description: $desc }
+
+        log $"report-status [go-integration-test]: POST ($url)"
+        log $"report-status [go-integration-test]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "report-status [go-integration-test]: done"
+        } catch { |e|
+          log $"report-status [go-integration-test]: error: ($e.msg)"
+        }
+        exit $exit_code
+  workspaces:
+    - name: go-cache
+    - name: workspace

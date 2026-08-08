@@ -2,19 +2,26 @@ package tests
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/matryer/is"
+	"github.com/nats-io/nats.go/jetstream"
 	"github.com/pressly/goose/v3"
 	"github.com/testcontainers/testcontainers-go"
+	natsc "github.com/testcontainers/testcontainers-go/modules/nats"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
@@ -26,18 +33,85 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// requireDocker skips the test if Docker is not available.
-func requireDocker(t *testing.T) {
+// Integration tests run against either a throwaway testcontainers-managed server
+// (the local default) or a long-lived server shared by the whole package. CI takes
+// the second path: the Tekton go-integration-test task runs plain postgres and nats
+// sidecars in the same pod and points these vars at localhost, so no Docker daemon
+// is needed inside the build container.
+//
+// Every test in this package is sequential (no t.Parallel), so isolation on a
+// shared server is just "own database per test, dropped on cleanup".
+const (
+	envPostgresURL = "TEST_POSTGRES_URL"
+	envNATSURL     = "TEST_NATS_URL"
+)
+
+// requireTestInfra skips the test when there is no way to obtain Postgres.
+//
+// With TEST_POSTGRES_URL set there is deliberately no escape hatch: an unreachable
+// server must fail the test rather than silently skip it. Silent skipping is the
+// exact failure this suite is being wired into CI to prevent.
+func requireTestInfra(t *testing.T) {
 	t.Helper()
+	if os.Getenv(envPostgresURL) != "" {
+		return
+	}
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
 	defer cancel()
 	if err := exec.CommandContext(ctx, "docker", "info").Run(); err != nil {
-		t.Skip("docker not available, skipping integration test")
+		t.Skipf("neither %s nor docker available, skipping integration test", envPostgresURL)
 	}
 }
 
-// setupTestDB starts a Postgres container, runs migrations, and returns a pool + cleanup func.
-func setupTestDB(t *testing.T) (*pgxpool.Pool, func()) {
+// newTestDB provisions an empty database and returns its connection string (as a
+// superuser) plus a teardown func. Migrations are NOT run — see setupTestDB.
+func newTestDB(t *testing.T) (string, func()) {
+	t.Helper()
+	if adminURL := os.Getenv(envPostgresURL); adminURL != "" {
+		return newSharedTestDB(t, adminURL)
+	}
+	return newContainerTestDB(t)
+}
+
+// newSharedTestDB carves a uniquely-named database out of an already-running server.
+func newSharedTestDB(t *testing.T, adminURL string) (string, func()) {
+	t.Helper()
+
+	buf := make([]byte, 6)
+	if _, err := rand.Read(buf); err != nil {
+		t.Fatalf("generating database suffix: %v", err)
+	}
+	name := "ocidex_test_" + hex.EncodeToString(buf)
+
+	admin, err := pgxpool.New(t.Context(), adminURL)
+	if err != nil {
+		t.Fatalf("connecting to %s: %v", envPostgresURL, err)
+	}
+	// pgxpool connects lazily; force a round trip so an unreachable sidecar fails
+	// here with a clear message instead of somewhere deep in the test.
+	if _, err := admin.Exec(t.Context(), `CREATE DATABASE `+pq(name)); err != nil {
+		admin.Close()
+		t.Fatalf("creating test database %s: %v", name, err)
+	}
+
+	cleanup := func() {
+		// Background context: t.Context() is already cancelled by the time
+		// t.Cleanup funcs run.
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		// WITH (FORCE) terminates leftover backends (pg13+) so a pool that outlives
+		// its test cannot wedge the drop.
+		if _, err := admin.Exec(ctx, `DROP DATABASE IF EXISTS `+pq(name)+` WITH (FORCE)`); err != nil {
+			t.Logf("dropping test database %s: %v", name, err)
+		}
+		admin.Close()
+	}
+
+	return withDatabase(t, adminURL, name), cleanup
+}
+
+// newContainerTestDB starts a throwaway Postgres via testcontainers (local default).
+func newContainerTestDB(t *testing.T) (string, func()) {
 	t.Helper()
 	ctx := t.Context()
 
@@ -61,11 +135,48 @@ func setupTestDB(t *testing.T) (*pgxpool.Pool, func()) {
 		t.Fatalf("getting connection string: %v", err)
 	}
 
-	// Run migrations.
+	return connStr, func() {
+		_ = pgContainer.Terminate(context.Background())
+	}
+}
+
+// pq quotes a SQL identifier. Names here are generated, but DDL takes no
+// placeholders so the quoting has to be explicit.
+func pq(ident string) string {
+	return `"` + strings.ReplaceAll(ident, `"`, `""`) + `"`
+}
+
+// withDatabase rewrites a connection URL to point at a different database.
+func withDatabase(t *testing.T, raw, dbname string) string {
+	t.Helper()
+	u, err := url.Parse(raw)
+	if err != nil {
+		t.Fatalf("parsing %s: %v", envPostgresURL, err)
+	}
+	u.Path = "/" + dbname
+	return u.String()
+}
+
+// withUser rewrites a connection URL to authenticate as a different role.
+func withUser(t *testing.T, raw, user, password string) string {
+	t.Helper()
+	u, err := url.Parse(raw)
+	if err != nil {
+		t.Fatalf("parsing connection string: %v", err)
+	}
+	u.User = url.UserPassword(user, password)
+	return u.String()
+}
+
+// migrateDB applies all goose migrations to the database at connStr.
+func migrateDB(t *testing.T, connStr string) {
+	t.Helper()
 	sqlDB, err := sql.Open("pgx", connStr)
 	if err != nil {
 		t.Fatalf("opening migration connection: %v", err)
 	}
+	defer sqlDB.Close()
+
 	goose.SetBaseFS(db.Migrations)
 	if err := goose.SetDialect("postgres"); err != nil {
 		t.Fatalf("setting dialect: %v", err)
@@ -73,19 +184,88 @@ func setupTestDB(t *testing.T) (*pgxpool.Pool, func()) {
 	if err := goose.Up(sqlDB, "migrations"); err != nil {
 		t.Fatalf("running migrations: %v", err)
 	}
-	sqlDB.Close()
+}
 
-	pool, err := pgxpool.New(ctx, connStr)
+// setupTestDB provisions a database, runs migrations, and returns a pool + cleanup func.
+func setupTestDB(t *testing.T) (*pgxpool.Pool, func()) {
+	t.Helper()
+
+	connStr, dropDB := newTestDB(t)
+	migrateDB(t, connStr)
+
+	pool, err := pgxpool.New(t.Context(), connStr)
 	if err != nil {
+		dropDB()
 		t.Fatalf("creating pool: %v", err)
 	}
 
-	cleanup := func() {
+	return pool, func() {
 		pool.Close()
-		_ = pgContainer.Terminate(ctx)
+		dropDB()
+	}
+}
+
+// setupNATS returns a NATS URL: the shared server when TEST_NATS_URL is set,
+// otherwise a throwaway container.
+func setupNATS(t *testing.T) string {
+	t.Helper()
+	if url := os.Getenv(envNATSURL); url != "" {
+		return url
 	}
 
-	return pool, cleanup
+	ctx := t.Context()
+	natsContainer, err := natsc.Run(ctx, "docker.io/nats:latest")
+	if err != nil {
+		t.Fatalf("start nats container: %v", err)
+	}
+	t.Cleanup(func() { _ = natsContainer.Terminate(context.Background()) })
+
+	natsURL, err := natsContainer.ConnectionString(ctx)
+	if err != nil {
+		t.Fatalf("nats connection string: %v", err)
+	}
+	return natsURL
+}
+
+// dropRoleOnCleanup removes a cluster-scoped role at test end. Roles outlive the
+// per-test database, so on a shared server a leftover role would make the next run's
+// CREATE ROLE fail. No-op with a throwaway container — the whole server goes away.
+//
+// Register this BEFORE the database teardown so it runs after it (cleanups are
+// LIFO): dropping the database first removes the objects the role owns.
+func dropRoleOnCleanup(t *testing.T, role string) {
+	t.Helper()
+	adminURL := os.Getenv(envPostgresURL)
+	if adminURL == "" {
+		return
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		admin, err := pgxpool.New(ctx, adminURL)
+		if err != nil {
+			t.Logf("connecting to drop role %s: %v", role, err)
+			return
+		}
+		defer admin.Close()
+		if _, err := admin.Exec(ctx, `DROP ROLE IF EXISTS `+pq(role)); err != nil {
+			t.Logf("dropping role %s: %v", role, err)
+		}
+	})
+}
+
+// cleanupStream deletes a JetStream stream (and its consumers) when the test ends.
+// Only load-bearing on a shared server, where the stream would otherwise leak
+// messages and durable consumers into the next test.
+func cleanupStream(t *testing.T, js jetstream.JetStream, name string) {
+	t.Helper()
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := js.DeleteStream(ctx, name); err != nil {
+			t.Logf("deleting stream %s: %v", name, err)
+		}
+	})
 }
 
 const minimalSBOM = `{
@@ -190,7 +370,7 @@ func TestFullLifecycle(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	requireDocker(t)
+	requireTestInfra(t)
 
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()
@@ -340,7 +520,7 @@ func TestDigestNormalization(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	requireDocker(t)
+	requireTestInfra(t)
 
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()
@@ -454,7 +634,7 @@ func TestArtifactDetailSigningStatusParity(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	requireDocker(t)
+	requireTestInfra(t)
 
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()
@@ -580,7 +760,7 @@ func TestSigningStatusParity_AllStatuses(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	requireDocker(t)
+	requireTestInfra(t)
 
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()
@@ -648,7 +828,7 @@ func TestArtifactRollupSigningStatus_ArtifactMissingDominates(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	requireDocker(t)
+	requireTestInfra(t)
 
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()
@@ -717,7 +897,7 @@ func TestProvenanceRecheckErrorPreservesData(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	requireDocker(t)
+	requireTestInfra(t)
 
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()
@@ -814,7 +994,7 @@ func TestProvenanceDriftFullCycle(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	requireDocker(t)
+	requireTestInfra(t)
 
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()

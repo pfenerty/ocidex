@@ -2,16 +2,11 @@ package tests
 
 import (
 	"database/sql"
-	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/matryer/is"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/postgres"
-	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/pfenerty/ocidex/internal/dbaudit"
 )
@@ -21,31 +16,18 @@ import (
 // the app role. The audit must name them, ignore extension members, and go
 // quiet once ownership is transferred.
 func TestOwnershipAudit(t *testing.T) {
-	requireDocker(t)
+	requireTestInfra(t)
 	is := is.New(t)
 	ctx := t.Context()
 
-	pgContainer, err := postgres.Run(ctx,
-		"postgres:15-alpine",
-		postgres.WithDatabase("ocidex_test"),
-		postgres.WithUsername("test"),
-		postgres.WithPassword("test"),
-		testcontainers.WithWaitStrategy(
-			wait.ForLog("database system is ready to accept connections").
-				WithOccurrence(2).
-				WithStartupTimeout(30*time.Second),
-		),
-	)
-	is.NoErr(err)
-	t.Cleanup(func() { _ = pgContainer.Terminate(ctx) })
-
-	superURL, err := pgContainer.ConnectionString(ctx, "sslmode=disable")
-	is.NoErr(err)
-	host, err := pgContainer.Host(ctx)
-	is.NoErr(err)
-	port, err := pgContainer.MappedPort(ctx, "5432/tcp")
-	is.NoErr(err)
-	appURL := fmt.Sprintf("postgres://app:app@%s:%s/ocidex_test?sslmode=disable", host, port.Port())
+	// Deliberately unmigrated: the audit is asserted against exactly the two
+	// objects created below, so setupTestDB (which runs migrations) is wrong here.
+	// The role is cluster-scoped, so it is dropped after the database (see
+	// dropRoleOnCleanup) rather than dying with it.
+	dropRoleOnCleanup(t, "app")
+	superURL, dropDB := newTestDB(t)
+	t.Cleanup(dropDB)
+	appURL := withUser(t, superURL, "app", "app")
 
 	super, err := sql.Open("pgx", superURL)
 	is.NoErr(err)
@@ -54,6 +36,8 @@ func TestOwnershipAudit(t *testing.T) {
 	// The app role, plus objects the superuser created by hand — exactly the
 	// state hand-run psql left in ocidex-dev.
 	setup := []string{
+		// Defensive: a previous run that died before cleanup leaves the role behind.
+		`DROP ROLE IF EXISTS app`,
 		`CREATE ROLE app LOGIN PASSWORD 'app'`,
 		`GRANT USAGE, CREATE ON SCHEMA public TO app`,
 		`CREATE EXTENSION IF NOT EXISTS pg_trgm`,

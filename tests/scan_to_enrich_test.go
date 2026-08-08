@@ -13,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/matryer/is"
-	natsc "github.com/testcontainers/testcontainers-go/modules/nats"
 
 	"github.com/pfenerty/ocidex/internal/enrichment"
 	ocienricher "github.com/pfenerty/ocidex/internal/enrichment/oci"
@@ -153,7 +152,7 @@ func TestScanToEnrichFlow(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	requireDocker(t)
+	requireTestInfra(t)
 
 	ctx := t.Context()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -169,18 +168,8 @@ func TestScanToEnrichFlow(t *testing.T) {
 	pool, cleanDB := setupTestDB(t)
 	defer cleanDB()
 
-	natsContainer, err := natsc.Run(ctx, "docker.io/nats:latest")
-	if err != nil {
-		t.Fatalf("start nats container: %v", err)
-	}
-	t.Cleanup(func() { _ = natsContainer.Terminate(ctx) })
-
-	natsURL, err := natsContainer.ConnectionString(ctx)
-	if err != nil {
-		t.Fatalf("nats connection string: %v", err)
-	}
 	natsClient, err := natspkg.Connect(natspkg.Config{
-		URL:           natsURL,
+		URL:           setupNATS(t),
 		StreamName:    streamName,
 		EventTTLHours: 1,
 	})
@@ -188,6 +177,8 @@ func TestScanToEnrichFlow(t *testing.T) {
 		t.Fatalf("connect nats: %v", err)
 	}
 	t.Cleanup(natsClient.Close)
+	// Registered after Close, so it runs before it (cleanups are LIFO).
+	cleanupStream(t, natsClient.JS, streamName)
 
 	// Wire event bus + NATS relay (in-process → JetStream bridge).
 	bus := event.NewBus(logger)

@@ -8,6 +8,7 @@ import {
   buildkitReleaseCacheWs,
 } from "../../shared";
 import { goTest } from "../go-test/spec";
+import { goIntegration } from "../go-integration/spec";
 import { openapiCheck } from "../openapi-check/spec";
 
 type EnvVar = { name: string; value: string };
@@ -56,7 +57,10 @@ function buildImageTask(
   return new Task({
     name: taskName,
     statusReporter,
-    needs: [goTest, openapiCheck, ...extraNeeds],
+    // goIntegration gates publication: a failing integration test must skip the whole
+    // image chain rather than ship. This also applies to imageBuildsTag — serialChain
+    // backs both — so release builds carry the same gate.
+    needs: [goTest, goIntegration, openapiCheck, ...extraNeeds],
     workspaces: [cacheWs],
     volumes: [dockerConfigVolume],
     results: [...chains.results],

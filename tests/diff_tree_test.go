@@ -153,7 +153,7 @@ func TestDiffTreeEndpoint(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	requireDocker(t)
+	requireTestInfra(t)
 
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()

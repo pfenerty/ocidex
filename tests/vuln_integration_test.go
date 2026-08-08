@@ -46,7 +46,7 @@ func TestVulnSBOMSummaryJoin(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	requireDocker(t)
+	requireTestInfra(t)
 
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()
@@ -185,7 +185,7 @@ func TestVulnAliasDedup(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	requireDocker(t)
+	requireTestInfra(t)
 
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()
@@ -325,7 +325,7 @@ func TestVulnAliasDetailResolution(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	requireDocker(t)
+	requireTestInfra(t)
 
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()
@@ -424,7 +424,7 @@ func TestVulnLiveJoinSemantics(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	requireDocker(t)
+	requireTestInfra(t)
 
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()
@@ -478,7 +478,7 @@ func TestVulnDuplicatePurlSummaryParity(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	requireDocker(t)
+	requireTestInfra(t)
 
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()
@@ -536,7 +536,7 @@ func TestPurlVulnStateSkipsCleanPurls(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	requireDocker(t)
+	requireTestInfra(t)
 
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()
@@ -607,7 +607,7 @@ func TestSourcePurlIncludedInGatherQueries(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	requireDocker(t)
+	requireTestInfra(t)
 
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()
@@ -677,7 +677,7 @@ func TestComponentVulnsMatchSourcePurl(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	requireDocker(t)
+	requireTestInfra(t)
 
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()

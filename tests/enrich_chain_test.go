@@ -14,7 +14,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/matryer/is"
-	natsc "github.com/testcontainers/testcontainers-go/modules/nats"
 
 	"github.com/pfenerty/ocidex/internal/enrichment"
 	gitenricher "github.com/pfenerty/ocidex/internal/enrichment/git"
@@ -205,24 +204,13 @@ func setupChainTest(t *testing.T) (pool *pgxpool.Pool, store *repository.Queries
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
-	requireDocker(t)
+	requireTestInfra(t)
 
-	ctx := t.Context()
 	pool, cleanDB := setupTestDB(t)
 	t.Cleanup(cleanDB)
 
-	natsContainer, err := natsc.Run(ctx, "docker.io/nats:latest")
-	if err != nil {
-		t.Fatalf("start nats container: %v", err)
-	}
-	t.Cleanup(func() { _ = natsContainer.Terminate(ctx) })
-
-	natsURL, err := natsContainer.ConnectionString(ctx)
-	if err != nil {
-		t.Fatalf("nats connection string: %v", err)
-	}
-	natsClient, err = natspkg.Connect(natspkg.Config{
-		URL:           natsURL,
+	natsClient, err := natspkg.Connect(natspkg.Config{
+		URL:           setupNATS(t),
 		StreamName:    chainStreamName,
 		EventTTLHours: 1,
 	})
@@ -230,6 +218,8 @@ func setupChainTest(t *testing.T) (pool *pgxpool.Pool, store *repository.Queries
 		t.Fatalf("connect nats: %v", err)
 	}
 	t.Cleanup(natsClient.Close)
+	// Registered after Close, so it runs before it (cleanups are LIFO).
+	cleanupStream(t, natsClient.JS, chainStreamName)
 
 	sbomID = ingestChainSBOM(t, pool)
 	store = repository.New(pool)

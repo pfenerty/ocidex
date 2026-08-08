@@ -5,6 +5,7 @@ import { goChanged, nodeChanged, sourceChanged, pipelineChanged, detectTasks } f
 import { goFmt } from "./jobs/go-fmt/spec";
 import { goBuild } from "./jobs/go-build/spec";
 import { goTest } from "./jobs/go-test/spec";
+import { goIntegration } from "./jobs/go-integration/spec";
 import { frontendLint } from "./jobs/frontend-lint/spec";
 import { openapiCheck } from "./jobs/openapi-check/spec";
 import { goVulncheck } from "./jobs/go-vulncheck/spec";
@@ -21,7 +22,7 @@ import { sbomPush } from "./jobs/sbom-push/spec";
 // ─── Task groups ──────────────────────────────────────────────────────────────
 // Core build/verify tasks + the always-on security scans. Run ungated on push so
 // the publish path (main) always rebuilds and re-scans.
-const coreTasks = [goFmt, goTest, goBuild, openapiCheck, frontendLint];
+const coreTasks = [goFmt, goTest, goBuild, openapiCheck, frontendLint, goIntegration];
 // go-vulncheck = reachability-aware Go gate (replaced grype-on-Go, which only added
 // noise for Go — e.g. flagging the unreachable, unfixable x/crypto/openpgp advisory);
 // web-security = frontend npm deps (grype — govulncheck can't scan npm); semgrep = SAST;
@@ -51,7 +52,11 @@ const pushPipeline = new GitPipeline({
   // operator (~9 min) outliers plus ~8 min of pre-build tasks lands close to 2h, and a
   // 2h ceiling would turn a cache miss into a pipeline failure. Revisit if the builds
   // are ever parallelised, or if ocidex-2j2 lands and cuts the per-binary compile.
-  timeout: "2h30m",
+  //
+  // 3h since ocidex-113l: go-integration-test (25m budget) now sits between go-build and
+  // the image chain, and its sidecar-backed suite is not something the cold-run estimate
+  // above accounted for.
+  timeout: "3h",
   tasks: [...coreTasks, ...securityTasks, ...imageBuilds, helmPublish, sbomPush],
 });
 
@@ -74,6 +79,7 @@ const prPipeline = new GitPipeline({
     ...detectTasks,
     gated(goFmt, { when: goChanged }),
     gated(goTest, { when: goChanged }),
+    gated(goIntegration, { when: goChanged }),
     gated(openapiCheck, { when: goChanged }),
     gated(goVulncheck, { when: goChanged }),
     // web-security is a leaf → gate on the frontend bucket. semgrep is multi-language SAST →
