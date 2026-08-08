@@ -20,11 +20,19 @@ spec:
         {{- include "ocidex.podLabels" (dict "root" . "component" "migrate") | nindent 8 }}
     spec:
       restartPolicy: OnFailure
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: migrate
           image: {{ include "ocidex.image" (dict "root" . "name" "api") }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["/ocidex", "migrate", "up"]
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           resources:
             requests:
               cpu: "50m"

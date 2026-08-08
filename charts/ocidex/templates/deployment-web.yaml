@@ -17,10 +17,39 @@ spec:
         {{- include "ocidex.podLabels" (dict "root" . "component" "web") | nindent 8 }}
     spec:
       serviceAccountName: {{ include "ocidex.fullname" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if (default dict .Values.securityContext).readOnlyRootFilesystem }}
+      # nginx is the one workload here that writes to its own filesystem: the
+      # pid file at /run/nginx.pid and the temp paths under /var/lib/nginx/tmp
+      # are both compiled into the Chainguard image (see web/nginx.conf). With a
+      # read-only root these two emptyDirs are what keep it able to start —
+      # dropping them makes the container crash-loop on "open() /run/nginx.pid
+      # failed (30: Read-only file system)" rather than fail at admission, so
+      # they are tied to the setting rather than declared unconditionally.
+      volumes:
+        - name: run
+          emptyDir: {}
+        - name: nginx-tmp
+          emptyDir: {}
+      {{- end }}
       containers:
         - name: web
           image: {{ include "ocidex.image" (dict "root" . "name" "web") }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if (default dict .Values.securityContext).readOnlyRootFilesystem }}
+          volumeMounts:
+            - name: run
+              mountPath: /run
+            - name: nginx-tmp
+              mountPath: /var/lib/nginx/tmp
+          {{- end }}
           ports:
             # nginx runs as UID 65532 and so cannot bind a privileged port.
             - name: http

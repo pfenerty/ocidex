@@ -44,8 +44,16 @@ spec:
     spec:
       serviceAccountName: {{ include "ocidex-operator.fullname" . }}
       terminationGracePeriodSeconds: 35
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: operator
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- if .Values.image.tag }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           {{- else if .Values.image.digest }}

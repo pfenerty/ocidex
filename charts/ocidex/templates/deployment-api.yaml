@@ -18,10 +18,18 @@ spec:
     spec:
       serviceAccountName: {{ include "ocidex.fullname" . }}
       terminationGracePeriodSeconds: 40
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: api
           image: {{ include "ocidex.image" (dict "root" . "name" "api") }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: http
               containerPort: 8080

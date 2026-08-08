@@ -20,10 +20,18 @@ spec:
     spec:
       serviceAccountName: {{ include "ocidex.fullname" . }}
       terminationGracePeriodSeconds: 660
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: scanner-worker
           image: {{ include "ocidex.image" (dict "root" . "name" "scanner-worker") }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: health
               containerPort: 9090

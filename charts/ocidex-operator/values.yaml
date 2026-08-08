@@ -54,3 +54,27 @@ resources:
   limits:
     cpu: "200m"
     memory: "128Mi"
+
+# podSecurityContext / securityContext default to the settings the PodSecurity
+# "restricted" profile requires, so the chart installs cleanly into a namespace
+# labelled pod-security.kubernetes.io/enforce=restricted (ocidex-1d9). They are
+# values rather than hardcoded template blocks for the same reason resources and
+# leaderElection are: an operator can loosen them without forking the chart.
+#
+# runAsNonRoot needs no accompanying runAsUser — docker/Dockerfile builds the
+# operator on gcr.io/distroless/static-debian13:nonroot, which declares USER
+# 65532, and the kubelet reads the non-root assertion off the image config.
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+# readOnlyRootFilesystem is not required by "restricted" — it is defence in
+# depth, and safe here because controller-runtime writes nothing to disk unless
+# webhooks are configured (this chart configures none). Verified at runtime, not
+# assumed: see the ocidex-1d9 notes.
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  readOnlyRootFilesystem: true

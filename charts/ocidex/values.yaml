@@ -155,6 +155,36 @@ nats:
     limits:
       cpu: "100m"
       memory: "64Mi"
+  # NATS deliberately has no podSecurityContext/securityContext and is the one
+  # workload this chart leaves outside the "restricted" profile. It is a
+  # third-party image (docker.io/nats:2-alpine) that runs as root, and the
+  # blocker is storage, not the manifest — see the note in
+  # templates/statefulset-nats.yaml and the ocidex-1d9 follow-up issue.
+
+# --- Pod security ------------------------------------------------------------
+# Defaults satisfy the PodSecurity "restricted" profile so the chart installs
+# into a namespace labelled pod-security.kubernetes.io/enforce=restricted
+# (ocidex-1d9). Applied to every workload the project builds itself. NATS is a
+# third-party root image and is excluded — see the note under `nats` above.
+#
+# runAsNonRoot needs no runAsUser: every Go runtime stage in docker/Dockerfile
+# is gcr.io/distroless/static-debian13:nonroot and docker/web/Dockerfile is
+# cgr.dev/chainguard/nginx, both of which declare USER 65532 in the image
+# config, which is where the kubelet reads the non-root assertion from.
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+# readOnlyRootFilesystem is defence in depth, not a "restricted" requirement.
+# The Go binaries write nothing outside the container filesystem's tmpfs; nginx
+# does write, and deployment-web.yaml mounts emptyDirs over the two paths it
+# needs rather than dropping this setting.
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  readOnlyRootFilesystem: true
 
 # --- KEDA (optional) ---------------------------------------------------------
 # Requires the KEDA operator to be installed in the cluster.
