@@ -45,12 +45,15 @@ def _secret_yaml(name, data):
 k8s_yaml(blob(_secret_yaml('ocidex-secrets', env)))
 
 # --- App stack ------------------------------------------------------------
-# Per-service images. The Dockerfile is multi-target with a shared builder
-# stage, so BuildKit reuses the Go compile output across all three.
+# Per-service images. Every target copies from the single build-all stage, so
+# BuildKit compiles the Go tree once and reuses it across all four.
+# api/ and pkg/ are in `only` because build-all also links cmd/operator, which
+# imports api/v1alpha1 and pkg/client — without them the shared stage fails to
+# compile even though no Tilt-built service needs them directly.
 _build_ctx = {
     'context': '.',
     'dockerfile': 'docker/Dockerfile',
-    'only': ['cmd/', 'internal/', 'go.mod', 'go.sum', 'db/'],
+    'only': ['api/', 'cmd/', 'internal/', 'pkg/', 'go.mod', 'go.sum', 'db/'],
     'ignore': ['**/*_test.go', 'tests/'],
 }
 docker_build('ocidex-api',               target='api',               **_build_ctx)

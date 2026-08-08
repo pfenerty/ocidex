@@ -20,6 +20,11 @@ if ! echo "$TAG" | grep -q '-'; then
   NAMES="$NAMES,$IMAGE:latest"
 fi
 CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+# build-arg:DATE must be identical for every image in the chain, or docker/Dockerfile's shared
+# build-all stage re-runs its `go build` for each one instead of hitting CACHED (ocidex-2j2).
+# See build.sh for the full rationale.
+SOURCE_DATE=$(cat .buildctx.date 2>/dev/null) || SOURCE_DATE=""
+if [ -z "$SOURCE_DATE" ]; then SOURCE_DATE="$CREATED"; fi
 
 # OCI metadata is applied entirely via buildctl CLI (no Dockerfile LABELs):
 #   --opt label:KEY=VALUE      -> per-platform image config labels (docker inspect).
@@ -50,7 +55,7 @@ buildctl-daemonless.sh build \
   --opt platform=linux/amd64,linux/arm64 \
   --opt build-arg:VERSION="$TAG" \
   --opt build-arg:COMMIT="$(params.revision)" \
-  --opt build-arg:DATE="$CREATED" \
+  --opt build-arg:DATE="$SOURCE_DATE" \
   --opt "label:$A.version=$TAG" \
   --opt "label:$A.revision=$(params.revision)" \
   --opt "label:$A.created=$CREATED" \

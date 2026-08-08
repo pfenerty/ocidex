@@ -39,6 +39,11 @@ const releaseScript = scriptFromFile(path.join(__dirname, "release.sh"));
 // which is the precondition for `COPY . .` in builder-base being a stable cache key.
 const ctxDir = ".buildctx";
 const ctxTar = ".buildctx.tar";
+// The commit's own timestamp, used as build-arg:DATE. It must be identical across all ten
+// builds in a chain or the shared build-all stage's RUN string differs per image and never
+// hits CACHED (ocidex-2j2) — `date -u` at build time did exactly that. Kept OUTSIDE ctxDir so
+// writing it does not perturb the build context.
+const ctxDateFile = ".buildctx.date";
 
 // Shared Task skeleton. Each image declares a ChainsImage (Tekton Chains build
 // subject); build.sh/release.sh write the pushed ref + digest to its result paths.
@@ -123,6 +128,14 @@ if ($stamp | path exists) and (open --raw $stamp | str trim) == $rev {
   $rev | save --force $stamp
   log "materialised clean build context"
 }
+
+# Written unconditionally, outside the guard above: the extraction is skipped for builds
+# 2..n of a chain, but the date file must still exist on a workspace that predates it.
+with-env {TZ: "UTC"} {
+  let created = (^git -c safe.directory='*' show -s --format=%cd --date=format-local:%Y-%m-%dT%H:%M:%SZ $rev | str trim)
+  $created | save --force "${ctxDateFile}"
+  log $"build-arg DATE pinned to commit time ($created)"
+}
 ^du -sh "${ctxDir}"
 `,
       },
@@ -137,15 +150,15 @@ if ($stamp | path exists) and (open --raw $stamp | str trim) == $rev {
           capabilities: { drop: [], add: ["SETUID", "SETGID"] },
         },
         workingDir: "$(workspaces.workspace.path)",
-        // Limit measured empirically: a single linux/amd64 build (`api` image) peaked at
-        // ~471Mi real memory (kubectl top, 10s sampling) over an ~11min run. 2Gi keeps
-        // >50% headroom over that peak while covering heavier, unmeasured image types
-        // (e.g. `web`'s frontend bundling step) — tight enough that a genuine burst hits
-        // this container's own OOMKilled instead of growing large enough to trip Talos's
-        // node-wide OOMController (see ocidex-asx).
+        // Limit was 2Gi, measured against the old one-binary-per-image Dockerfile: a single
+        // linux/amd64 `api` build peaked at ~471Mi real memory (kubectl top, 10s sampling).
+        // The build-all stage (ocidex-2j2) links nine main packages in one `go build`, several
+        // concurrently, so the peak is higher; 3Gi covers that. Keep the ceiling tight enough
+        // that a genuine burst hits this container's own OOMKilled instead of growing large
+        // enough to trip Talos's node-wide OOMController (see ocidex-asx).
         computeResources: {
           requests: { cpu: "500m", memory: "1Gi" },
-          limits: { cpu: "4", memory: "2Gi" },
+          limits: { cpu: "4", memory: "3Gi" },
         },
         env: [
           { name: "DOCKER_CONFIG", value: "/tmp/docker-auth" },
@@ -205,7 +218,8 @@ function imageEnv(
 // run SEQUENTIALLY — each chained after the previous via `extraNeeds` — instead of in
 // parallel, which overcommits the node and leaves pods Pending ("Insufficient cpu").
 // The shared buildkit root (see buildImageTask) is what makes the serial order cheap:
-// each build inherits the previous one's base image, module cache and builder-base.
+// each build inherits the previous one's base image, module cache, builder-base and the
+// build-all stage that holds every compiled binary.
 type ImageSpec = [
   name: string,
   dockerfile: string,
@@ -228,8 +242,11 @@ const imageSpecs: ImageSpec[] = [
 
 // Build a serial chain: task[i] runs after task[i-1]. Every task in a chain shares one
 // buildkit root, which is what turns the serial ordering from a pure cost into a benefit:
-// build[i] reuses the base image, module cache and builder-base that build[i-1] left behind,
-// and recompiles only its own main package.
+// build[0] runs docker/Dockerfile's build-all stage once, and build[1..n] hit it CACHED,
+// doing nothing but copying their binary out of it and pushing the final image.
+// This replaced nine per-binary stages that each cold-compiled the whole dependency graph
+// (~210-300s apiece) because the builder image's GOCACHE never pointed at the cache mount
+// (ocidex-2j2).
 function serialChain(taskPrefix: string, script: ScriptInput, cacheWs: Workspace): Task[] {
   const chain: Task[] = [];
   for (const [name, dockerfile, title, description, target] of imageSpecs) {

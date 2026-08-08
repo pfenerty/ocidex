@@ -99,6 +99,14 @@ spec:
           $rev | save --force $stamp
           log "materialised clean build context"
         }
+
+        # Written unconditionally, outside the guard above: the extraction is skipped for builds
+        # 2..n of a chain, but the date file must still exist on a workspace that predates it.
+        with-env {TZ: "UTC"} {
+          let created = (^git -c safe.directory='*' show -s --format=%cd --date=format-local:%Y-%m-%dT%H:%M:%SZ $rev | str trim)
+          $created | save --force ".buildctx.date"
+          log $"build-arg DATE pinned to commit time ($created)"
+        }
         ^du -sh ".buildctx"
         }
         let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
@@ -110,7 +118,7 @@ spec:
     - computeResources:
         limits:
           cpu: "4"
-          memory: 2Gi
+          memory: 3Gi
         requests:
           cpu: 500m
           memory: 1Gi
@@ -152,6 +160,13 @@ spec:
         SHORT_SHA=$(echo "$(params.revision)" | cut -c1-8)
         VERSION="main-$SHORT_SHA"
         CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        # build-arg:DATE must be identical for every image in the chain, or docker/Dockerfile's shared
+        # build-all stage re-runs its `go build` for each one instead of hitting CACHED (ocidex-2j2).
+        # prepare-build-context pins it to the commit's own timestamp; the wall-clock CREATED above
+        # still feeds the OCI labels/annotations, which are applied at export and do not affect the
+        # build cache. Fallback covers a workspace materialised before this file existed.
+        SOURCE_DATE=$(cat .buildctx.date 2>/dev/null) || SOURCE_DATE=""
+        if [ -z "$SOURCE_DATE" ]; then SOURCE_DATE="$CREATED"; fi
 
         # OCI metadata is applied entirely via buildctl CLI (no Dockerfile LABELs):
         #   --opt label:KEY=VALUE      -> per-platform image config labels (docker inspect).
@@ -182,7 +197,7 @@ spec:
           --opt platform=linux/amd64 \
           --opt build-arg:VERSION="$VERSION" \
           --opt build-arg:COMMIT="$(params.revision)" \
-          --opt build-arg:DATE="$CREATED" \
+          --opt build-arg:DATE="$SOURCE_DATE" \
           --opt "label:$A.version=$VERSION" \
           --opt "label:$A.revision=$(params.revision)" \
           --opt "label:$A.created=$CREATED" \
