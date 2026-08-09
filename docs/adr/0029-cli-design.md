@@ -140,7 +140,29 @@ Two audiences, two answers, and nothing else:
   `build-all` stage onto `gcr.io/distroless/static-debian13:nonroot` per ADR-038, published by
   the same `imageSpecs` serial chain as the other ten images. A Tekton task or a K8s Job can
   then run `ocidex-cli sbom push` without a Go toolchain, which is what
-  `.tektonic/jobs/sbom-push/` should eventually consume instead of compiling the CLI every run.
+  `.tektonic/jobs/sbom-push/` now consumes (`ocidex-2u7y`) instead of running the CLI it
+  compiles.
+
+#### `--version-file` / `--arch-file` (`ocidex-2u7y`)
+
+Consuming the image cost two flags, and the reason is worth recording because it will recur
+for any pipeline that adopts the image. The image is distroless — no shell — so a step running
+it cannot loop, and cannot derive a value. `sbom-push` derives two: the version, from the git
+ref (`refs/tags/v1.2.3` → `v1.2.3`, else `0.0.0-<sha7>`), and the architecture, from
+`go env GOARCH` on the build node. Neither is expressible as a Tekton param substitution, and
+Tekton has no step results to pass one step's output into a later step's `args`.
+
+So the values travel on disk: the step that has a shell writes them to the shared workspace,
+and `--version-file` / `--arch-file` read them back. Both error on a missing or blank file
+rather than omitting the value — a push that silently records no version is harder to notice
+than one that fails.
+
+This did **not** save build time, and the issue's premise that it would was wrong:
+`ocidex-cli` is one of the ten SBOM subjects, so `build-binaries` compiles it either way.
+What it buys is that the SBOMs are pushed by the artifact users install. Because the task runs
+before the image-build chain, that artifact is the *previous* commit's — accepted deliberately;
+gating on `image-build-cli` would delay the upload by the full image chain and skip the
+dogfooding entirely whenever an image build fails.
 
 goreleaser, a Homebrew tap, and cross-compiled binaries attached to the GitHub release are
 **rejected for now**. Each is a standing maintenance cost, and between them the two paths above
