@@ -126,6 +126,46 @@ The shipped slice exits 1 for every failure. That is retrofitted to:
 because "absent" versus "not allowed to see" is the distinction a script most often needs
 to branch on. No further codes: anything more granular belongs in the stderr message.
 
+### Distribution: `go install` and `ghcr.io/pfenerty/ocidex-cli`
+
+*(Added by `ocidex-5dw`, after the epic shipped eight subcommand groups that nobody could
+install: the only way to get the binary was `git clone && make build`.)*
+
+Two audiences, two answers, and nothing else:
+
+- **Go toolchain** — `go install github.com/pfenerty/ocidex/cmd/ocidex-cli@latest`. This
+  already worked incidentally, because the module is public; it is now a supported path,
+  documented in the README, with a `version` command that makes it answerable.
+- **Containers** — `ghcr.io/pfenerty/ocidex-cli`, built from `docker/Dockerfile`'s shared
+  `build-all` stage onto `gcr.io/distroless/static-debian13:nonroot` per ADR-038, published by
+  the same `imageSpecs` serial chain as the other ten images. A Tekton task or a K8s Job can
+  then run `ocidex-cli sbom push` without a Go toolchain, which is what
+  `.tektonic/jobs/sbom-push/` should eventually consume instead of compiling the CLI every run.
+
+goreleaser, a Homebrew tap, and cross-compiled binaries attached to the GitHub release are
+**rejected for now**. Each is a standing maintenance cost, and between them the two paths above
+cover everyone who has either a Go toolchain or a container runtime. Revisit if a user without
+both turns up.
+
+The image is named `ocidex-cli`, not `ocidex/ocidex-cli`: every sibling package is
+`ghcr.io/pfenerty/ocidex-<name>`, and one image in a different repo shape would be a permanent
+exception in `imageEnv`.
+
+### Reporting the build: `ocidex-cli version`
+
+`version` prints `ocidex-cli <version> (commit <sha>, built <date>)`, the same line
+`ocidex --version` prints. `--version` on the root command prints it too, from the same string.
+
+Neither `go install` nor `make build` passes `-ldflags`, so `internal/version`'s linker
+variables would report `dev`/`unknown` for every build that is not an image. `version.Info()`
+therefore prefers the linker values and falls back to `runtime/debug.ReadBuildInfo()` — the
+module version for `go install`, and the `vcs.revision`/`vcs.time` stamps for a build from a
+checkout. Images are unaffected: their `-ldflags` win.
+
+The command deliberately shadows the root's `PersistentPreRunE`, so it answers without
+resolving configuration. A config file this same binary refuses to read — a world-readable one
+holding an `api-key`, say — is exactly the state someone runs `version` to help diagnose.
+
 ### Client construction
 
 One `client.New(client.Config{BaseURL, APIKey})` per invocation, built from the resolved
@@ -145,6 +185,13 @@ tests without an HTTP server.
   and will look like a missing feature until someone reads this section.
 - Every new API resource implies a new noun file; the command tree is expected to grow to
   match `Client`, not to curate a subset of it.
+- The CLI is now a published artifact rather than a repo-local build product, so its flag
+  surface, output shapes and exit codes are a compatibility surface: someone is running a
+  binary older than `main`. `ocidex-cli version` is what makes that diagnosable.
+- The image is an eleventh link in the serial `image-build` chain, so it lengthens the push
+  pipeline (tracked as `ocidex-2vr`). It is cheap in practice — the shared `build-all` stage is
+  already CACHED by the time it runs, and the final stage only copies a binary — but the first
+  run after `./cmd/ocidex-cli` joined `build-all` rebuilds that stage cold.
 
 ## More Information
 

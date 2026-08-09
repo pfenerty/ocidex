@@ -19,13 +19,13 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 
 # ---- Shared build stage ------------------------------------------------------
-# One compile for all nine shipped binaries. The dependency graph (cosign/sigstore-go and its
+# One compile for all ten shipped binaries. The dependency graph (cosign/sigstore-go and its
 # ~786 transitive deps, per ADR-037) dominates compile time, so compiling it once and linking
-# nine mains replaces nine cold compiles of the same graph. The serial image chain shares one
+# ten mains replaces ten cold compiles of the same graph. The serial image chain shares one
 # buildkit root, so only the first image build runs this stage; the rest hit it CACHED.
 #
-# Do not switch to ./cmd/... — that would also build ocidex-cli, specgen, dbcheck and the
-# backfill tools, none of which ship as images.
+# Do not switch to ./cmd/... — that would also build specgen, dbcheck and the backfill tools,
+# none of which ship as images.
 FROM builder-base AS build-all
 ARG TARGETARCH
 ARG VERSION=dev
@@ -46,7 +46,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       ./cmd/user-enricher-worker \
       ./cmd/provenance-worker \
       ./cmd/vuln-worker \
-      ./cmd/operator
+      ./cmd/operator \
+      ./cmd/ocidex-cli
 
 # ---- Final stages (labels injected via buildctl CLI flags, not Dockerfile) ---
 
@@ -86,3 +87,10 @@ ENTRYPOINT ["/vuln-worker"]
 FROM gcr.io/distroless/static-debian13:nonroot AS operator
 COPY --from=build-all /app/bin/operator /operator
 ENTRYPOINT ["/operator"]
+
+# The CLI ships as an image so a Tekton task or a K8s Job can run it without a Go toolchain
+# (ADR-029, Distribution). distroless static carries ca-certificates for HTTPS and sets
+# HOME=/home/nonroot, which is all `ocidex-cli` needs to resolve its config path.
+FROM gcr.io/distroless/static-debian13:nonroot AS cli
+COPY --from=build-all /app/bin/ocidex-cli /ocidex-cli
+ENTRYPOINT ["/ocidex-cli"]

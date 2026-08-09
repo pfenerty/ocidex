@@ -29,7 +29,7 @@ log $"pushing ($binaries | length) SBOMs as version ($version) to ($env.OCIDEX_U
 mut failed = []
 for b in $binaries {
   # The subject is declared rather than inferred: a syft scan of a binary names the
-  # file it read, and the purl it derives is the Go *module*, which all nine binaries
+  # file it read, and the purl it derives is the Go *module*, which all ten binaries
   # share. Group + name are what keep them distinct artifacts.
   #
   # Built as a list and spread, because a bare multi-line external invocation is a

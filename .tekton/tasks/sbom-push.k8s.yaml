@@ -115,7 +115,7 @@ spec:
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         def main [] {
         mkdir .sbom-out
-        for b in ["ocidex" "scanner-worker" "enrichment-worker" "oci-metadata-worker" "git-worker" "user-enricher-worker" "provenance-worker" "vuln-worker" "operator"] {
+        for b in ["ocidex" "scanner-worker" "enrichment-worker" "oci-metadata-worker" "git-worker" "user-enricher-worker" "provenance-worker" "vuln-worker" "operator" "ocidex-cli"] {
           log $"Cataloging ($b)"
           ^syft $"file:.sbom-bins/($b)" -o $"cyclonedx-json=.sbom-out/($b).cdx.json"
         }
@@ -145,7 +145,7 @@ spec:
         - name: OCIDEX_SOURCE
           value: ocidex/ci
         - name: OCIDEX_BINARIES
-          value: ocidex scanner-worker enrichment-worker oci-metadata-worker git-worker user-enricher-worker provenance-worker vuln-worker operator
+          value: ocidex scanner-worker enrichment-worker oci-metadata-worker git-worker user-enricher-worker provenance-worker vuln-worker operator ocidex-cli
       image: ghcr.io/pfenerty/apko-cicd/golang:1.26
       name: push-sboms
       onError: continue
@@ -183,7 +183,7 @@ spec:
         mut failed = []
         for b in $binaries {
           # The subject is declared rather than inferred: a syft scan of a binary names the
-          # file it read, and the purl it derives is the Go *module*, which all nine binaries
+          # file it read, and the purl it derives is the Go *module*, which all ten binaries
           # share. Group + name are what keep them distinct artifacts.
           #
           # Built as a list and spread, because a bare multi-line external invocation is a
