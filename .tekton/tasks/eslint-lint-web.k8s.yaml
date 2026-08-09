@@ -68,6 +68,8 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        if not ("/tekton/home/.exit-code" | path exists) { try { "0" | save -f /tekton/home/.exit-code } }
+        try { ^chmod 0666 /tekton/home/.exit-code }
         def main [] {
         log $"node=(node --version) npm=(npm --version) uid=(id -u)"
         log "Installing dependencies (npm ci)"
