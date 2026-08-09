@@ -25,8 +25,13 @@ env = _parse_dotenv(str(read_file('.env')))
 for required in ('GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'SESSION_SECRET'):
     if not env.get(required):
         fail("%s must be set in .env (used by both docker-compose and Tilt)" % required)
-env['DATABASE_URL'] = 'postgres://ocidex:devpass@postgres:5432/ocidex?sslmode=disable'
-env['POSTGRES_PASSWORD'] = 'devpass'
+# Credentials match .env and docker-compose (ocidex:ocidex) on purpose: postgres
+# is port-forwarded to host 5432 below, so host-side `make migrate-up`, `make
+# seed`, and psql all authenticate against the in-cluster database without a
+# second set of credentials to remember. POSTGRES_PASSWORD is read back by
+# tilt/postgres.yaml so the password and the URL that embeds it stay in sync.
+env['DATABASE_URL'] = 'postgres://ocidex:ocidex@postgres:5432/ocidex?sslmode=disable'
+env['POSTGRES_PASSWORD'] = 'ocidex'
 
 def _secret_yaml(name, data):
     lines = [
@@ -82,16 +87,34 @@ docker_build(
 
 k8s_yaml(helm('./charts/ocidex', name='ocidex', namespace='default', values=['tilt/values-dev.yaml']))
 
-k8s_resource('ocidex-api', port_forwards=port_forward(8080, 8080, host='0.0.0.0'), labels=['app'])
+# Dev-only Postgres. charts/ocidex deliberately renders no database (ADR-031 —
+# production uses a CloudNativePG Cluster owned by the homelab Flux repo), so
+# the dev loop supplies its own here.
+k8s_yaml('tilt/postgres.yaml')
+
+# Schema. tilt/values-dev.yaml sets migrate.enabled=true, so the chart's
+# pre-install hook Job renders as a plain Job named for the (always 1) release
+# revision under `helm template`. Tilt injects the locally built ocidex-api
+# image into it just like any other manifest.
+_migrate = 'ocidex-migrate-1'
+
+# Everything that talks to Postgres waits for the schema; everything that talks
+# to NATS waits for the server. Without this a cold `tilt up` still converges,
+# but only after a round of crash-loop backoff on every Go pod.
+_db_and_nats = [_migrate, 'ocidex-nats']
+
+k8s_resource('ocidex-api', port_forwards=port_forward(8080, 8080, host='0.0.0.0'), labels=['app'], resource_deps=_db_and_nats)
 k8s_resource('ocidex-web', labels=['app'])
-k8s_resource('ocidex-scanner-worker', labels=['workers'])
-k8s_resource('ocidex-oci-metadata-worker', labels=['workers'])
-k8s_resource('ocidex-git-worker', labels=['workers'])
-k8s_resource('ocidex-user-enricher-worker', labels=['workers'])
-k8s_resource('ocidex-provenance-worker', labels=['workers'])
-k8s_resource('ocidex-vuln-worker', labels=['workers'])
+k8s_resource('ocidex-scanner-worker', labels=['workers'], resource_deps=_db_and_nats)
+k8s_resource('ocidex-oci-metadata-worker', labels=['workers'], resource_deps=_db_and_nats)
+k8s_resource('ocidex-git-worker', labels=['workers'], resource_deps=_db_and_nats)
+k8s_resource('ocidex-user-enricher-worker', labels=['workers'], resource_deps=_db_and_nats)
+k8s_resource('ocidex-provenance-worker', labels=['workers'], resource_deps=_db_and_nats)
+# No NATS: the vuln worker only reaches Postgres and api.osv.dev.
+k8s_resource('ocidex-vuln-worker', labels=['workers'], resource_deps=[_migrate])
 k8s_resource('ocidex-nats', labels=['infra'])
 k8s_resource('postgres', port_forwards=port_forward(5432, 5432, host='0.0.0.0'), labels=['infra'])
+k8s_resource(_migrate, labels=['infra'], resource_deps=['postgres'])
 
 local_resource(
     'web',

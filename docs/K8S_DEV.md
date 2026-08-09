@@ -25,7 +25,7 @@ This creates a Talos cluster backed by Docker and wires it to a local registry o
 flox activate -- make dev-up
 ```
 
-Tilt builds the API and worker images, pushes them to the local registry, and applies `k8s/overlays/dev`. It watches source files and rebuilds on change.
+Tilt builds the API, worker, and web images, pushes them to the local registry, and applies the `charts/ocidex` Helm chart rendered with `tilt/values-dev.yaml` plus the dev-only Postgres in `tilt/postgres.yaml`. It watches source files and rebuilds on change.
 
 Tilt UI: [http://localhost:10350](http://localhost:10350)
 
@@ -60,8 +60,18 @@ flox activate -- make dev-cluster-down # Destroy the cluster and registry
 ## How It Works
 
 - `make dev-cluster-up` runs `talosctl cluster create` with a custom registry-mirror config (`tilt/talos-cluster.yaml`) so pods pull from the host's bridge IP `10.5.0.1:5005`.
-- `make dev-up` runs Tilt, which reads `Tiltfile` at the repo root. The Tiltfile generates the `ocidex-secrets` Secret from the local `.env` file (kustomize's secretGenerator cannot read files outside the kustomization root), builds the images, and applies `k8s/overlays/dev`.
-- The dev overlay scales all Deployments to 1 replica, uses `IfNotPresent` pull policy, and sets `NATS_STREAM_REPLICAS=1`.
+- `make dev-up` runs Tilt, which reads `Tiltfile` at the repo root. The Tiltfile generates the `ocidex-secrets` Secret from the local `.env` file, overriding `DATABASE_URL` to point at the in-cluster Postgres, then builds the images and applies the chart.
+- `tilt/values-dev.yaml` scales every Deployment to 1 replica, sets `NATS_STREAM_REPLICAS=1`, and backs NATS with an `emptyDir` (the Talos-in-Docker cluster has no default StorageClass, so a PVC would stay `Pending`).
+
+### The database
+
+`charts/ocidex` renders **no** Postgres workload — per ADR-031 the database is external to this repo, and production runs a CloudNativePG `Cluster` declared in the homelab Flux repo. The dev loop supplies its own from `tilt/postgres.yaml`: a single-replica `postgres:18.4-alpine` Deployment plus a Service named `postgres`, matching the host in the Tiltfile's `DATABASE_URL`.
+
+Its credentials are `ocidex:ocidex`, the same as `.env` and `docker-compose.yml`, and it is port-forwarded to host `5432` — so `make migrate-up`, `make seed`, and `psql` work from the host against the cluster database with no extra setup.
+
+Schema is applied in-cluster by `tilt/values-dev.yaml` setting `migrate.enabled: true`, which renders the chart's migrate Job as the Tilt resource `ocidex-migrate-1` (gated on `postgres` being ready). It runs the same `ocidex migrate up` that production does.
+
+**The dev database is `emptyDir`-backed and is wiped whenever its pod restarts.** After a restart, reapply the schema with `tilt trigger ocidex-migrate-1` — no need for a full `tilt down`.
 
 ## Troubleshooting
 
@@ -69,6 +79,8 @@ flox activate -- make dev-cluster-down # Destroy the cluster and registry
 
 **Port-forward drops:** Re-run `make dev-up` — Tilt automatically re-establishes port-forwards on restart.
 
-**Secret not found:** Check that `.env` exists at the repo root with at minimum `DATABASE_URL`, `NATS_URL`, and `SESSION_SECRET`. See `.env.example`.
+**Tiltfile fails at startup:** The Tiltfile hard-fails unless `.env` exists at the repo root with `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and `SESSION_SECRET` set. `DATABASE_URL` and `NATS_URL` are overridden with in-cluster addresses, so whatever `.env` holds for those is ignored. See `.env.example`.
+
+**Pods report `relation ... does not exist`:** The Postgres pod restarted and its `emptyDir` went with it. Run `tilt trigger ocidex-migrate-1`.
 
 **NATS issues in dev:** The dev overlay sets `NATS_STREAM_REPLICAS=1` (single-node NATS). If you recreate the cluster, NATS stream state is lost — this is expected for dev.

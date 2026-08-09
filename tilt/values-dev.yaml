@@ -2,8 +2,10 @@ image:
   registry: ""
   pullPolicy: IfNotPresent
 
+# Applies the schema to the dev Postgres in tilt/postgres.yaml. Tilt runs the
+# hook Job as an ordinary resource (ocidex-migrate-1) gated on postgres.
 migrate:
-  enabled: false
+  enabled: true
 
 api:
   replicas: 1

@@ -133,7 +133,8 @@ web:
       memory: "64Mi"
 
 # --- Migrate job -------------------------------------------------------------
-# Set to false in dev; run `make migrate-up` manually instead.
+# Runs `ocidex migrate up` from the api image as a pre-install/pre-upgrade hook.
+# Disable only if you apply migrations out of band (e.g. `make migrate-up`).
 migrate:
   enabled: true
 

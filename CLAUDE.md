@@ -284,7 +284,10 @@ reports **green on a real failure** (ocidex-es6).
 
 `make dev-cluster-up` provisions a Docker-backed Talos cluster (`talosctl cluster create`) wired
 to a local Docker registry on `localhost:5005`. `make dev-up` runs Tilt, which builds the API/worker
-image, pushes to the local registry, and applies `k8s/overlays/dev`. The frontend is served by Vite
+images, pushes to the local registry, and applies `charts/ocidex` rendered with
+`tilt/values-dev.yaml`, plus the dev-only Postgres in `tilt/postgres.yaml` (the chart renders no
+database — ADR-031 keeps it external). Schema comes from the chart's migrate Job, surfaced as the
+Tilt resource `ocidex-migrate-1`. The frontend is served by Vite
 locally (port 3000) for HMR; the API is port-forwarded from the cluster on 8080. Tilt UI: `:10350`.
 
 The Talos registry-mirror config (`tilt/talos-cluster.yaml`) makes pods inside the cluster pull

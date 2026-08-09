@@ -1,0 +1,91 @@
+# Dev-only Postgres for the Tilt loop (ocidex-1bbp).
+#
+# NOT part of charts/ocidex, deliberately. ADR-031 puts the database outside
+# this repo — production runs a CloudNativePG Cluster declared in the homelab
+# Flux repo, and charts/ocidex only ever consumes a DATABASE_URL handed to it
+# via .Values.existingSecret. Keeping this here means no install of the chart
+# can ever accidentally stand up a throwaway database.
+#
+# The Service name is load-bearing: Tiltfile hardcodes the in-cluster
+# DATABASE_URL as postgres://ocidex:...@postgres:5432/ocidex.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      # No securityContext, matching the exemption documented in
+      # charts/ocidex/templates/statefulset-nats.yaml: the official Postgres
+      # image starts as root and drops to the postgres user in its entrypoint.
+      # The dev cluster's default namespace has no PodSecurity enforcement.
+      containers:
+        - name: postgres
+          # Same pin as docker-compose.yml so both dev paths run one server
+          # version and Renovate has a single reference to bump.
+          image: docker.io/postgres:18.4-alpine
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: ocidex
+            - name: POSTGRES_DB
+              value: ocidex
+            # Tiltfile writes this key into ocidex-secrets alongside the
+            # DATABASE_URL that embeds it — read it back rather than repeating
+            # the literal, so the two cannot drift apart.
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ocidex-secrets
+                  key: POSTGRES_PASSWORD
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "ocidex"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+          volumeMounts:
+            # Postgres 18 moved PGDATA to /var/lib/postgresql/18/docker, so the
+            # volume has to cover the parent — docker-compose.yml mounts the
+            # same path for the same reason.
+            - name: data
+              mountPath: /var/lib/postgresql
+      volumes:
+        # emptyDir, not a PVC: the Talos-in-Docker dev cluster ships no default
+        # StorageClass (which is also why tilt/values-dev.yaml sets
+        # nats.storage.emptyDir). A claim here would sit Pending forever.
+        # Consequence: the database is wiped when this pod restarts — see
+        # docs/K8S_DEV.md for how to reapply the schema.
+        - name: data
+          emptyDir: {}
