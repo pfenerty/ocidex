@@ -99,10 +99,11 @@ spec:
         # A tag build is the released version; a push to main is not, so it gets a version
         # that sorts below every release and still names the commit it came from.
         #
-        # Computed here, in the last step of this task that has a shell, because the steps
-        # that consume it run the distroless ocidex-cli image and cannot derive it. They
-        # read it back via --version-file (ocidex-2u7y). Folded into this step rather than
-        # given one of its own: see the step-count note above.
+        # Written to disk rather than derived at push time: only this step has the params
+        # in scope, and push-sboms.nu hands the file straight to --version-file, which
+        # errors on a missing or blank file instead of pushing a versionless SBOM
+        # (ocidex-2u7y). Folded into this step rather than given one of its own: see the
+        # step-count note above.
         let ref = "$(params.source-branch)"
         let rev = "$(params.revision)"
         let version = if ($ref | str starts-with "refs/tags/") {
@@ -146,35 +147,13 @@ spec:
         let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
         $"($__tek_worst)" | save -f /tekton/home/.exit-code
         exit $__tek_rc
-    - args:
-        - sbom
-        - push
-        - .sbom-out/ocidex.cdx.json
-        - --source
-        - ocidex/ci
-        - --artifact-file
-        - .sbom-bins/ocidex
-        - --subject-type
-        - application
-        - --subject-name
-        - ocidex
-        - --subject-group
-        - github.com/pfenerty/ocidex
-        - --subject-purl
-        - pkg:golang/github.com/pfenerty/ocidex/cmd/ocidex
-        - --version-file
-        - .sbom-bins/.version
-        - --arch-file
-        - .sbom-bins/.goarch
-      command:
-        - /ocidex-cli
-      computeResources:
+    - computeResources:
         limits:
-          cpu: 250m
-          memory: 128Mi
+          cpu: "1"
+          memory: 512Mi
         requests:
-          cpu: 25m
-          memory: 64Mi
+          cpu: 50m
+          memory: 128Mi
       env:
         - name: OCIDEX_URL
           value: http://ocidex-dev-api.ocidex-dev.svc.cluster.local
@@ -184,337 +163,94 @@ spec:
               key: key
               name: ocidex-api-key
               optional: true
-      image: ghcr.io/pfenerty/ocidex-cli:main
-      name: push-ocidex
+        - name: OCIDEX_SOURCE
+          value: ocidex/ci
+        - name: OCIDEX_BINARIES
+          value: ocidex scanner-worker oci-metadata-worker git-worker user-enricher-worker provenance-worker vuln-worker operator ocidex-cli
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.26
+      name: push-sboms
       onError: continue
-    - args:
-        - sbom
-        - push
-        - .sbom-out/scanner-worker.cdx.json
-        - --source
-        - ocidex/ci
-        - --artifact-file
-        - .sbom-bins/scanner-worker
-        - --subject-type
-        - application
-        - --subject-name
-        - scanner-worker
-        - --subject-group
-        - github.com/pfenerty/ocidex
-        - --subject-purl
-        - pkg:golang/github.com/pfenerty/ocidex/cmd/scanner-worker
-        - --version-file
-        - .sbom-bins/.version
-        - --arch-file
-        - .sbom-bins/.goarch
-      command:
-        - /ocidex-cli
-      computeResources:
-        limits:
-          cpu: 250m
-          memory: 128Mi
-        requests:
-          cpu: 25m
-          memory: 64Mi
-      env:
-        - name: OCIDEX_URL
-          value: http://ocidex-dev-api.ocidex-dev.svc.cluster.local
-        - name: OCIDEX_API_KEY
-          valueFrom:
-            secretKeyRef:
-              key: key
-              name: ocidex-api-key
-              optional: true
-      image: ghcr.io/pfenerty/ocidex-cli:main
-      name: push-scanner-worker
-      onError: continue
-    - args:
-        - sbom
-        - push
-        - .sbom-out/oci-metadata-worker.cdx.json
-        - --source
-        - ocidex/ci
-        - --artifact-file
-        - .sbom-bins/oci-metadata-worker
-        - --subject-type
-        - application
-        - --subject-name
-        - oci-metadata-worker
-        - --subject-group
-        - github.com/pfenerty/ocidex
-        - --subject-purl
-        - pkg:golang/github.com/pfenerty/ocidex/cmd/oci-metadata-worker
-        - --version-file
-        - .sbom-bins/.version
-        - --arch-file
-        - .sbom-bins/.goarch
-      command:
-        - /ocidex-cli
-      computeResources:
-        limits:
-          cpu: 250m
-          memory: 128Mi
-        requests:
-          cpu: 25m
-          memory: 64Mi
-      env:
-        - name: OCIDEX_URL
-          value: http://ocidex-dev-api.ocidex-dev.svc.cluster.local
-        - name: OCIDEX_API_KEY
-          valueFrom:
-            secretKeyRef:
-              key: key
-              name: ocidex-api-key
-              optional: true
-      image: ghcr.io/pfenerty/ocidex-cli:main
-      name: push-oci-metadata-worker
-      onError: continue
-    - args:
-        - sbom
-        - push
-        - .sbom-out/git-worker.cdx.json
-        - --source
-        - ocidex/ci
-        - --artifact-file
-        - .sbom-bins/git-worker
-        - --subject-type
-        - application
-        - --subject-name
-        - git-worker
-        - --subject-group
-        - github.com/pfenerty/ocidex
-        - --subject-purl
-        - pkg:golang/github.com/pfenerty/ocidex/cmd/git-worker
-        - --version-file
-        - .sbom-bins/.version
-        - --arch-file
-        - .sbom-bins/.goarch
-      command:
-        - /ocidex-cli
-      computeResources:
-        limits:
-          cpu: 250m
-          memory: 128Mi
-        requests:
-          cpu: 25m
-          memory: 64Mi
-      env:
-        - name: OCIDEX_URL
-          value: http://ocidex-dev-api.ocidex-dev.svc.cluster.local
-        - name: OCIDEX_API_KEY
-          valueFrom:
-            secretKeyRef:
-              key: key
-              name: ocidex-api-key
-              optional: true
-      image: ghcr.io/pfenerty/ocidex-cli:main
-      name: push-git-worker
-      onError: continue
-    - args:
-        - sbom
-        - push
-        - .sbom-out/user-enricher-worker.cdx.json
-        - --source
-        - ocidex/ci
-        - --artifact-file
-        - .sbom-bins/user-enricher-worker
-        - --subject-type
-        - application
-        - --subject-name
-        - user-enricher-worker
-        - --subject-group
-        - github.com/pfenerty/ocidex
-        - --subject-purl
-        - pkg:golang/github.com/pfenerty/ocidex/cmd/user-enricher-worker
-        - --version-file
-        - .sbom-bins/.version
-        - --arch-file
-        - .sbom-bins/.goarch
-      command:
-        - /ocidex-cli
-      computeResources:
-        limits:
-          cpu: 250m
-          memory: 128Mi
-        requests:
-          cpu: 25m
-          memory: 64Mi
-      env:
-        - name: OCIDEX_URL
-          value: http://ocidex-dev-api.ocidex-dev.svc.cluster.local
-        - name: OCIDEX_API_KEY
-          valueFrom:
-            secretKeyRef:
-              key: key
-              name: ocidex-api-key
-              optional: true
-      image: ghcr.io/pfenerty/ocidex-cli:main
-      name: push-user-enricher-worker
-      onError: continue
-    - args:
-        - sbom
-        - push
-        - .sbom-out/provenance-worker.cdx.json
-        - --source
-        - ocidex/ci
-        - --artifact-file
-        - .sbom-bins/provenance-worker
-        - --subject-type
-        - application
-        - --subject-name
-        - provenance-worker
-        - --subject-group
-        - github.com/pfenerty/ocidex
-        - --subject-purl
-        - pkg:golang/github.com/pfenerty/ocidex/cmd/provenance-worker
-        - --version-file
-        - .sbom-bins/.version
-        - --arch-file
-        - .sbom-bins/.goarch
-      command:
-        - /ocidex-cli
-      computeResources:
-        limits:
-          cpu: 250m
-          memory: 128Mi
-        requests:
-          cpu: 25m
-          memory: 64Mi
-      env:
-        - name: OCIDEX_URL
-          value: http://ocidex-dev-api.ocidex-dev.svc.cluster.local
-        - name: OCIDEX_API_KEY
-          valueFrom:
-            secretKeyRef:
-              key: key
-              name: ocidex-api-key
-              optional: true
-      image: ghcr.io/pfenerty/ocidex-cli:main
-      name: push-provenance-worker
-      onError: continue
-    - args:
-        - sbom
-        - push
-        - .sbom-out/vuln-worker.cdx.json
-        - --source
-        - ocidex/ci
-        - --artifact-file
-        - .sbom-bins/vuln-worker
-        - --subject-type
-        - application
-        - --subject-name
-        - vuln-worker
-        - --subject-group
-        - github.com/pfenerty/ocidex
-        - --subject-purl
-        - pkg:golang/github.com/pfenerty/ocidex/cmd/vuln-worker
-        - --version-file
-        - .sbom-bins/.version
-        - --arch-file
-        - .sbom-bins/.goarch
-      command:
-        - /ocidex-cli
-      computeResources:
-        limits:
-          cpu: 250m
-          memory: 128Mi
-        requests:
-          cpu: 25m
-          memory: 64Mi
-      env:
-        - name: OCIDEX_URL
-          value: http://ocidex-dev-api.ocidex-dev.svc.cluster.local
-        - name: OCIDEX_API_KEY
-          valueFrom:
-            secretKeyRef:
-              key: key
-              name: ocidex-api-key
-              optional: true
-      image: ghcr.io/pfenerty/ocidex-cli:main
-      name: push-vuln-worker
-      onError: continue
-    - args:
-        - sbom
-        - push
-        - .sbom-out/operator.cdx.json
-        - --source
-        - ocidex/ci
-        - --artifact-file
-        - .sbom-bins/operator
-        - --subject-type
-        - application
-        - --subject-name
-        - operator
-        - --subject-group
-        - github.com/pfenerty/ocidex
-        - --subject-purl
-        - pkg:golang/github.com/pfenerty/ocidex/cmd/operator
-        - --version-file
-        - .sbom-bins/.version
-        - --arch-file
-        - .sbom-bins/.goarch
-      command:
-        - /ocidex-cli
-      computeResources:
-        limits:
-          cpu: 250m
-          memory: 128Mi
-        requests:
-          cpu: 25m
-          memory: 64Mi
-      env:
-        - name: OCIDEX_URL
-          value: http://ocidex-dev-api.ocidex-dev.svc.cluster.local
-        - name: OCIDEX_API_KEY
-          valueFrom:
-            secretKeyRef:
-              key: key
-              name: ocidex-api-key
-              optional: true
-      image: ghcr.io/pfenerty/ocidex-cli:main
-      name: push-operator
-      onError: continue
-    - args:
-        - sbom
-        - push
-        - .sbom-out/ocidex-cli.cdx.json
-        - --source
-        - ocidex/ci
-        - --artifact-file
-        - .sbom-bins/ocidex-cli
-        - --subject-type
-        - application
-        - --subject-name
-        - ocidex-cli
-        - --subject-group
-        - github.com/pfenerty/ocidex
-        - --subject-purl
-        - pkg:golang/github.com/pfenerty/ocidex/cmd/ocidex-cli
-        - --version-file
-        - .sbom-bins/.version
-        - --arch-file
-        - .sbom-bins/.goarch
-      command:
-        - /ocidex-cli
-      computeResources:
-        limits:
-          cpu: 250m
-          memory: 128Mi
-        requests:
-          cpu: 25m
-          memory: 64Mi
-      env:
-        - name: OCIDEX_URL
-          value: http://ocidex-dev-api.ocidex-dev.svc.cluster.local
-        - name: OCIDEX_API_KEY
-          valueFrom:
-            secretKeyRef:
-              key: key
-              name: ocidex-api-key
-              optional: true
-      image: ghcr.io/pfenerty/ocidex-cli:main
-      name: push-ocidex-cli
-      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        if not ("/tekton/home/.exit-code" | path exists) { try { "0" | save -f /tekton/home/.exit-code } }
+        try { ^chmod 0666 /tekton/home/.exit-code }
+        def main [] {
+        # Pushes one SBOM per shipped binary using the ocidex-cli that build-binaries just
+        # compiled from this commit (ocidex-qzz2). See spec.ts for why the workspace binary
+        # is used rather than the published ghcr.io/pfenerty/ocidex-cli image.
+        if ($env.OCIDEX_API_KEY? | is-empty) {
+          log "OCIDEX_API_KEY is unset - skipping SBOM upload"
+          exit 0
+        }
+
+        # Both files are written by build-binaries. They are passed as --version-file /
+        # --arch-file rather than read and expanded here: the CLI errors on a missing or
+        # blank file, so a failed build step surfaces as a refusal instead of a versionless
+        # SBOM nobody notices. This read is for the log line only, hence the guard.
+        let version = if (".sbom-bins/.version" | path exists) {
+          open .sbom-bins/.version | str trim
+        } else {
+          "<unwritten>"
+        }
+
+        let binaries = ($env.OCIDEX_BINARIES | split row " ")
+        log $"pushing ($binaries | length) SBOMs as version ($version) to ($env.OCIDEX_URL)"
+
+        mut failed = []
+        for b in $binaries {
+          # The subject is declared rather than inferred: a syft scan of a binary names the
+          # file it read, and the purl it derives is the Go *module*, which every binary
+          # shares. Group + name are what keep them distinct artifacts.
+          #
+          # The purl carries no @version. artifact.purl is an attribute, not part of the
+          # artifact's identity — UpsertArtifact conflicts on (type, name, group) — so a
+          # versioned purl only churned the stored value on every push while the version
+          # that matters lives on sbom.subject_version. It also keys the same way ADR-019
+          # Rule 1 and ADR-041 do, on the purl base.
+          #
+          # Built as a list and spread, because a bare multi-line external invocation is a
+          # separate command per line in nushell.
+          let args = [
+            "sbom" "push" $".sbom-out/($b).cdx.json"
+            "--source" $env.OCIDEX_SOURCE
+            "--artifact-file" $".sbom-bins/($b)"
+            "--subject-type" "application"
+            "--subject-name" $b
+            "--subject-group" "github.com/pfenerty/ocidex"
+            "--subject-purl" $"pkg:golang/github.com/pfenerty/ocidex/cmd/($b)"
+            "--version-file" ".sbom-bins/.version"
+            "--arch-file" ".sbom-bins/.goarch"
+          ]
+          let result = (do { ^.sbom-bins/ocidex-cli ...$args } | complete)
+
+          if $result.exit_code == 0 {
+            log $"pushed ($b): ($result.stdout | str trim)"
+          } else {
+            log $"FAILED ($b): ($result.stdout | str trim) ($result.stderr | str trim)"
+            $failed = ($failed | append $b)
+          }
+        }
+
+        if not ($failed | is-empty) {
+          # `error make`, never `exit 1` (ocidex-es6): nushell's `exit` kills the process
+          # before tektonic's try/catch can persist the code to /tekton/home/.exit-code,
+          # which — with onError: continue on this step — reports a real failure as green.
+          # That is exactly how this task hid nine broken uploads (ocidex-qzz2).
+          #
+          # Raising cannot gate a release: reportOnlyStatusReporter is failOnError: false,
+          # so this marks the sbom-push check red and leaves the pipeline succeeding.
+          error make {
+            msg: $"($failed | length) of ($binaries | length) uploads failed: ($failed | str join ', ')"
+          }
+        }
+        log $"OK: all ($binaries | length) SBOMs pushed"
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
     - image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: save-go-cache-cache
       onError: continue
