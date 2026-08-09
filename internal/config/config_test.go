@@ -144,6 +144,9 @@ func TestLoadOperator(t *testing.T) {
 			check: func(is *is.I, cfg *config.OperatorConfig) {
 				is.Equal(cfg.LogLevel, "info")
 				is.Equal(cfg.Environment, "development")
+				is.Equal(cfg.ServerURL, "http://ocidex:8080")
+				is.Equal(cfg.APIKey, "ocidex_test")
+				is.Equal(cfg.OperatorNamespace, "ocidex-system")
 				is.Equal(cfg.LeaderElectionLeaseDuration, 60*time.Second)
 				is.Equal(cfg.LeaderElectionRenewDeadline, 40*time.Second)
 				is.Equal(cfg.LeaderElectionRetryPeriod, 10*time.Second)
@@ -224,6 +227,23 @@ func TestLoadOperator(t *testing.T) {
 			env:     map[string]string{"WATCH_NAMESPACE": " , "},
 			wantErr: true,
 		},
+		{
+			// An unset secretKeyRef surfaces as an empty string rather than an
+			// absent var, so these must fail on the value, not on presence.
+			name:    "missing server url rejected",
+			env:     map[string]string{"OCIDEX_SERVER": ""},
+			wantErr: true,
+		},
+		{
+			name:    "missing api key rejected",
+			env:     map[string]string{"OCIDEX_API_KEY": ""},
+			wantErr: true,
+		},
+		{
+			name:    "missing operator namespace rejected",
+			env:     map[string]string{"OPERATOR_NAMESPACE": ""},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -235,10 +255,13 @@ func TestLoadOperator(t *testing.T) {
 				t.Setenv(k, "")
 				os.Unsetenv(k) //nolint:errcheck
 			}
-			// WATCH_NAMESPACE is required, so give every case a valid one by
-			// default — otherwise the leader-election cases would fail for the
-			// wrong reason. Cases exercising the watch scope override it.
+			// These are all required, so give every case a valid value by
+			// default — otherwise unrelated cases would fail for the wrong
+			// reason. Cases exercising a specific var override it.
 			t.Setenv("WATCH_NAMESPACE", "ocidex-dev")
+			t.Setenv("OCIDEX_SERVER", "http://ocidex:8080")
+			t.Setenv("OCIDEX_API_KEY", "ocidex_test")
+			t.Setenv("OPERATOR_NAMESPACE", "ocidex-system")
 			for k, v := range tt.env {
 				t.Setenv(k, v)
 			}

@@ -165,6 +165,16 @@ type OperatorConfig struct {
 	LogLevel    string `env:"LOG_LEVEL"    envDefault:"info"`
 	Environment string `env:"ENVIRONMENT"  envDefault:"development"`
 
+	// OCIDex API connection — the operator's only external dependency.
+	ServerURL string `env:"OCIDEX_SERVER"`
+	APIKey    string `env:"OCIDEX_API_KEY"`
+
+	// OperatorNamespace is where the leader-election Lease is created. Distinct
+	// from WatchNamespaces: this is where the operator runs, those are what it
+	// reconciles. Supplied by the downward API (metadata.namespace) in both
+	// deployment manifests.
+	OperatorNamespace string `env:"OPERATOR_NAMESPACE"`
+
 	// WatchNamespaces scopes the manager cache. Comma-separated because a
 	// namespace-scoped operator that cuts straight over to a new namespace
 	// strands the registry-protection finalizers it left behind: nothing
@@ -205,6 +215,19 @@ func LoadOperator() (*OperatorConfig, error) {
 // in NewLeaderElector, so a misconfiguration is reported at config load with the
 // offending env var named rather than surfacing later from manager construction.
 func (c *OperatorConfig) validate() error {
+	// Checked separately rather than with env's `required` tag: `required` only
+	// fires when the var is absent, and a secretKeyRef that resolves to an empty
+	// string would satisfy it.
+	if c.ServerURL == "" {
+		return fmt.Errorf("OCIDEX_SERVER is required")
+	}
+	if c.APIKey == "" {
+		return fmt.Errorf("OCIDEX_API_KEY is required")
+	}
+	if c.OperatorNamespace == "" {
+		return fmt.Errorf("OPERATOR_NAMESPACE is required")
+	}
+
 	// env.Parse yields []string{""} for an unset var and keeps empty entries
 	// from a trailing or doubled comma, so normalise before the required check
 	// — an empty name in the cache config would silently widen the watch to

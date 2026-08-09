@@ -62,18 +62,7 @@ func run() error {
 	slog.SetDefault(logger)
 	ctrl.SetLogger(logr.FromSlogHandler(logger.Handler()))
 
-	serverURL := os.Getenv("OCIDEX_SERVER")
-	apiKey := os.Getenv("OCIDEX_API_KEY")
-	if serverURL == "" || apiKey == "" {
-		return fmt.Errorf("OCIDEX_SERVER and OCIDEX_API_KEY must be set")
-	}
-
-	operatorNS := os.Getenv("OPERATOR_NAMESPACE")
-	if operatorNS == "" {
-		return fmt.Errorf("OPERATOR_NAMESPACE must be set")
-	}
-
-	ocidexClient := client.New(client.Config{BaseURL: serverURL, APIKey: apiKey})
+	ocidexClient := client.New(client.Config{BaseURL: cfg.ServerURL, APIKey: cfg.APIKey})
 
 	// WATCH_NAMESPACE is validated in config.LoadOperator, which guarantees at
 	// least one non-empty entry — an empty key here would widen the cache to
@@ -90,7 +79,7 @@ func run() error {
 		HealthProbeBindAddress:  *probeAddr,
 		LeaderElection:          *leaderElect,
 		LeaderElectionID:        "ocidex-operator-leader",
-		LeaderElectionNamespace: operatorNS,
+		LeaderElectionNamespace: cfg.OperatorNamespace,
 		LeaseDuration:           &cfg.LeaderElectionLeaseDuration,
 		RenewDeadline:           &cfg.LeaderElectionRenewDeadline,
 		RetryPeriod:             &cfg.LeaderElectionRetryPeriod,
@@ -139,7 +128,8 @@ func run() error {
 
 	slog.Info("starting operator manager",
 		"environment", cfg.Environment,
-		"ocidex_server", serverURL,
+		"ocidex_server", cfg.ServerURL,
+		"operator_namespace", cfg.OperatorNamespace,
 		// Logged because the watch scope is an operational contract, not just a
 		// tuning knob: CRs outside it keep their finalizers forever. Reading it
 		// back from the pod env was the only way to diagnose ocidex-1eo.
