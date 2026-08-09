@@ -114,7 +114,7 @@ func ingestChainSBOM(t *testing.T, pool *pgxpool.Pool) pgtype.UUID {
 // calling EnqueueDependents on completion, so the chain continues past git
 // if git itself ever gains dependents. The only stub is the GitHub network
 // leg (githubSrv). This is deliberately a separate catalog/dispatcher from
-// any oci-metadata worker: a shared "all"-scoped catalog would let
+// any oci-metadata worker: a shared catalog holding both enrichers would let
 // Dispatcher.ProcessOne run both enrichers off a single claim regardless of
 // which enricher_name triggered it, defeating the point of this test.
 func startGitWorker(t *testing.T, pool *pgxpool.Pool, natsClient *natspkg.Client, githubSrv *httptest.Server) service.EnrichJobService {

@@ -1,5 +1,5 @@
 // Package jobqueue implements the outbox-pattern job worker loop shared by
-// scanner-worker and enrichment-worker.
+// scanner-worker and the per-enricher workers.
 //
 // A Worker[C] drains a DB job queue via three mechanisms:
 //  1. NATS hints — fast-path wake-up when a new row is enqueued

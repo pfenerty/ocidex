@@ -40,7 +40,6 @@ const ocidexSource = "ocidex/ci";
 const shippedBinaries = [
   "ocidex",
   "scanner-worker",
-  "enrichment-worker",
   "oci-metadata-worker",
   "git-worker",
   "user-enricher-worker",

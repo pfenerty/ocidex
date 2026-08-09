@@ -109,7 +109,9 @@ func run() error {
 	authSvc := service.NewAuthService(pool, cfg, bus)
 
 	jobSvc := service.NewJobService(pool)
-	enrichJobSvc := service.NewEnrichJobService(pool, "all")
+	// The API enqueues and administers enrichment jobs but never claims one, so
+	// the ClaimNext partition name is empty (see NewEnrichJobService).
+	enrichJobSvc := service.NewEnrichJobService(pool, "")
 	scanSubmitter := setupScannerExt(cfg, pool, bus, reg, natsClient, logger, jobSvc)
 	setupEnrichmentSubmitter(cfg, reg, natsClient, logger, enrichJobSvc)
 	setupIngestVulnLookup(cfg, pool, reg, logger)

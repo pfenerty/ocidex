@@ -296,7 +296,11 @@ are pinned in Flox — run these commands inside `flox activate`. `docker` is a 
 ```
 cmd/ocidex/            # API server entry point
 cmd/scanner-worker/    # OCI registry scanner worker
-cmd/enrichment-worker/ # SBOM enrichment worker
+cmd/oci-metadata-worker/   # Per-enricher workers — one per enrichment_jobs
+cmd/git-worker/            # enricher_name partition (ADR-033)
+cmd/user-enricher-worker/
+cmd/provenance-worker/
+cmd/vuln-worker/       # Scheduled OSV.dev vulnerability store refresher
 cmd/operator/          # K8s operator entry point (ocidex-01v)
 cmd/specgen/           # OpenAPI spec generator
 internal/api/          # HTTP handlers and routing (chi + huma)
@@ -379,7 +383,7 @@ Environment variables (see `.env.example` and `docs/CONFIGURATION.md`):
 - `LOG_LEVEL` (default: info)
 - `ENVIRONMENT` (development/staging/production)
 - `DATABASE_URL` (PostgreSQL connection string)
-- `NATS_URL` (required) — NATS JetStream URL. The deployment is distributed-only: the API publishes scan/enrich jobs and `scanner-worker`/`enrichment-worker` consume them. All three binaries (and Docker Compose) require NATS. Migrations are applied explicitly via `ocidex migrate up`, not at startup.
+- `NATS_URL` (required) — NATS JetStream URL. The deployment is distributed-only: the API publishes scan/enrich jobs and `scanner-worker` / the per-enricher workers consume them. Every one of those binaries (and Docker Compose) requires NATS. Migrations are applied explicitly via `ocidex migrate up`, not at startup.
 
 ## Health Endpoints
 
@@ -540,7 +544,7 @@ merge strictly in dependency order and rebase the child onto `main` as soon as t
 
 **When adding a new API handler,** follow the huma v2 pattern: `huma.Register(api, huma.Operation{...}, handler)` with typed input/output structs; see `docs/DEVELOPMENT.md` and `internal/api/sbom.go`.
 
-**When adding a new enricher,** implement `enrichment.Enricher`; create `cmd/<name>-worker/`, a Dockerfile stage, and a `knownEnrichers` entry; see ADR-026, ADR-033, and `docs/DEVELOPMENT.md` "Adding a New Enricher".
+**When adding a new enricher,** implement `enrichment.Enricher`; create `cmd/<name>-worker/`, a Dockerfile stage, and register it in `internal/enrichment/deps.go` (add to `rootEnrichers`, or add an edge to `enricherDeps` if it needs another enricher's output first); see ADR-026, ADR-033, ADR-035, and `docs/DEVELOPMENT.md` "Adding a New Enricher".
 
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->

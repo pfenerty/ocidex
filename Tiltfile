@@ -46,7 +46,7 @@ k8s_yaml(blob(_secret_yaml('ocidex-secrets', env)))
 
 # --- App stack ------------------------------------------------------------
 # Per-service images. Every target copies from the single build-all stage, so
-# BuildKit compiles the Go tree once and reuses it across all four.
+# BuildKit compiles the Go tree once and reuses it across all of them.
 # api/ and pkg/ are in `only` because build-all also links cmd/operator, which
 # imports api/v1alpha1 and pkg/client — without them the shared stage fails to
 # compile even though no Tilt-built service needs them directly.
@@ -56,10 +56,18 @@ _build_ctx = {
     'only': ['api/', 'cmd/', 'internal/', 'pkg/', 'go.mod', 'go.sum', 'db/'],
     'ignore': ['**/*_test.go', 'tests/'],
 }
-docker_build('ocidex-api',               target='api',               **_build_ctx)
-docker_build('ocidex-scanner-worker',    target='scanner-worker',    **_build_ctx)
-docker_build('ocidex-enrichment-worker', target='enrichment-worker', **_build_ctx)
-docker_build('ocidex-git-worker',        target='git-worker',        **_build_ctx)
+docker_build('ocidex-api',                  target='api',                  **_build_ctx)
+docker_build('ocidex-scanner-worker',       target='scanner-worker',       **_build_ctx)
+
+# One per entry in charts/ocidex values.enricherWorkers — the chart renders a
+# Deployment for each, so every one needs an image in the local registry.
+docker_build('ocidex-oci-metadata-worker',  target='oci-metadata-worker',  **_build_ctx)
+docker_build('ocidex-git-worker',           target='git-worker',           **_build_ctx)
+docker_build('ocidex-user-enricher-worker', target='user-enricher-worker', **_build_ctx)
+docker_build('ocidex-provenance-worker',    target='provenance-worker',    **_build_ctx)
+
+# Not an enricher: singleton OSV.dev refresher, but the chart deploys it by default.
+docker_build('ocidex-vuln-worker',          target='vuln-worker',          **_build_ctx)
 
 # Web image (nginx + built SPA, static assets only). Built so the in-cluster
 # ocidex-web Deployment has an image to pull. The Vite local_resource below
@@ -77,8 +85,11 @@ k8s_yaml(helm('./charts/ocidex', name='ocidex', namespace='default', values=['ti
 k8s_resource('ocidex-api', port_forwards=port_forward(8080, 8080, host='0.0.0.0'), labels=['app'])
 k8s_resource('ocidex-web', labels=['app'])
 k8s_resource('ocidex-scanner-worker', labels=['workers'])
-k8s_resource('ocidex-enrichment-worker', labels=['workers'])
+k8s_resource('ocidex-oci-metadata-worker', labels=['workers'])
 k8s_resource('ocidex-git-worker', labels=['workers'])
+k8s_resource('ocidex-user-enricher-worker', labels=['workers'])
+k8s_resource('ocidex-provenance-worker', labels=['workers'])
+k8s_resource('ocidex-vuln-worker', labels=['workers'])
 k8s_resource('ocidex-nats', labels=['infra'])
 k8s_resource('postgres', port_forwards=port_forward(5432, 5432, host='0.0.0.0'), labels=['infra'])
 

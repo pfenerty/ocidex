@@ -19,9 +19,9 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 
 # ---- Shared build stage ------------------------------------------------------
-# One compile for all ten shipped binaries. The dependency graph (cosign/sigstore-go and its
+# One compile for all nine shipped binaries. The dependency graph (cosign/sigstore-go and its
 # ~786 transitive deps, per ADR-037) dominates compile time, so compiling it once and linking
-# ten mains replaces ten cold compiles of the same graph. The serial image chain shares one
+# nine mains replaces nine cold compiles of the same graph. The serial image chain shares one
 # buildkit root, so only the first image build runs this stage; the rest hit it CACHED.
 #
 # Do not switch to ./cmd/... — that would also build specgen, dbcheck and the backfill tools,
@@ -40,7 +40,6 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "${LDFLAGS}" -o /app/bin/ \
       ./cmd/ocidex \
       ./cmd/scanner-worker \
-      ./cmd/enrichment-worker \
       ./cmd/oci-metadata-worker \
       ./cmd/git-worker \
       ./cmd/user-enricher-worker \
@@ -59,10 +58,6 @@ ENTRYPOINT ["/ocidex"]
 FROM gcr.io/distroless/static-debian13:nonroot AS scanner-worker
 COPY --from=build-all /app/bin/scanner-worker /scanner-worker
 ENTRYPOINT ["/scanner-worker"]
-
-FROM gcr.io/distroless/static-debian13:nonroot AS enrichment-worker
-COPY --from=build-all /app/bin/enrichment-worker /enrichment-worker
-ENTRYPOINT ["/enrichment-worker"]
 
 FROM gcr.io/distroless/static-debian13:nonroot AS oci-metadata-worker
 COPY --from=build-all /app/bin/oci-metadata-worker /oci-metadata-worker

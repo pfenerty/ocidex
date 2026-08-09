@@ -114,8 +114,8 @@ func run() error {
 	// here (not in the API) for registry-scanned SBOMs. Register the submitter so
 	// each scan ingest enqueues per-enricher jobs and the enrich.hint the
 	// per-enricher workers consume. The constructor enricher name is unused by
-	// Enqueue (it sets enricher_name per call); "all" mirrors cmd/ocidex.
-	enrichJobSvc := service.NewEnrichJobService(pool, "all")
+	// Enqueue (it sets enricher_name per call), so it is empty here as in cmd/ocidex.
+	enrichJobSvc := service.NewEnrichJobService(pool, "")
 	registry.Register(enrichment.NewNATSSubmitter(natsClient, cfg.NATSStreamName, enrichJobSvc, logger))
 
 	workerID, _ := os.Hostname()
@@ -212,7 +212,7 @@ func runOnce(ctx context.Context, pool *pgxpool.Pool, natsClient *natspkg.Client
 	// SBOMIngested event enqueues per-enricher jobs (and the enrich.hint) — same
 	// mechanism as the long-running worker. Without this, ephemeral K8s Job scans
 	// (ADR-027) would ingest an SBOM that never gets enriched.
-	enrichJobSvc := service.NewEnrichJobService(pool, "all")
+	enrichJobSvc := service.NewEnrichJobService(pool, "")
 	if err := enrichment.NewNATSSubmitter(natsClient, cfg.NATSStreamName, enrichJobSvc, logger).Init(bus); err != nil {
 		return fmt.Errorf("wiring enrichment submitter: %w", err)
 	}

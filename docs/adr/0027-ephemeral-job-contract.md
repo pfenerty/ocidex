@@ -54,8 +54,17 @@ Non-zero exit causes a K8s Job to retry according to its `backoffLimit`. The str
 - Adding new env vars to `--once` mode is the only extension point; no plugin or config-file mechanism is needed for single-item jobs.
 - The caller is responsible for ensuring idempotency (re-ingesting the same SBOM is safe; re-enriching an already-enriched SBOM upserts the result).
 
+## Update (2026-08-09, ocidex-kg5)
+
+The `--once` contract below is unchanged, but it no longer belongs to a single enrichment
+binary. ADR-033 split the monolith into per-enricher workers and hoisted the flag into
+`internal/worker/enrichment.RunOnce`, which every `cmd/<name>-worker` shares — so the env vars,
+exit codes, and log events are identical across all of them. With the monolith now removed,
+`--once` enriches with the calling binary's enricher only and does not chain to dependents
+(ADR-035).
+
 ## Key Files
 
 - `cmd/scanner-worker/main.go` — `runOnce`, env var parsing
-- `cmd/enrichment-worker/main.go` — `runEnrichOnce`, env var parsing
+- `internal/worker/enrichment/worker.go` — `RunOnce`, shared by every `cmd/<name>-worker`
 - `docs/EPHEMERAL_JOBS.md` — operator runbook

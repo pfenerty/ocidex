@@ -46,10 +46,19 @@ After each enricher runs, the dispatcher checks whether the SBOM now has enough 
 - `CanEnrich` keeps enrichers from running on irrelevant subjects without any central routing table.
 - The interface is intentionally narrow; enrichers that need external HTTP calls own their own client wiring.
 
+## Update (2026-08-09, ocidex-kg5)
+
+ADR-033 replaced the single `cmd/enrichment-worker/main.go` registration entrypoint with one
+`cmd/<name>-worker/main.go` per enricher, each registering only its own enricher in a catalog
+built by an `EnricherFactory` (`internal/worker/enrichment`). The monolith has now been removed,
+so the "register in both entrypoints" consequence below is historical: the API no longer
+registers enrichers at all. The `Enricher` interface, `Dispatcher`, and sufficiency-promotion
+decisions are unchanged.
+
 ## Key Files
 
 - `internal/enrichment/enrichment.go` — `Enricher` interface, `SubjectRef`, `Store` interface
 - `internal/enrichment/dispatcher.go` — `Dispatcher`, registration, `processSubject`
 - `internal/enrichment/oci/` — built-in OCI metadata enricher
-- `cmd/enrichment-worker/main.go` — registration entrypoint
+- `cmd/<name>-worker/main.go` — registration entrypoint, one per enricher (was `cmd/enrichment-worker/main.go`)
 - `docs/DEVELOPMENT.md` — "Adding a New Enricher" section

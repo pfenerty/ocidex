@@ -139,7 +139,11 @@ syft registry:docker.io/library/nginx:latest -o cyclonedx-json | \
 ```
 cmd/ocidex/              API server entry point, wiring, graceful shutdown
 cmd/scanner-worker/      OCI registry scanner (NATS daemon + --once K8s Job mode)
-cmd/enrichment-worker/   SBOM enrichment worker (NATS daemon + --once K8s Job mode)
+cmd/oci-metadata-worker/ Per-enricher workers, one per enrichment_jobs partition
+cmd/git-worker/          (NATS daemon + --once K8s Job mode; see ADR-033)
+cmd/user-enricher-worker/
+cmd/provenance-worker/
+cmd/vuln-worker/         Scheduled OSV.dev vulnerability store refresher
 internal/api/            HTTP handlers and routing (chi + huma)
 internal/service/        Business logic interfaces and implementations
 internal/repository/     Data access layer (sqlc-generated queries)
@@ -198,7 +202,7 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full reference. Key v
 | `FRONTEND_URL` | `http://localhost:3000` | Frontend origin (used for CORS and OAuth redirect) |
 | `NATS_STREAM_NAME` | `ocidex` | JetStream stream name |
 | `SCANNER_MAX_CONCURRENCY` | `10` | Max parallel scans per scanner-worker pod |
-| `ENRICHMENT_MAX_CONCURRENCY` | `10` | Max parallel enrichments per enrichment-worker pod |
+| `ENRICHMENT_MAX_CONCURRENCY` | `10` | Max parallel enrichments per enricher worker pod |
 
 ## Documentation
 
@@ -224,7 +228,7 @@ make release VERSION=v0.1.0
 git push origin main v0.1.0
 ```
 
-The release workflow (`.github/workflows/release.yml`) then builds multi-arch (linux/amd64, linux/arm64) container images for `api`, `scanner-worker`, `enrichment-worker`, and `web`, pushes them to `ghcr.io/pfenerty/ocidex-*` tagged with the semver version (plus `latest` for stable releases), and creates a GitHub Release with the changelog as the body. Images carry the standard `org.opencontainers.image.*` annotations and binaries embed their build version (`ocidex --version`).
+The release workflow (`.github/workflows/release.yml`) then builds multi-arch (linux/amd64, linux/arm64) container images for `api`, `scanner-worker`, the per-enricher workers, `vuln-worker`, and `web`, pushes them to `ghcr.io/pfenerty/ocidex-*` tagged with the semver version (plus `latest` for stable releases), and creates a GitHub Release with the changelog as the body. Images carry the standard `org.opencontainers.image.*` annotations and binaries embed their build version (`ocidex --version`).
 
 ## Supply chain security
 

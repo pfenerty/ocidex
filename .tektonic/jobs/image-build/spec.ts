@@ -230,7 +230,6 @@ type ImageSpec = [
 const imageSpecs: ImageSpec[] = [
   ["api", "docker/Dockerfile", "OCIDex API", "HTTP API server for SBOM metadata management", "api"],
   ["scanner-worker", "docker/Dockerfile", "OCIDex Scanner Worker", "OCI registry scanner and SBOM ingestion worker", "scanner-worker"],
-  ["enrichment-worker", "docker/Dockerfile", "OCIDex Enrichment Worker", "SBOM enrichment pipeline dispatcher", "enrichment-worker"],
   ["oci-metadata-worker", "docker/Dockerfile", "OCIDex OCI Metadata Worker", "OCI image metadata enricher", "oci-metadata-worker"],
   ["git-worker", "docker/Dockerfile", "OCIDex Git Worker", "Git commit metadata enricher", "git-worker"],
   ["user-enricher-worker", "docker/Dockerfile", "OCIDex User Enricher Worker", "User-defined enrichment worker", "user-enricher-worker"],
@@ -239,7 +238,7 @@ const imageSpecs: ImageSpec[] = [
   ["web", "docker/web/Dockerfile", "OCIDex Web UI", "SolidJS frontend for OCIDex"],
   ["operator", "docker/Dockerfile", "OCIDex Operator", "Kubernetes operator for OCIDex CRDs", "operator"],
   // Named "cli", not "ocidex-cli": imageEnv prefixes with `ocidex-`, so this publishes
-  // ghcr.io/pfenerty/ocidex-cli alongside its ten siblings (ocidex-5dw).
+  // ghcr.io/pfenerty/ocidex-cli alongside its nine siblings (ocidex-5dw).
   ["cli", "docker/Dockerfile", "OCIDex CLI", "Command-line client for OCIDex", "cli"],
 ];
 

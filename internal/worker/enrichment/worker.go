@@ -31,8 +31,8 @@ import (
 
 // RunConfig scopes a worker to a specific enricher queue partition.
 type RunConfig struct {
-	// EnricherName is passed to NewEnrichJobService to scope ClaimNext.
-	// Use "all" for the legacy all-enrichers model.
+	// EnricherName is passed to NewEnrichJobService to scope ClaimNext, and is
+	// the enrichment_jobs.enricher_name partition this worker owns (ADR-033).
 	EnricherName string
 	// HintDurable is the JetStream durable consumer name. Must be unique per
 	// worker type. Convention: "enrich-hint-" + enricher_name.
@@ -59,7 +59,7 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: appCfg.SlogLevel(),
 	})))
-	slog.Info("starting enrichment-worker",
+	slog.Info("starting enricher worker",
 		"environment", appCfg.Environment,
 		"log_level", appCfg.LogLevel,
 		"enricher", cfg.EnricherName,
@@ -181,7 +181,7 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 		slog.Error("extension shutdown error", "err", err)
 	}
 
-	slog.Info("enrichment-worker stopped")
+	slog.Info("enricher worker stopped", "enricher", cfg.EnricherName)
 	return nil
 }
 

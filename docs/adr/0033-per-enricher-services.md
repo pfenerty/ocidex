@@ -71,21 +71,36 @@ Each binary has a dedicated stage in `docker/Dockerfile` (`FROM gcr.io/distroles
 ### Adding a new enricher
 
 1. Implement `enrichment.Enricher` in `internal/enrichment/<name>/`.
-2. Add `"<name>"` to `knownEnrichers` in `internal/service/enrichjob.go`.
+2. Add `names.<Name>` to `rootEnrichers` in `internal/enrichment/deps.go` — or, if it consumes another enricher's output, add an edge to `enricherDeps` there instead (ADR-035).
 3. Create `cmd/<name>-worker/main.go` (~30 lines, calls `enrichmentworker.Run`).
 4. Add a `FROM … AS <name>-worker` stage in `docker/Dockerfile` and a build line in the builder stage.
 5. Add `["<name>-worker", "docker/Dockerfile", "<name>-worker"]` to `imageSpecs` in `.tektonic/jobs/image-build/spec.ts` and run `make tekton-synth`.
 
 ## Consequences
 
-- The legacy `enrichment-worker` (claiming `enricher_name='all'`) must be kept operational until the per-enricher workers are validated in production. Remove the `'all'` fan-out row and the legacy binary once stable.
+- The legacy `enrichment-worker` (claiming `enricher_name='all'`) must be kept operational until the per-enricher workers are validated in production. Remove the `'all'` fan-out row and the legacy binary once stable. **Done — see the update below.**
 - The NATS hint subject is shared; per-enricher isolation is achieved through durable consumer names, not separate subjects.
 - CPU-intensive enrichers (provenance) can be scaled independently via separate K8s Deployments with their own resource limits.
+
+## Update (2026-08-09, ocidex-kg5)
+
+The transition is over. `ocidex-07x` validated the per-enricher workers end to end, and the
+monolith has been removed: `cmd/enrichment-worker/`, its `docker/Dockerfile` stage, its two
+generated Tekton tasks, and its `imageSpecs` / `shippedBinaries` / `COMPONENTS` entries are all
+gone. `db/migrations/00057_remove_all_enricher_jobs.sql` deletes every `enricher_name='all'` row
+and drops the column DEFAULT that 00036 added, so a caller that omits `enricher_name` now hits a
+NOT NULL violation instead of silently landing in a partition no worker claims.
+
+The submitter had already stopped writing `'all'` rows when it switched to `rootEnrichers`.
+`NewEnrichJobService`'s enricher name scopes `ClaimNext` only; the API and `scanner-worker`
+enqueue but never claim, so they pass `""`.
 
 ## Key Files
 
 - `db/migrations/00036_per_enricher_jobs.sql` — schema changes
-- `internal/service/enrichjob.go` — `NewEnrichJobService`, `knownEnrichers`, `CreateForSBOM`, `ClaimNext`
+- `db/migrations/00057_remove_all_enricher_jobs.sql` — removal of the `'all'` partition
+- `internal/service/enrichjob.go` — `NewEnrichJobService`, `Enqueue`, `ClaimNext`
+- `internal/enrichment/deps.go` — `rootEnrichers`, `enricherDeps` (was `knownEnrichers`)
 - `internal/worker/enrichment/worker.go` — `Run`, `RunOnce`, `RunConfig`, `EnricherFactory`
 - `cmd/oci-metadata-worker/main.go`, `cmd/user-enricher-worker/main.go`, `cmd/provenance-worker/main.go`
 - `docker/Dockerfile` — per-enricher runtime stages

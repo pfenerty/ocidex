@@ -8,7 +8,7 @@ Runbook for production incidents involving the scanner pipeline. Pair with `docs
 - **NATS** — single-pod standalone JetStream, PVC-backed. Carries only `{id}` hints on `ocidex.scan.hint` to wake workers faster than the 30s poll cadence. No retry, no dedup window dependency, no DLQ subject. Failure of NATS reduces the pipeline to "drains at poll cadence" — never "drops work."
 - **API server** — producer. The webhook handler and the catalog walker both insert `scan_jobs` rows + publish hints via `NATSSubmitter.Submit`.
 - **scanner-worker** — N replicas. Each runs `SCANNER_MAX_CONCURRENCY` goroutines that wake on NATS hints OR the 30s DB poll, claim a row via `UPDATE…RETURNING`, run Syft, and finish/fail the row. Plus one stuck-running sweep goroutine.
-- **enrichment-worker** — N replicas. Same NATS as before (one-shot SBOMIngested events; no queue depth, no reconciler ever existed here).
+- **per-enricher workers** (`oci-metadata-worker`, `git-worker`, `user-enricher-worker`, `provenance-worker`) — one Deployment each, N replicas, each claiming its own `enrichment_jobs.enricher_name` partition (ADR-033). Same NATS as before (one-shot SBOMIngested events; no queue depth, no reconciler ever existed here).
 
 ## Health surfaces
 
@@ -16,8 +16,8 @@ Runbook for production incidents involving the scanner pipeline. Pair with `docs
 |---|---|---|
 | `GET /health` (8080) | API | Always 200 if process is up. |
 | `GET /ready` (8080) | API | DB ping. |
-| `GET /healthz` (9090) | scanner-worker, enrichment-worker | Process up. |
-| `GET /readyz` (9090) | scanner-worker, enrichment-worker | NATS Connected + DB Ping <1s. |
+| `GET /healthz` (9090) | scanner-worker, enricher workers | Process up. |
+| `GET /readyz` (9090) | scanner-worker, enricher workers | NATS Connected + DB Ping <1s. |
 | `GET /api/v1/admin/status` | API (admin-only) | Counts from `scan_jobs` by state, DB latency. The counts are trivially correct — there is no second source. |
 | `POST /api/v1/admin/jobs/{id}/retry` | API (admin-only) | Resets a `failed` row to `queued`. |
 
@@ -206,7 +206,9 @@ The production Postgres deployment is being moved from a hand-managed `StatefulS
 
     ```bash
     kubectl -n ocidex rollout restart deploy/ocidex-api \
-      deploy/ocidex-scanner-worker deploy/ocidex-enrichment-worker
+      deploy/ocidex-scanner-worker deploy/ocidex-oci-metadata-worker \
+      deploy/ocidex-git-worker deploy/ocidex-user-enricher-worker \
+      deploy/ocidex-provenance-worker deploy/ocidex-vuln-worker
     ```
 
     Wait for rollouts to complete. Tail a worker log; the `database connected` line should appear and processing should resume against the new Postgres.

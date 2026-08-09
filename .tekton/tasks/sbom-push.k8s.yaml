@@ -88,7 +88,7 @@ spec:
         log $"go=(go version) uid=(id -u) pwd=(pwd)"
         ^git config --global --add safe.directory (pwd)
         mkdir .sbom-bins
-        for b in ["ocidex" "scanner-worker" "enrichment-worker" "oci-metadata-worker" "git-worker" "user-enricher-worker" "provenance-worker" "vuln-worker" "operator" "ocidex-cli"] {
+        for b in ["ocidex" "scanner-worker" "oci-metadata-worker" "git-worker" "user-enricher-worker" "provenance-worker" "vuln-worker" "operator" "ocidex-cli"] {
           log $"Building ($b)"
           ^go build -o $".sbom-bins/($b)" $"./cmd/($b)"
         }
@@ -135,7 +135,7 @@ spec:
         try { ^chmod 0666 /tekton/home/.exit-code }
         def main [] {
         mkdir .sbom-out
-        for b in ["ocidex" "scanner-worker" "enrichment-worker" "oci-metadata-worker" "git-worker" "user-enricher-worker" "provenance-worker" "vuln-worker" "operator" "ocidex-cli"] {
+        for b in ["ocidex" "scanner-worker" "oci-metadata-worker" "git-worker" "user-enricher-worker" "provenance-worker" "vuln-worker" "operator" "ocidex-cli"] {
           log $"Cataloging ($b)"
           ^syft $"file:.sbom-bins/($b)" -o $"cyclonedx-json=.sbom-out/($b).cdx.json"
         }
@@ -227,47 +227,6 @@ spec:
               optional: true
       image: ghcr.io/pfenerty/ocidex-cli:main
       name: push-scanner-worker
-      onError: continue
-    - args:
-        - sbom
-        - push
-        - .sbom-out/enrichment-worker.cdx.json
-        - --source
-        - ocidex/ci
-        - --artifact-file
-        - .sbom-bins/enrichment-worker
-        - --subject-type
-        - application
-        - --subject-name
-        - enrichment-worker
-        - --subject-group
-        - github.com/pfenerty/ocidex
-        - --subject-purl
-        - pkg:golang/github.com/pfenerty/ocidex/cmd/enrichment-worker
-        - --version-file
-        - .sbom-bins/.version
-        - --arch-file
-        - .sbom-bins/.goarch
-      command:
-        - /ocidex-cli
-      computeResources:
-        limits:
-          cpu: 250m
-          memory: 128Mi
-        requests:
-          cpu: 25m
-          memory: 64Mi
-      env:
-        - name: OCIDEX_URL
-          value: http://ocidex-dev-api.ocidex-dev.svc.cluster.local
-        - name: OCIDEX_API_KEY
-          valueFrom:
-            secretKeyRef:
-              key: key
-              name: ocidex-api-key
-              optional: true
-      image: ghcr.io/pfenerty/ocidex-cli:main
-      name: push-enrichment-worker
       onError: continue
     - args:
         - sbom

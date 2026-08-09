@@ -347,10 +347,7 @@ func (e *Enricher) Enrich(ctx context.Context, ref enrichment.SubjectRef) ([]byt
 }
 ```
 
-**2. Register in both entrypoints** — the in-process server and the NATS worker both build the registry at startup:
-
-- `cmd/ocidex/main.go` → `setupEnrichmentExt()`
-- `cmd/enrichment-worker/main.go` → `run()`
+**2. Register it in your worker's `EnricherFactory`** — each per-enricher worker builds a catalog holding only its own enricher at startup (`cmd/<name>-worker/main.go` → `buildEnrichers`):
 
 ```go
 enrichReg.Register(myenricher.NewEnricher())
@@ -373,7 +370,7 @@ enrichReg.Register(myenricher.NewEnricher())
 **5. Create a per-enricher worker binary** — each enricher needs its own `cmd/` binary, Docker image, and CI task (see [ADR-033](adr/0033-per-enricher-services.md)):
 
 - **`cmd/<name>-worker/main.go`** (~30 lines): call `enrichmentworker.Run` with `EnricherName: "<name>"` and a unique `HintDurable: "enrich-hint-<name>"`. See `cmd/provenance-worker/main.go` as the canonical example.
-- **`internal/service/enrichjob.go`**: add `"<name>"` to the `knownEnrichers` slice so an `enrichment_jobs` row is created for every new SBOM.
+- **`internal/enrichment/deps.go`**: add `names.<Name>` to `rootEnrichers` so an `enrichment_jobs` row is created for every new SBOM — or, if the enricher needs another's output first, add an edge to `enricherDeps` instead and let completion-driven chaining enqueue it (ADR-035).
 - **`docker/Dockerfile`**: add a `go build` line in the builder stage and a `FROM gcr.io/distroless/static-debian12:nonroot AS <name>-worker` runtime stage.
 - **`.tektonic/jobs/image-build/spec.ts`**: add `["<name>-worker", "docker/Dockerfile", "<name>-worker"]` to `imageSpecs`, then run `make tekton-synth`.
 

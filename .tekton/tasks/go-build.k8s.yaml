@@ -81,7 +81,7 @@ spec:
         def main [] {
         log $"go=(go version) uid=(id -u) pwd=(pwd)"
         ^git config --global --add safe.directory (pwd)
-        for cmd in ["./cmd/ocidex" "./cmd/scanner-worker" "./cmd/enrichment-worker"] {
+        for cmd in ["./cmd/ocidex" "./cmd/scanner-worker"] {
           log $"Building ($cmd)"
           ^go build -o /dev/null $cmd
         }

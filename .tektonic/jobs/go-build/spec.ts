@@ -26,7 +26,7 @@ export const goBuild = new Task({
       },
       script: nu`
 ${goSetup}
-for cmd in ["./cmd/ocidex" "./cmd/scanner-worker" "./cmd/enrichment-worker"] {
+for cmd in ["./cmd/ocidex" "./cmd/scanner-worker"] {
   log $"Building ($cmd)"
   ^go build -o /dev/null $cmd
 }

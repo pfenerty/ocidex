@@ -14,11 +14,11 @@ all: check build ## Run all checks and build
 build: ## Build the Go binaries
 	go build -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/ocidex
 	go build -o $(BUILD_DIR)/scanner-worker ./cmd/scanner-worker
-	go build -o $(BUILD_DIR)/enrichment-worker ./cmd/enrichment-worker
 	go build -o $(BUILD_DIR)/oci-metadata-worker ./cmd/oci-metadata-worker
 	go build -o $(BUILD_DIR)/user-enricher-worker ./cmd/user-enricher-worker
 	go build -o $(BUILD_DIR)/provenance-worker ./cmd/provenance-worker
 	go build -o $(BUILD_DIR)/git-worker ./cmd/git-worker
+	go build -o $(BUILD_DIR)/vuln-worker ./cmd/vuln-worker
 	go build -o $(BUILD_DIR)/operator ./cmd/operator
 	go build -o $(BUILD_DIR)/ocidex-cli ./cmd/ocidex-cli
 

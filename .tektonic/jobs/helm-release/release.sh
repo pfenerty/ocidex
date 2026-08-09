@@ -27,7 +27,9 @@ tar -xzf /tmp/crane.tgz -C /tmp crane
 
 # --- Resolve digests and bake them into chart values -------------------------
 # App components (charts/ocidex); operator is a separate chart handled below.
-COMPONENTS="api scanner-worker enrichment-worker oci-metadata-worker user-enricher-worker provenance-worker web"
+# Must stay in sync with every component charts/ocidex renders a Deployment for —
+# a missing entry leaves that image unpinned in the released chart.
+COMPONENTS="api scanner-worker oci-metadata-worker git-worker user-enricher-worker provenance-worker vuln-worker web"
 
 # Build the image.digests block in a file (portable: no embedded newlines in awk vars).
 echo "  digests:" > /tmp/digests-block.yaml

@@ -66,9 +66,9 @@ Controls how SBOMs are enriched after ingestion (OCI label extraction, user meta
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ENRICHMENT_ENABLED` | `true` | Read by `enrichment-worker`; gates whether it consumes enrichment jobs. Has no effect on the API process. |
-| `ENRICHMENT_WORKERS` | `2` | Number of concurrent enrichment goroutines inside each `enrichment-worker` process. |
-| `ENRICHMENT_QUEUE_SIZE` | `100` | Enrichment work queue depth inside each `enrichment-worker` process before back-pressure. |
+| `ENRICHMENT_ENABLED` | `true` | Read by the per-enricher workers; gates whether they consume enrichment jobs. Has no effect on the API process. |
+| `ENRICHMENT_WORKERS` | `2` | Number of concurrent enrichment goroutines inside each enricher worker process. |
+| `ENRICHMENT_QUEUE_SIZE` | `100` | Enrichment work queue depth inside each enricher worker process before back-pressure. |
 
 ### OCI Registry Scanner
 
@@ -180,12 +180,6 @@ from the registry via the OCI 1.1 Referrers API (with cosign tag-scheme fallback
 registry has a trust anchor configured, delegates verification to cosign (see
 [Per-Registry Trust Anchors](#per-registry-trust-anchors) below and ADR-037).
 
-### `enrichment-worker` (legacy)
-
-The monolithic `enrichment-worker` (claims `enricher_name='all'`) is retained during the
-transition period. It runs all three enrichers in one process. Remove it from your
-deployment once the three per-enricher workers are stable in production.
-
 ---
 
 ## Per-Registry Trust Anchors
@@ -251,8 +245,8 @@ SESSION_SECRET=...
 ### Docker Compose
 
 The bundled `docker-compose.yml` runs the full distributed topology — API,
-`scanner-worker`, `enrichment-worker`, NATS, Postgres, and a one-shot `migrate`
-service — mirroring the Kubernetes layout. The API has scanning off by default;
+`scanner-worker`, the per-enricher workers, `vuln-worker`, NATS, Postgres, and a
+one-shot `migrate` service — mirroring the Kubernetes layout. The API has scanning off by default;
 set `SCANNER_ENABLED=true` to publish scan jobs to the running `scanner-worker`.
 
 ```env

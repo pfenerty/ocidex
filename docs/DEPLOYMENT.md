@@ -1,8 +1,8 @@
 # Production Deployment
 
 Target: **https://ocidex.app** on the homelab Pi Talos cluster, in distributed
-mode (API + `scanner-worker` + `enrichment-worker` + NATS JetStream + Postgres +
-web), reconciled from Git by Flux, served through the existing
+mode (API + `scanner-worker` + the per-enricher workers + NATS JetStream +
+Postgres + web), reconciled from Git by Flux, served through the existing
 `cloudflare-gateway` Cloudflare Tunnel.
 
 For development/local workflows see [`docs/CONFIGURATION.md`](CONFIGURATION.md)
@@ -32,7 +32,10 @@ walkthrough connecting it to the cluster.
                 ┌──────────┴──────────┐                  │
                 ▼                     ▼                  │
         ┌───────────────┐    ┌─────────────────┐         │
-        │scanner-worker │    │enrichment-worker│         │
+        │scanner-worker │    │ enricher workers│         │
+        │               │    │ (oci-metadata,  │         │
+        │               │    │  git, user,     │         │
+        │               │    │  provenance)    │         │
         └───────┬───────┘    └────────┬────────┘         │
                 │                     │                  │
                 └──────────┬──────────┘                  │
@@ -81,7 +84,7 @@ Three classes of source:
 
 Source of truth: [`internal/config/config.go`](../internal/config/config.go).
 
-### `scanner-worker` & `enrichment-worker` (`replicas: 1` each)
+### `scanner-worker` & the per-enricher workers (`replicas: 1` each)
 
 | Variable | Source | Production value |
 |---|---|---|
@@ -92,7 +95,7 @@ Source of truth: [`internal/config/config.go`](../internal/config/config.go).
 | `LOG_LEVEL` | Deployment env | `info` |
 | `ENVIRONMENT` | Deployment env | `production` |
 | `SCANNER_WORKERS` *(scanner only)* | Default | `2` |
-| `ENRICHMENT_WORKERS` *(enrichment only)* | Default | `2` |
+| `ENRICHMENT_WORKERS` *(enricher workers only)* | Default | `2` |
 
 Workers do **not** need the OAuth or session vars and do not start the HTTP
 server. See [`ocidex-mf3`](https://github.com/pfenerty/ocidex) for the open bug
@@ -169,7 +172,7 @@ Each step links to the beads issue that owns it. Steps 1, 3, and 5 are merged.
 
 1. **Multi-arch images on GHCR** (`ocidex-0my.1`, merged).
    GitHub Actions publishes
-   `ghcr.io/pfenerty/ocidex-{api,scanner-worker,enrichment-worker,web}:<tag>` (migrations run via the API image)
+   `ghcr.io/pfenerty/ocidex-{api,scanner-worker,oci-metadata-worker,git-worker,user-enricher-worker,provenance-worker,vuln-worker,web}:<tag>` (migrations run via the API image)
    for `linux/amd64,linux/arm64` on every `main` push and tag.
 
 2. **Create the GitHub OAuth App** (`ocidex-0my.9`).

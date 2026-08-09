@@ -1,7 +1,7 @@
 # Verifying ocidex artifacts
 
 ocidex container images are published to `ghcr.io/pfenerty/ocidex-*`
-(`api`, `scanner-worker`, `enrichment-worker`, `web`, `operator`) with build
+(`api`, `scanner-worker`, the per-enricher workers, `vuln-worker`, `web`, `operator`, `cli`) with build
 provenance and SBOMs you can verify before running them.
 
 ## What each image carries

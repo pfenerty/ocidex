@@ -97,7 +97,7 @@ services:
 
   # Per-enricher microservices (ADR-033). Each worker claims only its own
   # enricher_name partition from enrichment_jobs and runs a single enricher.
-  # Together they replace the monolithic enrichment-worker (enricher_name="all").
+  # Together they replaced the monolithic enrichment-worker, removed in ocidex-kg5.
   # Resolvers (insecure-host, credentials, trust) are DB-backed, so no extra env.
   oci-metadata-worker:
     build:

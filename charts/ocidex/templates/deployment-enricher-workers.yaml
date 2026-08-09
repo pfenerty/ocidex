@@ -1,8 +1,9 @@
 {{- /*
 Per-enricher worker Deployments (ADR-033). One Deployment per entry in
 .Values.enricherWorkers, each running a single enricher (cmd/<name>) and claiming
-its own enricher_name partition from enrichment_jobs. They replace the legacy
-monolithic enrichment-worker. Shared sizing/env comes from .Values.enrichmentWorker.
+its own enricher_name partition from enrichment_jobs. They replaced the legacy
+monolithic enrichment-worker, removed in ocidex-kg5. Shared sizing/env comes from
+.Values.enrichmentWorker.
 */ -}}
 {{- range .Values.enricherWorkers }}
 ---

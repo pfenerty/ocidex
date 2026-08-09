@@ -18,8 +18,8 @@ image:
   # digests pins each component to an immutable sha256 digest and is baked in at
   # release-package time by the helm-release CI task (release builds only; empty for
   # main/dev sha builds). An explicit image.tag takes precedence over digests.
-  # Keys are the component names: api, scanner-worker, enrichment-worker,
-  # oci-metadata-worker, git-worker, user-enricher-worker, provenance-worker, web.
+  # Keys are the component names: api, scanner-worker, oci-metadata-worker,
+  # git-worker, user-enricher-worker, provenance-worker, vuln-worker, web.
   digests: {}
 
 # --- Secrets -----------------------------------------------------------------

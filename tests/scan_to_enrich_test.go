@@ -237,12 +237,13 @@ func TestScanToEnrichFlow(t *testing.T) {
 
 	// The name scopes ClaimNext to one queue partition (ADR-033), and the
 	// submitter enqueues a row per root enricher — "user", "oci-metadata",
-	// "provenance" — never "all". Claiming "all" matched nothing, so the job sat
-	// queued until the test timed out (ocidex-784). oci-metadata is the partition
-	// this test asserts on, and the only enricher registered below.
+	// "provenance". Naming a partition nothing enqueues to matches no row, so the
+	// job sits queued until the test times out (ocidex-784, when this claimed the
+	// since-removed "all" partition). oci-metadata is the partition this test
+	// asserts on, and the only enricher registered below.
 	//
-	// cmd/ocidex and cmd/scanner-worker also pass "all", but only ever call
-	// Enqueue, which takes the name per call — inert there, not here.
+	// cmd/ocidex and cmd/scanner-worker pass "", but only ever call Enqueue,
+	// which takes the name per call — inert there, not here.
 	enrichJobSvc := service.NewEnrichJobService(pool, "oci-metadata")
 
 	// The submitter enqueues enrichment_jobs rows when SBOMIngested fires.

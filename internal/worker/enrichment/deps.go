@@ -61,7 +61,7 @@ func EnqueueDependents(
 		}
 
 		if err := jobSvc.Enqueue(ctx, sbomID, architecture, buildDate, dep); err != nil {
-			logger.Error("enrichment-worker: dependent enqueue failed",
+			logger.Error("enricher worker: dependent enqueue failed",
 				"sbom_id", uuidToHex(sbomID), "enricher", dep, "err", err,
 			)
 			continue
@@ -82,7 +82,7 @@ func publishHint(js hintPublisher, streamName string, sbomID pgtype.UUID, logger
 	msg := nats.NewMsg(streamName + ".enrich.hint")
 	msg.Data = hint
 	if _, err := js.PublishMsgAsync(msg); err != nil {
-		logger.Warn("enrichment-worker: dependent hint publish failed; poll loop will pick up",
+		logger.Warn("enricher worker: dependent hint publish failed; poll loop will pick up",
 			"sbom_id", jobID, "err", err,
 		)
 	}

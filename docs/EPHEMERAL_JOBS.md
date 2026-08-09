@@ -1,6 +1,6 @@
 # Ephemeral Jobs (--once Mode)
 
-Both `scanner-worker` and `enrichment-worker` support a `--once` flag that processes a single item and exits. This is the intended mode for Kubernetes Jobs, Tekton Tasks, and CLI-triggered one-shot scans.
+`scanner-worker` and every per-enricher worker support a `--once` flag that processes a single item and exits. This is the intended mode for Kubernetes Jobs, Tekton Tasks, and CLI-triggered one-shot scans.
 
 See [ADR 0027](adr/0027-ephemeral-job-contract.md) for the design rationale.
 
@@ -66,9 +66,15 @@ spec:
 
 ---
 
-## enrichment-worker --once
+## `<name>-worker --once`
 
-Enriches an already-ingested SBOM by fetching OCI metadata and any other registered enrichers.
+Each per-enricher worker (`oci-metadata-worker`, `git-worker`, `user-enricher-worker`,
+`provenance-worker`) enriches an already-ingested SBOM with its own enricher and exits.
+The flag is implemented once, in `internal/worker/enrichment.RunOnce`, so the contract
+below is identical for all of them.
+
+Note that `--once` runs only the calling binary's enricher and does **not** chain to
+dependents (ADR-035) — run each worker you need in turn.
 
 ### Environment Variables
 
@@ -83,7 +89,7 @@ Enriches an already-ingested SBOM by fetching OCI metadata and any other registe
 ```bash
 ENRICH_SBOM_ID="a1b2c3d4-..." \
 DATABASE_URL="postgres://..." \
-  ./bin/enrichment-worker --once
+  ./bin/oci-metadata-worker --once
 ```
 
 ### Exit Codes
@@ -98,4 +104,4 @@ DATABASE_URL="postgres://..." \
 ## Notes
 
 - Re-running `--once` for the same image or SBOM is safe — SBOM ingest is idempotent, and enrichment results are upserted.
-- The `--once` path does not consume from NATS. Start the SBOM ingest (`scanner-worker --once`) first, then enrich (`enrichment-worker --once`) if needed. In daemon mode the pipeline triggers automatically.
+- The `--once` path does not consume from NATS. Start the SBOM ingest (`scanner-worker --once`) first, then enrich (`<name>-worker --once`) if needed. In daemon mode the pipeline triggers automatically.

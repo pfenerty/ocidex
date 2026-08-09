@@ -100,8 +100,9 @@ type enrichJobService struct {
 }
 
 // NewEnrichJobService constructs an EnrichJobService backed by the given pool.
-// enricherName scopes ClaimNext to a specific enricher queue partition; use "all"
-// for the legacy single-enricher model.
+// enricherName scopes ClaimNext to a specific enricher queue partition (ADR-033).
+// Enqueue takes the enricher name per call and ignores it, so callers that only
+// enqueue or administer jobs — the API and scanner-worker — pass "".
 func NewEnrichJobService(pool *pgxpool.Pool, enricherName string) EnrichJobService {
 	return &enrichJobService{repo: repository.New(pool), enricherName: enricherName}
 }
