@@ -88,6 +88,27 @@ The API serves on `:8080` by default. For frontend development with hot reload:
 make frontend-dev   # Vite dev server on :3000, proxies /api/* to :8080
 ```
 
+### Installing the CLI
+
+`ocidex-cli` is the command-line client for the API — `registry`, `sbom`, `artifact`,
+`component`, `job` and `key` subcommands, plus `login`. It ships two ways, and building the repo
+is not one of them:
+
+```sh
+# With a Go toolchain
+go install github.com/pfenerty/ocidex/cmd/ocidex-cli@latest
+ocidex-cli version
+
+# Without one
+docker run --rm ghcr.io/pfenerty/ocidex-cli:main --help
+```
+
+A `go install`ed binary carries no `-ldflags`, so `ocidex-cli version` reports the module version
+and VCS stamps the toolchain embedded instead; the published image reports the CI-injected
+version. Point it at a server with `OCIDEX_URL` and authenticate with `OCIDEX_API_KEY`, or run
+`ocidex-cli login` to write `~/.config/ocidex/config.yaml`. See
+[ADR-029](docs/adr/0029-cli-design.md) for the full configuration precedence and exit codes.
+
 ### Ingest Your First SBOM
 
 Generate an SBOM with [syft](https://github.com/anchore/syft) and send it to OCIDex:

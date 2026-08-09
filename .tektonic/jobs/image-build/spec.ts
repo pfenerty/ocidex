@@ -94,7 +94,7 @@ try { ^du -sh "${buildkitRoot}" } catch { print "du unavailable" }
       // Materialise the commit tree into .buildctx so buildctl builds from exactly the
       // tracked files and nothing else. Runs at the pod default uid 1024 (the workspace
       // owner); the uid-1000 build step only reads it, and tar's default 0755/0644 modes
-      // make that work without a chmod. Guarded on the revision so the nine subsequent
+      // make that work without a chmod. Guarded on the revision so the ten subsequent
       // builds in the chain reuse the extraction — and, by leaving mtimes untouched, keep
       // buildkit's local-source diff a no-op.
       {
@@ -152,7 +152,7 @@ with-env {TZ: "UTC"} {
         workingDir: "$(workspaces.workspace.path)",
         // Limit was 2Gi, measured against the old one-binary-per-image Dockerfile: a single
         // linux/amd64 `api` build peaked at ~471Mi real memory (kubectl top, 10s sampling).
-        // The build-all stage (ocidex-2j2) links nine main packages in one `go build`, several
+        // The build-all stage (ocidex-2j2) links ten main packages in one `go build`, several
         // concurrently, so the peak is higher; 3Gi covers that. Keep the ceiling tight enough
         // that a genuine burst hits this container's own OOMKilled instead of growing large
         // enough to trip Talos's node-wide OOMController (see ocidex-asx).
@@ -238,6 +238,9 @@ const imageSpecs: ImageSpec[] = [
   ["vuln-worker", "docker/Dockerfile", "OCIDex Vulnerability Worker", "Scheduled OSV.dev vulnerability store refresher", "vuln-worker"],
   ["web", "docker/web/Dockerfile", "OCIDex Web UI", "SolidJS frontend for OCIDex"],
   ["operator", "docker/Dockerfile", "OCIDex Operator", "Kubernetes operator for OCIDex CRDs", "operator"],
+  // Named "cli", not "ocidex-cli": imageEnv prefixes with `ocidex-`, so this publishes
+  // ghcr.io/pfenerty/ocidex-cli alongside its ten siblings (ocidex-5dw).
+  ["cli", "docker/Dockerfile", "OCIDex CLI", "Command-line client for OCIDex", "cli"],
 ];
 
 // Build a serial chain: task[i] runs after task[i-1]. Every task in a chain shares one

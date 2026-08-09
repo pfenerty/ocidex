@@ -12,8 +12,8 @@ import { goBuild } from "../go-build/spec";
 import { goSetup } from "../../script-lib";
 
 // The binaries OCIDex ships — one image each in docker/Dockerfile, so one uploaded
-// SBOM each. ocidex-cli is built alongside them but is the tool doing the pushing,
-// not a subject of it.
+// SBOM each. ocidex-cli is also the tool doing the pushing, but since ocidex-5dw it
+// ships an image of its own, so it is a subject here like the rest.
 const shippedBinaries = [
   "ocidex",
   "scanner-worker",
@@ -24,6 +24,7 @@ const shippedBinaries = [
   "provenance-worker",
   "vuln-worker",
   "operator",
+  "ocidex-cli",
 ];
 
 const nuList = (xs: string[]) => `[${xs.map((x) => `"${x}"`).join(" ")}]`;
@@ -39,7 +40,7 @@ const nuList = (xs: string[]) => `[${xs.map((x) => `"${x}"`).join(" ")}]`;
 //
 // Report-only, and deliberately so: this is dogfooding, not a release gate. An OCIDex
 // that is down, unreachable, or missing the API key must not fail a tag pipeline that
-// has already built and published nine images.
+// has already built and published ten images.
 export const sbomPush = new Task({
   name: "sbom-push",
   params: [sourceBranchParam],
@@ -72,7 +73,7 @@ export const sbomPush = new Task({
       script: nu`
 ${goSetup}
 mkdir .sbom-bins
-for b in ${nuList([...shippedBinaries, "ocidex-cli"])} {
+for b in ${nuList(shippedBinaries)} {
   log $"Building ($b)"
   ^go build -o $".sbom-bins/($b)" $"./cmd/($b)"
 }

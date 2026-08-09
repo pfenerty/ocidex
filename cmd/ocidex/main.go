@@ -39,7 +39,7 @@ func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "--version", "-version", "version":
-			fmt.Printf("ocidex %s (commit %s, built %s)\n", version.Version, version.Commit, version.Date)
+			fmt.Printf("ocidex %s\n", version.String())
 			return
 		case "migrate":
 			if err := runMigrate(os.Args[2:]); err != nil {

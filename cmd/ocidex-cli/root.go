@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pfenerty/ocidex/cmd/ocidex-cli/output"
+	"github.com/pfenerty/ocidex/internal/version"
 	"github.com/pfenerty/ocidex/pkg/client"
 )
 
@@ -84,6 +85,10 @@ Commands are noun then verb: ` + "`ocidex-cli sbom push`" + `, ` + "`ocidex-cli 
 Configuration is resolved in this order, most specific first: command-line flag,
 environment variable, ~/.config/ocidex/config.yaml, built-in default. The API key
 is deliberately not a flag — see docs/adr/0029-cli-design.md.`,
+		// Setting Version gives the root a --version flag alongside the version
+		// subcommand. Cobra answers it before PersistentPreRunE, so it reports
+		// the build without first needing the configuration to be valid.
+		Version: version.String(),
 		// Errors returned by RunE are reported by main; cobra printing them a
 		// second time, with usage attached, buries the actual message.
 		SilenceErrors: true,
@@ -93,6 +98,9 @@ is deliberately not a flag — see docs/adr/0029-cli-design.md.`,
 		},
 	}
 
+	// Same line the version subcommand prints, so the two never disagree.
+	cmd.SetVersionTemplate("ocidex-cli {{.Version}}\n")
+
 	f := cmd.PersistentFlags()
 	f.StringVar(&cfg.serverFlag, "server", "",
 		"OCIDex base URL (env OCIDEX_URL, config server, default "+defaultServer+")")
@@ -101,7 +109,7 @@ is deliberately not a flag — see docs/adr/0029-cli-design.md.`,
 
 	cmd.AddCommand(newSBOMCmd(cfg), newRegistryCmd(cfg), newArtifactCmd(cfg),
 		newComponentCmd(cfg), newJobCmd(cfg), newKeyCmd(cfg),
-		newLoginCmd(cfg), newLogoutCmd())
+		newLoginCmd(cfg), newLogoutCmd(), newVersionCmd())
 	return cmd, cfg
 }
 
