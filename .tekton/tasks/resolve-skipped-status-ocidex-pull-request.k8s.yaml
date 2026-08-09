@@ -9,6 +9,22 @@ spec:
       type: string
     - name: revision
       type: string
+    - name: status-gofmt-check
+      type: string
+    - name: status-go-test
+      type: string
+    - name: status-go-integration-test
+      type: string
+    - name: status-openapi-verify
+      type: string
+    - name: status-govulncheck-scan
+      type: string
+    - name: status-grype-vuln-web
+      type: string
+    - name: status-semgrep-sast
+      type: string
+    - name: status-tekton-check
+      type: string
   stepTemplate:
     computeResources:
       limits:
@@ -38,10 +54,11 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: resolve-gofmt-check
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let status = "$(tasks.gofmt-check.status)"
+        let status = "$(params.status-gofmt-check)"
 
         if $status != "None" {
           log $"resolve-skipped [gofmt-check]: task status is ($status), nothing to resolve"
@@ -79,10 +96,11 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: resolve-go-test
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let status = "$(tasks.go-test.status)"
+        let status = "$(params.status-go-test)"
 
         if $status != "None" {
           log $"resolve-skipped [go-test]: task status is ($status), nothing to resolve"
@@ -120,10 +138,11 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: resolve-go-integration-test
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let status = "$(tasks.go-integration-test.status)"
+        let status = "$(params.status-go-integration-test)"
 
         if $status != "None" {
           log $"resolve-skipped [go-integration-test]: task status is ($status), nothing to resolve"
@@ -161,10 +180,11 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: resolve-openapi-verify
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let status = "$(tasks.openapi-verify.status)"
+        let status = "$(params.status-openapi-verify)"
 
         if $status != "None" {
           log $"resolve-skipped [openapi-verify]: task status is ($status), nothing to resolve"
@@ -202,10 +222,11 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: resolve-govulncheck-scan
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let status = "$(tasks.govulncheck-scan.status)"
+        let status = "$(params.status-govulncheck-scan)"
 
         if $status != "None" {
           log $"resolve-skipped [govulncheck-scan]: task status is ($status), nothing to resolve"
@@ -243,10 +264,11 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: resolve-grype-vuln-web
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let status = "$(tasks.grype-vuln-web.status)"
+        let status = "$(params.status-grype-vuln-web)"
 
         if $status != "None" {
           log $"resolve-skipped [grype-vuln-web]: task status is ($status), nothing to resolve"
@@ -284,10 +306,11 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: resolve-semgrep-sast
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let status = "$(tasks.semgrep-sast.status)"
+        let status = "$(params.status-semgrep-sast)"
 
         if $status != "None" {
           log $"resolve-skipped [semgrep-sast]: task status is ($status), nothing to resolve"
@@ -325,10 +348,11 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: resolve-tekton-check
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let status = "$(tasks.tekton-check.status)"
+        let status = "$(params.status-tekton-check)"
 
         if $status != "None" {
           log $"resolve-skipped [tekton-check]: task status is ($status), nothing to resolve"

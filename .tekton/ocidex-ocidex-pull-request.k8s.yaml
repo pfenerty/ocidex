@@ -28,6 +28,22 @@ spec:
             value: $(params.repo-full-name)
           - name: revision
             value: $(params.revision)
+          - name: status-gofmt-check
+            value: $(tasks.gofmt-check.status)
+          - name: status-go-test
+            value: $(tasks.go-test.status)
+          - name: status-go-integration-test
+            value: $(tasks.go-integration-test.status)
+          - name: status-openapi-verify
+            value: $(tasks.openapi-verify.status)
+          - name: status-govulncheck-scan
+            value: $(tasks.govulncheck-scan.status)
+          - name: status-grype-vuln-web
+            value: $(tasks.grype-vuln-web.status)
+          - name: status-semgrep-sast
+            value: $(tasks.semgrep-sast.status)
+          - name: status-tekton-check
+            value: $(tasks.tekton-check.status)
         taskRef:
           kind: Task
           name: ocidex-resolve-skipped-status-ocidex-pull-request
