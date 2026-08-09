@@ -175,7 +175,7 @@ If a digest is found, `GetSBOMByDigest()` is called. On hit → return the exist
 
 - Strips the `@sha256:...` digest suffix from `metadata.component.name` so that the same image (with different digests) resolves to one artifact row.
 - Captures the digest for indexing.
-- Container SBOMs without any digest → immediate 422.
+- Container SBOMs without any digest → immediate 400 (`ValidationError`).
 - `UpsertArtifact()` by `(type, name, group_name)`.
 
 ### Metadata resolution
@@ -194,27 +194,47 @@ Properties are searched in `metadata.component.properties` first, then `metadata
 
 **Trivy note:** Trivy emits `aquasecurity:trivy:Labels:org.opencontainers.image.version` — this is also checked for `subject_version`.
 
-### Mandatory validation (container SBOMs only)
+### Mandatory validation — container SBOMs (`validateContainerRequired`)
 
 After resolution, all three fields must be non-empty:
 - `subject_version`
 - `architecture`
 - `build_date`
 
-Missing fields → 422 listing which fields are absent.
+Missing fields → 400 listing which fields are absent.
+
+### Mandatory validation — uploaded SBOMs (`validateUploadRequired`)
+
+A non-container subject can only have arrived through the upload path (the registry scanner
+produces container subjects exclusively), so it must carry the identity its caller declared at
+upload time (ADR-040):
+- `subject_type` — must be *declared*, not merely present in the BOM
+- `subject_name` — likewise
+- `subject_version`
+- `digest` — the sha256 of the artifact file
+
+Missing fields → 400 listing which fields are absent.
+
+### Status codes: 400 vs 422
+
+Every validation gate inside `service.Ingest()` returns `*service.ValidationError`, which
+`mapServiceError` (`internal/api/errors.go`) renders as **400**; anything else from the service
+(DB, registry) falls through to 500. The only **422** in the ingest path is
+`validateBOM()` (`internal/api/sbom.go`), raised in the handler before the service is called, for
+missing `bomFormat` / `specVersion` / an empty `components` array.
 
 ### Transaction contents
 
-Within a single transaction:
-1. `InsertSBOM()` — stores raw BOM JSON, `subject_version`, digest, artifact link.
-2. `UpsertEnrichment()` with `enricher_name="user"`, `status="success"` — writes `{architecture, created, imageVersion}` so metadata is immediately visible in queries before the async OCI enricher runs.
-3. `insertComponents()` — recursive, handles nested components.
-4. `insertDependencies()`.
-5. Commit.
+Namespace resolution (`resolveIngestNamespace`), registry digest validation, and the digest
+idempotency check all run *before* `Begin`. Within the transaction:
+1. `InsertSBOM()` — raw BOM JSON, `subject_version`, digest, artifact link, `flavor` (ADR-020), `namespace_id` / `source_id` (ADR-039), `index_digest`.
+2. `linkArtifactNamespace()` — `UpsertArtifactNamespace` junction row.
+3. `insertBOMContent()` — `insertComponentsBatch()` (recursive, handles nested components, `COPY`-based) then `insertDependencies()`.
+4. Commit.
 
 ### Post-commit: event publish
 
-After successful commit, `event.SBOMIngested` is published with `{SBOMID, ArtifactType, ArtifactName, Digest, SubjectVersion}`. This triggers the async OCI enrichment pipeline.
+After successful commit, `event.SBOMIngested` is published with `{SBOMID, ArtifactType, ArtifactName, Digest, SubjectVersion, Architecture, BuildDate}`. `enrichment.NATSSubmitter` consumes it and enqueues the **root enrichers** — `user`, `oci-metadata`, `provenance` (`internal/enrichment/deps.go`). The `user` enricher is what writes the caller-supplied `{architecture, created, imageVersion}` payload; it is async, not part of the ingest transaction.
 
 ---
 
@@ -275,7 +295,7 @@ COALESCE(e.data->>'imageVersion', u.data->>'imageVersion') AS image_version
 (COALESCE(e.data->>'created',     u.data->>'created'))::timestamptz AS build_date
 ```
 
-`oci-metadata` is authoritative. `user` is the immediate fallback populated synchronously at ingest time, so queries never return empty metadata while enrichment is pending.
+`oci-metadata` is authoritative. `user` is the fallback: it is written by the async `user` enricher, enqueued at commit alongside `oci-metadata`, and needs no registry round-trip — so it typically lands first and keeps queries from returning empty metadata while `oci-metadata` is still pending.
 
 ---
 
@@ -285,14 +305,14 @@ COALESCE(e.data->>'imageVersion', u.data->>'imageVersion') AS image_version
 Ingest time:
   params.* (from query params or ScanRequest)
     > BOM properties (syft:image:config.*, syft:image:labels:*)
-    > (absent → 422 for container SBOMs)
+    > (absent → 400 for container SBOMs)
 
 Written to:
   sbom.subject_version
-  enrichment[user].{architecture, imageVersion, created}
 
 Async (after commit):
-  OCI enricher → enrichment[oci-metadata].{architecture, created, imageVersion, ...}
+  user enricher → enrichment[user].{architecture, imageVersion, created}
+  OCI enricher  → enrichment[oci-metadata].{architecture, created, imageVersion, ...}
 
 Query time:
   enrichment[oci-metadata] > enrichment[user]
