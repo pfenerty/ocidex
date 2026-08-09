@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check tekton-synth dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
+.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check tekton-synth dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
 
 all: check build ## Run all checks and build
 
@@ -126,15 +126,46 @@ frontend-test: frontend-init ## Run frontend unit tests
 tekton-synth: ## Synthesize Tekton pipeline YAML from TypeScript
 	cd .tektonic && npm ci && npx tsx pipeline.ts
 
-dev-registry: ## Start the local Docker registry used by the Talos dev cluster
+# talosctl reaches Docker through the Go client, which honours DOCKER_HOST but
+# ignores Docker CLI contexts — and Docker Desktop on macOS does not create
+# /var/run/docker.sock at all, so talosctl fails to connect even though `docker`
+# works. Resolve the endpoint from the active context, which is the conventional
+# socket on Linux and the per-user one on Docker Desktop.
+DOCKER_ENDPOINT = $(shell docker context inspect --format '{{.Endpoints.docker.Host}}' 2>/dev/null || echo unix:///var/run/docker.sock)
+
+dev-cluster-up dev-cluster-down: export DOCKER_HOST = $(DOCKER_ENDPOINT)
+
+dev-docker-check: ## Fail early, and readably, when the Docker daemon is unreachable
+	@docker info >/dev/null 2>&1 || { \
+	  echo "ERROR: cannot reach the Docker daemon."; \
+	  if [ "$$(uname -s)" = "Darwin" ]; then \
+	    echo "Start Docker Desktop and wait for it to report Running, then re-run."; \
+	  else \
+	    echo "Start the Docker service (e.g. sudo systemctl start docker)."; \
+	  fi; \
+	  exit 1; \
+	}
+
+dev-registry: dev-docker-check ## Start the local Docker registry used by the Talos dev cluster
 	@docker inspect ocidex-dev-registry >/dev/null 2>&1 || \
 	  docker run -d --restart=always -p 5005:5000 --name ocidex-dev-registry registry:2
 
 dev-cluster-up: dev-registry ## Create local Talos dev cluster wired to the local registry
 	@if [ "$$(id -u)" = "0" ]; then echo "ERROR: do not run as root — your user is in the docker group"; exit 1; fi
-	@if [ ! -f /proc/sys/net/bridge/bridge-nf-call-iptables ]; then \
-	  echo "ERROR: br_netfilter kernel module not loaded (required by flannel CNI)."; \
-	  echo "Run: sudo modprobe br_netfilter && echo br_netfilter | sudo tee /etc/modules-load.d/br_netfilter.conf"; \
+	@# flannel needs br_netfilter in whichever kernel actually runs the containers.
+	@# On Linux that is this host's kernel; on macOS it is Docker Desktop's LinuxKit
+	@# VM, where the host /proc says nothing useful — probe the VM's host netns via a
+	@# --network=host container instead.
+	@if [ "$$(uname -s)" = "Linux" ]; then \
+	  if [ ! -f /proc/sys/net/bridge/bridge-nf-call-iptables ]; then \
+	    echo "ERROR: br_netfilter kernel module not loaded (required by flannel CNI)."; \
+	    echo "Run: sudo modprobe br_netfilter && echo br_netfilter | sudo tee /etc/modules-load.d/br_netfilter.conf"; \
+	    exit 1; \
+	  fi; \
+	elif ! docker run --rm --privileged --network=host busybox \
+	    test -f /proc/sys/net/bridge/bridge-nf-call-iptables >/dev/null 2>&1; then \
+	  echo "ERROR: br_netfilter not loaded in the Docker VM (required by flannel CNI)."; \
+	  echo "Run: docker run --rm --privileged --network=host busybox modprobe br_netfilter"; \
 	  exit 1; \
 	fi
 	talosctl cluster create docker \
@@ -143,6 +174,17 @@ dev-cluster-up: dev-registry ## Create local Talos dev cluster wired to the loca
 	  --config-patch @tilt/talos-cluster.yaml \
 	  || echo "talosctl exited non-zero (likely CoreDNS bootstrap timeout); proceeding..."
 	talosctl --context ocidex-dev --nodes 10.5.0.2 kubeconfig --force --force-context-name admin@ocidex-dev
+	@# talosctl kubeconfig writes the node's in-cluster API address (10.5.0.2:6443).
+	@# That is routable on Linux but not from macOS, where the Docker bridge lives
+	@# inside Docker Desktop's VM. The provisioner publishes the API on a mapped
+	@# 127.0.0.1 port on both platforms, so retarget the context at that.
+	@endpoint=$$(talosctl cluster show --name ocidex-dev 2>/dev/null | awk '/KUBERNETES ENDPOINT/ {print $$3}'); \
+	  cluster=$$(kubectl config view -o jsonpath='{.contexts[?(@.name=="admin@ocidex-dev")].context.cluster}'); \
+	  if [ -z "$$endpoint" ] || [ -z "$$cluster" ]; then \
+	    echo "ERROR: could not resolve the mapped Kubernetes endpoint or kubeconfig cluster name"; exit 1; \
+	  fi; \
+	  kubectl config set-cluster "$$cluster" --server="$$endpoint" >/dev/null; \
+	  echo "kubeconfig cluster $$cluster -> $$endpoint"
 	kubectl --context admin@ocidex-dev wait --for=condition=Ready nodes --all --timeout=180s
 	kubectl --context admin@ocidex-dev wait --for=condition=Ready pods --all -n kube-system --timeout=180s
 

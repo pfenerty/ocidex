@@ -9,6 +9,20 @@ All required tools (`talosctl`, `tilt`, `kubectl`) are pinned in the Flox enviro
 Required on the host (outside Flox):
 - Docker Desktop or Docker Engine
 
+The loop is verified on both Linux and macOS. Two things differ on macOS, and `make dev-cluster-up`
+handles both for you:
+
+- **`br_netfilter`** must be loaded in the kernel that runs the containers. On Linux that is this
+  host; on macOS it is Docker Desktop's LinuxKit VM, so the preflight probes the VM rather than
+  the host `/proc`. If it reports the module missing, load it with
+  `docker run --rm --privileged --network=host busybox modprobe br_netfilter`.
+- **The API endpoint.** `talosctl kubeconfig` writes the node's in-cluster address
+  (`10.5.0.2:6443`), which is unreachable from macOS because the Docker bridge lives inside the
+  VM. The target retargets the kubeconfig at the `127.0.0.1` port the provisioner publishes.
+
+Docker Desktop needs enough headroom for a Talos control plane and worker plus twelve workloads
+alongside the Go image builds. Verified working at 8 CPUs / 8 GB.
+
 ## One-Time Cluster Setup
 
 Run once per session (or after `make dev-cluster-down`):
@@ -50,6 +64,12 @@ flox activate -- make seed
 
 Requires `oras`, `syft`, and `curl` — all available in the Flox environment.
 
+> **Known broken (ocidex-y19y).** `seed.nu` copies its source images into a zot registry on
+> `localhost:5000`, which no dev path provides any more — neither the Tilt loop (whose registry is
+> `localhost:5005`, for Tilt's own images) nor docker-compose (which has no zot service, only an
+> orphan `zot-data` volume). It currently skips all 19 images and still exits 0, so it looks like
+> it worked. Seed by POSTing SBOMs to `/api/v1` directly until that is fixed.
+
 ## Stopping
 
 ```bash
@@ -72,6 +92,8 @@ Its credentials are `ocidex:ocidex`, the same as `.env` and `docker-compose.yml`
 Schema is applied in-cluster by `tilt/values-dev.yaml` setting `migrate.enabled: true`, which renders the chart's migrate Job as the Tilt resource `ocidex-migrate-1` (gated on `postgres` being ready). It runs the same `ocidex migrate up` that production does.
 
 **The dev database is `emptyDir`-backed and is wiped whenever its pod restarts.** After a restart, reapply the schema with `tilt trigger ocidex-migrate-1` — no need for a full `tilt down`.
+
+`resource_deps` only *orders* the initial build; it does not re-run migrate when postgres restarts on its own. So a bare pod loss leaves you with every resource green and an empty database, and the first symptom is `relation "sbom" does not exist` in the API log rather than anything failing outright. The Deployment uses `strategy: Recreate` so that a postgres change Tilt *does* know about can't run migrate against the outgoing pod, but nothing covers a pod dying by itself — re-trigger migrate by hand.
 
 ## Troubleshooting
 

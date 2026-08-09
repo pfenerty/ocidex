@@ -30,6 +30,14 @@ metadata:
     app: postgres
 spec:
   replicas: 1
+  # Recreate, not the default RollingUpdate. Two things break otherwise, both
+  # observed: a rolling update briefly runs two postgres pods behind one Service,
+  # each with its own emptyDir, so queries land on whichever the Service picks;
+  # and Tilt keeps reporting `postgres` ready off the outgoing pod, so the
+  # migrate Job — which depends on it — runs against the database about to be
+  # discarded, leaving the new one with no schema at all.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: postgres
@@ -55,14 +63,14 @@ spec:
               value: ocidex
             - name: POSTGRES_DB
               value: ocidex
-            # Tiltfile writes this key into ocidex-secrets alongside the
-            # DATABASE_URL that embeds it — read it back rather than repeating
-            # the literal, so the two cannot drift apart.
+            # A repeated literal rather than a secretKeyRef into ocidex-secrets.
+            # Tilt scrubs Secret values from its logs, and "ocidex" is a
+            # substring of every resource name here, so sourcing the password
+            # from the Secret makes the whole Tilt log unreadable. Same literal,
+            # for the same reason, as docker-compose.yml. Keep it in step with
+            # the password inside the Tiltfile's DATABASE_URL.
             - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: ocidex-secrets
-                  key: POSTGRES_PASSWORD
+              value: ocidex
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "ocidex"]

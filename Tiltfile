@@ -28,10 +28,16 @@ for required in ('GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'SESSION_SECRET'):
 # Credentials match .env and docker-compose (ocidex:ocidex) on purpose: postgres
 # is port-forwarded to host 5432 below, so host-side `make migrate-up`, `make
 # seed`, and psql all authenticate against the in-cluster database without a
-# second set of credentials to remember. POSTGRES_PASSWORD is read back by
-# tilt/postgres.yaml so the password and the URL that embeds it stay in sync.
+# second set of credentials to remember.
+#
+# POSTGRES_PASSWORD is deliberately NOT put in this Secret. Tilt scrubs every
+# Secret value out of its own logs, and this value is the bare string "ocidex" —
+# a substring of every image, resource, and pod name in the stack. Including it
+# turns the entire Tilt log into
+# "[redacted secret ocidex-secrets:POSTGRES_PASSWORD]-api-576574dd4c-xmd89".
+# tilt/postgres.yaml repeats the literal instead, exactly as docker-compose.yml
+# already does.
 env['DATABASE_URL'] = 'postgres://ocidex:ocidex@postgres:5432/ocidex?sslmode=disable'
-env['POSTGRES_PASSWORD'] = 'ocidex'
 
 def _secret_yaml(name, data):
     lines = [
