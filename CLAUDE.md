@@ -243,6 +243,7 @@ kubectl logs -n ocidex-ci -l tekton.dev/taskRun=<taskrun-name> -f --all-containe
 | Image release task shows `Succeeded` but image wasn't pushed | `onError: continue` masks step failures — TaskRun shows Succeeded even if buildctl failed | Check step logs directly; don't trust TaskRun status alone for `onError: continue` steps |
 | `CreateContainerConfigError`, kubelet event `container's runAsUser breaks non-root policy` | A container sets `runAsUser: 0` but inherits pod-level `runAsNonRoot: true` from tektonic's podTemplate. The kubelet check is independent of Pod Security Admission — the namespace being PSA `privileged` does *not* exempt it | Set `runAsNonRoot: false` alongside `runAsUser: 0` on that container's `securityContext` |
 | Ad-hoc TaskRun passes, same task fails in the pipeline | The TaskRun omitted `podTemplate` — no pod-level securityContext, so uid/non-root constraints never applied | Always include the `podTemplate` block from step 4 above |
+| Step logs show the failure, but `report-status` logs `exit-code=0` and the TaskRun Succeeds | A nushell script body used `exit 1`. That kills the process before tektonic's `try/catch` wrapper can persist the code to `/tekton/home/.exit-code`, so it keeps its initial `0` | Raise instead: `error make {msg: "..."}`. `exit` is safe in `sh` scripts — tektonic wraps those in a subshell and reads `$?` |
 
 ### Shell variable syntax in task scripts
 
@@ -252,13 +253,32 @@ Tekton's admission webhook flags `$VAR` and `${VAR}` patterns in scripts as unde
 - **`ec` and exit-code files**: Write `echo "$ec"` not `echo "${ec}"`.
 - **The output line for buildctl**: Use `"name=${NAMES}"` — this is the one place where `${NAMES}` is required by buildctl's flag syntax and is exempt because it's inside a quoted arg, not a standalone variable reference.
 
-### tektonic synthesis bug
+### `.tekton/` is generated — never commit a hand-edit
 
-`make tekton-synth` silently drops certain shell parameter expansion patterns (e.g. `${VAR#prefix}`) from generated YAML — a cdk8s/js-yaml serialization issue with `#` inside block scalars. Until fixed:
+`.tektonic/` is the source of truth; `.tekton/*.yaml` is `make tekton-synth` output. The
+`tekton-check` PR task (`.tektonic/jobs/tekton-check/spec.ts`) re-runs synthesis in CI and **fails
+the PR** if `.tekton` comes out dirty, so a hand-edit that isn't reflected in `.tektonic/` is
+guaranteed red — and would be silently reverted by the next synth anyway. It is gated on
+`pipelineChanged`, so it only runs when `.tektonic/**` or `.tekton/**` changed.
 
-1. Make the change in `.tektonic/pipeline.ts` (source of truth)
-2. Edit the generated `.tekton/tasks/*.yaml` directly to match
-3. Apply with `kubectl apply -f .tekton/tasks/<changed>.k8s.yaml` to validate immediately
+This does not conflict with the fast-iteration loop above: editing `.tekton/tasks/*.yaml` and
+`kubectl apply`-ing it is still the right ~2-minute way to validate a task against the cluster.
+Just port the change back into `.tektonic/` and re-synth before committing.
+
+**Shell parameter expansion that cdk8s mangles** (historically `${VAR#prefix}` disappearing from
+block scalars) is solved by moving the script out of the TypeScript template literal into a
+sibling `.sh`/`.nu` file loaded via `.tektonic/script-lib.ts` — file contents pass through
+verbatim. See `.tektonic/jobs/image-build/release.sh` (`TAG="${TAG#refs/tags/}"`, which survives
+into all 11 generated `image-release-*.k8s.yaml`).
+
+**Backticks are also unsafe** inside a `nu\`...\`` template literal — including in comments —
+since they terminate the literal and produce an esbuild parse error at synth time.
+
+**Fail with `error make {msg: "..."}`, never `exit 1`.** tektonic wraps each script body in a
+try/catch that persists the caught code to `/tekton/home/.exit-code`, which the `report-status`
+step reads to decide pass/fail. nushell's `exit` kills the process before that wrapper runs, so
+the file keeps its initial `0` and — combined with `onError: continue` on the work step — the task
+reports **green on a real failure** (ocidex-es6).
 
 ## Local K8s dev loop (Talos + Tilt)
 

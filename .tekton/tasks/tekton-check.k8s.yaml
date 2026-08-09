@@ -53,7 +53,12 @@ spec:
         if ($drift | is-not-empty) {
           print "✗ .tekton is out of sync with .tektonic/ — run 'make tekton-synth' and commit:"
           print $drift
-          exit 1
+          # error make, NOT exit 1: tektonic wraps this body in a try/catch and persists the caught
+          # code to /tekton/home/.exit-code, which the report-status step reads. nushell's exit kills
+          # the process before that wrapper runs, so the file keeps its initial "0" and — with
+          # onError: continue on this step — the task reports green on drift. error make throws, so
+          # the wrapper sees it. Same reason gofmt-check raises instead of exiting.
+          error make {msg: ".tekton is out of sync with .tektonic/"}
         }
         print "✓ .tekton is in sync with .tektonic/"
         }
@@ -94,5 +99,6 @@ spec:
         } catch { |e|
           log $"report-status [tekton-check]: error: ($e.msg)"
         }
+        exit $exit_code
   workspaces:
     - name: workspace

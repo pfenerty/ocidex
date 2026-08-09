@@ -1,5 +1,5 @@
 import { Task, nu } from "@pfenerty/tektonic";
-import { nodeImage, reportOnlyStatusReporter } from "../../shared";
+import { nodeImage, statusReporter } from "../../shared";
 
 // Guard against pipeline drift. `make tekton-synth` runs only in dev, so nothing otherwise
 // catches (a) a .tektonic/ edit that wasn't re-synthed, (b) a hand-edit to generated .tekton,
@@ -7,11 +7,14 @@ import { nodeImage, reportOnlyStatusReporter } from "../../shared";
 // left .tekton stale. This regenerates .tekton in CI and fails if it differs from what's
 // committed, or if synth errors.
 //
-// Report-only for the initial rollout (posts a red check without blocking the PipelineRun);
-// swap to the blocking `statusReporter` once it's confirmed green.
+// Blocking since ocidex-es6. The report-only rollout's exit condition was "confirmed green on a
+// PR" (PR #100, 2026-07-26) — but that signal was worthless: the body used `exit 1`, which meant
+// the task reported success on drift too (see the error-make comment below). Both polarities are
+// now verified by ad-hoc TaskRun: clean tree → Succeeded, injected un-synthed source bump →
+// StepFailed with exit-code=1.
 export const tektonCheck = new Task({
   name: "tekton-check",
-  statusReporter: reportOnlyStatusReporter,
+  statusReporter,
   steps: [
     {
       name: "synth-drift",
@@ -34,7 +37,12 @@ let drift = (^git status --porcelain -- .tekton | complete | get stdout | str tr
 if ($drift | is-not-empty) {
   print "✗ .tekton is out of sync with .tektonic/ — run 'make tekton-synth' and commit:"
   print $drift
-  exit 1
+  # error make, NOT exit 1: tektonic wraps this body in a try/catch and persists the caught
+  # code to /tekton/home/.exit-code, which the report-status step reads. nushell's exit kills
+  # the process before that wrapper runs, so the file keeps its initial "0" and — with
+  # onError: continue on this step — the task reports green on drift. error make throws, so
+  # the wrapper sees it. Same reason gofmt-check raises instead of exiting.
+  error make {msg: ".tekton is out of sync with .tektonic/"}
 }
 print "✓ .tekton is in sync with .tektonic/"
 `,
