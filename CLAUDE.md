@@ -167,7 +167,8 @@ kubectl apply -f .tekton/tasks/gh-release.k8s.yaml
 kubectl get pvc -n ocidex-ci
 
 # 4. Create an isolated TaskRun (edit params/PVC name as needed)
-kubectl apply -f - <<'EOF'
+#    `create`, not `apply` — apply rejects generateName.
+kubectl create -f - <<'EOF'
 apiVersion: tekton.dev/v1
 kind: TaskRun
 metadata:
@@ -176,6 +177,22 @@ metadata:
 spec:
   taskRef:
     name: ocidex-gh-release
+  # ALWAYS include this. tektonic stamps this exact securityContext onto every
+  # PipelineRun's podTemplate, but a bare TaskRun has none — so root sidecars and
+  # uid-sensitive steps pass here and fail in real CI. That gap is what let the
+  # go-integration-test postgres sidecar (runAsUser: 0) ship broken: verified green
+  # by ad-hoc TaskRun, then CreateContainerConfigError on every actual pipeline.
+  podTemplate:
+    securityContext:
+      runAsUser: 1024
+      runAsGroup: 1024
+      fsGroup: 1024
+      runAsNonRoot: true
+      seccompProfile:
+        type: RuntimeDefault
+    env:
+      - name: HOME
+        value: /tekton/home
   params:
     - name: repo-full-name
       value: pfenerty/ocidex
@@ -224,6 +241,8 @@ kubectl logs -n ocidex-ci -l tekton.dev/taskRun=<taskrun-name> -f --all-containe
 | `refs/tags/v0.0.1-rc.2` appearing as image tag or release name | PAC sets `source_branch` to the full ref for tag events | Strip prefix: `TAG="${TAG#refs/tags/}"` after reading `$(params.source-branch)` |
 | `403 Forbidden` pulling `ghcr.io/<other-org>/image` | Cluster's `ghcr-docker-config` only covers `pfenerty/*` | Use images from `ghcr.io/pfenerty/apko-cicd/*` or Docker Hub instead |
 | Image release task shows `Succeeded` but image wasn't pushed | `onError: continue` masks step failures — TaskRun shows Succeeded even if buildctl failed | Check step logs directly; don't trust TaskRun status alone for `onError: continue` steps |
+| `CreateContainerConfigError`, kubelet event `container's runAsUser breaks non-root policy` | A container sets `runAsUser: 0` but inherits pod-level `runAsNonRoot: true` from tektonic's podTemplate. The kubelet check is independent of Pod Security Admission — the namespace being PSA `privileged` does *not* exempt it | Set `runAsNonRoot: false` alongside `runAsUser: 0` on that container's `securityContext` |
+| Ad-hoc TaskRun passes, same task fails in the pipeline | The TaskRun omitted `podTemplate` — no pod-level securityContext, so uid/non-root constraints never applied | Always include the `podTemplate` block from step 4 above |
 
 ### Shell variable syntax in task scripts
 

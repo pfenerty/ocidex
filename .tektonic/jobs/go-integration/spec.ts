@@ -46,7 +46,15 @@ export const goIntegration = new Task({
       // getpwuid ("could not look up effective user ID"). As root the image's own
       // entrypoint chowns PGDATA and re-execs as postgres, which is the supported
       // path. Permitted here: ocidex-ci is a PSA `privileged` namespace.
-      securityContext: { runAsUser: 0 },
+      //
+      // runAsNonRoot: false is load-bearing, not redundant. tektonic stamps
+      // runAsNonRoot: true onto every PipelineRun's podTemplate.securityContext, and
+      // the kubelet enforces that check independently of Pod Security Admission — the
+      // namespace being PSA `privileged` does not exempt it. Without the container-level
+      // false, the pod dies at CreateContainerConfigError ("container's runAsUser
+      // breaks non-root policy"). A bare ad-hoc TaskRun has no podTemplate, so this
+      // only reproduces under a real PipelineRun.
+      securityContext: { runAsUser: 0, runAsNonRoot: false },
       env: [
         { name: "POSTGRES_USER", value: "test" },
         { name: "POSTGRES_PASSWORD", value: "test" },

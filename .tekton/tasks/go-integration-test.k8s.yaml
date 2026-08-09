@@ -37,6 +37,7 @@ spec:
         initialDelaySeconds: 3
         periodSeconds: 2
       securityContext:
+        runAsNonRoot: false
         runAsUser: 0
     - args:
         - -js
