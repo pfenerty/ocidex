@@ -42,6 +42,8 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        if not ("/tekton/home/.exit-code" | path exists) { try { "0" | save -f /tekton/home/.exit-code } }
+        try { ^chmod 0666 /tekton/home/.exit-code }
         def main [] {
         ^git config --global --add safe.directory '*'
         let pac_event = ($env.PAC_EVENT_TYPE? | default "")

@@ -44,6 +44,8 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        if not ("/tekton/home/.exit-code" | path exists) { try { "0" | save -f /tekton/home/.exit-code } }
+        try { ^chmod 0666 /tekton/home/.exit-code }
         def main [] {
         mkdir "$(workspaces.buildkit-release-cache.path)/root"
         ^chmod 0777 "$(workspaces.buildkit-release-cache.path)/root"
@@ -76,6 +78,8 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        if not ("/tekton/home/.exit-code" | path exists) { try { "0" | save -f /tekton/home/.exit-code } }
+        try { ^chmod 0666 /tekton/home/.exit-code }
         def main [] {
         let rev = "$(params.revision)"
         let stamp = ".buildctx/.ctxrev"
@@ -147,6 +151,8 @@ spec:
       script: |-
         #!/bin/sh
         log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+        [ -e /tekton/home/.exit-code ] || printf '%s' 0 > /tekton/home/.exit-code
+        chmod 0666 /tekton/home/.exit-code 2>/dev/null || true
         (
         # Release build: tags images with semver aliases from the git tag name.
         # latest is only added for stable releases (no hyphen in tag).

@@ -82,6 +82,8 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        if not ("/tekton/home/.exit-code" | path exists) { try { "0" | save -f /tekton/home/.exit-code } }
+        try { ^chmod 0666 /tekton/home/.exit-code }
         def main [] {
         log $"go=(go version) uid=(id -u) pwd=(pwd)"
         ^git config --global --add safe.directory (pwd)
@@ -113,6 +115,8 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        if not ("/tekton/home/.exit-code" | path exists) { try { "0" | save -f /tekton/home/.exit-code } }
+        try { ^chmod 0666 /tekton/home/.exit-code }
         def main [] {
         mkdir .sbom-out
         for b in ["ocidex" "scanner-worker" "enrichment-worker" "oci-metadata-worker" "git-worker" "user-enricher-worker" "provenance-worker" "vuln-worker" "operator" "ocidex-cli"] {
@@ -152,6 +156,8 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        if not ("/tekton/home/.exit-code" | path exists) { try { "0" | save -f /tekton/home/.exit-code } }
+        try { ^chmod 0666 /tekton/home/.exit-code }
         def main [] {
         if ($env.OCIDEX_API_KEY? | is-empty) {
           log "OCIDEX_API_KEY is unset - skipping SBOM upload"

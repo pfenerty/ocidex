@@ -33,6 +33,8 @@ spec:
       script: |-
         #!/bin/sh
         log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+        [ -e /tekton/home/.exit-code ] || printf '%s' 0 > /tekton/home/.exit-code
+        chmod 0666 /tekton/home/.exit-code 2>/dev/null || true
         (
         # Package and push the ocidex Helm charts.
         #
