@@ -120,10 +120,50 @@ func TestSBOMPush_DeclaredSubject(t *testing.T) {
 	is.True(strings.Contains(out, "11111111-1111-1111-1111-111111111111"))
 }
 
+// TestSBOMPush_ValueFilesDeclareSubject covers the same declared-subject shape as
+// above, but with version and architecture arriving on disk instead of on the
+// command line — how the sbom-push task feeds the distroless ocidex-cli image,
+// which has no shell to compute them (ocidex-2u7y). Both files carry trailing
+// newlines, because every way of writing them does.
+func TestSBOMPush_ValueFilesDeclareSubject(t *testing.T) {
+	is := is.New(t)
+	t.Setenv("OCIDEX_API_KEY", "ocidex_test")
+
+	sbomPath, artifactPath := writeFiles(t)
+	dir := t.TempDir()
+	versionPath := filepath.Join(dir, ".version")
+	archPath := filepath.Join(dir, ".goarch")
+	if err := os.WriteFile(versionPath, []byte("v1.2.3\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(archPath, []byte("  amd64\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	stub := newIngestStub(t, 0)
+	_, err := stub.push(sbomPath,
+		"--source", "myorg/ci",
+		"--artifact-file", artifactPath,
+		"--subject-type", "application",
+		"--subject-name", "ocidex",
+		"--version-file", versionPath,
+		"--arch-file", archPath,
+	)
+	is.NoErr(err)
+
+	is.Equal(stub.query.Get("version"), "v1.2.3")
+	is.Equal(stub.query.Get("architecture"), "amd64")
+}
+
 // TestSBOMPush_ValidationFailures asserts the CLI exits non-zero rather than
 // silently skipping the upload — CI treats a zero exit as "SBOM published".
 func TestSBOMPush_ValidationFailures(t *testing.T) {
 	sbomPath, artifactPath := writeFiles(t)
+
+	emptyPath := filepath.Join(t.TempDir(), "empty")
+	if err := os.WriteFile(emptyPath, []byte("  \n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
 	tests := []struct {
 		name   string
@@ -162,6 +202,33 @@ func TestSBOMPush_ValidationFailures(t *testing.T) {
 			name:   "digest and artifact-file together",
 			apiKey: "ocidex_test",
 			args:   []string{sbomPath, "--source", "myorg/ci", "--artifact-file", artifactPath, "--digest", "sha256:abc"},
+		},
+		{
+			name:   "version-file missing",
+			apiKey: "ocidex_test",
+			args:   []string{sbomPath, "--source", "myorg/ci", "--version-file", filepath.Join(t.TempDir(), "nope")},
+		},
+		{
+			// Blank, not absent: build-binaries writing an empty file is the
+			// failure mode that would otherwise push every binary versionless.
+			name:   "version-file blank",
+			apiKey: "ocidex_test",
+			args:   []string{sbomPath, "--source", "myorg/ci", "--version-file", emptyPath},
+		},
+		{
+			name:   "arch-file missing",
+			apiKey: "ocidex_test",
+			args:   []string{sbomPath, "--source", "myorg/ci", "--arch-file", filepath.Join(t.TempDir(), "nope")},
+		},
+		{
+			name:   "version and version-file together",
+			apiKey: "ocidex_test",
+			args:   []string{sbomPath, "--source", "myorg/ci", "--version", "v1.2.3", "--version-file", emptyPath},
+		},
+		{
+			name:   "arch and arch-file together",
+			apiKey: "ocidex_test",
+			args:   []string{sbomPath, "--source", "myorg/ci", "--arch", "amd64", "--arch-file", emptyPath},
 		},
 		{
 			name:   "server rejects the request",

@@ -44,7 +44,9 @@ type pushOpts struct {
 	subjectGroup string
 	subjectPurl  string
 	version      string
+	versionFile  string
 	arch         string
+	archFile     string
 }
 
 func newSBOMPushCmd(cfg *rootConfig) *cobra.Command {
@@ -92,14 +94,58 @@ key in ~/.config/ocidex/config.yaml.`,
 	// push is not necessarily the machine the artifact was built for, and a
 	// wrong architecture is worse than an absent one.
 	f.StringVar(&o.arch, "arch", "", "architecture the artifact was built for, e.g. amd64")
+	// The --*-file variants exist for pipelines that split "work out the value"
+	// from "do the push" across two containers. OCIDex's own sbom-push task is
+	// the case in point: the step that derives the version from the git ref has
+	// a shell, and the step that pushes is the published ocidex-cli image, which
+	// is distroless and has none. A file on the shared workspace is the only
+	// channel between them (ocidex-2u7y).
+	f.StringVar(&o.versionFile, "version-file", "", "read --version from this file")
+	f.StringVar(&o.archFile, "arch-file", "", "read --arch from this file")
 
 	cmd.MarkFlagsMutuallyExclusive("artifact-file", "digest")
+	cmd.MarkFlagsMutuallyExclusive("version", "version-file")
+	cmd.MarkFlagsMutuallyExclusive("arch", "arch-file")
 
 	return cmd
 }
 
+// resolveFileFlags folds --version-file and --arch-file into their literal
+// counterparts. Cobra has already rejected passing both forms of either pair.
+//
+// A missing or blank file is an error rather than a silently omitted value: the
+// caller asked for the value to come from that file, and a push that quietly
+// records no version or no architecture is harder to notice than one that fails.
+func (o *pushOpts) resolveFileFlags() error {
+	for _, f := range []struct {
+		flag string
+		path string
+		dst  *string
+	}{
+		{"--version-file", o.versionFile, &o.version},
+		{"--arch-file", o.archFile, &o.arch},
+	} {
+		if f.path == "" {
+			continue
+		}
+		data, err := os.ReadFile(f.path) //nolint:gosec // the path is the user's own argument
+		if err != nil {
+			return fmt.Errorf("reading %s: %w", f.flag, err)
+		}
+		value := strings.TrimSpace(string(data))
+		if value == "" {
+			return fmt.Errorf("reading %s: %s is empty", f.flag, f.path)
+		}
+		*f.dst = value
+	}
+	return nil
+}
+
 func runSBOMPush(cmd *cobra.Command, cfg *rootConfig, o *pushOpts, sbomPath string) error {
 	if err := validateSource(o.source); err != nil {
+		return err
+	}
+	if err := o.resolveFileFlags(); err != nil {
 		return err
 	}
 

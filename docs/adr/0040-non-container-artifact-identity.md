@@ -63,6 +63,14 @@ declares ("Fields take precedence over BOM-extracted values when set"), so this 
 an existing rule rather than introducing one. When no override is supplied, BOM
 extraction behaves as it does today, so container scanning is untouched.
 
+The CLI surfaces these as `--subject-type/-name/-group/-purl` and `--version`/`--arch`, plus
+`--version-file`/`--arch-file` for callers that derive those two values in a different
+container from the one that pushes — see ADR-029 (`ocidex-2u7y`). Note that the declared purl
+should carry no `@version`: `artifact.purl` is an attribute updated on every upsert, not part
+of the artifact's identity (`UpsertArtifact` conflicts on type + name + group), so a versioned
+purl only churns the stored value while the version that matters lands on
+`sbom.subject_version`.
+
 **Digest is the sha256 of the artifact file**, not of the SBOM. This mirrors the
 container rule: `sbom.digest` identifies *the thing described*, never the description of
 it. Two SBOMs of the same binary produced by different scanner versions are the same
