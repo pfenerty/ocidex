@@ -38,6 +38,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-gofmt-check
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -72,6 +73,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-go-test
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -106,6 +108,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-go-build
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -140,6 +143,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-openapi-verify
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -174,6 +178,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-eslint-lint-web
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -208,6 +213,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-go-integration-test
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -242,6 +248,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-govulncheck-scan
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -276,6 +283,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-grype-vuln-web
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -310,6 +318,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-gitleaks-secrets
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -344,6 +353,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-semgrep-sast
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -378,6 +388,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-image-build-api
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -412,6 +423,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-image-build-scanner-worker
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -446,6 +458,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-image-build-enrichment-worker
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -480,6 +493,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-image-build-oci-metadata-worker
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -514,6 +528,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-image-build-git-worker
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -548,6 +563,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-image-build-user-enricher-worker
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -582,6 +598,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-image-build-provenance-worker
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -616,6 +633,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-image-build-vuln-worker
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -650,6 +668,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-image-build-web
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -684,6 +703,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-image-build-operator
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -718,6 +738,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-image-build-cli
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -752,6 +773,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-helm-publish
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
@@ -786,6 +808,7 @@ spec:
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
       name: pending-sbom-push
+      onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
