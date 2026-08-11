@@ -534,20 +534,27 @@ type GetArtifactContainsOutput struct {
 // DashboardStatsOutput is the response for GET /api/v1/stats/summary.
 type DashboardStatsOutput struct {
 	Body struct {
-		ArtifactCount         int64                 `json:"artifact_count"`
-		SBOMCount             int64                 `json:"sbom_count"`
-		PackageCount          int64                 `json:"package_count"`
-		VersionCount          int64                 `json:"version_count"`
-		LicenseCount          int64                 `json:"license_count"`
-		LicenseCategories     []CategoryCountEntry  `json:"license_categories"`
-		IngestionTimeline     []DailyCountEntry     `json:"ingestion_timeline"`
-		PackageGrowthTimeline []DailyCountEntry     `json:"package_growth_timeline"`
-		VersionGrowthTimeline []DailyCountEntry     `json:"version_growth_timeline"`
-		TopPackages           []PackageSummaryEntry `json:"top_packages"`
-		VulnCount             int64                 `json:"vuln_count"`
-		VulnSeverity          VulnSeverityEntry     `json:"vuln_severity"`
-		Warming               bool                  `json:"warming" doc:"No snapshot is available yet and every count is a zero placeholder; render a loading state and retry"`
+		ArtifactCount         int64                    `json:"artifact_count"`
+		SBOMCount             int64                    `json:"sbom_count"`
+		PackageCount          int64                    `json:"package_count"`
+		VersionCount          int64                    `json:"version_count"`
+		LicenseCount          int64                    `json:"license_count"`
+		ArtifactTypes         []ArtifactTypeCountEntry `json:"artifact_types"`
+		LicenseCategories     []CategoryCountEntry     `json:"license_categories"`
+		IngestionTimeline     []DailyCountEntry        `json:"ingestion_timeline"`
+		PackageGrowthTimeline []DailyCountEntry        `json:"package_growth_timeline"`
+		VersionGrowthTimeline []DailyCountEntry        `json:"version_growth_timeline"`
+		TopPackages           []PackageSummaryEntry    `json:"top_packages"`
+		VulnCount             int64                    `json:"vuln_count"`
+		VulnSeverity          VulnSeverityEntry        `json:"vuln_severity"`
+		Warming               bool                     `json:"warming" doc:"No snapshot is available yet and every count is a zero placeholder; render a loading state and retry"`
 	}
+}
+
+// ArtifactTypeCountEntry is the number of tracked artifacts of one CycloneDX type.
+type ArtifactTypeCountEntry struct {
+	Type          string `json:"type"`
+	ArtifactCount int64  `json:"artifact_count"`
 }
 
 // VulnSeverityEntry is a per-severity count of distinct tracked vulnerabilities.

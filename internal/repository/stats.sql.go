@@ -11,6 +11,46 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getArtifactTypeCounts = `-- name: GetArtifactTypeCounts :many
+SELECT a.type, COUNT(*)::bigint AS artifact_count
+FROM artifact a
+WHERE artifact_visible(a.id, $1::uuid, $2::boolean)
+GROUP BY a.type
+ORDER BY artifact_count DESC, a.type
+`
+
+type GetArtifactTypeCountsParams struct {
+	UserID  pgtype.UUID `json:"user_id"`
+	IsAdmin pgtype.Bool `json:"is_admin"`
+}
+
+type GetArtifactTypeCountsRow struct {
+	Type          string `json:"type"`
+	ArtifactCount int64  `json:"artifact_count"`
+}
+
+// Per-type breakdown of the same artifact set GetSummaryCounts counts as
+// artifact_count, so the two always sum consistently on the dashboard.
+func (q *Queries) GetArtifactTypeCounts(ctx context.Context, arg GetArtifactTypeCountsParams) ([]GetArtifactTypeCountsRow, error) {
+	rows, err := q.db.Query(ctx, getArtifactTypeCounts, arg.UserID, arg.IsAdmin)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetArtifactTypeCountsRow{}
+	for rows.Next() {
+		var i GetArtifactTypeCountsRow
+		if err := rows.Scan(&i.Type, &i.ArtifactCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getLicenseCategoryCounts = `-- name: GetLicenseCategoryCounts :many
 WITH visible_sbom AS (
     SELECT s.id

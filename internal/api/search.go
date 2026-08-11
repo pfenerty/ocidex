@@ -552,6 +552,11 @@ func (h *Handler) GetDashboardStats(ctx context.Context, _ *struct{}) (*Dashboar
 		return nil, mapServiceError(err)
 	}
 
+	types := make([]ArtifactTypeCountEntry, 0, len(stats.ArtifactTypes))
+	for _, t := range stats.ArtifactTypes {
+		types = append(types, ArtifactTypeCountEntry{Type: t.Type, ArtifactCount: t.ArtifactCount})
+	}
+
 	cats := make([]CategoryCountEntry, 0, len(stats.LicenseCategories))
 	for _, c := range stats.LicenseCategories {
 		cats = append(cats, CategoryCountEntry{Category: c.Category, ComponentCount: c.ComponentCount})
@@ -589,6 +594,7 @@ func (h *Handler) GetDashboardStats(ctx context.Context, _ *struct{}) (*Dashboar
 		verGrowth = append(verGrowth, DailyCountEntry{Day: v.Day, Count: v.Count})
 	}
 
+	out.Body.ArtifactTypes = types
 	out.Body.LicenseCategories = cats
 	out.Body.IngestionTimeline = timeline
 	out.Body.PackageGrowthTimeline = pkgGrowth

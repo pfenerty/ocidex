@@ -1141,6 +1141,11 @@ export interface components {
             sufficientSbomCount: number;
             type: string;
         };
+        ArtifactTypeCountEntry: {
+            /** Format: int64 */
+            artifact_count: number;
+            type: string;
+        };
         ArtifactVersionSummary: {
             architectures: string[] | null;
             /** Format: date-time */
@@ -1544,6 +1549,7 @@ export interface components {
             readonly $schema?: string;
             /** Format: int64 */
             artifact_count: number;
+            artifact_types: components["schemas"]["ArtifactTypeCountEntry"][] | null;
             ingestion_timeline: components["schemas"]["DailyCountEntry"][] | null;
             license_categories: components["schemas"]["CategoryCountEntry"][] | null;
             /** Format: int64 */

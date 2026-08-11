@@ -10,8 +10,10 @@ vi.mock("~/api/queries", () => ({
 }));
 
 vi.mock("@solidjs/router", () => ({
-    A: (props: { href: string; children?: JSX.Element }) => (
-        <a href={props.href}>{props.children}</a>
+    // Forward class: the type chips are selected by their class in the
+    // assertions below, and a stub that drops it makes them invisible to the test.
+    A: (props: { href: string; class?: string; children?: JSX.Element }) => (
+        <a href={props.href} class={props.class}>{props.children}</a>
     ),
 }));
 
@@ -26,6 +28,7 @@ interface StatsQuery {
               package_count: number;
               license_count: number;
               vuln_count: number;
+              artifact_types?: { type: string; artifact_count: number }[] | null;
               warming?: boolean;
           }
         | undefined;
@@ -65,6 +68,55 @@ describe("Home catalog stats", () => {
         const { container } = renderHome({ isLoading: true, isError: false, data: undefined });
         expect(container.querySelector(".skeleton")).not.toBeNull();
         expect(container.textContent).not.toContain("Catalog stats are unavailable");
+    });
+
+    // --- artifact-type breakdown (ocidex-l1e0) -------------------------------
+
+    it("renders a linked chip per artifact type", () => {
+        const { container } = renderHome({
+            isLoading: false,
+            isError: false,
+            data: {
+                artifact_count: 38,
+                package_count: 0,
+                license_count: 0,
+                vuln_count: 0,
+                artifact_types: [
+                    { type: "container", artifact_count: 24 },
+                    { type: "library", artifact_count: 9 },
+                    { type: "application", artifact_count: 5 },
+                ],
+            },
+        });
+
+        // Scoped to the chip row: the feature cards' copy also says "container
+        // images", so a page-wide link query matches more than the chip.
+        const chips = [...container.querySelectorAll(".landing-type")];
+        expect(chips.map((c) => c.getAttribute("href"))).toEqual([
+            "/artifacts?type=container",
+            "/artifacts?type=library",
+            "/artifacts?type=application",
+        ]);
+        expect(chips[0].textContent).toContain("24");
+    });
+
+    // The field is nullable in the generated spec, and an empty catalog has no
+    // types at all — the rest of the hero must still render.
+    it("omits the chip row when no types come back", () => {
+        const { container } = renderHome({
+            isLoading: false,
+            isError: false,
+            data: {
+                artifact_count: 0,
+                package_count: 0,
+                license_count: 0,
+                vuln_count: 0,
+                artifact_types: null,
+            },
+        });
+
+        expect(container.querySelector(".landing-types")).toBeNull();
+        expect(container.textContent).toContain("0 artifacts");
     });
 
     // A warming response is a successful 200 whose counts are all zero

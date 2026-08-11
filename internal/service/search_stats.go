@@ -65,6 +65,7 @@ func (s *searchService) WarmDashboardStats(ctx context.Context, vis VisibilityFi
 	isAdmin := visAdminBool(vis)
 
 	summaryP := repository.GetSummaryCountsParams{UserID: vis.UserID, IsAdmin: isAdmin}
+	typeP := repository.GetArtifactTypeCountsParams{UserID: vis.UserID, IsAdmin: isAdmin}
 	catP := repository.GetLicenseCategoryCountsParams{UserID: vis.UserID, IsAdmin: isAdmin}
 	timelineP := repository.GetSBOMIngestionTimelineParams{NumDays: 30, UserID: vis.UserID, IsAdmin: isAdmin}
 	pkgP := repository.GetPackageGrowthTimelineParams{UserID: vis.UserID, IsAdmin: isAdmin}
@@ -74,6 +75,7 @@ func (s *searchService) WarmDashboardStats(ctx context.Context, vis VisibilityFi
 
 	var (
 		counts    repository.GetSummaryCountsRow
+		typeRows  []repository.GetArtifactTypeCountsRow
 		cats      []repository.GetLicenseCategoryCountsRow
 		timeline  []repository.GetSBOMIngestionTimelineRow
 		pkgGrowth []repository.GetPackageGrowthTimelineRow
@@ -83,9 +85,9 @@ func (s *searchService) WarmDashboardStats(ctx context.Context, vis VisibilityFi
 	)
 
 	g, gctx := errgroup.WithContext(ctx)
-	// Bound the fan-out. These seven aggregates all scan the same handful of
+	// Bound the fan-out. These eight aggregates all scan the same handful of
 	// large tables, so running them wide does not overlap I/O with anything —
-	// it just holds seven pool connections and seven Postgres backends at once,
+	// it just holds eight pool connections and eight Postgres backends at once,
 	// starving request traffic on a database with a single CPU core.
 	g.SetLimit(statsWarmConcurrency)
 
@@ -94,6 +96,14 @@ func (s *searchService) WarmDashboardStats(ctx context.Context, vis VisibilityFi
 		counts, err = q.GetSummaryCounts(gctx, summaryP)
 		if err != nil {
 			return fmt.Errorf("getting counts: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		var err error
+		typeRows, err = q.GetArtifactTypeCounts(gctx, typeP)
+		if err != nil {
+			return fmt.Errorf("getting artifact type counts: %w", err)
 		}
 		return nil
 	})
@@ -150,7 +160,7 @@ func (s *searchService) WarmDashboardStats(ctx context.Context, vis VisibilityFi
 		return nil, err
 	}
 
-	stats := buildDashboardStats(counts, cats, timeline, pkgGrowth, verGrowth, topRows, vulnStats)
+	stats := buildDashboardStats(counts, typeRows, cats, timeline, pkgGrowth, verGrowth, topRows, vulnStats)
 
 	if s.statsCache != nil {
 		s.statsCache.set(statsCacheKey(vis), stats)
@@ -162,6 +172,7 @@ func (s *searchService) WarmDashboardStats(ctx context.Context, vis VisibilityFi
 // buildDashboardStats maps the raw aggregate rows into the DashboardStats DTO.
 func buildDashboardStats(
 	counts repository.GetSummaryCountsRow,
+	typeRows []repository.GetArtifactTypeCountsRow,
 	cats []repository.GetLicenseCategoryCountsRow,
 	timeline []repository.GetSBOMIngestionTimelineRow,
 	pkgGrowth []repository.GetPackageGrowthTimelineRow,
@@ -169,6 +180,11 @@ func buildDashboardStats(
 	topRows []repository.GetTopPackagesByVersionCountRow,
 	vulnStats repository.GetVulnStatsRow,
 ) *DashboardStats {
+	typeItems := make([]ArtifactTypeCount, 0, len(typeRows))
+	for _, t := range typeRows {
+		typeItems = append(typeItems, ArtifactTypeCount{Type: t.Type, ArtifactCount: t.ArtifactCount})
+	}
+
 	catItems := make([]CategoryCount, 0, len(cats))
 	for _, c := range cats {
 		catItems = append(catItems, CategoryCount{Category: c.Category, ComponentCount: c.ComponentCount})
@@ -208,6 +224,7 @@ func buildDashboardStats(
 		PackageCount:          counts.PackageCount,
 		VersionCount:          counts.VersionCount,
 		LicenseCount:          counts.LicenseCount,
+		ArtifactTypes:         typeItems,
 		LicenseCategories:     catItems,
 		IngestionTimeline:     timelineItems,
 		PackageGrowthTimeline: pkgGrowthItems,

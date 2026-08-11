@@ -732,6 +732,12 @@ type ArtifactSummary struct {
 	Type                string  `json:"type"`
 }
 
+// ArtifactTypeCountEntry defines model for ArtifactTypeCountEntry.
+type ArtifactTypeCountEntry struct {
+	ArtifactCount int64  `json:"artifact_count"`
+	Type          string `json:"type"`
+}
+
 // ArtifactVersionSummary defines model for ArtifactVersionSummary.
 type ArtifactVersionSummary struct {
 	Architectures *[]string  `json:"architectures"`
@@ -1129,19 +1135,20 @@ type DailyCountEntry struct {
 // DashboardStatsOutputBody defines model for DashboardStatsOutputBody.
 type DashboardStatsOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema                *string                `json:"$schema,omitempty"`
-	ArtifactCount         int64                  `json:"artifact_count"`
-	IngestionTimeline     *[]DailyCountEntry     `json:"ingestion_timeline"`
-	LicenseCategories     *[]CategoryCountEntry  `json:"license_categories"`
-	LicenseCount          int64                  `json:"license_count"`
-	PackageCount          int64                  `json:"package_count"`
-	PackageGrowthTimeline *[]DailyCountEntry     `json:"package_growth_timeline"`
-	SbomCount             int64                  `json:"sbom_count"`
-	TopPackages           *[]PackageSummaryEntry `json:"top_packages"`
-	VersionCount          int64                  `json:"version_count"`
-	VersionGrowthTimeline *[]DailyCountEntry     `json:"version_growth_timeline"`
-	VulnCount             int64                  `json:"vuln_count"`
-	VulnSeverity          VulnSeverityEntry      `json:"vuln_severity"`
+	Schema                *string                   `json:"$schema,omitempty"`
+	ArtifactCount         int64                     `json:"artifact_count"`
+	ArtifactTypes         *[]ArtifactTypeCountEntry `json:"artifact_types"`
+	IngestionTimeline     *[]DailyCountEntry        `json:"ingestion_timeline"`
+	LicenseCategories     *[]CategoryCountEntry     `json:"license_categories"`
+	LicenseCount          int64                     `json:"license_count"`
+	PackageCount          int64                     `json:"package_count"`
+	PackageGrowthTimeline *[]DailyCountEntry        `json:"package_growth_timeline"`
+	SbomCount             int64                     `json:"sbom_count"`
+	TopPackages           *[]PackageSummaryEntry    `json:"top_packages"`
+	VersionCount          int64                     `json:"version_count"`
+	VersionGrowthTimeline *[]DailyCountEntry        `json:"version_growth_timeline"`
+	VulnCount             int64                     `json:"vuln_count"`
+	VulnSeverity          VulnSeverityEntry         `json:"vuln_severity"`
 
 	// Warming No snapshot is available yet and every count is a zero placeholder; render a loading state and retry
 	Warming bool `json:"warming"`

@@ -201,6 +201,23 @@
         ],
         "type": "object"
       },
+      "ArtifactTypeCountEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "artifact_count"
+        ],
+        "type": "object"
+      },
       "ArtifactVersionSummary": {
         "additionalProperties": false,
         "properties": {
@@ -1309,6 +1326,15 @@
             "format": "int64",
             "type": "integer"
           },
+          "artifact_types": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactTypeCountEntry"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "ingestion_timeline": {
             "items": {
               "$ref": "#/components/schemas/DailyCountEntry"
@@ -1388,6 +1414,7 @@
           "package_count",
           "version_count",
           "license_count",
+          "artifact_types",
           "license_categories",
           "ingestion_timeline",
           "package_growth_timeline",

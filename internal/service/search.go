@@ -64,6 +64,7 @@ type DashboardStats struct {
 	PackageCount          int64
 	VersionCount          int64
 	LicenseCount          int64
+	ArtifactTypes         []ArtifactTypeCount
 	LicenseCategories     []CategoryCount
 	IngestionTimeline     []DailyCount
 	PackageGrowthTimeline []DailyCount
@@ -77,6 +78,12 @@ type DashboardStats struct {
 	// rather than "0 artifacts" — the stats are computed out-of-band by the
 	// background warmer and appear on a later poll.
 	Warming bool
+}
+
+// ArtifactTypeCount is the number of tracked artifacts of one CycloneDX type.
+type ArtifactTypeCount struct {
+	Type          string
+	ArtifactCount int64
 }
 
 // VulnSeverityBreakdown is a per-severity count of distinct tracked vulnerabilities.

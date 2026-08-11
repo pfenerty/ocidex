@@ -1,7 +1,8 @@
 import { A } from "@solidjs/router";
 import { Package, Layers, ShieldCheck, ArrowUpDown, ExternalLink, ShieldAlert } from "lucide-solid";
-import { Show } from "solid-js";
+import { For, Show } from "solid-js";
 import { Skeleton } from "~/components/Skeleton";
+import { TypeBadge } from "~/components/ui";
 import { useDashboardStats } from "~/api/queries";
 import "./Home.css";
 
@@ -40,15 +41,38 @@ export default function Home() {
                     }
                 >
                     {(data) => (
-                        <div class="landing-stats">
-                            <span>{data().artifact_count.toLocaleString()} artifacts</span>
-                            <span class="landing-stats-sep">·</span>
-                            <span>{data().package_count.toLocaleString()} packages</span>
-                            <span class="landing-stats-sep">·</span>
-                            <span>{data().license_count.toLocaleString()} licenses</span>
-                            <span class="landing-stats-sep">·</span>
-                            <span>{data().vuln_count.toLocaleString()} vulnerabilities</span>
-                        </div>
+                        <>
+                            <div class="landing-stats">
+                                <span>{data().artifact_count.toLocaleString()} artifacts</span>
+                                <span class="landing-stats-sep">·</span>
+                                <span>{data().package_count.toLocaleString()} packages</span>
+                                <span class="landing-stats-sep">·</span>
+                                <span>{data().license_count.toLocaleString()} licenses</span>
+                                <span class="landing-stats-sep">·</span>
+                                <span>{data().vuln_count.toLocaleString()} vulnerabilities</span>
+                            </div>
+                            {/* The breakdown counts the same artifact set as
+                                artifact_count above, so the chips always sum to
+                                it. The field is nullable in the generated spec —
+                                an empty catalog has no chips to show at all. */}
+                            <Show when={data().artifact_types?.length}>
+                                <div class="landing-types">
+                                    <For each={data().artifact_types}>
+                                        {(t) => (
+                                            <A
+                                                href={`/artifacts?type=${encodeURIComponent(t.type)}`}
+                                                class="landing-type"
+                                            >
+                                                <TypeBadge type={t.type} />
+                                                <span class="landing-type-count">
+                                                    {t.artifact_count.toLocaleString()}
+                                                </span>
+                                            </A>
+                                        )}
+                                    </For>
+                                </div>
+                            </Show>
+                        </>
                     )}
                 </Show>
                 <div class="landing-ctas">

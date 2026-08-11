@@ -1,5 +1,5 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
-import { A } from "@solidjs/router";
+import { A, useSearchParams } from "@solidjs/router";
 import { useArtifactsInfinite } from "~/api/queries";
 import { ErrorBox, EmptyState } from "~/components/Feedback";
 import { SkeletonTable } from "~/components/Skeleton";
@@ -55,8 +55,16 @@ function groupOf(a: ArtifactSummary): { key: string; kind: GroupKind } {
 
 export default function Artifacts() {
     const [nameFilter, setNameFilter] = createSignal("");
-    const [typeFilter, setTypeFilter] = createSignal("");
     const [showAll, setShowAll] = createSignal(false);
+
+    // The type filter lives in the URL so Home's breakdown chips can link
+    // straight into a filtered list, and so a filtered view survives a reload.
+    // Name and "show all" stay local — nothing links to them.
+    const [searchParams, setSearchParams] = useSearchParams();
+    const typeFilter = () => {
+        const t = searchParams.type;
+        return (Array.isArray(t) ? t[0] : t) ?? "";
+    };
 
     let nameDebounce: ReturnType<typeof setTimeout>;
     const handleNameInput = (val: string) => {
@@ -117,7 +125,11 @@ export default function Artifacts() {
                 />
                 <select
                     value={typeFilter()}
-                    onChange={(e) => setTypeFilter(e.currentTarget.value)}
+                    onChange={(e) =>
+                        setSearchParams({
+                            type: e.currentTarget.value === "" ? undefined : e.currentTarget.value,
+                        })
+                    }
                 >
                     <option value="">All types</option>
                     <For each={ARTIFACT_TYPES}>

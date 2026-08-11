@@ -31,6 +31,15 @@ SELECT
     ) t) AS version_count,
     (SELECT COUNT(*)::bigint FROM license) AS license_count;
 
+-- name: GetArtifactTypeCounts :many
+-- Per-type breakdown of the same artifact set GetSummaryCounts counts as
+-- artifact_count, so the two always sum consistently on the dashboard.
+SELECT a.type, COUNT(*)::bigint AS artifact_count
+FROM artifact a
+WHERE artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+GROUP BY a.type
+ORDER BY artifact_count DESC, a.type;
+
 -- name: GetLicenseCategoryCounts :many
 WITH visible_sbom AS (
     SELECT s.id

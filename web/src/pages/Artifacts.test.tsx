@@ -11,6 +11,7 @@ vi.mock("~/api/queries", () => ({
 
 vi.mock("~/api/client", () => ({
     API_BASE_URL: "",
+    DEFAULT_PAGE_SIZE: 20,
     client: {},
     APIClientError: class extends Error {
         status: number;
@@ -24,10 +25,20 @@ vi.mock("~/api/client", () => ({
     unwrap: vi.fn(),
 }));
 
+// The type filter reads and writes the URL, so the router stub has to carry
+// search params rather than just render links.
+const router = vi.hoisted(() => {
+    // Annotated, not asserted: the eslint fixer strips an `as` here and the
+    // params object collapses to `{}`, which tsc then refuses to index.
+    const searchParams: Record<string, string | undefined> = {};
+    return { searchParams, setSearchParams: vi.fn() };
+});
+
 vi.mock("@solidjs/router", () => ({
     A: (props: { href: string; children?: JSX.Element }) => (
         <a href={props.href}>{props.children}</a>
     ),
+    useSearchParams: () => [router.searchParams, router.setSearchParams] as const,
 }));
 
 const mockUseArtifacts = vi.mocked(useArtifactsInfinite);
@@ -80,6 +91,7 @@ function renderArtifacts() {
 describe("Artifacts", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        for (const k of Object.keys(router.searchParams)) delete router.searchParams[k];
     });
 
     it("shows a skeleton table while loading", () => {
@@ -208,5 +220,50 @@ describe("Artifacts", () => {
         );
         const { container } = renderArtifacts();
         expect(container.querySelector("tr.group-header-row")).toBeNull();
+    });
+
+    // --- URL-driven type filter (ocidex-l1e0) --------------------------------
+    // Home's artifact-type chips link straight here, so the filter has to come
+    // from the URL rather than from component-local state.
+
+    function typeSelect(container: HTMLElement): HTMLSelectElement {
+        const el = container.querySelector("select");
+        if (el === null) throw new Error("type filter select not rendered");
+        return el;
+    }
+
+    it("initialises the type filter from the URL", () => {
+        router.searchParams.type = "library";
+        mockUseArtifacts.mockReturnValue(makeQuery({ data: page([]) }) as never);
+
+        const { container } = renderArtifacts();
+
+        expect(typeSelect(container).value).toBe("library");
+        expect(mockUseArtifacts.mock.calls[0][0]().type).toBe("library");
+    });
+
+    it("writes the chosen type to the URL", () => {
+        mockUseArtifacts.mockReturnValue(makeQuery({ data: page([]) }) as never);
+        const { container } = renderArtifacts();
+
+        const select = typeSelect(container);
+        select.value = "application";
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+
+        expect(router.setSearchParams).toHaveBeenCalledWith({ type: "application" });
+    });
+
+    // "All types" has to clear the param, not write type=""; a stray empty
+    // param would survive in shared links and read as a filter that is set.
+    it("clears the type param when All types is selected", () => {
+        router.searchParams.type = "library";
+        mockUseArtifacts.mockReturnValue(makeQuery({ data: page([]) }) as never);
+        const { container } = renderArtifacts();
+
+        const select = typeSelect(container);
+        select.value = "";
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+
+        expect(router.setSearchParams).toHaveBeenCalledWith({ type: undefined });
     });
 });
