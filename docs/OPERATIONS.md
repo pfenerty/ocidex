@@ -142,7 +142,7 @@ The operator logs its live scope as `watch_namespaces` at startup — check ther
 
 ## Postgres on CloudNativePG — migration playbook
 
-The production Postgres deployment is being moved from a hand-managed `StatefulSet` (`postgres:15.4-alpine` in `ocidex/k8s/base/`) to a CloudNativePG (CNPG) `Cluster` (declared in `homelab/talos-cluster/flux/apps/ocidex/postgres.yaml`). Tracked under `ocidex-ujj.78`. ADR: see commit history + the homelab `talos-cluster/flux/apps/cnpg/`.
+The production Postgres deployment is being moved from a hand-managed `StatefulSet` (`postgres:15.4-alpine`, formerly in `ocidex/k8s/base/` — that tree has since been removed, see step 7) to a CloudNativePG (CNPG) `Cluster` (declared in `homelab/talos-cluster/flux/apps/ocidex/postgres.yaml`). Tracked under `ocidex-ujj.78`. ADR: see commit history + the homelab `talos-cluster/flux/apps/cnpg/`.
 
 ### Why
 
@@ -217,7 +217,7 @@ The production Postgres deployment is being moved from a hand-managed `StatefulS
 
 ### Post-cutover cleanup (separate PR)
 
-7. In the ocidex repo, delete `k8s/base/postgres-statefulset.yaml` + `k8s/base/postgres-service.yaml`, deregister them from `k8s/base/kustomization.yaml`, and remove the `postgres` block from `k8s/overlays/prod/patches/resources.yaml`. CI republishes the manifest OCI bundle; Flux prunes the old StatefulSet and Service on the next reconcile.
+7. ~~In the ocidex repo, delete the in-repo Postgres manifests and deregister them from the Kustomize overlays.~~ **Done.** The whole `k8s/` tree was removed in `e1bf40f` when the deployment moved to Helm-only; `charts/ocidex` deliberately renders no database (ADR-031 — Postgres is a platform concern owned by the homelab repo's CNPG `Cluster`). Nothing to delete here.
 
 8. The legacy PVC has retention policy `Retain`, so the old data sticks around. After a grace period (1–2 weeks), `kubectl -n ocidex delete pvc data-postgres-0` to reclaim the storage.
 
