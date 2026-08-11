@@ -109,6 +109,7 @@ spec:
         helm push "ocidex-operator-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
         )
         __tek_rc=$?
+        if [ "$__tek_rc" -ne 0 ]; then log "error [helm-release/helm-package-push]: exited with status $__tek_rc"; fi
         __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
         if [ "$__tek_rc" -gt "$__tek_prev" ]; then __tek_prev="$__tek_rc"; fi
         printf '%s' "$__tek_prev" > /tekton/home/.exit-code
@@ -130,7 +131,10 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let exit_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        let contract_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        # A step that never ran has no file; 0 keeps it out of the max.
+        let step_codes = (["/tekton/steps/step-helm-package-push/exitCode"] | each { |p| try { open --raw $p | str trim | into int } catch { 0 } })
+        let exit_code = ([$contract_code ...$step_codes] | math max)
         let state = if $exit_code == 0 { "success" } else { "failure" }
         let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
 

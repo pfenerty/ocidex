@@ -1,6 +1,6 @@
 import { Task, nu } from "@pfenerty/tektonic";
 import { semgrepImage, reportOnlyStatusReporter, sourceBranchParam, uploadSarifStep } from "../../shared";
-import { pacBaseline } from "../../script-lib";
+import { pacBaseline, memoryWatchdog } from "../../script-lib";
 
 // Multi-language SAST with Semgrep (Go + TypeScript + secrets rulesets). On a PR it scans
 // diff-aware (only findings the branch adds vs its base) via --baseline-commit; on push it
@@ -23,6 +23,12 @@ export const semgrep = new Task({
       // per-target work at 2Gi, but semgrep's base + rule-loading pushed the container past 3Gi.
       // Raise the limit to 4Gi for ~2Gi of headroom over the per-target cap. PR scans are
       // diff-aware (small) and never hit this; the ceiling is for the push full scan.
+      //
+      // 4Gi is a ceiling, not a guarantee, and an OOMKill here would bypass this step's
+      // `onError: continue` — Tekton treats it as an infrastructure failure, so the whole
+      // PipelineRun hard-fails despite the report-only design and report-status never runs,
+      // leaving the GitHub check pending forever. memoryWatchdog converts that into exit 99
+      // (ocidex-im4o.3).
       computeResources: {
         limits: { cpu: "2", memory: "4Gi" },
         requests: { cpu: "500m", memory: "1Gi" },
@@ -36,7 +42,12 @@ let baseline = if $scoped {
 # Exclude the CI cache dirs goEnv creates in the workspace root (GOMODCACHE=.go-mod etc.):
 # they hold tens of thousands of third-party .go files that semgrep would otherwise SAST-scan
 # as if they were our source (66k+ files). .gitignore covers node_modules but not these.
-^semgrep scan --error --disable-version-check --metrics off --jobs 1 --max-memory 2048 --severity ERROR --config p/golang --config p/typescript --config p/secrets --exclude .go-mod --exclude .go-build --exclude .go-path --sarif-output=semgrep.sarif ...$baseline .
+# The scan runs under sh via memoryWatchdog, so $baseline crosses over as positional args.
+${memoryWatchdog(
+  "semgrep",
+  'semgrep scan --error --disable-version-check --metrics off --jobs 1 --max-memory 2048 --severity ERROR --config p/golang --config p/typescript --config p/secrets --exclude .go-mod --exclude .go-build --exclude .go-path --sarif-output=semgrep.sarif "$@" .',
+  "...$baseline",
+)}
 `,
       onError: "continue",
     },

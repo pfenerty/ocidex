@@ -49,7 +49,14 @@ spec:
         ^npm ci --allow-git=all
         ^npx tsx pipeline.ts
         cd ..
-        let drift = (^git status --porcelain -- .tekton | complete | get stdout | str trim)
+        # Bind the whole record, not `| get stdout`: `complete` swallows the exit code, so a git
+        # that failed outright produced empty drift and a green check (ocidex-im4o.1).
+        let res = (^git status --porcelain -- .tekton | complete)
+        if $res.exit_code != 0 {
+          print $res.stderr
+          error make {msg: $"git status: exited ($res.exit_code)"}
+        }
+        let drift = ($res.stdout | str trim)
         if ($drift | is-not-empty) {
           print "✗ .tekton is out of sync with .tektonic/ — run 'make tekton-synth' and commit:"
           print $drift
@@ -62,7 +69,7 @@ spec:
         }
         print "✓ .tekton is in sync with .tektonic/"
         }
-        let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error [tekton-check/synth-drift]: ($e.msg)"; 1 })
         let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
         let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
         $"($__tek_worst)" | save -f /tekton/home/.exit-code
@@ -78,7 +85,10 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let exit_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        let contract_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        # A step that never ran has no file; 0 keeps it out of the max.
+        let step_codes = (["/tekton/steps/step-synth-drift/exitCode"] | each { |p| try { open --raw $p | str trim | into int } catch { 0 } })
+        let exit_code = ([$contract_code ...$step_codes] | math max)
         let state = if $exit_code == 0 { "success" } else { "failure" }
         let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
 

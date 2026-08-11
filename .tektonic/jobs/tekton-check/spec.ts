@@ -33,7 +33,14 @@ cd .tektonic
 ^npm ci --allow-git=all
 ^npx tsx pipeline.ts
 cd ..
-let drift = (^git status --porcelain -- .tekton | complete | get stdout | str trim)
+# Bind the whole record, not \`| get stdout\`: \`complete\` swallows the exit code, so a git
+# that failed outright produced empty drift and a green check (ocidex-im4o.1).
+let res = (^git status --porcelain -- .tekton | complete)
+if $res.exit_code != 0 {
+  print $res.stderr
+  error make {msg: $"git status: exited ($res.exit_code)"}
+}
+let drift = ($res.stdout | str trim)
 if ($drift | is-not-empty) {
   print "✗ .tekton is out of sync with .tektonic/ — run 'make tekton-synth' and commit:"
   print $drift

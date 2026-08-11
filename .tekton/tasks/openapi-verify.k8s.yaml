@@ -52,7 +52,7 @@ spec:
         ^diff web/openapi.json /tmp/openapi-check.json
         log "OK: spec is up to date"
         }
-        let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error [openapi-verify/openapi-spec-check]: ($e.msg)"; 1 })
         let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
         let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
         $"($__tek_worst)" | save -f /tekton/home/.exit-code
@@ -82,7 +82,7 @@ spec:
         ^diff src/types/openapi.d.ts /tmp/openapi-check.d.ts
         log "OK: types up to date"
         }
-        let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error [openapi-verify/openapi-types-check]: ($e.msg)"; 1 })
         let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
         let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
         $"($__tek_worst)" | save -f /tekton/home/.exit-code
@@ -99,7 +99,10 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let exit_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        let contract_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        # A step that never ran has no file; 0 keeps it out of the max.
+        let step_codes = (["/tekton/steps/step-openapi-spec-check/exitCode" "/tekton/steps/step-openapi-types-check/exitCode"] | each { |p| try { open --raw $p | str trim | into int } catch { 0 } })
+        let exit_code = ([$contract_code ...$step_codes] | math max)
         let state = if $exit_code == 0 { "success" } else { "failure" }
         let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
 
