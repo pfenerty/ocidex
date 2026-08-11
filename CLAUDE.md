@@ -158,9 +158,14 @@ make dev-cluster-down  # Destroy the local Talos cluster and registry
 vim .tekton/tasks/gh-release.k8s.yaml
 
 # 2. Apply directly to the cluster — no commit, no PAC cycle
-# The ocidex-ci namespace is labeled to bypass the Tekton admission webhook:
-#   kubectl label namespace ocidex-ci webhooks.knative.dev/exclude=true
-# Without this label, kubectl apply fails with "non-existent variable" for any $VAR in scripts.
+# The ocidex-ci namespace carries webhooks.knative.dev/exclude=true, which bypasses the
+# Tekton admission webhook. Without it, kubectl apply fails with "non-existent variable"
+# for any ${VAR#prefix} in a script (image-release-*, helm-publish, helm-release).
+# The label is DECLARATIVE — do not `kubectl label` it by hand; it lives in
+# homelab/talos-cluster/flux/apps/ocidex-ci/namespace.yaml and Flux reconciles it.
+# Cost: the selector is `DoesNotExist`, so the label also disables Tekton's *defaulting*
+# webhook for the whole namespace, PAC PipelineRuns included. Safe here because the
+# tektonic-generated runs set serviceAccountName/timeouts explicitly.
 kubectl apply -f .tekton/tasks/gh-release.k8s.yaml
 
 # 3. Find a reusable workspace PVC from a recent pipeline run
@@ -252,6 +257,11 @@ Tekton's admission webhook flags `$VAR` and `${VAR}` patterns in scripts as unde
 - **What to write**: Use `$VAR` (no braces) for simple references. For parameter expansion operators (`${VAR#prefix}`, `${VAR%suffix}`), use POSIX `sed` equivalents: `VAR=$(echo "$VAR" | sed 's|^prefix||')`.
 - **`ec` and exit-code files**: Write `echo "$ec"` not `echo "${ec}"`.
 - **The output line for buildctl**: Use `"name=${NAMES}"` — this is the one place where `${NAMES}` is required by buildctl's flag syntax and is exempt because it's inside a quoted arg, not a standalone variable reference.
+
+Only the standalone `Task` object is checked. A `PipelineRun`/`TaskRun` with the same script
+**embedded** as `spec.taskSpec` is admitted even without the namespace label — which is why real
+CI never hit this (PAC inlines remote tasks as `taskSpec`), and why an ad-hoc TaskRun built with
+an inline `taskSpec` is the escape hatch if the exclusion is ever removed.
 
 ### `.tekton/` is generated — never commit a hand-edit
 
