@@ -1,7 +1,7 @@
 import { Task, nu } from "@pfenerty/tektonic";
 import { govulncheckImage, goEnv, goCacheVulncheck, reportOnlyStatusReporter } from "../../shared";
 import { goBuild } from "../go-build/spec";
-import { goSetup } from "../../script-lib";
+import { goSetup, memoryWatchdog } from "../../script-lib";
 
 // Reachability-aware Go vuln scan. Unlike grype-on-SBOM (jobs/go-security), govulncheck
 // resolves the MVS-selected module versions and walks the call graph to report only vulns
@@ -54,36 +54,12 @@ export const goVulncheck = new Task({
       // own memory.current against memory.max and self-terminates it before the kernel's
       // OOM-killer does — turning a would-be OOMKilled into a normal non-zero exit, which
       // `onError: continue` (this step) and `failOnError: false` (reportOnlyStatusReporter's
-      // report-status step) already handle correctly.
+      // report-status step) already handle correctly. The watchdog itself now lives in
+      // script-lib so semgrep-sast can reuse it (ocidex-im4o.3).
       script: nu`
 ${goSetup}
 log "Running govulncheck ./cmd/..."
-let watchdog = r#'
-govulncheck ./cmd/... &
-pid=$!
-max_file=/sys/fs/cgroup/memory.max
-cur_file=/sys/fs/cgroup/memory.current
-[ -f "$max_file" ] || max_file=/sys/fs/cgroup/memory/memory.limit_in_bytes
-[ -f "$cur_file" ] || cur_file=/sys/fs/cgroup/memory/memory.usage_in_bytes
-mem_max=$(cat "$max_file" 2>/dev/null || echo 0)
-if [ "$mem_max" != "max" ] && [ "$mem_max" -gt 0 ] 2>/dev/null; then
-  threshold=$((mem_max * 92 / 100))
-  while kill -0 "$pid" 2>/dev/null; do
-    cur=$(cat "$cur_file" 2>/dev/null || echo 0)
-    if [ "$cur" -gt "$threshold" ] 2>/dev/null; then
-      echo "govulncheck: usage $cur bytes exceeded 92% of cgroup limit $mem_max - self-terminating before kernel OOM-kill" >&2
-      kill -TERM "$pid" 2>/dev/null
-      sleep 2
-      kill -KILL "$pid" 2>/dev/null
-      wait "$pid" 2>/dev/null
-      exit 99
-    fi
-    sleep 1
-  done
-fi
-wait "$pid"
-'#
-^sh -c $watchdog
+${memoryWatchdog("govulncheck", "govulncheck ./cmd/...")}
 log "OK: no reachable vulnerabilities"
 `,
     },

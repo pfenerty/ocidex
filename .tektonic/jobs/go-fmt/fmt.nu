@@ -8,7 +8,15 @@ log "Checking gofmt"
 # Directories only — gofmt parses explicitly-named files regardless of extension, so passing
 # go.mod or a Makefile would be a parse error rather than a skip.
 let targets = (ls | where type == dir | where name != "node_modules" | get name)
-let unformatted = (^gofmt -l ...$targets | complete | get stdout | str trim)
+# Bind the whole record, not `| get stdout`: `complete` swallows the exit code, and gofmt
+# exits 2 with EMPTY stdout on a parse error — so reading stdout alone logged "OK: all files
+# formatted" and passed the check while gofmt had actually failed (ocidex-im4o.1).
+let res = (^gofmt -l ...$targets | complete)
+if $res.exit_code != 0 {
+  print $res.stderr
+  error make {msg: $"gofmt: exited ($res.exit_code)"}
+}
+let unformatted = ($res.stdout | str trim)
 if ($unformatted | str length) > 0 {
   print "Unformatted files:"; print $unformatted
   error make {msg: "gofmt: formatting issues found"}

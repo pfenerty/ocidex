@@ -168,14 +168,22 @@ export function uploadSarifStep(sarifPath: string, category: string): TaskStepSp
       },
     ],
     onError: "continue",
-    // Uses `print` (a builtin) rather than the injected `log` helper, and exits 0 so this
-    // step never raises the task's accumulated exit code (the scan step's verdict stands).
+    // Uses `print` (a builtin) rather than the injected `log` helper: this is a raw shebang
+    // string, which tektonic passes through verbatim with no wrapper.
+    //
+    // The body lives in `def main []` under a try/catch so that EVERY path reaches the
+    // trailing `exit 0`, which is what the comment above has always claimed. It used not to:
+    // a truncated SARIF failing `from json`, a missing `runs` field, or an absent `gzip` all
+    // raised and the step exited 1. Since tektonic v1.3.0 the report-status step takes the
+    // max over Tekton's own per-step exit codes, so that 1 would redden the *scan* check for
+    // what is only an upload problem (ocidex-im4o.2).
     script: `#!/usr/bin/env nu
+def main [] {
 print "upload-sarif [${category}]: start"
 
 if not ("${sarifPath}" | path exists) or (ls "${sarifPath}" | get size.0) == 0B {
   print "upload-sarif [${category}]: no sarif produced, skipping"
-  exit 0
+  return
 }
 
 # code-scanning wants a full ref; PAC's source-branch is the short name on push, a ref on tag.
@@ -215,8 +223,11 @@ if $resp != null {
     print ($resp.body? | default "" | to text)
   }
 }
+}
 
-# Never affect the task's scan verdict.
+# Never affect the task's scan verdict: a malformed SARIF, a missing gzip, or any other raise
+# inside main is logged and swallowed here rather than becoming the step's exit code.
+try { main } catch { |e| print $"upload-sarif [${category}]: error - ($e.msg)" }
 exit 0`,
   };
 }

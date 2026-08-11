@@ -60,9 +60,35 @@ spec:
         # Exclude the CI cache dirs goEnv creates in the workspace root (GOMODCACHE=.go-mod etc.):
         # they hold tens of thousands of third-party .go files that semgrep would otherwise SAST-scan
         # as if they were our source (66k+ files). .gitignore covers node_modules but not these.
-        ^semgrep scan --error --disable-version-check --metrics off --jobs 1 --max-memory 2048 --severity ERROR --config p/golang --config p/typescript --config p/secrets --exclude .go-mod --exclude .go-build --exclude .go-path --sarif-output=semgrep.sarif ...$baseline .
+        # The scan runs under sh via memoryWatchdog, so $baseline crosses over as positional args.
+        let watchdog = r#'
+        semgrep scan --error --disable-version-check --metrics off --jobs 1 --max-memory 2048 --severity ERROR --config p/golang --config p/typescript --config p/secrets --exclude .go-mod --exclude .go-build --exclude .go-path --sarif-output=semgrep.sarif "$@" . &
+        pid=$!
+        max_file=/sys/fs/cgroup/memory.max
+        cur_file=/sys/fs/cgroup/memory.current
+        [ -f "$max_file" ] || max_file=/sys/fs/cgroup/memory/memory.limit_in_bytes
+        [ -f "$cur_file" ] || cur_file=/sys/fs/cgroup/memory/memory.usage_in_bytes
+        mem_max=$(cat "$max_file" 2>/dev/null || echo 0)
+        if [ "$mem_max" != "max" ] && [ "$mem_max" -gt 0 ] 2>/dev/null; then
+          threshold=$((mem_max * 92 / 100))
+          while kill -0 "$pid" 2>/dev/null; do
+            cur=$(cat "$cur_file" 2>/dev/null || echo 0)
+            if [ "$cur" -gt "$threshold" ] 2>/dev/null; then
+              echo "semgrep: usage $cur bytes exceeded 92% of cgroup limit $mem_max - self-terminating before kernel OOM-kill" >&2
+              kill -TERM "$pid" 2>/dev/null
+              sleep 2
+              kill -KILL "$pid" 2>/dev/null
+              wait "$pid" 2>/dev/null
+              exit 99
+            fi
+            sleep 1
+          done
+        fi
+        wait "$pid"
+        '#
+        ^sh -c $watchdog semgrep ...$baseline
         }
-        let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error [semgrep-sast/semgrep-scan]: ($e.msg)"; 1 })
         let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
         let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
         $"($__tek_worst)" | save -f /tekton/home/.exit-code
@@ -78,11 +104,12 @@ spec:
       onError: continue
       script: |-
         #!/usr/bin/env nu
+        def main [] {
         print "upload-sarif [semgrep]: start"
 
         if not ("semgrep.sarif" | path exists) or (ls "semgrep.sarif" | get size.0) == 0B {
           print "upload-sarif [semgrep]: no sarif produced, skipping"
-          exit 0
+          return
         }
 
         # code-scanning wants a full ref; PAC's source-branch is the short name on push, a ref on tag.
@@ -122,8 +149,11 @@ spec:
             print ($resp.body? | default "" | to text)
           }
         }
+        }
 
-        # Never affect the task's scan verdict.
+        # Never affect the task's scan verdict: a malformed SARIF, a missing gzip, or any other raise
+        # inside main is logged and swallowed here rather than becoming the step's exit code.
+        try { main } catch { |e| print $"upload-sarif [semgrep]: error - ($e.msg)" }
         exit 0
     - env:
         - name: GITHUB_TOKEN
@@ -136,7 +166,10 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let exit_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        let contract_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        # A step that never ran has no file; 0 keeps it out of the max.
+        let step_codes = (["/tekton/steps/step-semgrep-scan/exitCode" "/tekton/steps/step-sarif-upload-semgrep/exitCode"] | each { |p| try { open --raw $p | str trim | into int } catch { 0 } })
+        let exit_code = ([$contract_code ...$step_codes] | math max)
         let state = if $exit_code == 0 { "success" } else { "failure" }
         let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
 

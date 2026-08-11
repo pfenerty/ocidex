@@ -45,7 +45,7 @@ spec:
         print "syft: cataloging file:web/package-lock.json -> sbom-web.json"
         ^syft file:web/package-lock.json -o json=sbom-web.json
         }
-        let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error [grype-vuln-web/syft-sbom]: ($e.msg)"; 1 })
         let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
         let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
         $"($__tek_worst)" | save -f /tekton/home/.exit-code
@@ -69,7 +69,7 @@ spec:
         print "grype: scanning sbom-web.json (fail-on high); SARIF -> grype-web.sarif"
         ^grype sbom:sbom-web.json --fail-on high -o table -o sarif=grype-web.sarif
         }
-        let __tek_rc = (try { main; 0 } catch { |e| print $"error: ($e.msg)"; 1 })
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error [grype-vuln-web/grype-scan]: ($e.msg)"; 1 })
         let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
         let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
         $"($__tek_worst)" | save -f /tekton/home/.exit-code
@@ -85,11 +85,12 @@ spec:
       onError: continue
       script: |-
         #!/usr/bin/env nu
+        def main [] {
         print "upload-sarif [grype-web]: start"
 
         if not ("grype-web.sarif" | path exists) or (ls "grype-web.sarif" | get size.0) == 0B {
           print "upload-sarif [grype-web]: no sarif produced, skipping"
-          exit 0
+          return
         }
 
         # code-scanning wants a full ref; PAC's source-branch is the short name on push, a ref on tag.
@@ -129,8 +130,11 @@ spec:
             print ($resp.body? | default "" | to text)
           }
         }
+        }
 
-        # Never affect the task's scan verdict.
+        # Never affect the task's scan verdict: a malformed SARIF, a missing gzip, or any other raise
+        # inside main is logged and swallowed here rather than becoming the step's exit code.
+        try { main } catch { |e| print $"upload-sarif [grype-web]: error - ($e.msg)" }
         exit 0
     - env:
         - name: GITHUB_TOKEN
@@ -143,7 +147,10 @@ spec:
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let exit_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        let contract_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        # A step that never ran has no file; 0 keeps it out of the max.
+        let step_codes = (["/tekton/steps/step-syft-sbom/exitCode" "/tekton/steps/step-grype-scan/exitCode" "/tekton/steps/step-sarif-upload-grype-web/exitCode"] | each { |p| try { open --raw $p | str trim | into int } catch { 0 } })
+        let exit_code = ([$contract_code ...$step_codes] | math max)
         let state = if $exit_code == 0 { "success" } else { "failure" }
         let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
 
