@@ -156,7 +156,7 @@ db/migrations/           SQL schema migrations (goose)
 db/queries/              SQL query definitions (sqlc source of truth)
 web/                     SolidJS frontend (Vite + Tailwind)
 tests/                   Integration tests (testcontainers)
-k8s/                     Kubernetes manifests (kustomize base + overlays)
+charts/                  Helm charts (ocidex, ocidex-operator)
 docs/                    Architecture docs, ADRs, development guide
 ```
 

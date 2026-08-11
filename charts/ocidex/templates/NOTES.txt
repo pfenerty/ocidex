@@ -17,7 +17,7 @@ Create it with:
     --from-literal=GITHUB_CLIENT_SECRET=<client-secret> \
     --from-literal=SESSION_SECRET=$(openssl rand -hex 32)
 
-See k8s/base/secrets.yaml.example for the full list of supported fields.
+See docs/CONFIGURATION.md for the full list of supported fields.
 
 === Optional integrations ===
 {{- if .Values.keda.enabled }}
