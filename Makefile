@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check tekton-synth dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
+.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
 
 all: check build ## Run all checks and build
 
@@ -125,6 +125,16 @@ frontend-test: frontend-init ## Run frontend unit tests
 
 tekton-synth: ## Synthesize Tekton pipeline YAML from TypeScript
 	cd .tektonic && npm ci && npx tsx pipeline.ts
+
+# Local counterpart to the tekton-check CI task. CI runs on a clean checkout and can just ask
+# git whether .tekton moved; locally you legitimately have uncommitted .tekton edits mid-work, so
+# that form false-positives. Synthesizing to a temp dir and diffing is git-state-independent, and
+# the recursive diff also catches orphans — files .tektonic no longer emits — which the CI check
+# only sees if synth actively deletes them.
+tekton-check: ## Verify .tekton is in sync with .tektonic/
+	rm -rf /tmp/tekton-check
+	cd .tektonic && npm ci && TEKTON_OUTDIR=/tmp/tekton-check npx tsx pipeline.ts
+	diff -r .tekton /tmp/tekton-check || (echo "ERROR: .tekton is stale. Run 'make tekton-synth'." && exit 1)
 
 # talosctl reaches Docker through the Go client, which honours DOCKER_HOST but
 # ignores Docker CLI contexts — and Docker Desktop on macOS does not create
