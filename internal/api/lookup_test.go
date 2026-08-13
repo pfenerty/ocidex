@@ -306,6 +306,42 @@ func TestLookupSBOM_DigestFormNeverConflicts(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// License lookup
+// ---------------------------------------------------------------------------
+
+func TestLookupLicense(t *testing.T) {
+	tests := []struct {
+		name       string
+		query      string
+		wantStatus int
+	}{
+		{"found", "?spdxId=MIT", http.StatusOK},
+		{"not found", "?spdxId=Apache-2.0", http.StatusNotFound},
+		{"missing spdxId", "", http.StatusUnprocessableEntity},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
+
+			r := httptest.NewRequest(http.MethodGet, "/api/v1/licenses/lookup"+tt.query, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, r)
+
+			is.Equal(w.Code, tt.wantStatus)
+
+			if tt.wantStatus == http.StatusOK {
+				var body service.LicenseCount
+				is.NoErr(json.Unmarshal(w.Body.Bytes(), &body))
+				is.Equal(body.ID, "lic1")
+				is.Equal(*body.SpdxID, "MIT")
+			}
+		})
+	}
+}
+
 // The slash-bearing name has to survive the round trip both raw and
 // percent-encoded — a query value tolerates either, which is the whole reason
 // ADR-042 R1 rejects a {name} path segment.

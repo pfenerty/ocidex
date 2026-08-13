@@ -529,6 +529,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/licenses/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolve a license by SPDX identifier
+         * @description spdx_id is a natural key (ADR-042 R3), so this resolver has no qualifier ladder: 200 on a match, 404 on none, never 409.
+         */
+        get: operations["lookup-license"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/licenses/{id}/components": {
         parameters: {
             query?: never;
@@ -1883,6 +1903,12 @@ export interface components {
             scope: "read" | "read-write";
         };
         LicenseCount: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/LicenseCount.json
+             */
+            readonly $schema?: string;
             category: string;
             /** Format: int64 */
             componentCount: number;
@@ -3737,6 +3763,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListLicensesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "lookup-license": {
+        parameters: {
+            query: {
+                /** @description SPDX license identifier, e.g. Apache-2.0 */
+                spdxId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LicenseCount"];
                 };
             };
             /** @description Error */

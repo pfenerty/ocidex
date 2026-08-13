@@ -97,6 +97,21 @@ func (h *Handler) LookupArtifact(ctx context.Context, input *LookupArtifactInput
 	return out, nil
 }
 
+// LookupLicense handles GET /api/v1/licenses/lookup.
+//
+// spdx_id is a natural key, so this is a straight lookup: 200 or 404, with no
+// qualifier ladder and no 409 (ADR-042 R3).
+func (h *Handler) LookupLicense(ctx context.Context, input *LookupLicenseInput) (*LookupLicenseOutput, error) {
+	license, err := h.searchService.LookupLicense(ctx, input.SpdxID, visibilityFilterFromContext(ctx))
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	out := &LookupLicenseOutput{}
+	out.Body = license
+	return out, nil
+}
+
 // LookupSBOM handles GET /api/v1/sboms/lookup.
 //
 // Two query forms are accepted: the ADR-042 R4 ladder (artifact + version,

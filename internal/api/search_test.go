@@ -236,6 +236,16 @@ func (f *fakeSearchService) LookupSBOM(_ context.Context, _ service.SBOMLookupQu
 	}, nil
 }
 
+// LookupLicense knows one license, so tests get both a hit and a miss without
+// a dedicated fake.
+func (f *fakeSearchService) LookupLicense(_ context.Context, spdxID string, _ service.VisibilityFilter) (service.LicenseCount, error) {
+	if spdxID != "MIT" {
+		return service.LicenseCount{}, service.ErrNotFound
+	}
+	mit := "MIT"
+	return service.LicenseCount{ID: "lic1", SpdxID: &mit, Name: "MIT License", ComponentCount: 10, Category: "permissive"}, nil
+}
+
 // notFoundSearchService returns ErrNotFound for single-item lookups.
 type notFoundSearchService struct{ fakeSearchService }
 

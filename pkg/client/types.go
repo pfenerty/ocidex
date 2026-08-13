@@ -1407,6 +1407,8 @@ type KeyMetaResponseScope string
 
 // LicenseCount defines model for LicenseCount.
 type LicenseCount struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema         *string `json:"$schema,omitempty"`
 	Category       string  `json:"category"`
 	ComponentCount int64   `json:"componentCount"`
 	Id             string  `json:"id"`
@@ -2365,6 +2367,12 @@ type ListLicensesParams struct {
 
 	// Category Filter by license category
 	Category *string `form:"category,omitempty" json:"category,omitempty"`
+}
+
+// LookupLicenseParams defines parameters for LookupLicense.
+type LookupLicenseParams struct {
+	// SpdxId SPDX license identifier, e.g. Apache-2.0
+	SpdxId string `form:"spdxId" json:"spdxId"`
 }
 
 // ListComponentsByLicenseParams defines parameters for ListComponentsByLicense.

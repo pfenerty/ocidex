@@ -375,6 +375,20 @@ type ListComponentsByLicenseOutput struct {
 }
 
 // ---------------------------------------------------------------------------
+// Licenses — Lookup (ADR-042)
+// ---------------------------------------------------------------------------
+
+// LookupLicenseInput is the request for GET /api/v1/licenses/lookup.
+type LookupLicenseInput struct {
+	SpdxID string `query:"spdxId" required:"true" doc:"SPDX license identifier, e.g. Apache-2.0"`
+}
+
+// LookupLicenseOutput is the response for GET /api/v1/licenses/lookup.
+type LookupLicenseOutput struct {
+	Body service.LicenseCount
+}
+
+// ---------------------------------------------------------------------------
 // Artifacts — List
 // ---------------------------------------------------------------------------
 

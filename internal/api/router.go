@@ -21,6 +21,7 @@ const (
 	tagSBOMs      = "SBOMs"
 	tagComponents = "Components"
 	tagArtifacts  = "Artifacts"
+	tagLicenses   = "Licenses"
 	tagRegistries = "Registries"
 	tagNamespaces = "Namespaces"
 	tagSources    = "Sources"
@@ -313,15 +314,24 @@ func registerLicenseOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/licenses",
 		Summary:     "List licenses",
-		Tags:        []string{"Licenses"},
+		Tags:        []string{tagLicenses},
 	}, h.ListLicenses)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "lookup-license",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/licenses/lookup",
+		Summary:     "Resolve a license by SPDX identifier",
+		Description: "spdx_id is a natural key (ADR-042 R3), so this resolver has no qualifier ladder: 200 on a match, 404 on none, never 409.",
+		Tags:        []string{tagLicenses},
+	}, h.LookupLicense)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-components-by-license",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/licenses/{id}/components",
 		Summary:     "List components by license",
-		Tags:        []string{"Licenses"},
+		Tags:        []string{tagLicenses},
 	}, h.ListComponentsByLicense)
 }
 

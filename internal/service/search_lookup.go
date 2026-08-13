@@ -73,6 +73,24 @@ func (s *searchService) LookupArtifact(ctx context.Context, query ArtifactLookup
 	return candidates, nil
 }
 
+// LookupLicense resolves an SPDX identifier to a license (ADR-042 R3).
+//
+// spdx_id is already a natural key — idx_license_spdx_id is UNIQUE WHERE NOT
+// NULL — so there is no qualifier ladder and no ambiguity to resolve, which is
+// why this returns a single license rather than candidates. It reuses
+// ListLicenses's existing spdx_id filter rather than adding a query that would
+// have to duplicate its visibility-aware component count.
+func (s *searchService) LookupLicense(ctx context.Context, spdxID string, vis VisibilityFilter) (LicenseCount, error) {
+	page, err := s.ListLicenses(ctx, LicenseFilter{SpdxID: spdxID, Limit: 1, Visibility: vis})
+	if err != nil {
+		return LicenseCount{}, err
+	}
+	if len(page.Data) == 0 {
+		return LicenseCount{}, ErrNotFound
+	}
+	return page.Data[0], nil
+}
+
 // SBOMLookupQuery is the ADR-042 R4 qualifier ladder for SBOM lookup:
 // artifact+version -> +arch -> +flavor. Digest is the alternative form; it is
 // unique by construction (idx_sbom_digest) and so is never combined with the
