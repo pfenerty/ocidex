@@ -244,7 +244,8 @@ type DiffTreeOutput struct {
 // SearchComponentsInput is the request for GET /api/v1/components.
 type SearchComponentsInput struct {
 	PaginationParams
-	Name    string `query:"name" required:"true" doc:"Component name to search for"`
+	Name    string `query:"name" doc:"Component name to search for; required unless purl is given"`
+	Purl    string `query:"purl" doc:"Exact package URL, e.g. pkg:npm/lodash@4.17.21; the cross-SBOM key for a component (ADR-042 R6)"`
 	Group   string `query:"group" doc:"Filter by component group"`
 	Version string `query:"version" doc:"Filter by component version"`
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -324,7 +325,10 @@ func TestSearchComponents(t *testing.T) {
 		wantStatus int
 	}{
 		{"with name", "?name=lodash", http.StatusOK},
-		{"missing name", "", http.StatusUnprocessableEntity},
+		{"with purl", "?purl=pkg:npm/lodash@4.17.21", http.StatusOK},
+		{"with both", "?name=lodash&purl=pkg:npm/lodash@4.17.21", http.StatusOK},
+		// Neither key means an unbounded scan, so it is rejected rather than served.
+		{"neither name nor purl", "", http.StatusBadRequest},
 	}
 
 	for _, tt := range tests {
@@ -339,6 +343,34 @@ func TestSearchComponents(t *testing.T) {
 			is.Equal(w.Code, tt.wantStatus)
 		})
 	}
+}
+
+// capturingSearchService records the ComponentFilter it was handed so a test
+// can assert the query string reached the service unmangled.
+type capturingSearchService struct {
+	fakeSearchService
+	filter service.ComponentFilter
+}
+
+func (f *capturingSearchService) SearchComponents(_ context.Context, filter service.ComponentFilter) (service.PagedResult[service.ComponentSummary], error) {
+	f.filter = filter
+	return service.PagedResult[service.ComponentSummary]{Limit: filter.Limit, Offset: filter.Offset}, nil
+}
+
+func TestSearchComponentsPassesPurlThrough(t *testing.T) {
+	is := is.New(t)
+	search := &capturingSearchService{}
+	router := newTestRouter(&fakeSBOMService{}, search)
+
+	// The purl's own '@' and '/' must survive query decoding intact — they are
+	// part of the key, not separators.
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/components?purl="+url.QueryEscape("pkg:npm/@scope/lodash@4.17.21"), nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, r)
+
+	is.Equal(w.Code, http.StatusOK)
+	is.Equal(search.filter.Purl, "pkg:npm/@scope/lodash@4.17.21")
+	is.Equal(search.filter.Name, "")
 }
 
 func TestGetComponent(t *testing.T) {

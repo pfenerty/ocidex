@@ -66,7 +66,13 @@ LIMIT @row_limit OFFSET @row_offset;
 SELECT c.id, c.sbom_id, c.type, c.name, c.group_name, c.version, c.purl,
        COUNT(*) OVER() AS total_count
 FROM component c
-WHERE c.name = @name
+-- ADR-042 R6: purl is the cross-SBOM key for a component, since a component row
+-- is SBOM-scoped and has no stable identity of its own. It is matched exactly,
+-- not by prefix, so a link built from one row's purl returns every SBOM
+-- carrying that same package version. The API requires name or purl, so the
+-- pair of NULLs that would scan the whole table never reaches here.
+WHERE (sqlc.narg('name')::text IS NULL OR c.name = sqlc.narg('name'))
+  AND (sqlc.narg('purl')::text IS NULL OR c.purl = sqlc.narg('purl'))
   AND (sqlc.narg('group_name')::text IS NULL OR c.group_name = sqlc.narg('group_name'))
   AND (sqlc.narg('version')::text IS NULL OR c.version = sqlc.narg('version'))
   AND EXISTS (

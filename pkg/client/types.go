@@ -2263,8 +2263,11 @@ type SearchComponentsParams struct {
 	// Offset Number of results to skip
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 
-	// Name Component name to search for
-	Name string `form:"name" json:"name"`
+	// Name Component name to search for; required unless purl is given
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// Purl Exact package URL, e.g. pkg:npm/lodash@4.17.21; the cross-SBOM key for a component (ADR-042 R6)
+	Purl *string `form:"purl,omitempty" json:"purl,omitempty"`
 
 	// Group Filter by component group
 	Group *string `form:"group,omitempty" json:"group,omitempty"`

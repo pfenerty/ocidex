@@ -233,7 +233,11 @@ type SBOMFilter struct {
 
 // ComponentFilter holds parameters for searching components.
 type ComponentFilter struct {
-	Name       string
+	Name string
+	// Purl matches a component's package URL exactly (ADR-042 R6). It is the
+	// only cross-SBOM key a component has, since component rows are
+	// SBOM-scoped.
+	Purl       string
 	Group      string
 	Version    string
 	Type       string

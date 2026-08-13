@@ -3386,13 +3386,15 @@ export interface operations {
     };
     "search-components": {
         parameters: {
-            query: {
+            query?: {
                 /** @description Maximum number of results per page */
                 limit?: number;
                 /** @description Number of results to skip */
                 offset?: number;
-                /** @description Component name to search for */
-                name: string;
+                /** @description Component name to search for; required unless purl is given */
+                name?: string;
+                /** @description Exact package URL, e.g. pkg:npm/lodash@4.17.21; the cross-SBOM key for a component (ADR-042 R6) */
+                purl?: string;
                 /** @description Filter by component group */
                 group?: string;
                 /** @description Filter by component version */

@@ -2,16 +2,102 @@ import "./Components.css";
 import { DEFAULT_PAGE_SIZE } from "~/api/client";
 import { createSignal } from "solid-js";
 import { Show, For } from "solid-js";
-import { useDistinctComponents, useComponentPurlTypes } from "~/api/queries";
+import { A, useSearchParams } from "@solidjs/router";
+import {
+    useDistinctComponents,
+    useComponentPurlTypes,
+    useComponentsByPurl,
+} from "~/api/queries";
 import type { components } from "~/types/openapi";
 import DataTable from "~/components/DataTable";
 import type { Column, SortDir } from "~/components/DataTable";
 import { ComponentNameCell } from "~/components/cells";
 
 type DistinctComponentSummary = components["schemas"]["DistinctComponentSummary"];
+type ComponentSummary = components["schemas"]["ComponentSummary"];
 type SortColumn = "name" | "version_count" | "sbom_count";
 
 export default function Components() {
+    const [searchParams] = useSearchParams();
+    const purl = () => {
+        const p = searchParams.purl;
+        return (Array.isArray(p) ? p[0] : p) ?? "";
+    };
+
+    return (
+        <Show when={purl() === ""} fallback={<PurlOccurrences purl={purl()} />}>
+            <ComponentBrowser />
+        </Show>
+    );
+}
+
+/**
+ * Every SBOM carrying one exact purl (ADR-042 R6). A component row is
+ * SBOM-scoped, so there is no component detail route to link to; this filtered
+ * list is what a purl link resolves to instead.
+ */
+function PurlOccurrences(props: { purl: string }) {
+    const [offset, setOffset] = createSignal(0);
+    const limit = DEFAULT_PAGE_SIZE;
+
+    const query = useComponentsByPurl(() => ({
+        purl: props.purl,
+        limit,
+        offset: offset(),
+    }));
+
+    const columns: Column<ComponentSummary>[] = [
+        { header: "Component", render: (c) => c.name },
+        { header: "Version", render: (c) => c.version ?? "—" },
+        { header: "Type", render: (c) => c.type },
+        {
+            header: "SBOM",
+            render: (c) => <A href={`/sboms/${c.sbomId}`}>View SBOM</A>,
+        },
+    ];
+
+    return (
+        <>
+            <div class="page-header">
+                <div class="page-header-row">
+                    <div>
+                        <h2>Component occurrences</h2>
+                        <p>
+                            <span class="font-mono text-sm">{props.purl}</span>
+                            <Show when={query.data}>
+                                {(d) => (
+                                    <span class="text-muted">
+                                        {" "}
+                                        &mdash; found in{" "}
+                                        {d().pagination.total.toLocaleString()} SBOMs
+                                    </span>
+                                )}
+                            </Show>
+                        </p>
+                    </div>
+                    <A href="/components" class="btn btn-sm">
+                        All components
+                    </A>
+                </div>
+            </div>
+
+            <DataTable
+                columns={columns}
+                rows={query.data?.data ?? undefined}
+                loading={query.isFetching}
+                isError={query.isError}
+                error={query.error}
+                emptyTitle="No occurrences found"
+                emptyMessage="No visible SBOM contains this package URL."
+                pagination={
+                    query.data ? { pagination: query.data.pagination, onPageChange: setOffset } : undefined
+                }
+            />
+        </>
+    );
+}
+
+function ComponentBrowser() {
     const [offset, setOffset] = createSignal(0);
     const [nameFilter, setNameFilter] = createSignal("");
     const [groupFilter, setGroupFilter] = createSignal("");

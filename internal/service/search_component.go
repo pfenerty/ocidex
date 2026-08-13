@@ -20,7 +20,8 @@ func (s *searchService) SearchComponents(ctx context.Context, filter ComponentFi
 	q := repository.New(s.db)
 
 	rows, err := q.SearchComponents(ctx, repository.SearchComponentsParams{
-		Name:      filter.Name,
+		Name:      textOrNull(filter.Name),
+		Purl:      textOrNull(filter.Purl),
 		GroupName: textOrNull(filter.Group),
 		Version:   textOrNull(filter.Version),
 		UserID:    filter.Visibility.UserID,

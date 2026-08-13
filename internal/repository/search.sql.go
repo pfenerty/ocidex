@@ -1075,21 +1075,23 @@ const searchComponents = `-- name: SearchComponents :many
 SELECT c.id, c.sbom_id, c.type, c.name, c.group_name, c.version, c.purl,
        COUNT(*) OVER() AS total_count
 FROM component c
-WHERE c.name = $1
-  AND ($2::text IS NULL OR c.group_name = $2)
-  AND ($3::text IS NULL OR c.version = $3)
+WHERE ($1::text IS NULL OR c.name = $1)
+  AND ($2::text IS NULL OR c.purl = $2)
+  AND ($3::text IS NULL OR c.group_name = $3)
+  AND ($4::text IS NULL OR c.version = $4)
   AND EXISTS (
     SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-      AND sbom_visible(s.namespace_id, $4::uuid, $5::boolean)
+      AND sbom_visible(s.namespace_id, $5::uuid, $6::boolean)
   )
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST
-LIMIT $7 OFFSET $6
+LIMIT $8 OFFSET $7
 `
 
 type SearchComponentsParams struct {
-	Name      string      `json:"name"`
+	Name      pgtype.Text `json:"name"`
+	Purl      pgtype.Text `json:"purl"`
 	GroupName pgtype.Text `json:"group_name"`
 	Version   pgtype.Text `json:"version"`
 	UserID    pgtype.UUID `json:"user_id"`
@@ -1109,9 +1111,15 @@ type SearchComponentsRow struct {
 	TotalCount int64       `json:"total_count"`
 }
 
+// ADR-042 R6: purl is the cross-SBOM key for a component, since a component row
+// is SBOM-scoped and has no stable identity of its own. It is matched exactly,
+// not by prefix, so a link built from one row's purl returns every SBOM
+// carrying that same package version. The API requires name or purl, so the
+// pair of NULLs that would scan the whole table never reaches here.
 func (q *Queries) SearchComponents(ctx context.Context, arg SearchComponentsParams) ([]SearchComponentsRow, error) {
 	rows, err := q.db.Query(ctx, searchComponents,
 		arg.Name,
+		arg.Purl,
 		arg.GroupName,
 		arg.Version,
 		arg.UserID,

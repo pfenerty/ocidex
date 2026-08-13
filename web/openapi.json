@@ -5472,13 +5472,22 @@
             }
           },
           {
-            "description": "Component name to search for",
+            "description": "Component name to search for; required unless purl is given",
             "explode": false,
             "in": "query",
             "name": "name",
-            "required": true,
             "schema": {
-              "description": "Component name to search for",
+              "description": "Component name to search for; required unless purl is given",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact package URL, e.g. pkg:npm/lodash@4.17.21; the cross-SBOM key for a component (ADR-042 R6)",
+            "explode": false,
+            "in": "query",
+            "name": "purl",
+            "schema": {
+              "description": "Exact package URL, e.g. pkg:npm/lodash@4.17.21; the cross-SBOM key for a component (ADR-042 R6)",
               "type": "string"
             }
           },

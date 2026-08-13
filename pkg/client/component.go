@@ -10,17 +10,26 @@ import (
 // endpoints below so a rename stays a one-line change.
 const paramName = "name"
 
-// ComponentFilter narrows a component occurrence search. Name is required by
-// the server: this endpoint answers "where does this component appear", one row
-// per SBOM it appears in. DistinctComponentFilter is the browse counterpart.
+// ComponentFilter narrows a component occurrence search. The server requires
+// Name or Purl: this endpoint answers "where does this component appear", one
+// row per SBOM it appears in. DistinctComponentFilter is the browse
+// counterpart.
 type ComponentFilter struct {
-	Name    string
+	Name string
+	// Purl matches the package URL exactly (ADR-042 R6) — the cross-SBOM key
+	// for a component, whose rows are otherwise SBOM-scoped.
+	Purl    string
 	Group   string
 	Version string
 }
 
 func (f ComponentFilter) apply(p url.Values) url.Values {
-	p.Set(paramName, f.Name)
+	if f.Name != "" {
+		p.Set(paramName, f.Name)
+	}
+	if f.Purl != "" {
+		p.Set("purl", f.Purl)
+	}
 	if f.Group != "" {
 		p.Set("group", f.Group)
 	}

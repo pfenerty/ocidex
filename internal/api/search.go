@@ -208,9 +208,16 @@ func (h *Handler) ListSBOMDriftHistory(ctx context.Context, in *ListSBOMDriftHis
 
 // SearchComponents handles GET /api/v1/components.
 func (h *Handler) SearchComponents(ctx context.Context, input *SearchComponentsInput) (*SearchComponentsOutput, error) {
+	// name was required before purl existed; it is now one of two keys, but
+	// neither means an unbounded scan of every component row.
+	if input.Name == "" && input.Purl == "" {
+		return nil, huma.Error400BadRequest("supply either name or purl")
+	}
+
 	vis := visibilityFilterFromContext(ctx)
 	filter := service.ComponentFilter{
 		Name:       input.Name,
+		Purl:       input.Purl,
 		Group:      input.Group,
 		Version:    input.Version,
 		Limit:      input.Limit,

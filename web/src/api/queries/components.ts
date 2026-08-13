@@ -69,6 +69,38 @@ export function useDistinctComponents(
     });
 }
 
+/** Parameters for the component occurrence search. */
+export interface ComponentOccurrenceParams {
+    purl: string;
+    limit?: number;
+    offset?: number;
+}
+
+/**
+ * Every SBOM occurrence of one exact purl (ADR-042 R6). Component rows are
+ * SBOM-scoped, so purl is the only key that spans them — this is the list
+ * behind /components?purl=.
+ */
+export function useComponentsByPurl(params: Accessor<ComponentOccurrenceParams>) {
+    return createQuery(() => {
+        const p = params();
+        return {
+            queryKey: ["components-by-purl", p.purl, p.limit, p.offset] as const,
+            queryFn: () =>
+                unwrap(
+                    client.GET("/api/v1/components", {
+                        params: {
+                            query: { purl: p.purl, limit: p.limit, offset: p.offset },
+                        },
+                    }),
+                ),
+            enabled: p.purl !== "",
+            keepPreviousData: true,
+            select: (resp) => ({ ...resp, data: resp.data ?? [] }),
+        };
+    });
+}
+
 /** List all known purl type strings (e.g. "npm", "golang", "maven"). */
 export function useComponentPurlTypes() {
     return createQuery(() => ({
