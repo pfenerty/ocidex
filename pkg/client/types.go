@@ -2468,6 +2468,27 @@ type DiffTreeParams struct {
 	To openapi_types.UUID `form:"to" json:"to"`
 }
 
+// LookupSbomParams defines parameters for LookupSbom.
+type LookupSbomParams struct {
+	// Artifact Exact artifact name, e.g. ghcr.io/pfenerty/ocidex; required unless digest is given
+	Artifact *string `form:"artifact,omitempty" json:"artifact,omitempty"`
+
+	// Version Artifact version, e.g. 1.2.3; required unless digest is given
+	Version *string `form:"version,omitempty" json:"version,omitempty"`
+
+	// Arch Optional architecture qualifier; omit or leave empty to match any architecture
+	Arch *string `form:"arch,omitempty" json:"arch,omitempty"`
+
+	// Flavor Optional image flavor qualifier (ADR-020); omit or leave empty to match any flavor
+	Flavor *string `form:"flavor,omitempty" json:"flavor,omitempty"`
+
+	// Digest SBOM digest. Unique by construction, so this form never returns 409; supply it instead of artifact and version
+	Digest *string `form:"digest,omitempty" json:"digest,omitempty"`
+
+	// Include Set to 'raw' to include the raw BOM JSON
+	Include *string `form:"include,omitempty" json:"include,omitempty"`
+}
+
 // GetSbomParams defines parameters for GetSbom.
 type GetSbomParams struct {
 	// Include Set to 'raw' to include the raw BOM JSON

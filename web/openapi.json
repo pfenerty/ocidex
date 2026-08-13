@@ -7377,6 +7377,100 @@
         ]
       }
     },
+    "/api/v1/sboms/lookup": {
+      "get": {
+        "description": "Resolves the ADR-042 qualifier ladder (artifact + version -\u003e +arch -\u003e +flavor), or a digest on its own. 200 on a unique visible match, 404 on none, 409 with candidates on more than one. The digest form is unique by construction and never returns 409.",
+        "operationId": "lookup-sbom",
+        "parameters": [
+          {
+            "description": "Exact artifact name, e.g. ghcr.io/pfenerty/ocidex; required unless digest is given",
+            "explode": false,
+            "in": "query",
+            "name": "artifact",
+            "schema": {
+              "description": "Exact artifact name, e.g. ghcr.io/pfenerty/ocidex; required unless digest is given",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Artifact version, e.g. 1.2.3; required unless digest is given",
+            "explode": false,
+            "in": "query",
+            "name": "version",
+            "schema": {
+              "description": "Artifact version, e.g. 1.2.3; required unless digest is given",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional architecture qualifier; omit or leave empty to match any architecture",
+            "explode": false,
+            "in": "query",
+            "name": "arch",
+            "schema": {
+              "description": "Optional architecture qualifier; omit or leave empty to match any architecture",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional image flavor qualifier (ADR-020); omit or leave empty to match any flavor",
+            "explode": false,
+            "in": "query",
+            "name": "flavor",
+            "schema": {
+              "description": "Optional image flavor qualifier (ADR-020); omit or leave empty to match any flavor",
+              "type": "string"
+            }
+          },
+          {
+            "description": "SBOM digest. Unique by construction, so this form never returns 409; supply it instead of artifact and version",
+            "explode": false,
+            "in": "query",
+            "name": "digest",
+            "schema": {
+              "description": "SBOM digest. Unique by construction, so this form never returns 409; supply it instead of artifact and version",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Set to 'raw' to include the raw BOM JSON",
+            "explode": false,
+            "in": "query",
+            "name": "include",
+            "schema": {
+              "description": "Set to 'raw' to include the raw BOM JSON",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SBOMDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LookupConflictError"
+                }
+              }
+            },
+            "description": "More than one visible candidate matched; narrow the query with additional qualifiers."
+          }
+        },
+        "summary": "Resolve an SBOM by artifact name and version",
+        "tags": [
+          "SBOMs"
+        ]
+      }
+    },
     "/api/v1/sboms/{id}": {
       "delete": {
         "operationId": "delete-sbom",

@@ -176,6 +176,136 @@ func TestLookupArtifact_PrivateCandidateDoesNotCauseConflict(t *testing.T) {
 	is.Equal(body.ID, artUbuntu)
 }
 
+// ---------------------------------------------------------------------------
+// SBOM lookup
+// ---------------------------------------------------------------------------
+
+const (
+	sbomAmd64  = "aaaa1111-2222-3333-4444-555555555555"
+	sbomArm64  = "bbbb1111-2222-3333-4444-555555555555"
+	sbomWolfi  = "cccc1111-2222-3333-4444-555555555555"
+	sbomOrphan = "dddd1111-2222-3333-4444-555555555555"
+)
+
+// sbomRow is one row in the fake SBOM resolver's table.
+type sbomRow struct {
+	id       string
+	artifact string
+	version  string
+	arch     string
+	flavor   string
+	digest   string
+	private  bool
+}
+
+// lookupSBOMSearchService applies the same ladder and visibility filter the
+// LookupSBOMs query applies.
+type lookupSBOMSearchService struct {
+	fakeSearchService
+	rows []sbomRow
+}
+
+func (f *lookupSBOMSearchService) LookupSBOM(_ context.Context, q service.SBOMLookupQuery, vis service.VisibilityFilter) ([]service.LookupCandidate, error) {
+	out := make([]service.LookupCandidate, 0, len(f.rows))
+	for _, r := range f.rows {
+		switch {
+		case q.Digest != "" && r.digest != q.Digest:
+			continue
+		case q.Artifact != "" && r.artifact != q.Artifact:
+			continue
+		case q.Version != "" && r.version != q.Version:
+			continue
+		case q.Arch != "" && r.arch != q.Arch:
+			continue
+		case q.Flavor != "" && r.flavor != q.Flavor:
+			continue
+		case r.private && !vis.IsAdmin:
+			continue
+		}
+		out = append(out, service.LookupCandidate{
+			ID: r.id,
+			Qualifiers: map[string]string{
+				"artifact": r.artifact, "version": r.version,
+				"arch": r.arch, "flavor": r.flavor, "digest": r.digest,
+			},
+		})
+	}
+	return out, nil
+}
+
+// GetSBOM echoes the requested id so a 200 identifies which candidate won.
+func (f *lookupSBOMSearchService) GetSBOM(_ context.Context, id pgtype.UUID, _ bool, _ service.VisibilityFilter) (service.SBOMDetail, error) {
+	return service.SBOMDetail{SBOMSummary: service.SBOMSummary{ID: uuidString(id), SpecVersion: "1.5", Version: 1}}, nil
+}
+
+func sbomLookupFixture() *lookupSBOMSearchService {
+	return &lookupSBOMSearchService{rows: []sbomRow{
+		// One version fanning out across two architectures — arch is the
+		// ladder's third rung.
+		{id: sbomAmd64, artifact: "ghcr.io/pfenerty/ocidex", version: "1.2.3", arch: "amd64", digest: "sha256:aaa"},
+		{id: sbomArm64, artifact: "ghcr.io/pfenerty/ocidex", version: "1.2.3", arch: "arm64", digest: "sha256:bbb"},
+		// Same version and arch, different flavor — the fourth rung.
+		{id: sbomWolfi, artifact: "ghcr.io/pfenerty/ocidex", version: "1.2.4", arch: "amd64", flavor: "wolfi", digest: "sha256:ccc"},
+		{id: sbomOrphan, artifact: "ghcr.io/pfenerty/ocidex", version: "1.2.4", arch: "amd64", flavor: "alpine", digest: "sha256:ddd", private: true},
+	}}
+}
+
+func TestLookupSBOM(t *testing.T) {
+	tests := []struct {
+		name       string
+		query      string
+		wantStatus int
+		wantID     string
+	}{
+		{"ambiguous across architectures", "?artifact=ghcr.io/pfenerty/ocidex&version=1.2.3", http.StatusConflict, ""},
+		{"arch rung disambiguates", "?artifact=ghcr.io/pfenerty/ocidex&version=1.2.3&arch=arm64", http.StatusOK, sbomArm64},
+		{"flavor rung disambiguates", "?artifact=ghcr.io/pfenerty/ocidex&version=1.2.4&arch=amd64&flavor=wolfi", http.StatusOK, sbomWolfi},
+		{"no match", "?artifact=ghcr.io/pfenerty/ocidex&version=9.9.9", http.StatusNotFound, ""},
+		// R5 again: the private alpine row must not make 1.2.4+amd64 ambiguous.
+		{"private candidate excluded", "?artifact=ghcr.io/pfenerty/ocidex&version=1.2.4&arch=amd64", http.StatusOK, sbomWolfi},
+		{"digest form", "?digest=sha256:bbb", http.StatusOK, sbomArm64},
+		{"digest form no match", "?digest=sha256:zzz", http.StatusNotFound, ""},
+		{"neither form supplied", "", http.StatusBadRequest, ""},
+		{"artifact without version", "?artifact=ghcr.io/pfenerty/ocidex", http.StatusBadRequest, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			router := newTestRouter(&fakeSBOMService{}, sbomLookupFixture())
+
+			r := httptest.NewRequest(http.MethodGet, "/api/v1/sboms/lookup"+tt.query, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, r)
+
+			is.Equal(w.Code, tt.wantStatus)
+
+			if tt.wantID != "" {
+				var body service.SBOMDetail
+				is.NoErr(json.Unmarshal(w.Body.Bytes(), &body))
+				is.Equal(body.ID, tt.wantID)
+			}
+		})
+	}
+}
+
+// The digest form is unique by construction (idx_sbom_digest), so no digest
+// can ever produce a 409 — asserted across every digest in the fixture rather
+// than one hand-picked value.
+func TestLookupSBOM_DigestFormNeverConflicts(t *testing.T) {
+	fixture := sbomLookupFixture()
+	for _, row := range fixture.rows {
+		is := is.New(t)
+		router := newTestRouter(&fakeSBOMService{}, sbomLookupFixture())
+
+		r := httptest.NewRequest(http.MethodGet, "/api/v1/sboms/lookup?digest="+row.digest, nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, r)
+
+		is.True(w.Code != http.StatusConflict)
+	}
+}
+
 // The slash-bearing name has to survive the round trip both raw and
 // percent-encoded — a query value tolerates either, which is the whole reason
 // ADR-042 R1 rejects a {name} path segment.

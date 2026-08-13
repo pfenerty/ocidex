@@ -11,9 +11,14 @@ import (
 // endpoints' query parameter names so a caller can feed a candidate's
 // qualifiers straight back into the next, narrower request.
 const (
-	qualifierName  = "name"
-	qualifierType  = "type"
-	qualifierGroup = "group"
+	qualifierName     = "name"
+	qualifierType     = "type"
+	qualifierGroup    = "group"
+	qualifierArtifact = "artifact"
+	qualifierVersion  = "version"
+	qualifierArch     = "arch"
+	qualifierFlavor   = "flavor"
+	qualifierDigest   = "digest"
 )
 
 // LookupCandidate is one visible match from a name-keyed lookup (ADR-042 R5).
@@ -62,6 +67,53 @@ func (s *searchService) LookupArtifact(ctx context.Context, query ArtifactLookup
 				qualifierName:  row.Name,
 				qualifierType:  row.Type,
 				qualifierGroup: row.GroupName.String,
+			},
+		})
+	}
+	return candidates, nil
+}
+
+// SBOMLookupQuery is the ADR-042 R4 qualifier ladder for SBOM lookup:
+// artifact+version -> +arch -> +flavor. Digest is the alternative form; it is
+// unique by construction (idx_sbom_digest) and so is never combined with the
+// ladder by callers, though nothing here forbids it.
+type SBOMLookupQuery struct {
+	Artifact string
+	Version  string
+	Arch     string
+	Flavor   string
+	Digest   string
+}
+
+// LookupSBOM returns every SBOM visible to the caller that matches the query.
+// As with LookupArtifact, counting is the caller's job and the rows returned
+// are already visibility-filtered.
+func (s *searchService) LookupSBOM(ctx context.Context, query SBOMLookupQuery, vis VisibilityFilter) ([]LookupCandidate, error) {
+	q := repository.New(s.db)
+
+	rows, err := q.LookupSBOMs(ctx, repository.LookupSBOMsParams{
+		Digest:   textOrNull(query.Digest),
+		Artifact: textOrNull(query.Artifact),
+		Version:  textOrNull(query.Version),
+		Arch:     textOrNull(query.Arch),
+		Flavor:   textOrNull(query.Flavor),
+		UserID:   vis.UserID,
+		IsAdmin:  visAdminBool(vis),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("looking up sbom: %w", err)
+	}
+
+	candidates := make([]LookupCandidate, 0, len(rows))
+	for _, row := range rows {
+		candidates = append(candidates, LookupCandidate{
+			ID: uuidToString(row.ID),
+			Qualifiers: map[string]string{
+				qualifierArtifact: row.ArtifactName.String,
+				qualifierVersion:  row.VersionKey.String,
+				qualifierArch:     row.Architecture,
+				qualifierFlavor:   row.Flavor.String,
+				qualifierDigest:   row.Digest.String,
 			},
 		})
 	}

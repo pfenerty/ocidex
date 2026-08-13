@@ -86,5 +86,45 @@ DELETE FROM sbom WHERE id = $1;
 SELECT DISTINCT digest FROM sbom
 WHERE source_id = $1 AND digest IS NOT NULL;
 
+-- name: LookupSBOMs :many
+-- ADR-042 R3/R4: name-keyed resolver with two query forms sharing one plan.
+--
+-- Ladder form: artifact + version -> +arch -> +flavor. `version` is matched
+-- against the same COALESCE expression ListArtifactVersions derives version_key
+-- from, so a version copied out of the versions view resolves here; the
+-- s.id::text fallback is deliberately omitted, since a UUID-shaped version is
+-- not a name anyone composes.
+--
+-- Digest form: `digest` alone. idx_sbom_digest is UNIQUE, so that form matches
+-- at most one row and can never produce a 409.
+--
+-- artifact is LEFT JOINed because sbom.artifact_id is nullable — a digest
+-- lookup must still find an SBOM that was never linked to an artifact.
+--
+-- R5: sbom_visible() is applied here so the caller counts only visible
+-- candidates.
+SELECT s.id,
+       a.name AS artifact_name,
+       COALESCE(s.subject_version,
+           COALESCE(e.data->>'imageVersion', u.data->>'imageVersion'))   AS version_key,
+       (COALESCE(e.data->>'architecture', u.data->>'architecture'))::text AS architecture,
+       s.flavor,
+       s.digest
+FROM sbom s
+LEFT JOIN artifact a ON a.id = s.artifact_id
+LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
+LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user'         AND u.status = 'success'
+WHERE (sqlc.narg('digest')::text IS NULL OR s.digest = sqlc.narg('digest'))
+  AND (sqlc.narg('artifact')::text IS NULL OR a.name = sqlc.narg('artifact'))
+  AND (sqlc.narg('version')::text IS NULL
+       OR COALESCE(s.subject_version,
+              COALESCE(e.data->>'imageVersion', u.data->>'imageVersion')) = sqlc.narg('version'))
+  AND (sqlc.narg('arch')::text IS NULL
+       OR COALESCE(e.data->>'architecture', u.data->>'architecture') = sqlc.narg('arch'))
+  AND (sqlc.narg('flavor')::text IS NULL OR s.flavor = sqlc.narg('flavor'))
+  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+ORDER BY s.created_at DESC, s.id DESC
+LIMIT 50;
+
 -- name: UpdateSBOMSubjectVersion :exec
 UPDATE sbom SET subject_version = $2 WHERE id = $1;

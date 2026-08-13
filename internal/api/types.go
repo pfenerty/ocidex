@@ -137,6 +137,22 @@ type GetSBOMOutput struct {
 }
 
 // ---------------------------------------------------------------------------
+// SBOM — Lookup (ADR-042)
+// ---------------------------------------------------------------------------
+
+// LookupSBOMInput is the request for GET /api/v1/sboms/lookup. It accepts two
+// mutually sufficient forms: the qualifier ladder (artifact + version, then
+// arch, then flavor) or Digest on its own.
+type LookupSBOMInput struct {
+	Artifact string `query:"artifact" doc:"Exact artifact name, e.g. ghcr.io/pfenerty/ocidex; required unless digest is given"`
+	Version  string `query:"version" doc:"Artifact version, e.g. 1.2.3; required unless digest is given"`
+	Arch     string `query:"arch" doc:"Optional architecture qualifier; omit or leave empty to match any architecture"`
+	Flavor   string `query:"flavor" doc:"Optional image flavor qualifier (ADR-020); omit or leave empty to match any flavor"`
+	Digest   string `query:"digest" doc:"SBOM digest. Unique by construction, so this form never returns 409; supply it instead of artifact and version"`
+	Include  string `query:"include" doc:"Set to 'raw' to include the raw BOM JSON"`
+}
+
+// ---------------------------------------------------------------------------
 // SBOM — Dependencies
 // ---------------------------------------------------------------------------
 

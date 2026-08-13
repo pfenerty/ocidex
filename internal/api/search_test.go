@@ -230,6 +230,12 @@ func (f *fakeSearchService) LookupArtifact(_ context.Context, _ service.Artifact
 	}, nil
 }
 
+func (f *fakeSearchService) LookupSBOM(_ context.Context, _ service.SBOMLookupQuery, _ service.VisibilityFilter) ([]service.LookupCandidate, error) {
+	return []service.LookupCandidate{
+		{ID: "3e671687-395b-41f5-a30f-a58921a69b79", Qualifiers: map[string]string{"artifact": "ubuntu", "version": "1.0"}},
+	}, nil
+}
+
 // notFoundSearchService returns ErrNotFound for single-item lookups.
 type notFoundSearchService struct{ fakeSearchService }
 

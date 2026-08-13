@@ -343,6 +343,101 @@ func (q *Queries) ListSBOMsWithoutFlavor(ctx context.Context) ([]ListSBOMsWithou
 	return items, nil
 }
 
+const lookupSBOMs = `-- name: LookupSBOMs :many
+SELECT s.id,
+       a.name AS artifact_name,
+       COALESCE(s.subject_version,
+           COALESCE(e.data->>'imageVersion', u.data->>'imageVersion'))   AS version_key,
+       (COALESCE(e.data->>'architecture', u.data->>'architecture'))::text AS architecture,
+       s.flavor,
+       s.digest
+FROM sbom s
+LEFT JOIN artifact a ON a.id = s.artifact_id
+LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
+LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user'         AND u.status = 'success'
+WHERE ($1::text IS NULL OR s.digest = $1)
+  AND ($2::text IS NULL OR a.name = $2)
+  AND ($3::text IS NULL
+       OR COALESCE(s.subject_version,
+              COALESCE(e.data->>'imageVersion', u.data->>'imageVersion')) = $3)
+  AND ($4::text IS NULL
+       OR COALESCE(e.data->>'architecture', u.data->>'architecture') = $4)
+  AND ($5::text IS NULL OR s.flavor = $5)
+  AND sbom_visible(s.namespace_id, $6::uuid, $7::boolean)
+ORDER BY s.created_at DESC, s.id DESC
+LIMIT 50
+`
+
+type LookupSBOMsParams struct {
+	Digest   pgtype.Text `json:"digest"`
+	Artifact pgtype.Text `json:"artifact"`
+	Version  pgtype.Text `json:"version"`
+	Arch     pgtype.Text `json:"arch"`
+	Flavor   pgtype.Text `json:"flavor"`
+	UserID   pgtype.UUID `json:"user_id"`
+	IsAdmin  pgtype.Bool `json:"is_admin"`
+}
+
+type LookupSBOMsRow struct {
+	ID           pgtype.UUID `json:"id"`
+	ArtifactName pgtype.Text `json:"artifact_name"`
+	VersionKey   pgtype.Text `json:"version_key"`
+	Architecture string      `json:"architecture"`
+	Flavor       pgtype.Text `json:"flavor"`
+	Digest       pgtype.Text `json:"digest"`
+}
+
+// ADR-042 R3/R4: name-keyed resolver with two query forms sharing one plan.
+//
+// Ladder form: artifact + version -> +arch -> +flavor. `version` is matched
+// against the same COALESCE expression ListArtifactVersions derives version_key
+// from, so a version copied out of the versions view resolves here; the
+// s.id::text fallback is deliberately omitted, since a UUID-shaped version is
+// not a name anyone composes.
+//
+// Digest form: `digest` alone. idx_sbom_digest is UNIQUE, so that form matches
+// at most one row and can never produce a 409.
+//
+// artifact is LEFT JOINed because sbom.artifact_id is nullable — a digest
+// lookup must still find an SBOM that was never linked to an artifact.
+//
+// R5: sbom_visible() is applied here so the caller counts only visible
+// candidates.
+func (q *Queries) LookupSBOMs(ctx context.Context, arg LookupSBOMsParams) ([]LookupSBOMsRow, error) {
+	rows, err := q.db.Query(ctx, lookupSBOMs,
+		arg.Digest,
+		arg.Artifact,
+		arg.Version,
+		arg.Arch,
+		arg.Flavor,
+		arg.UserID,
+		arg.IsAdmin,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LookupSBOMsRow{}
+	for rows.Next() {
+		var i LookupSBOMsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ArtifactName,
+			&i.VersionKey,
+			&i.Architecture,
+			&i.Flavor,
+			&i.Digest,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateComponentProvenance = `-- name: UpdateComponentProvenance :exec
 UPDATE component
 SET layer_id = $2, found_by = $3, source_package = $4, source_version = $5, source_purl = $6

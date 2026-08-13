@@ -195,6 +195,18 @@ func registerSBOMOps(api huma.API, h *Handler) {
 	}, h.ListSBOMs)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "lookup-sbom",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/sboms/lookup",
+		Summary:     "Resolve an SBOM by artifact name and version",
+		Description: "Resolves the ADR-042 qualifier ladder (artifact + version -> +arch -> +flavor), or a digest on its own. " +
+			"200 on a unique visible match, 404 on none, 409 with candidates on more than one. " +
+			"The digest form is unique by construction and never returns 409.",
+		Tags:      []string{tagSBOMs},
+		Responses: lookupConflictResponses(api),
+	}, h.LookupSBOM)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "get-sbom",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/sboms/{id}",

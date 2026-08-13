@@ -841,6 +841,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sboms/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolve an SBOM by artifact name and version
+         * @description Resolves the ADR-042 qualifier ladder (artifact + version -> +arch -> +flavor), or a digest on its own. 200 on a unique visible match, 404 on none, 409 with candidates on more than one. The digest form is unique by construction and never returns 409.
+         */
+        get: operations["lookup-sbom"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sboms/{id}": {
         parameters: {
             query?: never;
@@ -4509,6 +4529,48 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "lookup-sbom": {
+        parameters: {
+            query?: {
+                /** @description Exact artifact name, e.g. ghcr.io/pfenerty/ocidex; required unless digest is given */
+                artifact?: string;
+                /** @description Artifact version, e.g. 1.2.3; required unless digest is given */
+                version?: string;
+                /** @description Optional architecture qualifier; omit or leave empty to match any architecture */
+                arch?: string;
+                /** @description Optional image flavor qualifier (ADR-020); omit or leave empty to match any flavor */
+                flavor?: string;
+                /** @description SBOM digest. Unique by construction, so this form never returns 409; supply it instead of artifact and version */
+                digest?: string;
+                /** @description Set to 'raw' to include the raw BOM JSON */
+                include?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SBOMDetail"];
+                };
+            };
+            /** @description More than one visible candidate matched; narrow the query with additional qualifiers. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LookupConflictError"];
                 };
             };
         };

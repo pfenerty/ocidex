@@ -96,3 +96,47 @@ func (h *Handler) LookupArtifact(ctx context.Context, input *LookupArtifactInput
 	out.Body = detail
 	return out, nil
 }
+
+// LookupSBOM handles GET /api/v1/sboms/lookup.
+//
+// Two query forms are accepted: the ADR-042 R4 ladder (artifact + version,
+// narrowed with arch then flavor) or digest on its own. The digest form cannot
+// return 409 — idx_sbom_digest is UNIQUE, so it matches at most one row.
+func (h *Handler) LookupSBOM(ctx context.Context, input *LookupSBOMInput) (*GetSBOMOutput, error) {
+	if input.Digest == "" && (input.Artifact == "" || input.Version == "") {
+		return nil, huma.Error400BadRequest("supply either digest, or both artifact and version")
+	}
+
+	vis := visibilityFilterFromContext(ctx)
+
+	candidates, err := h.searchService.LookupSBOM(ctx, service.SBOMLookupQuery{
+		Artifact: input.Artifact,
+		Version:  input.Version,
+		Arch:     input.Arch,
+		Flavor:   input.Flavor,
+		Digest:   input.Digest,
+	}, vis)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	switch {
+	case len(candidates) == 0:
+		return nil, huma.Error404NotFound("sbom not found")
+	case len(candidates) > 1:
+		return nil, newLookupConflict("sbom", candidates)
+	}
+
+	id, err := parseUUID(candidates[0].ID)
+	if err != nil {
+		return nil, err
+	}
+	detail, err := h.searchService.GetSBOM(ctx, id, input.Include == "raw", vis)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	out := &GetSBOMOutput{}
+	out.Body = detail
+	return out, nil
+}
