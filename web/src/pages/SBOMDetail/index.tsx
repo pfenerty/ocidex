@@ -7,6 +7,7 @@ import type { OCIMetadata, Provenance, GitCommitMetadata } from "~/api/client";
 import { ErrorBox, EmptyState } from "~/components/Feedback";
 import { Skeleton, SkeletonHeader, SkeletonTable } from "~/components/Skeleton";
 import CopyDigest from "~/components/CopyDigest";
+import CopyShareLink, { sbomLookupPath } from "~/components/CopyShareLink";
 import ImageMetadataCard from "~/components/ImageMetadataCard";
 import ProvenanceCard from "~/components/ProvenanceCard";
 import GitCommitCard from "~/components/GitCommitCard";
@@ -151,6 +152,9 @@ export default function SBOMDetail() {
                                             </A>
                                         </Show>
                                         <A href={`/diff?from=${s.id}&to=${s.id}`} class="btn btn-sm">Compare</A>
+                                        <Show when={sbomLookupPath(s)}>
+                                            {(path) => <CopyShareLink path={path()} />}
+                                        </Show>
                                     </div>
                                 </div>
                             </div>

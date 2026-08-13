@@ -12,6 +12,7 @@ import {
 import { ErrorBox, EmptyState } from "~/components/Feedback";
 import { Skeleton, SkeletonHeader, SkeletonText } from "~/components/Skeleton";
 import PurlLink from "~/components/PurlLink";
+import CopyShareLink, { artifactLookupPath } from "~/components/CopyShareLink";
 import { VulnSummaryBar } from "~/components/VulnBadge";
 import { TypeBadge, SigningBadge } from "~/components/ui";
 import { purlToRegistryUrl, purlTypeLabel } from "~/utils/purl";
@@ -175,6 +176,9 @@ export default function ArtifactDetail() {
                                             >
                                                 Compare SBOMs
                                             </A>
+                                            <CopyShareLink
+                                                path={artifactLookupPath(a())}
+                                            />
                                         </div>
                                     </div>
                                 </div>

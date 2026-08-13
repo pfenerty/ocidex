@@ -6,6 +6,7 @@ import { APIClientError } from "~/api/client";
 import { useArtifactLookup, useSBOMLookup } from "~/api/queries/lookup";
 import type * as LookupQueries from "~/api/queries/lookup";
 import { ArtifactLookup, SBOMLookup } from "~/pages/Lookup";
+import { artifactLookupPath } from "~/components/CopyShareLink";
 
 // Only the two fetching hooks are stubbed — conflictCandidates and isNotFound
 // are the logic under test on the error paths, so they run for real.
@@ -62,6 +63,26 @@ describe("ArtifactLookup", () => {
         expect(params.name).toBe("myapp");
         expect(params.type).toBe("container");
         expect(params.group).toBe("acme");
+    });
+
+    it("round-trips a link emitted by the copy-link control", async () => {
+        mockArtifactLookup.mockReturnValue(queryState({ data: { id: "art-1" } }));
+
+        renderAt(
+            artifactLookupPath({
+                name: "ghcr.io/pfenerty/ocidex",
+                type: "container",
+                group: "pfenerty",
+            }),
+        );
+
+        const params = mockArtifactLookup.mock.calls[0][0]();
+        expect(params.name).toBe("ghcr.io/pfenerty/ocidex");
+        expect(params.type).toBe("container");
+        expect(params.group).toBe("pfenerty");
+        await waitFor(() => {
+            expect(window.location.pathname).toBe("/artifacts/art-1");
+        });
     });
 
     it("renders the candidates instead of navigating on 409", () => {
