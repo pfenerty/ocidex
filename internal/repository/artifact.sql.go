@@ -503,6 +503,73 @@ func (q *Queries) ListSBOMsByArtifact(ctx context.Context, arg ListSBOMsByArtifa
 	return items, nil
 }
 
+const lookupArtifacts = `-- name: LookupArtifacts :many
+SELECT a.id, a.type, a.name, a.group_name
+FROM artifact a
+WHERE a.name = $1::text
+  AND ($2::text IS NULL OR a.type = $2)
+  AND ($3::text IS NULL OR COALESCE(a.group_name, '') = $3)
+  AND artifact_visible(a.id, $4::uuid, $5::boolean)
+ORDER BY a.type, a.group_name NULLS FIRST, a.id
+LIMIT 50
+`
+
+type LookupArtifactsParams struct {
+	Name      string      `json:"name"`
+	Type      pgtype.Text `json:"type"`
+	GroupName pgtype.Text `json:"group_name"`
+	UserID    pgtype.UUID `json:"user_id"`
+	IsAdmin   pgtype.Bool `json:"is_admin"`
+}
+
+type LookupArtifactsRow struct {
+	ID        pgtype.UUID `json:"id"`
+	Type      string      `json:"type"`
+	Name      string      `json:"name"`
+	GroupName pgtype.Text `json:"group_name"`
+}
+
+// ADR-042 R3/R4: name-keyed resolver. Unlike ListArtifacts, `name` here is an
+// exact key, not an ILIKE search — the resolver's contract is unique-or-409,
+// so a substring match would make ambiguity the normal case. `type` and
+// `group_name` are the R4 ladder rungs; NULL means wildcard, not an
+// empty-string match, so omitting a qualifier widens the query rather than
+// pinning it to rows with an empty value.
+//
+// R5: artifact_visible() is applied here so the caller counts only visible
+// candidates. A private artifact must not turn a unique public match into a
+// 409 — that would leak its existence.
+func (q *Queries) LookupArtifacts(ctx context.Context, arg LookupArtifactsParams) ([]LookupArtifactsRow, error) {
+	rows, err := q.db.Query(ctx, lookupArtifacts,
+		arg.Name,
+		arg.Type,
+		arg.GroupName,
+		arg.UserID,
+		arg.IsAdmin,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LookupArtifactsRow{}
+	for rows.Next() {
+		var i LookupArtifactsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Type,
+			&i.Name,
+			&i.GroupName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertArtifact = `-- name: UpsertArtifact :one
 INSERT INTO artifact (type, name, group_name, purl, cpe)
 VALUES ($1, $2, $3, $4, $5)

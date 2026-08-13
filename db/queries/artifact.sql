@@ -91,6 +91,26 @@ GROUP BY a.id
 ORDER BY a.name, a.type, a.id
 LIMIT @row_limit;
 
+-- name: LookupArtifacts :many
+-- ADR-042 R3/R4: name-keyed resolver. Unlike ListArtifacts, `name` here is an
+-- exact key, not an ILIKE search — the resolver's contract is unique-or-409,
+-- so a substring match would make ambiguity the normal case. `type` and
+-- `group_name` are the R4 ladder rungs; NULL means wildcard, not an
+-- empty-string match, so omitting a qualifier widens the query rather than
+-- pinning it to rows with an empty value.
+--
+-- R5: artifact_visible() is applied here so the caller counts only visible
+-- candidates. A private artifact must not turn a unique public match into a
+-- 409 — that would leak its existence.
+SELECT a.id, a.type, a.name, a.group_name
+FROM artifact a
+WHERE a.name = @name::text
+  AND (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))
+  AND (sqlc.narg('group_name')::text IS NULL OR COALESCE(a.group_name, '') = sqlc.narg('group_name'))
+  AND artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+ORDER BY a.type, a.group_name NULLS FIRST, a.id
+LIMIT 50;
+
 -- name: CountSBOMsByArtifact :one
 -- Counts visible SBOMs for an artifact. Replaces the prior trick of reading
 -- COUNT(*) OVER() off ListSBOMsByArtifact, which is now keyset-paginated.

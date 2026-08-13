@@ -135,6 +135,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/artifacts/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolve an artifact by name
+         * @description Resolves the ADR-042 qualifier ladder (name -> +type -> +group) to a single artifact. 200 on a unique visible match, 404 on none, 409 with candidates on more than one.
+         */
+        get: operations["lookup-artifact"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/artifacts/{id}": {
         parameters: {
             query?: never;
@@ -2039,6 +2059,33 @@ export interface components {
             readonly $schema?: string;
             users: components["schemas"]["UserResponse"][] | null;
         };
+        LookupCandidate: {
+            /** @description Canonical UUID of the matching resource */
+            id: string;
+            /** @description Qualifier values that distinguish this candidate, keyed by resolver query parameter */
+            qualifiers: {
+                [key: string]: string;
+            };
+        };
+        LookupConflictError: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/LookupConflictError.json
+             */
+            readonly $schema?: string;
+            /** @description Matching resources; retry one rung further down the qualifier ladder to select one */
+            candidates: components["schemas"]["LookupCandidate"][] | null;
+            /** @description Explanation of the ambiguity */
+            detail: string;
+            /**
+             * Format: int64
+             * @description HTTP status code
+             */
+            status: number;
+            /** @description Short, human-readable summary */
+            title: string;
+        };
         MeOutputBody: {
             /**
              * Format: uri
@@ -2848,6 +2895,42 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "lookup-artifact": {
+        parameters: {
+            query: {
+                /** @description Exact artifact name, e.g. ghcr.io/pfenerty/ocidex */
+                name: string;
+                /** @description Optional artifact type qualifier; omit or leave empty to match any type */
+                type?: string;
+                /** @description Optional artifact group qualifier; omit or leave empty to match any group */
+                group?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactDetail"];
+                };
+            };
+            /** @description More than one visible candidate matched; narrow the query with additional qualifiers. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LookupConflictError"];
                 };
             };
         };

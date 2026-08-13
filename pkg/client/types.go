@@ -1571,6 +1571,33 @@ type ListUsersOutputBody struct {
 	Users  *[]UserResponse `json:"users"`
 }
 
+// LookupCandidate defines model for LookupCandidate.
+type LookupCandidate struct {
+	// Id Canonical UUID of the matching resource
+	Id string `json:"id"`
+
+	// Qualifiers Qualifier values that distinguish this candidate, keyed by resolver query parameter
+	Qualifiers map[string]string `json:"qualifiers"`
+}
+
+// LookupConflictError defines model for LookupConflictError.
+type LookupConflictError struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// Candidates Matching resources; retry one rung further down the qualifier ladder to select one
+	Candidates *[]LookupCandidate `json:"candidates"`
+
+	// Detail Explanation of the ambiguity
+	Detail string `json:"detail"`
+
+	// Status HTTP status code
+	Status int64 `json:"status"`
+
+	// Title Short, human-readable summary
+	Title string `json:"title"`
+}
+
 // MeOutputBody defines model for MeOutputBody.
 type MeOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -2164,6 +2191,18 @@ type ListArtifactsParams struct {
 
 	// Sufficient Filter to artifacts with sufficiently enriched SBOMs; pass 'false' to include all (default: true)
 	Sufficient *string `form:"sufficient,omitempty" json:"sufficient,omitempty"`
+}
+
+// LookupArtifactParams defines parameters for LookupArtifact.
+type LookupArtifactParams struct {
+	// Name Exact artifact name, e.g. ghcr.io/pfenerty/ocidex
+	Name string `form:"name" json:"name"`
+
+	// Type Optional artifact type qualifier; omit or leave empty to match any type
+	Type *string `form:"type,omitempty" json:"type,omitempty"`
+
+	// Group Optional artifact group qualifier; omit or leave empty to match any group
+	Group *string `form:"group,omitempty" json:"group,omitempty"`
 }
 
 // GetArtifactChangelogParams defines parameters for GetArtifactChangelog.

@@ -2799,6 +2799,71 @@
         ],
         "type": "object"
       },
+      "LookupCandidate": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "description": "Canonical UUID of the matching resource",
+            "type": "string"
+          },
+          "qualifiers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Qualifier values that distinguish this candidate, keyed by resolver query parameter",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "qualifiers"
+        ],
+        "type": "object"
+      },
+      "LookupConflictError": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/LookupConflictError.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "candidates": {
+            "description": "Matching resources; retry one rung further down the qualifier ladder to select one",
+            "items": {
+              "$ref": "#/components/schemas/LookupCandidate"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "detail": {
+            "description": "Explanation of the ambiguity",
+            "type": "string"
+          },
+          "status": {
+            "description": "HTTP status code",
+            "format": "int64",
+            "type": "integer"
+          },
+          "title": {
+            "description": "Short, human-readable summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "title",
+          "detail",
+          "candidates"
+        ],
+        "type": "object"
+      },
       "MeOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -4671,6 +4736,71 @@
           }
         },
         "summary": "List artifacts",
+        "tags": [
+          "Artifacts"
+        ]
+      }
+    },
+    "/api/v1/artifacts/lookup": {
+      "get": {
+        "description": "Resolves the ADR-042 qualifier ladder (name -\u003e +type -\u003e +group) to a single artifact. 200 on a unique visible match, 404 on none, 409 with candidates on more than one.",
+        "operationId": "lookup-artifact",
+        "parameters": [
+          {
+            "description": "Exact artifact name, e.g. ghcr.io/pfenerty/ocidex",
+            "explode": false,
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "Exact artifact name, e.g. ghcr.io/pfenerty/ocidex",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional artifact type qualifier; omit or leave empty to match any type",
+            "explode": false,
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "description": "Optional artifact type qualifier; omit or leave empty to match any type",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional artifact group qualifier; omit or leave empty to match any group",
+            "explode": false,
+            "in": "query",
+            "name": "group",
+            "schema": {
+              "description": "Optional artifact group qualifier; omit or leave empty to match any group",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LookupConflictError"
+                }
+              }
+            },
+            "description": "More than one visible candidate matched; narrow the query with additional qualifiers."
+          }
+        },
+        "summary": "Resolve an artifact by name",
         "tags": [
           "Artifacts"
         ]

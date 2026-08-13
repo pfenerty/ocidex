@@ -393,6 +393,20 @@ type GetArtifactOutput struct {
 }
 
 // ---------------------------------------------------------------------------
+// Artifacts — Lookup (ADR-042)
+// ---------------------------------------------------------------------------
+
+// LookupArtifactInput is the request for GET /api/v1/artifacts/lookup.
+//
+// The key travels in the query string, not a path segment, because container
+// artifact names are full repository paths containing slashes (ADR-042 R1).
+type LookupArtifactInput struct {
+	Name  string `query:"name" required:"true" doc:"Exact artifact name, e.g. ghcr.io/pfenerty/ocidex"`
+	Type  string `query:"type" doc:"Optional artifact type qualifier; omit or leave empty to match any type"`
+	Group string `query:"group" doc:"Optional artifact group qualifier; omit or leave empty to match any group"`
+}
+
+// ---------------------------------------------------------------------------
 // Artifacts — Delete
 // ---------------------------------------------------------------------------
 

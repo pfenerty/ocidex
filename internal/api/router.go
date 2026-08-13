@@ -328,6 +328,20 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Tags:        []string{tagArtifacts},
 	}, h.ListArtifacts)
 
+	// Registered before the {id} route only for readability — chi matches the
+	// literal "lookup" segment ahead of the UUID param regardless of order
+	// (ADR-042 R7).
+	huma.Register(api, huma.Operation{
+		OperationID: "lookup-artifact",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/artifacts/lookup",
+		Summary:     "Resolve an artifact by name",
+		Description: "Resolves the ADR-042 qualifier ladder (name -> +type -> +group) to a single artifact. " +
+			"200 on a unique visible match, 404 on none, 409 with candidates on more than one.",
+		Tags:      []string{tagArtifacts},
+		Responses: lookupConflictResponses(api),
+	}, h.LookupArtifact)
+
 	huma.Register(api, huma.Operation{
 		OperationID: "get-artifact",
 		Method:      http.MethodGet,
