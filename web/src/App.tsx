@@ -19,6 +19,7 @@ import Diff from "~/pages/Diff";
 import Login from "~/pages/Login";
 import Admin from "~/pages/Admin";
 import NotFound from "~/pages/NotFound";
+import { ArtifactLookup, SBOMLookup } from "~/pages/Lookup";
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -38,6 +39,10 @@ export default function App() {
             <Router root={Layout}>
                 <Route path="/" component={Home} />
                 <Route path="/artifacts" component={Artifacts} />
+                {/* Resolver routes (ADR-042 R7) — declared before the :id routes
+                    they redirect into so the literal segment reads as such. */}
+                <Route path="/artifacts/lookup" component={ArtifactLookup} />
+                <Route path="/sboms/lookup" component={SBOMLookup} />
                 <Route path="/artifacts/:id" component={ArtifactDetail} />
                 <Route path="/artifacts/:id/versions/:version" component={ArtifactVersionHistory} />
                 <Route path="/sboms/:id" component={SBOMDetail} />
