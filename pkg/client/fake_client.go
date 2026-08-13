@@ -49,6 +49,11 @@ type FakeClient struct {
 	ListArtifactSBOMsFn         func(ctx context.Context, id string, opts PageOpts) (CursorPage[SBOMSummary], error)
 	ListArtifactVersionsFn      func(ctx context.Context, id string, opts PageOpts) (Page[ArtifactVersionSummary], error)
 
+	// Name-keyed resolvers (ADR-042)
+	LookupArtifactFn func(ctx context.Context, params LookupArtifactParams) (ArtifactDetail, error)
+	LookupSBOMFn     func(ctx context.Context, params LookupSbomParams) (SBOMDetail, error)
+	LookupLicenseFn  func(ctx context.Context, spdxID string) (LicenseCount, error)
+
 	// Component + job + stats
 	SearchComponentsFn         func(ctx context.Context, filter ComponentFilter, opts PageOpts) (Page[ComponentSummary], error)
 	SearchDistinctComponentsFn func(ctx context.Context, filter DistinctComponentFilter, opts PageOpts) (Page[DistinctComponentSummary], error)
@@ -237,6 +242,27 @@ func (f *FakeClient) ListArtifactVersions(ctx context.Context, id string, opts P
 		return f.ListArtifactVersionsFn(ctx, id, opts)
 	}
 	return Page[ArtifactVersionSummary]{}, nil
+}
+
+func (f *FakeClient) LookupArtifact(ctx context.Context, params LookupArtifactParams) (ArtifactDetail, error) {
+	if f.LookupArtifactFn != nil {
+		return f.LookupArtifactFn(ctx, params)
+	}
+	return ArtifactDetail{}, nil
+}
+
+func (f *FakeClient) LookupSBOM(ctx context.Context, params LookupSbomParams) (SBOMDetail, error) {
+	if f.LookupSBOMFn != nil {
+		return f.LookupSBOMFn(ctx, params)
+	}
+	return SBOMDetail{}, nil
+}
+
+func (f *FakeClient) LookupLicense(ctx context.Context, spdxID string) (LicenseCount, error) {
+	if f.LookupLicenseFn != nil {
+		return f.LookupLicenseFn(ctx, spdxID)
+	}
+	return LicenseCount{}, nil
 }
 
 func (f *FakeClient) SearchComponents(ctx context.Context, filter ComponentFilter, opts PageOpts) (Page[ComponentSummary], error) {

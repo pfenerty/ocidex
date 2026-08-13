@@ -54,6 +54,14 @@ type Client interface {
 	ListArtifactSBOMs(ctx context.Context, id string, opts PageOpts) (CursorPage[SBOMSummary], error)
 	ListArtifactVersions(ctx context.Context, id string, opts PageOpts) (Page[ArtifactVersionSummary], error)
 
+	// Name-keyed resolvers (ADR-042). Each returns the same body as its UUID
+	// counterpart, ErrNotFound when nothing visible matches, and — for the two
+	// that can be ambiguous — a *ConflictError listing the candidates.
+
+	LookupArtifact(ctx context.Context, params LookupArtifactParams) (ArtifactDetail, error)
+	LookupSBOM(ctx context.Context, params LookupSbomParams) (SBOMDetail, error)
+	LookupLicense(ctx context.Context, spdxID string) (LicenseCount, error)
+
 	// Component + job + stats
 
 	SearchComponents(ctx context.Context, filter ComponentFilter, opts PageOpts) (Page[ComponentSummary], error)
