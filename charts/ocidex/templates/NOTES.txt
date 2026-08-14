@@ -42,3 +42,38 @@ See docs/CONFIGURATION.md for the full list of supported fields.
 {{- if .Values.cilium.enabled }}
   Cilium: CiliumNetworkPolicy created.
 {{- end }}
+{{- $natsUID := (default dict .Values.nats.podSecurityContext).runAsUser }}
+{{- if and (not .Values.nats.storage.emptyDir) $natsUID }}
+
+=== Upgrading from a release before NATS ran as non-root ===
+
+  NATS now runs as uid {{ $natsUID }} so the chart satisfies the
+  PodSecurity "restricted" profile. A JetStream store written by an older
+  release is mode 0700 root:root, and fsGroup does not fix it on a hostPath- or
+  NFS-backed StorageClass — the kubelet only applies fsGroup to volume types
+  that support ownership management. NATS would come up and die with:
+
+    [FTL] Can't start JetStream: storage directory is not writable
+
+  Recreate the volume once, before or during the upgrade:
+
+    kubectl -n {{ .Release.Namespace }} scale statefulset {{ include "ocidex.fullname" . }}-nats --replicas=0
+    kubectl -n {{ .Release.Namespace }} delete pvc data-{{ include "ocidex.fullname" . }}-nats-0
+    kubectl -n {{ .Release.Namespace }} scale statefulset {{ include "ocidex.fullname" . }}-nats --replicas=1
+
+  Then restart the API and workers, so they re-provision the stream and their
+  durable consumers:
+
+    kubectl -n {{ .Release.Namespace }} rollout restart deploy -l app.kubernetes.io/part-of=ocidex
+
+  That second step is required, not optional: the stream is created by
+  CreateOrUpdateStream at process startup, and a client that merely *reconnects*
+  to the rebuilt server never re-runs it. Until the restart, hint delivery is
+  dead — though no work is lost, because the workers keep claiming jobs on their
+  DB poll interval.
+
+  Wiping the store is safe. It is a doorbell cache, not the queue of record:
+  scan and enrichment jobs live in Postgres (ADR-024), so at worst a job waits
+  one poll interval instead of being picked up instantly. Fresh installs need no
+  action.
+{{- end }}

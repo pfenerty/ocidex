@@ -18,15 +18,16 @@ spec:
         {{- include "ocidex.podLabels" (dict "root" . "component" "nats") | nindent 8 }}
     spec:
       {{- /*
-      No securityContext here, deliberately — see ocidex-1d9 / the follow-up
-      issue. docker.io/nats:2-alpine runs as root, and moving it to a non-root
-      UID is a data migration, not a manifest change: the JetStream store at
-      /data/jetstream is created mode 0700 root:root, and fsGroup cannot fix it
-      because the nats PVC is backed by local-path, a hostPath provisioner, and
-      the kubelet only applies fsGroup ownership to volume types that support
-      it. Verified empirically: NATS came up as uid 1000 and died with
-      "[FTL] Can't start JetStream: storage directory is not writable".
+      NATS uses nats.podSecurityContext / nats.securityContext rather than the
+      chart-wide keys: its image declares no non-root user, so runAsNonRoot
+      needs an explicit runAsUser here (ocidex-s3tu). Switching an existing
+      root-owned store to that uid is a data migration, not a manifest change —
+      see the upgrade caveat in values.yaml and NOTES.txt.
       */}}
+      {{- with .Values.nats.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- if .Values.nats.storage.emptyDir }}
       volumes:
         - name: data
@@ -35,6 +36,10 @@ spec:
       containers:
         - name: nats
           image: "{{ .Values.nats.image.repository }}:{{ .Values.nats.image.tag }}"
+          {{- with .Values.nats.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           args: ["-js", "--store_dir", "/data", "-m", "8222"]
           ports:
             - name: client

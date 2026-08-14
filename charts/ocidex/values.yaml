@@ -156,17 +156,40 @@ nats:
     limits:
       cpu: "100m"
       memory: "64Mi"
-  # NATS deliberately has no podSecurityContext/securityContext and is the one
-  # workload this chart leaves outside the "restricted" profile. It is a
-  # third-party image (docker.io/nats:2-alpine) that runs as root, and the
-  # blocker is storage, not the manifest — see the note in
-  # templates/statefulset-nats.yaml and the ocidex-1d9 follow-up issue.
+  # NATS has its own security context rather than reusing the chart-wide keys
+  # below: docker.io/nats:2-alpine declares no non-root user in /etc/passwd, so
+  # runAsNonRoot is only satisfiable with an explicit numeric runAsUser, which
+  # the project's own images do not need.
+  #
+  # fsGroup is set for storage classes that honour it. Classes that do not
+  # (local-path is a hostPath provisioner; the kubelet applies fsGroup only to
+  # volume types supporting ownership management) still work on a *fresh*
+  # volume, because local-path creates the volume root 0777 and nats-server
+  # creates its own jetstream/ dir inside it as this uid.
+  #
+  # UPGRADE CAVEAT: an install predating ocidex-s3tu ran NATS as root, so its
+  # store dir is 0700 root:root and uid 1000 cannot open it — NATS dies with
+  # "[FTL] Can't start JetStream: storage directory is not writable". Recreate
+  # the PVC; see templates/NOTES.txt. The store is a doorbell cache, not the
+  # queue of record (ADR-024) — Postgres holds the jobs.
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+    readOnlyRootFilesystem: true
 
 # --- Pod security ------------------------------------------------------------
 # Defaults satisfy the PodSecurity "restricted" profile so the chart installs
 # into a namespace labelled pod-security.kubernetes.io/enforce=restricted
-# (ocidex-1d9). Applied to every workload the project builds itself. NATS is a
-# third-party root image and is excluded — see the note under `nats` above.
+# (ocidex-1d9). Applied to every workload the project builds itself; NATS
+# carries its own equivalent block under `nats` above.
 #
 # runAsNonRoot needs no runAsUser: every Go runtime stage in docker/Dockerfile
 # is gcr.io/distroless/static-debian13:nonroot and docker/web/Dockerfile is
