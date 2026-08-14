@@ -33,6 +33,12 @@
       "kubectl": {
         "pkg-path": "kubectl"
       },
+      "kubernetes-helm": {
+        "pkg-path": "kubernetes-helm"
+      },
+      "kyverno": {
+        "pkg-path": "kyverno"
+      },
       "nodejs": {
         "pkg-path": "nodejs"
       },
@@ -88,7 +94,8 @@
       "scrape_date": "2026-06-17T03:13:13.639374Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.0.3",
@@ -118,7 +125,8 @@
       "scrape_date": "2026-06-17T03:44:07.953265Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.0.3",
@@ -148,7 +156,8 @@
       "scrape_date": "2026-06-17T04:47:03.945510Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.0.3",
@@ -178,12 +187,17 @@
       "scrape_date": "2026-06-17T03:13:14.076728Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "8.20.0",
       "outputs_to_install": [
         "bin",
+        "bin",
+        "bin",
+        "man",
+        "man",
         "man"
       ],
       "outputs": {
@@ -213,13 +227,16 @@
       "scrape_date": "2026-06-17T03:44:08.571675Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "8.20.0",
       "outputs_to_install": [
         "bin",
         "bin",
+        "bin",
+        "man",
         "man",
         "man"
       ],
@@ -251,7 +268,8 @@
       "scrape_date": "2026-06-17T04:47:04.658917Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "8.20.0",
@@ -261,6 +279,8 @@
         "bin",
         "bin",
         "bin",
+        "bin",
+        "man",
         "man",
         "man",
         "man",
@@ -294,7 +314,8 @@
       "scrape_date": "2026-06-17T03:13:14.189185Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "2.37.1",
@@ -324,7 +345,8 @@
       "scrape_date": "2026-06-17T03:44:08.761574Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "2.37.1",
@@ -354,7 +376,8 @@
       "scrape_date": "2026-06-17T04:47:04.843494Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "2.37.1",
@@ -385,11 +408,14 @@
       "scrape_date": "2026-06-17T03:13:14.850851Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "2.54.0",
       "outputs_to_install": [
+        "out",
+        "out",
         "out"
       ],
       "outputs": {
@@ -416,11 +442,13 @@
       "scrape_date": "2026-06-17T03:44:09.791984Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "2.54.0",
       "outputs_to_install": [
+        "out",
         "out"
       ],
       "outputs": {
@@ -448,11 +476,13 @@
       "scrape_date": "2026-06-17T04:47:05.961403Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "2.54.0",
       "outputs_to_install": [
+        "out",
         "out",
         "out",
         "out",
@@ -483,7 +513,8 @@
       "scrape_date": "2026-06-17T03:13:14.859104Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "2.13.1",
@@ -513,7 +544,8 @@
       "scrape_date": "2026-06-17T03:44:09.802303Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "2.13.1",
@@ -543,7 +575,8 @@
       "scrape_date": "2026-06-17T04:47:05.972334Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "2.13.1",
@@ -573,7 +606,8 @@
       "scrape_date": "2026-06-17T03:13:14.970249Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "4.4.1",
@@ -607,12 +641,14 @@
       "scrape_date": "2026-06-17T03:44:10.507898Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "4.4.1",
       "outputs_to_install": [
         "man",
+        "out",
         "out"
       ],
       "outputs": {
@@ -642,12 +678,14 @@
       "scrape_date": "2026-06-17T04:47:06.754965Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "4.4.1",
       "outputs_to_install": [
         "man",
+        "out",
         "out",
         "out",
         "out"
@@ -679,11 +717,13 @@
       "scrape_date": "2026-06-17T03:13:14.979907Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.26.3",
       "outputs_to_install": [
+        "out",
         "out"
       ],
       "outputs": {
@@ -709,7 +749,8 @@
       "scrape_date": "2026-06-17T03:44:10.523965Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.26.3",
@@ -739,11 +780,13 @@
       "scrape_date": "2026-06-17T04:47:06.772425Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.26.3",
       "outputs_to_install": [
+        "out",
         "out",
         "out"
       ],
@@ -770,7 +813,8 @@
       "scrape_date": "2026-06-17T03:13:15.046385Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "2.12.2",
@@ -800,7 +844,8 @@
       "scrape_date": "2026-06-17T03:44:10.625045Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "2.12.2",
@@ -830,7 +875,8 @@
       "scrape_date": "2026-06-17T04:47:06.882434Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "2.12.2",
@@ -860,12 +906,15 @@
       "scrape_date": "2026-06-17T03:13:31.994864Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.36.1",
       "outputs_to_install": [
         "man",
+        "man",
+        "out",
         "out"
       ],
       "outputs": {
@@ -893,7 +942,8 @@
       "scrape_date": "2026-06-17T03:44:32.916870Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.36.1",
@@ -926,18 +976,207 @@
       "scrape_date": "2026-06-17T04:47:30.531928Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.36.1",
       "outputs_to_install": [
         "man",
+        "man",
+        "out",
         "out"
       ],
       "outputs": {
         "convert": "/nix/store/pajisc6xx344n31bklar8r04a395x7ws-kubectl-1.36.1-convert",
         "man": "/nix/store/wln7k2l3lglmzmaxc5s3ycbzdc793vdv-kubectl-1.36.1-man",
         "out": "/nix/store/hpxrpfnk0cdij0vwq0djimy9dcjl22vd-kubectl-1.36.1"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "kubernetes-helm",
+      "broken": false,
+      "derivation": "/nix/store/i47pc98qw7ncgkpwdwbs2z83vd7alzc0-kubernetes-helm-4.2.0.drv",
+      "description": "Package manager for kubernetes",
+      "install_id": "kubernetes-helm",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=567a49d1913ce81ac6e9582e3553dd90a955875f",
+      "name": "kubernetes-helm-4.2.0",
+      "pname": "kubernetes-helm",
+      "rev": "567a49d1913ce81ac6e9582e3553dd90a955875f",
+      "rev_count": 1017464,
+      "rev_date": "2026-06-16T02:33:49Z",
+      "scrape_date": "2026-06-17T03:13:32.046643Z",
+      "stabilities": [
+        "staging",
+        "unstable",
+        "stable"
+      ],
+      "unfree": false,
+      "version": "4.2.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/3y7jjsm5k83gj9rwkb27dhsy2vampj3p-kubernetes-helm-4.2.0"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "kubernetes-helm",
+      "broken": false,
+      "derivation": "/nix/store/jpqv2646rs6wwfch90591g74g3ylv6xk-kubernetes-helm-4.2.0.drv",
+      "description": "Package manager for kubernetes",
+      "install_id": "kubernetes-helm",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=567a49d1913ce81ac6e9582e3553dd90a955875f",
+      "name": "kubernetes-helm-4.2.0",
+      "pname": "kubernetes-helm",
+      "rev": "567a49d1913ce81ac6e9582e3553dd90a955875f",
+      "rev_count": 1017464,
+      "rev_date": "2026-06-16T02:33:49Z",
+      "scrape_date": "2026-06-17T03:44:32.983929Z",
+      "stabilities": [
+        "staging",
+        "unstable",
+        "stable"
+      ],
+      "unfree": false,
+      "version": "4.2.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/106wx01cxsvj46ick4avr8cim9dxzgld-kubernetes-helm-4.2.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "kubernetes-helm",
+      "broken": false,
+      "derivation": "/nix/store/rabv1hmmay4xsh3nbrbl1pgv1j4wrs23-kubernetes-helm-4.2.0.drv",
+      "description": "Package manager for kubernetes",
+      "install_id": "kubernetes-helm",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=567a49d1913ce81ac6e9582e3553dd90a955875f",
+      "name": "kubernetes-helm-4.2.0",
+      "pname": "kubernetes-helm",
+      "rev": "567a49d1913ce81ac6e9582e3553dd90a955875f",
+      "rev_count": 1017464,
+      "rev_date": "2026-06-16T02:33:49Z",
+      "scrape_date": "2026-06-17T04:47:30.598428Z",
+      "stabilities": [
+        "staging",
+        "unstable",
+        "stable"
+      ],
+      "unfree": false,
+      "version": "4.2.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/ws5b9zj77d5v3cagla29v8w89z5bfgkp-kubernetes-helm-4.2.0"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "kyverno",
+      "broken": false,
+      "derivation": "/nix/store/61w4yj3m6piz56kncq89qzbasa583mqc-kyverno-1.18.1.drv",
+      "description": "Kubernetes Native Policy Management",
+      "install_id": "kyverno",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=567a49d1913ce81ac6e9582e3553dd90a955875f",
+      "name": "kyverno-1.18.1",
+      "pname": "kyverno",
+      "rev": "567a49d1913ce81ac6e9582e3553dd90a955875f",
+      "rev_count": 1017464,
+      "rev_date": "2026-06-16T02:33:49Z",
+      "scrape_date": "2026-06-17T03:13:32.119876Z",
+      "stabilities": [
+        "staging",
+        "unstable",
+        "stable"
+      ],
+      "unfree": false,
+      "version": "1.18.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/1h8xfnlasgfh1if2lmb3amcnflqcahar-kyverno-1.18.1"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "kyverno",
+      "broken": false,
+      "derivation": "/nix/store/nywf6cqjq00iky2ihhm102qvmhaky3v2-kyverno-1.18.1.drv",
+      "description": "Kubernetes Native Policy Management",
+      "install_id": "kyverno",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=567a49d1913ce81ac6e9582e3553dd90a955875f",
+      "name": "kyverno-1.18.1",
+      "pname": "kyverno",
+      "rev": "567a49d1913ce81ac6e9582e3553dd90a955875f",
+      "rev_count": 1017464,
+      "rev_date": "2026-06-16T02:33:49Z",
+      "scrape_date": "2026-06-17T03:44:33.098181Z",
+      "stabilities": [
+        "staging",
+        "unstable",
+        "stable"
+      ],
+      "unfree": false,
+      "version": "1.18.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/lqvbckp988ps2svr7yi52ld3ndhapmxr-kyverno-1.18.1"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "kyverno",
+      "broken": false,
+      "derivation": "/nix/store/8gx9b8kycb0s180l045iws10fs2m3hd4-kyverno-1.18.1.drv",
+      "description": "Kubernetes Native Policy Management",
+      "install_id": "kyverno",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=567a49d1913ce81ac6e9582e3553dd90a955875f",
+      "name": "kyverno-1.18.1",
+      "pname": "kyverno",
+      "rev": "567a49d1913ce81ac6e9582e3553dd90a955875f",
+      "rev_count": 1017464,
+      "rev_date": "2026-06-16T02:33:49Z",
+      "scrape_date": "2026-06-17T04:47:30.713249Z",
+      "stabilities": [
+        "staging",
+        "unstable",
+        "stable"
+      ],
+      "unfree": false,
+      "version": "1.18.1",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/nsakqnqnraid6yyabbcz0cs7rajhbrrk-kyverno-1.18.1"
       },
       "system": "x86_64-linux",
       "group": "toplevel",
@@ -959,11 +1198,15 @@
       "scrape_date": "2026-06-17T03:13:39.213888Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "24.15.0",
       "outputs_to_install": [
+        "out",
+        "out",
+        "out",
         "out"
       ],
       "outputs": {
@@ -989,11 +1232,14 @@
       "scrape_date": "2026-06-17T03:44:48.128392Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "24.15.0",
       "outputs_to_install": [
+        "out",
+        "out",
         "out"
       ],
       "outputs": {
@@ -1019,11 +1265,14 @@
       "scrape_date": "2026-06-17T04:47:47.914293Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "24.15.0",
       "outputs_to_install": [
+        "out",
+        "out",
         "out"
       ],
       "outputs": {
@@ -1049,7 +1298,8 @@
       "scrape_date": "2026-06-17T03:13:39.489773Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "0.113.1",
@@ -1079,7 +1329,8 @@
       "scrape_date": "2026-06-17T03:44:48.549975Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "0.113.1",
@@ -1109,7 +1360,8 @@
       "scrape_date": "2026-06-17T04:47:48.364062Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "0.113.1",
@@ -1139,7 +1391,8 @@
       "scrape_date": "2026-06-17T03:13:44.658379Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "10.3p1",
@@ -1172,7 +1425,8 @@
       "scrape_date": "2026-06-17T03:44:55.378732Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "10.3p1",
@@ -1205,7 +1459,8 @@
       "scrape_date": "2026-06-17T04:47:55.485678Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "10.3p1",
@@ -1240,7 +1495,8 @@
       "scrape_date": "2026-06-17T03:13:44.871342Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.3.0",
@@ -1270,7 +1526,8 @@
       "scrape_date": "2026-06-17T03:44:55.698884Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.3.0",
@@ -1300,7 +1557,8 @@
       "scrape_date": "2026-06-17T04:47:55.804897Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.3.0",
@@ -1330,7 +1588,8 @@
       "scrape_date": "2026-06-17T03:13:54.258807Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "17.10",
@@ -1369,7 +1628,8 @@
       "scrape_date": "2026-06-17T03:45:08.478740Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "17.10",
@@ -1409,7 +1669,8 @@
       "scrape_date": "2026-06-17T04:48:08.865548Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "17.10",
@@ -1451,7 +1712,8 @@
       "scrape_date": "2026-06-17T03:14:48.082708Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.14.0",
@@ -1481,7 +1743,8 @@
       "scrape_date": "2026-06-17T03:46:12.239518Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.14.0",
@@ -1511,7 +1774,8 @@
       "scrape_date": "2026-06-17T04:49:14.282212Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.14.0",
@@ -1541,7 +1805,8 @@
       "scrape_date": "2026-06-17T03:15:15.637847Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.45.1",
@@ -1571,7 +1836,8 @@
       "scrape_date": "2026-06-17T03:46:43.124175Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.45.1",
@@ -1601,7 +1867,8 @@
       "scrape_date": "2026-06-17T04:49:46.424646Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.45.1",
@@ -1631,7 +1898,8 @@
       "scrape_date": "2026-06-17T03:15:16.017369Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.13.4",
@@ -1661,7 +1929,8 @@
       "scrape_date": "2026-06-17T03:46:43.736493Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.13.4",
@@ -1691,7 +1960,8 @@
       "scrape_date": "2026-06-17T04:49:47.078082Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "1.13.4",
@@ -1721,7 +1991,8 @@
       "scrape_date": "2026-06-17T03:15:38.231692Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "0.37.3",
@@ -1751,7 +2022,8 @@
       "scrape_date": "2026-06-17T03:47:14.903132Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "0.37.3",
@@ -1781,7 +2053,8 @@
       "scrape_date": "2026-06-17T04:50:18.020383Z",
       "stabilities": [
         "staging",
-        "unstable"
+        "unstable",
+        "stable"
       ],
       "unfree": false,
       "version": "0.37.3",
@@ -1825,6 +2098,12 @@
         },
         "kubectl": {
           "pkg-path": "kubectl"
+        },
+        "kubernetes-helm": {
+          "pkg-path": "kubernetes-helm"
+        },
+        "kyverno": {
+          "pkg-path": "kyverno"
         },
         "nodejs": {
           "pkg-path": "nodejs"

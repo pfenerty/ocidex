@@ -1,0 +1,90 @@
+# Both-polarity harness for the chart policies: every rule is asserted to PASS on a
+# compliant fixture and FAIL on a fixture that violates exactly it. Run by
+# scripts/helm-policy-check.sh on every invocation, so a rule that silently stops matching
+# (e.g. the existence-anchor form of scanner-worker-writable-tmp, which passed on a missing
+# mount) turns the check red instead of quietly reporting green.
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: ocidex-chart-policies
+policies:
+  - ../pod-security-restricted.yaml
+  - ../ocidex-writable-paths.yaml
+resources:
+  - resources/compliant.yaml
+  - resources/violating.yaml
+results:
+  # --- PodSecurity restricted -------------------------------------------------
+  - policy: pod-security-restricted
+    rule: autogen-restricted-profile
+    kind: Deployment
+    resources:
+      - good-plain
+      - good-scanner
+      - good-web
+      - bad-readonly-root
+      - bad-scanner
+      - bad-web
+    result: pass
+  - policy: pod-security-restricted
+    rule: autogen-restricted-profile
+    kind: Deployment
+    resources:
+      - bad-privileged
+    result: fail
+  - policy: pod-security-restricted
+    rule: autogen-cronjob-restricted-profile
+    kind: CronJob
+    resources:
+      - bad-cron
+    result: pass
+
+  # --- Chart invariants -------------------------------------------------------
+  - policy: ocidex-writable-paths
+    rule: read-only-root-filesystem
+    kind: Deployment
+    resources:
+      - good-plain
+      - good-scanner
+      - good-web
+    result: pass
+  - policy: ocidex-writable-paths
+    rule: read-only-root-filesystem
+    kind: Deployment
+    resources:
+      - bad-privileged
+      - bad-readonly-root
+    result: fail
+
+  - policy: ocidex-writable-paths
+    rule: scanner-worker-writable-tmp
+    kind: Deployment
+    resources:
+      - good-scanner
+    result: pass
+  - policy: ocidex-writable-paths
+    rule: scanner-worker-writable-tmp
+    kind: Deployment
+    resources:
+      - bad-scanner
+    result: fail
+
+  - policy: ocidex-writable-paths
+    rule: web-writable-nginx-paths
+    kind: Deployment
+    resources:
+      - good-web
+    result: pass
+  - policy: ocidex-writable-paths
+    rule: web-writable-nginx-paths
+    kind: Deployment
+    resources:
+      - bad-web
+    result: fail
+
+  - policy: ocidex-writable-paths
+    rule: cronjob-not-covered
+    kind: CronJob
+    resources:
+      - bad-cron
+    result: fail

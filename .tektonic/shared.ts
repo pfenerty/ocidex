@@ -19,6 +19,10 @@ export const grypeImage = "ghcr.io/pfenerty/apko-cicd/grype:0.114.0";
 // present), replacing Docker Hub semgrep/semgrep and zricethezav/gitleaks.
 export const semgrepImage = "ghcr.io/pfenerty/apko-cicd/semgrep:1.165.0";
 export const gitleaksImage = "ghcr.io/pfenerty/apko-cicd/gitleaks:8.30.1";
+// Kyverno CLI + Helm in one image, so helm-check renders and validates in a single step.
+// Not upstream's ghcr.io/kyverno/kyverno-cli: the cluster's ghcr-docker-config only covers
+// pfenerty/*, and Kyverno publishes no Docker Hub mirror.
+export const kyvernoImage = "ghcr.io/pfenerty/apko-cicd/kyverno:1.18.1-helm4";
 
 // ─── Status reporter ─────────────────────────────────────────────────────────
 export const statusReporter = new GitHubStatusReporter({

@@ -140,6 +140,7 @@ make frontend          # Build the SolidJS frontend
 make frontend-dev      # Start frontend dev server (proxies API to :8080)
 make frontend-lint     # Run ESLint on the SolidJS frontend
 make frontend-lint-fix # Run ESLint with auto-fix on the SolidJS frontend
+make helm-check        # Lint Helm charts + validate renders against PodSecurity restricted
 make tekton-synth      # Synthesize Tekton pipeline YAML from TypeScript
 make tekton-check      # Verify .tekton is in sync with .tektonic/
 make dev-cluster-up    # Create local Talos dev cluster + registry (one-time per session)

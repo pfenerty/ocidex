@@ -1,0 +1,29 @@
+# PodSecurity "restricted" profile, enforced against the rendered Helm charts at CI time.
+#
+# ocidex-1d9 shipped restricted violations to a namespace labelled
+# pod-security.kubernetes.io/enforce=restricted and they were caught only by a manual
+# server-side dry-run. This is the same assertion, cluster-free: Kyverno's podSecurity
+# subrule IS the upstream PSS profile, so there is no local reimplementation to drift.
+#
+# Kyverno autogen expands a Pod-matching rule to the pod controllers (Deployment,
+# StatefulSet, Job, CronJob), which is what `helm template` actually emits.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: pod-security-restricted
+spec:
+  background: false
+  rules:
+    - name: restricted-profile
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        failureAction: Enforce
+        podSecurity:
+          level: restricted
+          # "latest" tracks the newest profile version the CLI knows about, so a Kyverno
+          # bump tightens the check rather than pinning it to the version current today.
+          version: latest

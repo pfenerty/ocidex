@@ -1,7 +1,14 @@
 import { GitPipeline, TektonicProject, TRIGGER_EVENTS, gated } from "@pfenerty/tektonic";
 
 import { goCacheWs, nodeCacheWs, buildkitCacheWs, buildkitReleaseCacheWs } from "./shared";
-import { goChanged, nodeChanged, sourceChanged, pipelineChanged, detectTasks } from "./changes";
+import {
+  goChanged,
+  nodeChanged,
+  sourceChanged,
+  pipelineChanged,
+  chartsChanged,
+  detectTasks,
+} from "./changes";
 import { goFmt } from "./jobs/go-fmt/spec";
 import { goBuild } from "./jobs/go-build/spec";
 import { goTest } from "./jobs/go-test/spec";
@@ -17,6 +24,7 @@ import { helmPublish } from "./jobs/helm-publish/spec";
 import { helmRelease } from "./jobs/helm-release/spec";
 import { ghRelease } from "./jobs/gh-release/spec";
 import { tektonCheck } from "./jobs/tekton-check/spec";
+import { helmCheck } from "./jobs/helm-check/spec";
 import { sbomPush } from "./jobs/sbom-push/spec";
 
 // ─── Task groups ──────────────────────────────────────────────────────────────
@@ -57,7 +65,7 @@ const pushPipeline = new GitPipeline({
   // the image chain, and its sidecar-backed suite is not something the cold-run estimate
   // above accounted for.
   timeout: "3h",
-  tasks: [...coreTasks, ...securityTasks, ...imageBuilds, helmPublish, sbomPush],
+  tasks: [...coreTasks, ...securityTasks, ...imageBuilds, helmCheck, helmPublish, sbomPush],
 });
 
 // PR pipeline: gate the expensive Go jobs on whether the branch touched Go/Docker/db
@@ -90,6 +98,10 @@ const prPipeline = new GitPipeline({
     secretsScan,
     // Fails if .tekton drifts from .tektonic/ or synth breaks — only when pipeline defs change.
     gated(tektonCheck, { when: pipelineChanged }),
+    // Helm lint + PodSecurity render check — only when the charts, the policies, or the
+    // driver script changed. Leaf task on this pipeline (nothing publishes on a PR), so
+    // gating it is safe; on push/tag it runs ungated as a `needs` of helm-publish/-release.
+    gated(helmCheck, { when: chartsChanged }),
   ],
 });
 
@@ -105,7 +117,7 @@ const tagPipeline = new GitPipeline({
   timeout: "4h",
   // sbomPush pulls goBuild in via `needs` (it must not race another Go task's cache
   // restore). That extra compile is the price of cataloguing the tagged binaries.
-  tasks: [...imageBuildsTag, helmRelease, ghRelease, sbomPush],
+  tasks: [...imageBuildsTag, helmCheck, helmRelease, ghRelease, sbomPush],
 });
 
 // ─── Synthesize ─────────────────────────────────────────────────────────────

@@ -1,0 +1,141 @@
+# Negative controls. Each fixture violates exactly one thing, so kyverno-test.yaml can
+# assert WHICH rule fires rather than just "something failed" — a check that only ever
+# reports green is worse than no check (ocidex-9yq4).
+#
+# bad-privileged: the PodSecurity restricted violations that shipped in ocidex-1d9.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bad-privileged
+spec:
+  selector:
+    matchLabels:
+      app: bad-privileged
+  template:
+    metadata:
+      labels:
+        app: bad-privileged
+    spec:
+      containers:
+        - name: app
+          image: example/app:1
+          securityContext:
+            privileged: true
+            allowPrivilegeEscalation: true
+---
+# bad-readonly-root: restricted-compliant, but drops the chart-wide readOnlyRootFilesystem.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bad-readonly-root
+spec:
+  selector:
+    matchLabels:
+      app: bad-readonly-root
+  template:
+    metadata:
+      labels:
+        app: bad-readonly-root
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: example/app:1
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+---
+# bad-scanner: ocidex-gsip exactly — read-only root, no writable /tmp, no volumeMounts key
+# at all (the shape that slips past a kyverno existence anchor).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bad-scanner
+spec:
+  selector:
+    matchLabels:
+      app: bad-scanner
+  template:
+    metadata:
+      labels:
+        app: bad-scanner
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: scanner-worker
+          image: example/scanner-worker:1
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+---
+# bad-web: has a volumeMounts list, but /var/lib/nginx/tmp is missing from it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bad-web
+spec:
+  selector:
+    matchLabels:
+      app: bad-web
+  template:
+    metadata:
+      labels:
+        app: bad-web
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: run
+          emptyDir: {}
+      containers:
+        - name: web
+          image: example/web:1
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: run
+              mountPath: /run
+---
+# bad-cron: a workload kind the writable-path rules cannot reach into.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: bad-cron
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: app
+              image: example/app:1
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL

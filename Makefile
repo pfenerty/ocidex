@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
+.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check helm-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
 
 all: check build ## Run all checks and build
 
@@ -41,7 +41,7 @@ test-coverage: ## Run tests with HTML coverage report
 test-integration: ## Run integration tests
 	go test -v -race ./tests/...
 
-check: fmt lint test openapi-check generate-client-check frontend-lint frontend-typecheck frontend-test ## Run fmt, lint, test, and openapi staleness check
+check: fmt lint test openapi-check generate-client-check frontend-lint frontend-typecheck frontend-test helm-check ## Run fmt, lint, test, openapi staleness and Helm policy checks
 
 init: ## Download dependencies and install tools
 	go mod download
@@ -122,6 +122,10 @@ frontend-typecheck: frontend-init ## Type-check the frontend with tsc
 
 frontend-test: frontend-init ## Run frontend unit tests
 	cd web && npm test
+
+# Same script the CI helm-check task runs, so a green local run means a green CI run.
+helm-check: ## Lint Helm charts and validate rendered manifests against PodSecurity restricted
+	scripts/helm-policy-check.sh
 
 tekton-synth: ## Synthesize Tekton pipeline YAML from TypeScript
 	cd .tektonic && npm ci && npx tsx pipeline.ts

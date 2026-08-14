@@ -1,0 +1,100 @@
+# Fixtures that MUST pass every rule. Deliberately hand-written rather than rendered from
+# the chart: the chart is the thing under test, so its output cannot also be the definition
+# of "correct".
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: good-plain
+spec:
+  selector:
+    matchLabels:
+      app: good-plain
+  template:
+    metadata:
+      labels:
+        app: good-plain
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: example/app:1
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: good-scanner
+spec:
+  selector:
+    matchLabels:
+      app: good-scanner
+  template:
+    metadata:
+      labels:
+        app: good-scanner
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 5Gi
+      containers:
+        - name: scanner-worker
+          image: example/scanner-worker:1
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: good-web
+spec:
+  selector:
+    matchLabels:
+      app: good-web
+  template:
+    metadata:
+      labels:
+        app: good-web
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: run
+          emptyDir: {}
+        - name: nginx-tmp
+          emptyDir: {}
+      containers:
+        - name: web
+          image: example/web:1
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: run
+              mountPath: /run
+            - name: nginx-tmp
+              mountPath: /var/lib/nginx/tmp

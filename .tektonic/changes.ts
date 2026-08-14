@@ -49,6 +49,13 @@ export const pipelineChanged = onChanges({
   paths: [".tektonic/**", ".tekton/**"],
 });
 
+// Helm bucket: the charts themselves plus everything helm-check consumes, so editing a
+// policy or the driver script re-runs the check that validates it.
+export const chartsChanged = onChanges({
+  name: "detect-charts",
+  paths: ["charts/**", "policy/**", "scripts/helm-policy-check.sh"],
+});
+
 // The detection task backing the condition above. `gated()` overrides only the
 // emitted pipeline-task `when` and does not auto-wire the producing task into the
 // pipeline, so it must be listed explicitly on the PR pipeline. Tekton orders
@@ -59,4 +66,5 @@ export const detectTasks = [
   ...nodeChanged.sources(),
   ...sourceChanged.sources(),
   ...pipelineChanged.sources(),
+  ...chartsChanged.sources(),
 ];

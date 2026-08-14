@@ -1,0 +1,121 @@
+# Chart invariants the PodSecurity "restricted" profile does not cover.
+#
+# readOnlyRootFilesystem is defence in depth, not a restricted requirement, so nothing
+# upstream asserts it — and nothing asserts the corollary: a workload that writes to disk
+# needs an emptyDir mounted over exactly the paths it writes. ocidex-gsip was six days of
+# total scan outage because scanner-worker got the read-only root without the /tmp mount
+# syft needs to unpack image layers.
+#
+# The invariant is deliberately per-workload, not blanket "read-only root implies /tmp":
+# api, the four enricher workers, vuln-worker, migrate and nats all run read-only with no
+# writable /tmp and must stay that way. A blanket rule would force pointless emptyDirs
+# onto them and would be deleted the first time it got in the way.
+#
+# Rules match the pod controllers directly rather than Pod + autogen, because the
+# writable-path rules need JMESPath into the pod template and autogen rewriting of those
+# expressions is not something to rely on. The trailing cronjob rule keeps that choice
+# honest — see its comment.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: ocidex-writable-paths
+spec:
+  background: false
+  rules:
+    # Chart-wide policy, documented under `securityContext` in charts/ocidex/values.yaml.
+    # An unanchored list pattern applies to EVERY element, which is the intent here.
+    - name: read-only-root-filesystem
+      match:
+        any:
+          - resources:
+              kinds:
+                - Deployment
+                - StatefulSet
+                - Job
+      validate:
+        failureAction: Enforce
+        message: >-
+          every container must set securityContext.readOnlyRootFilesystem: true; mount an
+          emptyDir over the paths the workload writes instead of dropping it
+        pattern:
+          spec:
+            template:
+              spec:
+                containers:
+                  - securityContext:
+                      readOnlyRootFilesystem: true
+
+    # deny + JMESPath, not a validate pattern: the existence anchor ^(volumeMounts) passes
+    # when the key is ABSENT, which is exactly the ocidex-gsip shape (no mount at all), and
+    # an unanchored volumeMounts pattern would instead require every mount to be /tmp.
+    # Both were tried; only this form fails on a missing mount and on a misnamed one.
+    - name: scanner-worker-writable-tmp
+      match:
+        any:
+          - resources:
+              kinds:
+                - Deployment
+                - StatefulSet
+                - Job
+      preconditions:
+        all:
+          - key: "{{ request.object.spec.template.spec.containers[?name=='scanner-worker'] | length(@) }}"
+            operator: GreaterThan
+            value: 0
+      validate:
+        failureAction: Enforce
+        message: >-
+          scanner-worker runs syft, which unpacks image layers into /tmp — with a read-only
+          root and no writable /tmp every scan fails (ocidex-gsip)
+        deny:
+          conditions:
+            all:
+              - key: "/tmp"
+                operator: AnyNotIn
+                value: "{{ request.object.spec.template.spec.containers[?name=='scanner-worker'].volumeMounts[].mountPath }}"
+
+    - name: web-writable-nginx-paths
+      match:
+        any:
+          - resources:
+              kinds:
+                - Deployment
+                - StatefulSet
+                - Job
+      preconditions:
+        all:
+          - key: "{{ request.object.spec.template.spec.containers[?name=='web'] | length(@) }}"
+            operator: GreaterThan
+            value: 0
+      validate:
+        failureAction: Enforce
+        message: >-
+          nginx writes its pid file to /run and buffers request bodies under
+          /var/lib/nginx/tmp; both need a writable mount under a read-only root
+        deny:
+          # `any`, not `all`: either path missing is a failure.
+          conditions:
+            any:
+              - key: "/run"
+                operator: AnyNotIn
+                value: "{{ request.object.spec.template.spec.containers[?name=='web'].volumeMounts[].mountPath }}"
+              - key: "/var/lib/nginx/tmp"
+                operator: AnyNotIn
+                value: "{{ request.object.spec.template.spec.containers[?name=='web'].volumeMounts[].mountPath }}"
+
+    # The rules above reach through spec.template.spec, which does not exist on a CronJob
+    # (spec.jobTemplate.spec.template.spec). A CronJob added to the chart would therefore
+    # sail past every invariant in this file silently — the exact failure mode this policy
+    # exists to prevent. Fail loudly instead, so whoever adds one has to extend the rules.
+    - name: cronjob-not-covered
+      match:
+        any:
+          - resources:
+              kinds:
+                - CronJob
+      validate:
+        failureAction: Enforce
+        message: >-
+          the writable-path invariants do not cover CronJob (its pod template nests under
+          spec.jobTemplate) — add CronJob rules to policy/ocidex-writable-paths.yaml
+        deny: {}

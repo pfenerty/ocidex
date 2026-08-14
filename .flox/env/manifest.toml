@@ -21,6 +21,10 @@ golangci-lint.pkg-path = "golangci-lint"
 tilt.pkg-path = "tilt"
 talosctl.pkg-path = "talosctl"
 kubectl.pkg-path = "kubectl"
+# Helm chart lint + PodSecurity policy validation (make helm-check). CI runs the
+# same two tools from ghcr.io/pfenerty/apko-cicd/kyverno:<ver>-helm4.
+kubernetes-helm.pkg-path = "kubernetes-helm"
+kyverno.pkg-path = "kyverno"
 git-cliff.pkg-path = "git-cliff"
 # Remote dev-workspace tooling (used when this env is `flox containerize`d
 # into a dev image; harmless for local activation).

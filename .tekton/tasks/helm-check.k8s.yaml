@@ -1,0 +1,101 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-helm-check
+  namespace: ocidex-ci
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+    - name: revision
+      type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    workingDir: $(workspaces.workspace.path)
+  steps:
+    - computeResources:
+        limits:
+          cpu: "1"
+          memory: 1Gi
+        requests:
+          cpu: 200m
+          memory: 256Mi
+      image: ghcr.io/pfenerty/apko-cicd/kyverno:1.18.1-helm4
+      name: lint-and-validate
+      onError: continue
+      script: |-
+        #!/bin/sh
+        log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+        [ -e /tekton/home/.exit-code ] || printf '%s' 0 > /tekton/home/.exit-code
+        chmod 0666 /tekton/home/.exit-code 2>/dev/null || true
+        (
+        # CI entry point for the Helm chart lint + PodSecurity policy check.
+        #
+        # Deliberately a thin wrapper. The real work lives in scripts/helm-policy-check.sh in the
+        # repo, so `make helm-check` and this task run byte-identical logic. Pointing
+        # scriptFromFile() at that script instead would copy it into .tekton/ at synth time, and an
+        # edit to the script that wasn't re-synthed would silently run the stale copy — tekton-check
+        # is gated on .tektonic/**|.tekton/** so it wouldn't fire on that PR to catch it.
+        #
+        # `set -e` is all the failure handling needed: tektonic wraps this in a subshell and
+        # persists $? for the report-status step (see the generated YAML).
+        set -e
+
+        sh scripts/helm-policy-check.sh
+        )
+        __tek_rc=$?
+        if [ "$__tek_rc" -ne 0 ]; then log "error [helm-check/lint-and-validate]: exited with status $__tek_rc"; fi
+        __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
+        if [ "$__tek_rc" -gt "$__tek_prev" ]; then __tek_prev="$__tek_rc"; fi
+        printf '%s' "$__tek_prev" > /tekton/home/.exit-code
+        exit "$__tek_rc"
+      workingDir: $(workspaces.workspace.path)
+    - env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: report-status
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let contract_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        # A step that never ran has no file; 0 keeps it out of the max.
+        let step_codes = (["/tekton/steps/step-lint-and-validate/exitCode"] | each { |p| try { open --raw $p | str trim | into int } catch { 0 } })
+        let exit_code = ([$contract_code ...$step_codes] | math max)
+        let state = if $exit_code == 0 { "success" } else { "failure" }
+        let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
+
+        log $"report-status [helm-check]: exit-code=($exit_code) state=($state)"
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "helm-check", description: $desc }
+
+        log $"report-status [helm-check]: POST ($url)"
+        log $"report-status [helm-check]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "report-status [helm-check]: done"
+        } catch { |e|
+          log $"report-status [helm-check]: error: ($e.msg)"
+        }
+        exit $exit_code
+  workspaces:
+    - name: workspace

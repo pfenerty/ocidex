@@ -2,11 +2,14 @@ import * as path from "path";
 import { Task, scriptFromFile } from "@pfenerty/tektonic";
 import { statusReporter, dockerConfigVolume } from "../../shared";
 import { imageBuildsTag } from "../image-build/spec";
+import { helmCheck } from "../helm-check/spec";
 
 export const helmRelease = new Task({
   name: "helm-release",
   statusReporter,
-  needs: [...imageBuildsTag],
+  // helmCheck gates the release: a chart that fails lint or the PodSecurity policies must
+  // not be tagged and pushed to the OCI registry (ocidex-9yq4).
+  needs: [...imageBuildsTag, helmCheck],
   volumes: [dockerConfigVolume],
   steps: [
     {
