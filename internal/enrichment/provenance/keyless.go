@@ -45,8 +45,21 @@ var (
 // fetchTrustedRootFn performs the actual TUF fetch. Overridable in tests to
 // avoid a live network call and to simulate concurrency/failure/timeout
 // behavior.
+//
+// WithDisableLocalCache is sigstore-go's read-only-filesystem mode. Without it,
+// DefaultOptions caches TUF metadata under $HOME/.sigstore/root — or os.TempDir()
+// when HOME is unset — and both are read-only under the chart's
+// securityContext.readOnlyRootFilesystem, so every keyless verification would
+// fail on a filesystem error rather than on trust (ocidex-gsip). The disk cache
+// buys little here regardless: trustedRootCache already holds the fetched root
+// in process for trustedRootCacheTTL, so this costs one extra fetch per TTL per
+// pod.
 var fetchTrustedRootFn = func(ctx context.Context) (*root.TrustedRoot, error) {
-	return root.FetchTrustedRootWithOptions(tuf.DefaultOptions().WithContext(ctx))
+	return root.FetchTrustedRootWithOptions(
+		tuf.DefaultOptions().
+			WithContext(ctx).
+			WithDisableLocalCache(),
+	)
 }
 
 // trustedMaterialProvider resolves the trust material used for Fulcio/Rekor

@@ -24,6 +24,21 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if (default dict .Values.securityContext).readOnlyRootFilesystem }}
+      # syft/stereoscope unpacks every image layer into os.MkdirTemp("", "stereoscope-"),
+      # i.e. /tmp, before cataloging it. With a read-only root every scan fails at
+      # "mkdir /tmp/stereoscope-...: read-only file system" — total scan outage, not
+      # a degraded mode (ocidex-gsip). This emptyDir is what keeps scanning possible,
+      # so it is tied to the setting rather than declared unconditionally, matching
+      # the nginx precedent in deployment-web.yaml.
+      #
+      # Node-disk backed, not medium: Memory — a multi-GB image would otherwise be
+      # unpacked into the container's memory limit and OOM-kill the worker.
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.scannerWorker.tmpSizeLimit }}
+      {{- end }}
       containers:
         - name: scanner-worker
           image: {{ include "ocidex.image" (dict "root" . "name" "scanner-worker") }}
@@ -31,6 +46,11 @@ spec:
           {{- with .Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if (default dict .Values.securityContext).readOnlyRootFilesystem }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           {{- end }}
           ports:
             - name: health

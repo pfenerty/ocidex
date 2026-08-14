@@ -58,6 +58,12 @@ scannerWorker:
     databaseMaxConnections: "3"
     logLevel: info
     environment: production
+  # Caps the node ephemeral storage the /tmp emptyDir may consume while syft
+  # unpacks image layers (see deployment-scanner-worker.yaml). Exceeding it
+  # evicts this pod rather than filling the node's disk. Raise it if scans of
+  # very large images start failing on eviction rather than on a scan error.
+  # Only rendered when securityContext.readOnlyRootFilesystem is true.
+  tmpSizeLimit: 5Gi
   resources:
     requests:
       cpu: "100m"
@@ -201,9 +207,13 @@ podSecurityContext:
     type: RuntimeDefault
 
 # readOnlyRootFilesystem is defence in depth, not a "restricted" requirement.
-# The Go binaries write nothing outside the container filesystem's tmpfs; nginx
-# does write, and deployment-web.yaml mounts emptyDirs over the two paths it
-# needs rather than dropping this setting.
+# Two workloads write to their own filesystem and mount emptyDirs over exactly
+# the paths they need rather than dropping this setting: nginx (/run and
+# /var/lib/nginx/tmp, deployment-web.yaml) and the scanner worker, whose syft
+# dependency unpacks image layers into /tmp (deployment-scanner-worker.yaml).
+# Adding a workload that shells out, unpacks archives, or caches to disk means
+# auditing it against this setting — ocidex-gsip was six days of total scan
+# outage from missing that step.
 securityContext:
   allowPrivilegeEscalation: false
   capabilities:
