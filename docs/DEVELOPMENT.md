@@ -414,3 +414,49 @@ func (f *fakeArtifactRepo) InsertArtifact(ctx context.Context, params repository
 ```
 
 No mock generation tools. If an interface is too large to fake by hand, it's too large — split it.
+
+## Accepting a govulncheck finding
+
+`govulncheck-scan` (`.tektonic/jobs/go-vulncheck/spec.ts`) is the only Go vulnerability gate,
+and it is reachability-aware: it fails on OSV IDs govulncheck reports at SARIF `level: error`
+("your code calls vulnerable functions in ..."), ignoring `warning` (imported) and `note`
+(required only). govulncheck has no native ignore flag, so the task runs `-format sarif` — which
+always exits 0 — and decides the verdict itself against a repo-root allowlist:
+
+```
+.govulncheck-accepted.json
+[
+  { "id": "GO-YYYY-NNNN", "reason": "why this is not exploitable here", "review": "what makes it removable" }
+]
+```
+
+The file is read from the checkout at runtime, so editing it needs **no** `make tekton-synth`.
+
+Two rules keep it from decaying into blanket suppression:
+
+1. **A stale entry fails the scan.** If an accepted ID stops being reported — upstream shipped a
+   fix, or the call path went away — the task goes red telling you to delete the entry. The
+   allowlist cannot silently outlive its justification.
+2. **Never accept a Go stdlib finding.** Those mean the CI Go image is behind, and
+   `ghcr.io/pfenerty/apko-cicd/golang:1.26` also builds the shipped binaries
+   (`docker/Dockerfile`) — so it is real exposure, not check colour. The fix is to re-lock and
+   republish the image in `apko-cicd`, not to add an entry here.
+
+An entry is only justified when there is genuinely nothing to bump to (upstream lists
+`Fixed in: N/A`) and the reachable path is not exercised by ocidex. State both in `reason`.
+
+To reproduce a scan locally:
+
+```bash
+flox activate -- bash -c 'export PATH="$HOME/go/bin:$PATH"; govulncheck ./cmd/...'          # human-readable
+flox activate -- bash -c 'export PATH="$HOME/go/bin:$PATH"; govulncheck -format sarif ./cmd/... > govulncheck.sarif'
+```
+
+**Check `go version` before believing a local stdlib finding.** govulncheck reports stdlib vulns
+against the toolchain doing the scan, so a Flox `go` older than the CI image's invents findings
+CI does not have — on go1.26.3 the local scan reported twelve stdlib vulns that the go1.26.6 CI
+image reports none of. Compare against the `go=...` line the task logs before concluding
+anything about CI from a local run.
+
+The unfiltered SARIF is also uploaded to the GitHub Security tab under the `govulncheck`
+category; the allowlist governs only this task's pass/fail verdict.

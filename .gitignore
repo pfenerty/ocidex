@@ -51,4 +51,8 @@ Thumbs.db
 # Stray go build artifact from `go build ./cmd/operator` (use -o bin/)
 /operator
 
+# SARIF written by the report-only security scans (govulncheck, grype) — CI artifacts
+# that also land here when reproducing a scan locally.
+*.sarif
+
 .tokensave/

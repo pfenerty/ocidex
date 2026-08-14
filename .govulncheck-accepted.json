@@ -1,0 +1,7 @@
+[
+  {
+    "id": "GO-2026-5932",
+    "reason": "golang.org/x/crypto/openpgp is unmaintained and unsafe by design; upstream lists 'Fixed in: N/A' — there is no version to bump to. Reached only transitively: internal/enrichment/provenance -> cosign/v3/pkg/cosign -> rekor/pkg/types/rekord/v0.0.1 -> rekor/pkg/pki/pgp. It arrived with the ADR-037 cosign adoption. ocidex verifies ECDSA and keyless signatures only and never parses a PGP rekor entry, so no ocidex code path reaches the OpenPGP parser with attacker-controlled input.",
+    "review": "Drop this entry when cosign/rekor stop importing golang.org/x/crypto/openpgp. The scan fails on a stale entry, so this is self-enforcing."
+  }
+]

@@ -237,6 +237,8 @@ spec:
             workspace: workspace
       - name: govulncheck-scan
         params:
+          - name: source-branch
+            value: $(params.source-branch)
           - name: repo-full-name
             value: $(params.repo-full-name)
           - name: revision
