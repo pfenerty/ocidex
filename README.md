@@ -75,8 +75,10 @@ make init
 # Start PostgreSQL and NATS (via docker-compose, or provide your own)
 docker compose up -d postgres nats
 
-# Configure
-cp .env.example .env   # edit DATABASE_URL / NATS_URL if needed
+# Configure — fill in GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET and SESSION_SECRET
+# (all three are required to start; any non-empty placeholder boots the API if
+# you don't need login yet), and edit DATABASE_URL / NATS_URL if needed
+cp .env.example .env
 
 # Run migrations and build
 make migrate-up
