@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -53,12 +54,36 @@ type ociRegistryConfig struct {
 	blobs map[string][]byte
 	// zotResults is returned for POST /v2/_zot/ext/search
 	zotResults []DiscoveredManifest
+	// tagPageSize, when > 0, makes tags/list paginate like ghcr.io and quay.io:
+	// each response carries at most tagPageSize tags plus a Link rel="next".
+	tagPageSize int
 }
 
 type fakeManifest struct {
 	digest    string
 	mediaType string
 	body      []byte
+}
+
+// paginateTags slices tags into a page starting after the "last" query param and
+// sets a Link rel="next" header when more remain, mirroring how ghcr.io and
+// quay.io page /v2/{repo}/tags/list.
+func paginateTags(w http.ResponseWriter, r *http.Request, path string, tags []string, pageSize int) []string {
+	start := 0
+	if last := r.URL.Query().Get("last"); last != "" {
+		for i, tag := range tags {
+			if tag == last {
+				start = i + 1
+				break
+			}
+		}
+	}
+	end := min(start+pageSize, len(tags))
+	page := tags[start:end]
+	if end < len(tags) {
+		w.Header().Set("Link", fmt.Sprintf("<%s?last=%s&n=%d>; rel=\"next\"", path, page[len(page)-1], pageSize))
+	}
+	return page
 }
 
 // newFakeOCIRegistry builds a test server that serves OCI Distribution Spec
@@ -99,6 +124,9 @@ func newFakeOCIRegistry(t *testing.T, cfg ociRegistryConfig) *httptest.Server {
 		if strings.HasSuffix(path, "/tags/list") {
 			repo := strings.TrimPrefix(strings.TrimSuffix(path, "/tags/list"), "/v2/")
 			tags := cfg.tags[repo]
+			if cfg.tagPageSize > 0 {
+				tags = paginateTags(w, r, path, tags, cfg.tagPageSize)
+			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"tags": tags})
 			return
 		}
@@ -1062,4 +1090,75 @@ func TestWalkRegistry_IncludeUntagged_SkipsCosignTags(t *testing.T) {
 	got := sub.submitted()
 	is.Equal(len(got), 1)
 	is.Equal(got[0].Digest, "sha256:real-image")
+}
+
+// TestWalkRegistry_PaginatedTags covers ghcr.io/quay.io behaviour: tags/list
+// returns one page at a time, oldest first, with a Link rel="next". Before
+// ocidex-zogv only the first page was read, so a filter matching recent tags
+// silently queued nothing.
+func TestWalkRegistry_PaginatedTags(t *testing.T) {
+	is := is.New(t)
+
+	// 250 old tags the filter must not match, then the two it must.
+	tags := make([]string, 0, 252)
+	for i := range 250 {
+		tags = append(tags, fmt.Sprintf("v1.%d.0", i))
+	}
+	tags = append(tags, "v2.45.0", "v2.45.1")
+
+	manifests := map[string]fakeManifest{}
+	for _, tag := range []string{"v2.45.0", "v2.45.1"} {
+		digest := "sha256:digest-" + tag
+		m := fakeManifest{
+			digest:    digest,
+			mediaType: "application/vnd.oci.image.manifest.v1+json",
+			body:      singleArchManifest("sha256:config-" + tag),
+		}
+		manifests["myrepo:"+tag] = m
+		manifests["myrepo:"+digest] = m
+	}
+
+	cfg := ociRegistryConfig{
+		tags:        map[string][]string{"myrepo": tags},
+		manifests:   manifests,
+		blobs:       map[string][]byte{"sha256:config-v2.45.0": configBlob("amd64"), "sha256:config-v2.45.1": configBlob("amd64")},
+		tagPageSize: 100,
+	}
+	srv := newFakeOCIRegistry(t, cfg)
+	defer srv.Close()
+
+	sub := &fakeSubmitter{}
+	reg := service.Registry{
+		URL:          srv.URL,
+		Insecure:     true,
+		Repositories: []string{"myrepo"},
+		TagPatterns:  []string{"v2.45.?"},
+	}
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+
+	is.NoErr(err)
+	is.Equal(queued, 2)
+	got := sub.submitted()
+	is.Equal(len(got), 2)
+}
+
+// TestOCIListTags_PageCap stops a registry that pages forever from walking
+// without bound.
+func TestOCIListTags_PageCap(t *testing.T) {
+	is := is.New(t)
+
+	pages := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		pages++
+		// Always advertise another page — a broken or hostile registry.
+		w.Header().Set("Link", fmt.Sprintf("<%s?last=t%d>; rel=\"next\"", r.URL.Path, pages))
+		_ = json.NewEncoder(w).Encode(map[string]any{"tags": []string{fmt.Sprintf("t%d", pages)}})
+	}))
+	defer srv.Close()
+
+	tags, err := ociListTags(t.Context(), srv.Client(), srv.URL, "myrepo")
+
+	is.NoErr(err)
+	is.Equal(len(tags), maxTagPages)
+	is.Equal(pages, maxTagPages)
 }

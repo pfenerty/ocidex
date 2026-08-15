@@ -32,6 +32,7 @@ openssh.pkg-path = "openssh"
 direnv.pkg-path = "direnv"
 git.pkg-path = "git"
 postgresql.pkg-path = "postgresql"
+nats-server.pkg-path = "nats-server"
 # gum.pkg-path = "gum"
 # gum.version = "^0.14.5"
 

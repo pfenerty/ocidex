@@ -375,42 +375,88 @@ type manifestInfo struct {
 	mediaType string
 }
 
+// ociListCatalog returns every repository the registry advertises, following
+// pagination the same way ociListTags does.
 func ociListCatalog(ctx context.Context, c *http.Client, baseURL string) ([]string, error) {
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/v2/_catalog", nil)
-	resp, err := c.Do(req) //nolint:gosec
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("catalog returned HTTP %d", resp.StatusCode)
-	}
-	var result struct {
-		Repositories []string `json:"repositories"`
-	}
-	if err := decodeJSONBody(resp, &result); err != nil {
-		return nil, err
-	}
-	return result.Repositories, nil
+	start := fmt.Sprintf("%s/v2/_catalog?n=%d", baseURL, listPageSize)
+	return ociListPaged(ctx, c, baseURL, start, "catalog",
+		func(p ociListPage) []string { return p.Repositories })
 }
 
+// ociListTags returns every tag in repo. Registries return tags oldest-first and
+// page them (ghcr.io and quay.io both do), so reading only the first page hides
+// every recent tag on any long-lived repository (ocidex-zogv).
 func ociListTags(ctx context.Context, c *http.Client, baseURL, repo string) ([]string, error) {
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/v2/"+repo+"/tags/list", nil)
-	resp, err := c.Do(req) //nolint:gosec
-	if err != nil {
-		return nil, err
+	start := fmt.Sprintf("%s/v2/%s/tags/list?n=%d", baseURL, repo, listPageSize)
+	return ociListPaged(ctx, c, baseURL, start, "tags/list",
+		func(p ociListPage) []string { return p.Tags })
+}
+
+const (
+	// listPageSize is requested on the first page. ghcr.io honours it up to 1000;
+	// quay.io ignores it and caps pages at 100 either way.
+	listPageSize = 1000
+	// maxTagPages bounds the walk so a registry that keeps advertising a next
+	// page cannot loop forever.
+	maxTagPages = 50
+)
+
+// ociListPage holds the response bodies of both paginated list endpoints.
+type ociListPage struct {
+	Tags         []string `json:"tags"`
+	Repositories []string `json:"repositories"`
+}
+
+// ociListPaged walks a paginated OCI Distribution list endpoint, following the
+// "Link: <...>; rel=next" header until it is absent or maxTagPages is reached,
+// accumulating the items selected by items. label names the endpoint in errors.
+func ociListPaged(ctx context.Context, c *http.Client, baseURL, startURL, label string,
+	items func(ociListPage) []string) ([]string, error) {
+	var out []string
+	next := startURL
+	for page := 0; page < maxTagPages && next != ""; page++ {
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, next, nil)
+		resp, err := c.Do(req) //nolint:gosec
+		if err != nil {
+			return nil, err
+		}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			return nil, fmt.Errorf("%s returned HTTP %d", label, resp.StatusCode)
+		}
+		var result ociListPage
+		err = decodeJSONBody(resp, &result)
+		link := resp.Header.Get("Link")
+		resp.Body.Close()
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, items(result)...)
+		next = nextTagPageURL(baseURL, link)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("tags/list returned HTTP %d", resp.StatusCode)
+	return out, nil
+}
+
+// nextTagPageURL extracts the rel="next" target from a Link header and resolves
+// it against baseURL. Registries return a path-relative URL. Returns "" when the
+// header is absent or carries no next relation.
+func nextTagPageURL(baseURL, link string) string {
+	for _, part := range strings.Split(link, ",") {
+		lt := strings.Index(part, "<")
+		gt := strings.Index(part, ">")
+		if lt == -1 || gt < lt || !strings.Contains(part[gt:], "rel=") {
+			continue
+		}
+		if !strings.Contains(part[gt:], "next") {
+			continue
+		}
+		target := part[lt+1 : gt]
+		if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
+			return target
+		}
+		return baseURL + target
 	}
-	var result struct {
-		Tags []string `json:"tags"`
-	}
-	if err := decodeJSONBody(resp, &result); err != nil {
-		return nil, err
-	}
-	return result.Tags, nil
+	return ""
 }
 
 // platformEntry holds the digest and architecture for a single platform manifest.
