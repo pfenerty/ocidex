@@ -108,7 +108,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get system status */
+        /**
+         * Get system status
+         * @description Admin-only.
+         */
         get: operations["get-system-status"];
         put?: never;
         post?: never;
@@ -692,7 +695,7 @@ export interface paths {
         put?: never;
         /**
          * Test registry connectivity
-         * @description Probes the registry's /v2/ endpoint and reports whether it is reachable.
+         * @description Probes the registry's /v2/ endpoint and reports whether it is reachable. Admin-only.
          */
         post: operations["test-registry-connection"];
         delete?: never;
@@ -1017,7 +1020,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List users */
+        /**
+         * List users
+         * @description Admin-only.
+         */
         get: operations["list-users"];
         put?: never;
         post?: never;
@@ -1057,7 +1063,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update user role */
+        /**
+         * Update user role
+         * @description Admin-only.
+         */
         patch: operations["update-user-role"];
         trace?: never;
     };

@@ -82,9 +82,6 @@ func (h *Handler) CreateSource(ctx context.Context, in *CreateSourceInput) (*Cre
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
-	}
 	if err := h.namespaceOwnerCheck(ctx, user, in.Body.NamespaceID); err != nil {
 		return nil, err
 	}
@@ -104,9 +101,6 @@ func (h *Handler) UpdateSource(ctx context.Context, in *UpdateSourceInput) (*Upd
 	user, ok := UserFromContext(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
-	}
-	if !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
 	}
 	existing, err := h.sourceService.Get(ctx, in.ID)
 	if err != nil {
@@ -131,9 +125,6 @@ func (h *Handler) DeleteSource(ctx context.Context, in *DeleteSourceInput) (*str
 	user, ok := UserFromContext(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
-	}
-	if !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
 	}
 	existing, err := h.sourceService.Get(ctx, in.ID)
 	if err != nil {

@@ -172,6 +172,7 @@ func registerVersionOps(api huma.API, h *Handler) {
 
 func registerSBOMOps(api huma.API, h *Handler) {
 	memberMW := RequireMember(api)
+	writeMW := RequireWrite(api)
 	sbomOwnerMW := RequireSBOMOwner(api, h.sbomService, h.namespaceService)
 
 	huma.Register(api, huma.Operation{
@@ -183,7 +184,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 		Tags:          []string{tagSBOMs},
 		MaxBodyBytes:  maxSBOMBodyBytes,
 		DefaultStatus: http.StatusCreated,
-		Middlewares:   huma.Middlewares{memberMW},
+		Middlewares:   huma.Middlewares{memberMW, writeMW},
 	}, h.IngestSBOM)
 
 	huma.Register(api, huma.Operation{
@@ -238,7 +239,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 		Summary:       "Delete an SBOM",
 		Tags:          []string{tagSBOMs},
 		DefaultStatus: http.StatusNoContent,
-		Middlewares:   huma.Middlewares{sbomOwnerMW},
+		Middlewares:   huma.Middlewares{sbomOwnerMW, writeMW},
 	}, h.DeleteSBOM)
 
 	huma.Register(api, huma.Operation{
@@ -379,7 +380,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Summary:       "Delete an artifact",
 		Tags:          []string{tagArtifacts},
 		DefaultStatus: http.StatusNoContent,
-		Middlewares:   huma.Middlewares{artifactOwnerMW},
+		Middlewares:   huma.Middlewares{artifactOwnerMW, RequireWrite(api)},
 	}, h.DeleteArtifact)
 
 	huma.Register(api, huma.Operation{
@@ -488,15 +489,19 @@ func registerWebhookOps(api huma.API, h *Handler) {
 
 func registerRegistryOps(api huma.API, h *Handler) {
 	ownerMW := RequireRegistryOwner(api, h.registryService)
+	adminMW := RequireAdmin(api)
+	authMW := RequireAuthenticated(api)
+	writeMW := RequireWrite(api)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "test-registry-connection",
 		Method:        http.MethodPost,
 		Path:          "/api/v1/registries/test-connection",
 		Summary:       "Test registry connectivity",
-		Description:   "Probes the registry's /v2/ endpoint and reports whether it is reachable.",
+		Description:   "Probes the registry's /v2/ endpoint and reports whether it is reachable. Admin-only.",
 		Tags:          []string{tagRegistries},
 		DefaultStatus: http.StatusOK,
+		Middlewares:   huma.Middlewares{adminMW, writeMW},
 	}, h.TestRegistryConnection)
 
 	huma.Register(api, huma.Operation{
@@ -514,6 +519,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Summary:     "Per-registry signing-status counts",
 		Description: "Admin-only. Counts artifacts by current signing status, per registry, across all registries.",
 		Tags:        []string{tagRegistries},
+		Middlewares: huma.Middlewares{adminMW},
 	}, h.GetRegistryTrustSummary)
 
 	huma.Register(api, huma.Operation{
@@ -523,6 +529,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Summary:     "Cross-registry recent provenance drift feed",
 		Description: "Admin-only. Most recent provenance drift events across all registries.",
 		Tags:        []string{tagRegistries},
+		Middlewares: huma.Middlewares{adminMW},
 	}, h.ListRecentDrift)
 
 	huma.Register(api, huma.Operation{
@@ -532,6 +539,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Summary:       "Create a registry",
 		Tags:          []string{tagRegistries},
 		DefaultStatus: http.StatusCreated,
+		Middlewares:   huma.Middlewares{authMW, writeMW},
 	}, h.CreateRegistry)
 
 	huma.Register(api, huma.Operation{
@@ -556,7 +564,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Path:        pathRegistryByID,
 		Summary:     "Update a registry (partial)",
 		Tags:        []string{tagRegistries},
-		Middlewares: huma.Middlewares{ownerMW},
+		Middlewares: huma.Middlewares{ownerMW, writeMW},
 	}, h.UpdateRegistry)
 
 	huma.Register(api, huma.Operation{
@@ -566,7 +574,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Summary:       "Delete a registry",
 		Tags:          []string{tagRegistries},
 		DefaultStatus: http.StatusNoContent,
-		Middlewares:   huma.Middlewares{ownerMW},
+		Middlewares:   huma.Middlewares{ownerMW, writeMW},
 	}, h.DeleteRegistry)
 
 	huma.Register(api, huma.Operation{
@@ -577,7 +585,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Description:   "Walks the registry catalog, filters by configured patterns, and queues scan requests for all matching images.",
 		Tags:          []string{tagRegistries},
 		DefaultStatus: http.StatusAccepted,
-		Middlewares:   huma.Middlewares{ownerMW},
+		Middlewares:   huma.Middlewares{ownerMW, writeMW},
 	}, h.ScanRegistry)
 
 	huma.Register(api, huma.Operation{
@@ -587,7 +595,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Summary:     "Regenerate webhook secret",
 		Description: "Generates a new webhook secret for the registry. The previous secret is immediately invalidated.",
 		Tags:        []string{tagRegistries},
-		Middlewares: huma.Middlewares{ownerMW},
+		Middlewares: huma.Middlewares{ownerMW, writeMW},
 	}, h.RegenerateWebhookSecret)
 }
 
@@ -596,6 +604,9 @@ func registerRegistryOps(api huma.API, h *Handler) {
 // ---------------------------------------------------------------------------
 
 func registerNamespaceOps(api huma.API, h *Handler) {
+	authMW := RequireAuthenticated(api)
+	writeMW := RequireWrite(api)
+
 	huma.Register(api, huma.Operation{
 		OperationID: "list-namespaces",
 		Method:      http.MethodGet,
@@ -612,6 +623,7 @@ func registerNamespaceOps(api huma.API, h *Handler) {
 		Summary:       "Create a namespace",
 		Tags:          []string{tagNamespaces},
 		DefaultStatus: http.StatusCreated,
+		Middlewares:   huma.Middlewares{authMW, writeMW},
 	}, h.CreateNamespace)
 
 	huma.Register(api, huma.Operation{
@@ -636,6 +648,7 @@ func registerNamespaceOps(api huma.API, h *Handler) {
 		Path:        pathNamespaceByID,
 		Summary:     "Update a namespace (partial)",
 		Tags:        []string{tagNamespaces},
+		Middlewares: huma.Middlewares{authMW, writeMW},
 	}, h.UpdateNamespace)
 
 	huma.Register(api, huma.Operation{
@@ -646,6 +659,7 @@ func registerNamespaceOps(api huma.API, h *Handler) {
 		Description:   "Removes the namespace and everything ingested under it. Owner or admin only.",
 		Tags:          []string{tagNamespaces},
 		DefaultStatus: http.StatusNoContent,
+		Middlewares:   huma.Middlewares{authMW, writeMW},
 	}, h.DeleteNamespace)
 }
 
@@ -654,6 +668,9 @@ func registerNamespaceOps(api huma.API, h *Handler) {
 // ---------------------------------------------------------------------------
 
 func registerSourceOps(api huma.API, h *Handler) {
+	authMW := RequireAuthenticated(api)
+	writeMW := RequireWrite(api)
+
 	huma.Register(api, huma.Operation{
 		OperationID: "list-sources",
 		Method:      http.MethodGet,
@@ -671,6 +688,7 @@ func registerSourceOps(api huma.API, h *Handler) {
 		Description:   "Creates a source with kind 'upload'. OCI registry sources are created via POST /api/v1/registries.",
 		Tags:          []string{tagSources},
 		DefaultStatus: http.StatusCreated,
+		Middlewares:   huma.Middlewares{authMW, writeMW},
 	}, h.CreateSource)
 
 	huma.Register(api, huma.Operation{
@@ -687,6 +705,7 @@ func registerSourceOps(api huma.API, h *Handler) {
 		Path:        pathSourceByID,
 		Summary:     "Rename a source",
 		Tags:        []string{tagSources},
+		Middlewares: huma.Middlewares{authMW, writeMW},
 	}, h.UpdateSource)
 
 	huma.Register(api, huma.Operation{
@@ -696,6 +715,7 @@ func registerSourceOps(api huma.API, h *Handler) {
 		Summary:       "Delete a source",
 		Tags:          []string{tagSources},
 		DefaultStatus: http.StatusNoContent,
+		Middlewares:   huma.Middlewares{authMW, writeMW},
 	}, h.DeleteSource)
 }
 
@@ -739,6 +759,10 @@ func registerVulnOps(api huma.API, h *Handler) {
 // ---------------------------------------------------------------------------
 
 func registerJobOps(api huma.API, h *Handler) {
+	authMW := RequireAuthenticated(api)
+	adminMW := RequireAdmin(api)
+	writeMW := RequireWrite(api)
+
 	huma.Register(api, huma.Operation{
 		OperationID: "list-scan-jobs",
 		Method:      http.MethodGet,
@@ -746,6 +770,7 @@ func registerJobOps(api huma.API, h *Handler) {
 		Summary:     "List scan jobs",
 		Description: "Returns a paginated list of scan pipeline jobs, optionally filtered by state.",
 		Tags:        []string{tagJobs},
+		Middlewares: huma.Middlewares{authMW},
 	}, h.ListScanJobs)
 
 	huma.Register(api, huma.Operation{
@@ -754,6 +779,7 @@ func registerJobOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/jobs/{id}",
 		Summary:     "Get a scan job",
 		Tags:        []string{tagJobs},
+		Middlewares: huma.Middlewares{authMW},
 	}, h.GetScanJob)
 
 	huma.Register(api, huma.Operation{
@@ -763,6 +789,7 @@ func registerJobOps(api huma.API, h *Handler) {
 		Summary:     "Retry a failed scan job",
 		Description: "Resets a 'failed' scan_jobs row back to 'queued' so it gets reprocessed. Admin-only.",
 		Tags:        []string{tagJobs, tagAdmin},
+		Middlewares: huma.Middlewares{adminMW, writeMW},
 	}, h.RetryScanJob)
 
 	huma.Register(api, huma.Operation{
@@ -772,6 +799,7 @@ func registerJobOps(api huma.API, h *Handler) {
 		Summary:     "Retry every failed scan job",
 		Description: "Resets every scan_jobs row whose state is 'failed' back to 'queued' and returns the row count. Admin-only.",
 		Tags:        []string{tagJobs, tagAdmin},
+		Middlewares: huma.Middlewares{adminMW, writeMW},
 	}, h.RetryAllFailedScanJobs)
 
 	huma.Register(api, huma.Operation{
@@ -781,6 +809,7 @@ func registerJobOps(api huma.API, h *Handler) {
 		Summary:     "List enrichment jobs",
 		Description: "Returns a paginated list of enrichment pipeline jobs, optionally filtered by state and/or enricher.",
 		Tags:        []string{tagJobs},
+		Middlewares: huma.Middlewares{authMW},
 	}, h.ListEnrichmentJobs)
 
 	huma.Register(api, huma.Operation{
@@ -790,6 +819,7 @@ func registerJobOps(api huma.API, h *Handler) {
 		Summary:     "Per-enricher enrichment job counts",
 		Description: "Returns one row per (enricher, state) with its count, for the per-enricher health matrix.",
 		Tags:        []string{tagJobs},
+		Middlewares: huma.Middlewares{authMW},
 	}, h.EnrichmentJobsSummary)
 
 	huma.Register(api, huma.Operation{
@@ -799,6 +829,7 @@ func registerJobOps(api huma.API, h *Handler) {
 		Summary:     "Retry a failed enrichment job",
 		Description: "Resets a 'failed' enrichment_jobs row back to 'queued' so it gets reprocessed. Admin-only.",
 		Tags:        []string{tagJobs, tagAdmin},
+		Middlewares: huma.Middlewares{adminMW, writeMW},
 	}, h.RetryEnrichmentJob)
 
 	huma.Register(api, huma.Operation{
@@ -808,6 +839,7 @@ func registerJobOps(api huma.API, h *Handler) {
 		Summary:     "Retry every failed enrichment job",
 		Description: "Resets every 'failed' enrichment_jobs row back to 'queued', optionally scoped to one enricher, and returns the row count. Admin-only.",
 		Tags:        []string{tagJobs, tagAdmin},
+		Middlewares: huma.Middlewares{adminMW, writeMW},
 	}, h.RetryAllFailedEnrichmentJobs)
 }
 

@@ -4634,6 +4634,7 @@
     },
     "/api/v1/admin/status": {
       "get": {
+        "description": "Admin-only.",
         "operationId": "get-system-status",
         "responses": {
           "200": {
@@ -6754,7 +6755,7 @@
     },
     "/api/v1/registries/test-connection": {
       "post": {
-        "description": "Probes the registry's /v2/ endpoint and reports whether it is reachable.",
+        "description": "Probes the registry's /v2/ endpoint and reports whether it is reachable. Admin-only.",
         "operationId": "test-registry-connection",
         "requestBody": {
           "content": {
@@ -8054,6 +8055,7 @@
     },
     "/api/v1/users": {
       "get": {
+        "description": "Admin-only.",
         "operationId": "list-users",
         "responses": {
           "200": {
@@ -8116,6 +8118,7 @@
     },
     "/api/v1/users/{id}/role": {
       "patch": {
+        "description": "Admin-only.",
         "operationId": "update-user-role",
         "parameters": [
           {

@@ -181,6 +181,53 @@ func RequireMember(api huma.API) func(huma.Context, func(huma.Context)) {
 	}
 }
 
+// RequireAuthenticated returns a huma middleware that 401s unauthenticated
+// callers and imposes no role constraint. It exists so that "any authenticated
+// principal" is a declared auth class on the operation rather than an implicit
+// one buried in the handler body.
+func RequireAuthenticated(api huma.API) func(huma.Context, func(huma.Context)) {
+	return func(ctx huma.Context, next func(huma.Context)) {
+		if _, ok := UserFromContext(ctx.Context()); !ok {
+			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, "not authenticated")
+			return
+		}
+		next(ctx)
+	}
+}
+
+// RequireAdmin returns a huma middleware that 401s unauthenticated callers and
+// 403s every caller without the admin role.
+func RequireAdmin(api huma.API) func(huma.Context, func(huma.Context)) {
+	return func(ctx huma.Context, next func(huma.Context)) {
+		user, ok := UserFromContext(ctx.Context())
+		if !ok {
+			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, "not authenticated")
+			return
+		}
+		if user.Role != roleAdmin {
+			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "admin only")
+			return
+		}
+		next(ctx)
+	}
+}
+
+// RequireWrite returns a huma middleware that 403s a caller presenting a
+// read-scoped API key. It checks the key scope only and is deliberately
+// orthogonal to the auth-class middlewares (RequireAuthenticated, RequireMember,
+// RequireAdmin, Require*Owner): a state-mutating operation declares one of those
+// plus this one, and authentication is enforced by the auth-class middleware
+// listed first.
+func RequireWrite(api huma.API) func(huma.Context, func(huma.Context)) {
+	return func(ctx huma.Context, next func(huma.Context)) {
+		if user, ok := UserFromContext(ctx.Context()); ok && !isWriteAllowed(user) {
+			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "read-only API key cannot perform write operations")
+			return
+		}
+		next(ctx)
+	}
+}
+
 // RequireSBOMOwner returns a huma middleware that requires auth + ownership of
 // the SBOM's namespace OR admin role. If the SBOM has no namespace association,
 // any authenticated member|admin is allowed. When sbomSvc or nsSvc is nil the

@@ -67,9 +67,6 @@ func (h *Handler) resolveIngestSource(ctx context.Context, ref string) (service.
 
 // IngestSBOM accepts a CycloneDX JSON SBOM, validates it, and persists it.
 func (h *Handler) IngestSBOM(ctx context.Context, input *IngestSBOMInput) (*IngestSBOMOutput, error) {
-	if user, ok := UserFromContext(ctx); ok && !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
-	}
 	src, err := h.resolveIngestSource(ctx, input.Source)
 	if err != nil {
 		return nil, err
@@ -119,9 +116,6 @@ func (h *Handler) IngestSBOM(ctx context.Context, input *IngestSBOMInput) (*Inge
 
 // DeleteSBOM removes an SBOM by ID.
 func (h *Handler) DeleteSBOM(ctx context.Context, input *DeleteSBOMInput) (*struct{}, error) {
-	if user, ok := UserFromContext(ctx); ok && !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
-	}
 	id, err := parseUUID(input.ID)
 	if err != nil {
 		return nil, err
@@ -136,9 +130,6 @@ func (h *Handler) DeleteSBOM(ctx context.Context, input *DeleteSBOMInput) (*stru
 
 // DeleteArtifact removes an artifact and all its SBOMs by ID.
 func (h *Handler) DeleteArtifact(ctx context.Context, input *DeleteArtifactInput) (*struct{}, error) {
-	if user, ok := UserFromContext(ctx); ok && !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
-	}
 	id, err := parseUUID(input.ID)
 	if err != nil {
 		return nil, err

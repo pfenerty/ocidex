@@ -98,9 +98,6 @@ func (h *Handler) CreateNamespace(ctx context.Context, in *CreateNamespaceInput)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
-	}
 	ns, err := h.namespaceService.Create(ctx, service.CreateNamespaceParams{
 		Name:       in.Body.Name,
 		OwnerID:    user.ID,
@@ -118,9 +115,6 @@ func (h *Handler) UpdateNamespace(ctx context.Context, in *UpdateNamespaceInput)
 	user, ok := UserFromContext(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
-	}
-	if !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
 	}
 	existing, err := h.namespaceService.Get(ctx, in.ID)
 	if err != nil {
@@ -146,9 +140,6 @@ func (h *Handler) DeleteNamespace(ctx context.Context, in *DeleteNamespaceInput)
 	user, ok := UserFromContext(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
-	}
-	if !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
 	}
 	existing, err := h.namespaceService.Get(ctx, in.ID)
 	if err != nil {
