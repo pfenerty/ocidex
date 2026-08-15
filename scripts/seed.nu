@@ -162,6 +162,28 @@ def check-api [base_url: string] {
 # fresh scan rather than a failure.
 # limit=200 is the endpoint maximum; the default of 20 would miss the match on an
 # instance that already has more registries than one page.
+# Both gates that reject a default-configured instance name their variable in the
+# response body: the 422s from internal/api/registry.go resolveRegistryType, and
+# the 503 from the scan-trigger endpoint when the scanner extension is nil. Match
+# on those strings rather than the status codes — a reworded message still trips
+# this, while a 422 from genuine payload validation does not.
+def scanner-disabled [bodies: list] {
+    $bodies | any {|b|
+        ($b | str contains "REGISTRY_POLLER_ENABLED") or ($b | str contains "scanner not enabled")
+    }
+}
+
+def scanner-disabled-msg [what: string] {
+    $"($what): this instance has registry scanning disabled.
+
+Set both in .env and restart the API:
+  SCANNER_ENABLED=true
+  REGISTRY_POLLER_ENABLED=true
+  docker compose up -d ocidex
+
+.env.example ships both enabled; a .env copied before that needs updating."
+}
+
 def resolve-existing [base_url: string, headers: record, name: string] {
     let resp = (http get --full --allow-errors --headers $headers $"($base_url)/registries?limit=200")
     if $resp.status != 200 {
@@ -190,7 +212,10 @@ def main [
 
     print $"Creating ($registries | length) registries against ($base_url)\n"
 
-    let created = ($registries | each { |reg|
+    # Every branch returns a record — failures carry their status and body out of
+    # the loop so the terminal error below can name the actual cause instead of
+    # guessing at the API key.
+    let results = ($registries | each { |reg|
         let patterns = if $all_tags { ["semver"] } else { $reg.tag_patterns }
         let body = {
             name: $reg.name
@@ -209,23 +234,29 @@ def main [
 
         if $resp.status == 201 {
             print $"  OK      ($reg.name) → ($resp.body.id)"
-            { name: $reg.name, id: $resp.body.id }
+            { name: $reg.name, id: $resp.body.id, detail: "" }
         } else if $resp.status == 409 {
             let existing = (resolve-existing $base_url $headers $reg.name)
             if ($existing | is-empty) {
                 print $"  FAIL    ($reg.name): 409 but could not resolve the existing registry"
-                null
+                { name: $reg.name, id: null, detail: "409 but could not resolve the existing registry" }
             } else {
                 print $"  EXISTS  ($reg.name) → ($existing)"
-                { name: $reg.name, id: $existing }
+                { name: $reg.name, id: $existing, detail: "" }
             }
         } else {
             print $"  FAIL    ($reg.name): ($resp.status) ($resp.body)"
-            null
+            { name: $reg.name, id: null, detail: $"($resp.status) ($resp.body | to text)" }
         }
-    } | compact)
+    })
+
+    let created = ($results | where {|r| $r.id | is-not-empty })
 
     if ($created | is-empty) {
+        let details = ($results | where {|r| $r.id | is-empty } | get detail)
+        if (scanner-disabled $details) {
+            error make { msg: (scanner-disabled-msg "Every registry was rejected") }
+        }
         error make { msg: $"No registries were created or resolved. Check that the API key has write scope and that ($base_url) is the right instance." }
     }
 
@@ -237,15 +268,29 @@ def main [
     }
 
     print "\nTriggering scans..."
+    mut scanned = 0
+    mut scan_failures = []
     for entry in $created {
         # --content-type is required even though the endpoint takes no body: nu
         # rejects a record payload without it ("Accepted types: [binary, string]").
         let resp = (http post --full --allow-errors --content-type application/json --headers $headers $"($base_url)/registries/($entry.id)/scan" {})
         if $resp.status == 202 {
             print $"  SCAN    ($entry.name)"
+            $scanned = $scanned + 1
         } else {
-            print $"  FAIL    scan ($entry.name): ($resp.status)"
+            print $"  FAIL    scan ($entry.name): ($resp.status) ($resp.body)"
+            $scan_failures = ($scan_failures | append $"($resp.status) ($resp.body | to text)")
         }
+    }
+
+    # With nothing queued the poll below is guaranteed to time out, so fail here
+    # instead of after $timeout seconds pointing at the scanner-worker logs.
+    if $scanned == 0 {
+        if (scanner-disabled $scan_failures) {
+            error make { msg: (scanner-disabled-msg "Every scan trigger was rejected") }
+        }
+        let statuses = ($scan_failures | str join "; ")
+        error make { msg: $"No scans could be triggered. Registries were created, but nothing was queued.\nResponses: ($statuses)" }
     }
 
     # Scanning is asynchronous: the 202 above only queues the catalog walk, and
