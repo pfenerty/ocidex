@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"regexp"
+	"strings"
 
 	"github.com/pfenerty/ocidex/internal/service"
 )
@@ -57,6 +59,36 @@ func isImageManifestType(mt string) bool {
 		mediaTypeOCIIndex,
 		mediaTypeDockerList:
 		return true
+	}
+	return false
+}
+
+// cosignTagRe matches the cosign tag scheme for artifacts attached to an image
+// digest: sha256-<hex>.sig, .att, and .sbom.
+var cosignTagRe = regexp.MustCompile(`^[a-z0-9]+-[0-9a-f]{32,}\.(sig|att|sbom)$`)
+
+// IsAttachedArtifactTag reports whether a tag follows the cosign scheme for a
+// signature, attestation, or attached SBOM. Such tags point at ordinary OCI
+// image manifests whose layers are signature payloads, which syft cannot
+// catalog — they must not be queued for scanning.
+func IsAttachedArtifactTag(tag string) bool {
+	return cosignTagRe.MatchString(tag)
+}
+
+// isAttachedArtifactType reports whether a media type identifies a cosign
+// signature, DSSE/in-toto attestation, or sigstore bundle. Returns false for
+// the empty string so an undetermined media type is never treated as attached.
+func isAttachedArtifactType(mt string) bool {
+	if mt == "" {
+		return false
+	}
+	if mt == mediaTypeCosignSimpleSigning || mt == mediaTypeDSSEEnvelope {
+		return true
+	}
+	for _, p := range attachedArtifactPrefixes {
+		if strings.HasPrefix(mt, p) {
+			return true
+		}
 	}
 	return false
 }

@@ -306,6 +306,56 @@ func TestIsImageManifestType(t *testing.T) {
 	}
 }
 
+func TestIsAttachedArtifactTag(t *testing.T) {
+	const hex64 = "1111111111111111111111111111111111111111111111111111111111111111"
+	cases := []struct {
+		tag  string
+		want bool
+	}{
+		{"sha256-" + hex64 + ".sig", true},
+		{"sha256-" + hex64 + ".att", true},
+		{"sha256-" + hex64 + ".sbom", true},
+		{"sha512-" + hex64 + hex64 + ".sig", true},
+		{"v1.0.0", false},
+		{"latest", false},
+		{"my-app.sig", false},
+		{"sha256-short.sig", false},
+		{"sha256-" + hex64 + ".tar", false},
+		{"sha256-" + hex64, false},
+		{"", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.tag, func(t *testing.T) {
+			is := is.New(t)
+			is.Equal(IsAttachedArtifactTag(tc.tag), tc.want)
+		})
+	}
+}
+
+func TestIsAttachedArtifactType(t *testing.T) {
+	cases := []struct {
+		mt   string
+		want bool
+	}{
+		{"application/vnd.dev.cosign.simplesigning.v1+json", true},
+		{"application/vnd.dev.cosign.artifact.sig.v1+json", true},
+		{"application/vnd.dev.cosign.artifact.sbom.v1+json", true},
+		{"application/vnd.dsse.envelope.v1+json", true},
+		{"application/vnd.in-toto+json", true},
+		{"application/vnd.dev.sigstore.bundle.v0.3+json", true},
+		{"application/vnd.oci.image.manifest.v1+json", false},
+		{"application/vnd.oci.image.config.v1+json", false},
+		{"application/vnd.oci.image.layer.v1.tar+gzip", false},
+		{"", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.mt, func(t *testing.T) {
+			is := is.New(t)
+			is.Equal(isAttachedArtifactType(tc.mt), tc.want)
+		})
+	}
+}
+
 func TestUnknownDiscoverer(t *testing.T) {
 	is := is.New(t)
 	d := &unknownDiscoverer{typeName: "nosuchregistry"}

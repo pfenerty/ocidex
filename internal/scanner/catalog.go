@@ -115,6 +115,12 @@ func walkRepo(ctx context.Context, client *http.Client, baseURL, repo string, re
 		if !reg.MatchesTag(tag) {
 			continue
 		}
+		// Short-circuit before the manifest HEAD/GET. ociGetImageMetadata also
+		// catches these by media type, but only after 2-3 registry requests.
+		if IsAttachedArtifactTag(tag) {
+			logger.Debug("skipping attached artifact", "repo", repo, "tag", tag, "reason", "cosign tag scheme")
+			continue
+		}
 		queued += scanTag(ctx, client, baseURL, repo, tag, reg, sub, scannedDigests, logger)
 	}
 	if reg.IncludeUntagged {
@@ -146,6 +152,10 @@ func scanTag(ctx context.Context, client *http.Client, baseURL, repo, tag string
 		return 0
 	}
 	meta := ociGetImageMetadata(ctx, client, baseURL, repo, info.digest)
+	if meta.attachedArtifact {
+		logger.Debug("skipping attached artifact", "repo", repo, "tag", tag, "digest", info.digest, "reason", "signature/attestation media type")
+		return 0
+	}
 	if err := sub.Submit(ctx, ScanRequest{
 		RegistryURL:  reg.URL,
 		Insecure:     reg.Insecure,
@@ -179,6 +189,10 @@ func scanIndex(ctx context.Context, client *http.Client, baseURL, repo, tag, ind
 		}
 		scannedDigests[p.digest] = true
 		meta := ociGetImageMetadata(ctx, client, baseURL, repo, p.digest)
+		if meta.attachedArtifact {
+			logger.Debug("skipping attached artifact", "repo", repo, "tag", tag, "digest", p.digest, "reason", "signature/attestation media type")
+			continue
+		}
 		arch := p.arch
 		if arch == "" {
 			arch = meta.architecture
@@ -223,46 +237,24 @@ func discoverUntagged(ctx context.Context, client *http.Client, baseURL, repo st
 		if !isImageManifestType(m.MediaType) {
 			continue
 		}
+		// The zot and harbor discoverers surface cosign tags, and the ghcr one
+		// hardcodes mediaTypeOCIManifest, so the media type above never rejects them.
+		if IsAttachedArtifactTag(m.Tag) {
+			logger.Debug("skipping attached artifact", "repo", repo, "tag", m.Tag, "reason", "cosign tag scheme")
+			continue
+		}
 		scannedDigests[m.Digest] = true
 
 		if isIndexMediaType(m.MediaType) {
-			platforms, err := ociExpandIndex(ctx, client, baseURL, repo, m.Digest)
-			if err != nil {
-				logger.Warn("expanding untagged index", "repo", repo, "digest", m.Digest, "err", err)
-				continue
-			}
-			for _, p := range platforms {
-				if scannedDigests[p.digest] {
-					continue
-				}
-				scannedDigests[p.digest] = true
-				meta := ociGetImageMetadata(ctx, client, baseURL, repo, p.digest)
-				arch := p.arch
-				if arch == "" {
-					arch = meta.architecture
-				}
-				if err := sub.Submit(ctx, ScanRequest{
-					RegistryURL:  reg.URL,
-					Insecure:     reg.Insecure,
-					Repository:   repo,
-					Digest:       p.digest,
-					IndexDigest:  m.Digest,
-					Architecture: arch,
-					BuildDate:    meta.buildDate,
-					ImageVersion: meta.imageVersion,
-					AuthUsername: derefStr(reg.AuthUsername),
-					AuthToken:    derefStr(reg.AuthToken),
-					RegistryID:   reg.ID,
-				}); err != nil {
-					logger.Warn("scan submit failed", "repo", repo, "digest", p.digest, "err", err)
-					continue
-				}
-				queued++
-			}
+			queued += submitUntaggedIndex(ctx, client, baseURL, repo, m.Digest, reg, sub, scannedDigests, logger)
 			continue
 		}
 
 		meta := ociGetImageMetadata(ctx, client, baseURL, repo, m.Digest)
+		if meta.attachedArtifact {
+			logger.Debug("skipping attached artifact", "repo", repo, "digest", m.Digest, "reason", "signature/attestation media type")
+			continue
+		}
 		arch := m.Arch
 		if arch == "" {
 			arch = meta.architecture
@@ -280,6 +272,50 @@ func discoverUntagged(ctx context.Context, client *http.Client, baseURL, repo st
 			RegistryID:   reg.ID,
 		}); err != nil {
 			logger.Warn("scan submit failed", "repo", repo, "digest", m.Digest, "err", err)
+			continue
+		}
+		queued++
+	}
+	return queued
+}
+
+// submitUntaggedIndex expands an untagged image index discovered by a
+// registry-specific discoverer and submits one request per platform manifest.
+func submitUntaggedIndex(ctx context.Context, client *http.Client, baseURL, repo, indexDigest string, reg service.Registry, sub Submitter, scannedDigests map[string]bool, logger *slog.Logger) int {
+	platforms, err := ociExpandIndex(ctx, client, baseURL, repo, indexDigest)
+	if err != nil {
+		logger.Warn("expanding untagged index", "repo", repo, "digest", indexDigest, "err", err)
+		return 0
+	}
+	queued := 0
+	for _, p := range platforms {
+		if scannedDigests[p.digest] {
+			continue
+		}
+		scannedDigests[p.digest] = true
+		meta := ociGetImageMetadata(ctx, client, baseURL, repo, p.digest)
+		if meta.attachedArtifact {
+			logger.Debug("skipping attached artifact", "repo", repo, "digest", p.digest, "reason", "signature/attestation media type")
+			continue
+		}
+		arch := p.arch
+		if arch == "" {
+			arch = meta.architecture
+		}
+		if err := sub.Submit(ctx, ScanRequest{
+			RegistryURL:  reg.URL,
+			Insecure:     reg.Insecure,
+			Repository:   repo,
+			Digest:       p.digest,
+			IndexDigest:  indexDigest,
+			Architecture: arch,
+			BuildDate:    meta.buildDate,
+			ImageVersion: meta.imageVersion,
+			AuthUsername: derefStr(reg.AuthUsername),
+			AuthToken:    derefStr(reg.AuthToken),
+			RegistryID:   reg.ID,
+		}); err != nil {
+			logger.Warn("scan submit failed", "repo", repo, "digest", p.digest, "err", err)
 			continue
 		}
 		queued++
@@ -426,6 +462,38 @@ type imageMetadata struct {
 	architecture string
 	buildDate    string
 	imageVersion string
+	// attachedArtifact is true only when the manifest positively identifies as a
+	// cosign signature, attestation, or sigstore bundle. It is never set as an
+	// error default — ociGetImageMetadata returns the zero value on any failure,
+	// so a false here means "image, or undetermined", not "confirmed image".
+	attachedArtifact bool
+}
+
+// ociManifest is the subset of an OCI/Docker image manifest the catalog walk reads.
+type ociManifest struct {
+	ArtifactType string `json:"artifactType"`
+	Config       struct {
+		Digest    string `json:"digest"`
+		MediaType string `json:"mediaType"`
+	} `json:"config"`
+	Layers []struct {
+		MediaType string `json:"mediaType"`
+	} `json:"layers"`
+	Annotations map[string]string `json:"annotations"`
+}
+
+// isAttachedArtifact reports whether the manifest describes a cosign signature,
+// attestation, or sigstore bundle attached to an image rather than an image itself.
+func (m ociManifest) isAttachedArtifact() bool {
+	if isAttachedArtifactType(m.ArtifactType) || isAttachedArtifactType(m.Config.MediaType) {
+		return true
+	}
+	for _, l := range m.Layers {
+		if isAttachedArtifactType(l.MediaType) {
+			return true
+		}
+	}
+	return false
 }
 
 // ociGetImageMetadata fetches a manifest and its config blob to extract
@@ -444,15 +512,18 @@ func ociGetImageMetadata(ctx context.Context, c *http.Client, baseURL, repo, dig
 	if resp.StatusCode != http.StatusOK {
 		return imageMetadata{}
 	}
-	var manifest struct {
-		Config struct {
-			Digest string `json:"digest"`
-		} `json:"config"`
-		Annotations map[string]string `json:"annotations"`
-	}
+	var manifest ociManifest
 	if err := json.NewDecoder(resp.Body).Decode(&manifest); err != nil {
 		return imageMetadata{}
 	}
+
+	// Cosign signatures and attestations are ordinary image manifests; only the
+	// artifactType, config media type, or layer media types give them away.
+	// Return before fetching the config blob — the caller will not scan this.
+	if manifest.isAttachedArtifact() {
+		return imageMetadata{attachedArtifact: true}
+	}
+
 	annotationVersion := manifest.Annotations["org.opencontainers.image.version"]
 	annotationCreated := manifest.Annotations["org.opencontainers.image.created"]
 

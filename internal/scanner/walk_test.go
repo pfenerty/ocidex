@@ -147,6 +147,27 @@ func singleArchManifest(configDigest string) []byte {
 	return b
 }
 
+// cosignSigManifest builds a cosign signature manifest: an ordinary OCI image
+// manifest whose layer carries the simplesigning payload media type.
+func cosignSigManifest(configDigest string) []byte {
+	b, _ := json.Marshal(map[string]any{
+		"config": map[string]any{"digest": configDigest},
+		"layers": []map[string]any{
+			{"mediaType": "application/vnd.dev.cosign.simplesigning.v1+json"},
+		},
+	})
+	return b
+}
+
+// artifactTypeManifest builds an OCI 1.1 referrer manifest declaring artifactType.
+func artifactTypeManifest(configDigest, artifactType string) []byte {
+	b, _ := json.Marshal(map[string]any{
+		"artifactType": artifactType,
+		"config":       map[string]any{"digest": configDigest},
+	})
+	return b
+}
+
 func ociIndexManifest(platforms []struct{ digest, arch string }) []byte {
 	manifests := make([]map[string]any, len(platforms))
 	for i, p := range platforms {
@@ -865,4 +886,180 @@ func TestWalkRegistry_IncludeUntagged_Zot(t *testing.T) {
 	got := sub.submitted()
 	is.Equal(len(got), 1)
 	is.Equal(got[0].Digest, untaggedDigest)
+}
+
+// sigDigest is a syntactically valid cosign tag digest component.
+const sigDigest = "sha256-1111111111111111111111111111111111111111111111111111111111111111"
+
+// TestWalkRegistry_SkipsCosignTags verifies that cosign signature, attestation,
+// and attached-SBOM tags are filtered out of the tag walk rather than queued as
+// images the scanner cannot catalog (ocidex-ptj2).
+func TestWalkRegistry_SkipsCosignTags(t *testing.T) {
+	is := is.New(t)
+
+	cfg := ociRegistryConfig{
+		tags: map[string][]string{
+			"myrepo": {"v1.0.0", sigDigest + ".sig", sigDigest + ".att", sigDigest + ".sbom"},
+		},
+		manifests: map[string]fakeManifest{
+			"myrepo:v1.0.0": {
+				digest:    "sha256:real-image",
+				mediaType: "application/vnd.oci.image.manifest.v1+json",
+				body:      singleArchManifest("sha256:cfg"),
+			},
+			"myrepo:sha256:real-image": {
+				digest:    "sha256:real-image",
+				mediaType: "application/vnd.oci.image.manifest.v1+json",
+				body:      singleArchManifest("sha256:cfg"),
+			},
+		},
+		blobs: map[string][]byte{"sha256:cfg": configBlob("amd64")},
+	}
+	srv := newFakeOCIRegistry(t, cfg)
+
+	sub := &fakeSubmitter{}
+	reg := service.Registry{URL: srv.URL, Insecure: true, Repositories: []string{"myrepo"}}
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+
+	is.NoErr(err)
+	is.Equal(queued, 1)
+	got := sub.submitted()
+	is.Equal(len(got), 1)
+	is.Equal(got[0].Tag, "v1.0.0")
+}
+
+// TestWalkRegistry_SkipsAttachedArtifactByMediaType verifies the content-based
+// check: a manifest whose layer or artifactType identifies it as a signature or
+// attestation is skipped even when its tag does not follow the cosign scheme.
+func TestWalkRegistry_SkipsAttachedArtifactByMediaType(t *testing.T) {
+	tests := []struct {
+		name string
+		body []byte
+	}{
+		{"simplesigning layer", cosignSigManifest("sha256:cfg-sig")},
+		{"cosign artifactType", artifactTypeManifest("sha256:cfg-sig", "application/vnd.dev.cosign.artifact.sig.v1+json")},
+		{"dsse envelope layer", func() []byte {
+			b, _ := json.Marshal(map[string]any{
+				"config": map[string]any{"digest": "sha256:cfg-sig"},
+				"layers": []map[string]any{{"mediaType": "application/vnd.dsse.envelope.v1+json"}},
+			})
+			return b
+		}()},
+		{"in-toto artifactType", artifactTypeManifest("sha256:cfg-sig", "application/vnd.in-toto+json")},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			is := is.New(t)
+
+			cfg := ociRegistryConfig{
+				tags: map[string][]string{"myrepo": {"signature-latest"}},
+				manifests: map[string]fakeManifest{
+					"myrepo:signature-latest": {
+						digest:    "sha256:sig-manifest",
+						mediaType: "application/vnd.oci.image.manifest.v1+json",
+						body:      tc.body,
+					},
+					"myrepo:sha256:sig-manifest": {
+						digest:    "sha256:sig-manifest",
+						mediaType: "application/vnd.oci.image.manifest.v1+json",
+						body:      tc.body,
+					},
+				},
+				blobs: map[string][]byte{"sha256:cfg-sig": configBlob("amd64")},
+			}
+			srv := newFakeOCIRegistry(t, cfg)
+
+			sub := &fakeSubmitter{}
+			reg := service.Registry{URL: srv.URL, Insecure: true, Repositories: []string{"myrepo"}}
+			queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+
+			is.NoErr(err)
+			is.Equal(queued, 0)
+			is.Equal(len(sub.submitted()), 0)
+		})
+	}
+}
+
+// TestWalkRegistry_OrdinaryImageStillQueued guards against false positives: a
+// normal image manifest with standard config and layer media types must submit.
+func TestWalkRegistry_OrdinaryImageStillQueued(t *testing.T) {
+	is := is.New(t)
+
+	body, _ := json.Marshal(map[string]any{
+		"artifactType": "",
+		"config":       map[string]any{"digest": "sha256:cfg", "mediaType": "application/vnd.oci.image.config.v1+json"},
+		"layers": []map[string]any{
+			{"mediaType": "application/vnd.oci.image.layer.v1.tar+gzip"},
+			{"mediaType": "application/vnd.oci.image.layer.v1.tar+gzip"},
+		},
+	})
+
+	cfg := ociRegistryConfig{
+		tags: map[string][]string{"myrepo": {"v2.0.0"}},
+		manifests: map[string]fakeManifest{
+			"myrepo:v2.0.0": {
+				digest:    "sha256:real-image",
+				mediaType: "application/vnd.oci.image.manifest.v1+json",
+				body:      body,
+			},
+			"myrepo:sha256:real-image": {
+				digest:    "sha256:real-image",
+				mediaType: "application/vnd.oci.image.manifest.v1+json",
+				body:      body,
+			},
+		},
+		blobs: map[string][]byte{"sha256:cfg": configBlob("arm64")},
+	}
+	srv := newFakeOCIRegistry(t, cfg)
+
+	sub := &fakeSubmitter{}
+	reg := service.Registry{URL: srv.URL, Insecure: true, Repositories: []string{"myrepo"}}
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+
+	is.NoErr(err)
+	is.Equal(queued, 1)
+	got := sub.submitted()
+	is.Equal(len(got), 1)
+	is.Equal(got[0].Architecture, "arm64")
+}
+
+// TestWalkRegistry_IncludeUntagged_SkipsCosignTags verifies the untagged
+// discovery path also filters cosign tags. Discoverers report these as ordinary
+// OCI image manifests, so the media-type check alone does not reject them.
+func TestWalkRegistry_IncludeUntagged_SkipsCosignTags(t *testing.T) {
+	is := is.New(t)
+
+	cfg := ociRegistryConfig{
+		tags: map[string][]string{"myrepo": {}},
+		zotResults: []DiscoveredManifest{
+			{Digest: "sha256:sig-manifest", MediaType: "application/vnd.oci.image.manifest.v1+json", Tag: sigDigest + ".sig"},
+			{Digest: "sha256:real-image", MediaType: "application/vnd.oci.image.manifest.v1+json", Tag: ""},
+		},
+		manifests: map[string]fakeManifest{
+			"myrepo:sha256:real-image": {
+				digest:    "sha256:real-image",
+				mediaType: "application/vnd.oci.image.manifest.v1+json",
+				body:      singleArchManifest("sha256:cfg"),
+			},
+		},
+		blobs: map[string][]byte{"sha256:cfg": configBlob("amd64")},
+	}
+	srv := newFakeOCIRegistry(t, cfg)
+
+	sub := &fakeSubmitter{}
+	reg := service.Registry{
+		URL:             srv.URL,
+		Insecure:        true,
+		Type:            "zot",
+		Repositories:    []string{"myrepo"},
+		IncludeUntagged: true,
+	}
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+
+	is.NoErr(err)
+	is.Equal(queued, 1)
+	got := sub.submitted()
+	is.Equal(len(got), 1)
+	is.Equal(got[0].Digest, "sha256:real-image")
 }

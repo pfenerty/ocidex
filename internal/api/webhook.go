@@ -47,6 +47,13 @@ func (h *Handler) HandleRegistryWebhook(ctx context.Context, in *RegistryWebhook
 		return nil, nil
 	}
 
+	// Cosign signatures and attestations pass the check above — they are image
+	// manifests — but syft cannot catalog their signature-payload layers. The
+	// tag is the only signal available here (ocidex-ptj2).
+	if scanner.IsAttachedArtifactTag(in.Body.Reference) {
+		return nil, nil
+	}
+
 	// Apply registry-level ingestion filters.
 	if !reg.MatchesImage(in.Body.Name, in.Body.Reference) {
 		return nil, nil
