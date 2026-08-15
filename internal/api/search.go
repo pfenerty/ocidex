@@ -22,20 +22,6 @@ func cursorMeta[T any](data []T, hasMore bool, limit int32, cursorFn func(T) str
 	return meta
 }
 
-// visibilityFilterFromContext builds a VisibilityFilter from the authenticated
-// user in ctx, if any. Unauthenticated callers get a filter that shows only
-// public data.
-func visibilityFilterFromContext(ctx context.Context) service.VisibilityFilter {
-	user, ok := UserFromContext(ctx)
-	if !ok {
-		return service.VisibilityFilter{}
-	}
-	return service.VisibilityFilter{
-		IsAdmin: user.Role == roleAdmin,
-		UserID:  user.ID,
-	}
-}
-
 // SearchDistinctComponents handles GET /api/v1/components/distinct.
 func (h *Handler) SearchDistinctComponents(ctx context.Context, input *SearchDistinctComponentsInput) (*SearchDistinctComponentsOutput, error) {
 	vis := visibilityFilterFromContext(ctx)

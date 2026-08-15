@@ -39,10 +39,7 @@ func (h *Handler) ListSources(ctx context.Context, in *ListSourcesInput) (*ListS
 		return out, nil
 	}
 
-	rows, err := h.sourceService.List(ctx, service.VisibilityFilter{
-		IsAdmin: user.Role == roleAdmin,
-		UserID:  user.ID,
-	})
+	rows, err := h.sourceService.List(ctx, visibilityFilterFromContext(ctx))
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

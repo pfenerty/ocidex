@@ -105,15 +105,10 @@ func validateVerificationConfig(verificationMode string, trustPublicKey, trustId
 
 // ListRegistries returns registries visible to the current user.
 func (h *Handler) ListRegistries(ctx context.Context, input *ListRegistriesInput) (*ListRegistriesOutput, error) {
-	user, ok := UserFromContext(ctx)
-	if !ok {
+	if _, ok := UserFromContext(ctx); !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	filter := service.VisibilityFilter{
-		IsAdmin: user.Role == roleAdmin,
-		UserID:  user.ID,
-	}
-	result, err := h.registryService.ListPaged(ctx, filter, input.Limit, input.Offset)
+	result, err := h.registryService.ListPaged(ctx, visibilityFilterFromContext(ctx), input.Limit, input.Offset)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing registries: %v", err))
 	}
