@@ -99,8 +99,8 @@ openapi-check: ## Verify OpenAPI spec and TypeScript types are up-to-date
 	cd web && npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts
 	diff web/src/types/openapi.d.ts /tmp/openapi-check.d.ts || (echo "ERROR: openapi.d.ts is stale. Run 'make openapi'." && exit 1)
 
-seed: ## Seed database with real SBOMs from public OCI registries
-	nu scripts/seed.nu
+seed: ## Seed database with real SBOMs from public OCI registries (needs OCIDEX_API_KEY)
+	nu scripts/seed.nu $(SEED_ARGS)
 
 frontend-init: ## Install frontend dependencies
 	cd web && npm install

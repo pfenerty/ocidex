@@ -46,14 +46,19 @@ docker compose up -d
 
 This starts PostgreSQL, NATS JetStream, the OCIDex API server (port 8080), the scanner and enrichment workers, and the web frontend (port 3000). Database migrations run automatically on startup.
 
-To populate it with real-world SBOMs from public container images:
+Then open [http://localhost:3000](http://localhost:3000).
+
+To populate it with real-world SBOMs from public container images, log in with GitHub, create an
+API key under **Settings → API Keys**, and run the seeder:
 
 ```sh
-# Requires oras, syft, and curl — available in the Flox dev environment
+export OCIDEX_API_KEY=ocidex_...
 flox activate -- make seed
 ```
 
-Then open [http://localhost:3000](http://localhost:3000).
+This registers a set of well-annotated public repositories from quay.io and ghcr.io and triggers
+a scan on each. It exits once the first artifacts appear; the remaining images continue scanning
+in the background.
 
 ### From Source
 

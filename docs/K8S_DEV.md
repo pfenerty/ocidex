@@ -58,17 +58,30 @@ flox activate -- make frontend-dev
 
 ### Seed Data
 
+Seeding registers a set of well-annotated public repositories (quay.io and ghcr.io) as
+registries and triggers a scan on each. It needs an API key with write scope: log in at
+http://localhost:3000, then create one under **Settings → API Keys**.
+
 ```bash
+export OCIDEX_API_KEY=ocidex_...
 flox activate -- make seed
 ```
 
-Requires `oras`, `syft`, and `curl` — all available in the Flox environment.
+`make seed` blocks until the first artifacts land, then exits — **scanning continues in the
+background**. The catalog walk is queued asynchronously and `scanner-worker` runs syft per
+image, so the full set (45 images across 11 repos) takes a while. Watch progress in the
+`ocidex-scanner-worker` resource in the Tilt UI, or poll:
 
-> **Known broken (ocidex-y19y).** `seed.nu` copies its source images into a zot registry on
-> `localhost:5000`, which no dev path provides any more — neither the Tilt loop (whose registry is
-> `localhost:5005`, for Tilt's own images) nor docker-compose (which has no zot service, only an
-> orphan `zot-data` volume). It currently skips all 19 images and still exits 0, so it looks like
-> it worked. Seed by POSTing SBOMs to `/api/v1` directly until that is fixed.
+```bash
+# .pagination.total, not .data | length — the page caps at 20
+curl -s -H "Authorization: Bearer $OCIDEX_API_KEY" \
+  http://localhost:8080/api/v1/artifacts | jq '.pagination.total'
+```
+
+Re-running is safe: registries that already exist are resolved and re-scanned rather than
+duplicated. Pass extra flags via `SEED_ARGS`, e.g. `make seed SEED_ARGS=--all-tags` to ingest
+every semver tag instead of the pinned minor per repo, or `SEED_ARGS=--no-scan` to register
+without scanning.
 
 ## Stopping
 
