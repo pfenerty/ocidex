@@ -22,7 +22,7 @@ scannerWorker:
     environment: development
     logLevel: debug
 
-enrichmentWorker:
+enricherWorkerDefaults:
   replicas: 1
   env:
     natsStreamReplicas: "1"
