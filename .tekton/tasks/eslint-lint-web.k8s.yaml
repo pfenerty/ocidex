@@ -20,6 +20,7 @@ spec:
     env:
       - name: HOME
         value: /tmp
+    imagePullPolicy: Always
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:

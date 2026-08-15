@@ -30,6 +30,7 @@ spec:
         value: "2"
       - name: GOMEMLIMIT
         value: 1800MiB
+    imagePullPolicy: Always
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:

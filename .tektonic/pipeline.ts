@@ -140,6 +140,19 @@ new TektonicProject({
     runAsGroup: 1024,
     fsGroup: 1024,
   },
+  // Every image this pipeline runs is referenced by a mutable tag: base:stable and
+  // moby/buildkit:rootless are moving by design, and the version-pinned apko-cicd images
+  // (golang:1.26, syft:1.45.1, …) are republished under the same tag on every rebuild.
+  // The kubelet defaults to IfNotPresent for any tag but :latest, so a node that pulled
+  // once serves those layers forever with no signal — that is what produced ocidex-qzz2.
+  // Lands in each task's stepTemplate, so it covers the injected cache and reporter steps
+  // too; sidecars are excluded from stepTemplate by Tekton and set their own (see
+  // jobs/go-integration/spec.ts).
+  //
+  // Digest-pinning the refs instead is the alternative ADR-038 rejected: Renovate cannot
+  // run `make tekton-synth`, so every bump would land a PR that tekton-check fails until
+  // a human re-synths.
+  defaultImagePullPolicy: "Always",
   // Expose PAC event context to steps so the secrets scan can scope itself: a PR
   // scans only its new commits vs the base branch, a push to main scans full history.
   // PAC substitutes these {{ }} vars before submitting the PipelineRun.

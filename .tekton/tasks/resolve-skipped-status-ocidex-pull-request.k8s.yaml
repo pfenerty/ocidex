@@ -35,6 +35,7 @@ spec:
       requests:
         cpu: 100m
         memory: 128Mi
+    imagePullPolicy: Always
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:

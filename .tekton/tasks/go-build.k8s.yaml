@@ -26,6 +26,7 @@ spec:
         value: $(workspaces.workspace.path)/.go-build
       - name: GIT_CONFIG_GLOBAL
         value: $(workspaces.workspace.path)/.gitconfig
+    imagePullPolicy: Always
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:

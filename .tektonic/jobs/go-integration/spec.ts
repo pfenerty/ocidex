@@ -42,6 +42,10 @@ export const goIntegration = new Task({
       name: "postgres",
       // Same image the testcontainers path uses, so schema behaviour is identical.
       image: "postgres:15-alpine",
+      // Explicit because Tekton does not apply stepTemplate to sidecars, so the
+      // project's defaultImagePullPolicy stops at the steps. Docker Hub republishes
+      // 15-alpine on every patch build.
+      imagePullPolicy: "Always",
       // The project-wide runAsUser: 1024 has no /etc/passwd entry, so initdb dies in
       // getpwuid ("could not look up effective user ID"). As root the image's own
       // entrypoint chowns PGDATA and re-execs as postgres, which is the supported
@@ -79,6 +83,9 @@ export const goIntegration = new Task({
     {
       name: "nats",
       image: "nats:2-alpine",
+      // See the postgres sidecar: stepTemplate does not reach sidecars, and 2-alpine
+      // is a floating minor tag.
+      imagePullPolicy: "Always",
       // JetStream is off by default, and internal/nats.Connect hardcodes
       // FileStorage — hence -js plus a writable store dir. /tmp is 1777, so this
       // needs no securityContext override. -m 8222 exposes /healthz for the probe.

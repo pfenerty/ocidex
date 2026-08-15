@@ -24,6 +24,7 @@ spec:
         - name: POSTGRES_PASSWORD
           value: test
       image: postgres:15-alpine
+      imagePullPolicy: Always
       name: postgres
       readinessProbe:
         exec:
@@ -54,6 +55,7 @@ spec:
           cpu: 50m
           memory: 64Mi
       image: nats:2-alpine
+      imagePullPolicy: Always
       name: nats
       readinessProbe:
         failureThreshold: 30
@@ -87,6 +89,7 @@ spec:
         value: postgres://test:test@localhost:5432/postgres?sslmode=disable
       - name: TEST_NATS_URL
         value: nats://localhost:4222
+    imagePullPolicy: Always
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
