@@ -510,6 +510,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/registries",
 		Summary:     "List registries",
 		Tags:        []string{tagRegistries},
+		Middlewares: huma.Middlewares{authMW},
 	}, h.ListRegistries)
 
 	huma.Register(api, huma.Operation{
@@ -548,6 +549,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Path:        pathRegistryByID,
 		Summary:     "Get a registry",
 		Tags:        []string{tagRegistries},
+		Middlewares: huma.Middlewares{authMW},
 	}, h.GetRegistry)
 
 	huma.Register(api, huma.Operation{
@@ -556,6 +558,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/registries/by-name/{name}",
 		Summary:     "Get a registry by name",
 		Tags:        []string{tagRegistries},
+		Middlewares: huma.Middlewares{authMW},
 	}, h.GetRegistryByName)
 
 	huma.Register(api, huma.Operation{
@@ -614,6 +617,7 @@ func registerNamespaceOps(api huma.API, h *Handler) {
 		Summary:     "List namespaces",
 		Description: "Namespaces owned by the caller plus every public namespace.",
 		Tags:        []string{tagNamespaces},
+		Middlewares: huma.Middlewares{authMW},
 	}, h.ListNamespaces)
 
 	huma.Register(api, huma.Operation{
@@ -632,6 +636,7 @@ func registerNamespaceOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/namespaces/by-name/{name}",
 		Summary:     "Get a namespace by name",
 		Tags:        []string{tagNamespaces},
+		Middlewares: huma.Middlewares{authMW},
 	}, h.GetNamespaceByName)
 
 	huma.Register(api, huma.Operation{
@@ -640,6 +645,7 @@ func registerNamespaceOps(api huma.API, h *Handler) {
 		Path:        pathNamespaceByID,
 		Summary:     "Get a namespace",
 		Tags:        []string{tagNamespaces},
+		Middlewares: huma.Middlewares{authMW},
 	}, h.GetNamespace)
 
 	huma.Register(api, huma.Operation{
@@ -678,6 +684,7 @@ func registerSourceOps(api huma.API, h *Handler) {
 		Summary:     "List sources",
 		Description: "Ingest channels visible to the caller, optionally scoped to one namespace.",
 		Tags:        []string{tagSources},
+		Middlewares: huma.Middlewares{authMW},
 	}, h.ListSources)
 
 	huma.Register(api, huma.Operation{
@@ -697,6 +704,7 @@ func registerSourceOps(api huma.API, h *Handler) {
 		Path:        pathSourceByID,
 		Summary:     "Get a source",
 		Tags:        []string{tagSources},
+		Middlewares: huma.Middlewares{authMW},
 	}, h.GetSource)
 
 	huma.Register(api, huma.Operation{

@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check helm-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
+.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
 
 all: check build ## Run all checks and build
 
@@ -41,7 +41,7 @@ test-coverage: ## Run tests with HTML coverage report
 test-integration: ## Run integration tests
 	go test -v -race ./tests/...
 
-check: fmt lint test openapi-check generate-client-check frontend-lint frontend-typecheck frontend-test helm-check ## Run fmt, lint, test, openapi staleness and Helm policy checks
+check: fmt lint test openapi-check auth-matrix-check generate-client-check frontend-lint frontend-typecheck frontend-test helm-check ## Run fmt, lint, test, openapi staleness and Helm policy checks
 
 init: ## Download dependencies and install tools
 	go mod download
@@ -101,6 +101,13 @@ openapi-check: ## Verify OpenAPI spec and TypeScript types are up-to-date
 	diff web/openapi.json /tmp/openapi-check.json || (echo "ERROR: web/openapi.json is stale. Run 'make openapi'." && exit 1)
 	cd web && npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts
 	diff web/src/types/openapi.d.ts /tmp/openapi-check.d.ts || (echo "ERROR: openapi.d.ts is stale. Run 'make openapi'." && exit 1)
+
+auth-matrix: ## Regenerate docs/AUTH_MATRIX.md from the authRules declarations
+	go run ./cmd/authmatrix > docs/AUTH_MATRIX.md
+
+auth-matrix-check: ## Verify docs/AUTH_MATRIX.md is up-to-date
+	go run ./cmd/authmatrix > /tmp/auth-matrix-check.md
+	diff docs/AUTH_MATRIX.md /tmp/auth-matrix-check.md || (echo "ERROR: docs/AUTH_MATRIX.md is stale. Run 'make auth-matrix'." && exit 1)
 
 seed: ## Seed database with real SBOMs from public OCI registries (needs OCIDEX_API_KEY)
 	nu scripts/seed.nu $(SEED_ARGS)
