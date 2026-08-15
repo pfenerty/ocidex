@@ -83,11 +83,14 @@ generate-operator-check: ## Verify generated operator files are up-to-date
 		diff charts/ocidex-operator/crds/$$name /tmp/operator-check/chart-$$name || (echo "ERROR: charts/ocidex-operator/crds/$$name is stale. Run 'make generate-operator'." && exit 1); \
 	done
 
+# Both run through the ocidex binary's own migrate subcommand rather than a
+# separately-installed goose CLI: same embedded migrations, same ownership
+# preflight production's migrate Job runs, and one less tool to install.
 migrate-up: ## Run database migrations up
-	goose -dir db/migrations postgres "$$DATABASE_URL" up
+	go run ./cmd/ocidex migrate up
 
 migrate-down: ## Roll back last database migration
-	goose -dir db/migrations postgres "$$DATABASE_URL" down
+	go run ./cmd/ocidex migrate down
 
 openapi: ## Regenerate OpenAPI spec and TypeScript types
 	go run ./cmd/specgen > web/openapi.json

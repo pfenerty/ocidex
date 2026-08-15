@@ -109,9 +109,8 @@ flox activate -- make frontend-dev
 **Why `bash -c` with PATH?** `golangci-lint` and `sqlc` are installed via `go install` into `~/go/bin/`, which isn't on PATH by default inside Flox. Commands that invoke these tools (`make lint`, `make check`, `make generate`) need the PATH export.
 
 Exceptions:
-- `goose` (DB migrations) lives at `~/go/bin/goose` — installed via `go install github.com/pressly/goose/v3/cmd/goose@latest`. **Do not use `~/.local/bin/goose`** — that path is the unrelated goose AI agent tool.
-- `make migrate-up` / `make migrate-down` call `goose` by name. If they fail because the wrong binary is found, run the migration directly: `~/go/bin/goose -dir db/migrations postgres "$(grep DATABASE_URL /home/patrick/code/ocidex/.env | cut -d= -f2-)" up`
-- `DATABASE_URL` must be set in the shell or read from `.env`; it is not exported automatically.
+- `make migrate-up` / `make migrate-down` run `go run ./cmd/ocidex migrate up|down` — the binary's own subcommand, with the migrations embedded. No separate `goose` CLI is needed or used; `~/.local/bin/goose` is the unrelated goose AI agent tool.
+- `DATABASE_URL` is exported automatically **for make targets** — the Makefile does `include .env` + `export`. Running a binary directly (`./bin/ocidex`) does not read `.env`; export the variables yourself with `set -a; . ./.env; set +a`.
 - `docker` is NOT available in this environment
 - `sqlc`, `golangci-lint`, and `controller-gen` require `flox activate -- make init` (or `go install`) first
 - `golangci-lint` v2 is required (config uses v2 format). The flox environment includes v2; `make init` installs `github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest`.
