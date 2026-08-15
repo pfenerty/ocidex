@@ -10,6 +10,7 @@ import (
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/pfenerty/ocidex/internal/jobqueue"
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
 )
@@ -35,7 +36,13 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (p
 
 	raw, err := d.scanner.Scan(ctx, req)
 	if err != nil {
-		return pgtype.UUID{}, fmt.Errorf("scan: %w", err)
+		err = fmt.Errorf("scan: %w", err)
+		// Single chokepoint for both the NATS hint path and the DB poll loop, so
+		// the classification applies wherever the scan was triggered from.
+		if isPermanentScanError(err) {
+			return pgtype.UUID{}, jobqueue.Permanent(err)
+		}
+		return pgtype.UUID{}, err
 	}
 
 	bom := new(cdx.BOM)

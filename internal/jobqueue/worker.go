@@ -9,12 +9,16 @@
 // Each job type supplies a Queue[C] (DB operations) and a
 // processor func(ctx, C) error that does the work. Finish is called
 // inside the processor so each type can store type-specific results.
-// Returning a non-nil error from the processor triggers FailOrRequeue.
+// Returning a non-nil error from the processor triggers FailOrRequeue, which
+// requeues the row until MaxAttempts is exhausted. A processor that wraps its
+// error with Permanent() skips the remaining budget and fails the row on the
+// spot — see permanent.go.
 package jobqueue
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -238,20 +242,33 @@ func (w *Worker[C]) drainPoll(ctx context.Context) {
 	}
 }
 
+// failNow is the max-attempts budget passed to FailOrRequeue for a permanent
+// error. Both fail queries decide with `attempts >= max_attempts`, and the
+// claim query already incremented attempts before the processor ran, so
+// attempts >= 1 > 0 and the row goes straight to 'failed' with finished_at set.
+// Do not change without re-checking FailOrRequeue{ScanJob,EnrichmentJob}ByID
+// in db/queries/.
+const failNow int32 = 0
+
 func (w *Worker[C]) run(ctx context.Context, claim C) {
 	jobCtx, cancel := context.WithTimeout(ctx, w.cfg.JobTimeout)
 	defer cancel()
 
 	if err := w.processor(jobCtx, claim); err != nil {
+		permanent := errors.Is(err, ErrPermanent)
 		w.logger.Error(w.name+": job failed",
-			"id", claim.JobID(), "attempts", claim.JobAttempts(), "err", err,
+			"id", claim.JobID(), "attempts", claim.JobAttempts(), "permanent", permanent, "err", err,
 		)
-		state, ferr := w.queue.FailOrRequeue(context.Background(), claim.JobID(), err.Error(), w.cfg.MaxAttempts)
+		maxAttempts := w.cfg.MaxAttempts
+		if permanent {
+			maxAttempts = failNow
+		}
+		state, ferr := w.queue.FailOrRequeue(context.Background(), claim.JobID(), err.Error(), maxAttempts)
 		if ferr != nil {
 			w.logger.Error(w.name+": fail-or-requeue", "id", claim.JobID(), "err", ferr)
 		} else {
 			w.logger.Info(w.name+": retry decision",
-				"id", claim.JobID(), "state", state, "attempts", claim.JobAttempts(),
+				"id", claim.JobID(), "state", state, "attempts", claim.JobAttempts(), "permanent", permanent,
 			)
 		}
 	}
