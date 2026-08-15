@@ -74,7 +74,7 @@ Three classes of source:
   SOPS-encrypted in the homelab repo, named by `existingSecret` in values).
   Wired into every workload via `envFrom: secretRef:` by the chart templates.
 - **Chart values** — set per-workload under `api.env.*`, `scannerWorker.env.*`,
-  `enrichmentWorker.env.*` and `vulnWorker.env.*` in
+  `enricherWorkerDefaults.env.*` and `vulnWorker.env.*` in
   [`charts/ocidex/values.yaml`](../charts/ocidex/values.yaml), overridable from
   the HelmRelease `values:` block.
 - **Default** — omitted from the chart; relies on `envDefault` in
@@ -129,20 +129,20 @@ Source of truth: [`internal/config/config.go`](../internal/config/config.go).
 `scannerWorker.replicas` is ignored when `keda.enabled=true` — the ScaledObject
 owns the replica count and the Deployment renders without one.
 
-### Per-enricher workers (`enrichmentWorker.replicas`, one Deployment each)
+### Per-enricher workers (`enricherWorkerDefaults.replicas`, one Deployment each)
 
 One Deployment per entry in `enricherWorkers` (ADR-033): `oci-metadata-worker`,
 `git-worker`, `user-enricher-worker`, `provenance-worker`. They share the sizing
-and env under `enrichmentWorker`.
+and env under `enricherWorkerDefaults`.
 
 | Variable | Source | Deployed value |
 |---|---|---|
 | `DATABASE_URL` | Secret | same as API |
 | `NATS_URL` | chart (fixed) | `nats://ocidex-dev-nats:4222` |
-| `NATS_STREAM_REPLICAS` | `enrichmentWorker.env.natsStreamReplicas` | `1` |
-| `DATABASE_MAX_CONNECTIONS` | `enrichmentWorker.env.databaseMaxConnections` | `3` |
-| `ENVIRONMENT` | `enrichmentWorker.env.environment` | `development` |
-| `LOG_LEVEL` | `enrichmentWorker.env.logLevel` | `info` |
+| `NATS_STREAM_REPLICAS` | `enricherWorkerDefaults.env.natsStreamReplicas` | `1` |
+| `DATABASE_MAX_CONNECTIONS` | `enricherWorkerDefaults.env.databaseMaxConnections` | `3` |
+| `ENVIRONMENT` | `enricherWorkerDefaults.env.environment` | `development` |
+| `LOG_LEVEL` | `enricherWorkerDefaults.env.logLevel` | `info` |
 | `ENRICHMENT_WORKERS` | Default | `2` |
 
 Workers do **not** need the OAuth or session vars and do not start the HTTP API;
@@ -325,7 +325,7 @@ lives in the homelab repo, under
            frontendUrl: "https://ocidex.app"
            githubRedirectUrl: "https://ocidex.app/auth/callback"
            corsAllowedOrigins: "https://ocidex.app"
-       enrichmentWorker:
+       enricherWorkerDefaults:
          replicas: 1
        ```
        Deliberately **no** `image.tag` override — see "Update procedure".

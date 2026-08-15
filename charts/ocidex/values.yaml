@@ -77,7 +77,7 @@ scannerWorker:
 # becomes a Deployment (+ PodMonitor + KEDA ScaledObject) running a single
 # enricher and claiming its own enricher_name partition. `consumer` is the
 # JetStream durable (HintDurable in cmd/<name>/main.go) KEDA scales on.
-# `enrichmentWorker` holds the sizing/env shared by all of them.
+# `enricherWorkerDefaults` holds the sizing/env shared by all of them.
 enricherWorkers:
   - name: oci-metadata-worker
     consumer: enrich-hint-oci-metadata
@@ -88,7 +88,7 @@ enricherWorkers:
   - name: provenance-worker
     consumer: enrich-hint-provenance
 
-enrichmentWorker:
+enricherWorkerDefaults:
   replicas: 2
   env:
     natsStreamReplicas: "1"
