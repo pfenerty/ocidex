@@ -2034,7 +2034,7 @@ export interface components {
              */
             readonly $schema?: string;
             data: components["schemas"]["RecentDriftEntry"][] | null;
-            pagination: components["schemas"]["PaginationMeta"];
+            pagination: components["schemas"]["CursorMeta"];
         };
         ListRegistriesOutputBody: {
             /**
@@ -2064,7 +2064,7 @@ export interface components {
              */
             readonly $schema?: string;
             data: components["schemas"]["ProvenanceDriftSummary"][] | null;
-            pagination: components["schemas"]["PaginationMeta"];
+            pagination: components["schemas"]["CursorMeta"];
         };
         ListSBOMsOutputBody: {
             /**
@@ -2209,6 +2209,7 @@ export interface components {
         ProvenanceDriftSummary: {
             /** Format: date-time */
             detectedAt: string;
+            id?: string;
             newStatus: string;
             previousStatus: string;
             reason: string;
@@ -2234,6 +2235,7 @@ export interface components {
             artifactType?: string;
             /** Format: date-time */
             detectedAt: string;
+            id?: string;
             newStatus: string;
             previousStatus: string;
             reason: string;
@@ -4152,8 +4154,8 @@ export interface operations {
             query?: {
                 /** @description Maximum number of results per page */
                 limit?: number;
-                /** @description Number of results to skip */
-                offset?: number;
+                /** @description Opaque cursor from a previous response's nextCursor; omit for the first page */
+                cursor?: string;
             };
             header?: never;
             path?: never;
@@ -4783,8 +4785,8 @@ export interface operations {
             query?: {
                 /** @description Maximum number of results per page */
                 limit?: number;
-                /** @description Number of results to skip */
-                offset?: number;
+                /** @description Opaque cursor from a previous response's nextCursor; omit for the first page */
+                cursor?: string;
             };
             header?: never;
             path: {

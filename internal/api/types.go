@@ -199,7 +199,7 @@ type DeleteSBOMInput struct {
 
 // ListSBOMDriftHistoryInput is the request for GET /api/v1/sboms/{id}/drift.
 type ListSBOMDriftHistoryInput struct {
-	PaginationParams
+	CursorParams
 	ID string `path:"id" doc:"SBOM UUID" format:"uuid"`
 }
 
@@ -207,7 +207,7 @@ type ListSBOMDriftHistoryInput struct {
 type ListSBOMDriftHistoryOutput struct {
 	Body struct {
 		Data       []service.ProvenanceDriftSummary `json:"data"`
-		Pagination PaginationMeta                   `json:"pagination"`
+		Pagination CursorMeta                       `json:"pagination"`
 	}
 }
 
@@ -1008,7 +1008,7 @@ type GetRegistryTrustSummaryOutput struct {
 
 // ListRecentDriftInput is the request for GET /api/v1/registries/drift-feed.
 type ListRecentDriftInput struct {
-	PaginationParams
+	CursorParams
 }
 
 // ListRecentDriftOutput is the response for GET /api/v1/registries/drift-feed.
@@ -1016,7 +1016,7 @@ type ListRecentDriftInput struct {
 type ListRecentDriftOutput struct {
 	Body struct {
 		Data       []service.RecentDriftEntry `json:"data"`
-		Pagination PaginationMeta             `json:"pagination"`
+		Pagination CursorMeta                 `json:"pagination"`
 	}
 }
 

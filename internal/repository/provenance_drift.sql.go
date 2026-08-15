@@ -62,18 +62,23 @@ func (q *Queries) InsertProvenanceDrift(ctx context.Context, arg InsertProvenanc
 }
 
 const listProvenanceDriftBySBOM = `-- name: ListProvenanceDriftBySBOM :many
-SELECT id, sbom_id, previous_status, new_status, reason, detected_at,
-       COUNT(*) OVER() AS total_count
+SELECT id, sbom_id, previous_status, new_status, reason, detected_at
 FROM provenance_drift_events
 WHERE sbom_id = $1
-ORDER BY detected_at DESC
-LIMIT $3 OFFSET $2
+  AND (
+    NOT $2::boolean
+    OR (detected_at, id) < ($3::timestamptz, $4::uuid)
+  )
+ORDER BY detected_at DESC, id DESC
+LIMIT $5
 `
 
 type ListProvenanceDriftBySBOMParams struct {
-	SbomID    pgtype.UUID `json:"sbom_id"`
-	RowOffset int32       `json:"row_offset"`
-	RowLimit  int32       `json:"row_limit"`
+	SbomID           pgtype.UUID        `json:"sbom_id"`
+	HasCursor        pgtype.Bool        `json:"has_cursor"`
+	CursorDetectedAt pgtype.Timestamptz `json:"cursor_detected_at"`
+	CursorID         pgtype.UUID        `json:"cursor_id"`
+	RowLimit         int32              `json:"row_limit"`
 }
 
 type ListProvenanceDriftBySBOMRow struct {
@@ -83,11 +88,20 @@ type ListProvenanceDriftBySBOMRow struct {
 	NewStatus      string             `json:"new_status"`
 	Reason         string             `json:"reason"`
 	DetectedAt     pgtype.Timestamptz `json:"detected_at"`
-	TotalCount     int64              `json:"total_count"`
 }
 
+// Keyset pagination on (detected_at DESC, id DESC). Drift events are appended
+// at the head of this ordering as re-verification runs, so OFFSET would shift
+// rows across page boundaries mid-scroll (ADR-043). The caller fetches
+// row_limit+1 to detect whether a further page exists.
 func (q *Queries) ListProvenanceDriftBySBOM(ctx context.Context, arg ListProvenanceDriftBySBOMParams) ([]ListProvenanceDriftBySBOMRow, error) {
-	rows, err := q.db.Query(ctx, listProvenanceDriftBySBOM, arg.SbomID, arg.RowOffset, arg.RowLimit)
+	rows, err := q.db.Query(ctx, listProvenanceDriftBySBOM,
+		arg.SbomID,
+		arg.HasCursor,
+		arg.CursorDetectedAt,
+		arg.CursorID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +116,6 @@ func (q *Queries) ListProvenanceDriftBySBOM(ctx context.Context, arg ListProvena
 			&i.NewStatus,
 			&i.Reason,
 			&i.DetectedAt,
-			&i.TotalCount,
 		); err != nil {
 			return nil, err
 		}
@@ -119,19 +132,24 @@ SELECT
     d.id, d.sbom_id, d.previous_status, d.new_status, d.reason, d.detected_at,
     s.source_id, s.artifact_id,
     a.name AS artifact_name, a.type AS artifact_type,
-    src.name AS source_name,
-    COUNT(*) OVER() AS total_count
+    src.name AS source_name
 FROM provenance_drift_events d
 JOIN sbom s ON s.id = d.sbom_id
 LEFT JOIN artifact a ON a.id = s.artifact_id
 LEFT JOIN source src ON src.id = s.source_id
-ORDER BY d.detected_at DESC
-LIMIT $2 OFFSET $1
+WHERE (
+    NOT $1::boolean
+    OR (d.detected_at, d.id) < ($2::timestamptz, $3::uuid)
+  )
+ORDER BY d.detected_at DESC, d.id DESC
+LIMIT $4
 `
 
 type ListRecentProvenanceDriftParams struct {
-	RowOffset int32 `json:"row_offset"`
-	RowLimit  int32 `json:"row_limit"`
+	HasCursor        pgtype.Bool        `json:"has_cursor"`
+	CursorDetectedAt pgtype.Timestamptz `json:"cursor_detected_at"`
+	CursorID         pgtype.UUID        `json:"cursor_id"`
+	RowLimit         int32              `json:"row_limit"`
 }
 
 type ListRecentProvenanceDriftRow struct {
@@ -146,11 +164,17 @@ type ListRecentProvenanceDriftRow struct {
 	ArtifactName   pgtype.Text        `json:"artifact_name"`
 	ArtifactType   pgtype.Text        `json:"artifact_type"`
 	SourceName     pgtype.Text        `json:"source_name"`
-	TotalCount     int64              `json:"total_count"`
 }
 
+// Cross-registry drift feed, keyset-paginated on (detected_at DESC, id DESC)
+// for the same reason as ListProvenanceDriftBySBOM (ADR-043).
 func (q *Queries) ListRecentProvenanceDrift(ctx context.Context, arg ListRecentProvenanceDriftParams) ([]ListRecentProvenanceDriftRow, error) {
-	rows, err := q.db.Query(ctx, listRecentProvenanceDrift, arg.RowOffset, arg.RowLimit)
+	rows, err := q.db.Query(ctx, listRecentProvenanceDrift,
+		arg.HasCursor,
+		arg.CursorDetectedAt,
+		arg.CursorID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +194,6 @@ func (q *Queries) ListRecentProvenanceDrift(ctx context.Context, arg ListRecentP
 			&i.ArtifactName,
 			&i.ArtifactType,
 			&i.SourceName,
-			&i.TotalCount,
 		); err != nil {
 			return nil, err
 		}

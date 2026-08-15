@@ -170,9 +170,9 @@ func currentDrift(drift *ProvenanceDriftSummary, currentStatus string) *Provenan
 	return drift
 }
 
-// ListSBOMDriftHistory returns the full provenance drift event history for an
+// ListSBOMDriftHistory returns the provenance drift event history for an
 // SBOM, newest first. Visibility-gated the same way as GetSBOM.
-func (s *searchService) ListSBOMDriftHistory(ctx context.Context, sbomID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ProvenanceDriftSummary], error) {
+func (s *searchService) ListSBOMDriftHistory(ctx context.Context, sbomID pgtype.UUID, page DriftPage, vis VisibilityFilter) (CursorPage[ProvenanceDriftSummary], error) {
 	q := repository.New(s.db)
 
 	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
@@ -182,57 +182,71 @@ func (s *searchService) ListSBOMDriftHistory(ctx context.Context, sbomID pgtype.
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return PagedResult[ProvenanceDriftSummary]{}, ErrNotFound
+			return CursorPage[ProvenanceDriftSummary]{}, ErrNotFound
 		}
-		return PagedResult[ProvenanceDriftSummary]{}, fmt.Errorf("checking sbom visibility: %w", err)
+		return CursorPage[ProvenanceDriftSummary]{}, fmt.Errorf("checking sbom visibility: %w", err)
 	}
 	if !visible {
-		return PagedResult[ProvenanceDriftSummary]{}, ErrNotFound
+		return CursorPage[ProvenanceDriftSummary]{}, ErrNotFound
 	}
 
+	// Fetch one extra row to detect whether a further page exists.
 	rows, err := q.ListProvenanceDriftBySBOM(ctx, repository.ListProvenanceDriftBySBOMParams{
-		SbomID:    sbomID,
-		RowLimit:  limit,
-		RowOffset: offset,
+		SbomID:           sbomID,
+		HasCursor:        pgtype.Bool{Bool: page.HasCursor, Valid: true},
+		CursorDetectedAt: pgtype.Timestamptz{Time: page.CursorDetectedAt, Valid: page.HasCursor},
+		CursorID:         uuidOrNull(page.CursorID),
+		RowLimit:         page.Limit + 1,
 	})
 	if err != nil {
-		return PagedResult[ProvenanceDriftSummary]{}, fmt.Errorf("listing sbom drift history: %w", err)
+		return CursorPage[ProvenanceDriftSummary]{}, fmt.Errorf("listing sbom drift history: %w", err)
 	}
 
-	var total int64
+	hasMore := len(rows) > int(page.Limit)
+	if hasMore {
+		rows = rows[:page.Limit]
+	}
+
 	items := make([]ProvenanceDriftSummary, len(rows))
 	for i, r := range rows {
-		total = r.TotalCount
 		items[i] = ProvenanceDriftSummary{
+			ID:             uuidToString(r.ID),
 			PreviousStatus: r.PreviousStatus,
 			NewStatus:      r.NewStatus,
 			Reason:         r.Reason,
 			DetectedAt:     r.DetectedAt.Time,
 		}
 	}
-	return PagedResult[ProvenanceDriftSummary]{Data: items, Total: total, Limit: limit, Offset: offset}, nil
+	return CursorPage[ProvenanceDriftSummary]{Data: items, HasMore: hasMore}, nil
 }
 
 // ListRecentProvenanceDrift returns the most recent provenance drift events
-// across every registry, newest first. Admin-only — callers must gate access
-// since this bypasses per-registry visibility.
-func (s *searchService) ListRecentProvenanceDrift(ctx context.Context, limit, offset int32) (PagedResult[RecentDriftEntry], error) {
+// across every registry, newest first. Admin-only at the API layer, so no
+// per-registry visibility filtering is applied here.
+func (s *searchService) ListRecentProvenanceDrift(ctx context.Context, page DriftPage) (CursorPage[RecentDriftEntry], error) {
 	q := repository.New(s.db)
 
+	// Fetch one extra row to detect whether a further page exists.
 	rows, err := q.ListRecentProvenanceDrift(ctx, repository.ListRecentProvenanceDriftParams{
-		RowLimit:  limit,
-		RowOffset: offset,
+		HasCursor:        pgtype.Bool{Bool: page.HasCursor, Valid: true},
+		CursorDetectedAt: pgtype.Timestamptz{Time: page.CursorDetectedAt, Valid: page.HasCursor},
+		CursorID:         uuidOrNull(page.CursorID),
+		RowLimit:         page.Limit + 1,
 	})
 	if err != nil {
-		return PagedResult[RecentDriftEntry]{}, fmt.Errorf("listing recent provenance drift: %w", err)
+		return CursorPage[RecentDriftEntry]{}, fmt.Errorf("listing recent provenance drift: %w", err)
 	}
 
-	var total int64
+	hasMore := len(rows) > int(page.Limit)
+	if hasMore {
+		rows = rows[:page.Limit]
+	}
+
 	items := make([]RecentDriftEntry, len(rows))
 	for i, r := range rows {
-		total = r.TotalCount
 		items[i] = RecentDriftEntry{
 			ProvenanceDriftSummary: ProvenanceDriftSummary{
+				ID:             uuidToString(r.ID),
 				PreviousStatus: r.PreviousStatus,
 				NewStatus:      r.NewStatus,
 				Reason:         r.Reason,
@@ -246,7 +260,7 @@ func (s *searchService) ListRecentProvenanceDrift(ctx context.Context, limit, of
 			ArtifactType: textToPtr(r.ArtifactType),
 		}
 	}
-	return PagedResult[RecentDriftEntry]{Data: items, Total: total, Limit: limit, Offset: offset}, nil
+	return CursorPage[RecentDriftEntry]{Data: items, HasMore: hasMore}, nil
 }
 
 // buildVulnSummary folds per-severity counts into a VulnSummary, or nil when

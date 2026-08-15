@@ -164,16 +164,27 @@ func (h *Handler) ListSBOMDriftHistory(ctx context.Context, in *ListSBOMDriftHis
 	if err != nil {
 		return nil, err
 	}
+	cur, hasCursor, err := decodeTimeIDCursor(in.Cursor)
+	if err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
+	}
 	vis := visibilityFilterFromContext(ctx)
 
-	result, err := h.searchService.ListSBOMDriftHistory(ctx, id, in.Limit, in.Offset, vis)
+	page := service.DriftPage{
+		Limit:            in.Limit,
+		HasCursor:        hasCursor,
+		CursorDetectedAt: cur.CreatedAt,
+		CursorID:         cur.ID,
+	}
+	result, err := h.searchService.ListSBOMDriftHistory(ctx, id, page, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
 
 	out := &ListSBOMDriftHistoryOutput{}
 	out.Body.Data = result.Data
-	out.Body.Pagination = paginationMeta(result)
+	out.Body.Pagination = cursorMeta(result.Data, result.HasMore, in.Limit,
+		func(d service.ProvenanceDriftSummary) string { return encodeTimeIDCursor(d.DetectedAt, d.ID) })
 	return out, nil
 }
 

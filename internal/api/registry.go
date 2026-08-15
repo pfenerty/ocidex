@@ -151,13 +151,24 @@ func (h *Handler) GetRegistryTrustSummary(ctx context.Context, _ *struct{}) (*Ge
 // ListRecentDrift returns the most recent provenance drift events across
 // every registry. Admin-only, for the same reason as GetRegistryTrustSummary.
 func (h *Handler) ListRecentDrift(ctx context.Context, in *ListRecentDriftInput) (*ListRecentDriftOutput, error) {
-	result, err := h.searchService.ListRecentProvenanceDrift(ctx, in.Limit, in.Offset)
+	cur, hasCursor, err := decodeTimeIDCursor(in.Cursor)
+	if err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
+	}
+
+	result, err := h.searchService.ListRecentProvenanceDrift(ctx, service.DriftPage{
+		Limit:            in.Limit,
+		HasCursor:        hasCursor,
+		CursorDetectedAt: cur.CreatedAt,
+		CursorID:         cur.ID,
+	})
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing recent provenance drift: %v", err))
 	}
 	out := &ListRecentDriftOutput{}
 	out.Body.Data = result.Data
-	out.Body.Pagination = paginationMeta(result)
+	out.Body.Pagination = cursorMeta(result.Data, result.HasMore, in.Limit,
+		func(d service.RecentDriftEntry) string { return encodeTimeIDCursor(d.DetectedAt, d.ID) })
 	return out, nil
 }
 

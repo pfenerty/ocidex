@@ -383,7 +383,7 @@ func TestListSBOMDriftHistory_NotVisible(t *testing.T) {
 	})
 	uid := pgtype.UUID{Bytes: [16]byte{10}, Valid: true}
 
-	_, err := svc.ListSBOMDriftHistory(context.Background(), uid, 10, 0, VisibilityFilter{})
+	_, err := svc.ListSBOMDriftHistory(context.Background(), uid, DriftPage{Limit: 10}, VisibilityFilter{})
 	is.Equal(err, ErrNotFound)
 }
 
@@ -405,7 +405,7 @@ func TestListSBOMDriftHistory_DBError(t *testing.T) {
 	svc := &searchService{db: db}
 	uid := pgtype.UUID{Bytes: [16]byte{11}, Valid: true}
 
-	_, err := svc.ListSBOMDriftHistory(context.Background(), uid, 10, 0, VisibilityFilter{})
+	_, err := svc.ListSBOMDriftHistory(context.Background(), uid, DriftPage{Limit: 10}, VisibilityFilter{})
 	is.True(err != nil)
 }
 
@@ -438,6 +438,6 @@ func TestListRecentProvenanceDrift_DBError(t *testing.T) {
 	}
 	svc := &searchService{db: db}
 
-	_, err := svc.ListRecentProvenanceDrift(context.Background(), 10, 0)
+	_, err := svc.ListRecentProvenanceDrift(context.Background(), DriftPage{Limit: 10})
 	is.True(err != nil)
 }

@@ -18,11 +18,11 @@ export function useRegistryTrustSummary() {
 }
 
 /** Admin-only: most recent provenance drift events across all registries. */
-export function useRecentDrift(params?: Accessor<{ limit?: number; offset?: number }>) {
+export function useRecentDrift(params?: Accessor<{ limit?: number; cursor?: string }>) {
     return createQuery(() => {
         const p = params?.() ?? {};
         return {
-            queryKey: ["registries", "drift-feed", p.limit, p.offset] as const,
+            queryKey: ["registries", "drift-feed", p.limit, p.cursor] as const,
             queryFn: () =>
                 unwrap(client.GET("/api/v1/registries/drift-feed", { params: { query: p } })),
         };

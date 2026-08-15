@@ -2559,7 +2559,7 @@
             ]
           },
           "pagination": {
-            "$ref": "#/components/schemas/PaginationMeta"
+            "$ref": "#/components/schemas/CursorMeta"
           }
         },
         "required": [
@@ -2652,7 +2652,7 @@
             ]
           },
           "pagination": {
-            "$ref": "#/components/schemas/PaginationMeta"
+            "$ref": "#/components/schemas/CursorMeta"
           }
         },
         "required": [
@@ -3033,6 +3033,9 @@
             "format": "date-time",
             "type": "string"
           },
+          "id": {
+            "type": "string"
+          },
           "newStatus": {
             "type": "string"
           },
@@ -3094,6 +3097,9 @@
           },
           "detectedAt": {
             "format": "date-time",
+            "type": "string"
+          },
+          "id": {
             "type": "string"
           },
           "newStatus": {
@@ -6712,16 +6718,13 @@
             }
           },
           {
-            "description": "Number of results to skip",
+            "description": "Opaque cursor from a previous response's nextCursor; omit for the first page",
             "explode": false,
             "in": "query",
-            "name": "offset",
+            "name": "cursor",
             "schema": {
-              "default": 0,
-              "description": "Number of results to skip",
-              "format": "int32",
-              "minimum": 0,
-              "type": "integer"
+              "description": "Opaque cursor from a previous response's nextCursor; omit for the first page",
+              "type": "string"
             }
           }
         ],
@@ -7755,16 +7758,13 @@
             }
           },
           {
-            "description": "Number of results to skip",
+            "description": "Opaque cursor from a previous response's nextCursor; omit for the first page",
             "explode": false,
             "in": "query",
-            "name": "offset",
+            "name": "cursor",
             "schema": {
-              "default": 0,
-              "description": "Number of results to skip",
-              "format": "int32",
-              "minimum": 0,
-              "type": "integer"
+              "description": "Opaque cursor from a previous response's nextCursor; omit for the first page",
+              "type": "string"
             }
           },
           {

@@ -217,12 +217,12 @@ func (f *fakeSearchService) GetComponentVulns(_ context.Context, _ pgtype.UUID, 
 	return []service.ComponentVulnEntry{}, nil
 }
 
-func (f *fakeSearchService) ListSBOMDriftHistory(_ context.Context, _ pgtype.UUID, limit, offset int32, _ service.VisibilityFilter) (service.PagedResult[service.ProvenanceDriftSummary], error) {
-	return service.PagedResult[service.ProvenanceDriftSummary]{Limit: limit, Offset: offset}, nil
+func (f *fakeSearchService) ListSBOMDriftHistory(_ context.Context, _ pgtype.UUID, _ service.DriftPage, _ service.VisibilityFilter) (service.CursorPage[service.ProvenanceDriftSummary], error) {
+	return service.CursorPage[service.ProvenanceDriftSummary]{}, nil
 }
 
-func (f *fakeSearchService) ListRecentProvenanceDrift(_ context.Context, limit, offset int32) (service.PagedResult[service.RecentDriftEntry], error) {
-	return service.PagedResult[service.RecentDriftEntry]{Limit: limit, Offset: offset}, nil
+func (f *fakeSearchService) ListRecentProvenanceDrift(_ context.Context, _ service.DriftPage) (service.CursorPage[service.RecentDriftEntry], error) {
+	return service.CursorPage[service.RecentDriftEntry]{}, nil
 }
 
 func (f *fakeSearchService) LookupArtifact(_ context.Context, _ service.ArtifactLookupQuery, _ service.VisibilityFilter) ([]service.LookupCandidate, error) {
