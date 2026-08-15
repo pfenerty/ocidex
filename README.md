@@ -69,14 +69,14 @@ git clone https://github.com/pfenerty/ocidex.git
 cd ocidex
 flox activate
 
-# Install Go tools (sqlc, golangci-lint)
+# Install Go tools (golangci-lint, oapi-codegen, controller-gen)
 make init
 
-# Start PostgreSQL (via docker-compose, or provide your own)
-docker compose up -d postgres
+# Start PostgreSQL and NATS (via docker-compose, or provide your own)
+docker compose up -d postgres nats
 
 # Configure
-cp .env.example .env   # edit DATABASE_URL if needed
+cp .env.example .env   # edit DATABASE_URL / NATS_URL if needed
 
 # Run migrations and build
 make migrate-up
@@ -84,6 +84,16 @@ make build
 make frontend
 
 # Start the server
+make run
+```
+
+`.env` is read by docker-compose and by the make targets, which export it before running
+anything. The binaries themselves read only the process environment — so `./bin/ocidex` invoked
+directly ignores `.env` and exits on the required variables. Export them first if you want to run
+it outside `make`:
+
+```sh
+set -a; . ./.env; set +a
 ./bin/ocidex
 ```
 
