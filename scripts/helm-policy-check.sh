@@ -18,12 +18,22 @@ APP_CHART=charts/ocidex
 OPERATOR_CHART=charts/ocidex-operator
 POLICIES="policy/pod-security-restricted.yaml policy/ocidex-writable-paths.yaml"
 
-for bin in helm kyverno; do
-    command -v "$bin" >/dev/null 2>&1 || {
-        echo "ERROR: $bin not on PATH — run inside 'flox activate'"
-        exit 1
-    }
-done
+command -v helm >/dev/null 2>&1 || {
+    echo "ERROR: helm not on PATH (locally: run inside 'flox activate')"
+    exit 1
+}
+
+# Wolfi's kyverno-cli package installs the CLI as a kubectl plugin, so the binary in the CI
+# image is kubectl-kyverno; the nixpkgs build Flox provides calls it kyverno. Same program,
+# so resolve whichever is present instead of pinning one and breaking the other environment.
+if command -v kyverno >/dev/null 2>&1; then
+    KYVERNO=kyverno
+elif command -v kubectl-kyverno >/dev/null 2>&1; then
+    KYVERNO=kubectl-kyverno
+else
+    echo "ERROR: neither kyverno nor kubectl-kyverno on PATH (locally: run inside 'flox activate')"
+    exit 1
+fi
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
@@ -56,13 +66,13 @@ echo "==> kyverno apply (rendered manifests must satisfy every policy)"
 for manifest in "$OUT"/*.yaml; do
     echo "--- $manifest"
     # shellcheck disable=SC2086 # POLICIES is a deliberate multi-arg list
-    kyverno apply $POLICIES --resource "$manifest"
+    "$KYVERNO" apply $POLICIES --resource "$manifest"
 done
 
 # Asserts each rule PASSES on a compliant fixture and FAILS on one that violates exactly
 # it, so a rule that stops matching cannot hide behind a green "0 failures" above.
 echo "==> kyverno test (rule-level both-polarity assertions)"
-kyverno test policy/tests
+"$KYVERNO" test policy/tests
 
 # Chart-level negative control: strip the security contexts the chart supplies and prove
 # the check rejects the result. This runs on every invocation, so one green run of this
@@ -76,7 +86,7 @@ helm template ocidex "$APP_CHART" \
     --set nats.podSecurityContext=null \
     >"$OUT/negative-no-security-context.yaml"
 # shellcheck disable=SC2086
-if kyverno apply $POLICIES --resource "$OUT/negative-no-security-context.yaml" \
+if "$KYVERNO" apply $POLICIES --resource "$OUT/negative-no-security-context.yaml" \
     >"$OUT/negative-control.log" 2>&1; then
     echo "ERROR: negative control PASSED — the policies are not enforcing anything."
     echo "       A silently-passing check is worse than no check; fix policy/ before merging."
