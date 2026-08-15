@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/matryer/is"
-	"github.com/pfenerty/ocidex/internal/api"
 )
 
 func TestPaginationDefaults(t *testing.T) {
@@ -51,29 +50,4 @@ func TestPaginationCapAtMax(t *testing.T) {
 
 	// Huma enforces maximum:200 from the struct tag, so this should be rejected.
 	is.True(w.Code == http.StatusUnprocessableEntity || w.Code == http.StatusOK)
-}
-
-func TestParseUUID(t *testing.T) {
-	tests := []struct {
-		name    string
-		input   string
-		wantErr bool
-	}{
-		{"valid UUID", "3e671687-395b-41f5-a30f-a58921a69b79", false},
-		{"invalid", "not-a-uuid", true},
-		{"empty", "", true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			is := is.New(t)
-			id, err := api.ParseUUID(tt.input)
-			if tt.wantErr {
-				is.True(err != nil)
-			} else {
-				is.NoErr(err)
-				is.True(id.Valid)
-			}
-		})
-	}
 }

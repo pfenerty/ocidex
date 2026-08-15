@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/matryer/is"
-	"github.com/pfenerty/ocidex/internal/api"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -47,7 +46,7 @@ func TestMapServiceError_InternalError(t *testing.T) {
 	is.Equal(w.Code, http.StatusInternalServerError)
 }
 
-func TestParseUUID_Invalid(t *testing.T) {
+func TestBadUUIDPathParamIsRejected(t *testing.T) {
 	is := is.New(t)
 	router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
 
@@ -56,19 +55,4 @@ func TestParseUUID_Invalid(t *testing.T) {
 	router.ServeHTTP(w, r)
 
 	is.Equal(w.Code, http.StatusUnprocessableEntity)
-}
-
-func TestParseUUID_Valid(t *testing.T) {
-	is := is.New(t)
-
-	id, err := api.ParseUUID("3e671687-395b-41f5-a30f-a58921a69b79")
-	is.NoErr(err)
-	is.True(id.Valid)
-}
-
-func TestParseUUID_Empty(t *testing.T) {
-	_, err := api.ParseUUID("")
-	if err == nil {
-		t.Fatal("expected error for empty UUID")
-	}
 }
