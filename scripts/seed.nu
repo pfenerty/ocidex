@@ -259,11 +259,12 @@ def main [
     while $waited < $timeout {
         sleep 10sec
         $waited = $waited + 10
-        let resp = (http get --full --allow-errors --headers $headers $"($base_url)/artifacts")
+        # /artifacts is cursor-paginated — the response carries hasMore, not a
+        # total — so the count below is "artifacts on this page", not a grand total.
+        let resp = (http get --full --allow-errors --headers $headers $"($base_url)/artifacts?limit=100")
         if $resp.status == 200 {
             $artifacts = ($resp.body.data | default [])
-            # The page caps at 20; pagination.total is the real count.
-            $total = ($resp.body.pagination.total? | default ($artifacts | length))
+            $total = ($artifacts | length)
             if not ($artifacts | is-empty) { break }
         }
         print $"  ... ($waited)s"
@@ -284,6 +285,6 @@ Seeding underway.
 ===========================================
 
 Scanning continues in the background. Watch progress with:
-  curl -s -H 'Authorization: Bearer <key>' ($base_url)/artifacts | from json | get pagination.total
+  curl -s -H 'Authorization: Bearer <key>' '($base_url)/artifacts?limit=100' | from json | get data | length
 "
 }

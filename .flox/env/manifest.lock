@@ -39,6 +39,9 @@
       "kyverno": {
         "pkg-path": "kyverno"
       },
+      "nats-server": {
+        "pkg-path": "nats-server"
+      },
       "nodejs": {
         "pkg-path": "nodejs"
       },
@@ -1183,6 +1186,99 @@
       "priority": 5
     },
     {
+      "attr_path": "nats-server",
+      "broken": false,
+      "derivation": "/nix/store/iis4ibl8ha0n1gf18i6xilph0kz38wyv-nats-server-2.14.2.drv",
+      "description": "High-Performance server for NATS",
+      "install_id": "nats-server",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=567a49d1913ce81ac6e9582e3553dd90a955875f",
+      "name": "nats-server-2.14.2",
+      "pname": "nats-server",
+      "rev": "567a49d1913ce81ac6e9582e3553dd90a955875f",
+      "rev_count": 1017464,
+      "rev_date": "2026-06-16T02:33:49Z",
+      "scrape_date": "2026-06-17T03:13:38.208778Z",
+      "stabilities": [
+        "staging",
+        "unstable",
+        "stable"
+      ],
+      "unfree": false,
+      "version": "2.14.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/5hbf49qqfjshc4w5d172kcikf3jd3hs0-nats-server-2.14.2"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nats-server",
+      "broken": false,
+      "derivation": "/nix/store/83wss3lm203jln74d03cbrf7yr3j51y6-nats-server-2.14.2.drv",
+      "description": "High-Performance server for NATS",
+      "install_id": "nats-server",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=567a49d1913ce81ac6e9582e3553dd90a955875f",
+      "name": "nats-server-2.14.2",
+      "pname": "nats-server",
+      "rev": "567a49d1913ce81ac6e9582e3553dd90a955875f",
+      "rev_count": 1017464,
+      "rev_date": "2026-06-16T02:33:49Z",
+      "scrape_date": "2026-06-17T03:44:46.640876Z",
+      "stabilities": [
+        "staging",
+        "unstable",
+        "stable"
+      ],
+      "unfree": false,
+      "version": "2.14.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/gmyiy26sklp3pmq70dg5rvr1i3jba52l-nats-server-2.14.2"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nats-server",
+      "broken": false,
+      "derivation": "/nix/store/m5ik4x0q08plp0igc2rl0k44brb06b3v-nats-server-2.14.2.drv",
+      "description": "High-Performance server for NATS",
+      "install_id": "nats-server",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=567a49d1913ce81ac6e9582e3553dd90a955875f",
+      "name": "nats-server-2.14.2",
+      "pname": "nats-server",
+      "rev": "567a49d1913ce81ac6e9582e3553dd90a955875f",
+      "rev_count": 1017464,
+      "rev_date": "2026-06-16T02:33:49Z",
+      "scrape_date": "2026-06-17T04:47:46.351659Z",
+      "stabilities": [
+        "staging",
+        "unstable",
+        "stable"
+      ],
+      "unfree": false,
+      "version": "2.14.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/01x97siyxynag39svll3zwgzlm48abr7-nats-server-2.14.2"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
       "attr_path": "nodejs",
       "broken": false,
       "derivation": "/nix/store/vbx35am7lar9zvwhk4nfl3lysmbd0ils-nodejs-24.15.0.drv",
@@ -2104,6 +2200,9 @@
         },
         "kyverno": {
           "pkg-path": "kyverno"
+        },
+        "nats-server": {
+          "pkg-path": "nats-server"
         },
         "nodejs": {
           "pkg-path": "nodejs"

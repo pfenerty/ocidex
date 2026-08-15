@@ -73,9 +73,10 @@ image, so the full set (45 images across 11 repos) takes a while. Watch progress
 `ocidex-scanner-worker` resource in the Tilt UI, or poll:
 
 ```bash
-# .pagination.total, not .data | length — the page caps at 20
+# /artifacts is cursor-paginated (hasMore, no total) and defaults to 20 per
+# page — raise limit, and follow .pagination.hasMore if it stays true.
 curl -s -H "Authorization: Bearer $OCIDEX_API_KEY" \
-  http://localhost:8080/api/v1/artifacts | jq '.pagination.total'
+  'http://localhost:8080/api/v1/artifacts?limit=100' | jq '.data | length'
 ```
 
 Re-running is safe: registries that already exist are resolved and re-scanned rather than
