@@ -42,6 +42,36 @@ type ArtifactWatch struct {
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 
+// A registered Kubernetes cluster reporting its running workloads (ADR-044). Owned by a namespace; visibility is inherited from it, never stored here.
+type Cluster struct {
+	ID          pgtype.UUID `json:"id"`
+	NamespaceID pgtype.UUID `json:"namespace_id"`
+	Name        string      `json:"name"`
+	Description string      `json:"description"`
+	// Stamped on every accepted inventory snapshot. NULL means no agent has ever reported. Staleness is how a dead agent is distinguished from an empty cluster (ADR-044 K2) — a cluster showing zero workloads because nothing reported must never read as a cluster running nothing.
+	LastSeenAt pgtype.Timestamptz `json:"last_seen_at"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Current running-image inventory reported by a cluster agent. Full-snapshot semantics: rows absent from a snapshot are deleted (ADR-044 K7). Not a history table.
+type ClusterWorkload struct {
+	ID            pgtype.UUID `json:"id"`
+	ClusterID     pgtype.UUID `json:"cluster_id"`
+	K8sNamespace  string      `json:"k8s_namespace"`
+	WorkloadKind  string      `json:"workload_kind"`
+	WorkloadName  string      `json:"workload_name"`
+	ContainerName string      `json:"container_name"`
+	// The image reference for display only. Never a join key: a tag is mutable and is not an identity (ADR-044 K3).
+	ImageRef string `json:"image_ref"`
+	// Normalized sha256 digest read from status.containerStatuses[].imageID. NULL means the agent could not extract a digest at all (ADR-044 K5 "unresolvable") — distinct from a digest that matches no ingested SBOM ("unknown"), because the remedy differs: investigate the node runtime versus ingest an SBOM.
+	ImageDigest pgtype.Text `json:"image_digest"`
+	// How many running pods of this workload carry this container at this digest. Greater than one is normal; two rows for one container differing only by digest is a rollout in progress.
+	PodCount    int32              `json:"pod_count"`
+	FirstSeenAt pgtype.Timestamptz `json:"first_seen_at"`
+	LastSeenAt  pgtype.Timestamptz `json:"last_seen_at"`
+}
+
 type Component struct {
 	ID            pgtype.UUID `json:"id"`
 	SbomID        pgtype.UUID `json:"sbom_id"`

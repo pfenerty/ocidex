@@ -102,6 +102,26 @@ ADR-019's rules; a digest either matches a row or it does not.
 This also means the connector gains nothing from and contributes nothing to the diff identity
 model. If the join ever needs to become fuzzy, that is a new ADR, not a patch to this one.
 
+**Index-digest fallback.** There is one wrinkle that a strict `sbom.digest` join gets wrong often
+enough to make the feature useless. For a multi-arch image pulled by tag, containerd resolves and
+records the *image index* digest, so `imageID` carries the index digest — while the scanner
+produces one SBOM per platform, whose `sbom.digest` is the per-platform *child manifest* digest and
+whose `sbom.index_digest` is the index (ADR-032 lineage, migration `00037`). Joining only on
+`sbom.digest` would therefore fail to match the majority of real workloads.
+
+The join is consequently two-tier, and the tier is recorded rather than hidden:
+
+1. `cluster_workload.image_digest = sbom.digest` — an exact per-platform match.
+2. otherwise `cluster_workload.image_digest = sbom.index_digest` — the workload is running *some*
+   platform of a scanned multi-arch image.
+
+Tier 2 is still exact in the sense that matters (the digest is a cryptographic identity, not a
+guess), but it is one-to-many: an index digest may resolve to several per-platform SBOMs. The
+cluster reports no platform, so which child is running is genuinely unknown. Resolution is
+therefore *deterministic rather than correct-by-construction* — the newest matching SBOM is chosen,
+and the match tier is surfaced so a view can say "matched via image index" rather than implying
+per-platform precision. Both tiers count as **matched** for K5.
+
 ### Rule K5 — Three workload states, and they must be visually distinct
 
 A running workload is in exactly one of:
