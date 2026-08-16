@@ -400,17 +400,21 @@ FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
 WHERE (
-    $1::boolean = true
-    OR n.visibility = 'public'
-    OR ($2::uuid IS NOT NULL AND n.owner_id = $2::uuid)
+    CASE WHEN COALESCE($1::boolean, false)
+         THEN n.owner_id = $2::uuid
+         ELSE $3::boolean = true
+              OR n.visibility = 'public'
+              OR ($2::uuid IS NOT NULL AND n.owner_id = $2::uuid)
+    END
 )
 ORDER BY r.created_at ASC
-LIMIT $4 OFFSET $3
+LIMIT $5 OFFSET $4
 `
 
 type ListRegistriesPagedParams struct {
-	IsAdmin   pgtype.Bool `json:"is_admin"`
+	OwnedOnly pgtype.Bool `json:"owned_only"`
 	UserID    pgtype.UUID `json:"user_id"`
+	IsAdmin   pgtype.Bool `json:"is_admin"`
 	RowOffset int32       `json:"row_offset"`
 	RowLimit  int32       `json:"row_limit"`
 }
@@ -423,10 +427,13 @@ type ListRegistriesPagedRow struct {
 	TotalCount int64       `json:"total_count"`
 }
 
+// owned_only switches from the visibility path to the ownership path, which is
+// what /api/v1/users/me/registries needs — see ListNamespaces.
 func (q *Queries) ListRegistriesPaged(ctx context.Context, arg ListRegistriesPagedParams) ([]ListRegistriesPagedRow, error) {
 	rows, err := q.db.Query(ctx, listRegistriesPaged,
-		arg.IsAdmin,
+		arg.OwnedOnly,
 		arg.UserID,
+		arg.IsAdmin,
 		arg.RowOffset,
 		arg.RowLimit,
 	)

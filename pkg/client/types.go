@@ -671,6 +671,22 @@ func (e ListTopVulnerabilitiesParamsSortDir) Valid() bool {
 	}
 }
 
+// ActivityEntry defines model for ActivityEntry.
+type ActivityEntry struct {
+	ArtifactId     *string   `json:"artifactId,omitempty"`
+	ArtifactName   *string   `json:"artifactName,omitempty"`
+	ArtifactType   *string   `json:"artifactType,omitempty"`
+	CreatedAt      time.Time `json:"createdAt"`
+	Digest         *string   `json:"digest,omitempty"`
+	NamespaceId    string    `json:"namespaceId"`
+	NamespaceName  string    `json:"namespaceName"`
+	SbomId         string    `json:"sbomId"`
+	SourceId       *string   `json:"sourceId,omitempty"`
+	SourceKind     *string   `json:"sourceKind,omitempty"`
+	SourceName     *string   `json:"sourceName,omitempty"`
+	SubjectVersion *string   `json:"subjectVersion,omitempty"`
+}
+
 // AffectedArtifact defines model for AffectedArtifact.
 type AffectedArtifact struct {
 	AffectedPurlCount int64   `json:"affectedPurlCount"`
@@ -1494,6 +1510,14 @@ type ListLicensesOutputBody struct {
 	Schema     *string         `json:"$schema,omitempty"`
 	Data       *[]LicenseCount `json:"data"`
 	Pagination PaginationMeta  `json:"pagination"`
+}
+
+// ListMyActivityOutputBody defines model for ListMyActivityOutputBody.
+type ListMyActivityOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema     *string          `json:"$schema,omitempty"`
+	Data       *[]ActivityEntry `json:"data"`
+	Pagination CursorMeta       `json:"pagination"`
 }
 
 // ListNamespacesOutputBody defines model for ListNamespacesOutputBody.
@@ -2530,6 +2554,42 @@ type ListSbomDriftHistoryParams struct {
 type ListSourcesParams struct {
 	// NamespaceId Limit to sources in this namespace
 	NamespaceId *string `form:"namespace_id,omitempty" json:"namespace_id,omitempty"`
+}
+
+// ListMyActivityParams defines parameters for ListMyActivity.
+type ListMyActivityParams struct {
+	// Limit Maximum number of results per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque cursor from a previous response's nextCursor; omit for the first page
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// ListMyArtifactsParams defines parameters for ListMyArtifacts.
+type ListMyArtifactsParams struct {
+	// Limit Maximum number of results per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque cursor from a previous response's nextCursor; omit for the first page
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Type Filter by artifact type
+	Type *string `form:"type,omitempty" json:"type,omitempty"`
+
+	// Name Filter by artifact name
+	Name *string `form:"name,omitempty" json:"name,omitempty"`
+
+	// Sufficient Filter to artifacts with sufficiently enriched SBOMs; pass 'false' to include all (default: true)
+	Sufficient *string `form:"sufficient,omitempty" json:"sufficient,omitempty"`
+}
+
+// ListMyRegistriesParams defines parameters for ListMyRegistries.
+type ListMyRegistriesParams struct {
+	// Limit Maximum number of results per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
 // ListTopVulnerabilitiesParams defines parameters for ListTopVulnerabilities.

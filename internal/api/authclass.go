@@ -75,6 +75,13 @@ const (
 	// caller can see. An admin gets the cross-tenant view from the same
 	// endpoint — there is no separate admin path (ocidex-998g.1).
 	noteNamespaceScoped = "Rows filtered via visible_namespace_ids; admins see every namespace."
+
+	// noteSelfScoped marks the /users/me/* collections. These select on
+	// ownership, not visibility — the distinction that matters for review is
+	// that a public resource owned by somebody else is absent here but present
+	// in the sibling list endpoint, and that admins get no widening
+	// (ocidex-998g.2).
+	noteSelfScoped = "Owned rows only; excludes others' public rows, and admins get no widening."
 )
 
 // authRules declares the authorization contract of every registered operation,
@@ -88,12 +95,17 @@ var authRules = map[string]AuthRule{
 	"api-version":     {Class: ClassPublic},
 
 	// --- Auth & users -------------------------------------------------------
-	"get-me":           {Class: ClassAuthenticated, Notes: "Returns the calling principal."},
-	"create-api-key":   {Class: ClassMember, Write: true, Notes: "Key is scoped to the calling user."},
-	"list-api-keys":    {Class: ClassMember, Notes: "Own keys only."},
-	"delete-api-key":   {Class: ClassMember, Write: true, Notes: "Own keys only."},
-	"list-users":       {Class: ClassAdmin},
-	"update-user-role": {Class: ClassAdmin, Write: true},
+	"get-me":             {Class: ClassAuthenticated, Notes: "Returns the calling principal."},
+	"list-my-namespaces": {Class: ClassAuthenticated, Notes: noteSelfScoped},
+	"list-my-sources":    {Class: ClassAuthenticated, Notes: noteSelfScoped},
+	"list-my-registries": {Class: ClassAuthenticated, Notes: noteSelfScoped},
+	"list-my-artifacts":  {Class: ClassAuthenticated, Notes: noteSelfScoped},
+	"list-my-activity":   {Class: ClassAuthenticated, Notes: noteSelfScoped},
+	"create-api-key":     {Class: ClassMember, Write: true, Notes: "Key is scoped to the calling user."},
+	"list-api-keys":      {Class: ClassMember, Notes: "Own keys only."},
+	"delete-api-key":     {Class: ClassMember, Write: true, Notes: "Own keys only."},
+	"list-users":         {Class: ClassAdmin},
+	"update-user-role":   {Class: ClassAdmin, Write: true},
 	"get-system-status": {Class: ClassAdmin,
 		Notes: "Exposes DB and job-queue internals."},
 

@@ -82,7 +82,18 @@ WHERE (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))
   AND (sqlc.narg('require_sufficient')::boolean IS NULL
        OR NOT sqlc.narg('require_sufficient')::boolean
        OR EXISTS (SELECT 1 FROM sbom s2 WHERE s2.artifact_id = a.id AND s2.enrichment_sufficient))
-  AND artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+  -- owned_only is the ownership path for /api/v1/users/me/artifacts. An
+  -- artifact is "mine" when it appears in a namespace I own; artifact_visible()
+  -- would additionally admit every public artifact and every artifact with no
+  -- namespace link at all, which is exactly what this collection must exclude
+  -- (ocidex-998g.2, and see ListNamespaces).
+  AND CASE WHEN COALESCE(sqlc.narg('owned_only')::boolean, false)
+           THEN EXISTS (
+               SELECT 1 FROM artifact_namespace an
+               JOIN namespace n ON n.id = an.namespace_id
+               WHERE an.artifact_id = a.id AND n.owner_id = sqlc.narg('user_id')::uuid)
+           ELSE artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+      END
   AND (
     NOT sqlc.narg('has_cursor')::boolean
     OR (a.name, a.type, a.id) > (sqlc.narg('cursor_name')::text, sqlc.narg('cursor_type')::text, sqlc.narg('cursor_id')::uuid)

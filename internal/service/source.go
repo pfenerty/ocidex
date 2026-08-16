@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pfenerty/ocidex/internal/repository"
@@ -133,8 +132,9 @@ func (s *sourceService) ListByNamespace(ctx context.Context, namespaceID string)
 
 func (s *sourceService) List(ctx context.Context, filter VisibilityFilter) ([]Source, error) {
 	rows, err := s.repo.ListSources(ctx, repository.ListSourcesParams{
-		IsAdmin: pgtype.Bool{Bool: filter.IsAdmin, Valid: true},
-		UserID:  filter.UserID,
+		IsAdmin:   filter.adminFlag(),
+		UserID:    filter.UserID,
+		OwnedOnly: filter.ownedFlag(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("listing sources: %w", err)

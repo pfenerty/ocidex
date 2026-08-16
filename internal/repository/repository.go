@@ -31,6 +31,7 @@ type SearchRepository interface {
 	IsSBOMVisible(ctx context.Context, arg IsSBOMVisibleParams) (bool, error)
 	IsArtifactVisible(ctx context.Context, arg IsArtifactVisibleParams) (bool, error)
 	ListSBOMs(ctx context.Context, arg ListSBOMsParams) ([]ListSBOMsRow, error)
+	ListOwnedActivity(ctx context.Context, arg ListOwnedActivityParams) ([]ListOwnedActivityRow, error)
 	SearchComponents(ctx context.Context, arg SearchComponentsParams) ([]SearchComponentsRow, error)
 	GetComponent(ctx context.Context, id pgtype.UUID) (GetComponentRow, error)
 	ListComponentHashes(ctx context.Context, componentID pgtype.UUID) ([]ListComponentHashesRow, error)

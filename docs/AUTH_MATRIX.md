@@ -59,6 +59,11 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 | DELETE | `/api/v1/auth/keys/{id}` | `delete-api-key` | `member` | ✓ | Own keys only. |
 | GET | `/api/v1/users` | `list-users` | `admin` |  |  |
 | GET | `/api/v1/users/me` | `get-me` | `authenticated` |  | Returns the calling principal. |
+| GET | `/api/v1/users/me/activity` | `list-my-activity` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
+| GET | `/api/v1/users/me/artifacts` | `list-my-artifacts` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
+| GET | `/api/v1/users/me/namespaces` | `list-my-namespaces` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
+| GET | `/api/v1/users/me/registries` | `list-my-registries` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
+| GET | `/api/v1/users/me/sources` | `list-my-sources` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
 | PATCH | `/api/v1/users/{id}/role` | `update-user-role` | `admin` | ✓ |  |
 
 ### Components

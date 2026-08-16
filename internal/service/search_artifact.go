@@ -217,6 +217,7 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 		RequireSufficient: boolOrNull(filter.RequireSufficient),
 		IsAdmin:           visAdminBool(filter.Visibility),
 		UserID:            filter.Visibility.UserID,
+		OwnedOnly:         filter.Visibility.ownedFlag(),
 		HasCursor:         pgtype.Bool{Bool: filter.HasCursor, Valid: true},
 		CursorName:        textOrNull(filter.CursorName),
 		CursorType:        textOrNull(filter.CursorType),

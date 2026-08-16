@@ -22,6 +22,11 @@ type ListSourcesInput struct {
 	NamespaceID string `query:"namespace_id" doc:"Limit to sources in this namespace"`
 }
 
+// ListMySourcesInput is the request for GET /api/v1/users/me/sources. There is
+// no namespace filter: the collection is already scoped to the caller's
+// namespaces, which is the thing /sources?namespace_id= makes you look up first.
+type ListMySourcesInput struct{}
+
 // ListSourcesOutput is the response for GET /api/v1/sources.
 type ListSourcesOutput struct {
 	Body struct {

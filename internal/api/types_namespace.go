@@ -20,6 +20,11 @@ type NamespaceResponse struct {
 // ListNamespacesInput is the request for GET /api/v1/namespaces.
 type ListNamespacesInput struct{}
 
+// ListMyNamespacesInput is the request for GET /api/v1/users/me/namespaces.
+// It reuses ListNamespacesOutput: the projection is identical and only the row
+// rule differs (ocidex-998g.2).
+type ListMyNamespacesInput struct{}
+
 // ListNamespacesOutput is the response for GET /api/v1/namespaces.
 type ListNamespacesOutput struct {
 	Body struct {

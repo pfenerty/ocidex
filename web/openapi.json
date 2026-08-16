@@ -1,6 +1,55 @@
 {
   "components": {
     "schemas": {
+      "ActivityEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": {
+            "type": "string"
+          },
+          "artifactName": {
+            "type": "string"
+          },
+          "artifactType": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "namespaceId": {
+            "type": "string"
+          },
+          "namespaceName": {
+            "type": "string"
+          },
+          "sbomId": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "sourceKind": {
+            "type": "string"
+          },
+          "sourceName": {
+            "type": "string"
+          },
+          "subjectVersion": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sbomId",
+          "createdAt",
+          "namespaceId",
+          "namespaceName"
+        ],
+        "type": "object"
+      },
       "AffectedArtifact": {
         "additionalProperties": false,
         "properties": {
@@ -2502,6 +2551,37 @@
           },
           "pagination": {
             "$ref": "#/components/schemas/PaginationMeta"
+          }
+        },
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "type": "object"
+      },
+      "ListMyActivityOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListMyActivityOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityEntry"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/CursorMeta"
           }
         },
         "required": [
@@ -8111,6 +8191,277 @@
           }
         },
         "summary": "Get current user",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/users/me/activity": {
+      "get": {
+        "description": "Every SBOM ingested into a namespace you own, newest first. Scoped to the calling user: only resources you own, excluding public resources owned by others.",
+        "operationId": "list-my-activity",
+        "parameters": [
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque cursor from a previous response's nextCursor; omit for the first page",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor from a previous response's nextCursor; omit for the first page",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListMyActivityOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List my recent activity",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/users/me/artifacts": {
+      "get": {
+        "description": "Scoped to the calling user: only resources you own, excluding public resources owned by others.",
+        "operationId": "list-my-artifacts",
+        "parameters": [
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque cursor from a previous response's nextCursor; omit for the first page",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor from a previous response's nextCursor; omit for the first page",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by artifact type",
+            "explode": false,
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "description": "Filter by artifact type",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by artifact name",
+            "explode": false,
+            "in": "query",
+            "name": "name",
+            "schema": {
+              "description": "Filter by artifact name",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter to artifacts with sufficiently enriched SBOMs; pass 'false' to include all (default: true)",
+            "explode": false,
+            "in": "query",
+            "name": "sufficient",
+            "schema": {
+              "description": "Filter to artifacts with sufficiently enriched SBOMs; pass 'false' to include all (default: true)",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListArtifactsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List my artifacts",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/users/me/namespaces": {
+      "get": {
+        "description": "Scoped to the calling user: only resources you own, excluding public resources owned by others.",
+        "operationId": "list-my-namespaces",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListNamespacesOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List my namespaces",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/users/me/registries": {
+      "get": {
+        "description": "Scoped to the calling user: only resources you own, excluding public resources owned by others.",
+        "operationId": "list-my-registries",
+        "parameters": [
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of results to skip",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Number of results to skip",
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListRegistriesOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List my registries",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/users/me/sources": {
+      "get": {
+        "description": "Scoped to the calling user: only resources you own, excluding public resources owned by others.",
+        "operationId": "list-my-sources",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListSourcesOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List my sources",
         "tags": [
           "Auth"
         ]

@@ -28,3 +28,23 @@ func visibilityFilterFromContext(ctx context.Context) service.VisibilityFilter {
 		UserID:  user.ID,
 	}
 }
+
+// ownedFilterFromContext builds the filter for the /api/v1/users/me/*
+// collections: the rows the caller owns, and nothing else.
+//
+// It is deliberately not visibilityFilterFromContext with a flag flipped at the
+// call site. The two differ in a way that is easy to get backwards — the
+// visibility filter includes namespaces someone else made public, which a
+// "mine" collection must exclude — and IsAdmin is left false because an admin
+// asking for their own namespaces means their own, not the installation's.
+//
+// An unauthenticated caller yields the zero filter with OwnedOnly set, which
+// matches no rows. Every route using this is authenticated-class anyway, so
+// that path is a backstop rather than a supported case.
+func ownedFilterFromContext(ctx context.Context) service.VisibilityFilter {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return service.VisibilityFilter{OwnedOnly: true}
+	}
+	return service.VisibilityFilter{UserID: user.ID, OwnedOnly: true}
+}

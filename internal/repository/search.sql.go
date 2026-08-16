@@ -715,6 +715,102 @@ func (q *Queries) ListLicenses(ctx context.Context, arg ListLicensesParams) ([]L
 	return items, nil
 }
 
+const listOwnedActivity = `-- name: ListOwnedActivity :many
+SELECT s.id, s.digest, s.subject_version, s.created_at,
+       n.id AS namespace_id,
+       n.name AS namespace_name,
+       src.id AS source_id,
+       src.name AS source_name,
+       src.kind AS source_kind,
+       a.id AS artifact_id,
+       a.name AS artifact_name,
+       a.type AS artifact_type
+FROM sbom s
+JOIN namespace n ON n.id = s.namespace_id
+LEFT JOIN source src ON src.id = s.source_id
+LEFT JOIN artifact a ON a.id = s.artifact_id
+WHERE n.owner_id = $1::uuid
+  AND (
+    NOT $2::boolean
+    OR (s.created_at, s.id) < ($3::timestamptz, $4::uuid)
+  )
+ORDER BY s.created_at DESC, s.id DESC
+LIMIT $5
+`
+
+type ListOwnedActivityParams struct {
+	OwnerID         pgtype.UUID        `json:"owner_id"`
+	HasCursor       pgtype.Bool        `json:"has_cursor"`
+	CursorCreatedAt pgtype.Timestamptz `json:"cursor_created_at"`
+	CursorID        pgtype.UUID        `json:"cursor_id"`
+	RowLimit        int32              `json:"row_limit"`
+}
+
+type ListOwnedActivityRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	Digest         pgtype.Text        `json:"digest"`
+	SubjectVersion pgtype.Text        `json:"subject_version"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	NamespaceID    pgtype.UUID        `json:"namespace_id"`
+	NamespaceName  string             `json:"namespace_name"`
+	SourceID       pgtype.UUID        `json:"source_id"`
+	SourceName     pgtype.Text        `json:"source_name"`
+	SourceKind     pgtype.Text        `json:"source_kind"`
+	ArtifactID     pgtype.UUID        `json:"artifact_id"`
+	ArtifactName   pgtype.Text        `json:"artifact_name"`
+	ArtifactType   pgtype.Text        `json:"artifact_type"`
+}
+
+// "Recent activity" for a user workspace is the ingest stream: every SBOM that
+// landed in a namespace this user owns, newest first (ocidex-998g.2).
+//
+// This is the ownership path, not the visibility path — an SBOM ingested into
+// somebody else's public namespace is not the caller's activity. Unlike the
+// other me-scoped collections there is no visibility-path twin to share, so no
+// owned_only switch: owner_id is the only rule this query has.
+//
+// Rows are appended at the head of an immutable ordering, so pagination is
+// keyset on (created_at DESC, id DESC) per ADR-043 rule 2. The caller fetches
+// row_limit+1 to detect whether a further page exists.
+func (q *Queries) ListOwnedActivity(ctx context.Context, arg ListOwnedActivityParams) ([]ListOwnedActivityRow, error) {
+	rows, err := q.db.Query(ctx, listOwnedActivity,
+		arg.OwnerID,
+		arg.HasCursor,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOwnedActivityRow{}
+	for rows.Next() {
+		var i ListOwnedActivityRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Digest,
+			&i.SubjectVersion,
+			&i.CreatedAt,
+			&i.NamespaceID,
+			&i.NamespaceName,
+			&i.SourceID,
+			&i.SourceName,
+			&i.SourceKind,
+			&i.ArtifactID,
+			&i.ArtifactName,
+			&i.ArtifactType,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSBOMComponents = `-- name: ListSBOMComponents :many
 SELECT id, bom_ref, type, name, group_name, version, purl
 FROM component

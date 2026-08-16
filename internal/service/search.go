@@ -43,6 +43,7 @@ type SearchService interface {
 	GetComponentVulns(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) ([]ComponentVulnEntry, error)
 	ListSBOMDriftHistory(ctx context.Context, sbomID pgtype.UUID, page DriftPage, vis VisibilityFilter) (CursorPage[ProvenanceDriftSummary], error)
 	ListRecentProvenanceDrift(ctx context.Context, page DriftPage, vis VisibilityFilter) (CursorPage[RecentDriftEntry], error)
+	ListOwnedActivity(ctx context.Context, ownerID pgtype.UUID, page ActivityPage) (CursorPage[ActivityEntry], error)
 	LookupArtifact(ctx context.Context, query ArtifactLookupQuery, vis VisibilityFilter) ([]LookupCandidate, error)
 	LookupSBOM(ctx context.Context, query SBOMLookupQuery, vis VisibilityFilter) ([]LookupCandidate, error)
 	LookupLicense(ctx context.Context, spdxID string, vis VisibilityFilter) (LicenseCount, error)
@@ -301,6 +302,34 @@ type DriftPage struct {
 	CursorDetectedAt time.Time
 	CursorID         string
 	HasCursor        bool
+}
+
+// ActivityPage carries keyset pagination state for the user workspace activity
+// feed, ordered by (created_at DESC, id DESC).
+type ActivityPage struct {
+	Limit           int32
+	CursorCreatedAt time.Time
+	CursorID        string
+	HasCursor       bool
+}
+
+// ActivityEntry is one event in a user's workspace feed: an SBOM that landed in
+// a namespace they own. Source and artifact are optional because an SBOM can
+// outlive the source it arrived through, and can be ingested before its
+// artifact is resolved.
+type ActivityEntry struct {
+	SBOMID         string    `json:"sbomId"`
+	Digest         *string   `json:"digest,omitempty"`
+	SubjectVersion *string   `json:"subjectVersion,omitempty"`
+	CreatedAt      time.Time `json:"createdAt"`
+	NamespaceID    string    `json:"namespaceId"`
+	NamespaceName  string    `json:"namespaceName"`
+	SourceID       *string   `json:"sourceId,omitempty"`
+	SourceName     *string   `json:"sourceName,omitempty"`
+	SourceKind     *string   `json:"sourceKind,omitempty"`
+	ArtifactID     *string   `json:"artifactId,omitempty"`
+	ArtifactName   *string   `json:"artifactName,omitempty"`
+	ArtifactType   *string   `json:"artifactType,omitempty"`
 }
 
 // ArtifactSummary is a lightweight artifact representation for list views.

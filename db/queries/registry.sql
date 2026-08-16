@@ -80,14 +80,19 @@ WHERE (
 ORDER BY r.created_at ASC;
 
 -- name: ListRegistriesPaged :many
+-- owned_only switches from the visibility path to the ownership path, which is
+-- what /api/v1/users/me/registries needs — see ListNamespaces.
 SELECT sqlc.embed(r), src.name, n.owner_id, n.visibility, COUNT(*) OVER() AS total_count
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
 WHERE (
-    sqlc.narg('is_admin')::boolean = true
-    OR n.visibility = 'public'
-    OR (sqlc.narg('user_id')::uuid IS NOT NULL AND n.owner_id = sqlc.narg('user_id')::uuid)
+    CASE WHEN COALESCE(sqlc.narg('owned_only')::boolean, false)
+         THEN n.owner_id = sqlc.narg('user_id')::uuid
+         ELSE sqlc.narg('is_admin')::boolean = true
+              OR n.visibility = 'public'
+              OR (sqlc.narg('user_id')::uuid IS NOT NULL AND n.owner_id = sqlc.narg('user_id')::uuid)
+    END
 )
 ORDER BY r.created_at ASC
 LIMIT @row_limit OFFSET @row_offset;

@@ -246,9 +246,24 @@ func BuildTrustLookup(svc RegistryService) func(ctx context.Context, registryID 
 }
 
 // VisibilityFilter controls which registries or artifacts are visible to the caller.
+//
+// It carries two distinct selection rules, and the difference between them is
+// the subtle part of the me-scoped collections (ocidex-998g.2):
+//
+//   - The default is the *visibility* rule — admin, or public, or mine. This is
+//     what every ordinary list endpoint wants: a namespace someone else made
+//     public is legitimately part of the catalogue.
+//   - OwnedOnly is the *ownership* rule — mine, full stop. This backs
+//     /api/v1/users/me/*, where "public but not mine" must be excluded, and it
+//     deliberately ignores IsAdmin: an admin asking for their own namespaces
+//     means their own, not the installation's.
+//
+// A zero UserID on the ownership path matches nothing rather than everything,
+// because `owner_id = NULL` is NULL in SQL, not true.
 type VisibilityFilter struct {
-	IsAdmin bool        // admin sees everything
-	UserID  pgtype.UUID // authenticated user's ID (zero-value if unauthenticated)
+	IsAdmin   bool        // admin sees everything (ignored when OwnedOnly)
+	UserID    pgtype.UUID // authenticated user's ID (zero-value if unauthenticated)
+	OwnedOnly bool        // restrict to rows this user owns, excluding others' public rows
 }
 
 // adminFlag renders IsAdmin as the pgtype.Bool that every visible_namespace_ids()
@@ -256,6 +271,12 @@ type VisibilityFilter struct {
 // never NULL-typed, which keeps it symmetric with UserID at the call site.
 func (f VisibilityFilter) adminFlag() pgtype.Bool {
 	return pgtype.Bool{Bool: f.IsAdmin, Valid: true}
+}
+
+// ownedFlag renders OwnedOnly as the owned_only narg understood by the list
+// queries that serve both paths.
+func (f VisibilityFilter) ownedFlag() pgtype.Bool {
+	return pgtype.Bool{Bool: f.OwnedOnly, Valid: true}
 }
 
 // CreateRegistryParams holds the parameters for creating a new registry.
@@ -489,8 +510,9 @@ func (s *registryService) List(ctx context.Context, filter VisibilityFilter) ([]
 
 func (s *registryService) ListPaged(ctx context.Context, filter VisibilityFilter, limit, offset int32) (PagedResult[Registry], error) {
 	rows, err := s.repo.ListRegistriesPaged(ctx, repository.ListRegistriesPagedParams{
-		IsAdmin:   pgtype.Bool{Bool: filter.IsAdmin, Valid: true},
+		IsAdmin:   filter.adminFlag(),
 		UserID:    filter.UserID,
+		OwnedOnly: filter.ownedFlag(),
 		RowLimit:  limit,
 		RowOffset: offset,
 	})

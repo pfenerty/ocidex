@@ -13,6 +13,8 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+
+	"github.com/pfenerty/ocidex/internal/service"
 )
 
 const (
@@ -26,6 +28,14 @@ const (
 	// descAdminOnly is the OpenAPI Description for operations whose only
 	// authorization rule is RequireAdmin.
 	descAdminOnly = "Admin-only."
+
+	// descSelfScoped is the OpenAPI Description for the /users/me/*
+	// collections. It states the one thing a caller could get wrong: these
+	// select on ownership, not visibility, so public resources owned by
+	// somebody else are absent even though the sibling list endpoint shows
+	// them.
+	descSelfScoped = "Scoped to the calling user: only resources you own, " +
+		"excluding public resources owned by others."
 )
 
 // deriveFrontendURL returns a frontend URL using the request's host with the
@@ -204,6 +214,61 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Middlewares: huma.Middlewares{authMW},
 	}, h.GetMe)
 
+	// Self-scoped collections (ocidex-998g.2). Each one mirrors an existing
+	// list endpoint but selects on ownership rather than visibility, so a
+	// workspace UI does not have to fetch the whole catalogue and filter it
+	// client-side. All are authenticated-class: there is nothing to authorize
+	// beyond "who is asking", because the answer is defined by the asker.
+	huma.Register(api, huma.Operation{
+		OperationID: "list-my-namespaces",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/users/me/namespaces",
+		Summary:     "List my namespaces",
+		Description: descSelfScoped,
+		Tags:        []string{tagAuth},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListMyNamespaces)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-my-sources",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/users/me/sources",
+		Summary:     "List my sources",
+		Description: descSelfScoped,
+		Tags:        []string{tagAuth},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListMySources)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-my-registries",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/users/me/registries",
+		Summary:     "List my registries",
+		Description: descSelfScoped,
+		Tags:        []string{tagAuth},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListMyRegistries)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-my-artifacts",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/users/me/artifacts",
+		Summary:     "List my artifacts",
+		Description: descSelfScoped,
+		Tags:        []string{tagAuth},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListMyArtifacts)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-my-activity",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/users/me/activity",
+		Summary:     "List my recent activity",
+		Description: "Every SBOM ingested into a namespace you own, newest first. " + descSelfScoped,
+		Tags:        []string{tagAuth},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListMyActivity)
+
 	huma.Register(api, huma.Operation{
 		OperationID:   "create-api-key",
 		Method:        http.MethodPost,
@@ -277,6 +342,36 @@ func (h *Handler) GetMe(ctx context.Context, _ *struct{}) (*MeOutput, error) {
 	out.Body.ID = uuid.UUID(user.ID.Bytes).String()
 	out.Body.GitHubUsername = user.GitHubUsername
 	out.Body.Role = user.Role
+	return out, nil
+}
+
+// ListMyActivity returns the SBOMs ingested into the caller's namespaces,
+// newest first. Unlike the other me-scoped collections this has no sibling to
+// share a body with — there is no installation-wide activity feed — so it goes
+// straight to the ownership-keyed service call (ocidex-998g.2).
+func (h *Handler) ListMyActivity(ctx context.Context, in *ListMyActivityInput) (*ListMyActivityOutput, error) {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	cur, hasCursor, err := decodeTimeIDCursor(in.Cursor)
+	if err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
+	}
+	result, err := h.searchService.ListOwnedActivity(ctx, user.ID, service.ActivityPage{
+		Limit:           in.Limit,
+		HasCursor:       hasCursor,
+		CursorCreatedAt: cur.CreatedAt,
+		CursorID:        cur.ID,
+	})
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	out := &ListMyActivityOutput{}
+	out.Body.Data = result.Data
+	out.Body.Pagination = cursorMeta(result.Data, result.HasMore, in.Limit, func(a service.ActivityEntry) string {
+		return encodeTimeIDCursor(a.CreatedAt, a.SBOMID)
+	})
 	return out, nil
 }
 

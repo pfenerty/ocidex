@@ -18,14 +18,19 @@ SELECT * FROM source WHERE namespace_id = $1 ORDER BY created_at ASC;
 
 -- name: ListSources :many
 -- Visibility is resolved through the owning namespace, so a source is never
--- listed to a viewer who cannot see the namespace holding it.
+-- listed to a viewer who cannot see the namespace holding it. owned_only
+-- switches to the ownership path — see ListNamespaces for why the two live in
+-- one query.
 SELECT sqlc.embed(s), n.name AS namespace_name, n.owner_id, n.visibility
 FROM source s
 JOIN namespace n ON n.id = s.namespace_id
 WHERE (
-    sqlc.narg('is_admin')::boolean = true
-    OR n.visibility = 'public'
-    OR (sqlc.narg('user_id')::uuid IS NOT NULL AND n.owner_id = sqlc.narg('user_id')::uuid)
+    CASE WHEN COALESCE(sqlc.narg('owned_only')::boolean, false)
+         THEN n.owner_id = sqlc.narg('user_id')::uuid
+         ELSE sqlc.narg('is_admin')::boolean = true
+              OR n.visibility = 'public'
+              OR (sqlc.narg('user_id')::uuid IS NOT NULL AND n.owner_id = sqlc.narg('user_id')::uuid)
+    END
 )
 ORDER BY s.created_at ASC;
 

@@ -1,6 +1,10 @@
 package api
 
-import "time"
+import (
+	"time"
+
+	"github.com/pfenerty/ocidex/internal/service"
+)
 
 // ---------------------------------------------------------------------------
 // Auth — Me
@@ -12,6 +16,19 @@ type MeOutput struct {
 		ID             string `json:"id" doc:"User UUID"`
 		GitHubUsername string `json:"github_username" doc:"GitHub login"`
 		Role           string `json:"role" doc:"User role: admin, member, or viewer"`
+	}
+}
+
+// ListMyActivityInput is the request for GET /api/v1/users/me/activity.
+type ListMyActivityInput struct {
+	CursorParams
+}
+
+// ListMyActivityOutput is the response for GET /api/v1/users/me/activity.
+type ListMyActivityOutput struct {
+	Body struct {
+		Data       []service.ActivityEntry `json:"data"`
+		Pagination CursorMeta              `json:"pagination"`
 	}
 }
 

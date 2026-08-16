@@ -225,6 +225,10 @@ func (f *fakeSearchService) ListRecentProvenanceDrift(_ context.Context, _ servi
 	return service.CursorPage[service.RecentDriftEntry]{}, nil
 }
 
+func (f *fakeSearchService) ListOwnedActivity(_ context.Context, _ pgtype.UUID, _ service.ActivityPage) (service.CursorPage[service.ActivityEntry], error) {
+	return service.CursorPage[service.ActivityEntry]{}, nil
+}
+
 func (f *fakeSearchService) LookupArtifact(_ context.Context, _ service.ArtifactLookupQuery, _ service.VisibilityFilter) ([]service.LookupCandidate, error) {
 	return []service.LookupCandidate{
 		{ID: "3e671687-395b-41f5-a30f-a58921a69b79", Qualifiers: map[string]string{"name": "ubuntu", "type": "container", "group": ""}},

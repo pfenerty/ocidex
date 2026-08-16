@@ -24,10 +24,21 @@ func canManageNamespace(user service.AuthUser, ns service.Namespace) bool {
 // ListNamespaces returns the namespaces visible to the current user: their own,
 // plus every public one.
 func (h *Handler) ListNamespaces(ctx context.Context, _ *ListNamespacesInput) (*ListNamespacesOutput, error) {
+	return h.listNamespaces(ctx, visibilityFilterFromContext(ctx))
+}
+
+// ListMyNamespaces returns only the namespaces the caller owns. It shares
+// ListNamespaces' body and differs solely in the filter, so the two cannot
+// drift apart in what they project (ocidex-998g.2).
+func (h *Handler) ListMyNamespaces(ctx context.Context, _ *ListMyNamespacesInput) (*ListNamespacesOutput, error) {
+	return h.listNamespaces(ctx, ownedFilterFromContext(ctx))
+}
+
+func (h *Handler) listNamespaces(ctx context.Context, vis service.VisibilityFilter) (*ListNamespacesOutput, error) {
 	if _, ok := UserFromContext(ctx); !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	rows, err := h.namespaceService.List(ctx, visibilityFilterFromContext(ctx))
+	rows, err := h.namespaceService.List(ctx, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

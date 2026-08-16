@@ -14,11 +14,25 @@ SELECT * FROM namespace WHERE id = $1;
 SELECT * FROM namespace WHERE name = $1;
 
 -- name: ListNamespaces :many
+-- Two selection paths, one query (ocidex-998g.2).
+--
+-- The default is the *visibility* path: admin, or public, or mine. The
+-- owned_only path backs /api/v1/users/me/* and is strictly narrower — it drops
+-- the public-but-not-mine rows that the visibility path is obliged to include,
+-- and it ignores is_admin, because "my namespaces" means mine even for an
+-- admin. Keeping both in one query is what stops the me-scoped feeds from
+-- drifting away from the ones they mirror.
+--
+-- `owner_id = NULL` evaluates to NULL rather than true, so an unauthenticated
+-- caller on the ownership path matches nothing.
 SELECT * FROM namespace
 WHERE (
-    sqlc.narg('is_admin')::boolean = true
-    OR visibility = 'public'
-    OR (sqlc.narg('user_id')::uuid IS NOT NULL AND owner_id = sqlc.narg('user_id')::uuid)
+    CASE WHEN COALESCE(sqlc.narg('owned_only')::boolean, false)
+         THEN owner_id = sqlc.narg('user_id')::uuid
+         ELSE sqlc.narg('is_admin')::boolean = true
+              OR visibility = 'public'
+              OR (sqlc.narg('user_id')::uuid IS NOT NULL AND owner_id = sqlc.narg('user_id')::uuid)
+    END
 )
 ORDER BY created_at ASC;
 

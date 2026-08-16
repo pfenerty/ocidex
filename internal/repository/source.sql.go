@@ -102,16 +102,20 @@ SELECT s.id, s.namespace_id, s.kind, s.name, s.created_at, s.updated_at, n.name 
 FROM source s
 JOIN namespace n ON n.id = s.namespace_id
 WHERE (
-    $1::boolean = true
-    OR n.visibility = 'public'
-    OR ($2::uuid IS NOT NULL AND n.owner_id = $2::uuid)
+    CASE WHEN COALESCE($1::boolean, false)
+         THEN n.owner_id = $2::uuid
+         ELSE $3::boolean = true
+              OR n.visibility = 'public'
+              OR ($2::uuid IS NOT NULL AND n.owner_id = $2::uuid)
+    END
 )
 ORDER BY s.created_at ASC
 `
 
 type ListSourcesParams struct {
-	IsAdmin pgtype.Bool `json:"is_admin"`
-	UserID  pgtype.UUID `json:"user_id"`
+	OwnedOnly pgtype.Bool `json:"owned_only"`
+	UserID    pgtype.UUID `json:"user_id"`
+	IsAdmin   pgtype.Bool `json:"is_admin"`
 }
 
 type ListSourcesRow struct {
@@ -122,9 +126,11 @@ type ListSourcesRow struct {
 }
 
 // Visibility is resolved through the owning namespace, so a source is never
-// listed to a viewer who cannot see the namespace holding it.
+// listed to a viewer who cannot see the namespace holding it. owned_only
+// switches to the ownership path — see ListNamespaces for why the two live in
+// one query.
 func (q *Queries) ListSources(ctx context.Context, arg ListSourcesParams) ([]ListSourcesRow, error) {
-	rows, err := q.db.Query(ctx, listSources, arg.IsAdmin, arg.UserID)
+	rows, err := q.db.Query(ctx, listSources, arg.OwnedOnly, arg.UserID, arg.IsAdmin)
 	if err != nil {
 		return nil, err
 	}

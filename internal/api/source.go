@@ -39,10 +39,26 @@ func (h *Handler) ListSources(ctx context.Context, in *ListSourcesInput) (*ListS
 		return out, nil
 	}
 
-	rows, err := h.sourceService.List(ctx, visibilityFilterFromContext(ctx))
+	return h.listSources(ctx, visibilityFilterFromContext(ctx))
+}
+
+// ListMySources returns only the sources in namespaces the caller owns. It has
+// no namespace query parameter: /sources?namespace_id= already covers "one
+// namespace", and the point of this collection is that the caller does not have
+// to know their namespace IDs first (ocidex-998g.2).
+func (h *Handler) ListMySources(ctx context.Context, _ *ListMySourcesInput) (*ListSourcesOutput, error) {
+	if _, ok := UserFromContext(ctx); !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	return h.listSources(ctx, ownedFilterFromContext(ctx))
+}
+
+func (h *Handler) listSources(ctx context.Context, vis service.VisibilityFilter) (*ListSourcesOutput, error) {
+	rows, err := h.sourceService.List(ctx, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
+	out := &ListSourcesOutput{}
 	out.Body.Data = make([]SourceResponse, len(rows))
 	for i, src := range rows {
 		out.Body.Data[i] = toSourceResponse(src)

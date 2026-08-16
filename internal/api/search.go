@@ -296,6 +296,20 @@ func (h *Handler) ListComponentsByLicense(ctx context.Context, input *ListCompon
 
 // ListArtifacts handles GET /api/v1/artifacts.
 func (h *Handler) ListArtifacts(ctx context.Context, input *ListArtifactsInput) (*ListArtifactsOutput, error) {
+	return h.listArtifacts(ctx, input, visibilityFilterFromContext(ctx))
+}
+
+// ListMyArtifacts handles GET /api/v1/users/me/artifacts: the artifacts that
+// appear in namespaces the caller owns. Same filters, same keyset pagination,
+// same projection as /artifacts — only the row rule differs (ocidex-998g.2).
+func (h *Handler) ListMyArtifacts(ctx context.Context, input *ListMyArtifactsInput) (*ListArtifactsOutput, error) {
+	if _, ok := UserFromContext(ctx); !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	return h.listArtifacts(ctx, &input.ListArtifactsInput, ownedFilterFromContext(ctx))
+}
+
+func (h *Handler) listArtifacts(ctx context.Context, input *ListArtifactsInput, vis service.VisibilityFilter) (*ListArtifactsOutput, error) {
 	parts, hasCursor, err := decodeStringCursor(input.Cursor, 3)
 	if err != nil {
 		return nil, huma.Error400BadRequest(err.Error())
@@ -309,7 +323,7 @@ func (h *Handler) ListArtifacts(ctx context.Context, input *ListArtifactsInput) 
 		RequireSufficient: requireSufficient,
 		Limit:             input.Limit,
 		HasCursor:         hasCursor,
-		Visibility:        visibilityFilterFromContext(ctx),
+		Visibility:        vis,
 	}
 	if hasCursor {
 		filter.CursorName, filter.CursorType, filter.CursorID = parts[0], parts[1], parts[2]

@@ -100,8 +100,9 @@ func (s *namespaceService) GetByName(ctx context.Context, name string) (Namespac
 
 func (s *namespaceService) List(ctx context.Context, filter VisibilityFilter) ([]Namespace, error) {
 	rows, err := s.repo.ListNamespaces(ctx, repository.ListNamespacesParams{
-		IsAdmin: pgtype.Bool{Bool: filter.IsAdmin, Valid: true},
-		UserID:  filter.UserID,
+		IsAdmin:   filter.adminFlag(),
+		UserID:    filter.UserID,
+		OwnedOnly: filter.ownedFlag(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("listing namespaces: %w", err)

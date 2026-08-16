@@ -18,6 +18,12 @@ type ListArtifactsInput struct {
 	Sufficient string `query:"sufficient" doc:"Filter to artifacts with sufficiently enriched SBOMs; pass 'false' to include all (default: true)"`
 }
 
+// ListMyArtifactsInput is the request for GET /api/v1/users/me/artifacts. It
+// embeds ListArtifactsInput so the two stay filter-for-filter identical.
+type ListMyArtifactsInput struct {
+	ListArtifactsInput
+}
+
 // ListArtifactsOutput is the response for GET /api/v1/artifacts.
 type ListArtifactsOutput struct {
 	Body struct {

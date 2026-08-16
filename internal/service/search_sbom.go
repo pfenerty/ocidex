@@ -266,6 +266,56 @@ func (s *searchService) ListRecentProvenanceDrift(ctx context.Context, page Drif
 	return CursorPage[RecentDriftEntry]{Data: items, HasMore: hasMore}, nil
 }
 
+// ListOwnedActivity returns the SBOMs that landed in namespaces the given user
+// owns, newest first — the ingest stream for their workspace (ocidex-998g.2).
+//
+// This takes an owner ID rather than a VisibilityFilter on purpose. Every other
+// feed asks "what may this caller see", and answers with public rows included;
+// this one asks "what happened in my namespaces", where somebody else's public
+// namespace is not an answer. Passing a filter here would invite the wrong one.
+func (s *searchService) ListOwnedActivity(ctx context.Context, ownerID pgtype.UUID, page ActivityPage) (CursorPage[ActivityEntry], error) {
+	if !ownerID.Valid {
+		return CursorPage[ActivityEntry]{Data: []ActivityEntry{}}, nil
+	}
+	q := repository.New(s.db)
+
+	// Fetch one extra row to detect whether a further page exists.
+	rows, err := q.ListOwnedActivity(ctx, repository.ListOwnedActivityParams{
+		OwnerID:         ownerID,
+		HasCursor:       pgtype.Bool{Bool: page.HasCursor, Valid: true},
+		CursorCreatedAt: pgtype.Timestamptz{Time: page.CursorCreatedAt, Valid: page.HasCursor},
+		CursorID:        uuidOrNull(page.CursorID),
+		RowLimit:        page.Limit + 1,
+	})
+	if err != nil {
+		return CursorPage[ActivityEntry]{}, fmt.Errorf("listing workspace activity: %w", err)
+	}
+
+	hasMore := len(rows) > int(page.Limit)
+	if hasMore {
+		rows = rows[:page.Limit]
+	}
+
+	items := make([]ActivityEntry, len(rows))
+	for i, r := range rows {
+		items[i] = ActivityEntry{
+			SBOMID:         uuidToString(r.ID),
+			Digest:         textToPtr(r.Digest),
+			SubjectVersion: textToPtr(r.SubjectVersion),
+			CreatedAt:      r.CreatedAt.Time,
+			NamespaceID:    uuidToString(r.NamespaceID),
+			NamespaceName:  r.NamespaceName,
+			SourceID:       uuidToPtr(r.SourceID),
+			SourceName:     textToPtr(r.SourceName),
+			SourceKind:     textToPtr(r.SourceKind),
+			ArtifactID:     uuidToPtr(r.ArtifactID),
+			ArtifactName:   textToPtr(r.ArtifactName),
+			ArtifactType:   textToPtr(r.ArtifactType),
+		}
+	}
+	return CursorPage[ActivityEntry]{Data: items, HasMore: hasMore}, nil
+}
+
 // buildVulnSummary folds per-severity counts into a VulnSummary, or nil when
 // there are no findings.
 func buildVulnSummary(rows []repository.GetSBOMVulnSummaryRow) *VulnSummary {

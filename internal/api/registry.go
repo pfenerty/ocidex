@@ -105,10 +105,21 @@ func validateVerificationConfig(verificationMode string, trustPublicKey, trustId
 
 // ListRegistries returns registries visible to the current user.
 func (h *Handler) ListRegistries(ctx context.Context, input *ListRegistriesInput) (*ListRegistriesOutput, error) {
+	return h.listRegistries(ctx, visibilityFilterFromContext(ctx), input.Limit, input.Offset)
+}
+
+// ListMyRegistries returns only the registries in namespaces the caller owns.
+// Offset pagination, matching /registries: the ordering column is immutable but
+// the page is one the UI numbers, so ADR-043 rule 3 sends it to offset.
+func (h *Handler) ListMyRegistries(ctx context.Context, input *ListMyRegistriesInput) (*ListRegistriesOutput, error) {
+	return h.listRegistries(ctx, ownedFilterFromContext(ctx), input.Limit, input.Offset)
+}
+
+func (h *Handler) listRegistries(ctx context.Context, vis service.VisibilityFilter, limit, offset int32) (*ListRegistriesOutput, error) {
 	if _, ok := UserFromContext(ctx); !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	result, err := h.registryService.ListPaged(ctx, visibilityFilterFromContext(ctx), input.Limit, input.Offset)
+	result, err := h.registryService.ListPaged(ctx, vis, limit, offset)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing registries: %v", err))
 	}

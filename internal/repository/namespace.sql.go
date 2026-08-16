@@ -108,20 +108,35 @@ func (q *Queries) GetNamespaceByName(ctx context.Context, name string) (Namespac
 const listNamespaces = `-- name: ListNamespaces :many
 SELECT id, name, owner_id, visibility, created_at, updated_at FROM namespace
 WHERE (
-    $1::boolean = true
-    OR visibility = 'public'
-    OR ($2::uuid IS NOT NULL AND owner_id = $2::uuid)
+    CASE WHEN COALESCE($1::boolean, false)
+         THEN owner_id = $2::uuid
+         ELSE $3::boolean = true
+              OR visibility = 'public'
+              OR ($2::uuid IS NOT NULL AND owner_id = $2::uuid)
+    END
 )
 ORDER BY created_at ASC
 `
 
 type ListNamespacesParams struct {
-	IsAdmin pgtype.Bool `json:"is_admin"`
-	UserID  pgtype.UUID `json:"user_id"`
+	OwnedOnly pgtype.Bool `json:"owned_only"`
+	UserID    pgtype.UUID `json:"user_id"`
+	IsAdmin   pgtype.Bool `json:"is_admin"`
 }
 
+// Two selection paths, one query (ocidex-998g.2).
+//
+// The default is the *visibility* path: admin, or public, or mine. The
+// owned_only path backs /api/v1/users/me/* and is strictly narrower — it drops
+// the public-but-not-mine rows that the visibility path is obliged to include,
+// and it ignores is_admin, because "my namespaces" means mine even for an
+// admin. Keeping both in one query is what stops the me-scoped feeds from
+// drifting away from the ones they mirror.
+//
+// `owner_id = NULL` evaluates to NULL rather than true, so an unauthenticated
+// caller on the ownership path matches nothing.
 func (q *Queries) ListNamespaces(ctx context.Context, arg ListNamespacesParams) ([]Namespace, error) {
-	rows, err := q.db.Query(ctx, listNamespaces, arg.IsAdmin, arg.UserID)
+	rows, err := q.db.Query(ctx, listNamespaces, arg.OwnedOnly, arg.UserID, arg.IsAdmin)
 	if err != nil {
 		return nil, err
 	}

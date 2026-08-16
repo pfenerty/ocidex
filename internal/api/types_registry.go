@@ -42,6 +42,11 @@ type ListRegistriesInput struct {
 	PaginationParams
 }
 
+// ListMyRegistriesInput is the request for GET /api/v1/users/me/registries.
+type ListMyRegistriesInput struct {
+	PaginationParams
+}
+
 // ListRegistriesOutput is the response for GET /api/v1/registries.
 type ListRegistriesOutput struct {
 	Body struct {

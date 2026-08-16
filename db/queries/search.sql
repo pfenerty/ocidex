@@ -53,6 +53,39 @@ WHERE (sqlc.narg('serial_number')::text IS NULL OR s.serial_number = sqlc.narg('
 ORDER BY s.created_at DESC, s.id DESC
 LIMIT @row_limit;
 
+-- name: ListOwnedActivity :many
+-- "Recent activity" for a user workspace is the ingest stream: every SBOM that
+-- landed in a namespace this user owns, newest first (ocidex-998g.2).
+--
+-- This is the ownership path, not the visibility path — an SBOM ingested into
+-- somebody else's public namespace is not the caller's activity. Unlike the
+-- other me-scoped collections there is no visibility-path twin to share, so no
+-- owned_only switch: owner_id is the only rule this query has.
+--
+-- Rows are appended at the head of an immutable ordering, so pagination is
+-- keyset on (created_at DESC, id DESC) per ADR-043 rule 2. The caller fetches
+-- row_limit+1 to detect whether a further page exists.
+SELECT s.id, s.digest, s.subject_version, s.created_at,
+       n.id AS namespace_id,
+       n.name AS namespace_name,
+       src.id AS source_id,
+       src.name AS source_name,
+       src.kind AS source_kind,
+       a.id AS artifact_id,
+       a.name AS artifact_name,
+       a.type AS artifact_type
+FROM sbom s
+JOIN namespace n ON n.id = s.namespace_id
+LEFT JOIN source src ON src.id = s.source_id
+LEFT JOIN artifact a ON a.id = s.artifact_id
+WHERE n.owner_id = sqlc.arg('owner_id')::uuid
+  AND (
+    NOT sqlc.narg('has_cursor')::boolean
+    OR (s.created_at, s.id) < (sqlc.narg('cursor_created_at')::timestamptz, sqlc.narg('cursor_id')::uuid)
+  )
+ORDER BY s.created_at DESC, s.id DESC
+LIMIT @row_limit;
+
 -- name: ListSBOMsByDigest :many
 SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subject_version, s.digest, s.created_at,
        COUNT(*) OVER() AS total_count

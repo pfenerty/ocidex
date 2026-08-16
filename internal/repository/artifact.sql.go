@@ -320,20 +320,32 @@ WHERE ($1::text IS NULL OR a.type = $1)
   AND ($3::boolean IS NULL
        OR NOT $3::boolean
        OR EXISTS (SELECT 1 FROM sbom s2 WHERE s2.artifact_id = a.id AND s2.enrichment_sufficient))
-  AND artifact_visible(a.id, $4::uuid, $5::boolean)
+  -- owned_only is the ownership path for /api/v1/users/me/artifacts. An
+  -- artifact is "mine" when it appears in a namespace I own; artifact_visible()
+  -- would additionally admit every public artifact and every artifact with no
+  -- namespace link at all, which is exactly what this collection must exclude
+  -- (ocidex-998g.2, and see ListNamespaces).
+  AND CASE WHEN COALESCE($4::boolean, false)
+           THEN EXISTS (
+               SELECT 1 FROM artifact_namespace an
+               JOIN namespace n ON n.id = an.namespace_id
+               WHERE an.artifact_id = a.id AND n.owner_id = $5::uuid)
+           ELSE artifact_visible(a.id, $5::uuid, $6::boolean)
+      END
   AND (
-    NOT $6::boolean
-    OR (a.name, a.type, a.id) > ($7::text, $8::text, $9::uuid)
+    NOT $7::boolean
+    OR (a.name, a.type, a.id) > ($8::text, $9::text, $10::uuid)
   )
 GROUP BY a.id
 ORDER BY a.name, a.type, a.id
-LIMIT $10
+LIMIT $11
 `
 
 type ListArtifactsParams struct {
 	Type              pgtype.Text `json:"type"`
 	Name              pgtype.Text `json:"name"`
 	RequireSufficient pgtype.Bool `json:"require_sufficient"`
+	OwnedOnly         pgtype.Bool `json:"owned_only"`
 	UserID            pgtype.UUID `json:"user_id"`
 	IsAdmin           pgtype.Bool `json:"is_admin"`
 	HasCursor         pgtype.Bool `json:"has_cursor"`
@@ -364,6 +376,7 @@ func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([
 		arg.Type,
 		arg.Name,
 		arg.RequireSufficient,
+		arg.OwnedOnly,
 		arg.UserID,
 		arg.IsAdmin,
 		arg.HasCursor,
