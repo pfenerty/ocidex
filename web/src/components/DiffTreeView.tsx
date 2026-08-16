@@ -4,119 +4,15 @@ import { A } from "@solidjs/router";
 import { relativeDate } from "~/utils/format";
 import { changelogRefLabel } from "~/utils/diff";
 import type { DiffTree } from "~/api/client";
-import { parsePurl } from "~/utils/purl";
-
-interface TreeNode {
-    ref: string;
-    name: string;
-    version?: string;
-    previousVersion?: string;
-    purl?: string;
-    id?: string;
-    changeKind?: string;
-    children: string[];
-    hasChangedDesc: boolean;
-    isDirect: boolean;
-    descendantChanges?: { added: number; removed: number; upgraded: number; downgraded: number; modified: number };
-}
-
-interface Row {
-    node: TreeNode;
-    depth: number;
-    relevantChildCount: number;
-}
-
-function purlBase(purl: string): string {
-    const atIdx = purl.indexOf("@");
-    return atIdx > 0 ? purl.slice(0, atIdx) : purl.split("?")[0];
-}
-
-// changeBadgeClass maps a change direction to its badge class. Shared by the
-// tree rows and the orphan rows so the two can't disagree about a direction's
-// colour.
-function changeBadgeClass(kind: string | undefined): string {
-    if (kind === "added" || kind === "upgraded") return "badge badge-primary";
-    if (kind === "removed" || kind === "downgraded") return "badge badge-warning";
-    return "badge";
-}
+import {
+    buildTreeModel,
+    changeBadgeClass,
+    flattenVisibleRows,
+    type Row,
+} from "./diffTreeModel";
 
 export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
-    const treeData = createMemo(() => {
-        // Filter to non-file changes once; we use this set for the orphan list and for
-        // joining changes onto nodes via change.nodeRef (set by the backend per ADR-0021 §B3).
-        const filteredChanges = (props.tree.changes ?? []).filter(
-            (c) => c.purl !== undefined && parsePurl(c.purl)?.type !== "file",
-        );
-        const changeByNodeRef = new Map<string, typeof filteredChanges[number]>();
-        for (const c of filteredChanges) {
-            if (c.nodeRef !== undefined && c.nodeRef !== "") changeByNodeRef.set(c.nodeRef, c);
-        }
-
-        // Build adjacency from edges. Membership in the tree comes from props.tree.nodes
-        // (server-authoritative per ADR-0021), not the edge set — disconnected roots
-        // (zero in-edges, zero out-edges) must still render.
-        const adj = new Map<string, string[]>();
-        for (const edge of props.tree.edges ?? []) {
-            if (!adj.has(edge.from)) adj.set(edge.from, []);
-            adj.get(edge.from)?.push(edge.to);
-        }
-
-        // Build the TreeNode map keyed on bomRef directly from props.tree.nodes.
-        const nodes = new Map<string, TreeNode>();
-        const inGraphPurls = new Set<string>();
-        const inGraphIDs = new Set<string>();
-        for (const node of props.tree.nodes ?? []) {
-            const type = parsePurl(node.purl ?? "")?.type ?? node.type;
-            if (type === "file") continue;
-            if (node.bomRef === undefined || node.bomRef === "") continue;
-
-            const displayName =
-                node.group !== undefined && node.group !== ""
-                    ? `${node.group}/${node.name}`
-                    : node.name;
-            const change = changeByNodeRef.get(node.id);
-            const dc = node.descendantChanges;
-            const hasChangedDesc =
-                dc !== undefined &&
-                dc.added + dc.removed + dc.upgraded + dc.downgraded + dc.modified > 0;
-
-            nodes.set(node.bomRef, {
-                ref: node.bomRef,
-                name: displayName,
-                version: change?.version ?? (node.version !== "" ? node.version : undefined),
-                previousVersion: change?.previousVersion,
-                purl: node.purl !== "" ? node.purl : undefined,
-                id: node.id,
-                changeKind: change?.direction,
-                children: adj.get(node.bomRef) ?? [],
-                hasChangedDesc,
-                isDirect: node.isDirect,
-                descendantChanges: dc ?? undefined,
-            });
-
-            if (node.purl !== undefined && node.purl !== "") {
-                inGraphPurls.add(node.purl);
-                inGraphPurls.add(purlBase(node.purl));
-            }
-            inGraphIDs.add(node.id);
-        }
-
-        // Use backend-computed roots (anchored on metadata.component.bom-ref per ADR-0021 §B5).
-        const rootRefs = props.tree.roots ?? [];
-
-        // Changes with no node in the graph — surfaced separately so the user doesn't
-        // lose them, since by definition they have no tree position. Removals are the
-        // common case, but any direction can land here (a nodeRef pointing at a
-        // file-typed node we skipped, an edge the backend couldn't resolve), and a
-        // change counted in the header must always be reachable somewhere.
-        const orphanChanges = filteredChanges.filter((c) => {
-            if (c.nodeRef !== undefined && c.nodeRef !== "" && inGraphIDs.has(c.nodeRef)) return false;
-            if (c.purl !== undefined && (inGraphPurls.has(c.purl) || inGraphPurls.has(purlBase(c.purl)))) return false;
-            return true;
-        });
-
-        return { roots: rootRefs, nodes, orphanChanges, changes: filteredChanges };
-    });
+    const treeData = createMemo(() => buildTreeModel(props.tree));
 
     const [expandedRefs, setExpandedRefs] = createSignal(new Set<string>(), { equals: false });
     const [showContext,    setShowContext]    = createLocalStorageSignal("ocidex.diff.showContext", false);
@@ -149,44 +45,13 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
         expandAllChanged();
     });
 
-    // DFS over roots → flat array of visible rows in traversal order.
-    // pathSet tracks ancestors on the current path for cycle detection (same semantics as the
-    // former nextVisited prop cascade — a node is cyclic only if it appears in its own ancestry).
-    const visibleRows = createMemo((): Row[] => {
-        const { roots, nodes } = treeData();
-        const expanded = expandedRefs();
-        const result: Row[] = [];
-        const pathSet = new Set<string>();
-
-        const ctx = showContext();
-        const transitive = showTransitive();
-
-        function visit(ref: string, depth: number, inChangedDirectSubtree: boolean) {
-            if (pathSet.has(ref)) return;
-            const node = nodes.get(ref);
-            if (!node) return;
-            if (node.changeKind === undefined && node.purl === undefined) return;
-            if (!ctx && node.changeKind === undefined && !node.hasChangedDesc) return;
-            if (!transitive && !node.isDirect && !inChangedDirectSubtree && node.changeKind === undefined) return;
-
-            const relevantChildren = node.children.filter((childRef) => {
-                const child = nodes.get(childRef);
-                return child !== undefined && (child.changeKind !== undefined || child.hasChangedDesc);
-            });
-
-            result.push({ node, depth, relevantChildCount: relevantChildren.length });
-
-            if (expanded.has(ref)) {
-                pathSet.add(ref);
-                const childInChangedDirect = inChangedDirectSubtree || (node.isDirect && node.changeKind !== undefined);
-                for (const childRef of relevantChildren) visit(childRef, depth + 1, childInChangedDirect);
-                pathSet.delete(ref);
-            }
-        }
-
-        for (const rootRef of roots) visit(rootRef, 0, false);
-        return result;
-    });
+    const visibleRows = createMemo((): Row[] =>
+        flattenVisibleRows(treeData(), {
+            expanded: expandedRefs(),
+            showContext: showContext(),
+            showTransitive: showTransitive(),
+        }),
+    );
 
     // Every change the tree renders, counted by distinct node so a diamond
     // dependency rendered under two parents still counts once.
