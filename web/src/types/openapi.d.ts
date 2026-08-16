@@ -1150,6 +1150,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me/watches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List my watched artifacts
+         * @description Artifacts you have starred, newest first. Scoped to the calling user: only resources you own, excluding public resources owned by others.
+         */
+        get: operations["list-my-watches"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/watches/{artifact_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Watch an artifact
+         * @description Idempotent. Returns 404 for an artifact you cannot see, which is the same answer as one that does not exist.
+         */
+        put: operations["watch-artifact"];
+        post?: never;
+        /**
+         * Unwatch an artifact
+         * @description Idempotent: removing a watch that is not there succeeds.
+         */
+        delete: operations["unwatch-artifact"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/{id}/role": {
         parameters: {
             query?: never;
@@ -1298,6 +1342,7 @@ export interface components {
             type: string;
             /** Format: int64 */
             versionCount: number;
+            watched: boolean;
         };
         ArtifactRelation: {
             artifactGroup?: string;
@@ -2142,6 +2187,16 @@ export interface components {
             data: components["schemas"]["ActivityEntry"][] | null;
             pagination: components["schemas"]["CursorMeta"];
         };
+        ListMyWatchesOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListMyWatchesOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["WatchEntry"][] | null;
+            pagination: components["schemas"]["CursorMeta"];
+        };
         ListNamespacesOutputBody: {
             /**
              * Format: uri
@@ -2852,6 +2907,17 @@ export interface components {
             total: number;
             /** Format: int64 */
             unknown: number;
+        };
+        WatchEntry: {
+            artifactId: string;
+            group?: string;
+            name: string;
+            purl?: string;
+            /** Format: int64 */
+            sbomCount: number;
+            type: string;
+            /** Format: date-time */
+            watchedAt: string;
         };
     };
     responses: never;
@@ -5346,6 +5412,100 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ListSourcesOutputBody"];
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-my-watches": {
+        parameters: {
+            query?: {
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Opaque cursor from a previous response's nextCursor; omit for the first page */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListMyWatchesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "watch-artifact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Artifact UUID */
+                artifact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "unwatch-artifact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Artifact UUID */
+                artifact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {

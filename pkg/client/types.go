@@ -719,6 +719,7 @@ type ArtifactDetail struct {
 	SufficientSbomCount int64     `json:"sufficientSbomCount"`
 	Type                string    `json:"type"`
 	VersionCount        int64     `json:"versionCount"`
+	Watched             bool      `json:"watched"`
 }
 
 // ArtifactRelation defines model for ArtifactRelation.
@@ -1520,6 +1521,14 @@ type ListMyActivityOutputBody struct {
 	Pagination CursorMeta       `json:"pagination"`
 }
 
+// ListMyWatchesOutputBody defines model for ListMyWatchesOutputBody.
+type ListMyWatchesOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema     *string       `json:"$schema,omitempty"`
+	Data       *[]WatchEntry `json:"data"`
+	Pagination CursorMeta    `json:"pagination"`
+}
+
 // ListNamespacesOutputBody defines model for ListNamespacesOutputBody.
 type ListNamespacesOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -2188,6 +2197,17 @@ type VulnSummary struct {
 	Unknown  int64 `json:"unknown"`
 }
 
+// WatchEntry defines model for WatchEntry.
+type WatchEntry struct {
+	ArtifactId string    `json:"artifactId"`
+	Group      *string   `json:"group,omitempty"`
+	Name       string    `json:"name"`
+	Purl       *string   `json:"purl,omitempty"`
+	SbomCount  int64     `json:"sbomCount"`
+	Type       string    `json:"type"`
+	WatchedAt  time.Time `json:"watchedAt"`
+}
+
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
 
@@ -2590,6 +2610,15 @@ type ListMyRegistriesParams struct {
 
 	// Offset Number of results to skip
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListMyWatchesParams defines parameters for ListMyWatches.
+type ListMyWatchesParams struct {
+	// Limit Maximum number of results per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque cursor from a previous response's nextCursor; omit for the first page
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
 // ListTopVulnerabilitiesParams defines parameters for ListTopVulnerabilities.

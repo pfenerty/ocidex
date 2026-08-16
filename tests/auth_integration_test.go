@@ -56,8 +56,9 @@ func setupServerWithStats(t *testing.T, pool *pgxpool.Pool) (*httptest.Server, s
 	// (ocidex-998g.1).
 	jobSvc := service.NewJobService(pool)
 	enrichJobSvc := service.NewEnrichJobService(pool, "")
+	watchSvc := service.NewWatchService(pool)
 	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc,
-		namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, pool, nil, cfg)
+		namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, pool, nil, cfg)
 	router := api.NewRouter(handler, "*", "", "")
 	return httptest.NewServer(router), authSvc, searchSvc
 }

@@ -43,7 +43,7 @@ type SearchService interface {
 	GetComponentVulns(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) ([]ComponentVulnEntry, error)
 	ListSBOMDriftHistory(ctx context.Context, sbomID pgtype.UUID, page DriftPage, vis VisibilityFilter) (CursorPage[ProvenanceDriftSummary], error)
 	ListRecentProvenanceDrift(ctx context.Context, page DriftPage, vis VisibilityFilter) (CursorPage[RecentDriftEntry], error)
-	ListOwnedActivity(ctx context.Context, ownerID pgtype.UUID, page ActivityPage) (CursorPage[ActivityEntry], error)
+	ListOwnedActivity(ctx context.Context, ownerID pgtype.UUID, page FeedPage) (CursorPage[ActivityEntry], error)
 	LookupArtifact(ctx context.Context, query ArtifactLookupQuery, vis VisibilityFilter) ([]LookupCandidate, error)
 	LookupSBOM(ctx context.Context, query SBOMLookupQuery, vis VisibilityFilter) ([]LookupCandidate, error)
 	LookupLicense(ctx context.Context, spdxID string, vis VisibilityFilter) (LicenseCount, error)
@@ -304,9 +304,14 @@ type DriftPage struct {
 	HasCursor        bool
 }
 
-// ActivityPage carries keyset pagination state for the user workspace activity
-// feed, ordered by (created_at DESC, id DESC).
-type ActivityPage struct {
+// FeedPage carries keyset pagination state for a self-scoped feed ordered by
+// (created_at DESC, id DESC) — the workspace activity stream and the artifact
+// watchlist both have exactly this shape (ADR-043 rule 2).
+//
+// It is one type rather than one per feed on purpose: the handlers that drive
+// these feeds share a body (see meCursorList in the API layer), and that
+// sharing is only possible while the page parameter is a single type.
+type FeedPage struct {
 	Limit           int32
 	CursorCreatedAt time.Time
 	CursorID        string
@@ -350,6 +355,12 @@ type ArtifactDetail struct {
 	Cpe          *string   `json:"cpe,omitempty"`
 	CreatedAt    time.Time `json:"createdAt"`
 	VersionCount int64     `json:"versionCount"`
+	// Watched reports whether the calling user has this artifact on their
+	// watchlist. It rides along with the detail response so the star renders
+	// in its final state on first paint rather than flipping in after a
+	// second round trip (ocidex-998g.3). It is always false for an
+	// unauthenticated caller, who has no watchlist.
+	Watched bool `json:"watched"`
 }
 
 // ArtifactVersion is a grouped version entry for an artifact.

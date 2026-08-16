@@ -15,7 +15,7 @@ import (
 )
 
 func main() {
-	h := api.NewHandler(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	h := api.NewHandler(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	_ = api.NewRouter(h, "*", "", "")
 
 	if _, err := os.Stdout.WriteString(api.AuthMatrixMarkdown(h.API().OpenAPI())); err != nil {

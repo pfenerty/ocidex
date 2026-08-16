@@ -161,7 +161,7 @@ func (f *fakeAuthService) CleanExpiredSessions(_ context.Context) error {
 
 // newRegistryOwnerTestRouter builds a router with auth and registry services wired.
 func newRegistryOwnerTestRouter(regSvc service.RegistryService, authSvc service.AuthService) http.Handler {
-	h := api.NewHandler(nil, nil, authSvc, regSvc, nil, nil, nil, nil, &fakePinger{}, nil, nil)
+	h := api.NewHandler(nil, nil, authSvc, regSvc, nil, nil, nil, nil, nil, &fakePinger{}, nil, nil)
 	return api.NewRouter(h, "*", "", "")
 }
 

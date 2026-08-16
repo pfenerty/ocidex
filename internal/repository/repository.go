@@ -30,6 +30,7 @@ type SearchRepository interface {
 	GetSBOMRaw(ctx context.Context, id pgtype.UUID) ([]byte, error)
 	IsSBOMVisible(ctx context.Context, arg IsSBOMVisibleParams) (bool, error)
 	IsArtifactVisible(ctx context.Context, arg IsArtifactVisibleParams) (bool, error)
+	IsArtifactWatched(ctx context.Context, arg IsArtifactWatchedParams) (bool, error)
 	ListSBOMs(ctx context.Context, arg ListSBOMsParams) ([]ListSBOMsRow, error)
 	ListOwnedActivity(ctx context.Context, arg ListOwnedActivityParams) ([]ListOwnedActivityRow, error)
 	SearchComponents(ctx context.Context, arg SearchComponentsParams) ([]SearchComponentsRow, error)
@@ -55,6 +56,18 @@ type SearchRepository interface {
 	GetPackageGrowthTimeline(ctx context.Context, arg GetPackageGrowthTimelineParams) ([]GetPackageGrowthTimelineRow, error)
 	GetVersionGrowthTimeline(ctx context.Context, arg GetVersionGrowthTimelineParams) ([]GetVersionGrowthTimelineRow, error)
 	GetTopPackagesByVersionCount(ctx context.Context, arg GetTopPackagesByVersionCountParams) ([]GetTopPackagesByVersionCountRow, error)
+}
+
+// WatchRepository defines data access methods for the artifact watchlist.
+// IsArtifactVisible is here as well as on SearchRepository because the watch
+// flow's one authorization decision — may this caller watch this artifact —
+// is answered by it (ocidex-998g.3).
+type WatchRepository interface {
+	IsArtifactVisible(ctx context.Context, arg IsArtifactVisibleParams) (bool, error)
+	CreateArtifactWatch(ctx context.Context, arg CreateArtifactWatchParams) error
+	DeleteArtifactWatch(ctx context.Context, arg DeleteArtifactWatchParams) (int64, error)
+	IsArtifactWatched(ctx context.Context, arg IsArtifactWatchedParams) (bool, error)
+	ListArtifactWatches(ctx context.Context, arg ListArtifactWatchesParams) ([]ListArtifactWatchesRow, error)
 }
 
 // EnrichmentRepository defines data access methods for enrichment results.

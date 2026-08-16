@@ -82,6 +82,13 @@ const (
 	// in the sibling list endpoint, and that admins get no widening
 	// (ocidex-998g.2).
 	noteSelfScoped = "Owned rows only; excludes others' public rows, and admins get no widening."
+
+	// noteWatch is deliberately the opposite of noteSelfScoped on the
+	// visibility axis, and that asymmetry is the thing to check in review: the
+	// watchlist is self-scoped in *whose* it is, but the artifact being watched
+	// is chosen from everything the caller can see, which includes other
+	// people's public artifacts (ocidex-998g.3).
+	noteWatch = "Watch is self-scoped; the artifact must be visible to the caller, which may include others' public artifacts."
 )
 
 // authRules declares the authorization contract of every registered operation,
@@ -101,6 +108,9 @@ var authRules = map[string]AuthRule{
 	"list-my-registries": {Class: ClassAuthenticated, Notes: noteSelfScoped},
 	"list-my-artifacts":  {Class: ClassAuthenticated, Notes: noteSelfScoped},
 	"list-my-activity":   {Class: ClassAuthenticated, Notes: noteSelfScoped},
+	"list-my-watches":    {Class: ClassAuthenticated, Notes: noteSelfScoped},
+	"watch-artifact":     {Class: ClassAuthenticated, Write: true, Notes: noteWatch},
+	"unwatch-artifact":   {Class: ClassAuthenticated, Write: true, Notes: "Removes the caller's own watch; idempotent."},
 	"create-api-key":     {Class: ClassMember, Write: true, Notes: "Key is scoped to the calling user."},
 	"list-api-keys":      {Class: ClassMember, Notes: "Own keys only."},
 	"delete-api-key":     {Class: ClassMember, Write: true, Notes: "Own keys only."},

@@ -30,6 +30,7 @@ type Handler struct {
 	sourceService    service.SourceService
 	jobService       service.JobService
 	enrichJobService service.EnrichJobService
+	watchService     service.WatchService
 	db               DBPinger
 	api              huma.API
 	scanSubmitter    ScanSubmitter
@@ -38,7 +39,7 @@ type Handler struct {
 }
 
 // NewHandler creates a new Handler with the given dependencies.
-func NewHandler(sbomSvc service.SBOMService, searchSvc service.SearchService, authSvc service.AuthService, registrySvc service.RegistryService, namespaceSvc service.NamespaceService, sourceSvc service.SourceService, jobSvc service.JobService, enrichJobSvc service.EnrichJobService, db DBPinger, sc ScanSubmitter, cfg *config.Config) *Handler {
+func NewHandler(sbomSvc service.SBOMService, searchSvc service.SearchService, authSvc service.AuthService, registrySvc service.RegistryService, namespaceSvc service.NamespaceService, sourceSvc service.SourceService, jobSvc service.JobService, enrichJobSvc service.EnrichJobService, watchSvc service.WatchService, db DBPinger, sc ScanSubmitter, cfg *config.Config) *Handler {
 	var sc2 *securecookie.SecureCookie
 	if cfg != nil {
 		sc2 = securecookie.New([]byte(cfg.SessionSecret), nil)
@@ -52,6 +53,7 @@ func NewHandler(sbomSvc service.SBOMService, searchSvc service.SearchService, au
 		sourceService:    sourceSvc,
 		jobService:       jobSvc,
 		enrichJobService: enrichJobSvc,
+		watchService:     watchSvc,
 		db:               db,
 		scanSubmitter:    sc,
 		cfg:              cfg,

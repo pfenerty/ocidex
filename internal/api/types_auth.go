@@ -33,6 +33,30 @@ type ListMyActivityOutput struct {
 }
 
 // ---------------------------------------------------------------------------
+// Auth — Watchlist
+// ---------------------------------------------------------------------------
+
+// ListMyWatchesInput is the request for GET /api/v1/users/me/watches.
+type ListMyWatchesInput struct {
+	CursorParams
+}
+
+// ListMyWatchesOutput is the response for GET /api/v1/users/me/watches.
+type ListMyWatchesOutput struct {
+	Body struct {
+		Data       []service.WatchEntry `json:"data"`
+		Pagination CursorMeta           `json:"pagination"`
+	}
+}
+
+// WatchArtifactInput identifies the artifact to watch or unwatch. It is shared
+// by both verbs because a watch has no body — the pair (caller, artifact) is
+// the whole resource.
+type WatchArtifactInput struct {
+	ArtifactID string `path:"artifact_id" format:"uuid" doc:"Artifact UUID"`
+}
+
+// ---------------------------------------------------------------------------
 // Auth — API Keys
 // ---------------------------------------------------------------------------
 

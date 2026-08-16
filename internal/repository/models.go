@@ -35,6 +35,13 @@ type ArtifactNamespace struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
+// Per-user artifact bookmarks. Not an ownership or visibility relation: watching a public artifact owned by someone else is the primary use case.
+type ArtifactWatch struct {
+	UserID     pgtype.UUID        `json:"user_id"`
+	ArtifactID pgtype.UUID        `json:"artifact_id"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
 type Component struct {
 	ID            pgtype.UUID `json:"id"`
 	SbomID        pgtype.UUID `json:"sbom_id"`

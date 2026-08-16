@@ -3,6 +3,7 @@ import { A } from "@solidjs/router";
 import type { ArtifactDetail } from "~/api/client";
 import PurlLink from "~/components/PurlLink";
 import CopyShareLink, { artifactLookupPath } from "~/components/CopyShareLink";
+import WatchStar from "~/components/WatchStar";
 import { Card, CardHeader, DetailGrid, DetailField, TypeBadge, SigningBadge } from "~/components/ui";
 import { purlToRegistryUrl, purlTypeLabel } from "~/utils/purl";
 import { artifactDisplayName, formatDateTime, relativeDate, plural } from "~/utils/format";
@@ -37,6 +38,7 @@ export function ArtifactHeader(props: { artifact: ArtifactDetail }) {
                     </p>
                 </div>
                 <div class="btn-group">
+                    <WatchStar artifactId={a().id} watched={a().watched} />
                     <Show when={registryPurl()}>
                         {(purl) => (
                             <a

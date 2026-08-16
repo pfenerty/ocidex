@@ -273,7 +273,7 @@ func (s *searchService) ListRecentProvenanceDrift(ctx context.Context, page Drif
 // feed asks "what may this caller see", and answers with public rows included;
 // this one asks "what happened in my namespaces", where somebody else's public
 // namespace is not an answer. Passing a filter here would invite the wrong one.
-func (s *searchService) ListOwnedActivity(ctx context.Context, ownerID pgtype.UUID, page ActivityPage) (CursorPage[ActivityEntry], error) {
+func (s *searchService) ListOwnedActivity(ctx context.Context, ownerID pgtype.UUID, page FeedPage) (CursorPage[ActivityEntry], error) {
 	if !ownerID.Valid {
 		return CursorPage[ActivityEntry]{Data: []ActivityEntry{}}, nil
 	}

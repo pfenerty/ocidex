@@ -56,6 +56,19 @@ func (s *searchService) GetArtifact(ctx context.Context, id pgtype.UUID, vis Vis
 		return ArtifactDetail{}, fmt.Errorf("counting versions: %w", err)
 	}
 
+	// The watch flag is per-caller, so it is skipped entirely when there is no
+	// caller — an anonymous request has no watchlist to be on.
+	var watched bool
+	if vis.UserID.Valid {
+		watched, err = q.IsArtifactWatched(ctx, repository.IsArtifactWatchedParams{
+			UserID:     vis.UserID,
+			ArtifactID: id,
+		})
+		if err != nil {
+			return ArtifactDetail{}, fmt.Errorf("checking artifact watch: %w", err)
+		}
+	}
+
 	return ArtifactDetail{
 		ArtifactSummary: ArtifactSummary{
 			ID:            uuidToString(row.ID),
@@ -69,6 +82,7 @@ func (s *searchService) GetArtifact(ctx context.Context, id pgtype.UUID, vis Vis
 		Cpe:          textToPtr(row.Cpe),
 		CreatedAt:    row.CreatedAt.Time,
 		VersionCount: versionCount,
+		Watched:      watched,
 	}, nil
 }
 

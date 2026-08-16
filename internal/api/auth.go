@@ -13,6 +13,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/service"
 )
@@ -269,6 +270,42 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Middlewares: huma.Middlewares{authMW},
 	}, h.ListMyActivity)
 
+	// Watchlist (ocidex-998g.3). The watch pair is self-scoped like the
+	// collections above — the caller is implied, never a path segment — but the
+	// two mutating verbs additionally need write scope, because a read-only API
+	// key must not be able to change stored state.
+	huma.Register(api, huma.Operation{
+		OperationID: "list-my-watches",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/users/me/watches",
+		Summary:     "List my watched artifacts",
+		Description: "Artifacts you have starred, newest first. " + descSelfScoped,
+		Tags:        []string{tagAuth},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListMyWatches)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "watch-artifact",
+		Method:        http.MethodPut,
+		Path:          "/api/v1/users/me/watches/{artifact_id}",
+		Summary:       "Watch an artifact",
+		Description:   "Idempotent. Returns 404 for an artifact you cannot see, which is the same answer as one that does not exist.",
+		Tags:          []string{tagAuth},
+		DefaultStatus: http.StatusNoContent,
+		Middlewares:   huma.Middlewares{authMW, writeMW},
+	}, h.WatchArtifact)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "unwatch-artifact",
+		Method:        http.MethodDelete,
+		Path:          "/api/v1/users/me/watches/{artifact_id}",
+		Summary:       "Unwatch an artifact",
+		Description:   "Idempotent: removing a watch that is not there succeeds.",
+		Tags:          []string{tagAuth},
+		DefaultStatus: http.StatusNoContent,
+		Middlewares:   huma.Middlewares{authMW, writeMW},
+	}, h.UnwatchArtifact)
+
 	huma.Register(api, huma.Operation{
 		OperationID:   "create-api-key",
 		Method:        http.MethodPost,
@@ -345,34 +382,103 @@ func (h *Handler) GetMe(ctx context.Context, _ *struct{}) (*MeOutput, error) {
 	return out, nil
 }
 
-// ListMyActivity returns the SBOMs ingested into the caller's namespaces,
-// newest first. Unlike the other me-scoped collections this has no sibling to
-// share a body with — there is no installation-wide activity feed — so it goes
-// straight to the ownership-keyed service call (ocidex-998g.2).
-func (h *Handler) ListMyActivity(ctx context.Context, in *ListMyActivityInput) (*ListMyActivityOutput, error) {
+// meCursorList runs the shape every self-scoped keyset feed shares: identify
+// the caller, decode the cursor, call an ownership-keyed service method, and
+// build the page metadata. `fetch` receives the caller's own ID, which is what
+// makes these feeds self-scoped — there is no path or query parameter naming a
+// user, so no way for a caller to ask for somebody else's feed.
+//
+// `next` extracts the cursor from the last row; every feed here is ordered by
+// (created_at DESC, id DESC), so it is always encodeTimeIDCursor over that
+// row's two ordering columns (ADR-043 rule 2).
+func meCursorList[T any](
+	ctx context.Context,
+	in CursorParams,
+	fetch func(userID pgtype.UUID, page service.FeedPage) (service.CursorPage[T], error),
+	next func(T) string,
+) ([]T, CursorMeta, error) {
 	user, ok := UserFromContext(ctx)
 	if !ok {
-		return nil, huma.Error401Unauthorized("not authenticated")
+		return nil, CursorMeta{}, huma.Error401Unauthorized("not authenticated")
 	}
 	cur, hasCursor, err := decodeTimeIDCursor(in.Cursor)
 	if err != nil {
-		return nil, huma.Error400BadRequest(err.Error())
+		return nil, CursorMeta{}, huma.Error400BadRequest(err.Error())
 	}
-	result, err := h.searchService.ListOwnedActivity(ctx, user.ID, service.ActivityPage{
+	result, err := fetch(user.ID, service.FeedPage{
 		Limit:           in.Limit,
 		HasCursor:       hasCursor,
 		CursorCreatedAt: cur.CreatedAt,
 		CursorID:        cur.ID,
 	})
 	if err != nil {
-		return nil, mapServiceError(err)
+		return nil, CursorMeta{}, mapServiceError(err)
+	}
+	return result.Data, cursorMeta(result.Data, result.HasMore, in.Limit, next), nil
+}
+
+// ListMyActivity returns the SBOMs ingested into the caller's namespaces,
+// newest first. Unlike the other me-scoped collections this has no sibling to
+// share a body with — there is no installation-wide activity feed — so it goes
+// straight to the ownership-keyed service call (ocidex-998g.2).
+func (h *Handler) ListMyActivity(ctx context.Context, in *ListMyActivityInput) (*ListMyActivityOutput, error) {
+	data, meta, err := meCursorList(ctx, in.CursorParams,
+		func(userID pgtype.UUID, page service.FeedPage) (service.CursorPage[service.ActivityEntry], error) {
+			return h.searchService.ListOwnedActivity(ctx, userID, page)
+		},
+		func(a service.ActivityEntry) string { return encodeTimeIDCursor(a.CreatedAt, a.SBOMID) },
+	)
+	if err != nil {
+		return nil, err
 	}
 	out := &ListMyActivityOutput{}
-	out.Body.Data = result.Data
-	out.Body.Pagination = cursorMeta(result.Data, result.HasMore, in.Limit, func(a service.ActivityEntry) string {
-		return encodeTimeIDCursor(a.CreatedAt, a.SBOMID)
-	})
+	out.Body.Data = data
+	out.Body.Pagination = meta
 	return out, nil
+}
+
+// ListMyWatches returns the caller's watchlist, newest watch first.
+func (h *Handler) ListMyWatches(ctx context.Context, in *ListMyWatchesInput) (*ListMyWatchesOutput, error) {
+	data, meta, err := meCursorList(ctx, in.CursorParams,
+		func(userID pgtype.UUID, page service.FeedPage) (service.CursorPage[service.WatchEntry], error) {
+			return h.watchService.List(ctx, userID, page)
+		},
+		func(w service.WatchEntry) string { return encodeTimeIDCursor(w.WatchedAt, w.ArtifactID) },
+	)
+	if err != nil {
+		return nil, err
+	}
+	out := &ListMyWatchesOutput{}
+	out.Body.Data = data
+	out.Body.Pagination = meta
+	return out, nil
+}
+
+// WatchArtifact stars an artifact for the caller. The visibility filter passed
+// down is the ordinary one, not the owned-only filter the sibling collections
+// use: watching a public artifact somebody else owns is the point of the
+// feature (ocidex-998g.3).
+func (h *Handler) WatchArtifact(ctx context.Context, in *WatchArtifactInput) (*struct{}, error) {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	if err := h.watchService.Watch(ctx, user.ID, in.ArtifactID, visibilityFilterFromContext(ctx)); err != nil {
+		return nil, mapServiceError(err)
+	}
+	return nil, nil
+}
+
+// UnwatchArtifact removes the caller's star.
+func (h *Handler) UnwatchArtifact(ctx context.Context, in *WatchArtifactInput) (*struct{}, error) {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	if err := h.watchService.Unwatch(ctx, user.ID, in.ArtifactID); err != nil {
+		return nil, mapServiceError(err)
+	}
+	return nil, nil
 }
 
 func (h *Handler) CreateAPIKey(ctx context.Context, in *CreateAPIKeyInput) (*CreateAPIKeyOutput, error) {

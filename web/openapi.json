@@ -150,11 +150,15 @@
           "versionCount": {
             "format": "int64",
             "type": "integer"
+          },
+          "watched": {
+            "type": "boolean"
           }
         },
         "required": [
           "createdAt",
           "versionCount",
+          "watched",
           "id",
           "type",
           "name",
@@ -2590,6 +2594,37 @@
         ],
         "type": "object"
       },
+      "ListMyWatchesOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListMyWatchesOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/WatchEntry"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/CursorMeta"
+          }
+        },
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "type": "object"
+      },
       "ListNamespacesOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -4501,6 +4536,42 @@
           "low",
           "unknown",
           "total"
+        ],
+        "type": "object"
+      },
+      "WatchEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "purl": {
+            "type": "string"
+          },
+          "sbomCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "type": {
+            "type": "string"
+          },
+          "watchedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "type",
+          "name",
+          "sbomCount",
+          "watchedAt"
         ],
         "type": "object"
       }
@@ -8462,6 +8533,138 @@
           }
         },
         "summary": "List my sources",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/users/me/watches": {
+      "get": {
+        "description": "Artifacts you have starred, newest first. Scoped to the calling user: only resources you own, excluding public resources owned by others.",
+        "operationId": "list-my-watches",
+        "parameters": [
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque cursor from a previous response's nextCursor; omit for the first page",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor from a previous response's nextCursor; omit for the first page",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListMyWatchesOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List my watched artifacts",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/users/me/watches/{artifact_id}": {
+      "delete": {
+        "description": "Idempotent: removing a watch that is not there succeeds.",
+        "operationId": "unwatch-artifact",
+        "parameters": [
+          {
+            "description": "Artifact UUID",
+            "in": "path",
+            "name": "artifact_id",
+            "required": true,
+            "schema": {
+              "description": "Artifact UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Unwatch an artifact",
+        "tags": [
+          "Auth"
+        ]
+      },
+      "put": {
+        "description": "Idempotent. Returns 404 for an artifact you cannot see, which is the same answer as one that does not exist.",
+        "operationId": "watch-artifact",
+        "parameters": [
+          {
+            "description": "Artifact UUID",
+            "in": "path",
+            "name": "artifact_id",
+            "required": true,
+            "schema": {
+              "description": "Artifact UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Watch an artifact",
         "tags": [
           "Auth"
         ]

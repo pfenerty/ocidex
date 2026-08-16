@@ -120,7 +120,8 @@ func run() error {
 		return fmt.Errorf("initializing extensions: %w", err)
 	}
 
-	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, pool, scanSubmitter, cfg)
+	watchSvc := service.NewWatchService(pool)
+	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, pool, scanSubmitter, cfg)
 	router := api.NewRouter(handler, cfg.CORSAllowedOrigins, cfg.FrontendURL, cfg.APIBaseURL)
 
 	extCtx, extCancel := context.WithCancel(context.Background())

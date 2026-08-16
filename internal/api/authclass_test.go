@@ -53,7 +53,7 @@ func newConformanceRouter(authSvc service.AuthService) http.Handler {
 		&fakeRegistryService{registry: testRegistry},
 		&fakeNamespaceService{},
 		&fakeSourceService{},
-		nil, nil,
+		nil, nil, nil,
 		&fakePinger{},
 		nil, nil,
 	)
@@ -63,7 +63,7 @@ func newConformanceRouter(authSvc service.AuthService) http.Handler {
 // conformanceSpec returns the OpenAPI spec of a freshly built router, which is
 // the authoritative list of registered operations.
 func conformanceSpec() []api.AuthMatrixRow {
-	h := api.NewHandler(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	h := api.NewHandler(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	_ = api.NewRouter(h, "*", "", "")
 	return api.AuthMatrixRows(h.API().OpenAPI())
 }
