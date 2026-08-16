@@ -18,8 +18,10 @@ const defaultServer = "http://localhost:8080"
 // Vocabulary shared across the command files: the same verb and the same table
 // headers appear in every noun, and they should stay spelled the same way.
 const (
-	verbList = "list"
-	verbGet  = "get <id>"
+	verbList     = "list"
+	verbGet      = "get <id>"
+	verbCreate   = "create"
+	verbDeleteID = "delete <id>"
 
 	colName    = "NAME"
 	colType    = "TYPE"
@@ -107,7 +109,8 @@ is deliberately not a flag — see docs/adr/0029-cli-design.md.`,
 	f.StringVarP(&cfg.outputFlag, "output", "o", "",
 		"output format: table, json, or yaml (config output, default table)")
 
-	cmd.AddCommand(newSBOMCmd(cfg), newRegistryCmd(cfg), newArtifactCmd(cfg),
+	cmd.AddCommand(newSBOMCmd(cfg), newNamespaceCmd(cfg), newSourceCmd(cfg),
+		newRegistryCmd(cfg), newArtifactCmd(cfg),
 		newComponentCmd(cfg), newJobCmd(cfg), newKeyCmd(cfg),
 		newLoginCmd(cfg), newLogoutCmd(), newVersionCmd())
 	return cmd, cfg

@@ -22,6 +22,10 @@ const (
 
 	roleAdmin  = "admin"
 	roleMember = "member"
+
+	// descAdminOnly is the OpenAPI Description for operations whose only
+	// authorization rule is RequireAdmin.
+	descAdminOnly = "Admin-only."
 )
 
 // deriveFrontendURL returns a frontend URL using the request's host with the
@@ -185,6 +189,11 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 	r.Get("/auth/callback", h.HandleCallback)
 	r.Post("/auth/logout", h.HandleLogout)
 
+	authMW := RequireAuthenticated(api)
+	memberMW := RequireMember(api)
+	adminMW := RequireAdmin(api)
+	writeMW := RequireWrite(api)
+
 	// Huma-managed endpoints.
 	huma.Register(api, huma.Operation{
 		OperationID: "get-me",
@@ -192,6 +201,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Path:        "/api/v1/users/me",
 		Summary:     "Get current user",
 		Tags:        []string{tagAuth},
+		Middlewares: huma.Middlewares{authMW},
 	}, h.GetMe)
 
 	huma.Register(api, huma.Operation{
@@ -201,6 +211,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Summary:       "Create API key",
 		Tags:          []string{tagAuth},
 		DefaultStatus: http.StatusCreated,
+		Middlewares:   huma.Middlewares{memberMW, writeMW},
 	}, h.CreateAPIKey)
 
 	huma.Register(api, huma.Operation{
@@ -209,6 +220,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Path:        "/api/v1/auth/keys",
 		Summary:     "List API keys",
 		Tags:        []string{tagAuth},
+		Middlewares: huma.Middlewares{memberMW},
 	}, h.ListAPIKeys)
 
 	huma.Register(api, huma.Operation{
@@ -218,6 +230,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Summary:       "Delete API key",
 		Tags:          []string{tagAuth},
 		DefaultStatus: http.StatusNoContent,
+		Middlewares:   huma.Middlewares{memberMW, writeMW},
 	}, h.DeleteAPIKey)
 
 	huma.Register(api, huma.Operation{
@@ -225,7 +238,9 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/users",
 		Summary:     "List users",
+		Description: descAdminOnly,
 		Tags:        []string{tagAuth},
+		Middlewares: huma.Middlewares{adminMW},
 	}, h.ListUsers)
 
 	huma.Register(api, huma.Operation{
@@ -233,7 +248,9 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Method:      http.MethodPatch,
 		Path:        "/api/v1/users/{id}/role",
 		Summary:     "Update user role",
+		Description: descAdminOnly,
 		Tags:        []string{tagAuth},
+		Middlewares: huma.Middlewares{adminMW, writeMW},
 	}, h.UpdateUserRole)
 
 	huma.Register(api, huma.Operation{
@@ -241,7 +258,9 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/admin/status",
 		Summary:     "Get system status",
+		Description: descAdminOnly,
 		Tags:        []string{tagAdmin},
+		Middlewares: huma.Middlewares{adminMW},
 	}, h.GetSystemStatus)
 }
 
@@ -266,12 +285,6 @@ func (h *Handler) CreateAPIKey(ctx context.Context, in *CreateAPIKeyInput) (*Cre
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if user.Role != roleAdmin && user.Role != roleMember {
-		return nil, huma.Error403Forbidden("insufficient role")
-	}
-	if !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
-	}
 	scope := in.Body.Scope
 	if scope == "" {
 		scope = scopeReadWrite
@@ -289,9 +302,6 @@ func (h *Handler) ListAPIKeys(ctx context.Context, _ *struct{}) (*ListAPIKeysOut
 	user, ok := UserFromContext(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
-	}
-	if user.Role != roleAdmin && user.Role != roleMember {
-		return nil, huma.Error403Forbidden("insufficient role")
 	}
 	keys, err := h.authService.ListAPIKeys(ctx, user.ID)
 	if err != nil {
@@ -317,12 +327,6 @@ func (h *Handler) DeleteAPIKey(ctx context.Context, in *DeleteAPIKeyInput) (*str
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if user.Role != roleAdmin && user.Role != roleMember {
-		return nil, huma.Error403Forbidden("insufficient role")
-	}
-	if !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
-	}
 	keyID, err := parseUUID(in.ID)
 	if err != nil {
 		return nil, huma.Error400BadRequest("invalid key id")
@@ -334,13 +338,6 @@ func (h *Handler) DeleteAPIKey(ctx context.Context, in *DeleteAPIKeyInput) (*str
 }
 
 func (h *Handler) ListUsers(ctx context.Context, _ *struct{}) (*ListUsersOutput, error) {
-	user, ok := UserFromContext(ctx)
-	if !ok {
-		return nil, huma.Error401Unauthorized("not authenticated")
-	}
-	if user.Role != roleAdmin {
-		return nil, huma.Error403Forbidden("admin only")
-	}
 	users, err := h.authService.ListUsers(ctx)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing users: %v", err))
@@ -358,16 +355,6 @@ func (h *Handler) ListUsers(ctx context.Context, _ *struct{}) (*ListUsersOutput,
 }
 
 func (h *Handler) UpdateUserRole(ctx context.Context, in *UpdateUserRoleInput) (*UpdateUserRoleOutput, error) {
-	caller, ok := UserFromContext(ctx)
-	if !ok {
-		return nil, huma.Error401Unauthorized("not authenticated")
-	}
-	if caller.Role != roleAdmin {
-		return nil, huma.Error403Forbidden("admin only")
-	}
-	if !isWriteAllowed(caller) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
-	}
 	targetID, err := parseUUID(in.ID)
 	if err != nil {
 		return nil, huma.Error400BadRequest("invalid user id")
@@ -384,13 +371,6 @@ func (h *Handler) UpdateUserRole(ctx context.Context, in *UpdateUserRoleInput) (
 }
 
 func (h *Handler) GetSystemStatus(ctx context.Context, _ *struct{}) (*SystemStatusOutput, error) {
-	user, ok := UserFromContext(ctx)
-	if !ok {
-		return nil, huma.Error401Unauthorized("not authenticated")
-	}
-	if user.Role != roleAdmin {
-		return nil, huma.Error403Forbidden("admin only")
-	}
 	out := &SystemStatusOutput{}
 	out.Body.Enrichment = EnrichmentStatus{
 		Enabled:   h.cfg.EnrichmentEnabled,

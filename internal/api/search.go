@@ -7,35 +7,6 @@ import (
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
-func paginationMeta[T any](r service.PagedResult[T]) PaginationMeta {
-	return PaginationMeta{Total: r.Total, Limit: r.Limit, Offset: r.Offset}
-}
-
-// cursorMeta builds keyset-pagination metadata, deriving nextCursor from the
-// last item via cursorFn when further results exist.
-func cursorMeta[T any](data []T, hasMore bool, limit int32, cursorFn func(T) string) CursorMeta {
-	meta := CursorMeta{Limit: limit, HasMore: hasMore}
-	if hasMore && len(data) > 0 {
-		next := cursorFn(data[len(data)-1])
-		meta.NextCursor = &next
-	}
-	return meta
-}
-
-// visibilityFilterFromContext builds a VisibilityFilter from the authenticated
-// user in ctx, if any. Unauthenticated callers get a filter that shows only
-// public data.
-func visibilityFilterFromContext(ctx context.Context) service.VisibilityFilter {
-	user, ok := UserFromContext(ctx)
-	if !ok {
-		return service.VisibilityFilter{}
-	}
-	return service.VisibilityFilter{
-		IsAdmin: user.Role == roleAdmin,
-		UserID:  user.ID,
-	}
-}
-
 // SearchDistinctComponents handles GET /api/v1/components/distinct.
 func (h *Handler) SearchDistinctComponents(ctx context.Context, input *SearchDistinctComponentsInput) (*SearchDistinctComponentsOutput, error) {
 	vis := visibilityFilterFromContext(ctx)
@@ -193,16 +164,27 @@ func (h *Handler) ListSBOMDriftHistory(ctx context.Context, in *ListSBOMDriftHis
 	if err != nil {
 		return nil, err
 	}
+	cur, hasCursor, err := decodeTimeIDCursor(in.Cursor)
+	if err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
+	}
 	vis := visibilityFilterFromContext(ctx)
 
-	result, err := h.searchService.ListSBOMDriftHistory(ctx, id, in.Limit, in.Offset, vis)
+	page := service.DriftPage{
+		Limit:            in.Limit,
+		HasCursor:        hasCursor,
+		CursorDetectedAt: cur.CreatedAt,
+		CursorID:         cur.ID,
+	}
+	result, err := h.searchService.ListSBOMDriftHistory(ctx, id, page, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
 
 	out := &ListSBOMDriftHistoryOutput{}
 	out.Body.Data = result.Data
-	out.Body.Pagination = paginationMeta(result)
+	out.Body.Pagination = cursorMeta(result.Data, result.HasMore, in.Limit,
+		func(d service.ProvenanceDriftSummary) string { return encodeTimeIDCursor(d.DetectedAt, d.ID) })
 	return out, nil
 }
 

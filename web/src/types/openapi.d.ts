@@ -108,7 +108,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get system status */
+        /**
+         * Get system status
+         * @description Admin-only.
+         */
         get: operations["get-system-status"];
         put?: never;
         post?: never;
@@ -692,7 +695,7 @@ export interface paths {
         put?: never;
         /**
          * Test registry connectivity
-         * @description Probes the registry's /v2/ endpoint and reports whether it is reachable.
+         * @description Probes the registry's /v2/ endpoint and reports whether it is reachable. Admin-only.
          */
         post: operations["test-registry-connection"];
         delete?: never;
@@ -1017,7 +1020,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List users */
+        /**
+         * List users
+         * @description Admin-only.
+         */
         get: operations["list-users"];
         put?: never;
         post?: never;
@@ -1057,7 +1063,10 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update user role */
+        /**
+         * Update user role
+         * @description Admin-only.
+         */
         patch: operations["update-user-role"];
         trace?: never;
     };
@@ -2025,7 +2034,7 @@ export interface components {
              */
             readonly $schema?: string;
             data: components["schemas"]["RecentDriftEntry"][] | null;
-            pagination: components["schemas"]["PaginationMeta"];
+            pagination: components["schemas"]["CursorMeta"];
         };
         ListRegistriesOutputBody: {
             /**
@@ -2055,7 +2064,7 @@ export interface components {
              */
             readonly $schema?: string;
             data: components["schemas"]["ProvenanceDriftSummary"][] | null;
-            pagination: components["schemas"]["PaginationMeta"];
+            pagination: components["schemas"]["CursorMeta"];
         };
         ListSBOMsOutputBody: {
             /**
@@ -2200,6 +2209,7 @@ export interface components {
         ProvenanceDriftSummary: {
             /** Format: date-time */
             detectedAt: string;
+            id?: string;
             newStatus: string;
             previousStatus: string;
             reason: string;
@@ -2225,6 +2235,7 @@ export interface components {
             artifactType?: string;
             /** Format: date-time */
             detectedAt: string;
+            id?: string;
             newStatus: string;
             previousStatus: string;
             reason: string;
@@ -4143,8 +4154,8 @@ export interface operations {
             query?: {
                 /** @description Maximum number of results per page */
                 limit?: number;
-                /** @description Number of results to skip */
-                offset?: number;
+                /** @description Opaque cursor from a previous response's nextCursor; omit for the first page */
+                cursor?: string;
             };
             header?: never;
             path?: never;
@@ -4774,8 +4785,8 @@ export interface operations {
             query?: {
                 /** @description Maximum number of results per page */
                 limit?: number;
-                /** @description Number of results to skip */
-                offset?: number;
+                /** @description Opaque cursor from a previous response's nextCursor; omit for the first page */
+                cursor?: string;
             };
             header?: never;
             path: {

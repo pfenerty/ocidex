@@ -72,7 +72,7 @@ func newKeyCreateCmd(cfg *rootConfig) *cobra.Command {
 	var name, scope string
 
 	cmd := &cobra.Command{
-		Use:   "create",
+		Use:   verbCreate,
 		Short: "Create an API key",
 		Long: `Create an API key.
 
@@ -134,7 +134,7 @@ func validateKeyScope(scope string) error {
 
 func newKeyDeleteCmd(cfg *rootConfig) *cobra.Command {
 	return &cobra.Command{
-		Use:   "delete <id>",
+		Use:   verbDeleteID,
 		Short: "Revoke an API key",
 		Long: `Revoke an API key.
 

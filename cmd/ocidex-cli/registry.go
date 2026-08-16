@@ -169,7 +169,7 @@ func newRegistryCreateCmd(cfg *rootConfig) *cobra.Command {
 	o := &registryOpts{}
 
 	cmd := &cobra.Command{
-		Use:   "create",
+		Use:   verbCreate,
 		Short: "Register an OCI registry to scan",
 		Long: `Register an OCI registry to scan.
 
@@ -340,30 +340,22 @@ func applyChanged(cmd *cobra.Command, appliers map[string]func()) {
 }
 
 func newRegistryDeleteCmd(cfg *rootConfig) *cobra.Command {
-	var yes bool
-
-	cmd := &cobra.Command{
-		Use:   "delete <id|name>",
-		Short: "Delete a registry and everything ingested from it",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			reg, err := getRegistry(cmd.Context(), cfg.api, args[0])
+	return newDeleteCmd(
+		"delete <id|name>",
+		"Delete a registry and everything ingested from it",
+		"registry",
+		func(ctx context.Context, ref string) (deletable, error) {
+			reg, err := getRegistry(ctx, cfg.api, ref)
 			if err != nil {
-				return err
+				return deletable{}, err
 			}
-			if err := confirm(cmd, yes, fmt.Sprintf("Delete registry %s (%s)?", reg.Name, reg.Id)); err != nil {
-				return err
-			}
-			if err := cfg.api.DeleteRegistry(cmd.Context(), reg.Id); err != nil {
-				return fmt.Errorf("deleting registry: %w", err)
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "deleted %s\n", reg.Id)
-			return nil
+			return deletable{
+				id:     reg.Id,
+				prompt: fmt.Sprintf("Delete registry %s (%s)?", reg.Name, reg.Id),
+			}, nil
 		},
-	}
-
-	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "do not prompt for confirmation")
-	return cmd
+		func(ctx context.Context, id string) error { return cfg.api.DeleteRegistry(ctx, id) },
+	)
 }
 
 func newRegistryScanCmd(cfg *rootConfig) *cobra.Command {

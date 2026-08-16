@@ -1,22 +1,44 @@
-import { Show } from "solid-js";
+import { Show, For, type JSX } from "solid-js";
 import { useLocation, A } from "@solidjs/router";
 import { UsersTab } from "./admin/UsersTab";
 import { APIKeysTab } from "./admin/APIKeysTab";
 import { StatusTab } from "./admin/StatusTab";
 import { SourcesTab } from "./admin/SourcesTab";
+import { NamespacesTab } from "./admin/NamespacesTab";
 import { JobsTab } from "./admin/JobsTab";
+
+interface AdminTab {
+    label: string;
+    href: string;
+    /** Every path that should light this tab up, including legacy ones. */
+    paths: string[];
+    render: () => JSX.Element;
+}
+
+const TABS: AdminTab[] = [
+    { label: "Users", href: "/admin", paths: ["/admin"], render: () => <UsersTab /> },
+    { label: "API Keys", href: "/admin/keys", paths: ["/admin/keys"], render: () => <APIKeysTab /> },
+    {
+        label: "Namespaces",
+        href: "/admin/namespaces",
+        paths: ["/admin/namespaces"],
+        render: () => <NamespacesTab />,
+    },
+    {
+        label: "Sources",
+        href: "/admin/sources",
+        // /admin/registries stays a live path: the tab was called Registries
+        // until ADR-039 split that concept, and bookmarks should not 404.
+        paths: ["/admin/sources", "/admin/registries"],
+        render: () => <SourcesTab />,
+    },
+    { label: "System Status", href: "/admin/status", paths: ["/admin/status"], render: () => <StatusTab /> },
+    { label: "Jobs", href: "/admin/jobs", paths: ["/admin/jobs"], render: () => <JobsTab /> },
+];
 
 export default function Admin() {
     const location = useLocation();
-
-    const isUsersTab = () => location.pathname === "/admin";
-    const isKeysTab = () => location.pathname === "/admin/keys";
-    const isStatusTab = () => location.pathname === "/admin/status";
-    // /admin/registries stays a live path: the tab was called Registries until
-    // ADR-039 split that concept, and existing bookmarks should not 404.
-    const isSourcesTab = () =>
-        location.pathname === "/admin/sources" || location.pathname === "/admin/registries";
-    const isJobsTab = () => location.pathname === "/admin/jobs";
+    const isActive = (tab: AdminTab) => tab.paths.includes(location.pathname);
 
     return (
         <>
@@ -30,83 +52,25 @@ export default function Admin() {
             </div>
 
             <nav style={{ display: "flex", gap: "0", "margin-bottom": "1.5rem", "border-bottom": "1px solid var(--color-border)" }}>
-                <A
-                    href="/admin"
-                    style={{
-                        padding: "0.5rem 1rem",
-                        "border-bottom": isUsersTab() ? "2px solid var(--color-primary)" : "2px solid transparent",
-                        color: isUsersTab() ? "var(--color-primary)" : "inherit",
-                        "font-weight": isUsersTab() ? "600" : "400",
-                        "margin-bottom": "-1px",
-                    }}
-                >
-                    Users
-                </A>
-                <A
-                    href="/admin/keys"
-                    style={{
-                        padding: "0.5rem 1rem",
-                        "border-bottom": isKeysTab() ? "2px solid var(--color-primary)" : "2px solid transparent",
-                        color: isKeysTab() ? "var(--color-primary)" : "inherit",
-                        "font-weight": isKeysTab() ? "600" : "400",
-                        "margin-bottom": "-1px",
-                    }}
-                >
-                    API Keys
-                </A>
-                <A
-                    href="/admin/sources"
-                    style={{
-                        padding: "0.5rem 1rem",
-                        "border-bottom": isSourcesTab() ? "2px solid var(--color-primary)" : "2px solid transparent",
-                        color: isSourcesTab() ? "var(--color-primary)" : "inherit",
-                        "font-weight": isSourcesTab() ? "600" : "400",
-                        "margin-bottom": "-1px",
-                    }}
-                >
-                    Sources
-                </A>
-                <A
-                    href="/admin/status"
-                    style={{
-                        padding: "0.5rem 1rem",
-                        "border-bottom": isStatusTab() ? "2px solid var(--color-primary)" : "2px solid transparent",
-                        color: isStatusTab() ? "var(--color-primary)" : "inherit",
-                        "font-weight": isStatusTab() ? "600" : "400",
-                        "margin-bottom": "-1px",
-                    }}
-                >
-                    System Status
-                </A>
-                <A
-                    href="/admin/jobs"
-                    style={{
-                        padding: "0.5rem 1rem",
-                        "border-bottom": isJobsTab() ? "2px solid var(--color-primary)" : "2px solid transparent",
-                        color: isJobsTab() ? "var(--color-primary)" : "inherit",
-                        "font-weight": isJobsTab() ? "600" : "400",
-                        "margin-bottom": "-1px",
-                    }}
-                >
-                    Jobs
-                </A>
+                <For each={TABS}>
+                    {(tab) => (
+                        <A
+                            href={tab.href}
+                            style={{
+                                padding: "0.5rem 1rem",
+                                "border-bottom": isActive(tab) ? "2px solid var(--color-primary)" : "2px solid transparent",
+                                color: isActive(tab) ? "var(--color-primary)" : "inherit",
+                                "font-weight": isActive(tab) ? "600" : "400",
+                                "margin-bottom": "-1px",
+                            }}
+                        >
+                            {tab.label}
+                        </A>
+                    )}
+                </For>
             </nav>
 
-            <Show when={isUsersTab()}>
-                <UsersTab />
-            </Show>
-            <Show when={isKeysTab()}>
-                <APIKeysTab />
-            </Show>
-            <Show when={isSourcesTab()}>
-                <SourcesTab />
-            </Show>
-            <Show when={isStatusTab()}>
-                <StatusTab />
-            </Show>
-            <Show when={isJobsTab()}>
-                <JobsTab />
-            </Show>
+            <For each={TABS}>{(tab) => <Show when={isActive(tab)}>{tab.render()}</Show>}</For>
         </>
     );
 }

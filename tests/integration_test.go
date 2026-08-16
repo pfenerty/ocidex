@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -46,6 +47,25 @@ const (
 	envNATSURL     = "TEST_NATS_URL"
 )
 
+// dockerProbe caches whether a Docker daemon is reachable. The probe answers a
+// question about the machine, not about any one test, so it runs at most once per
+// test binary.
+//
+// Caching is what makes the answer trustworthy. This used to be a per-test
+// `docker info` with a 3s budget, and once the suite grew past 50 tests each
+// starting a Postgres container, a *healthy* daemon routinely took longer than
+// that to answer — so an arbitrary test would skip, and which one moved run to
+// run. A guard whose verdict depends on machine load is worse than either answer
+// it chooses between: it drops coverage while the suite still reports ok.
+var dockerProbe = sync.OnceValue(func() bool {
+	// Generous on purpose. The probe runs once, before any container starts, and
+	// the only thing a short timeout can buy is mistaking a slow daemon for an
+	// absent one — the exact bug this replaced.
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	return exec.CommandContext(ctx, "docker", "info").Run() == nil
+})
+
 // requireTestInfra skips the test when there is no way to obtain Postgres.
 //
 // With TEST_POSTGRES_URL set there is deliberately no escape hatch: an unreachable
@@ -56,9 +76,7 @@ func requireTestInfra(t *testing.T) {
 	if os.Getenv(envPostgresURL) != "" {
 		return
 	}
-	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
-	defer cancel()
-	if err := exec.CommandContext(ctx, "docker", "info").Run(); err != nil {
+	if !dockerProbe() {
 		t.Skipf("neither %s nor docker available, skipping integration test", envPostgresURL)
 	}
 }

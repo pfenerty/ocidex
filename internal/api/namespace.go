@@ -24,14 +24,10 @@ func canManageNamespace(user service.AuthUser, ns service.Namespace) bool {
 // ListNamespaces returns the namespaces visible to the current user: their own,
 // plus every public one.
 func (h *Handler) ListNamespaces(ctx context.Context, _ *ListNamespacesInput) (*ListNamespacesOutput, error) {
-	user, ok := UserFromContext(ctx)
-	if !ok {
+	if _, ok := UserFromContext(ctx); !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	rows, err := h.namespaceService.List(ctx, service.VisibilityFilter{
-		IsAdmin: user.Role == roleAdmin,
-		UserID:  user.ID,
-	})
+	rows, err := h.namespaceService.List(ctx, visibilityFilterFromContext(ctx))
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -98,9 +94,6 @@ func (h *Handler) CreateNamespace(ctx context.Context, in *CreateNamespaceInput)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
-	}
 	ns, err := h.namespaceService.Create(ctx, service.CreateNamespaceParams{
 		Name:       in.Body.Name,
 		OwnerID:    user.ID,
@@ -118,9 +111,6 @@ func (h *Handler) UpdateNamespace(ctx context.Context, in *UpdateNamespaceInput)
 	user, ok := UserFromContext(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
-	}
-	if !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
 	}
 	existing, err := h.namespaceService.Get(ctx, in.ID)
 	if err != nil {
@@ -146,9 +136,6 @@ func (h *Handler) DeleteNamespace(ctx context.Context, in *DeleteNamespaceInput)
 	user, ok := UserFromContext(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
-	}
-	if !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
 	}
 	existing, err := h.namespaceService.Get(ctx, in.ID)
 	if err != nil {

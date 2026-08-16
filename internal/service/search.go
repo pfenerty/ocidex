@@ -41,8 +41,8 @@ type SearchService interface {
 	GetArtifactContains(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]ArtifactRelation, error)
 	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (*VulnDetail, PagedResult[AffectedArtifact], PagedResult[AffectedComponent], error)
 	GetComponentVulns(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) ([]ComponentVulnEntry, error)
-	ListSBOMDriftHistory(ctx context.Context, sbomID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ProvenanceDriftSummary], error)
-	ListRecentProvenanceDrift(ctx context.Context, limit, offset int32) (PagedResult[RecentDriftEntry], error)
+	ListSBOMDriftHistory(ctx context.Context, sbomID pgtype.UUID, page DriftPage, vis VisibilityFilter) (CursorPage[ProvenanceDriftSummary], error)
+	ListRecentProvenanceDrift(ctx context.Context, page DriftPage) (CursorPage[RecentDriftEntry], error)
 	LookupArtifact(ctx context.Context, query ArtifactLookupQuery, vis VisibilityFilter) ([]LookupCandidate, error)
 	LookupSBOM(ctx context.Context, query SBOMLookupQuery, vis VisibilityFilter) ([]LookupCandidate, error)
 	LookupLicense(ctx context.Context, spdxID string, vis VisibilityFilter) (LicenseCount, error)
@@ -294,6 +294,15 @@ type ComponentPage struct {
 	HasCursor   bool
 }
 
+// DriftPage carries keyset pagination state for the provenance drift feeds,
+// ordered by (detected_at DESC, id DESC).
+type DriftPage struct {
+	Limit            int32
+	CursorDetectedAt time.Time
+	CursorID         string
+	HasCursor        bool
+}
+
 // ArtifactSummary is a lightweight artifact representation for list views.
 type ArtifactSummary struct {
 	ID                  string  `json:"id"`
@@ -372,6 +381,10 @@ type SBOMDetail struct {
 
 // ProvenanceDriftSummary is the most recent provenance_drift_events row for a SBOM.
 type ProvenanceDriftSummary struct {
+	// ID is the event's primary key. It is the tiebreaker half of the
+	// (detected_at, id) keyset cursor, so the drift feeds cannot page without
+	// it. Empty for GetLatestProvenanceDrift, which is not paginated.
+	ID             string    `json:"id,omitempty"`
 	PreviousStatus string    `json:"previousStatus"`
 	NewStatus      string    `json:"newStatus"`
 	Reason         string    `json:"reason"`

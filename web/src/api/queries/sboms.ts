@@ -83,13 +83,13 @@ export function sbomComponents(
 /** List provenance drift history for an SBOM, newest first. */
 export function useSBOMDriftHistory(
     id: Accessor<string>,
-    params?: Accessor<{ limit?: number; offset?: number }>,
+    params?: Accessor<{ limit?: number; cursor?: string }>,
     options?: { enabled?: Accessor<boolean> },
 ) {
     return createQuery(() => {
         const p = params?.() ?? {};
         return {
-            queryKey: ["sbom", id(), "drift", p.limit, p.offset] as const,
+            queryKey: ["sbom", id(), "drift", p.limit, p.cursor] as const,
             queryFn: () =>
                 unwrap(
                     client.GET("/api/v1/sboms/{id}/drift", {

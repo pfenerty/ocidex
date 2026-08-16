@@ -2559,7 +2559,7 @@
             ]
           },
           "pagination": {
-            "$ref": "#/components/schemas/PaginationMeta"
+            "$ref": "#/components/schemas/CursorMeta"
           }
         },
         "required": [
@@ -2652,7 +2652,7 @@
             ]
           },
           "pagination": {
-            "$ref": "#/components/schemas/PaginationMeta"
+            "$ref": "#/components/schemas/CursorMeta"
           }
         },
         "required": [
@@ -3033,6 +3033,9 @@
             "format": "date-time",
             "type": "string"
           },
+          "id": {
+            "type": "string"
+          },
           "newStatus": {
             "type": "string"
           },
@@ -3094,6 +3097,9 @@
           },
           "detectedAt": {
             "format": "date-time",
+            "type": "string"
+          },
+          "id": {
             "type": "string"
           },
           "newStatus": {
@@ -4634,6 +4640,7 @@
     },
     "/api/v1/admin/status": {
       "get": {
+        "description": "Admin-only.",
         "operationId": "get-system-status",
         "responses": {
           "200": {
@@ -6711,16 +6718,13 @@
             }
           },
           {
-            "description": "Number of results to skip",
+            "description": "Opaque cursor from a previous response's nextCursor; omit for the first page",
             "explode": false,
             "in": "query",
-            "name": "offset",
+            "name": "cursor",
             "schema": {
-              "default": 0,
-              "description": "Number of results to skip",
-              "format": "int32",
-              "minimum": 0,
-              "type": "integer"
+              "description": "Opaque cursor from a previous response's nextCursor; omit for the first page",
+              "type": "string"
             }
           }
         ],
@@ -6754,7 +6758,7 @@
     },
     "/api/v1/registries/test-connection": {
       "post": {
-        "description": "Probes the registry's /v2/ endpoint and reports whether it is reachable.",
+        "description": "Probes the registry's /v2/ endpoint and reports whether it is reachable. Admin-only.",
         "operationId": "test-registry-connection",
         "requestBody": {
           "content": {
@@ -7754,16 +7758,13 @@
             }
           },
           {
-            "description": "Number of results to skip",
+            "description": "Opaque cursor from a previous response's nextCursor; omit for the first page",
             "explode": false,
             "in": "query",
-            "name": "offset",
+            "name": "cursor",
             "schema": {
-              "default": 0,
-              "description": "Number of results to skip",
-              "format": "int32",
-              "minimum": 0,
-              "type": "integer"
+              "description": "Opaque cursor from a previous response's nextCursor; omit for the first page",
+              "type": "string"
             }
           },
           {
@@ -8054,6 +8055,7 @@
     },
     "/api/v1/users": {
       "get": {
+        "description": "Admin-only.",
         "operationId": "list-users",
         "responses": {
           "200": {
@@ -8116,6 +8118,7 @@
     },
     "/api/v1/users/{id}/role": {
       "patch": {
+        "description": "Admin-only.",
         "operationId": "update-user-role",
         "parameters": [
           {

@@ -11,9 +11,6 @@ import (
 
 // ListScanJobs returns a paginated, optionally filtered list of scan jobs.
 func (h *Handler) ListScanJobs(ctx context.Context, in *ListScanJobsInput) (*ListScanJobsOutput, error) {
-	if _, ok := UserFromContext(ctx); !ok {
-		return nil, huma.Error401Unauthorized("not authenticated")
-	}
 	jobs, total, err := h.jobService.List(ctx, in.State, in.Limit, in.Offset)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing jobs: %v", err))
@@ -33,9 +30,6 @@ func (h *Handler) ListScanJobs(ctx context.Context, in *ListScanJobsInput) (*Lis
 
 // GetScanJob returns a single scan job by UUID.
 func (h *Handler) GetScanJob(ctx context.Context, in *GetScanJobInput) (*GetScanJobOutput, error) {
-	if _, ok := UserFromContext(ctx); !ok {
-		return nil, huma.Error401Unauthorized("not authenticated")
-	}
 	job, err := h.jobService.Get(ctx, in.ID)
 	if err != nil {
 		return nil, mapServiceError(err)
@@ -46,16 +40,6 @@ func (h *Handler) GetScanJob(ctx context.Context, in *GetScanJobInput) (*GetScan
 // RetryScanJob resets a 'failed' scan_jobs row back to 'queued' so the worker
 // poll loop or a fresh NATS hint can re-process it. Admin-only.
 func (h *Handler) RetryScanJob(ctx context.Context, in *RetryScanJobInput) (*struct{}, error) {
-	user, ok := UserFromContext(ctx)
-	if !ok {
-		return nil, huma.Error401Unauthorized("not authenticated")
-	}
-	if user.Role != roleAdmin {
-		return nil, huma.Error403Forbidden("admin only")
-	}
-	if !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
-	}
 	if err := h.jobService.Retry(ctx, in.ID); err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("retry job: %v", err))
 	}
@@ -65,16 +49,6 @@ func (h *Handler) RetryScanJob(ctx context.Context, in *RetryScanJobInput) (*str
 // RetryAllFailedScanJobs resets every 'failed' scan_jobs row back to 'queued'.
 // Returns the count so the UI can surface it. Admin-only.
 func (h *Handler) RetryAllFailedScanJobs(ctx context.Context, _ *struct{}) (*RetryAllFailedScanJobsOutput, error) {
-	user, ok := UserFromContext(ctx)
-	if !ok {
-		return nil, huma.Error401Unauthorized("not authenticated")
-	}
-	if user.Role != roleAdmin {
-		return nil, huma.Error403Forbidden("admin only")
-	}
-	if !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
-	}
 	n, err := h.jobService.RetryAllFailed(ctx)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("retry all failed: %v", err))

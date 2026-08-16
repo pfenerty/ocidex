@@ -1508,7 +1508,7 @@ type ListRecentDriftOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema     *string             `json:"$schema,omitempty"`
 	Data       *[]RecentDriftEntry `json:"data"`
-	Pagination PaginationMeta      `json:"pagination"`
+	Pagination CursorMeta          `json:"pagination"`
 }
 
 // ListRegistriesOutputBody defines model for ListRegistriesOutputBody.
@@ -1532,7 +1532,7 @@ type ListSBOMDriftHistoryOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema     *string                   `json:"$schema,omitempty"`
 	Data       *[]ProvenanceDriftSummary `json:"data"`
-	Pagination PaginationMeta            `json:"pagination"`
+	Pagination CursorMeta                `json:"pagination"`
 }
 
 // ListSBOMsOutputBody defines model for ListSBOMsOutputBody.
@@ -1667,6 +1667,7 @@ type PaginationMeta struct {
 // ProvenanceDriftSummary defines model for ProvenanceDriftSummary.
 type ProvenanceDriftSummary struct {
 	DetectedAt     time.Time `json:"detectedAt"`
+	Id             *string   `json:"id,omitempty"`
 	NewStatus      string    `json:"newStatus"`
 	PreviousStatus string    `json:"previousStatus"`
 	Reason         string    `json:"reason"`
@@ -1690,6 +1691,7 @@ type RecentDriftEntry struct {
 	ArtifactName   *string   `json:"artifactName,omitempty"`
 	ArtifactType   *string   `json:"artifactType,omitempty"`
 	DetectedAt     time.Time `json:"detectedAt"`
+	Id             *string   `json:"id,omitempty"`
 	NewStatus      string    `json:"newStatus"`
 	PreviousStatus string    `json:"previousStatus"`
 	Reason         string    `json:"reason"`
@@ -2401,8 +2403,8 @@ type ListRecentDriftParams struct {
 	// Limit Maximum number of results per page
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 
-	// Offset Number of results to skip
-	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+	// Cursor Opaque cursor from a previous response's nextCursor; omit for the first page
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
 // ScanRegistryParams defines parameters for ScanRegistry.
@@ -2520,8 +2522,8 @@ type ListSbomDriftHistoryParams struct {
 	// Limit Maximum number of results per page
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 
-	// Offset Number of results to skip
-	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+	// Cursor Opaque cursor from a previous response's nextCursor; omit for the first page
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
 // ListSourcesParams defines parameters for ListSources.

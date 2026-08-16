@@ -2,8 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -26,55 +24,7 @@ func isWriteAllowed(user service.AuthUser) bool {
 	return user.APIKeyScope == "" || user.APIKeyScope == scopeReadWrite
 }
 
-// publicPaths bypass Authenticate.
-var publicPaths = map[string]bool{
-	"/health":        true,
-	"/ready":         true,
-	"/auth/login":    true,
-	"/auth/callback": true,
-}
-
 type ctxKeyUser struct{}
-
-// Authenticate validates session cookies and Bearer API keys.
-// Public paths are passed through without auth. If authSvc is nil, all requests pass through (useful for tests).
-func Authenticate(authSvc service.AuthService) func(http.Handler) http.Handler {
-	if authSvc == nil {
-		return func(next http.Handler) http.Handler { return next }
-	}
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if publicPaths[r.URL.Path] ||
-				(strings.HasPrefix(r.URL.Path, "/api/v1/registries/") && strings.HasSuffix(r.URL.Path, "/webhook")) {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			var (
-				user service.AuthUser
-				err  error
-			)
-
-			if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
-				token := strings.TrimPrefix(auth, "Bearer ")
-				user, err = authSvc.ValidateAPIKey(r.Context(), token)
-			} else if c, cerr := r.Cookie("ocidex_session"); cerr == nil {
-				user, err = authSvc.ValidateSession(r.Context(), c.Value)
-			} else {
-				err = errUnauthorized
-			}
-
-			if err != nil {
-				writeUnauthorized(w)
-				return
-			}
-
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKeyUser{}, user)))
-		})
-	}
-}
-
-var errUnauthorized = fmt.Errorf("unauthorized")
 
 // OptionalAuthenticate attaches the user to the context if a valid session or
 // API key is present, but allows unauthenticated requests through (user will
@@ -109,24 +59,6 @@ func OptionalAuthenticate(authSvc service.AuthService) func(http.Handler) http.H
 			}
 
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKeyUser{}, user)))
-		})
-	}
-}
-
-// RequireRole returns middleware that enforces one of the given roles.
-func RequireRole(roles ...string) func(http.Handler) http.Handler {
-	allowed := make(map[string]bool, len(roles))
-	for _, r := range roles {
-		allowed[r] = true
-	}
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			user, ok := UserFromContext(r.Context())
-			if !ok || !allowed[user.Role] {
-				writeForbidden(w)
-				return
-			}
-			next.ServeHTTP(w, r)
 		})
 	}
 }
@@ -175,6 +107,53 @@ func RequireMember(api huma.API) func(huma.Context, func(huma.Context)) {
 		}
 		if user.Role != roleAdmin && user.Role != roleMember {
 			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
+			return
+		}
+		next(ctx)
+	}
+}
+
+// RequireAuthenticated returns a huma middleware that 401s unauthenticated
+// callers and imposes no role constraint. It exists so that "any authenticated
+// principal" is a declared auth class on the operation rather than an implicit
+// one buried in the handler body.
+func RequireAuthenticated(api huma.API) func(huma.Context, func(huma.Context)) {
+	return func(ctx huma.Context, next func(huma.Context)) {
+		if _, ok := UserFromContext(ctx.Context()); !ok {
+			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, "not authenticated")
+			return
+		}
+		next(ctx)
+	}
+}
+
+// RequireAdmin returns a huma middleware that 401s unauthenticated callers and
+// 403s every caller without the admin role.
+func RequireAdmin(api huma.API) func(huma.Context, func(huma.Context)) {
+	return func(ctx huma.Context, next func(huma.Context)) {
+		user, ok := UserFromContext(ctx.Context())
+		if !ok {
+			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, "not authenticated")
+			return
+		}
+		if user.Role != roleAdmin {
+			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "admin only")
+			return
+		}
+		next(ctx)
+	}
+}
+
+// RequireWrite returns a huma middleware that 403s a caller presenting a
+// read-scoped API key. It checks the key scope only and is deliberately
+// orthogonal to the auth-class middlewares (RequireAuthenticated, RequireMember,
+// RequireAdmin, Require*Owner): a state-mutating operation declares one of those
+// plus this one, and authentication is enforced by the auth-class middleware
+// listed first.
+func RequireWrite(api huma.API) func(huma.Context, func(huma.Context)) {
+	return func(ctx huma.Context, next func(huma.Context)) {
+		if user, ok := UserFromContext(ctx.Context()); ok && !isWriteAllowed(user) {
+			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "read-only API key cannot perform write operations")
 			return
 		}
 		next(ctx)
@@ -265,22 +244,6 @@ func RequireArtifactOwner(api huma.API, sbomSvc service.SBOMService, nsSvc servi
 			return
 		}
 		next(ctx)
-	}
-}
-
-func writeUnauthorized(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(http.StatusUnauthorized)
-	if err := json.NewEncoder(w).Encode(map[string]any{"title": "Unauthorized", "status": 401, "detail": "not authenticated"}); err != nil {
-		slog.Error("encoding error response", "err", err)
-	}
-}
-
-func writeForbidden(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(http.StatusForbidden)
-	if err := json.NewEncoder(w).Encode(map[string]any{"title": "Forbidden", "status": 403, "detail": "insufficient permissions"}); err != nil {
-		slog.Error("encoding error response", "err", err)
 	}
 }
 

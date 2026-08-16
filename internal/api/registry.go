@@ -105,15 +105,10 @@ func validateVerificationConfig(verificationMode string, trustPublicKey, trustId
 
 // ListRegistries returns registries visible to the current user.
 func (h *Handler) ListRegistries(ctx context.Context, input *ListRegistriesInput) (*ListRegistriesOutput, error) {
-	user, ok := UserFromContext(ctx)
-	if !ok {
+	if _, ok := UserFromContext(ctx); !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	filter := service.VisibilityFilter{
-		IsAdmin: user.Role == roleAdmin,
-		UserID:  user.ID,
-	}
-	result, err := h.registryService.ListPaged(ctx, filter, input.Limit, input.Offset)
+	result, err := h.registryService.ListPaged(ctx, visibilityFilterFromContext(ctx), input.Limit, input.Offset)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing registries: %v", err))
 	}
@@ -144,13 +139,6 @@ func (h *Handler) ListRegistries(ctx context.Context, input *ListRegistriesInput
 // five signing statuses. Admin-only: it aggregates across every registry,
 // bypassing the per-registry visibility filter other endpoints apply.
 func (h *Handler) GetRegistryTrustSummary(ctx context.Context, _ *struct{}) (*GetRegistryTrustSummaryOutput, error) {
-	user, ok := UserFromContext(ctx)
-	if !ok {
-		return nil, huma.Error401Unauthorized("not authenticated")
-	}
-	if user.Role != roleAdmin {
-		return nil, huma.Error403Forbidden("admin only")
-	}
 	rows, err := h.registryService.TrustSummary(ctx)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing registry trust summary: %v", err))
@@ -163,20 +151,24 @@ func (h *Handler) GetRegistryTrustSummary(ctx context.Context, _ *struct{}) (*Ge
 // ListRecentDrift returns the most recent provenance drift events across
 // every registry. Admin-only, for the same reason as GetRegistryTrustSummary.
 func (h *Handler) ListRecentDrift(ctx context.Context, in *ListRecentDriftInput) (*ListRecentDriftOutput, error) {
-	user, ok := UserFromContext(ctx)
-	if !ok {
-		return nil, huma.Error401Unauthorized("not authenticated")
+	cur, hasCursor, err := decodeTimeIDCursor(in.Cursor)
+	if err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
 	}
-	if user.Role != roleAdmin {
-		return nil, huma.Error403Forbidden("admin only")
-	}
-	result, err := h.searchService.ListRecentProvenanceDrift(ctx, in.Limit, in.Offset)
+
+	result, err := h.searchService.ListRecentProvenanceDrift(ctx, service.DriftPage{
+		Limit:            in.Limit,
+		HasCursor:        hasCursor,
+		CursorDetectedAt: cur.CreatedAt,
+		CursorID:         cur.ID,
+	})
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing recent provenance drift: %v", err))
 	}
 	out := &ListRecentDriftOutput{}
 	out.Body.Data = result.Data
-	out.Body.Pagination = paginationMeta(result)
+	out.Body.Pagination = cursorMeta(result.Data, result.HasMore, in.Limit,
+		func(d service.RecentDriftEntry) string { return encodeTimeIDCursor(d.DetectedAt, d.ID) })
 	return out, nil
 }
 
@@ -218,9 +210,6 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 	user, ok := UserFromContext(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
-	}
-	if !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
 	}
 	regType := in.Body.Type
 	regURL := in.Body.URL
@@ -294,9 +283,6 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 // RegenerateWebhookSecret generates a new webhook secret for a registry (owner or admin).
 // The previous secret is immediately invalidated.
 func (h *Handler) RegenerateWebhookSecret(ctx context.Context, in *RegenerateWebhookSecretInput) (*RegenerateWebhookSecretOutput, error) {
-	if user, ok := UserFromContext(ctx); ok && !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
-	}
 	existing, err := h.registryService.Get(ctx, in.ID)
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
@@ -339,9 +325,6 @@ func (h *Handler) RegenerateWebhookSecret(ctx context.Context, in *RegenerateWeb
 
 // UpdateRegistry updates a registry (owner or admin).
 func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (*UpdateRegistryOutput, error) {
-	if user, ok := UserFromContext(ctx); ok && !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
-	}
 	existing, err := h.registryService.Get(ctx, in.ID)
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
@@ -422,9 +405,6 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 
 // DeleteRegistry deletes a registry (owner or admin).
 func (h *Handler) DeleteRegistry(ctx context.Context, in *DeleteRegistryInput) (*struct{}, error) {
-	if user, ok := UserFromContext(ctx); ok && !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
-	}
 	if err := h.registryService.Delete(ctx, in.ID); err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}
@@ -433,17 +413,6 @@ func (h *Handler) DeleteRegistry(ctx context.Context, in *DeleteRegistryInput) (
 
 // TestRegistryConnection probes the registry's /v2/ endpoint.
 func (h *Handler) TestRegistryConnection(ctx context.Context, in *TestRegistryConnectionInput) (*TestRegistryConnectionOutput, error) {
-	user, ok := UserFromContext(ctx)
-	if !ok {
-		return nil, huma.Error401Unauthorized("not authenticated")
-	}
-	if user.Role != roleAdmin {
-		return nil, huma.Error403Forbidden("admin only")
-	}
-	if !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
-	}
-
 	scheme := schemeHTTPS
 	if in.Body.Insecure {
 		scheme = schemeHTTP
@@ -483,9 +452,6 @@ func (h *Handler) TestRegistryConnection(ctx context.Context, in *TestRegistryCo
 
 // ScanRegistry triggers an ad-hoc catalog walk of a registry (owner or admin).
 func (h *Handler) ScanRegistry(ctx context.Context, in *ScanRegistryInput) (*ScanRegistryOutput, error) {
-	if user, ok := UserFromContext(ctx); ok && !isWriteAllowed(user) {
-		return nil, huma.Error403Forbidden("read-only API key cannot perform write operations")
-	}
 	reg, err := h.registryService.Get(ctx, in.ID)
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
