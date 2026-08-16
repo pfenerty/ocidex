@@ -65,6 +65,7 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 | GET | `/api/v1/users/me/registries` | `list-my-registries` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
 | GET | `/api/v1/users/me/sources` | `list-my-sources` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
 | GET | `/api/v1/users/me/watches` | `list-my-watches` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
+| GET | `/api/v1/users/me/watches/feed` | `list-my-watch-feed` | `authenticated` |  | Self-scoped, and additionally visibility-filtered: an artifact made private after being starred stays on the watchlist but stops producing events. |
 | DELETE | `/api/v1/users/me/watches/{artifact_id}` | `unwatch-artifact` | `authenticated` | ✓ | Removes the caller's own watch; idempotent. |
 | PUT | `/api/v1/users/me/watches/{artifact_id}` | `watch-artifact` | `authenticated` | ✓ | Watch is self-scoped; the artifact must be visible to the caller, which may include others' public artifacts. |
 | PATCH | `/api/v1/users/{id}/role` | `update-user-role` | `admin` | ✓ |  |

@@ -473,6 +473,27 @@ func (e UpdateUserRoleInputBodyRole) Valid() bool {
 	}
 }
 
+// Defines values for WatchEventKind.
+const (
+	Drift         WatchEventKind = "drift"
+	NewVersion    WatchEventKind = "new_version"
+	Vulnerability WatchEventKind = "vulnerability"
+)
+
+// Valid indicates whether the value is a known member of the WatchEventKind enum.
+func (e WatchEventKind) Valid() bool {
+	switch e {
+	case Drift:
+		return true
+	case NewVersion:
+		return true
+	case Vulnerability:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RetryAllFailedEnrichmentJobsParamsEnricherName.
 const (
 	RetryAllFailedEnrichmentJobsParamsEnricherNameOciMetadata RetryAllFailedEnrichmentJobsParamsEnricherName = "oci-metadata"
@@ -1521,6 +1542,14 @@ type ListMyActivityOutputBody struct {
 	Pagination CursorMeta       `json:"pagination"`
 }
 
+// ListMyWatchFeedOutputBody defines model for ListMyWatchFeedOutputBody.
+type ListMyWatchFeedOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema     *string       `json:"$schema,omitempty"`
+	Data       *[]WatchEvent `json:"data"`
+	Pagination CursorMeta    `json:"pagination"`
+}
+
 // ListMyWatchesOutputBody defines model for ListMyWatchesOutputBody.
 type ListMyWatchesOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -2208,6 +2237,29 @@ type WatchEntry struct {
 	WatchedAt  time.Time `json:"watchedAt"`
 }
 
+// WatchEvent defines model for WatchEvent.
+type WatchEvent struct {
+	ArtifactId      string         `json:"artifactId"`
+	ArtifactName    string         `json:"artifactName"`
+	ArtifactType    string         `json:"artifactType"`
+	CvssScore       *float32       `json:"cvssScore,omitempty"`
+	Id              string         `json:"id"`
+	Kind            WatchEventKind `json:"kind"`
+	NewStatus       *string        `json:"newStatus,omitempty"`
+	OccurredAt      time.Time      `json:"occurredAt"`
+	PreviousStatus  *string        `json:"previousStatus,omitempty"`
+	PreviousVersion *string        `json:"previousVersion,omitempty"`
+	Reason          *string        `json:"reason,omitempty"`
+	SbomId          string         `json:"sbomId"`
+	Severity        *string        `json:"severity,omitempty"`
+	Summary         *string        `json:"summary,omitempty"`
+	Version         *string        `json:"version,omitempty"`
+	VulnerabilityId *string        `json:"vulnerabilityId,omitempty"`
+}
+
+// WatchEventKind defines model for WatchEvent.Kind.
+type WatchEventKind string
+
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
 
@@ -2614,6 +2666,15 @@ type ListMyRegistriesParams struct {
 
 // ListMyWatchesParams defines parameters for ListMyWatches.
 type ListMyWatchesParams struct {
+	// Limit Maximum number of results per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque cursor from a previous response's nextCursor; omit for the first page
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// ListMyWatchFeedParams defines parameters for ListMyWatchFeed.
+type ListMyWatchFeedParams struct {
 	// Limit Maximum number of results per page
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 

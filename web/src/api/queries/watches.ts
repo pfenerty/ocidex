@@ -16,6 +16,22 @@ export function useWatches() {
 }
 
 /**
+ * useWatchFeed — GET /api/v1/users/me/watches/feed (first keyset page).
+ *
+ * Separate from useWatches rather than folded into it: the watchlist is the set
+ * of things you care about and changes only when you click a star, while the
+ * feed changes on its own. They invalidate on different events, so they are
+ * different cache entries.
+ */
+export function useWatchFeed() {
+    return createQuery(() => ({
+        queryKey: ["watch-feed"] as const,
+        queryFn: () => unwrap(client.GET("/api/v1/users/me/watches/feed")),
+        select: (resp) => ({ ...resp, data: resp.data ?? [] }),
+    }));
+}
+
+/**
  * useToggleWatch — PUT/DELETE /api/v1/users/me/watches/{artifact_id}.
  *
  * The star flips before the request lands, because a bookmark toggle that waits

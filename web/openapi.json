@@ -2594,6 +2594,37 @@
         ],
         "type": "object"
       },
+      "ListMyWatchFeedOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListMyWatchFeedOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/WatchEvent"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/CursorMeta"
+          }
+        },
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "type": "object"
+      },
       "ListMyWatchesOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -4572,6 +4603,76 @@
           "name",
           "sbomCount",
           "watchedAt"
+        ],
+        "type": "object"
+      },
+      "WatchEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": {
+            "type": "string"
+          },
+          "artifactName": {
+            "type": "string"
+          },
+          "artifactType": {
+            "type": "string"
+          },
+          "cvssScore": {
+            "format": "float",
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "new_version",
+              "drift",
+              "vulnerability"
+            ],
+            "type": "string"
+          },
+          "newStatus": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "previousStatus": {
+            "type": "string"
+          },
+          "previousVersion": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "sbomId": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "vulnerabilityId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "occurredAt",
+          "artifactId",
+          "artifactName",
+          "artifactType",
+          "sbomId"
         ],
         "type": "object"
       }
@@ -8591,6 +8692,64 @@
           }
         },
         "summary": "List my watched artifacts",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/users/me/watches/feed": {
+      "get": {
+        "description": "New versions, provenance drift, and vulnerabilities affecting the artifacts you watch, newest first. An artifact that has since been made private stays on your watchlist but stops producing events. Scoped to the calling user: only resources you own, excluding public resources owned by others.",
+        "operationId": "list-my-watch-feed",
+        "parameters": [
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque cursor from a previous response's nextCursor; omit for the first page",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor from a previous response's nextCursor; omit for the first page",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListMyWatchFeedOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List changes to my watched artifacts",
         "tags": [
           "Auth"
         ]

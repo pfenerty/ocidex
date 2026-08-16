@@ -307,6 +307,17 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 	}, h.UnwatchArtifact)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "list-my-watch-feed",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/users/me/watches/feed",
+		Summary:     "List changes to my watched artifacts",
+		Description: "New versions, provenance drift, and vulnerabilities affecting the artifacts you watch, newest first. " +
+			"An artifact that has since been made private stays on your watchlist but stops producing events. " + descSelfScoped,
+		Tags:        []string{tagAuth},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListMyWatchFeed)
+
+	huma.Register(api, huma.Operation{
 		OperationID:   "create-api-key",
 		Method:        http.MethodPost,
 		Path:          "/api/v1/auth/keys",
@@ -449,6 +460,27 @@ func (h *Handler) ListMyWatches(ctx context.Context, in *ListMyWatchesInput) (*L
 		return nil, err
 	}
 	out := &ListMyWatchesOutput{}
+	out.Body.Data = data
+	out.Body.Pagination = meta
+	return out, nil
+}
+
+// ListMyWatchFeed returns changes to the caller's watched artifacts, newest
+// first. It passes a visibility filter as well as the caller's ID — the
+// watchlist itself needs no filter, but the events do, so an artifact that has
+// gone private since it was starred stops appearing here (ocidex-998g.4).
+func (h *Handler) ListMyWatchFeed(ctx context.Context, in *ListMyWatchFeedInput) (*ListMyWatchFeedOutput, error) {
+	vis := visibilityFilterFromContext(ctx)
+	data, meta, err := meCursorList(ctx, in.CursorParams,
+		func(userID pgtype.UUID, page service.FeedPage) (service.CursorPage[service.WatchEvent], error) {
+			return h.watchService.Feed(ctx, userID, vis, page)
+		},
+		func(e service.WatchEvent) string { return encodeTimeIDCursor(e.OccurredAt, e.ID) },
+	)
+	if err != nil {
+		return nil, err
+	}
+	out := &ListMyWatchFeedOutput{}
 	out.Body.Data = data
 	out.Body.Pagination = meta
 	return out, nil

@@ -68,6 +68,7 @@ type WatchRepository interface {
 	DeleteArtifactWatch(ctx context.Context, arg DeleteArtifactWatchParams) (int64, error)
 	IsArtifactWatched(ctx context.Context, arg IsArtifactWatchedParams) (bool, error)
 	ListArtifactWatches(ctx context.Context, arg ListArtifactWatchesParams) ([]ListArtifactWatchesRow, error)
+	ListWatchedArtifactEvents(ctx context.Context, arg ListWatchedArtifactEventsParams) ([]ListWatchedArtifactEventsRow, error)
 }
 
 // EnrichmentRepository defines data access methods for enrichment results.

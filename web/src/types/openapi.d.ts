@@ -1170,6 +1170,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me/watches/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List changes to my watched artifacts
+         * @description New versions, provenance drift, and vulnerabilities affecting the artifacts you watch, newest first. An artifact that has since been made private stays on your watchlist but stops producing events. Scoped to the calling user: only resources you own, excluding public resources owned by others.
+         */
+        get: operations["list-my-watch-feed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/me/watches/{artifact_id}": {
         parameters: {
             query?: never;
@@ -2187,6 +2207,16 @@ export interface components {
             data: components["schemas"]["ActivityEntry"][] | null;
             pagination: components["schemas"]["CursorMeta"];
         };
+        ListMyWatchFeedOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListMyWatchFeedOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["WatchEvent"][] | null;
+            pagination: components["schemas"]["CursorMeta"];
+        };
         ListMyWatchesOutputBody: {
             /**
              * Format: uri
@@ -2918,6 +2948,27 @@ export interface components {
             type: string;
             /** Format: date-time */
             watchedAt: string;
+        };
+        WatchEvent: {
+            artifactId: string;
+            artifactName: string;
+            artifactType: string;
+            /** Format: float */
+            cvssScore?: number;
+            id: string;
+            /** @enum {string} */
+            kind: "new_version" | "drift" | "vulnerability";
+            newStatus?: string;
+            /** Format: date-time */
+            occurredAt: string;
+            previousStatus?: string;
+            previousVersion?: string;
+            reason?: string;
+            sbomId: string;
+            severity?: string;
+            summary?: string;
+            version?: string;
+            vulnerabilityId?: string;
         };
     };
     responses: never;
@@ -5445,6 +5496,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListMyWatchesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-my-watch-feed": {
+        parameters: {
+            query?: {
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Opaque cursor from a previous response's nextCursor; omit for the first page */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListMyWatchFeedOutputBody"];
                 };
             };
             /** @description Error */

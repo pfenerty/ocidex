@@ -49,6 +49,15 @@ type ListMyWatchesOutput struct {
 	}
 }
 
+type ListMyWatchFeedInput struct{ CursorParams }
+
+type ListMyWatchFeedOutput struct {
+	Body struct {
+		Data       []service.WatchEvent `json:"data"`
+		Pagination CursorMeta           `json:"pagination"`
+	}
+}
+
 // WatchArtifactInput identifies the artifact to watch or unwatch. It is shared
 // by both verbs because a watch has no body — the pair (caller, artifact) is
 // the whole resource.

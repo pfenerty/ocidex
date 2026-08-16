@@ -89,6 +89,11 @@ const (
 	// is chosen from everything the caller can see, which includes other
 	// people's public artifacts (ocidex-998g.3).
 	noteWatch = "Watch is self-scoped; the artifact must be visible to the caller, which may include others' public artifacts."
+
+	// noteWatchFeed records the one place the watch feature does re-check
+	// visibility. The watchlist deliberately does not (see noteWatch), so if a
+	// review finds these two agreeing, one of them is wrong.
+	noteWatchFeed = "Self-scoped, and additionally visibility-filtered: an artifact made private after being starred stays on the watchlist but stops producing events."
 )
 
 // authRules declares the authorization contract of every registered operation,
@@ -109,6 +114,7 @@ var authRules = map[string]AuthRule{
 	"list-my-artifacts":  {Class: ClassAuthenticated, Notes: noteSelfScoped},
 	"list-my-activity":   {Class: ClassAuthenticated, Notes: noteSelfScoped},
 	"list-my-watches":    {Class: ClassAuthenticated, Notes: noteSelfScoped},
+	"list-my-watch-feed": {Class: ClassAuthenticated, Notes: noteWatchFeed},
 	"watch-artifact":     {Class: ClassAuthenticated, Write: true, Notes: noteWatch},
 	"unwatch-artifact":   {Class: ClassAuthenticated, Write: true, Notes: "Removes the caller's own watch; idempotent."},
 	"create-api-key":     {Class: ClassMember, Write: true, Notes: "Key is scoped to the calling user."},
