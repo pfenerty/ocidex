@@ -165,17 +165,30 @@ func (q *Queries) ClaimNextEnrichmentJob(ctx context.Context, arg ClaimNextEnric
 
 const countEnrichmentJobs = `-- name: CountEnrichmentJobs :one
 SELECT COUNT(*) FROM enrichment_jobs j
+LEFT JOIN sbom s ON s.id = j.sbom_id
 WHERE ($1::text IS NULL OR j.state = $1::text)
   AND ($2::text IS NULL OR j.enricher_name = $2::text)
+  AND (
+    COALESCE($3::boolean, false)
+    OR s.namespace_id IN (
+        SELECT visible_namespace_ids($4::uuid, $3::boolean))
+  )
 `
 
 type CountEnrichmentJobsParams struct {
 	State        pgtype.Text `json:"state"`
 	EnricherName pgtype.Text `json:"enricher_name"`
+	IsAdmin      pgtype.Bool `json:"is_admin"`
+	UserID       pgtype.UUID `json:"user_id"`
 }
 
 func (q *Queries) CountEnrichmentJobs(ctx context.Context, arg CountEnrichmentJobsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countEnrichmentJobs, arg.State, arg.EnricherName)
+	row := q.db.QueryRow(ctx, countEnrichmentJobs,
+		arg.State,
+		arg.EnricherName,
+		arg.IsAdmin,
+		arg.UserID,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -272,6 +285,7 @@ func (q *Queries) InsertEnrichmentJob(ctx context.Context, arg InsertEnrichmentJ
 }
 
 const listEnrichmentJobs = `-- name: ListEnrichmentJobs :many
+
 SELECT
     j.id, j.sbom_id, j.state, j.attempts, j.last_error, j.worker_id,
     j.enricher_name, j.created_at, j.started_at, j.last_attempt_at, j.finished_at,
@@ -282,6 +296,11 @@ LEFT JOIN sbom s     ON s.id = j.sbom_id
 LEFT JOIN artifact a ON a.id = s.artifact_id
 WHERE ($1::text IS NULL OR j.state = $1::text)
   AND ($2::text IS NULL OR j.enricher_name = $2::text)
+  AND (
+    COALESCE($3::boolean, false)
+    OR s.namespace_id IN (
+        SELECT visible_namespace_ids($4::uuid, $3::boolean))
+  )
 ORDER BY
     CASE j.state
         WHEN 'running'   THEN 1
@@ -291,12 +310,14 @@ ORDER BY
         ELSE 5
     END,
     j.created_at DESC
-LIMIT $4 OFFSET $3
+LIMIT $6 OFFSET $5
 `
 
 type ListEnrichmentJobsParams struct {
 	State        pgtype.Text `json:"state"`
 	EnricherName pgtype.Text `json:"enricher_name"`
+	IsAdmin      pgtype.Bool `json:"is_admin"`
+	UserID       pgtype.UUID `json:"user_id"`
 	Offset       int32       `json:"offset_"`
 	Limit        int32       `json:"limit_"`
 }
@@ -319,10 +340,17 @@ type ListEnrichmentJobsRow struct {
 
 // ListEnrichmentJobs returns enrichment jobs for the admin Jobs page, optionally
 // filtered by state and/or enricher, joined to the SBOM/artifact for display.
+// An enrichment job hangs off an SBOM, and sbom.namespace_id is NOT NULL
+// (00054), so the job's visibility is the SBOM's namespace visibility. A job
+// whose SBOM has been deleted belongs to no namespace and stays admin-only.
+// The state bucket in ORDER BY is mutable, so these stay OFFSET-paginated
+// (ADR-043 rule 1).
 func (q *Queries) ListEnrichmentJobs(ctx context.Context, arg ListEnrichmentJobsParams) ([]ListEnrichmentJobsRow, error) {
 	rows, err := q.db.Query(ctx, listEnrichmentJobs,
 		arg.State,
 		arg.EnricherName,
+		arg.IsAdmin,
+		arg.UserID,
 		arg.Offset,
 		arg.Limit,
 	)
@@ -461,10 +489,21 @@ func (q *Queries) RetryEnrichmentJob(ctx context.Context, id pgtype.UUID) error 
 }
 
 const summarizeEnrichmentJobs = `-- name: SummarizeEnrichmentJobs :many
-SELECT enricher_name, state, COUNT(*) AS count
-FROM enrichment_jobs
-GROUP BY enricher_name, state
+SELECT j.enricher_name, j.state, COUNT(*) AS count
+FROM enrichment_jobs j
+LEFT JOIN sbom s ON s.id = j.sbom_id
+WHERE (
+    COALESCE($1::boolean, false)
+    OR s.namespace_id IN (
+        SELECT visible_namespace_ids($2::uuid, $1::boolean))
+  )
+GROUP BY j.enricher_name, j.state
 `
+
+type SummarizeEnrichmentJobsParams struct {
+	IsAdmin pgtype.Bool `json:"is_admin"`
+	UserID  pgtype.UUID `json:"user_id"`
+}
 
 type SummarizeEnrichmentJobsRow struct {
 	EnricherName string `json:"enricher_name"`
@@ -473,9 +512,11 @@ type SummarizeEnrichmentJobsRow struct {
 }
 
 // SummarizeEnrichmentJobs returns one row per (enricher, state) with its count,
-// powering the per-enricher health matrix on the admin Jobs page.
-func (q *Queries) SummarizeEnrichmentJobs(ctx context.Context) ([]SummarizeEnrichmentJobsRow, error) {
-	rows, err := q.db.Query(ctx, summarizeEnrichmentJobs)
+// powering the per-enricher health matrix. Scoped to the caller's visible
+// namespaces so a namespace owner sees the ingest health of their own
+// artifacts rather than the whole installation's.
+func (q *Queries) SummarizeEnrichmentJobs(ctx context.Context, arg SummarizeEnrichmentJobsParams) ([]SummarizeEnrichmentJobsRow, error) {
+	rows, err := q.db.Query(ctx, summarizeEnrichmentJobs, arg.IsAdmin, arg.UserID)
 	if err != nil {
 		return nil, err
 	}

@@ -69,6 +69,12 @@ type AuthRule struct {
 const (
 	noteVisFilter       = "VisibilityFilter."
 	noteRegistryOwnerMW = "RequireRegistryOwner middleware."
+
+	// noteNamespaceScoped marks the operational feeds that any authenticated
+	// caller may invoke but which return only rows from the namespaces the
+	// caller can see. An admin gets the cross-tenant view from the same
+	// endpoint — there is no separate admin path (ocidex-998g.1).
+	noteNamespaceScoped = "Rows filtered via visible_namespace_ids; admins see every namespace."
 )
 
 // authRules declares the authorization contract of every registered operation,
@@ -157,17 +163,17 @@ var authRules = map[string]AuthRule{
 	"scan-registry":              {Class: ClassOwner, Write: true, Notes: noteRegistryOwnerMW},
 	"regenerate-webhook-secret":  {Class: ClassOwner, Write: true, Notes: "RequireRegistryOwner middleware; response contains the new secret."},
 	"test-registry-connection":   {Class: ClassAdmin, Write: true, Notes: "Dials an arbitrary caller-supplied host from inside the cluster."},
-	"get-registry-trust-summary": {Class: ClassAdmin},
-	"list-recent-drift":          {Class: ClassAdmin},
+	"get-registry-trust-summary": {Class: ClassAuthenticated, Notes: noteNamespaceScoped},
+	"list-recent-drift":          {Class: ClassAuthenticated, Notes: noteNamespaceScoped},
 	"registry-webhook":           {Class: ClassSecret, Notes: "HMAC over the body against the registry's webhook secret; no user identity."},
 
 	// --- Jobs ---------------------------------------------------------------
-	"list-scan-jobs":                   {Class: ClassAuthenticated},
-	"get-scan-job":                     {Class: ClassAuthenticated},
+	"list-scan-jobs":                   {Class: ClassAuthenticated, Notes: noteNamespaceScoped},
+	"get-scan-job":                     {Class: ClassAuthenticated, Notes: "A job outside the caller's visible namespaces 404s."},
 	"retry-scan-job":                   {Class: ClassAdmin, Write: true},
 	"retry-all-failed-scan-jobs":       {Class: ClassAdmin, Write: true},
-	"list-enrichment-jobs":             {Class: ClassAuthenticated},
-	"enrichment-jobs-summary":          {Class: ClassAuthenticated},
+	"list-enrichment-jobs":             {Class: ClassAuthenticated, Notes: noteNamespaceScoped},
+	"enrichment-jobs-summary":          {Class: ClassAuthenticated, Notes: noteNamespaceScoped},
 	"retry-enrichment-job":             {Class: ClassAdmin, Write: true},
 	"retry-all-failed-enrichment-jobs": {Class: ClassAdmin, Write: true},
 }

@@ -51,8 +51,13 @@ func setupServerWithStats(t *testing.T, pool *pgxpool.Pool) (*httptest.Server, s
 	// these are on the write path, not just the /namespaces and /sources routes.
 	namespaceSvc := service.NewNamespaceService(pool)
 	sourceSvc := service.NewSourceService(pool)
+	// The job services are wired so the /jobs and /enrichment-jobs feeds are
+	// exercisable; they are owner-scoped reads, not admin-only ones
+	// (ocidex-998g.1).
+	jobSvc := service.NewJobService(pool)
+	enrichJobSvc := service.NewEnrichJobService(pool, "")
 	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc,
-		namespaceSvc, sourceSvc, nil, nil, pool, nil, cfg)
+		namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, pool, nil, cfg)
 	router := api.NewRouter(handler, "*", "", "")
 	return httptest.NewServer(router), authSvc, searchSvc
 }

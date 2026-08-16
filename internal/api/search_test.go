@@ -221,7 +221,7 @@ func (f *fakeSearchService) ListSBOMDriftHistory(_ context.Context, _ pgtype.UUI
 	return service.CursorPage[service.ProvenanceDriftSummary]{}, nil
 }
 
-func (f *fakeSearchService) ListRecentProvenanceDrift(_ context.Context, _ service.DriftPage) (service.CursorPage[service.RecentDriftEntry], error) {
+func (f *fakeSearchService) ListRecentProvenanceDrift(_ context.Context, _ service.DriftPage, _ service.VisibilityFilter) (service.CursorPage[service.RecentDriftEntry], error) {
 	return service.CursorPage[service.RecentDriftEntry]{}, nil
 }
 

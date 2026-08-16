@@ -6700,7 +6700,7 @@
     },
     "/api/v1/registries/drift-feed": {
       "get": {
-        "description": "Admin-only. Most recent provenance drift events across all registries.",
+        "description": "Most recent provenance drift events across the registries the caller can see. Admins get every registry; a namespace owner gets their own.",
         "operationId": "list-recent-drift",
         "parameters": [
           {
@@ -6750,7 +6750,7 @@
             "description": "Error"
           }
         },
-        "summary": "Cross-registry recent provenance drift feed",
+        "summary": "Recent provenance drift feed",
         "tags": [
           "Registries"
         ]
@@ -6800,7 +6800,7 @@
     },
     "/api/v1/registries/trust-summary": {
       "get": {
-        "description": "Admin-only. Counts artifacts by current signing status, per registry, across all registries.",
+        "description": "Counts artifacts by current signing status, per registry, across the registries the caller can see. Admins get every registry; a namespace owner gets their own.",
         "operationId": "get-registry-trust-summary",
         "responses": {
           "200": {

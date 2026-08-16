@@ -141,14 +141,18 @@ WHERE (
     NOT $1::boolean
     OR (d.detected_at, d.id) < ($2::timestamptz, $3::uuid)
   )
+  AND s.namespace_id IN (
+      SELECT visible_namespace_ids($4::uuid, $5::boolean))
 ORDER BY d.detected_at DESC, d.id DESC
-LIMIT $4
+LIMIT $6
 `
 
 type ListRecentProvenanceDriftParams struct {
 	HasCursor        pgtype.Bool        `json:"has_cursor"`
 	CursorDetectedAt pgtype.Timestamptz `json:"cursor_detected_at"`
 	CursorID         pgtype.UUID        `json:"cursor_id"`
+	UserID           pgtype.UUID        `json:"user_id"`
+	IsAdmin          pgtype.Bool        `json:"is_admin"`
 	RowLimit         int32              `json:"row_limit"`
 }
 
@@ -167,12 +171,16 @@ type ListRecentProvenanceDriftRow struct {
 }
 
 // Cross-registry drift feed, keyset-paginated on (detected_at DESC, id DESC)
-// for the same reason as ListProvenanceDriftBySBOM (ADR-043).
+// for the same reason as ListProvenanceDriftBySBOM (ADR-043). Scoped to the
+// caller's visible namespaces: an admin passing is_admin sees every tenant, a
+// namespace owner sees drift on their own (and public) artifacts only.
 func (q *Queries) ListRecentProvenanceDrift(ctx context.Context, arg ListRecentProvenanceDriftParams) ([]ListRecentProvenanceDriftRow, error) {
 	rows, err := q.db.Query(ctx, listRecentProvenanceDrift,
 		arg.HasCursor,
 		arg.CursorDetectedAt,
 		arg.CursorID,
+		arg.UserID,
+		arg.IsAdmin,
 		arg.RowLimit,
 	)
 	if err != nil {

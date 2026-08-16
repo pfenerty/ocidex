@@ -518,19 +518,19 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/registries/trust-summary",
 		Summary:     "Per-registry signing-status counts",
-		Description: "Admin-only. Counts artifacts by current signing status, per registry, across all registries.",
+		Description: "Counts artifacts by current signing status, per registry, across the registries the caller can see. Admins get every registry; a namespace owner gets their own.",
 		Tags:        []string{tagRegistries},
-		Middlewares: huma.Middlewares{adminMW},
+		Middlewares: huma.Middlewares{authMW},
 	}, h.GetRegistryTrustSummary)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-recent-drift",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/registries/drift-feed",
-		Summary:     "Cross-registry recent provenance drift feed",
-		Description: "Admin-only. Most recent provenance drift events across all registries.",
+		Summary:     "Recent provenance drift feed",
+		Description: "Most recent provenance drift events across the registries the caller can see. Admins get every registry; a namespace owner gets their own.",
 		Tags:        []string{tagRegistries},
-		Middlewares: huma.Middlewares{adminMW},
+		Middlewares: huma.Middlewares{authMW},
 	}, h.ListRecentDrift)
 
 	huma.Register(api, huma.Operation{

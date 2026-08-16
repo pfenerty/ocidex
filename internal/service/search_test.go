@@ -438,6 +438,6 @@ func TestListRecentProvenanceDrift_DBError(t *testing.T) {
 	}
 	svc := &searchService{db: db}
 
-	_, err := svc.ListRecentProvenanceDrift(context.Background(), DriftPage{Limit: 10})
+	_, err := svc.ListRecentProvenanceDrift(context.Background(), DriftPage{Limit: 10}, VisibilityFilter{IsAdmin: true})
 	is.True(err != nil)
 }

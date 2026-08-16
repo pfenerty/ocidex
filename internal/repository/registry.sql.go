@@ -485,6 +485,8 @@ WITH latest_provenance AS (
     JOIN registry rg ON rg.id = s.source_id
     LEFT JOIN enrichment p ON p.sbom_id = s.id AND p.enricher_name = 'provenance' AND p.status = 'success'
     WHERE s.artifact_id IS NOT NULL
+      AND s.namespace_id IN (
+          SELECT visible_namespace_ids($1::uuid, $2::boolean))
     ORDER BY s.source_id, s.artifact_id, s.created_at DESC
 )
 SELECT source_id AS registry_id, signing_status, COUNT(*) AS artifact_count
@@ -492,6 +494,11 @@ FROM latest_provenance
 GROUP BY source_id, signing_status
 ORDER BY source_id, signing_status
 `
+
+type ListRegistryTrustSummaryParams struct {
+	UserID  pgtype.UUID `json:"user_id"`
+	IsAdmin pgtype.Bool `json:"is_admin"`
+}
 
 type ListRegistryTrustSummaryRow struct {
 	RegistryID    pgtype.UUID `json:"registry_id"`
@@ -504,9 +511,10 @@ type ListRegistryTrustSummaryRow struct {
 // status from its most recently created SBOM per source — reuses the
 // signing_status() function from ocidex-82g.3 rather than re-deriving. The join
 // to registry restricts this to OCI sources; an upload source has no trust
-// config to summarise.
-func (q *Queries) ListRegistryTrustSummary(ctx context.Context) ([]ListRegistryTrustSummaryRow, error) {
-	rows, err := q.db.Query(ctx, listRegistryTrustSummary)
+// config to summarise. Scoped to the caller's visible namespaces so a namespace
+// owner can read their own signing posture without the admin role.
+func (q *Queries) ListRegistryTrustSummary(ctx context.Context, arg ListRegistryTrustSummaryParams) ([]ListRegistryTrustSummaryRow, error) {
+	rows, err := q.db.Query(ctx, listRegistryTrustSummary, arg.UserID, arg.IsAdmin)
 	if err != nil {
 		return nil, err
 	}

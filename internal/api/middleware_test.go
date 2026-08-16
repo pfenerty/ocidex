@@ -98,7 +98,7 @@ func (f *fakeRegistryService) MarkPolled(_ context.Context, _ string) (service.R
 	return service.Registry{}, nil
 }
 
-func (f *fakeRegistryService) TrustSummary(_ context.Context) ([]service.RegistryTrustCount, error) {
+func (f *fakeRegistryService) TrustSummary(_ context.Context, _ service.VisibilityFilter) ([]service.RegistryTrustCount, error) {
 	return nil, nil
 }
 

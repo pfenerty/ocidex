@@ -28,7 +28,7 @@ type fakeRegistryRepo struct {
 	deleteFn       func(ctx context.Context, id pgtype.UUID) (int64, error)
 	listPollFn     func(ctx context.Context) ([]repository.ListPollableRegistriesRow, error)
 	markPolledFn   func(ctx context.Context, id pgtype.UUID) (repository.Registry, error)
-	trustSummaryFn func(ctx context.Context) ([]repository.ListRegistryTrustSummaryRow, error)
+	trustSummaryFn func(ctx context.Context, arg repository.ListRegistryTrustSummaryParams) ([]repository.ListRegistryTrustSummaryRow, error)
 
 	getNamespaceByNameFn func(ctx context.Context, name string) (repository.Namespace, error)
 	createNamespaceFn    func(ctx context.Context, arg repository.CreateNamespaceParams) (repository.Namespace, error)
@@ -118,9 +118,9 @@ func (f *fakeRegistryRepo) UpdateRegistryLastPolled(ctx context.Context, id pgty
 	return repository.Registry{}, nil
 }
 
-func (f *fakeRegistryRepo) ListRegistryTrustSummary(ctx context.Context) ([]repository.ListRegistryTrustSummaryRow, error) {
+func (f *fakeRegistryRepo) ListRegistryTrustSummary(ctx context.Context, arg repository.ListRegistryTrustSummaryParams) ([]repository.ListRegistryTrustSummaryRow, error) {
 	if f.trustSummaryFn != nil {
-		return f.trustSummaryFn(ctx)
+		return f.trustSummaryFn(ctx, arg)
 	}
 	return nil, nil
 }
@@ -708,7 +708,7 @@ func (f *fakeListRegistryService) MarkPolled(_ context.Context, _ string) (Regis
 	return Registry{}, nil
 }
 
-func (f *fakeListRegistryService) TrustSummary(_ context.Context) ([]RegistryTrustCount, error) {
+func (f *fakeListRegistryService) TrustSummary(_ context.Context, _ VisibilityFilter) ([]RegistryTrustCount, error) {
 	return nil, nil
 }
 
@@ -1149,7 +1149,7 @@ func TestTrustSummary_MapsRows(t *testing.T) {
 	is := is.New(t)
 	id := pgtype.UUID{Bytes: [16]byte{3}, Valid: true}
 	repo := &fakeRegistryRepo{
-		trustSummaryFn: func(_ context.Context) ([]repository.ListRegistryTrustSummaryRow, error) {
+		trustSummaryFn: func(_ context.Context, _ repository.ListRegistryTrustSummaryParams) ([]repository.ListRegistryTrustSummaryRow, error) {
 			return []repository.ListRegistryTrustSummaryRow{
 				{RegistryID: id, SigningStatus: "verified", ArtifactCount: 5},
 			}, nil
@@ -1157,7 +1157,7 @@ func TestTrustSummary_MapsRows(t *testing.T) {
 	}
 	svc := newTestRegistryService(repo)
 
-	out, err := svc.TrustSummary(context.Background())
+	out, err := svc.TrustSummary(context.Background(), VisibilityFilter{IsAdmin: true})
 	is.NoErr(err)
 	is.Equal(len(out), 1)
 	is.Equal(out[0].RegistryID, uuidToStr(id))
@@ -1165,15 +1165,42 @@ func TestTrustSummary_MapsRows(t *testing.T) {
 	is.Equal(out[0].Count, int64(5))
 }
 
+// TestTrustSummary_PassesVisibilityFilter pins the ocidex-998g.1 contract at
+// the service boundary: the caller's filter reaches the query unchanged. A
+// TrustSummary that silently dropped it would still return rows and still pass
+// TestTrustSummary_MapsRows, while showing every tenant's signing posture to
+// any signed-in user.
+func TestTrustSummary_PassesVisibilityFilter(t *testing.T) {
+	is := is.New(t)
+	uid := pgtype.UUID{Bytes: [16]byte{9}, Valid: true}
+	var got repository.ListRegistryTrustSummaryParams
+	repo := &fakeRegistryRepo{
+		trustSummaryFn: func(_ context.Context, arg repository.ListRegistryTrustSummaryParams) ([]repository.ListRegistryTrustSummaryRow, error) {
+			got = arg
+			return nil, nil
+		},
+	}
+	svc := newTestRegistryService(repo)
+
+	_, err := svc.TrustSummary(context.Background(), VisibilityFilter{UserID: uid})
+	is.NoErr(err)
+	is.Equal(got.UserID, uid)
+	is.Equal(got.IsAdmin, pgtype.Bool{Bool: false, Valid: true})
+
+	_, err = svc.TrustSummary(context.Background(), VisibilityFilter{IsAdmin: true})
+	is.NoErr(err)
+	is.Equal(got.IsAdmin, pgtype.Bool{Bool: true, Valid: true})
+}
+
 func TestTrustSummary_DBError(t *testing.T) {
 	is := is.New(t)
 	repo := &fakeRegistryRepo{
-		trustSummaryFn: func(_ context.Context) ([]repository.ListRegistryTrustSummaryRow, error) {
+		trustSummaryFn: func(_ context.Context, _ repository.ListRegistryTrustSummaryParams) ([]repository.ListRegistryTrustSummaryRow, error) {
 			return nil, errors.New("connection reset")
 		},
 	}
 	svc := newTestRegistryService(repo)
 
-	_, err := svc.TrustSummary(context.Background())
+	_, err := svc.TrustSummary(context.Background(), VisibilityFilter{IsAdmin: true})
 	is.True(err != nil)
 }

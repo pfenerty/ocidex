@@ -120,6 +120,12 @@ WHERE state = 'running'
 
 -- ListEnrichmentJobs returns enrichment jobs for the admin Jobs page, optionally
 -- filtered by state and/or enricher, joined to the SBOM/artifact for display.
+-- An enrichment job hangs off an SBOM, and sbom.namespace_id is NOT NULL
+-- (00054), so the job's visibility is the SBOM's namespace visibility. A job
+-- whose SBOM has been deleted belongs to no namespace and stays admin-only.
+-- The state bucket in ORDER BY is mutable, so these stay OFFSET-paginated
+-- (ADR-043 rule 1).
+
 -- name: ListEnrichmentJobs :many
 SELECT
     j.id, j.sbom_id, j.state, j.attempts, j.last_error, j.worker_id,
@@ -131,6 +137,11 @@ LEFT JOIN sbom s     ON s.id = j.sbom_id
 LEFT JOIN artifact a ON a.id = s.artifact_id
 WHERE (sqlc.narg('state')::text IS NULL OR j.state = sqlc.narg('state')::text)
   AND (sqlc.narg('enricher_name')::text IS NULL OR j.enricher_name = sqlc.narg('enricher_name')::text)
+  AND (
+    COALESCE(sqlc.narg('is_admin')::boolean, false)
+    OR s.namespace_id IN (
+        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+  )
 ORDER BY
     CASE j.state
         WHEN 'running'   THEN 1
@@ -144,15 +155,29 @@ LIMIT sqlc.arg('limit_') OFFSET sqlc.arg('offset_');
 
 -- name: CountEnrichmentJobs :one
 SELECT COUNT(*) FROM enrichment_jobs j
+LEFT JOIN sbom s ON s.id = j.sbom_id
 WHERE (sqlc.narg('state')::text IS NULL OR j.state = sqlc.narg('state')::text)
-  AND (sqlc.narg('enricher_name')::text IS NULL OR j.enricher_name = sqlc.narg('enricher_name')::text);
+  AND (sqlc.narg('enricher_name')::text IS NULL OR j.enricher_name = sqlc.narg('enricher_name')::text)
+  AND (
+    COALESCE(sqlc.narg('is_admin')::boolean, false)
+    OR s.namespace_id IN (
+        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+  );
 
 -- SummarizeEnrichmentJobs returns one row per (enricher, state) with its count,
--- powering the per-enricher health matrix on the admin Jobs page.
+-- powering the per-enricher health matrix. Scoped to the caller's visible
+-- namespaces so a namespace owner sees the ingest health of their own
+-- artifacts rather than the whole installation's.
 -- name: SummarizeEnrichmentJobs :many
-SELECT enricher_name, state, COUNT(*) AS count
-FROM enrichment_jobs
-GROUP BY enricher_name, state;
+SELECT j.enricher_name, j.state, COUNT(*) AS count
+FROM enrichment_jobs j
+LEFT JOIN sbom s ON s.id = j.sbom_id
+WHERE (
+    COALESCE(sqlc.narg('is_admin')::boolean, false)
+    OR s.namespace_id IN (
+        SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+  )
+GROUP BY j.enricher_name, j.state;
 
 -- name: RetryEnrichmentJob :exec
 UPDATE enrichment_jobs

@@ -135,11 +135,11 @@ func (h *Handler) ListRegistries(ctx context.Context, input *ListRegistriesInput
 	return out, nil
 }
 
-// GetRegistryTrustSummary returns per-registry artifact counts across all
-// five signing statuses. Admin-only: it aggregates across every registry,
-// bypassing the per-registry visibility filter other endpoints apply.
+// GetRegistryTrustSummary returns per-registry artifact counts across all five
+// signing statuses, restricted to the namespaces the caller can see. An admin
+// gets the cross-tenant view; a namespace owner gets their own signing posture.
 func (h *Handler) GetRegistryTrustSummary(ctx context.Context, _ *struct{}) (*GetRegistryTrustSummaryOutput, error) {
-	rows, err := h.registryService.TrustSummary(ctx)
+	rows, err := h.registryService.TrustSummary(ctx, visibilityFilterFromContext(ctx))
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing registry trust summary: %v", err))
 	}
@@ -148,8 +148,8 @@ func (h *Handler) GetRegistryTrustSummary(ctx context.Context, _ *struct{}) (*Ge
 	return out, nil
 }
 
-// ListRecentDrift returns the most recent provenance drift events across
-// every registry. Admin-only, for the same reason as GetRegistryTrustSummary.
+// ListRecentDrift returns the most recent provenance drift events visible to
+// the caller, scoped the same way as GetRegistryTrustSummary.
 func (h *Handler) ListRecentDrift(ctx context.Context, in *ListRecentDriftInput) (*ListRecentDriftOutput, error) {
 	cur, hasCursor, err := decodeTimeIDCursor(in.Cursor)
 	if err != nil {
@@ -161,7 +161,7 @@ func (h *Handler) ListRecentDrift(ctx context.Context, in *ListRecentDriftInput)
 		HasCursor:        hasCursor,
 		CursorDetectedAt: cur.CreatedAt,
 		CursorID:         cur.ID,
-	})
+	}, visibilityFilterFromContext(ctx))
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing recent provenance drift: %v", err))
 	}

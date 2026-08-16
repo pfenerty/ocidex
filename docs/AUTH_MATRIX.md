@@ -87,10 +87,10 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 | POST | `/api/v1/admin/enrichment-jobs/{id}/retry` | `retry-enrichment-job` | `admin` | ✓ |  |
 | POST | `/api/v1/admin/jobs/retry-failed` | `retry-all-failed-scan-jobs` | `admin` | ✓ |  |
 | POST | `/api/v1/admin/jobs/{id}/retry` | `retry-scan-job` | `admin` | ✓ |  |
-| GET | `/api/v1/enrichment-jobs` | `list-enrichment-jobs` | `authenticated` |  |  |
-| GET | `/api/v1/enrichment-jobs/summary` | `enrichment-jobs-summary` | `authenticated` |  |  |
-| GET | `/api/v1/jobs` | `list-scan-jobs` | `authenticated` |  |  |
-| GET | `/api/v1/jobs/{id}` | `get-scan-job` | `authenticated` |  |  |
+| GET | `/api/v1/enrichment-jobs` | `list-enrichment-jobs` | `authenticated` |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
+| GET | `/api/v1/enrichment-jobs/summary` | `enrichment-jobs-summary` | `authenticated` |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
+| GET | `/api/v1/jobs` | `list-scan-jobs` | `authenticated` |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
+| GET | `/api/v1/jobs/{id}` | `get-scan-job` | `authenticated` |  | A job outside the caller's visible namespaces 404s. |
 
 ### Licenses
 
@@ -124,9 +124,9 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 | GET | `/api/v1/registries` | `list-registries` | `authenticated` |  | Own plus public registries. |
 | POST | `/api/v1/registries` | `create-registry` | `authenticated` | ✓ | Creates the namespace and source beneath it, owned by the caller. |
 | GET | `/api/v1/registries/by-name/{name}` | `get-registry-by-name` | `authenticated` |  | A private registry the caller does not own 404s. |
-| GET | `/api/v1/registries/drift-feed` | `list-recent-drift` | `admin` |  |  |
+| GET | `/api/v1/registries/drift-feed` | `list-recent-drift` | `authenticated` |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
 | POST | `/api/v1/registries/test-connection` | `test-registry-connection` | `admin` | ✓ | Dials an arbitrary caller-supplied host from inside the cluster. |
-| GET | `/api/v1/registries/trust-summary` | `get-registry-trust-summary` | `admin` |  |  |
+| GET | `/api/v1/registries/trust-summary` | `get-registry-trust-summary` | `authenticated` |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
 | DELETE | `/api/v1/registries/{id}` | `delete-registry` | `owner` | ✓ | RequireRegistryOwner middleware. |
 | GET | `/api/v1/registries/{id}` | `get-registry` | `authenticated` |  | A private registry the caller does not own 404s. |
 | PATCH | `/api/v1/registries/{id}` | `update-registry` | `owner` | ✓ | RequireRegistryOwner middleware. |

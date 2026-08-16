@@ -58,9 +58,14 @@ type EnrichJobService interface {
 
 	// List returns enrichment jobs for the admin Jobs page, optionally filtered
 	// by state and/or enricher, with the total count for pagination.
-	List(ctx context.Context, state, enricherName string, limit, offset int32) ([]EnrichJob, int64, error)
-	// Summary returns per-(enricher, state) counts for the health matrix.
-	Summary(ctx context.Context) ([]EnrichJobStateCount, error)
+	// List is visibility-filtered: an enrichment job inherits the visibility of
+	// its SBOM's namespace, so a namespace owner sees the enrichment health of
+	// their own artifacts without the admin role. A job whose SBOM has been
+	// deleted has no namespace and is admin-only.
+	List(ctx context.Context, state, enricherName string, vis VisibilityFilter, limit, offset int32) ([]EnrichJob, int64, error)
+	// Summary returns per-(enricher, state) counts for the health matrix,
+	// scoped by the same rule as List.
+	Summary(ctx context.Context, vis VisibilityFilter) ([]EnrichJobStateCount, error)
 	// Retry resets a single 'failed' row back to 'queued'.
 	Retry(ctx context.Context, id string) error
 	// RetryAllFailed resets every 'failed' row back to 'queued', optionally scoped
@@ -197,12 +202,14 @@ func (s *enrichJobService) RequeueStuckRunning(ctx context.Context, stuckThresho
 	})
 }
 
-func (s *enrichJobService) List(ctx context.Context, state, enricherName string, limit, offset int32) ([]EnrichJob, int64, error) {
+func (s *enrichJobService) List(ctx context.Context, state, enricherName string, vis VisibilityFilter, limit, offset int32) ([]EnrichJob, int64, error) {
 	stateFilter := pgtype.Text{String: state, Valid: state != ""}
 	enricherFilter := pgtype.Text{String: enricherName, Valid: enricherName != ""}
 	rows, err := s.repo.ListEnrichmentJobs(ctx, repository.ListEnrichmentJobsParams{
 		State:        stateFilter,
 		EnricherName: enricherFilter,
+		IsAdmin:      vis.adminFlag(),
+		UserID:       vis.UserID,
 		Limit:        limit,
 		Offset:       offset,
 	})
@@ -212,6 +219,8 @@ func (s *enrichJobService) List(ctx context.Context, state, enricherName string,
 	total, err := s.repo.CountEnrichmentJobs(ctx, repository.CountEnrichmentJobsParams{
 		State:        stateFilter,
 		EnricherName: enricherFilter,
+		IsAdmin:      vis.adminFlag(),
+		UserID:       vis.UserID,
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("counting enrichment jobs: %w", err)
@@ -223,8 +232,11 @@ func (s *enrichJobService) List(ctx context.Context, state, enricherName string,
 	return out, total, nil
 }
 
-func (s *enrichJobService) Summary(ctx context.Context) ([]EnrichJobStateCount, error) {
-	rows, err := s.repo.SummarizeEnrichmentJobs(ctx)
+func (s *enrichJobService) Summary(ctx context.Context, vis VisibilityFilter) ([]EnrichJobStateCount, error) {
+	rows, err := s.repo.SummarizeEnrichmentJobs(ctx, repository.SummarizeEnrichmentJobsParams{
+		IsAdmin: vis.adminFlag(),
+		UserID:  vis.UserID,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("summarizing enrichment jobs: %w", err)
 	}

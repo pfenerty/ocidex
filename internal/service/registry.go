@@ -251,6 +251,13 @@ type VisibilityFilter struct {
 	UserID  pgtype.UUID // authenticated user's ID (zero-value if unauthenticated)
 }
 
+// adminFlag renders IsAdmin as the pgtype.Bool that every visible_namespace_ids()
+// query takes as its is_admin narg. Valid is always true so the argument is
+// never NULL-typed, which keeps it symmetric with UserID at the call site.
+func (f VisibilityFilter) adminFlag() pgtype.Bool {
+	return pgtype.Bool{Bool: f.IsAdmin, Valid: true}
+}
+
 // CreateRegistryParams holds the parameters for creating a new registry.
 type CreateRegistryParams struct {
 	Name                string
@@ -327,7 +334,9 @@ type RegistryService interface {
 	Delete(ctx context.Context, id string) error
 	ListPollable(ctx context.Context) ([]Registry, error)
 	MarkPolled(ctx context.Context, id string) (Registry, error)
-	TrustSummary(ctx context.Context) ([]RegistryTrustCount, error)
+	// TrustSummary is visibility-filtered so a namespace owner can read the
+	// signing posture of their own artifacts without the admin role.
+	TrustSummary(ctx context.Context, vis VisibilityFilter) ([]RegistryTrustCount, error)
 }
 
 // RegistryTrustCount is a per-registry, per-signing-status artifact count,
@@ -641,8 +650,11 @@ func (s *registryService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *registryService) TrustSummary(ctx context.Context) ([]RegistryTrustCount, error) {
-	rows, err := s.repo.ListRegistryTrustSummary(ctx)
+func (s *registryService) TrustSummary(ctx context.Context, vis VisibilityFilter) ([]RegistryTrustCount, error) {
+	rows, err := s.repo.ListRegistryTrustSummary(ctx, repository.ListRegistryTrustSummaryParams{
+		IsAdmin: vis.adminFlag(),
+		UserID:  vis.UserID,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("listing registry trust summary: %w", err)
 	}

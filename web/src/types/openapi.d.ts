@@ -672,8 +672,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Cross-registry recent provenance drift feed
-         * @description Admin-only. Most recent provenance drift events across all registries.
+         * Recent provenance drift feed
+         * @description Most recent provenance drift events across the registries the caller can see. Admins get every registry; a namespace owner gets their own.
          */
         get: operations["list-recent-drift"];
         put?: never;
@@ -713,7 +713,7 @@ export interface paths {
         };
         /**
          * Per-registry signing-status counts
-         * @description Admin-only. Counts artifacts by current signing status, per registry, across all registries.
+         * @description Counts artifacts by current signing status, per registry, across the registries the caller can see. Admins get every registry; a namespace owner gets their own.
          */
         get: operations["get-registry-trust-summary"];
         put?: never;

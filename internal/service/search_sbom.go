@@ -221,9 +221,10 @@ func (s *searchService) ListSBOMDriftHistory(ctx context.Context, sbomID pgtype.
 }
 
 // ListRecentProvenanceDrift returns the most recent provenance drift events
-// across every registry, newest first. Admin-only at the API layer, so no
-// per-registry visibility filtering is applied here.
-func (s *searchService) ListRecentProvenanceDrift(ctx context.Context, page DriftPage) (CursorPage[RecentDriftEntry], error) {
+// visible to the caller, newest first. An admin sees every namespace; anyone
+// else sees drift on the artifacts in their own and public namespaces, which
+// is what makes the feed usable without the admin role.
+func (s *searchService) ListRecentProvenanceDrift(ctx context.Context, page DriftPage, vis VisibilityFilter) (CursorPage[RecentDriftEntry], error) {
 	q := repository.New(s.db)
 
 	// Fetch one extra row to detect whether a further page exists.
@@ -231,6 +232,8 @@ func (s *searchService) ListRecentProvenanceDrift(ctx context.Context, page Drif
 		HasCursor:        pgtype.Bool{Bool: page.HasCursor, Valid: true},
 		CursorDetectedAt: pgtype.Timestamptz{Time: page.CursorDetectedAt, Valid: page.HasCursor},
 		CursorID:         uuidOrNull(page.CursorID),
+		IsAdmin:          vis.adminFlag(),
+		UserID:           vis.UserID,
 		RowLimit:         page.Limit + 1,
 	})
 	if err != nil {

@@ -11,7 +11,7 @@ import (
 
 // ListScanJobs returns a paginated, optionally filtered list of scan jobs.
 func (h *Handler) ListScanJobs(ctx context.Context, in *ListScanJobsInput) (*ListScanJobsOutput, error) {
-	jobs, total, err := h.jobService.List(ctx, in.State, in.Limit, in.Offset)
+	jobs, total, err := h.jobService.List(ctx, in.State, visibilityFilterFromContext(ctx), in.Limit, in.Offset)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing jobs: %v", err))
 	}
@@ -30,7 +30,7 @@ func (h *Handler) ListScanJobs(ctx context.Context, in *ListScanJobsInput) (*Lis
 
 // GetScanJob returns a single scan job by UUID.
 func (h *Handler) GetScanJob(ctx context.Context, in *GetScanJobInput) (*GetScanJobOutput, error) {
-	job, err := h.jobService.Get(ctx, in.ID)
+	job, err := h.jobService.Get(ctx, in.ID, visibilityFilterFromContext(ctx))
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

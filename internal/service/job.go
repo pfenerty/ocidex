@@ -68,8 +68,12 @@ type JobService interface {
 	Start(ctx context.Context, msgID, workerID string) error
 	Finish(ctx context.Context, msgID string, sbomID pgtype.UUID) error
 	Fail(ctx context.Context, msgID, lastError string) error
-	List(ctx context.Context, state string, limit, offset int32) ([]ScanJob, int64, error)
-	Get(ctx context.Context, id string) (ScanJob, error)
+	// List and Get are visibility-filtered: a scan job inherits the visibility
+	// of the namespace above its registry (ADR-039), so a namespace owner sees
+	// the ingest health of their own artifacts without the admin role. A job
+	// whose registry has been deleted has no namespace and is admin-only.
+	List(ctx context.Context, state string, vis VisibilityFilter, limit, offset int32) ([]ScanJob, int64, error)
+	Get(ctx context.Context, id string, vis VisibilityFilter) (ScanJob, error)
 	CountByState(ctx context.Context) (queued, running, succeeded24h, failed24h int64, err error)
 	TimeoutJobs(ctx context.Context, olderThan time.Duration) error
 
@@ -147,17 +151,23 @@ func (s *jobService) Fail(ctx context.Context, msgID, lastError string) error {
 	})
 }
 
-func (s *jobService) List(ctx context.Context, state string, limit, offset int32) ([]ScanJob, int64, error) {
+func (s *jobService) List(ctx context.Context, state string, vis VisibilityFilter, limit, offset int32) ([]ScanJob, int64, error) {
 	stateFilter := pgtype.Text{String: state, Valid: state != ""}
 	rows, err := s.repo.ListScanJobs(ctx, repository.ListScanJobsParams{
-		State:  stateFilter,
-		Limit:  limit,
-		Offset: offset,
+		State:   stateFilter,
+		IsAdmin: vis.adminFlag(),
+		UserID:  vis.UserID,
+		Limit:   limit,
+		Offset:  offset,
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("listing scan jobs: %w", err)
 	}
-	total, err := s.repo.CountScanJobs(ctx, stateFilter)
+	total, err := s.repo.CountScanJobs(ctx, repository.CountScanJobsParams{
+		State:   stateFilter,
+		IsAdmin: vis.adminFlag(),
+		UserID:  vis.UserID,
+	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("counting scan jobs: %w", err)
 	}
@@ -168,12 +178,16 @@ func (s *jobService) List(ctx context.Context, state string, limit, offset int32
 	return out, total, nil
 }
 
-func (s *jobService) Get(ctx context.Context, id string) (ScanJob, error) {
+func (s *jobService) Get(ctx context.Context, id string, vis VisibilityFilter) (ScanJob, error) {
 	uid, err := parseUUID(id)
 	if err != nil {
 		return ScanJob{}, ErrNotFound
 	}
-	row, err := s.repo.GetScanJob(ctx, uid)
+	row, err := s.repo.GetScanJob(ctx, repository.GetScanJobParams{
+		ID:      uid,
+		IsAdmin: vis.adminFlag(),
+		UserID:  vis.UserID,
+	})
 	if err != nil {
 		return ScanJob{}, ErrNotFound
 	}
@@ -234,11 +248,19 @@ func (s *jobService) CountByState(ctx context.Context) (int64, int64, int64, int
 	since := pgtype.Timestamptz{}
 	_ = since.Scan(time.Now().Add(-24 * time.Hour))
 
-	queued, err := s.repo.CountScanJobs(ctx, pgtype.Text{String: "queued", Valid: true})
+	// CountByState backs the admin-only system-status endpoint, which reports on
+	// the whole installation's queue, so it counts unscoped.
+	adminVis := VisibilityFilter{IsAdmin: true}
+
+	queued, err := s.repo.CountScanJobs(ctx, repository.CountScanJobsParams{
+		State: pgtype.Text{String: "queued", Valid: true}, IsAdmin: adminVis.adminFlag(),
+	})
 	if err != nil {
 		return 0, 0, 0, 0, err
 	}
-	running, err := s.repo.CountScanJobs(ctx, pgtype.Text{String: "running", Valid: true})
+	running, err := s.repo.CountScanJobs(ctx, repository.CountScanJobsParams{
+		State: pgtype.Text{String: "running", Valid: true}, IsAdmin: adminVis.adminFlag(),
+	})
 	if err != nil {
 		return 0, 0, 0, 0, err
 	}

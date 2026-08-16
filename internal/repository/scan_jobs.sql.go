@@ -154,12 +154,27 @@ func (q *Queries) ClaimScanJobByID(ctx context.Context, arg ClaimScanJobByIDPara
 }
 
 const countScanJobs = `-- name: CountScanJobs :one
-SELECT COUNT(*) FROM scan_jobs
-WHERE ($1::text IS NULL OR state = $1::text)
+SELECT COUNT(*) FROM scan_jobs j
+WHERE ($1::text IS NULL OR j.state = $1::text)
+  AND (
+    COALESCE($2::boolean, false)
+    OR EXISTS (
+        SELECT 1 FROM source src
+        WHERE src.id = j.registry_id
+          AND src.namespace_id IN (
+              SELECT visible_namespace_ids($3::uuid, $2::boolean))
+    )
+  )
 `
 
-func (q *Queries) CountScanJobs(ctx context.Context, state pgtype.Text) (int64, error) {
-	row := q.db.QueryRow(ctx, countScanJobs, state)
+type CountScanJobsParams struct {
+	State   pgtype.Text `json:"state"`
+	IsAdmin pgtype.Bool `json:"is_admin"`
+	UserID  pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) CountScanJobs(ctx context.Context, arg CountScanJobsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countScanJobs, arg.State, arg.IsAdmin, arg.UserID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -263,11 +278,29 @@ func (q *Queries) FinishScanJobByID(ctx context.Context, arg FinishScanJobByIDPa
 }
 
 const getScanJob = `-- name: GetScanJob :one
-SELECT id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id, index_digest FROM scan_jobs WHERE id = $1
+SELECT j.id, j.registry_id, j.repository, j.digest, j.tag, j.state, j.attempts, j.last_error, j.nats_msg_id, j.sbom_id, j.created_at, j.started_at, j.finished_at, j.last_attempt_at, j.worker_id, j.index_digest FROM scan_jobs j
+WHERE j.id = $1
+  AND (
+    COALESCE($2::boolean, false)
+    OR EXISTS (
+        SELECT 1 FROM source src
+        WHERE src.id = j.registry_id
+          AND src.namespace_id IN (
+              SELECT visible_namespace_ids($3::uuid, $2::boolean))
+    )
+  )
 `
 
-func (q *Queries) GetScanJob(ctx context.Context, id pgtype.UUID) (ScanJob, error) {
-	row := q.db.QueryRow(ctx, getScanJob, id)
+type GetScanJobParams struct {
+	ID      pgtype.UUID `json:"id"`
+	IsAdmin pgtype.Bool `json:"is_admin"`
+	UserID  pgtype.UUID `json:"user_id"`
+}
+
+// Visibility-filtered on the same rule as ListScanJobs, so a job in a namespace
+// the caller cannot see 404s rather than leaking its repository and digest.
+func (q *Queries) GetScanJob(ctx context.Context, arg GetScanJobParams) (ScanJob, error) {
+	row := q.db.QueryRow(ctx, getScanJob, arg.ID, arg.IsAdmin, arg.UserID)
 	var i ScanJob
 	err := row.Scan(
 		&i.ID,
@@ -350,28 +383,51 @@ func (q *Queries) InsertScanJob(ctx context.Context, arg InsertScanJobParams) (S
 }
 
 const listScanJobs = `-- name: ListScanJobs :many
-SELECT id, registry_id, repository, digest, tag, state, attempts, last_error, nats_msg_id, sbom_id, created_at, started_at, finished_at, last_attempt_at, worker_id, index_digest FROM scan_jobs
-WHERE ($1::text IS NULL OR state = $1::text)
+
+SELECT j.id, j.registry_id, j.repository, j.digest, j.tag, j.state, j.attempts, j.last_error, j.nats_msg_id, j.sbom_id, j.created_at, j.started_at, j.finished_at, j.last_attempt_at, j.worker_id, j.index_digest FROM scan_jobs j
+WHERE ($1::text IS NULL OR j.state = $1::text)
+  AND (
+    COALESCE($2::boolean, false)
+    OR EXISTS (
+        SELECT 1 FROM source src
+        WHERE src.id = j.registry_id
+          AND src.namespace_id IN (
+              SELECT visible_namespace_ids($3::uuid, $2::boolean))
+    )
+  )
 ORDER BY
-    CASE state
+    CASE j.state
         WHEN 'running'   THEN 1
         WHEN 'queued'    THEN 2
         WHEN 'failed'    THEN 3
         WHEN 'succeeded' THEN 4
         ELSE 5
     END,
-    created_at DESC
-LIMIT $3 OFFSET $2
+    j.created_at DESC
+LIMIT $5 OFFSET $4
 `
 
 type ListScanJobsParams struct {
-	State  pgtype.Text `json:"state"`
-	Offset int32       `json:"offset_"`
-	Limit  int32       `json:"limit_"`
+	State   pgtype.Text `json:"state"`
+	IsAdmin pgtype.Bool `json:"is_admin"`
+	UserID  pgtype.UUID `json:"user_id"`
+	Offset  int32       `json:"offset_"`
+	Limit   int32       `json:"limit_"`
 }
 
+// Scan jobs hang off a registry, and a registry inherits its visibility from the
+// namespace above it (ADR-039). scan_jobs.registry_id is nullable — a row whose
+// registry has been deleted belongs to no namespace, so it is admin-only. The
+// state bucket in ORDER BY is mutable, which is why these stay OFFSET-paginated
+// rather than keyset (ADR-043 rule 1).
 func (q *Queries) ListScanJobs(ctx context.Context, arg ListScanJobsParams) ([]ScanJob, error) {
-	rows, err := q.db.Query(ctx, listScanJobs, arg.State, arg.Offset, arg.Limit)
+	rows, err := q.db.Query(ctx, listScanJobs,
+		arg.State,
+		arg.IsAdmin,
+		arg.UserID,
+		arg.Offset,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}

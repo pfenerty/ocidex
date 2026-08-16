@@ -36,30 +36,66 @@ UPDATE scan_jobs
 SET state = 'failed', finished_at = now(), last_error = sqlc.narg('last_error')
 WHERE nats_msg_id = @nats_msg_id;
 
+-- Scan jobs hang off a registry, and a registry inherits its visibility from the
+-- namespace above it (ADR-039). scan_jobs.registry_id is nullable — a row whose
+-- registry has been deleted belongs to no namespace, so it is admin-only. The
+-- state bucket in ORDER BY is mutable, which is why these stay OFFSET-paginated
+-- rather than keyset (ADR-043 rule 1).
+
 -- name: ListScanJobs :many
-SELECT * FROM scan_jobs
-WHERE (sqlc.narg('state')::text IS NULL OR state = sqlc.narg('state')::text)
+SELECT j.* FROM scan_jobs j
+WHERE (sqlc.narg('state')::text IS NULL OR j.state = sqlc.narg('state')::text)
+  AND (
+    COALESCE(sqlc.narg('is_admin')::boolean, false)
+    OR EXISTS (
+        SELECT 1 FROM source src
+        WHERE src.id = j.registry_id
+          AND src.namespace_id IN (
+              SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+    )
+  )
 ORDER BY
-    CASE state
+    CASE j.state
         WHEN 'running'   THEN 1
         WHEN 'queued'    THEN 2
         WHEN 'failed'    THEN 3
         WHEN 'succeeded' THEN 4
         ELSE 5
     END,
-    created_at DESC
+    j.created_at DESC
 LIMIT sqlc.arg('limit_') OFFSET sqlc.arg('offset_');
 
 -- name: CountScanJobs :one
-SELECT COUNT(*) FROM scan_jobs
-WHERE (sqlc.narg('state')::text IS NULL OR state = sqlc.narg('state')::text);
+SELECT COUNT(*) FROM scan_jobs j
+WHERE (sqlc.narg('state')::text IS NULL OR j.state = sqlc.narg('state')::text)
+  AND (
+    COALESCE(sqlc.narg('is_admin')::boolean, false)
+    OR EXISTS (
+        SELECT 1 FROM source src
+        WHERE src.id = j.registry_id
+          AND src.namespace_id IN (
+              SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+    )
+  );
 
 -- name: CountScanJobsSince :one
 SELECT COUNT(*) FROM scan_jobs
 WHERE state = @state::text AND finished_at >= @since::timestamptz;
 
 -- name: GetScanJob :one
-SELECT * FROM scan_jobs WHERE id = @id;
+-- Visibility-filtered on the same rule as ListScanJobs, so a job in a namespace
+-- the caller cannot see 404s rather than leaking its repository and digest.
+SELECT j.* FROM scan_jobs j
+WHERE j.id = @id
+  AND (
+    COALESCE(sqlc.narg('is_admin')::boolean, false)
+    OR EXISTS (
+        SELECT 1 FROM source src
+        WHERE src.id = j.registry_id
+          AND src.namespace_id IN (
+              SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+    )
+  );
 
 -- name: TimeoutScanJobs :exec
 UPDATE scan_jobs

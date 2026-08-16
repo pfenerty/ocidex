@@ -112,7 +112,7 @@ type RegistryRepository interface {
 	DeleteRegistry(ctx context.Context, id pgtype.UUID) (int64, error)
 	ListPollableRegistries(ctx context.Context) ([]ListPollableRegistriesRow, error)
 	UpdateRegistryLastPolled(ctx context.Context, id pgtype.UUID) (Registry, error)
-	ListRegistryTrustSummary(ctx context.Context) ([]ListRegistryTrustSummaryRow, error)
+	ListRegistryTrustSummary(ctx context.Context, arg ListRegistryTrustSummaryParams) ([]ListRegistryTrustSummaryRow, error)
 
 	// Creating a registry into a named namespace needs these two: the namespace
 	// is created on first use, since nothing orders OCIRegistry reconciles.
@@ -130,7 +130,7 @@ type EnrichmentJobRepository interface {
 	RequeueStuckEnrichmentJobs(ctx context.Context, arg RequeueStuckEnrichmentJobsParams) error
 	ListEnrichmentJobs(ctx context.Context, arg ListEnrichmentJobsParams) ([]ListEnrichmentJobsRow, error)
 	CountEnrichmentJobs(ctx context.Context, arg CountEnrichmentJobsParams) (int64, error)
-	SummarizeEnrichmentJobs(ctx context.Context) ([]SummarizeEnrichmentJobsRow, error)
+	SummarizeEnrichmentJobs(ctx context.Context, arg SummarizeEnrichmentJobsParams) ([]SummarizeEnrichmentJobsRow, error)
 	RetryEnrichmentJob(ctx context.Context, id pgtype.UUID) error
 	RetryAllFailedEnrichmentJobs(ctx context.Context, enricherName pgtype.Text) (int64, error)
 }
@@ -142,9 +142,9 @@ type JobRepository interface {
 	FinishScanJob(ctx context.Context, arg FinishScanJobParams) error
 	FailScanJob(ctx context.Context, arg FailScanJobParams) error
 	ListScanJobs(ctx context.Context, arg ListScanJobsParams) ([]ScanJob, error)
-	CountScanJobs(ctx context.Context, state pgtype.Text) (int64, error)
+	CountScanJobs(ctx context.Context, arg CountScanJobsParams) (int64, error)
 	CountScanJobsSince(ctx context.Context, arg CountScanJobsSinceParams) (int64, error)
-	GetScanJob(ctx context.Context, id pgtype.UUID) (ScanJob, error)
+	GetScanJob(ctx context.Context, arg GetScanJobParams) (ScanJob, error)
 	TimeoutScanJobs(ctx context.Context, startedBefore pgtype.Timestamptz) error
 	ClaimScanJobByID(ctx context.Context, arg ClaimScanJobByIDParams) (ClaimScanJobByIDRow, error)
 	ClaimNextQueuedJob(ctx context.Context, workerID string) (ClaimNextQueuedJobRow, error)

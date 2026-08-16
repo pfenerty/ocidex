@@ -11,7 +11,7 @@ import (
 
 // ListEnrichmentJobs returns a paginated, optionally filtered list of enrichment jobs.
 func (h *Handler) ListEnrichmentJobs(ctx context.Context, in *ListEnrichmentJobsInput) (*ListEnrichmentJobsOutput, error) {
-	jobs, total, err := h.enrichJobService.List(ctx, in.State, in.EnricherName, in.Limit, in.Offset)
+	jobs, total, err := h.enrichJobService.List(ctx, in.State, in.EnricherName, visibilityFilterFromContext(ctx), in.Limit, in.Offset)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing enrichment jobs: %v", err))
 	}
@@ -30,7 +30,7 @@ func (h *Handler) ListEnrichmentJobs(ctx context.Context, in *ListEnrichmentJobs
 
 // EnrichmentJobsSummary returns per-(enricher, state) counts for the health matrix.
 func (h *Handler) EnrichmentJobsSummary(ctx context.Context, _ *struct{}) (*EnrichmentJobsSummaryOutput, error) {
-	rows, err := h.enrichJobService.Summary(ctx)
+	rows, err := h.enrichJobService.Summary(ctx, visibilityFilterFromContext(ctx))
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("summarizing enrichment jobs: %v", err))
 	}
