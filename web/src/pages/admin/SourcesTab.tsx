@@ -5,6 +5,7 @@ import {
     useListScanJobs,
     useRegistryTrustSummary,
     useListSources,
+    useListNamespaces,
 } from "~/api/queries";
 import { RegistryFormDialog, type RegistryDialogHandle } from "./sources/RegistryFormDialog";
 import { registryColumns } from "./sources/registryColumns";
@@ -20,6 +21,7 @@ import { WebhookSecretBanner } from "./sources/WebhookSecretBanner";
 export function SourcesTab() {
     const query = useListRegistries();
     const sourcesQuery = useListSources();
+    const namespacesQuery = useListNamespaces();
     const activeJobs = useListScanJobs(() => ({ limit: 100 }));
     const trustSummary = useRegistryTrustSummary();
 
@@ -70,6 +72,7 @@ export function SourcesTab() {
                 columns={columns}
                 registries={query.data?.data ?? []}
                 sources={sourcesQuery.data?.data ?? []}
+                namespaces={namespacesQuery.data?.data ?? []}
                 loading={sourcesQuery.isLoading || query.isLoading}
                 isError={sourcesQuery.isError || query.isError}
                 error={sourcesQuery.error ?? query.error}

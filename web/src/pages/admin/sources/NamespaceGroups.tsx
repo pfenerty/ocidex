@@ -1,11 +1,13 @@
 import { For, Show, createMemo } from "solid-js";
+import { A } from "@solidjs/router";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
-import type { Registry, Source } from "~/api/client";
+import type { Namespace, Registry, Source } from "~/api/client";
 
 /** One namespace's ingest channels, split by what there is to configure. */
 export interface NamespaceGroup {
     namespace: string;
+    namespaceID?: string;
     registries: Registry[];
     uploads: Source[];
 }
@@ -23,10 +25,10 @@ export function groupByNamespace(registries: Registry[], sources: Source[]): Nam
     }
 
     const groups = new Map<string, NamespaceGroup>();
-    const groupFor = (name: string): NamespaceGroup => {
+    const groupFor = (name: string, id: string): NamespaceGroup => {
         let g = groups.get(name);
         if (g === undefined) {
-            g = { namespace: name, registries: [], uploads: [] };
+            g = { namespace: name, namespaceID: id, registries: [], uploads: [] };
             groups.set(name, g);
         }
         return g;
@@ -35,7 +37,7 @@ export function groupByNamespace(registries: Registry[], sources: Source[]): Nam
     for (const src of sources) {
         // namespace_name is documented as list-only; fall back to the id so
         // a heading is never blank.
-        const g = groupFor(src.namespace_name ?? src.namespace_id);
+        const g = groupFor(src.namespace_name ?? src.namespace_id, src.namespace_id);
         const reg = registriesByID.get(src.id);
         if (src.kind === "oci_registry" && reg !== undefined) {
             g.registries.push(reg);
@@ -51,11 +53,19 @@ export function NamespaceGroups(props: {
     columns: Column<Registry>[];
     registries: Registry[];
     sources: Source[];
+    /** Namespaces visible to the caller, used to annotate each heading. */
+    namespaces?: Namespace[];
     loading: boolean;
     isError: boolean;
     error?: unknown;
 }) {
     const groups = createMemo(() => groupByNamespace(props.registries, props.sources));
+
+    const namespaceByID = createMemo(() => {
+        const byID = new Map<string, Namespace>();
+        for (const ns of props.namespaces ?? []) byID.set(ns.id, ns);
+        return byID;
+    });
 
     return (
         <Show
@@ -84,14 +94,51 @@ export function NamespaceGroups(props: {
                 }
             >
                 <For each={groups()}>
-                    {(group) => (
+                    {(group) => {
+                        // The namespace row is what says who owns these sources and
+                        // whether they are public — the source rows themselves carry
+                        // neither (ADR-039).
+                        const ns = () =>
+                            group.namespaceID !== undefined
+                                ? namespaceByID().get(group.namespaceID)
+                                : undefined;
+                        return (
                         <div style={{ "margin-bottom": "1.5rem" }}>
                             <h3
                                 data-testid="namespace-heading"
                                 style={{ "font-size": "1rem", "margin-bottom": "0.5rem" }}
                             >
-                                {group.namespace}{" "}
+                                <Show when={ns()} fallback={group.namespace}>
+                                    <A href="/admin/namespaces">{group.namespace}</A>
+                                </Show>{" "}
                                 <span class="group-header-count">{group.registries.length + group.uploads.length}</span>
+                                <Show when={ns()}>
+                                    {(namespace) => (
+                                        <>
+                                            {" "}
+                                            <span
+                                                data-testid="namespace-visibility"
+                                                class={`badge ${namespace().visibility === "public" ? "badge-success" : ""}`}
+                                            >
+                                                {namespace().visibility}
+                                            </span>
+                                            <Show when={namespace().owner_username}>
+                                                {(owner) => (
+                                                    <span
+                                                        style={{
+                                                            color: "var(--color-text-muted)",
+                                                            "font-size": "0.85rem",
+                                                            "font-weight": "400",
+                                                            "margin-left": "0.5rem",
+                                                        }}
+                                                    >
+                                                        owned by {owner()}
+                                                    </span>
+                                                )}
+                                            </Show>
+                                        </>
+                                    )}
+                                </Show>
                             </h3>
 
                             <Show when={group.registries.length > 0}>
@@ -127,7 +174,8 @@ export function NamespaceGroups(props: {
                                 </div>
                             </Show>
                         </div>
-                    )}
+                        );
+                    }}
                 </For>
             </Show>
         </Show>

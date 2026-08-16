@@ -62,6 +62,7 @@ export default function App() {
                 <Route path="/diff" component={Diff} />
                 <Route path="/admin" component={Admin} />
                 <Route path="/admin/keys" component={Admin} />
+                <Route path="/admin/namespaces" component={Admin} />
                 <Route path="/admin/sources" component={Admin} />
                 {/* Pre-ADR-039 path; kept so existing bookmarks keep working. */}
                 <Route path="/admin/registries" component={Admin} />

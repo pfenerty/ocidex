@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
-import { useListRegistries, useListSources } from "~/api/queries";
+import { useListRegistries, useListSources, useListNamespaces } from "~/api/queries";
 import { SourcesTab } from "~/pages/admin/SourcesTab";
 import type { JSX } from "solid-js";
 
@@ -11,6 +11,7 @@ const idleQuery = () => ({ data: undefined, isLoading: false, isError: false, er
 vi.mock("~/api/queries", () => ({
     useListRegistries: vi.fn(),
     useListSources: vi.fn(),
+    useListNamespaces: vi.fn(),
     useCreateRegistry: () => idleMutation(),
     useUpdateRegistry: () => idleMutation(),
     useDeleteRegistry: () => idleMutation(),
@@ -36,6 +37,7 @@ vi.mock("@solidjs/router", () => ({
 
 const mockUseListRegistries = vi.mocked(useListRegistries);
 const mockUseListSources = vi.mocked(useListSources);
+const mockUseListNamespaces = vi.mocked(useListNamespaces);
 
 const baseRegistry = {
     id: "11111111-1111-1111-1111-111111111111",
@@ -72,7 +74,13 @@ function sourceFor(reg: { id: string; name: string }, namespace = "acme") {
     };
 }
 
-function renderTab(rows: { id: string; name: string }[], sources?: unknown[]) {
+function renderTab(rows: { id: string; name: string }[], sources?: unknown[], namespaces?: unknown[]) {
+    mockUseListNamespaces.mockImplementation((() => ({
+        data: { data: namespaces ?? [] },
+        isLoading: false,
+        isError: false,
+        error: null,
+    })) as unknown as typeof useListNamespaces);
     mockUseListRegistries.mockImplementation((() => ({
         data: { data: rows },
         isLoading: false,
@@ -234,5 +242,45 @@ describe("SourcesTab namespace grouping", () => {
         expect(headings(container)).toEqual(["acme"]);
         expect(container.querySelectorAll('[data-testid="upload-source"]').length).toBe(1);
         expect(container.querySelector("table")).not.toBeNull();
+    });
+
+    it("annotates the heading with the namespace's visibility and owner", () => {
+        const { container } = renderTab(
+            [baseRegistry],
+            [sourceFor(baseRegistry, "acme")],
+            [
+                {
+                    id: "ns-acme",
+                    name: "acme",
+                    visibility: "private",
+                    owner_username: "octocat",
+                    created_at: "2026-01-01T00:00:00Z",
+                    updated_at: "2026-01-01T00:00:00Z",
+                },
+            ],
+        );
+
+        const heading = must(
+            container.querySelector('[data-testid="namespace-heading"]'),
+            "namespace heading",
+        );
+        expect(
+            must(heading.querySelector('[data-testid="namespace-visibility"]'), "visibility badge")
+                .textContent,
+        ).toBe("private");
+        expect(heading.textContent).toContain("owned by octocat");
+    });
+
+    it("falls back to a plain heading when the namespace is not in the list", () => {
+        // A source can name a namespace the caller cannot read; the group must
+        // still render rather than vanish or claim a visibility it doesn't know.
+        const { container } = renderTab([baseRegistry], [sourceFor(baseRegistry, "acme")], []);
+
+        const heading = must(
+            container.querySelector('[data-testid="namespace-heading"]'),
+            "namespace heading",
+        );
+        expect(heading.querySelector('[data-testid="namespace-visibility"]')).toBeNull();
+        expect(heading.textContent).toContain("acme");
     });
 });
