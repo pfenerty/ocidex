@@ -274,7 +274,7 @@ func newSBOMDeleteCmd(cfg *rootConfig) *cobra.Command {
 	var yes bool
 
 	cmd := &cobra.Command{
-		Use:   "delete <id>",
+		Use:   verbDeleteID,
 		Short: "Delete a SBOM",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
