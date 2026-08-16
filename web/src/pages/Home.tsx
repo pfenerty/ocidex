@@ -4,6 +4,7 @@ import { For, Show } from "solid-js";
 import { Skeleton } from "~/components/Skeleton";
 import { TypeBadge } from "~/components/ui";
 import { useDashboardStats } from "~/api/queries";
+import { HomeBand } from "~/pages/Dashboard/HomeBand";
 import "./Home.css";
 
 export default function Home() {
@@ -90,6 +91,11 @@ export default function Home() {
                     </a>
                 </div>
             </section>
+
+            {/* Personalized band for signed-in users (ocidex-998g.5). It renders
+                nothing when signed out, which is why it sits between the hero and
+                the discovery cards rather than inside either. */}
+            <HomeBand />
 
             <section class="landing-features">
                 <div class="landing-features-grid">

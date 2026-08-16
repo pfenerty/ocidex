@@ -49,6 +49,13 @@ type ListTopVulnerabilitiesInput struct {
 	SortDir  string `query:"sort_dir" enum:"asc,desc" doc:"Sort direction (asc or desc)"`
 }
 
+// ListMyVulnerabilitiesInput is the request for GET /api/v1/users/me/vulns. It
+// embeds ListTopVulnerabilitiesInput so the two stay filter-for-filter
+// identical.
+type ListMyVulnerabilitiesInput struct {
+	ListTopVulnerabilitiesInput
+}
+
 // ListTopVulnerabilitiesOutput is the response for GET /api/v1/vulns.
 type ListTopVulnerabilitiesOutput struct {
 	Body struct {

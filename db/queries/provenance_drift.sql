@@ -29,6 +29,11 @@ LIMIT @row_limit;
 -- for the same reason as ListProvenanceDriftBySBOM (ADR-043). Scoped to the
 -- caller's visible namespaces: an admin passing is_admin sees every tenant, a
 -- namespace owner sees drift on their own (and public) artifacts only.
+--
+-- owned_only switches to the ownership path for the /dashboard "drift on my
+-- artifacts" panel (ocidex-998g.5). It is strictly narrower than the default:
+-- it drops others' public artifacts, and it ignores is_admin, because "mine"
+-- means mine even for an admin. Same switch, same wording, as namespace.sql.
 SELECT
     d.id, d.sbom_id, d.previous_status, d.new_status, d.reason, d.detected_at,
     s.source_id, s.artifact_id,
@@ -42,7 +47,13 @@ WHERE (
     NOT sqlc.narg('has_cursor')::boolean
     OR (d.detected_at, d.id) < (sqlc.narg('cursor_detected_at')::timestamptz, sqlc.narg('cursor_id')::uuid)
   )
-  AND s.namespace_id IN (
-      SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+  AND (
+    CASE WHEN COALESCE(sqlc.narg('owned_only')::boolean, false)
+         THEN s.namespace_id IN (
+              SELECT id FROM namespace WHERE owner_id = sqlc.narg('user_id')::uuid)
+         ELSE s.namespace_id IN (
+              SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+    END
+  )
 ORDER BY d.detected_at DESC, d.id DESC
 LIMIT @row_limit;

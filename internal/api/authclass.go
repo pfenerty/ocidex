@@ -115,13 +115,18 @@ var authRules = map[string]AuthRule{
 	"list-my-activity":   {Class: ClassAuthenticated, Notes: noteSelfScoped},
 	"list-my-watches":    {Class: ClassAuthenticated, Notes: noteSelfScoped},
 	"list-my-watch-feed": {Class: ClassAuthenticated, Notes: noteWatchFeed},
-	"watch-artifact":     {Class: ClassAuthenticated, Write: true, Notes: noteWatch},
-	"unwatch-artifact":   {Class: ClassAuthenticated, Write: true, Notes: "Removes the caller's own watch; idempotent."},
-	"create-api-key":     {Class: ClassMember, Write: true, Notes: "Key is scoped to the calling user."},
-	"list-api-keys":      {Class: ClassMember, Notes: "Own keys only."},
-	"delete-api-key":     {Class: ClassMember, Write: true, Notes: "Own keys only."},
-	"list-users":         {Class: ClassAdmin},
-	"update-user-role":   {Class: ClassAdmin, Write: true},
+	// The owned variants of two feeds whose siblings are visibility-filtered
+	// rather than admin-only; noteSelfScoped applies unchanged, because the
+	// narrowing is the same one (ocidex-998g.5).
+	"list-my-drift-feed":      {Class: ClassAuthenticated, Notes: noteSelfScoped},
+	"list-my-vulnerabilities": {Class: ClassAuthenticated, Notes: noteSelfScoped},
+	"watch-artifact":          {Class: ClassAuthenticated, Write: true, Notes: noteWatch},
+	"unwatch-artifact":        {Class: ClassAuthenticated, Write: true, Notes: "Removes the caller's own watch; idempotent."},
+	"create-api-key":          {Class: ClassMember, Write: true, Notes: "Key is scoped to the calling user."},
+	"list-api-keys":           {Class: ClassMember, Notes: "Own keys only."},
+	"delete-api-key":          {Class: ClassMember, Write: true, Notes: "Own keys only."},
+	"list-users":              {Class: ClassAdmin},
+	"update-user-role":        {Class: ClassAdmin, Write: true},
 	"get-system-status": {Class: ClassAdmin,
 		Notes: "Exposes DB and job-queue internals."},
 

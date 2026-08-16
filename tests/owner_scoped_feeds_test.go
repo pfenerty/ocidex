@@ -9,6 +9,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/matryer/is"
+
+	"github.com/pfenerty/ocidex/internal/vuln"
 )
 
 // The four operational feeds this file covers were admin-only (or authenticated
@@ -178,6 +180,29 @@ func TestOwnerScopedFeedsExcludeNonOwners(t *testing.T) {
 	is.Equal(feedRowCount(t, srv.URL, driftFeed, strangerKey), 1)
 	is.Equal(feedRowCount(t, srv.URL, scanJobs, strangerKey), 1)
 	is.Equal(feedRowCount(t, srv.URL, enrichJobs, strangerKey), 1)
+
+	// ocidex-998g.5: the owned variants stay narrow exactly where the
+	// visibility-filtered siblings widen. The namespace is public now, so the
+	// stranger and the admin both see the drift event on /registries/drift-feed
+	// — but neither owns the namespace, so /users/me/drift-feed is empty for
+	// both, including the admin, whose role buys no widening here.
+	const (
+		myDriftFeed = "/api/v1/users/me/drift-feed"
+		myVulns     = "/api/v1/users/me/vulns"
+	)
+	is.Equal(feedRowCount(t, srv.URL, myDriftFeed, ownerKey), 1)
+	is.Equal(feedRowCount(t, srv.URL, myDriftFeed, strangerKey), 0)
+	is.Equal(feedRowCount(t, srv.URL, myDriftFeed, adminKey), 0)
+
+	// Same property for exposure. The vulnerability hits a package in the
+	// owner's now-public SBOM, so it is on everybody's /vulns and on nobody
+	// else's /users/me/vulns.
+	seedVuln(t, vuln.NewPGStore(pool), "CVE-2098-0001", "HIGH", addUserPurl)
+	refreshRollups(t, pool)
+	is.Equal(feedRowCount(t, srv.URL, "/api/v1/vulns", strangerKey), 1)
+	is.Equal(feedRowCount(t, srv.URL, myVulns, ownerKey), 1)
+	is.Equal(feedRowCount(t, srv.URL, myVulns, strangerKey), 0)
+	is.Equal(feedRowCount(t, srv.URL, myVulns, adminKey), 0)
 }
 
 // TestGetScanJobHidesOtherTenantsJob covers the single-row read: a job outside

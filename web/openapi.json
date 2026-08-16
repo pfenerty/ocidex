@@ -8514,6 +8514,64 @@
         ]
       }
     },
+    "/api/v1/users/me/drift-feed": {
+      "get": {
+        "description": "Provenance drift events on SBOMs in namespaces you own, newest first. Scoped to the calling user: only resources you own, excluding public resources owned by others.",
+        "operationId": "list-my-drift-feed",
+        "parameters": [
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque cursor from a previous response's nextCursor; omit for the first page",
+            "explode": false,
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Opaque cursor from a previous response's nextCursor; omit for the first page",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListRecentDriftOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List provenance drift on my artifacts",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/users/me/namespaces": {
       "get": {
         "description": "Scoped to the calling user: only resources you own, excluding public resources owned by others.",
@@ -8634,6 +8692,115 @@
           }
         },
         "summary": "List my sources",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/users/me/vulns": {
+      "get": {
+        "description": "Vulnerabilities ranked by exposure across namespaces you own. Scoped to the calling user: only resources you own, excluding public resources owned by others.",
+        "operationId": "list-my-vulnerabilities",
+        "parameters": [
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of results to skip",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Number of results to skip",
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Filter by severity",
+            "explode": false,
+            "in": "query",
+            "name": "severity",
+            "schema": {
+              "description": "Filter by severity",
+              "enum": [
+                "CRITICAL",
+                "HIGH",
+                "MEDIUM",
+                "LOW"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort field",
+            "explode": false,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Sort field",
+              "enum": [
+                "severity",
+                "cvss_score",
+                "affected_sbom_count",
+                "affected_purl_count",
+                "published_at",
+                "canonical_id"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction (asc or desc)",
+            "explode": false,
+            "in": "query",
+            "name": "sort_dir",
+            "schema": {
+              "description": "Sort direction (asc or desc)",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListTopVulnerabilitiesOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List vulnerabilities affecting my artifacts",
         "tags": [
           "Auth"
         ]

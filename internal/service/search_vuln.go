@@ -42,6 +42,7 @@ func (s *searchService) ListTopVulnerabilities(ctx context.Context, filter TopVu
 	params := repository.ListTopVulnerabilitiesParams{
 		UserID:    filter.Visibility.UserID,
 		IsAdmin:   isAdmin,
+		OwnedOnly: filter.Visibility.ownedFlag(),
 		Severity:  severity,
 		SortBy:    sortBy,
 		SortDir:   sortDir,

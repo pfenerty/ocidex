@@ -1,0 +1,135 @@
+/* Workspace dashboard (ocidex-998g.5).
+ *
+ * The grid is auto-fill rather than a fixed column count so a new section —
+ * clusters is the one already on the roadmap — costs one entry in SECTIONS and
+ * no layout change. A section that needs the full width opts in with
+ * `dash-section-wide`; everything else finds its own column. */
+
+.dash-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr));
+    gap: 1rem;
+    align-items: start;
+}
+
+.dash-section-wide {
+    grid-column: 1 / -1;
+}
+
+/* Panel bodies are capped and scroll internally: these are previews of feeds
+ * that have their own full pages, and a long one must not push the panels
+ * below it off the screen. */
+.dash-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 20rem;
+    overflow-y: auto;
+}
+
+.dash-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 0.8125rem;
+    color: inherit;
+    text-decoration: none;
+}
+
+.dash-row:last-child {
+    border-bottom: none;
+}
+
+.dash-row:hover .dash-row-title {
+    color: var(--color-primary);
+}
+
+.dash-row-main {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+}
+
+.dash-row-title {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-row-sub {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dash-row-meta {
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    color: var(--color-text-dim);
+}
+
+.dash-empty {
+    font-size: 0.8125rem;
+    color: var(--color-text-dim);
+    padding: 0.5rem 0;
+}
+
+.dash-link {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    text-decoration: none;
+}
+
+.dash-link:hover {
+    color: var(--color-primary);
+}
+
+/* Signed-in band on the public landing page. It sits above the discovery
+ * cards rather than replacing them: a signed-in user still browses the
+ * catalog, they just get their own work first. */
+.home-band {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    margin: 1.5rem 2rem 0;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.home-band-greeting {
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.home-band-stats {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    font-family: var(--font-mono);
+    color: var(--color-text-muted);
+}
+
+.home-band-sep {
+    color: var(--color-text-dim);
+}
+
+.home-band-alert {
+    color: var(--color-danger);
+}
+
+.home-band-cta {
+    margin-left: auto;
+}

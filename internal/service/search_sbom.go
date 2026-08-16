@@ -234,6 +234,7 @@ func (s *searchService) ListRecentProvenanceDrift(ctx context.Context, page Drif
 		CursorID:         uuidOrNull(page.CursorID),
 		IsAdmin:          vis.adminFlag(),
 		UserID:           vis.UserID,
+		OwnedOnly:        vis.ownedFlag(),
 		RowLimit:         page.Limit + 1,
 	})
 	if err != nil {

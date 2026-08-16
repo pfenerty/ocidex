@@ -220,6 +220,11 @@ type ListRecentDriftInput struct {
 	CursorParams
 }
 
+// ListMyDriftFeedInput is the request for GET /api/v1/users/me/drift-feed.
+type ListMyDriftFeedInput struct {
+	CursorParams
+}
+
 // ListRecentDriftOutput is the response for GET /api/v1/registries/drift-feed.
 // Admin-only: aggregates across all registries, bypassing per-registry visibility.
 type ListRecentDriftOutput struct {

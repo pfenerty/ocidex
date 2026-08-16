@@ -141,16 +141,23 @@ WHERE (
     NOT $1::boolean
     OR (d.detected_at, d.id) < ($2::timestamptz, $3::uuid)
   )
-  AND s.namespace_id IN (
-      SELECT visible_namespace_ids($4::uuid, $5::boolean))
+  AND (
+    CASE WHEN COALESCE($4::boolean, false)
+         THEN s.namespace_id IN (
+              SELECT id FROM namespace WHERE owner_id = $5::uuid)
+         ELSE s.namespace_id IN (
+              SELECT visible_namespace_ids($5::uuid, $6::boolean))
+    END
+  )
 ORDER BY d.detected_at DESC, d.id DESC
-LIMIT $6
+LIMIT $7
 `
 
 type ListRecentProvenanceDriftParams struct {
 	HasCursor        pgtype.Bool        `json:"has_cursor"`
 	CursorDetectedAt pgtype.Timestamptz `json:"cursor_detected_at"`
 	CursorID         pgtype.UUID        `json:"cursor_id"`
+	OwnedOnly        pgtype.Bool        `json:"owned_only"`
 	UserID           pgtype.UUID        `json:"user_id"`
 	IsAdmin          pgtype.Bool        `json:"is_admin"`
 	RowLimit         int32              `json:"row_limit"`
@@ -174,11 +181,17 @@ type ListRecentProvenanceDriftRow struct {
 // for the same reason as ListProvenanceDriftBySBOM (ADR-043). Scoped to the
 // caller's visible namespaces: an admin passing is_admin sees every tenant, a
 // namespace owner sees drift on their own (and public) artifacts only.
+//
+// owned_only switches to the ownership path for the /dashboard "drift on my
+// artifacts" panel (ocidex-998g.5). It is strictly narrower than the default:
+// it drops others' public artifacts, and it ignores is_admin, because "mine"
+// means mine even for an admin. Same switch, same wording, as namespace.sql.
 func (q *Queries) ListRecentProvenanceDrift(ctx context.Context, arg ListRecentProvenanceDriftParams) ([]ListRecentProvenanceDriftRow, error) {
 	rows, err := q.db.Query(ctx, listRecentProvenanceDrift,
 		arg.HasCursor,
 		arg.CursorDetectedAt,
 		arg.CursorID,
+		arg.OwnedOnly,
 		arg.UserID,
 		arg.IsAdmin,
 		arg.RowLimit,

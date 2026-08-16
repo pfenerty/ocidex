@@ -5,8 +5,18 @@ import { useDashboardStats } from "~/api/queries";
 import Home from "~/pages/Home";
 import type { JSX } from "solid-js";
 
+// HomeBand is mounted by Home and reads three self-scoped queries plus the
+// session. Stubbing them signed-out keeps this file about the catalog stats —
+// HomeBand's own behaviour is covered in HomeBand.test.tsx.
 vi.mock("~/api/queries", () => ({
     useDashboardStats: vi.fn(),
+    useMyNamespaces: () => ({ data: undefined }),
+    useMyDriftFeed: () => ({ data: undefined }),
+    useWatches: () => ({ data: undefined }),
+}));
+
+vi.mock("~/context/auth", () => ({
+    useAuth: () => ({ user: () => undefined, refetch: vi.fn() }),
 }));
 
 vi.mock("@solidjs/router", () => ({

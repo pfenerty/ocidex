@@ -1090,6 +1090,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me/drift-feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List provenance drift on my artifacts
+         * @description Provenance drift events on SBOMs in namespaces you own, newest first. Scoped to the calling user: only resources you own, excluding public resources owned by others.
+         */
+        get: operations["list-my-drift-feed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/me/namespaces": {
         parameters: {
             query?: never;
@@ -1142,6 +1162,26 @@ export interface paths {
          * @description Scoped to the calling user: only resources you own, excluding public resources owned by others.
          */
         get: operations["list-my-sources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/me/vulns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List vulnerabilities affecting my artifacts
+         * @description Vulnerabilities ranked by exposure across namespaces you own. Scoped to the calling user: only resources you own, excluding public resources owned by others.
+         */
+        get: operations["list-my-vulnerabilities"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5383,6 +5423,40 @@ export interface operations {
             };
         };
     };
+    "list-my-drift-feed": {
+        parameters: {
+            query?: {
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Opaque cursor from a previous response's nextCursor; omit for the first page */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListRecentDriftOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "list-my-namespaces": {
         parameters: {
             query?: never;
@@ -5462,6 +5536,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListSourcesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-my-vulnerabilities": {
+        parameters: {
+            query?: {
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Number of results to skip */
+                offset?: number;
+                /** @description Filter by severity */
+                severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+                /** @description Sort field */
+                sort?: "severity" | "cvss_score" | "affected_sbom_count" | "affected_purl_count" | "published_at" | "canonical_id";
+                /** @description Sort direction (asc or desc) */
+                sort_dir?: "asc" | "desc";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListTopVulnerabilitiesOutputBody"];
                 };
             };
             /** @description Error */

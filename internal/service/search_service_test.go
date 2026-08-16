@@ -264,11 +264,11 @@ func TestListTopVulnerabilities_SortNormalization(t *testing.T) {
 			db := &fakeDB{
 				queryFn: func(_ context.Context, _ string, args ...any) (pgx.Rows, error) {
 					// args positions match ListTopVulnerabilities:
-					// 0=Severity, 1=UserID, 2=IsAdmin, 3=SortBy, 4=SortDir,
-					// 5=RowOffset, 6=RowLimit
-					if len(args) >= 5 {
-						gotSortBy, _ = args[3].(string)
-						gotSortDir, _ = args[4].(string)
+					// 0=OwnedOnly, 1=UserID, 2=IsAdmin, 3=Severity, 4=SortBy,
+					// 5=SortDir, 6=RowOffset, 7=RowLimit
+					if len(args) >= 6 {
+						gotSortBy, _ = args[4].(string)
+						gotSortDir, _ = args[5].(string)
 					}
 					return emptyRows(), nil
 				},

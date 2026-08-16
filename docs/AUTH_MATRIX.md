@@ -61,9 +61,11 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 | GET | `/api/v1/users/me` | `get-me` | `authenticated` |  | Returns the calling principal. |
 | GET | `/api/v1/users/me/activity` | `list-my-activity` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
 | GET | `/api/v1/users/me/artifacts` | `list-my-artifacts` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
+| GET | `/api/v1/users/me/drift-feed` | `list-my-drift-feed` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
 | GET | `/api/v1/users/me/namespaces` | `list-my-namespaces` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
 | GET | `/api/v1/users/me/registries` | `list-my-registries` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
 | GET | `/api/v1/users/me/sources` | `list-my-sources` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
+| GET | `/api/v1/users/me/vulns` | `list-my-vulnerabilities` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
 | GET | `/api/v1/users/me/watches` | `list-my-watches` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
 | GET | `/api/v1/users/me/watches/feed` | `list-my-watch-feed` | `authenticated` |  | Self-scoped, and additionally visibility-filtered: an artifact made private after being starred stays on the watchlist but stops producing events. |
 | DELETE | `/api/v1/users/me/watches/{artifact_id}` | `unwatch-artifact` | `authenticated` | ✓ | Removes the caller's own watch; idempotent. |

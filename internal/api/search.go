@@ -617,7 +617,21 @@ func (h *Handler) GetDashboardStats(ctx context.Context, _ *struct{}) (*Dashboar
 
 // ListTopVulnerabilities handles GET /api/v1/vulns.
 func (h *Handler) ListTopVulnerabilities(ctx context.Context, input *ListTopVulnerabilitiesInput) (*ListTopVulnerabilitiesOutput, error) {
-	vis := visibilityFilterFromContext(ctx)
+	return h.listTopVulnerabilities(ctx, input, visibilityFilterFromContext(ctx))
+}
+
+// ListMyVulnerabilities handles GET /api/v1/users/me/vulns: ListTopVulnerabilities
+// narrowed to namespaces the caller owns (ocidex-998g.5). The dashboard reads it
+// as an exposure figure for what the caller is responsible for, which others'
+// public artifacts would inflate without adding anything actionable.
+func (h *Handler) ListMyVulnerabilities(ctx context.Context, input *ListMyVulnerabilitiesInput) (*ListTopVulnerabilitiesOutput, error) {
+	if _, ok := UserFromContext(ctx); !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	return h.listTopVulnerabilities(ctx, &input.ListTopVulnerabilitiesInput, ownedFilterFromContext(ctx))
+}
+
+func (h *Handler) listTopVulnerabilities(ctx context.Context, input *ListTopVulnerabilitiesInput, vis service.VisibilityFilter) (*ListTopVulnerabilitiesOutput, error) {
 	filter := service.TopVulnFilter{
 		Limit:      input.Limit,
 		Offset:     input.Offset,

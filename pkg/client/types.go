@@ -620,24 +620,96 @@ func (e ListScanJobsParamsState) Valid() bool {
 	}
 }
 
+// Defines values for ListMyVulnerabilitiesParamsSeverity.
+const (
+	ListMyVulnerabilitiesParamsSeverityCRITICAL ListMyVulnerabilitiesParamsSeverity = "CRITICAL"
+	ListMyVulnerabilitiesParamsSeverityHIGH     ListMyVulnerabilitiesParamsSeverity = "HIGH"
+	ListMyVulnerabilitiesParamsSeverityLOW      ListMyVulnerabilitiesParamsSeverity = "LOW"
+	ListMyVulnerabilitiesParamsSeverityMEDIUM   ListMyVulnerabilitiesParamsSeverity = "MEDIUM"
+)
+
+// Valid indicates whether the value is a known member of the ListMyVulnerabilitiesParamsSeverity enum.
+func (e ListMyVulnerabilitiesParamsSeverity) Valid() bool {
+	switch e {
+	case ListMyVulnerabilitiesParamsSeverityCRITICAL:
+		return true
+	case ListMyVulnerabilitiesParamsSeverityHIGH:
+		return true
+	case ListMyVulnerabilitiesParamsSeverityLOW:
+		return true
+	case ListMyVulnerabilitiesParamsSeverityMEDIUM:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListMyVulnerabilitiesParamsSort.
+const (
+	ListMyVulnerabilitiesParamsSortAffectedPurlCount ListMyVulnerabilitiesParamsSort = "affected_purl_count"
+	ListMyVulnerabilitiesParamsSortAffectedSbomCount ListMyVulnerabilitiesParamsSort = "affected_sbom_count"
+	ListMyVulnerabilitiesParamsSortCanonicalId       ListMyVulnerabilitiesParamsSort = "canonical_id"
+	ListMyVulnerabilitiesParamsSortCvssScore         ListMyVulnerabilitiesParamsSort = "cvss_score"
+	ListMyVulnerabilitiesParamsSortPublishedAt       ListMyVulnerabilitiesParamsSort = "published_at"
+	ListMyVulnerabilitiesParamsSortSeverity          ListMyVulnerabilitiesParamsSort = "severity"
+)
+
+// Valid indicates whether the value is a known member of the ListMyVulnerabilitiesParamsSort enum.
+func (e ListMyVulnerabilitiesParamsSort) Valid() bool {
+	switch e {
+	case ListMyVulnerabilitiesParamsSortAffectedPurlCount:
+		return true
+	case ListMyVulnerabilitiesParamsSortAffectedSbomCount:
+		return true
+	case ListMyVulnerabilitiesParamsSortCanonicalId:
+		return true
+	case ListMyVulnerabilitiesParamsSortCvssScore:
+		return true
+	case ListMyVulnerabilitiesParamsSortPublishedAt:
+		return true
+	case ListMyVulnerabilitiesParamsSortSeverity:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListMyVulnerabilitiesParamsSortDir.
+const (
+	ListMyVulnerabilitiesParamsSortDirAsc  ListMyVulnerabilitiesParamsSortDir = "asc"
+	ListMyVulnerabilitiesParamsSortDirDesc ListMyVulnerabilitiesParamsSortDir = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ListMyVulnerabilitiesParamsSortDir enum.
+func (e ListMyVulnerabilitiesParamsSortDir) Valid() bool {
+	switch e {
+	case ListMyVulnerabilitiesParamsSortDirAsc:
+		return true
+	case ListMyVulnerabilitiesParamsSortDirDesc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListTopVulnerabilitiesParamsSeverity.
 const (
-	CRITICAL ListTopVulnerabilitiesParamsSeverity = "CRITICAL"
-	HIGH     ListTopVulnerabilitiesParamsSeverity = "HIGH"
-	LOW      ListTopVulnerabilitiesParamsSeverity = "LOW"
-	MEDIUM   ListTopVulnerabilitiesParamsSeverity = "MEDIUM"
+	ListTopVulnerabilitiesParamsSeverityCRITICAL ListTopVulnerabilitiesParamsSeverity = "CRITICAL"
+	ListTopVulnerabilitiesParamsSeverityHIGH     ListTopVulnerabilitiesParamsSeverity = "HIGH"
+	ListTopVulnerabilitiesParamsSeverityLOW      ListTopVulnerabilitiesParamsSeverity = "LOW"
+	ListTopVulnerabilitiesParamsSeverityMEDIUM   ListTopVulnerabilitiesParamsSeverity = "MEDIUM"
 )
 
 // Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSeverity enum.
 func (e ListTopVulnerabilitiesParamsSeverity) Valid() bool {
 	switch e {
-	case CRITICAL:
+	case ListTopVulnerabilitiesParamsSeverityCRITICAL:
 		return true
-	case HIGH:
+	case ListTopVulnerabilitiesParamsSeverityHIGH:
 		return true
-	case LOW:
+	case ListTopVulnerabilitiesParamsSeverityLOW:
 		return true
-	case MEDIUM:
+	case ListTopVulnerabilitiesParamsSeverityMEDIUM:
 		return true
 	default:
 		return false
@@ -646,28 +718,28 @@ func (e ListTopVulnerabilitiesParamsSeverity) Valid() bool {
 
 // Defines values for ListTopVulnerabilitiesParamsSort.
 const (
-	AffectedPurlCount ListTopVulnerabilitiesParamsSort = "affected_purl_count"
-	AffectedSbomCount ListTopVulnerabilitiesParamsSort = "affected_sbom_count"
-	CanonicalId       ListTopVulnerabilitiesParamsSort = "canonical_id"
-	CvssScore         ListTopVulnerabilitiesParamsSort = "cvss_score"
-	PublishedAt       ListTopVulnerabilitiesParamsSort = "published_at"
-	Severity          ListTopVulnerabilitiesParamsSort = "severity"
+	ListTopVulnerabilitiesParamsSortAffectedPurlCount ListTopVulnerabilitiesParamsSort = "affected_purl_count"
+	ListTopVulnerabilitiesParamsSortAffectedSbomCount ListTopVulnerabilitiesParamsSort = "affected_sbom_count"
+	ListTopVulnerabilitiesParamsSortCanonicalId       ListTopVulnerabilitiesParamsSort = "canonical_id"
+	ListTopVulnerabilitiesParamsSortCvssScore         ListTopVulnerabilitiesParamsSort = "cvss_score"
+	ListTopVulnerabilitiesParamsSortPublishedAt       ListTopVulnerabilitiesParamsSort = "published_at"
+	ListTopVulnerabilitiesParamsSortSeverity          ListTopVulnerabilitiesParamsSort = "severity"
 )
 
 // Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSort enum.
 func (e ListTopVulnerabilitiesParamsSort) Valid() bool {
 	switch e {
-	case AffectedPurlCount:
+	case ListTopVulnerabilitiesParamsSortAffectedPurlCount:
 		return true
-	case AffectedSbomCount:
+	case ListTopVulnerabilitiesParamsSortAffectedSbomCount:
 		return true
-	case CanonicalId:
+	case ListTopVulnerabilitiesParamsSortCanonicalId:
 		return true
-	case CvssScore:
+	case ListTopVulnerabilitiesParamsSortCvssScore:
 		return true
-	case PublishedAt:
+	case ListTopVulnerabilitiesParamsSortPublishedAt:
 		return true
-	case Severity:
+	case ListTopVulnerabilitiesParamsSortSeverity:
 		return true
 	default:
 		return false
@@ -676,16 +748,16 @@ func (e ListTopVulnerabilitiesParamsSort) Valid() bool {
 
 // Defines values for ListTopVulnerabilitiesParamsSortDir.
 const (
-	Asc  ListTopVulnerabilitiesParamsSortDir = "asc"
-	Desc ListTopVulnerabilitiesParamsSortDir = "desc"
+	ListTopVulnerabilitiesParamsSortDirAsc  ListTopVulnerabilitiesParamsSortDir = "asc"
+	ListTopVulnerabilitiesParamsSortDirDesc ListTopVulnerabilitiesParamsSortDir = "desc"
 )
 
 // Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSortDir enum.
 func (e ListTopVulnerabilitiesParamsSortDir) Valid() bool {
 	switch e {
-	case Asc:
+	case ListTopVulnerabilitiesParamsSortDirAsc:
 		return true
-	case Desc:
+	case ListTopVulnerabilitiesParamsSortDirDesc:
 		return true
 	default:
 		return false
@@ -2655,6 +2727,15 @@ type ListMyArtifactsParams struct {
 	Sufficient *string `form:"sufficient,omitempty" json:"sufficient,omitempty"`
 }
 
+// ListMyDriftFeedParams defines parameters for ListMyDriftFeed.
+type ListMyDriftFeedParams struct {
+	// Limit Maximum number of results per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque cursor from a previous response's nextCursor; omit for the first page
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
 // ListMyRegistriesParams defines parameters for ListMyRegistries.
 type ListMyRegistriesParams struct {
 	// Limit Maximum number of results per page
@@ -2663,6 +2744,33 @@ type ListMyRegistriesParams struct {
 	// Offset Number of results to skip
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
+
+// ListMyVulnerabilitiesParams defines parameters for ListMyVulnerabilities.
+type ListMyVulnerabilitiesParams struct {
+	// Limit Maximum number of results per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Severity Filter by severity
+	Severity *ListMyVulnerabilitiesParamsSeverity `form:"severity,omitempty" json:"severity,omitempty"`
+
+	// Sort Sort field
+	Sort *ListMyVulnerabilitiesParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// SortDir Sort direction (asc or desc)
+	SortDir *ListMyVulnerabilitiesParamsSortDir `form:"sort_dir,omitempty" json:"sort_dir,omitempty"`
+}
+
+// ListMyVulnerabilitiesParamsSeverity defines parameters for ListMyVulnerabilities.
+type ListMyVulnerabilitiesParamsSeverity string
+
+// ListMyVulnerabilitiesParamsSort defines parameters for ListMyVulnerabilities.
+type ListMyVulnerabilitiesParamsSort string
+
+// ListMyVulnerabilitiesParamsSortDir defines parameters for ListMyVulnerabilities.
+type ListMyVulnerabilitiesParamsSortDir string
 
 // ListMyWatchesParams defines parameters for ListMyWatches.
 type ListMyWatchesParams struct {

@@ -4,6 +4,7 @@ import { AuthProvider } from "~/context/auth";
 import { ToastProvider } from "~/context/toast";
 import Layout from "~/components/Layout";
 import Home from "~/pages/Home";
+import Dashboard from "~/pages/Dashboard";
 import Artifacts from "~/pages/Artifacts";
 import ArtifactDetail from "~/pages/ArtifactDetail";
 import ArtifactVersionHistory from "~/pages/ArtifactVersionHistory";
@@ -38,6 +39,7 @@ export default function App() {
             <AuthProvider>
             <Router root={Layout}>
                 <Route path="/" component={Home} />
+                <Route path="/dashboard" component={Dashboard} />
                 <Route path="/artifacts" component={Artifacts} />
                 {/* Resolver routes (ADR-042 R7) — declared before the :id routes
                     they redirect into so the literal segment reads as such. */}

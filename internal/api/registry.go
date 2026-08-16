@@ -162,6 +162,21 @@ func (h *Handler) GetRegistryTrustSummary(ctx context.Context, _ *struct{}) (*Ge
 // ListRecentDrift returns the most recent provenance drift events visible to
 // the caller, scoped the same way as GetRegistryTrustSummary.
 func (h *Handler) ListRecentDrift(ctx context.Context, in *ListRecentDriftInput) (*ListRecentDriftOutput, error) {
+	return h.listRecentDrift(ctx, in.CursorParams, visibilityFilterFromContext(ctx))
+}
+
+// ListMyDriftFeed is ListRecentDrift narrowed to namespaces the caller owns
+// (ocidex-998g.5). The dashboard panel is titled "drift on my artifacts", and
+// the default visibility filter would quietly include everyone else's public
+// ones, so the panel would be lying about whose problem it is showing.
+func (h *Handler) ListMyDriftFeed(ctx context.Context, in *ListMyDriftFeedInput) (*ListRecentDriftOutput, error) {
+	if _, ok := UserFromContext(ctx); !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	return h.listRecentDrift(ctx, in.CursorParams, ownedFilterFromContext(ctx))
+}
+
+func (h *Handler) listRecentDrift(ctx context.Context, in CursorParams, vis service.VisibilityFilter) (*ListRecentDriftOutput, error) {
 	cur, hasCursor, err := decodeTimeIDCursor(in.Cursor)
 	if err != nil {
 		return nil, huma.Error400BadRequest(err.Error())
@@ -172,7 +187,7 @@ func (h *Handler) ListRecentDrift(ctx context.Context, in *ListRecentDriftInput)
 		HasCursor:        hasCursor,
 		CursorDetectedAt: cur.CreatedAt,
 		CursorID:         cur.ID,
-	}, visibilityFilterFromContext(ctx))
+	}, vis)
 	if err != nil {
 		return nil, huma.Error500InternalServerError(fmt.Sprintf("listing recent provenance drift: %v", err))
 	}

@@ -270,6 +270,31 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Middlewares: huma.Middlewares{authMW},
 	}, h.ListMyActivity)
 
+	// Owner-scoped views of the two cross-cutting feeds (ocidex-998g.5). These
+	// differ from the collections above in that their siblings are already
+	// visibility-filtered rather than admin-only; the narrowing here is from
+	// "everything I can see" to "everything I own", which is what the dashboard
+	// panels claim to show.
+	huma.Register(api, huma.Operation{
+		OperationID: "list-my-drift-feed",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/users/me/drift-feed",
+		Summary:     "List provenance drift on my artifacts",
+		Description: "Provenance drift events on SBOMs in namespaces you own, newest first. " + descSelfScoped,
+		Tags:        []string{tagAuth},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListMyDriftFeed)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-my-vulnerabilities",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/users/me/vulns",
+		Summary:     "List vulnerabilities affecting my artifacts",
+		Description: "Vulnerabilities ranked by exposure across namespaces you own. " + descSelfScoped,
+		Tags:        []string{tagAuth},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListMyVulnerabilities)
+
 	// Watchlist (ocidex-998g.3). The watch pair is self-scoped like the
 	// collections above — the caller is implied, never a path segment — but the
 	// two mutating verbs additionally need write scope, because a read-only API
