@@ -280,6 +280,114 @@ func TestLoadOperator(t *testing.T) {
 	}
 }
 
+func TestLoadK8sAgent(t *testing.T) {
+	tests := []struct {
+		name    string
+		env     map[string]string
+		wantErr bool
+		check   func(*is.I, *config.K8sAgentConfig)
+	}{
+		{
+			name: "defaults applied",
+			env:  map[string]string{},
+			check: func(is *is.I, cfg *config.K8sAgentConfig) {
+				is.Equal(cfg.LogLevel, "info")
+				is.Equal(cfg.Environment, "development")
+				is.Equal(cfg.ClusterID, "cluster-uuid")
+				is.Equal(cfg.ReportInterval, 5*time.Minute)
+				is.Equal(cfg.HealthAddr, ":9090")
+				// Unlike the operator's WATCH_NAMESPACE, an empty list is the valid
+				// and expected default: it means report every namespace.
+				is.Equal(cfg.Namespaces, []string{})
+			},
+		},
+		{
+			name: "namespace allowlist",
+			env:  map[string]string{"OCIDEX_NAMESPACES": "default,kube-system"},
+			check: func(is *is.I, cfg *config.K8sAgentConfig) {
+				is.Equal(cfg.Namespaces, []string{"default", "kube-system"})
+			},
+		},
+		{
+			name: "whitespace and empty entries dropped",
+			env:  map[string]string{"OCIDEX_NAMESPACES": " default , , kube-system "},
+			check: func(is *is.I, cfg *config.K8sAgentConfig) {
+				is.Equal(cfg.Namespaces, []string{"default", "kube-system"})
+			},
+		},
+		{
+			// Separators only must widen to every namespace rather than narrow to
+			// nothing — the inverse of the operator's rule, because here an empty
+			// list is meaningful.
+			name: "separators only means all namespaces",
+			env:  map[string]string{"OCIDEX_NAMESPACES": " , "},
+			check: func(is *is.I, cfg *config.K8sAgentConfig) {
+				is.Equal(cfg.Namespaces, []string{})
+			},
+		},
+		{
+			name: "interval override",
+			env:  map[string]string{"OCIDEX_REPORT_INTERVAL": "30s"},
+			check: func(is *is.I, cfg *config.K8sAgentConfig) {
+				is.Equal(cfg.ReportInterval, 30*time.Second)
+			},
+		},
+		{
+			// A zero interval would make the ticker panic at construction.
+			name:    "zero interval rejected",
+			env:     map[string]string{"OCIDEX_REPORT_INTERVAL": "0s"},
+			wantErr: true,
+		},
+		{
+			// Same reason as the operator: an unset secretKeyRef surfaces as an
+			// empty string, so these must fail on the value, not on presence.
+			name:    "missing server url rejected",
+			env:     map[string]string{"OCIDEX_SERVER": ""},
+			wantErr: true,
+		},
+		{
+			name:    "missing api key rejected",
+			env:     map[string]string{"OCIDEX_API_KEY": ""},
+			wantErr: true,
+		},
+		{
+			// Without it the agent would have no cluster to replace the inventory
+			// of, and a defaulted one could replace the wrong cluster's.
+			name:    "missing cluster id rejected",
+			env:     map[string]string{"OCIDEX_CLUSTER_ID": ""},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+
+			for _, k := range []string{"LOG_LEVEL", "ENVIRONMENT", "OCIDEX_NAMESPACES", "OCIDEX_REPORT_INTERVAL", "HEALTH_ADDR"} {
+				t.Setenv(k, "")
+				os.Unsetenv(k) //nolint:errcheck
+			}
+			t.Setenv("OCIDEX_SERVER", "http://ocidex:8080")
+			t.Setenv("OCIDEX_API_KEY", "ocidex_test")
+			t.Setenv("OCIDEX_CLUSTER_ID", "cluster-uuid")
+			for k, v := range tt.env {
+				t.Setenv(k, v)
+			}
+
+			cfg, err := config.LoadK8sAgent()
+
+			if tt.wantErr {
+				is.True(err != nil)
+				return
+			}
+			is.NoErr(err)
+			if tt.check != nil {
+				tt.check(is, cfg)
+			}
+		})
+	}
+}
+
 func TestSlogLevel(t *testing.T) {
 	tests := []struct {
 		level string

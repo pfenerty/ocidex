@@ -35,6 +35,15 @@ type FakeClient struct {
 	DeleteAPIKeyFn   func(ctx context.Context, id string) error
 	GetCurrentUserFn func(ctx context.Context) (MeOutputBody, error)
 
+	// Cluster inventory
+	ListClustersFn         func(ctx context.Context, namespaceID string) ([]ClusterResponse, error)
+	GetClusterFn           func(ctx context.Context, id string) (ClusterResponse, error)
+	CreateClusterFn        func(ctx context.Context, body CreateClusterInputBody) (ClusterResponse, error)
+	UpdateClusterFn        func(ctx context.Context, id string, body UpdateClusterInputBody) (ClusterResponse, error)
+	DeleteClusterFn        func(ctx context.Context, id string) error
+	PutInventoryFn         func(ctx context.Context, clusterID string, workloads []InventoryWorkload) (PutInventoryOutputBody, error)
+	ListClusterWorkloadsFn func(ctx context.Context, clusterID string) ([]ClusterWorkloadResponse, WorkloadCoverageResponse, error)
+
 	// SBOM + artifact
 	IngestSBOMFn                func(ctx context.Context, data []byte, params IngestSbomParams) (IngestSBOMOutputBody, error)
 	GetSBOMFn                   func(ctx context.Context, id string, includeRaw bool) (SBOMDetail, error)
@@ -417,6 +426,55 @@ func (f *FakeClient) DeleteSource(ctx context.Context, id string) error {
 		return f.DeleteSourceFn(ctx, id)
 	}
 	return nil
+}
+
+func (f *FakeClient) ListClusters(ctx context.Context, namespaceID string) ([]ClusterResponse, error) {
+	if f.ListClustersFn != nil {
+		return f.ListClustersFn(ctx, namespaceID)
+	}
+	return nil, nil
+}
+
+func (f *FakeClient) GetCluster(ctx context.Context, id string) (ClusterResponse, error) {
+	if f.GetClusterFn != nil {
+		return f.GetClusterFn(ctx, id)
+	}
+	return ClusterResponse{}, nil
+}
+
+func (f *FakeClient) CreateCluster(ctx context.Context, body CreateClusterInputBody) (ClusterResponse, error) {
+	if f.CreateClusterFn != nil {
+		return f.CreateClusterFn(ctx, body)
+	}
+	return ClusterResponse{}, nil
+}
+
+func (f *FakeClient) UpdateCluster(ctx context.Context, id string, body UpdateClusterInputBody) (ClusterResponse, error) {
+	if f.UpdateClusterFn != nil {
+		return f.UpdateClusterFn(ctx, id, body)
+	}
+	return ClusterResponse{}, nil
+}
+
+func (f *FakeClient) DeleteCluster(ctx context.Context, id string) error {
+	if f.DeleteClusterFn != nil {
+		return f.DeleteClusterFn(ctx, id)
+	}
+	return nil
+}
+
+func (f *FakeClient) PutInventory(ctx context.Context, clusterID string, workloads []InventoryWorkload) (PutInventoryOutputBody, error) {
+	if f.PutInventoryFn != nil {
+		return f.PutInventoryFn(ctx, clusterID, workloads)
+	}
+	return PutInventoryOutputBody{}, nil
+}
+
+func (f *FakeClient) ListClusterWorkloads(ctx context.Context, clusterID string) ([]ClusterWorkloadResponse, WorkloadCoverageResponse, error) {
+	if f.ListClusterWorkloadsFn != nil {
+		return f.ListClusterWorkloadsFn(ctx, clusterID)
+	}
+	return nil, WorkloadCoverageResponse{}, nil
 }
 
 // Compile-time assertion that *FakeClient satisfies Client.

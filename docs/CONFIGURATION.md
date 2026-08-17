@@ -180,6 +180,42 @@ from the registry via the OCI 1.1 Referrers API (with cosign tag-scheme fallback
 registry has a trust anchor configured, delegates verification to cosign (see
 [Per-Registry Trust Anchors](#per-registry-trust-anchors) below and ADR-037).
 
+### `k8s-agent`
+
+The cluster inventory agent (ADR-044). Unlike every other binary here it needs **no
+`DATABASE_URL` and no `NATS_URL`** — it runs inside the cluster it reports on, which may have
+no OCIDex deployment of its own, and talks only to the OCIDex API over HTTP.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OCIDEX_SERVER` | — | **Required.** OCIDex API base URL, e.g. `https://ocidex.example.com`. |
+| `OCIDEX_API_KEY` | — | **Required.** API key with the `read-write` scope, owned by the owner of the cluster's namespace. |
+| `OCIDEX_CLUSTER_ID` | — | **Required.** UUID of the registered `cluster` this agent reports for. Supplied rather than discovered: a Kubernetes cluster has no stable self-identifier, and a defaulted one could replace the wrong cluster's inventory. |
+| `OCIDEX_NAMESPACES` | *(all)* | Comma-separated Kubernetes namespace allowlist. Empty means every namespace. |
+| `OCIDEX_REPORT_INTERVAL` | `5m` | Time between snapshots. Ignored under `--once`. |
+| `HEALTH_ADDR` | `:9090` | Liveness/readiness listen address (`/healthz`, `/readyz`). |
+| `LOG_LEVEL`, `ENVIRONMENT` | `info`, `development` | As elsewhere. |
+
+RBAC: `get`/`list` on `pods` cluster-wide (or in the allowlisted namespaces). Nothing else —
+workload ownership is resolved from the pod's own `ownerReferences` and `pod-template-hash`
+label rather than by reading ReplicaSets.
+
+**One-shot mode** (`--once` flag): pushes a single snapshot and exits 0, or exits 1 on
+failure. Suitable for a CronJob.
+
+Two behaviours are load-bearing and easy to mistake for bugs:
+
+- **Every push is a complete snapshot.** Workloads the agent does not report are *deleted*
+  server-side (ADR-044 K7). Narrowing `OCIDEX_NAMESPACES` on a running agent therefore prunes
+  the namespaces it stops reporting; it does not leave them behind as stale rows.
+- **An empty snapshot is still pushed.** A cluster running nothing and a cluster whose agent
+  has died must not look alike, and `cluster.last_seen_at` is stamped by the push, not by the
+  rows (ADR-044 K2).
+
+Images whose digest cannot be read from `status.containerStatuses[].imageID` are reported with
+no digest and surface as **unresolvable** rather than being dropped — a missing workload would
+read as "nothing is running there". The agent logs an `unresolvable` count on every push.
+
 ---
 
 ## Per-Registry Trust Anchors

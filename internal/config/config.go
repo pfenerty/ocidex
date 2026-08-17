@@ -265,6 +265,88 @@ func (c *OperatorConfig) SlogLevel() slog.Level {
 	return parseSlogLevel(c.LogLevel)
 }
 
+// K8sAgentConfig holds configuration for the cluster inventory agent
+// (cmd/k8s-agent). Like the operator it talks only to the OCIDex API, but unlike
+// the operator it runs *inside the cluster it reports on* — which may be a
+// cluster that has no OCIDex deployment of its own (ADR-044 K1) — so it needs no
+// database, no NATS, and no CRDs.
+type K8sAgentConfig struct {
+	LogLevel    string `env:"LOG_LEVEL"    envDefault:"info"`
+	Environment string `env:"ENVIRONMENT"  envDefault:"development"`
+
+	// OCIDex API connection — the agent's only external dependency.
+	ServerURL string `env:"OCIDEX_SERVER"`
+	APIKey    string `env:"OCIDEX_API_KEY"`
+
+	// ClusterID is the OCIDex cluster this agent reports for. Supplied rather
+	// than discovered: a Kubernetes cluster has no stable self-identifier the
+	// agent could derive, and guessing one would let a redeployed agent silently
+	// start replacing a different cluster's inventory.
+	ClusterID string `env:"OCIDEX_CLUSTER_ID"`
+
+	// Namespaces optionally restricts which Kubernetes namespaces are reported.
+	// Empty means every namespace. Note the asymmetry with the snapshot contract:
+	// a snapshot replaces the cluster's whole inventory (ADR-044 K7), so
+	// *narrowing* this list on an existing agent prunes the namespaces it stops
+	// reporting rather than leaving them behind as stale rows.
+	Namespaces []string `env:"OCIDEX_NAMESPACES" envSeparator:","`
+
+	// ReportInterval is the time between snapshots in long-running mode. Ignored
+	// under --once.
+	ReportInterval time.Duration `env:"OCIDEX_REPORT_INTERVAL" envDefault:"5m"`
+
+	// HealthAddr is the liveness/readiness listen address, matching the other
+	// workers' :9090 convention.
+	HealthAddr string `env:"HEALTH_ADDR" envDefault:":9090"`
+}
+
+// LoadK8sAgent reads k8s-agent configuration from environment variables.
+func LoadK8sAgent() (*K8sAgentConfig, error) {
+	cfg := &K8sAgentConfig{}
+	if err := env.Parse(cfg); err != nil {
+		return nil, fmt.Errorf("parsing config: %w", err)
+	}
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+func (c *K8sAgentConfig) validate() error {
+	// Explicit emptiness checks rather than env's `required` tag, for the same
+	// reason as OperatorConfig.validate: `required` passes on a secretKeyRef that
+	// resolves to an empty string.
+	if c.ServerURL == "" {
+		return fmt.Errorf("OCIDEX_SERVER is required")
+	}
+	if c.APIKey == "" {
+		return fmt.Errorf("OCIDEX_API_KEY is required")
+	}
+	if c.ClusterID == "" {
+		return fmt.Errorf("OCIDEX_CLUSTER_ID is required")
+	}
+	if c.ReportInterval <= 0 {
+		return fmt.Errorf("OCIDEX_REPORT_INTERVAL must be positive")
+	}
+
+	// env.Parse yields []string{""} for an unset var, which would otherwise read
+	// as "one namespace, named empty string" and match nothing at all — the exact
+	// inverse of the intended default of every namespace.
+	ns := make([]string, 0, len(c.Namespaces))
+	for _, n := range c.Namespaces {
+		if n = strings.TrimSpace(n); n != "" {
+			ns = append(ns, n)
+		}
+	}
+	c.Namespaces = ns
+	return nil
+}
+
+// SlogLevel returns the slog.Level for a K8sAgentConfig.
+func (c *K8sAgentConfig) SlogLevel() slog.Level {
+	return parseSlogLevel(c.LogLevel)
+}
+
 func (c *Config) validate() error {
 	if c.NATSURL == "" {
 		return fmt.Errorf("NATS_URL is required")

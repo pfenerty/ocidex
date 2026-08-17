@@ -38,6 +38,17 @@ type Client interface {
 	DeleteAPIKey(ctx context.Context, id string) error
 	GetCurrentUser(ctx context.Context) (MeOutputBody, error)
 
+	// Cluster inventory (ADR-044). PutInventory replaces the cluster's whole
+	// workload set, so the caller must send everything it observed.
+
+	ListClusters(ctx context.Context, namespaceID string) ([]ClusterResponse, error)
+	GetCluster(ctx context.Context, id string) (ClusterResponse, error)
+	CreateCluster(ctx context.Context, body CreateClusterInputBody) (ClusterResponse, error)
+	UpdateCluster(ctx context.Context, id string, body UpdateClusterInputBody) (ClusterResponse, error)
+	DeleteCluster(ctx context.Context, id string) error
+	PutInventory(ctx context.Context, clusterID string, workloads []InventoryWorkload) (PutInventoryOutputBody, error)
+	ListClusterWorkloads(ctx context.Context, clusterID string) ([]ClusterWorkloadResponse, WorkloadCoverageResponse, error)
+
 	// SBOM + artifact
 
 	IngestSBOM(ctx context.Context, data []byte, params IngestSbomParams) (IngestSBOMOutputBody, error)
