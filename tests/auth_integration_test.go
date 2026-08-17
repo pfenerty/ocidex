@@ -57,8 +57,9 @@ func setupServerWithStats(t *testing.T, pool *pgxpool.Pool) (*httptest.Server, s
 	jobSvc := service.NewJobService(pool)
 	enrichJobSvc := service.NewEnrichJobService(pool, "")
 	watchSvc := service.NewWatchService(pool)
+	clusterSvc := service.NewClusterService(pool)
 	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc,
-		namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, pool, nil, cfg)
+		namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, clusterSvc, pool, nil, cfg)
 	router := api.NewRouter(handler, "*", "", "")
 	return httptest.NewServer(router), authSvc, searchSvc
 }

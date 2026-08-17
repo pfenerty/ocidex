@@ -25,6 +25,7 @@ const (
 	tagRegistries = "Registries"
 	tagNamespaces = "Namespaces"
 	tagSources    = "Sources"
+	tagClusters   = "Clusters"
 	tagJobs       = "Jobs"
 	tagAuth       = "Auth"
 	tagAdmin      = "Admin"
@@ -36,6 +37,7 @@ const (
 	pathRegistryByID  = "/api/v1/registries/{id}"
 	pathNamespaceByID = "/api/v1/namespaces/{id}"
 	pathSourceByID    = "/api/v1/sources/{id}"
+	pathClusterByID   = "/api/v1/clusters/{id}"
 )
 
 // URL schemes, and the ENVIRONMENT value that gates production-only behaviour
@@ -118,6 +120,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	registerRegistryOps(api, h)
 	registerNamespaceOps(api, h)
 	registerSourceOps(api, h)
+	registerClusterOps(api, h)
 	registerStatsOps(api, h)
 	registerVulnOps(api, h)
 	registerJobOps(api, h)
@@ -725,6 +728,97 @@ func registerSourceOps(api huma.API, h *Handler) {
 		DefaultStatus: http.StatusNoContent,
 		Middlewares:   huma.Middlewares{authMW, writeMW},
 	}, h.DeleteSource)
+}
+
+// ---------------------------------------------------------------------------
+// Clusters
+// ---------------------------------------------------------------------------
+
+func registerClusterOps(api huma.API, h *Handler) {
+	authMW := RequireAuthenticated(api)
+	writeMW := RequireWrite(api)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-clusters",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/clusters",
+		Summary:     "List clusters",
+		Description: "Kubernetes clusters visible to the caller, optionally scoped to one namespace.",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListClusters)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-my-clusters",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/users/me/clusters",
+		Summary:     "List my clusters",
+		Description: "Clusters in namespaces the caller owns.",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListMyClusters)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "create-cluster",
+		Method:        http.MethodPost,
+		Path:          "/api/v1/clusters",
+		Summary:       "Register a cluster",
+		Description:   "Registers a Kubernetes cluster that an agent will report running workloads for.",
+		Tags:          []string{tagClusters},
+		DefaultStatus: http.StatusCreated,
+		Middlewares:   huma.Middlewares{authMW, writeMW},
+	}, h.CreateCluster)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-cluster",
+		Method:      http.MethodGet,
+		Path:        pathClusterByID,
+		Summary:     "Get a cluster",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.GetCluster)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "update-cluster",
+		Method:      http.MethodPatch,
+		Path:        pathClusterByID,
+		Summary:     "Rename a cluster",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW, writeMW},
+	}, h.UpdateCluster)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "delete-cluster",
+		Method:        http.MethodDelete,
+		Path:          pathClusterByID,
+		Summary:       "Delete a cluster",
+		Description:   "Removes the cluster and the inventory it has reported. Ingested SBOMs are untouched.",
+		Tags:          []string{tagClusters},
+		DefaultStatus: http.StatusNoContent,
+		Middlewares:   huma.Middlewares{authMW, writeMW},
+	}, h.DeleteCluster)
+
+	// Inventory push is a mutation despite reading like a report: it replaces
+	// the cluster's entire workload set (ADR-044 K7).
+	huma.Register(api, huma.Operation{
+		OperationID: "put-cluster-inventory",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/clusters/{id}/inventory",
+		Summary:     "Push a cluster inventory snapshot",
+		Description: "Replaces the cluster's workload set with the complete snapshot in the body. Workloads absent from the body are deleted.",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW, writeMW},
+	}, h.PutInventory)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-cluster-workloads",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/clusters/{id}/workloads",
+		Summary:     "List running workloads",
+		Description: "What the cluster last reported running, each row joined to the SBOM its image digest matches, with coverage counts for the workloads that matched nothing.",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListClusterWorkloads)
 }
 
 // ---------------------------------------------------------------------------

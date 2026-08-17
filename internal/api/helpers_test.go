@@ -84,6 +84,10 @@ const (
 	testSourceID    = "0a0b0c0d-0e0f-1011-1213-141516171819"
 	testNamespaceID = "1a1b1c1d-1e1f-2021-2223-242526272829"
 
+	// testClusterID is the cluster fakeClusterService resolves every id to; it
+	// hangs from testNamespaceID so cluster ownership resolves the same way.
+	testClusterID = "2a2b2c2d-2e2f-3031-3233-343536373839"
+
 	// ingestPath is the ingest route bound to that source. Ingest derives the
 	// owning namespace from the source, so posting without one is a 400
 	// (ADR-039) — every ingest test needs a source in the URL.
@@ -166,6 +170,57 @@ func (f *fakeSourceService) src() service.Source {
 	}
 }
 
+// fakeClusterService resolves any reference to a single cluster inside
+// testNamespaceID, so the ownership check on a cluster route lands on
+// fakeNamespaceService rather than on a nil pointer.
+type fakeClusterService struct{}
+
+func (f *fakeClusterService) Create(_ context.Context, _ service.CreateClusterParams) (service.Cluster, error) {
+	return f.cluster(), nil
+}
+
+func (f *fakeClusterService) Get(_ context.Context, _ string) (service.Cluster, error) {
+	return f.cluster(), nil
+}
+
+func (f *fakeClusterService) GetByName(_ context.Context, _, _ string) (service.Cluster, error) {
+	return f.cluster(), nil
+}
+
+func (f *fakeClusterService) ListByNamespace(_ context.Context, _ string) ([]service.Cluster, error) {
+	return []service.Cluster{f.cluster()}, nil
+}
+
+func (f *fakeClusterService) List(_ context.Context, _ service.VisibilityFilter) ([]service.Cluster, error) {
+	return []service.Cluster{f.cluster()}, nil
+}
+
+func (f *fakeClusterService) Update(_ context.Context, _ service.UpdateClusterParams) (service.Cluster, error) {
+	return f.cluster(), nil
+}
+
+func (f *fakeClusterService) Delete(_ context.Context, _ string) error { return nil }
+
+func (f *fakeClusterService) ReplaceInventory(_ context.Context, _ string, _ []service.ReportedWorkload) (int, error) {
+	return 0, nil
+}
+
+func (f *fakeClusterService) ListWorkloads(_ context.Context, _ string, _ service.VisibilityFilter) ([]service.ClusterWorkload, error) {
+	return nil, nil
+}
+
+func (f *fakeClusterService) Coverage(_ context.Context, _ string, _ service.VisibilityFilter) (service.WorkloadCoverage, error) {
+	return service.WorkloadCoverage{}, nil
+}
+
+func (f *fakeClusterService) cluster() service.Cluster {
+	return service.Cluster{
+		ID:          testClusterID,
+		NamespaceID: testNamespaceID,
+		Name:        "prod",
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Router / handler builders
 // ---------------------------------------------------------------------------
@@ -173,7 +228,7 @@ func (f *fakeSourceService) src() service.Source {
 // newTestRouter builds a full huma router backed by the given services and a
 // healthy fakePinger. Auth middleware is disabled (nil authSvc).
 func newTestRouter(sbomSvc service.SBOMService, searchSvc service.SearchService) http.Handler {
-	h := api.NewHandler(sbomSvc, searchSvc, nil, nil, nil, nil, nil, nil, nil, &fakePinger{}, nil, nil)
+	h := api.NewHandler(sbomSvc, searchSvc, nil, nil, nil, nil, nil, nil, nil, nil, &fakePinger{}, nil, nil)
 	return api.NewRouter(h, "*", "", "")
 }
 
@@ -181,14 +236,14 @@ func newTestRouter(sbomSvc service.SBOMService, searchSvc service.SearchService)
 // OptionalAuthenticate and huma auth-gate middlewares function properly.
 func newTestRouterWithAuth(sbomSvc service.SBOMService, searchSvc service.SearchService, authSvc service.AuthService) http.Handler {
 	h := api.NewHandler(sbomSvc, searchSvc, authSvc, nil,
-		&fakeNamespaceService{}, &fakeSourceService{}, nil, nil, nil, &fakePinger{}, nil, nil)
+		&fakeNamespaceService{}, &fakeSourceService{}, nil, nil, nil, nil, &fakePinger{}, nil, nil)
 	return api.NewRouter(h, "*", "", "")
 }
 
 // newTestHandlerWithPinger creates a Handler with a custom DBPinger (e.g. for
 // testing readiness failures). Auth middleware is disabled (nil authSvc).
 func newTestHandlerWithPinger(sbomSvc service.SBOMService, searchSvc service.SearchService, pinger api.DBPinger) *api.Handler {
-	return api.NewHandler(sbomSvc, searchSvc, nil, nil, nil, nil, nil, nil, nil, pinger, nil, nil)
+	return api.NewHandler(sbomSvc, searchSvc, nil, nil, nil, nil, nil, nil, nil, nil, pinger, nil, nil)
 }
 
 // newTestRouterFromHandler builds a full huma router from an existing Handler.

@@ -14,6 +14,11 @@ import (
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
+// clusterMigrationVersion is the goose version of 00059_cluster_workload.sql.
+// Pinned so the round-trip test below keeps testing this migration after later
+// ones are added.
+const clusterMigrationVersion = 59
+
 // digest builds a well-formed sha256 digest from a single hex character, so the
 // tests can name digests readably without 64-character literals everywhere.
 func digest(c byte) string {
@@ -119,7 +124,10 @@ func TestClusterMigrationRoundTrip(t *testing.T) {
 	is := is.New(t)
 	is.True(tablesExist())
 
-	if err := goose.Down(sqlDB, "migrations"); err != nil {
+	// DownTo the version *below* this migration rather than a bare Down: a bare
+	// Down rolls back whatever happens to be last, so the next migration added to
+	// the tree would silently make this test assert on someone else's schema.
+	if err := goose.DownTo(sqlDB, "migrations", clusterMigrationVersion-1); err != nil {
 		t.Fatalf("rolling back: %v", err)
 	}
 	is.Equal(tablesExist(), false)

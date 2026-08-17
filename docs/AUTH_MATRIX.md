@@ -72,6 +72,19 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 | PUT | `/api/v1/users/me/watches/{artifact_id}` | `watch-artifact` | `authenticated` | ✓ | Watch is self-scoped; the artifact must be visible to the caller, which may include others' public artifacts. |
 | PATCH | `/api/v1/users/{id}/role` | `update-user-role` | `admin` | ✓ |  |
 
+### Clusters
+
+| Method | Path | Operation | Class | Write | Notes |
+|---|---|---|---|---|---|
+| GET | `/api/v1/clusters` | `list-clusters` | `authenticated` |  | Visibility resolved through the owning namespace. |
+| POST | `/api/v1/clusters` | `create-cluster` | `owner` | ✓ | namespaceOwnerCheck on the body's namespace_id. |
+| DELETE | `/api/v1/clusters/{id}` | `delete-cluster` | `owner` | ✓ | namespaceOwnerCheck on the cluster's namespace; drops reported inventory only. |
+| GET | `/api/v1/clusters/{id}` | `get-cluster` | `authenticated` |  | 404s when the owning namespace is private and unowned. |
+| PATCH | `/api/v1/clusters/{id}` | `update-cluster` | `owner` | ✓ | namespaceOwnerCheck on the cluster's namespace. |
+| POST | `/api/v1/clusters/{id}/inventory` | `put-cluster-inventory` | `owner` | ✓ | namespaceOwnerCheck on the cluster's namespace — ownership, not visibility, because a public namespace must not make inventory writable by anyone. |
+| GET | `/api/v1/clusters/{id}/workloads` | `list-cluster-workloads` | `authenticated` |  | Cluster gated on namespace visibility; rows additionally filtered via visible_namespace_ids. |
+| GET | `/api/v1/users/me/clusters` | `list-my-clusters` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
+
 ### Components
 
 | Method | Path | Operation | Class | Write | Notes |

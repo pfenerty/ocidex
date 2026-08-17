@@ -41,6 +41,30 @@ func (e ArtifactVersionSummarySigningStatus) Valid() bool {
 	}
 }
 
+// Defines values for ClusterWorkloadResponseMatchState.
+const (
+	Exact        ClusterWorkloadResponseMatchState = "exact"
+	Index        ClusterWorkloadResponseMatchState = "index"
+	Unknown      ClusterWorkloadResponseMatchState = "unknown"
+	Unresolvable ClusterWorkloadResponseMatchState = "unresolvable"
+)
+
+// Valid indicates whether the value is a known member of the ClusterWorkloadResponseMatchState enum.
+func (e ClusterWorkloadResponseMatchState) Valid() bool {
+	switch e {
+	case Exact:
+		return true
+	case Index:
+		return true
+	case Unknown:
+		return true
+	case Unresolvable:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateAPIKeyInputBodyScope.
 const (
 	CreateAPIKeyInputBodyScopeRead      CreateAPIKeyInputBodyScope = "read"
@@ -916,6 +940,50 @@ type ChangelogEntry struct {
 	To      SBOMRef          `json:"to"`
 }
 
+// ClusterResponse defines model for ClusterResponse.
+type ClusterResponse struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema      *string `json:"$schema,omitempty"`
+	CreatedAt   string  `json:"created_at"`
+	Description *string `json:"description,omitempty"`
+	Id          string  `json:"id"`
+
+	// LastSeenAt When an agent last pushed a snapshot. Empty means no agent has ever reported: a cluster showing no workloads for this reason is not a cluster running nothing.
+	LastSeenAt  *string `json:"last_seen_at,omitempty"`
+	Name        string  `json:"name"`
+	NamespaceId string  `json:"namespace_id"`
+
+	// NamespaceName Owning namespace name; populated on list responses
+	NamespaceName *string `json:"namespace_name,omitempty"`
+	UpdatedAt     string  `json:"updated_at"`
+}
+
+// ClusterWorkloadResponse defines model for ClusterWorkloadResponse.
+type ClusterWorkloadResponse struct {
+	ArtifactId    *string `json:"artifact_id,omitempty"`
+	ArtifactName  *string `json:"artifact_name,omitempty"`
+	ArtifactType  *string `json:"artifact_type,omitempty"`
+	ClusterId     string  `json:"cluster_id"`
+	ContainerName string  `json:"container_name"`
+	FirstSeenAt   string  `json:"first_seen_at"`
+	Id            string  `json:"id"`
+	ImageDigest   *string `json:"image_digest,omitempty"`
+	ImageRef      string  `json:"image_ref"`
+	K8sNamespace  string  `json:"k8s_namespace"`
+	LastSeenAt    string  `json:"last_seen_at"`
+
+	// MatchState exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)
+	MatchState     ClusterWorkloadResponseMatchState `json:"match_state"`
+	PodCount       int32                             `json:"pod_count"`
+	SbomId         *string                           `json:"sbom_id,omitempty"`
+	SubjectVersion *string                           `json:"subject_version,omitempty"`
+	WorkloadKind   string                            `json:"workload_kind"`
+	WorkloadName   string                            `json:"workload_name"`
+}
+
+// ClusterWorkloadResponseMatchState exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)
+type ClusterWorkloadResponseMatchState string
+
 // ComponentDetail defines model for ComponentDetail.
 type ComponentDetail struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -1043,6 +1111,19 @@ type CreateAPIKeyOutputBody struct {
 
 	// Key Full API key — shown once, store securely
 	Key string `json:"key"`
+}
+
+// CreateClusterInputBody defines model for CreateClusterInputBody.
+type CreateClusterInputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema      *string `json:"$schema,omitempty"`
+	Description *string `json:"description,omitempty"`
+
+	// Name Cluster name, unique within the namespace
+	Name string `json:"name"`
+
+	// NamespaceId Owning namespace UUID
+	NamespaceId openapi_types.UUID `json:"namespace_id"`
 }
 
 // CreateNamespaceInputBody defines model for CreateNamespaceInputBody.
@@ -1496,6 +1577,27 @@ type IngestSBOMOutputBody struct {
 	Status string `json:"status"`
 }
 
+// InventoryWorkload defines model for InventoryWorkload.
+type InventoryWorkload struct {
+	ContainerName string `json:"container_name"`
+
+	// ImageDigest Normalized digest from status.containerStatuses[].imageID. Omit when the agent could not extract one — that is reported as 'unresolvable', not silently dropped.
+	ImageDigest *string `json:"image_digest,omitempty"`
+
+	// ImageRef Image reference, for display only. Never used as an identity: a tag is mutable.
+	ImageRef string `json:"image_ref"`
+
+	// K8sNamespace Kubernetes namespace the workload runs in
+	K8sNamespace string `json:"k8s_namespace"`
+
+	// PodCount Running pods carrying this container at this digest
+	PodCount int32 `json:"pod_count"`
+
+	// WorkloadKind Owning workload kind (Deployment, StatefulSet, DaemonSet, Job, CronJob, Pod)
+	WorkloadKind string `json:"workload_kind"`
+	WorkloadName string `json:"workload_name"`
+}
+
 // KeyMetaResponse defines model for KeyMetaResponse.
 type KeyMetaResponse struct {
 	CreatedAt time.Time `json:"created_at"`
@@ -1573,6 +1675,21 @@ type ListArtifactsOutputBody struct {
 	Schema     *string            `json:"$schema,omitempty"`
 	Data       *[]ArtifactSummary `json:"data"`
 	Pagination CursorMeta         `json:"pagination"`
+}
+
+// ListClusterWorkloadsOutputBody defines model for ListClusterWorkloadsOutputBody.
+type ListClusterWorkloadsOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema   *string                    `json:"$schema,omitempty"`
+	Coverage WorkloadCoverageResponse   `json:"coverage"`
+	Data     *[]ClusterWorkloadResponse `json:"data"`
+}
+
+// ListClustersOutputBody defines model for ListClustersOutputBody.
+type ListClustersOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string            `json:"$schema,omitempty"`
+	Data   *[]ClusterResponse `json:"data"`
 }
 
 // ListComponentPurlTypesOutputBody defines model for ListComponentPurlTypesOutputBody.
@@ -1805,6 +1922,30 @@ type ProvenanceDriftSummary struct {
 	NewStatus      string    `json:"newStatus"`
 	PreviousStatus string    `json:"previousStatus"`
 	Reason         string    `json:"reason"`
+}
+
+// PutInventoryInputBody defines model for PutInventoryInputBody.
+type PutInventoryInputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// Workloads The complete set of running container images. Omitted entries are pruned.
+	Workloads *[]InventoryWorkload `json:"workloads"`
+}
+
+// PutInventoryOutputBody defines model for PutInventoryOutputBody.
+type PutInventoryOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// Accepted Workload rows in the snapshot
+	Accepted int64 `json:"accepted"`
+
+	// Pruned Rows deleted because the snapshot no longer reports them
+	Pruned int64 `json:"pruned"`
+
+	// SeenAt Timestamp recorded on the cluster
+	SeenAt string `json:"seen_at"`
 }
 
 // ReadinessCheckOutputBody defines model for ReadinessCheckOutputBody.
@@ -2146,6 +2287,14 @@ type TopVulnEntry struct {
 	Summary           *string    `json:"summary,omitempty"`
 }
 
+// UpdateClusterInputBody defines model for UpdateClusterInputBody.
+type UpdateClusterInputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema      *string `json:"$schema,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Name        string  `json:"name"`
+}
+
 // UpdateNamespaceInputBody defines model for UpdateNamespaceInputBody.
 type UpdateNamespaceInputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -2332,6 +2481,18 @@ type WatchEvent struct {
 // WatchEventKind defines model for WatchEvent.Kind.
 type WatchEventKind string
 
+// WorkloadCoverageResponse defines model for WorkloadCoverageResponse.
+type WorkloadCoverageResponse struct {
+	Matched int64 `json:"matched"`
+	Total   int64 `json:"total"`
+
+	// Unknown Valid digests with no ingested SBOM: a coverage gap
+	Unknown int64 `json:"unknown"`
+
+	// Unresolvable Containers whose imageID yielded no digest: an agent or runtime gap
+	Unresolvable int64 `json:"unresolvable"`
+}
+
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
 
@@ -2424,6 +2585,12 @@ type ListArtifactVersionsParams struct {
 
 // ListArtifactVersionsParamsMode defines parameters for ListArtifactVersions.
 type ListArtifactVersionsParamsMode string
+
+// ListClustersParams defines parameters for ListClusters.
+type ListClustersParams struct {
+	// NamespaceId Limit to clusters in one namespace
+	NamespaceId *string `form:"namespace_id,omitempty" json:"namespace_id,omitempty"`
+}
 
 // SearchComponentsParams defines parameters for SearchComponents.
 type SearchComponentsParams struct {
@@ -2828,6 +2995,15 @@ type GetVulnerabilityParams struct {
 
 // CreateApiKeyJSONRequestBody defines body for CreateApiKey for application/json ContentType.
 type CreateApiKeyJSONRequestBody = CreateAPIKeyInputBody
+
+// CreateClusterJSONRequestBody defines body for CreateCluster for application/json ContentType.
+type CreateClusterJSONRequestBody = CreateClusterInputBody
+
+// UpdateClusterJSONRequestBody defines body for UpdateCluster for application/json ContentType.
+type UpdateClusterJSONRequestBody = UpdateClusterInputBody
+
+// PutClusterInventoryJSONRequestBody defines body for PutClusterInventory for application/json ContentType.
+type PutClusterInventoryJSONRequestBody = PutInventoryInputBody
 
 // CreateNamespaceJSONRequestBody defines body for CreateNamespace for application/json ContentType.
 type CreateNamespaceJSONRequestBody = CreateNamespaceInputBody

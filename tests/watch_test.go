@@ -84,6 +84,9 @@ func artifactWatched(t *testing.T, baseURL, apiKey, artifactID string) bool {
 	return body.Watched
 }
 
+// artifactWatchMigrationVersion is the goose version of 00058_artifact_watch.sql.
+const artifactWatchMigrationVersion = 58
+
 // TestArtifactWatchMigrationRollsBack exercises the down half of 00058, which
 // nothing else in the suite would: every other test only ever migrates up, so a
 // broken Down statement ships unnoticed until somebody actually needs to roll
@@ -121,7 +124,11 @@ func TestArtifactWatchMigrationRollsBack(t *testing.T) {
 	is := is.New(t)
 	is.True(tableExists())
 
-	if err := goose.Down(sqlDB, "migrations"); err != nil {
+	// DownTo the version below 00058 rather than a bare Down. A bare Down rolls
+	// back whichever migration happens to be last, so adding any later migration
+	// made this assert on that migration's schema instead of artifact_watch's —
+	// which is exactly how 00059 broke it.
+	if err := goose.DownTo(sqlDB, "migrations", artifactWatchMigrationVersion-1); err != nil {
 		t.Fatalf("rolling back: %v", err)
 	}
 	is.Equal(tableExists(), false)

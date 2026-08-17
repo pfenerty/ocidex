@@ -1,0 +1,265 @@
+package api
+
+import (
+	"context"
+	"time"
+
+	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/pfenerty/ocidex/internal/service"
+)
+
+// ListClusters returns the clusters visible to the caller, optionally scoped to
+// one namespace. Like sources, visibility is resolved entirely through the
+// owning namespace (ADR-039, ADR-044 K6).
+func (h *Handler) ListClusters(ctx context.Context, in *ListClustersInput) (*ListClustersOutput, error) {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+
+	if in.NamespaceID != "" {
+		ns, err := h.namespaceService.Get(ctx, in.NamespaceID)
+		if err != nil {
+			return nil, huma.Error404NotFound("namespace not found")
+		}
+		if !canManageNamespace(user, ns) && ns.Visibility == visibilityPrivate {
+			return nil, huma.Error404NotFound("namespace not found")
+		}
+		rows, err := h.clusterService.ListByNamespace(ctx, in.NamespaceID)
+		if err != nil {
+			return nil, mapServiceError(err)
+		}
+		out := &ListClustersOutput{}
+		out.Body.Data = make([]ClusterResponse, len(rows))
+		for i, c := range rows {
+			c.NamespaceName = ns.Name
+			out.Body.Data[i] = toClusterResponse(c)
+		}
+		return out, nil
+	}
+
+	return h.listClusters(ctx, visibilityFilterFromContext(ctx))
+}
+
+// ListMyClusters returns only the clusters in namespaces the caller owns.
+func (h *Handler) ListMyClusters(ctx context.Context, _ *ListMyClustersInput) (*ListClustersOutput, error) {
+	if _, ok := UserFromContext(ctx); !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	return h.listClusters(ctx, ownedFilterFromContext(ctx))
+}
+
+func (h *Handler) listClusters(ctx context.Context, vis service.VisibilityFilter) (*ListClustersOutput, error) {
+	rows, err := h.clusterService.List(ctx, vis)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	out := &ListClustersOutput{}
+	out.Body.Data = make([]ClusterResponse, len(rows))
+	for i, c := range rows {
+		out.Body.Data[i] = toClusterResponse(c)
+	}
+	return out, nil
+}
+
+// GetCluster returns one cluster, gated on its namespace's visibility.
+func (h *Handler) GetCluster(ctx context.Context, in *GetClusterInput) (*GetClusterOutput, error) {
+	cluster, err := h.visibleCluster(ctx, in.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &GetClusterOutput{Body: toClusterResponse(cluster)}, nil
+}
+
+// CreateCluster registers a cluster in a namespace the caller owns.
+func (h *Handler) CreateCluster(ctx context.Context, in *CreateClusterInput) (*CreateClusterOutput, error) {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return nil, huma.Error401Unauthorized("not authenticated")
+	}
+	if err := h.namespaceOwnerCheck(ctx, user, in.Body.NamespaceID); err != nil {
+		return nil, err
+	}
+	cluster, err := h.clusterService.Create(ctx, service.CreateClusterParams{
+		NamespaceID: in.Body.NamespaceID,
+		Name:        in.Body.Name,
+		Description: in.Body.Description,
+	})
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &CreateClusterOutput{Body: toClusterResponse(cluster)}, nil
+}
+
+// UpdateCluster renames or re-describes a cluster.
+func (h *Handler) UpdateCluster(ctx context.Context, in *UpdateClusterInput) (*UpdateClusterOutput, error) {
+	if err := h.clusterOwnerCheck(ctx, in.ID); err != nil {
+		return nil, err
+	}
+	cluster, err := h.clusterService.Update(ctx, service.UpdateClusterParams{
+		ID:          in.ID,
+		Name:        in.Body.Name,
+		Description: in.Body.Description,
+	})
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &UpdateClusterOutput{Body: toClusterResponse(cluster)}, nil
+}
+
+// DeleteCluster removes a cluster and its reported inventory. The SBOMs its
+// workloads matched are untouched — inventory is derived state about a cluster,
+// not about the catalogue.
+func (h *Handler) DeleteCluster(ctx context.Context, in *DeleteClusterInput) (*struct{}, error) {
+	if err := h.clusterOwnerCheck(ctx, in.ID); err != nil {
+		return nil, err
+	}
+	if err := h.clusterService.Delete(ctx, in.ID); err != nil {
+		return nil, mapServiceError(err)
+	}
+	return nil, nil
+}
+
+// PutInventory replaces a cluster's workload set with the pushed snapshot.
+//
+// Ownership, not mere visibility, is required: a public namespace makes a
+// cluster's inventory readable by anyone, and it must not thereby make it
+// writable by anyone.
+func (h *Handler) PutInventory(ctx context.Context, in *PutInventoryInput) (*PutInventoryOutput, error) {
+	if err := h.clusterOwnerCheck(ctx, in.ID); err != nil {
+		return nil, err
+	}
+
+	workloads := make([]service.ReportedWorkload, len(in.Body.Workloads))
+	for i, w := range in.Body.Workloads {
+		workloads[i] = service.ReportedWorkload{
+			K8sNamespace:  w.K8sNamespace,
+			WorkloadKind:  w.WorkloadKind,
+			WorkloadName:  w.WorkloadName,
+			ContainerName: w.ContainerName,
+			ImageRef:      w.ImageRef,
+			ImageDigest:   w.ImageDigest,
+			PodCount:      w.PodCount,
+		}
+	}
+
+	pruned, err := h.clusterService.ReplaceInventory(ctx, in.ID, workloads)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	out := &PutInventoryOutput{}
+	out.Body.Accepted = len(workloads)
+	out.Body.Pruned = pruned
+	out.Body.SeenAt = time.Now().UTC().Format(time.RFC3339)
+	return out, nil
+}
+
+// ListClusterWorkloads returns what a cluster is running, each row joined to
+// the SBOM its digest matches, together with the coverage counts.
+func (h *Handler) ListClusterWorkloads(ctx context.Context, in *ListClusterWorkloadsInput) (*ListClusterWorkloadsOutput, error) {
+	if _, err := h.visibleCluster(ctx, in.ID); err != nil {
+		return nil, err
+	}
+
+	vis := visibilityFilterFromContext(ctx)
+	rows, err := h.clusterService.ListWorkloads(ctx, in.ID, vis)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	coverage, err := h.clusterService.Coverage(ctx, in.ID, vis)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	out := &ListClusterWorkloadsOutput{}
+	out.Body.Data = make([]ClusterWorkloadResponse, len(rows))
+	for i, w := range rows {
+		out.Body.Data[i] = toWorkloadResponse(w)
+	}
+	out.Body.Coverage = WorkloadCoverageResponse{
+		Total:        coverage.Total,
+		Matched:      coverage.Matched,
+		Unknown:      coverage.Unknown,
+		Unresolvable: coverage.Unresolvable,
+	}
+	return out, nil
+}
+
+// visibleCluster loads a cluster and 404s if the caller cannot see its
+// namespace. 404 rather than 403 so a private cluster's existence is not
+// confirmed to someone who cannot see it.
+func (h *Handler) visibleCluster(ctx context.Context, id string) (service.Cluster, error) {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return service.Cluster{}, huma.Error401Unauthorized("not authenticated")
+	}
+	cluster, err := h.clusterService.Get(ctx, id)
+	if err != nil {
+		return service.Cluster{}, huma.Error404NotFound("cluster not found")
+	}
+	ns, err := h.namespaceService.Get(ctx, cluster.NamespaceID)
+	if err != nil {
+		return service.Cluster{}, huma.Error404NotFound("cluster not found")
+	}
+	if !canManageNamespace(user, ns) && ns.Visibility == visibilityPrivate {
+		return service.Cluster{}, huma.Error404NotFound("cluster not found")
+	}
+	cluster.NamespaceName = ns.Name
+	return cluster, nil
+}
+
+// clusterOwnerCheck requires the caller to own the namespace the cluster hangs
+// from. This is the ClassOwner enforcement point for every cluster mutation
+// including inventory push, which is a mutation even though it reads like a
+// report (ADR-044 K8).
+func (h *Handler) clusterOwnerCheck(ctx context.Context, id string) error {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return huma.Error401Unauthorized("not authenticated")
+	}
+	cluster, err := h.clusterService.Get(ctx, id)
+	if err != nil {
+		return huma.Error404NotFound("cluster not found")
+	}
+	return h.namespaceOwnerCheck(ctx, user, cluster.NamespaceID)
+}
+
+func toClusterResponse(c service.Cluster) ClusterResponse {
+	out := ClusterResponse{
+		ID:            c.ID,
+		NamespaceID:   c.NamespaceID,
+		NamespaceName: c.NamespaceName,
+		Name:          c.Name,
+		Description:   c.Description,
+		CreatedAt:     c.CreatedAt.UTC().Format(time.RFC3339),
+		UpdatedAt:     c.UpdatedAt.UTC().Format(time.RFC3339),
+	}
+	if c.LastSeenAt != nil {
+		out.LastSeenAt = c.LastSeenAt.UTC().Format(time.RFC3339)
+	}
+	return out
+}
+
+func toWorkloadResponse(w service.ClusterWorkload) ClusterWorkloadResponse {
+	return ClusterWorkloadResponse{
+		ID:             w.ID,
+		ClusterID:      w.ClusterID,
+		K8sNamespace:   w.K8sNamespace,
+		WorkloadKind:   w.WorkloadKind,
+		WorkloadName:   w.WorkloadName,
+		ContainerName:  w.ContainerName,
+		ImageRef:       w.ImageRef,
+		ImageDigest:    w.ImageDigest,
+		PodCount:       w.PodCount,
+		FirstSeenAt:    w.FirstSeenAt.UTC().Format(time.RFC3339),
+		LastSeenAt:     w.LastSeenAt.UTC().Format(time.RFC3339),
+		MatchState:     w.MatchState,
+		SBOMID:         w.SBOMID,
+		ArtifactID:     w.ArtifactID,
+		ArtifactName:   w.ArtifactName,
+		ArtifactType:   w.ArtifactType,
+		SubjectVersion: w.SubjectVersion,
+	}
+}

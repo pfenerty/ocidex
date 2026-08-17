@@ -115,6 +115,31 @@ type SourceRepository interface {
 	DeleteSource(ctx context.Context, id pgtype.UUID) (int64, error)
 }
 
+// ClusterRepository defines data access methods for the Kubernetes deployment
+// inventory (ADR-044). A cluster is owned by a namespace and has no visibility
+// of its own, so the read methods take the viewer's identity rather than
+// trusting the caller to filter afterwards.
+//
+// The snapshot write path (UpsertClusterWorkload + PruneClusterWorkloads +
+// TouchClusterLastSeen) is only correct when all three run in one transaction
+// against the same observed_at — see ClusterService.ReplaceInventory.
+type ClusterRepository interface {
+	CreateCluster(ctx context.Context, arg CreateClusterParams) (Cluster, error)
+	GetCluster(ctx context.Context, id pgtype.UUID) (Cluster, error)
+	GetClusterByName(ctx context.Context, arg GetClusterByNameParams) (Cluster, error)
+	ListClustersByNamespace(ctx context.Context, namespaceID pgtype.UUID) ([]Cluster, error)
+	ListClusters(ctx context.Context, arg ListClustersParams) ([]ListClustersRow, error)
+	UpdateCluster(ctx context.Context, arg UpdateClusterParams) (Cluster, error)
+	DeleteCluster(ctx context.Context, id pgtype.UUID) (int64, error)
+
+	UpsertClusterWorkload(ctx context.Context, arg UpsertClusterWorkloadParams) error
+	PruneClusterWorkloads(ctx context.Context, arg PruneClusterWorkloadsParams) (int64, error)
+	TouchClusterLastSeen(ctx context.Context, arg TouchClusterLastSeenParams) error
+
+	ListClusterWorkloads(ctx context.Context, arg ListClusterWorkloadsParams) ([]ListClusterWorkloadsRow, error)
+	GetClusterWorkloadCoverage(ctx context.Context, arg GetClusterWorkloadCoverageParams) (GetClusterWorkloadCoverageRow, error)
+}
+
 // RegistryRepository defines data access methods for registry management.
 type RegistryRepository interface {
 	CreateRegistry(ctx context.Context, arg CreateRegistryParams) (Registry, error)

@@ -336,6 +336,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/clusters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List clusters
+         * @description Kubernetes clusters visible to the caller, optionally scoped to one namespace.
+         */
+        get: operations["list-clusters"];
+        put?: never;
+        /**
+         * Register a cluster
+         * @description Registers a Kubernetes cluster that an agent will report running workloads for.
+         */
+        post: operations["create-cluster"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clusters/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a cluster */
+        get: operations["get-cluster"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a cluster
+         * @description Removes the cluster and the inventory it has reported. Ingested SBOMs are untouched.
+         */
+        delete: operations["delete-cluster"];
+        options?: never;
+        head?: never;
+        /** Rename a cluster */
+        patch: operations["update-cluster"];
+        trace?: never;
+    };
+    "/api/v1/clusters/{id}/inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Push a cluster inventory snapshot
+         * @description Replaces the cluster's workload set with the complete snapshot in the body. Workloads absent from the body are deleted.
+         */
+        post: operations["put-cluster-inventory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clusters/{id}/workloads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List running workloads
+         * @description What the cluster last reported running, each row joined to the SBOM its image digest matches, with coverage counts for the workloads that matched nothing.
+         */
+        get: operations["list-cluster-workloads"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/components": {
         parameters: {
             query?: never;
@@ -1090,6 +1176,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users/me/clusters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List my clusters
+         * @description Clusters in namespaces the caller owns.
+         */
+        get: operations["list-my-clusters"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/me/drift-feed": {
         parameters: {
             query?: never;
@@ -1513,6 +1619,48 @@ export interface components {
             summary: components["schemas"]["ChangeSummary"];
             to: components["schemas"]["SBOMRef"];
         };
+        ClusterResponse: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ClusterResponse.json
+             */
+            readonly $schema?: string;
+            created_at: string;
+            description?: string;
+            id: string;
+            /** @description When an agent last pushed a snapshot. Empty means no agent has ever reported: a cluster showing no workloads for this reason is not a cluster running nothing. */
+            last_seen_at?: string;
+            name: string;
+            namespace_id: string;
+            /** @description Owning namespace name; populated on list responses */
+            namespace_name?: string;
+            updated_at: string;
+        };
+        ClusterWorkloadResponse: {
+            artifact_id?: string;
+            artifact_name?: string;
+            artifact_type?: string;
+            cluster_id: string;
+            container_name: string;
+            first_seen_at: string;
+            id: string;
+            image_digest?: string;
+            image_ref: string;
+            k8s_namespace: string;
+            last_seen_at: string;
+            /**
+             * @description exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)
+             * @enum {string}
+             */
+            match_state: "exact" | "index" | "unknown" | "unresolvable";
+            /** Format: int32 */
+            pod_count: number;
+            sbom_id?: string;
+            subject_version?: string;
+            workload_kind: string;
+            workload_name: string;
+        };
         ComponentDetail: {
             /**
              * Format: uri
@@ -1657,6 +1805,22 @@ export interface components {
             readonly $schema?: string;
             /** @description Full API key — shown once, store securely */
             key: string;
+        };
+        CreateClusterInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/CreateClusterInputBody.json
+             */
+            readonly $schema?: string;
+            description?: string;
+            /** @description Cluster name, unique within the namespace */
+            name: string;
+            /**
+             * Format: uuid
+             * @description Owning namespace UUID
+             */
+            namespace_id: string;
         };
         CreateNamespaceInputBody: {
             /**
@@ -2115,6 +2279,23 @@ export interface components {
              */
             status: string;
         };
+        InventoryWorkload: {
+            container_name: string;
+            /** @description Normalized digest from status.containerStatuses[].imageID. Omit when the agent could not extract one — that is reported as 'unresolvable', not silently dropped. */
+            image_digest?: string;
+            /** @description Image reference, for display only. Never used as an identity: a tag is mutable. */
+            image_ref: string;
+            /** @description Kubernetes namespace the workload runs in */
+            k8s_namespace: string;
+            /**
+             * Format: int32
+             * @description Running pods carrying this container at this digest
+             */
+            pod_count: number;
+            /** @description Owning workload kind (Deployment, StatefulSet, DaemonSet, Job, CronJob, Pod) */
+            workload_kind: string;
+            workload_name: string;
+        };
         KeyMetaResponse: {
             /** Format: date-time */
             created_at: string;
@@ -2197,6 +2378,25 @@ export interface components {
             readonly $schema?: string;
             data: components["schemas"]["ArtifactSummary"][] | null;
             pagination: components["schemas"]["CursorMeta"];
+        };
+        ListClusterWorkloadsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListClusterWorkloadsOutputBody.json
+             */
+            readonly $schema?: string;
+            coverage: components["schemas"]["WorkloadCoverageResponse"];
+            data: components["schemas"]["ClusterWorkloadResponse"][] | null;
+        };
+        ListClustersOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListClustersOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["ClusterResponse"][] | null;
         };
         ListComponentPurlTypesOutputBody: {
             /**
@@ -2463,6 +2663,36 @@ export interface components {
             newStatus: string;
             previousStatus: string;
             reason: string;
+        };
+        PutInventoryInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/PutInventoryInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description The complete set of running container images. Omitted entries are pruned. */
+            workloads: components["schemas"]["InventoryWorkload"][] | null;
+        };
+        PutInventoryOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/PutInventoryOutputBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Workload rows in the snapshot
+             */
+            accepted: number;
+            /**
+             * Format: int64
+             * @description Rows deleted because the snapshot no longer reports them
+             */
+            pruned: number;
+            /** @description Timestamp recorded on the cluster */
+            seen_at: string;
         };
         ReadinessCheckOutputBody: {
             /**
@@ -2819,6 +3049,16 @@ export interface components {
             severity: string;
             summary?: string;
         };
+        UpdateClusterInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/UpdateClusterInputBody.json
+             */
+            readonly $schema?: string;
+            description?: string;
+            name: string;
+        };
         UpdateNamespaceInputBody: {
             /**
              * Format: uri
@@ -3009,6 +3249,22 @@ export interface components {
             summary?: string;
             version?: string;
             vulnerabilityId?: string;
+        };
+        WorkloadCoverageResponse: {
+            /** Format: int64 */
+            matched: number;
+            /** Format: int64 */
+            total: number;
+            /**
+             * Format: int64
+             * @description Valid digests with no ingested SBOM: a coverage gap
+             */
+            unknown: number;
+            /**
+             * Format: int64
+             * @description Containers whose imageID yielded no digest: an agent or runtime gap
+             */
+            unresolvable: number;
         };
     };
     responses: never;
@@ -3665,6 +3921,237 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-clusters": {
+        parameters: {
+            query?: {
+                /** @description Limit to clusters in one namespace */
+                namespace_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListClustersOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "create-cluster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateClusterInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClusterResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-cluster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cluster UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClusterResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "delete-cluster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cluster UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-cluster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cluster UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateClusterInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClusterResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "put-cluster-inventory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cluster UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PutInventoryInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PutInventoryOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-cluster-workloads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cluster UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListClusterWorkloadsOutputBody"];
+                };
             };
             /** @description Error */
             default: {
@@ -5410,6 +5897,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListArtifactsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-my-clusters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListClustersOutputBody"];
                 };
             };
             /** @description Error */

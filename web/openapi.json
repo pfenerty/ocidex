@@ -518,6 +518,132 @@
         ],
         "type": "object"
       },
+      "ClusterResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ClusterResponse.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_seen_at": {
+            "description": "When an agent last pushed a snapshot. Empty means no agent has ever reported: a cluster showing no workloads for this reason is not a cluster running nothing.",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "namespace_id": {
+            "type": "string"
+          },
+          "namespace_name": {
+            "description": "Owning namespace name; populated on list responses",
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "namespace_id",
+          "name",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "ClusterWorkloadResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_id": {
+            "type": "string"
+          },
+          "artifact_name": {
+            "type": "string"
+          },
+          "artifact_type": {
+            "type": "string"
+          },
+          "cluster_id": {
+            "type": "string"
+          },
+          "container_name": {
+            "type": "string"
+          },
+          "first_seen_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "image_digest": {
+            "type": "string"
+          },
+          "image_ref": {
+            "type": "string"
+          },
+          "k8s_namespace": {
+            "type": "string"
+          },
+          "last_seen_at": {
+            "type": "string"
+          },
+          "match_state": {
+            "description": "exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)",
+            "enum": [
+              "exact",
+              "index",
+              "unknown",
+              "unresolvable"
+            ],
+            "type": "string"
+          },
+          "pod_count": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sbom_id": {
+            "type": "string"
+          },
+          "subject_version": {
+            "type": "string"
+          },
+          "workload_kind": {
+            "type": "string"
+          },
+          "workload_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "cluster_id",
+          "k8s_namespace",
+          "workload_kind",
+          "workload_name",
+          "container_name",
+          "image_ref",
+          "pod_count",
+          "first_seen_at",
+          "last_seen_at",
+          "match_state"
+        ],
+        "type": "object"
+      },
       "ComponentDetail": {
         "additionalProperties": false,
         "properties": {
@@ -932,6 +1058,40 @@
         },
         "required": [
           "key"
+        ],
+        "type": "object"
+      },
+      "CreateClusterInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/CreateClusterInputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 500,
+            "type": "string"
+          },
+          "name": {
+            "description": "Cluster name, unique within the namespace",
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "namespace_id": {
+            "description": "Owning namespace UUID",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "namespace_id",
+          "name"
         ],
         "type": "object"
       },
@@ -2207,6 +2367,59 @@
         ],
         "type": "object"
       },
+      "InventoryWorkload": {
+        "additionalProperties": false,
+        "properties": {
+          "container_name": {
+            "maxLength": 253,
+            "minLength": 1,
+            "type": "string"
+          },
+          "image_digest": {
+            "description": "Normalized digest from status.containerStatuses[].imageID. Omit when the agent could not extract one — that is reported as 'unresolvable', not silently dropped.",
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "image_ref": {
+            "description": "Image reference, for display only. Never used as an identity: a tag is mutable.",
+            "maxLength": 2048,
+            "minLength": 1,
+            "type": "string"
+          },
+          "k8s_namespace": {
+            "description": "Kubernetes namespace the workload runs in",
+            "maxLength": 253,
+            "minLength": 1,
+            "type": "string"
+          },
+          "pod_count": {
+            "description": "Running pods carrying this container at this digest",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "workload_kind": {
+            "description": "Owning workload kind (Deployment, StatefulSet, DaemonSet, Job, CronJob, Pod)",
+            "maxLength": 63,
+            "minLength": 1,
+            "type": "string"
+          },
+          "workload_name": {
+            "maxLength": 253,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "k8s_namespace",
+          "workload_kind",
+          "workload_name",
+          "container_name",
+          "image_ref",
+          "pod_count"
+        ],
+        "type": "object"
+      },
       "KeyMetaResponse": {
         "additionalProperties": false,
         "properties": {
@@ -2440,6 +2653,64 @@
         "required": [
           "data",
           "pagination"
+        ],
+        "type": "object"
+      },
+      "ListClusterWorkloadsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListClusterWorkloadsOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/WorkloadCoverageResponse"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ClusterWorkloadResponse"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data",
+          "coverage"
+        ],
+        "type": "object"
+      },
+      "ListClustersOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListClustersOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ClusterResponse"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data"
         ],
         "type": "object"
       },
@@ -3197,6 +3468,68 @@
           "newStatus",
           "reason",
           "detectedAt"
+        ],
+        "type": "object"
+      },
+      "PutInventoryInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/PutInventoryInputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "workloads": {
+            "description": "The complete set of running container images. Omitted entries are pruned.",
+            "items": {
+              "$ref": "#/components/schemas/InventoryWorkload"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "workloads"
+        ],
+        "type": "object"
+      },
+      "PutInventoryOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/PutInventoryOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "accepted": {
+            "description": "Workload rows in the snapshot",
+            "format": "int64",
+            "type": "integer"
+          },
+          "pruned": {
+            "description": "Rows deleted because the snapshot no longer reports them",
+            "format": "int64",
+            "type": "integer"
+          },
+          "seen_at": {
+            "description": "Timestamp recorded on the cluster",
+            "type": "string"
+          }
+        },
+        "required": [
+          "accepted",
+          "pruned",
+          "seen_at"
         ],
         "type": "object"
       },
@@ -4154,6 +4487,33 @@
         ],
         "type": "object"
       },
+      "UpdateClusterInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/UpdateClusterInputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 500,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
       "UpdateNamespaceInputBody": {
         "additionalProperties": false,
         "properties": {
@@ -4673,6 +5033,36 @@
           "artifactName",
           "artifactType",
           "sbomId"
+        ],
+        "type": "object"
+      },
+      "WorkloadCoverageResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "matched": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unknown": {
+            "description": "Valid digests with no ingested SBOM: a coverage gap",
+            "format": "int64",
+            "type": "integer"
+          },
+          "unresolvable": {
+            "description": "Containers whose imageID yielded no digest: an agent or runtime gap",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "matched",
+          "unknown",
+          "unresolvable"
         ],
         "type": "object"
       }
@@ -5696,6 +6086,322 @@
         "summary": "Delete API key",
         "tags": [
           "Auth"
+        ]
+      }
+    },
+    "/api/v1/clusters": {
+      "get": {
+        "description": "Kubernetes clusters visible to the caller, optionally scoped to one namespace.",
+        "operationId": "list-clusters",
+        "parameters": [
+          {
+            "description": "Limit to clusters in one namespace",
+            "explode": false,
+            "in": "query",
+            "name": "namespace_id",
+            "schema": {
+              "description": "Limit to clusters in one namespace",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListClustersOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List clusters",
+        "tags": [
+          "Clusters"
+        ]
+      },
+      "post": {
+        "description": "Registers a Kubernetes cluster that an agent will report running workloads for.",
+        "operationId": "create-cluster",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClusterInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterResponse"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Register a cluster",
+        "tags": [
+          "Clusters"
+        ]
+      }
+    },
+    "/api/v1/clusters/{id}": {
+      "delete": {
+        "description": "Removes the cluster and the inventory it has reported. Ingested SBOMs are untouched.",
+        "operationId": "delete-cluster",
+        "parameters": [
+          {
+            "description": "Cluster UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Cluster UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Delete a cluster",
+        "tags": [
+          "Clusters"
+        ]
+      },
+      "get": {
+        "operationId": "get-cluster",
+        "parameters": [
+          {
+            "description": "Cluster UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Cluster UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Get a cluster",
+        "tags": [
+          "Clusters"
+        ]
+      },
+      "patch": {
+        "operationId": "update-cluster",
+        "parameters": [
+          {
+            "description": "Cluster UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Cluster UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateClusterInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Rename a cluster",
+        "tags": [
+          "Clusters"
+        ]
+      }
+    },
+    "/api/v1/clusters/{id}/inventory": {
+      "post": {
+        "description": "Replaces the cluster's workload set with the complete snapshot in the body. Workloads absent from the body are deleted.",
+        "operationId": "put-cluster-inventory",
+        "parameters": [
+          {
+            "description": "Cluster UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Cluster UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutInventoryInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PutInventoryOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Push a cluster inventory snapshot",
+        "tags": [
+          "Clusters"
+        ]
+      }
+    },
+    "/api/v1/clusters/{id}/workloads": {
+      "get": {
+        "description": "What the cluster last reported running, each row joined to the SBOM its image digest matches, with coverage counts for the workloads that matched nothing.",
+        "operationId": "list-cluster-workloads",
+        "parameters": [
+          {
+            "description": "Cluster UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Cluster UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListClusterWorkloadsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List running workloads",
+        "tags": [
+          "Clusters"
         ]
       }
     },
@@ -8511,6 +9217,38 @@
         "summary": "List my artifacts",
         "tags": [
           "Auth"
+        ]
+      }
+    },
+    "/api/v1/users/me/clusters": {
+      "get": {
+        "description": "Clusters in namespaces the caller owns.",
+        "operationId": "list-my-clusters",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListClustersOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List my clusters",
+        "tags": [
+          "Clusters"
         ]
       }
     },

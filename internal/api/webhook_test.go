@@ -46,7 +46,7 @@ func newWebhookHandler(sub api.ScanSubmitter) *api.Handler {
 		ScanMode:      "webhook",
 		WebhookSecret: &secret,
 	}}
-	return api.NewHandler(nil, nil, nil, regSvc, nil, nil, nil, nil, nil, &fakePinger{}, sub, nil)
+	return api.NewHandler(nil, nil, nil, regSvc, nil, nil, nil, nil, nil, nil, &fakePinger{}, sub, nil)
 }
 
 // TestHandleRegistryWebhook_SkipsCosignTags verifies that a cosign signature or
