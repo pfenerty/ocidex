@@ -1,0 +1,88 @@
+# OCIDex cluster inventory agent Helm values.
+#
+# This is a SEPARATE chart from charts/ocidex, not a gated Deployment inside it, because
+# the agent's install target is a different cluster from OCIDex's (ADR-044 K1): the whole
+# point of a push-based agent is that it runs where the workloads run, which is usually a
+# cluster with no OCIDex deployment, no database and no NATS. A values toggle inside
+# charts/ocidex would tie the agent's release cadence to the server's and make "install the
+# agent into cluster B" mean "install a disabled copy of the entire OCIDex chart into
+# cluster B". charts/ocidex-operator is the same shape for the same reason.
+#
+# Required: server.url and cluster.id must be set.
+
+image:
+  repository: ghcr.io/pfenerty/ocidex-k8s-agent
+  # tag defaults to Chart.appVersion (set to sha-<short> or vX.Y.Z at package time).
+  # Override with --set image.tag=<tag> to pin a specific version.
+  tag: ""
+  pullPolicy: IfNotPresent
+  # digest pins the agent image to an immutable sha256 digest and is baked in at
+  # release-package time by the helm-release CI task (release builds only; empty for
+  # main/dev sha builds). An explicit image.tag takes precedence over digest.
+  digest: ""
+
+# server.url is the base URL of the OCIDex API server (OCIDEX_SERVER). Unlike the other
+# charts this is usually a cluster-EXTERNAL URL, since OCIDex generally runs elsewhere.
+# Example: "https://ocidex.app"
+server:
+  url: ""
+
+# apiKey configures where the agent reads its OCIDex API key (OCIDEX_API_KEY). The key
+# needs the read-write scope and must belong to a user who owns the namespace the cluster
+# is registered under (ADR-044 K8 — no new per-resource scope).
+apiKey:
+  secretName: ocidex-k8s-agent-secrets
+  secretKey: OCIDEX_API_KEY
+
+cluster:
+  # id is the UUID of the cluster record in OCIDex (OCIDEX_CLUSTER_ID). Register the
+  # cluster first (UI, or POST /api/v1/clusters) and paste its id here.
+  #
+  # Supplied rather than discovered: a Kubernetes cluster has no stable self-identifier
+  # the agent could derive, and a guessed one would let a redeployed agent silently start
+  # replacing a different cluster's inventory.
+  id: ""
+
+# namespaces restricts the agent to the namespaces listed here. Empty means every
+# namespace, which is the intended default.
+#
+# Narrowing this list does not merely stop reporting the dropped namespaces — each push is
+# a full snapshot that REPLACES the cluster's inventory (ADR-044 K7), so the next push
+# prunes their workloads. That is correct behaviour, but it is a deletion, not a filter.
+namespaces: []
+
+# reportInterval is how often the long-lived agent pushes a snapshot
+# (OCIDEX_REPORT_INTERVAL). Inventory changes at deployment speed, not request speed, so
+# minutes is the right unit; every push is a full snapshot, so a missed one self-heals.
+reportInterval: 5m
+
+logLevel: info
+environment: production
+
+resources:
+  requests:
+    cpu: "25m"
+    memory: "64Mi"
+  limits:
+    cpu: "200m"
+    memory: "128Mi"
+
+# podSecurityContext / securityContext default to the settings the PodSecurity
+# "restricted" profile requires, so the chart installs cleanly into a namespace labelled
+# pod-security.kubernetes.io/enforce=restricted.
+#
+# runAsNonRoot needs no accompanying runAsUser — docker/Dockerfile builds the agent on
+# gcr.io/distroless/static-debian13:nonroot, which declares USER 65532, and the kubelet
+# reads the non-root assertion off the image config.
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+# readOnlyRootFilesystem is not required by "restricted" — it is defence in depth, and
+# safe here because the agent writes nothing to disk: it lists pods and POSTs a snapshot.
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  readOnlyRootFilesystem: true

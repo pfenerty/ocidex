@@ -1,0 +1,20 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ocidex-k8s-agent.fullname" . }}
+  labels:
+    {{- include "ocidex-k8s-agent.labels" . | nindent 4 }}
+# Pods, read-only, and nothing else. The agent resolves each pod's owning workload from
+# the pod itself — the pod-template-hash label makes stripping a ReplicaSet suffix exact
+# rather than a guess — so it needs no read access to replicasets, deployments or jobs
+# (ADR-044). Secrets, configmaps and pod logs are never read, which is what makes this
+# safe to install in a cluster whose operators do not run OCIDex.
+#
+# `list` is the verb the agent calls today (paged, cluster-wide or per allowed namespace).
+# `watch` is included so a later switch to an informer-backed lister needs no RBAC change
+# in every target cluster; a watch returns the same pod objects a list does, so it grants
+# no read surface beyond `list`.
+rules:
+- apiGroups: [""]
+  resources: [pods]
+  verbs: [list, watch]

@@ -46,6 +46,7 @@ const shippedBinaries = [
   "user-enricher-worker",
   "provenance-worker",
   "vuln-worker",
+  "k8s-agent",
   "operator",
   "ocidex-cli",
 ];

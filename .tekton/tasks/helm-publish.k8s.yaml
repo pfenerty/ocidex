@@ -64,8 +64,13 @@ spec:
           --version "${VERSION}" \
           --app-version "sha-${SHORT_SHA}"
 
+        helm package charts/ocidex-k8s-agent \
+          --version "${VERSION}" \
+          --app-version "sha-${SHORT_SHA}"
+
         helm push "ocidex-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
         helm push "ocidex-operator-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
+        helm push "ocidex-k8s-agent-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
         )
         __tek_rc=$?
         if [ "$__tek_rc" -ne 0 ]; then log "error [helm-publish/helm-package-push]: exited with status $__tek_rc"; fi

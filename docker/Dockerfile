@@ -19,9 +19,9 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 
 # ---- Shared build stage ------------------------------------------------------
-# One compile for all nine shipped binaries. The dependency graph (cosign/sigstore-go and its
+# One compile for all ten shipped binaries. The dependency graph (cosign/sigstore-go and its
 # ~786 transitive deps, per ADR-037) dominates compile time, so compiling it once and linking
-# nine mains replaces nine cold compiles of the same graph. The serial image chain shares one
+# ten mains replaces ten cold compiles of the same graph. The serial image chain shares one
 # buildkit root, so only the first image build runs this stage; the rest hit it CACHED.
 #
 # Do not switch to ./cmd/... — that would also build specgen, dbcheck and the backfill tools,
@@ -45,6 +45,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       ./cmd/user-enricher-worker \
       ./cmd/provenance-worker \
       ./cmd/vuln-worker \
+      ./cmd/k8s-agent \
       ./cmd/operator \
       ./cmd/ocidex-cli
 
@@ -78,6 +79,13 @@ ENTRYPOINT ["/provenance-worker"]
 FROM gcr.io/distroless/static-debian13:nonroot AS vuln-worker
 COPY --from=build-all /app/bin/vuln-worker /vuln-worker
 ENTRYPOINT ["/vuln-worker"]
+
+# The inventory agent runs in the cluster it reports on, which is not necessarily a cluster
+# OCIDex is deployed in (ADR-044 K1) — so it ships as its own image and its own chart
+# (charts/ocidex-k8s-agent) rather than as another Deployment in charts/ocidex.
+FROM gcr.io/distroless/static-debian13:nonroot AS k8s-agent
+COPY --from=build-all /app/bin/k8s-agent /k8s-agent
+ENTRYPOINT ["/k8s-agent"]
 
 FROM gcr.io/distroless/static-debian13:nonroot AS operator
 COPY --from=build-all /app/bin/operator /operator

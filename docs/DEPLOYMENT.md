@@ -371,6 +371,57 @@ ocidex-dev`, and `server.url` pointed at
 `http://ocidex-dev-api.ocidex-dev.svc.cluster.local`. It needs its own Secret
 carrying `OCIDEX_API_KEY`.
 
+### Cluster inventory agent (separate chart, per target cluster)
+
+`charts/ocidex-k8s-agent` reports which images are running in a cluster (ADR-044). It is a
+**separate chart, installed once per cluster you want inventoried** — including clusters that
+have no OCIDex deployment at all, which is the normal case and the reason it is not a toggle
+inside `charts/ocidex`. It needs no database, no NATS and no CRDs; it lists pods and POSTs a
+snapshot to the API over HTTP.
+
+Install (repeat per cluster, against that cluster's kubeconfig context):
+
+```bash
+# 1. Register the cluster in OCIDex (UI, or the API) and note the returned id.
+curl -fsS -X POST https://ocidex.app/api/v1/clusters \
+  -H "Authorization: Bearer $OCIDEX_API_KEY" -H 'Content-Type: application/json' \
+  -d '{"name":"prod-eu","namespace_id":"<namespace-uuid>"}'
+
+# 2. Create the API key Secret in the target cluster. read-write scope, owned by a user
+#    who owns the namespace the cluster is registered under (ADR-044 K8).
+kubectl create namespace ocidex-agent
+kubectl -n ocidex-agent create secret generic ocidex-k8s-agent-secrets \
+  --from-literal=OCIDEX_API_KEY="$OCIDEX_API_KEY"
+
+# 3. Install the chart.
+helm install ocidex-k8s-agent oci://ghcr.io/pfenerty/charts/ocidex-k8s-agent \
+  -n ocidex-agent \
+  --set server.url=https://ocidex.app \
+  --set cluster.id=<cluster-uuid>
+```
+
+`server.url` is usually cluster-**external** here, unlike every other chart in this repo —
+the agent reaches OCIDex across clusters, so that URL must be routable from the target
+cluster and its TLS chain must validate there.
+
+Verify: `kubectl -n ocidex-agent logs deploy/ocidex-k8s-agent` shows an `inventory reported`
+line with `pods`, `workloads`, `unresolvable`, `accepted` and `pruned` counts, and the
+cluster's `last_seen_at` advances in OCIDex. A non-zero `unresolvable` count is a real
+signal, not noise: those pods' `imageID`s carry no registry-addressable digest (a
+dockershim-era node runtime, typically) and their images can never be matched to an SBOM.
+
+Two operational notes that look like bugs and are not:
+
+- Every push **replaces** the cluster's whole inventory (ADR-044 K7). Narrowing
+  `namespaces` therefore *deletes* the dropped namespaces' workloads on the next push.
+- Two agents must never report for one `cluster.id`. The Deployment sets `maxSurge: 0` for
+  that reason; installing the chart twice against the same id makes the stored inventory
+  alternate between the two agents' snapshots.
+
+**One-shot / CronJob mode**: the binary also accepts `--once` (push one snapshot, exit
+0/1 — ADR-027). The chart renders the long-lived Deployment only; if you want the CronJob
+shape, run the image with `args: ["--once"]` and the same env block.
+
 ---
 
 ## Update procedure

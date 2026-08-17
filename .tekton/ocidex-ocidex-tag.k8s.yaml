@@ -6,7 +6,7 @@ metadata:
     pipelinesascode.tekton.dev/max-keep-runs: "5"
     pipelinesascode.tekton.dev/on-event: "[push]"
     pipelinesascode.tekton.dev/on-target-branch: "[refs/tags/*]"
-    pipelinesascode.tekton.dev/task: "[.tekton/tasks/set-status-pending-ocidex-push.k8s.yaml, .tekton/tasks/git-clone.k8s.yaml, .tekton/tasks/gofmt-check.k8s.yaml, .tekton/tasks/go-test.k8s.yaml, .tekton/tasks/go-build.k8s.yaml, .tekton/tasks/openapi-verify.k8s.yaml, .tekton/tasks/eslint-lint-web.k8s.yaml, .tekton/tasks/go-integration-test.k8s.yaml, .tekton/tasks/govulncheck-scan.k8s.yaml, .tekton/tasks/grype-vuln-web.k8s.yaml, .tekton/tasks/gitleaks-secrets.k8s.yaml, .tekton/tasks/semgrep-sast.k8s.yaml, .tekton/tasks/image-build-api.k8s.yaml, .tekton/tasks/image-build-scanner-worker.k8s.yaml, .tekton/tasks/image-build-oci-metadata-worker.k8s.yaml, .tekton/tasks/image-build-git-worker.k8s.yaml, .tekton/tasks/image-build-user-enricher-worker.k8s.yaml, .tekton/tasks/image-build-provenance-worker.k8s.yaml, .tekton/tasks/image-build-vuln-worker.k8s.yaml, .tekton/tasks/image-build-web.k8s.yaml, .tekton/tasks/image-build-operator.k8s.yaml, .tekton/tasks/image-build-cli.k8s.yaml, .tekton/tasks/helm-check.k8s.yaml, .tekton/tasks/helm-publish.k8s.yaml, .tekton/tasks/sbom-push.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-pull-request.k8s.yaml, .tekton/tasks/detect-go.k8s.yaml, .tekton/tasks/detect-node.k8s.yaml, .tekton/tasks/detect-source.k8s.yaml, .tekton/tasks/detect-pipeline.k8s.yaml, .tekton/tasks/detect-charts.k8s.yaml, .tekton/tasks/tekton-check.k8s.yaml, .tekton/tasks/resolve-skipped-status-ocidex-pull-request.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-tag.k8s.yaml, .tekton/tasks/image-release-api.k8s.yaml, .tekton/tasks/image-release-scanner-worker.k8s.yaml, .tekton/tasks/image-release-oci-metadata-worker.k8s.yaml, .tekton/tasks/image-release-git-worker.k8s.yaml, .tekton/tasks/image-release-user-enricher-worker.k8s.yaml, .tekton/tasks/image-release-provenance-worker.k8s.yaml, .tekton/tasks/image-release-vuln-worker.k8s.yaml, .tekton/tasks/image-release-web.k8s.yaml, .tekton/tasks/image-release-operator.k8s.yaml, .tekton/tasks/image-release-cli.k8s.yaml, .tekton/tasks/helm-release.k8s.yaml, .tekton/tasks/gh-release.k8s.yaml]"
+    pipelinesascode.tekton.dev/task: "[.tekton/tasks/set-status-pending-ocidex-push.k8s.yaml, .tekton/tasks/git-clone.k8s.yaml, .tekton/tasks/gofmt-check.k8s.yaml, .tekton/tasks/go-test.k8s.yaml, .tekton/tasks/go-build.k8s.yaml, .tekton/tasks/openapi-verify.k8s.yaml, .tekton/tasks/eslint-lint-web.k8s.yaml, .tekton/tasks/go-integration-test.k8s.yaml, .tekton/tasks/govulncheck-scan.k8s.yaml, .tekton/tasks/grype-vuln-web.k8s.yaml, .tekton/tasks/gitleaks-secrets.k8s.yaml, .tekton/tasks/semgrep-sast.k8s.yaml, .tekton/tasks/image-build-api.k8s.yaml, .tekton/tasks/image-build-scanner-worker.k8s.yaml, .tekton/tasks/image-build-oci-metadata-worker.k8s.yaml, .tekton/tasks/image-build-git-worker.k8s.yaml, .tekton/tasks/image-build-user-enricher-worker.k8s.yaml, .tekton/tasks/image-build-provenance-worker.k8s.yaml, .tekton/tasks/image-build-vuln-worker.k8s.yaml, .tekton/tasks/image-build-web.k8s.yaml, .tekton/tasks/image-build-k8s-agent.k8s.yaml, .tekton/tasks/image-build-operator.k8s.yaml, .tekton/tasks/image-build-cli.k8s.yaml, .tekton/tasks/helm-check.k8s.yaml, .tekton/tasks/helm-publish.k8s.yaml, .tekton/tasks/sbom-push.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-pull-request.k8s.yaml, .tekton/tasks/detect-go.k8s.yaml, .tekton/tasks/detect-node.k8s.yaml, .tekton/tasks/detect-source.k8s.yaml, .tekton/tasks/detect-pipeline.k8s.yaml, .tekton/tasks/detect-charts.k8s.yaml, .tekton/tasks/tekton-check.k8s.yaml, .tekton/tasks/resolve-skipped-status-ocidex-pull-request.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-tag.k8s.yaml, .tekton/tasks/image-release-api.k8s.yaml, .tekton/tasks/image-release-scanner-worker.k8s.yaml, .tekton/tasks/image-release-oci-metadata-worker.k8s.yaml, .tekton/tasks/image-release-git-worker.k8s.yaml, .tekton/tasks/image-release-user-enricher-worker.k8s.yaml, .tekton/tasks/image-release-provenance-worker.k8s.yaml, .tekton/tasks/image-release-vuln-worker.k8s.yaml, .tekton/tasks/image-release-web.k8s.yaml, .tekton/tasks/image-release-k8s-agent.k8s.yaml, .tekton/tasks/image-release-operator.k8s.yaml, .tekton/tasks/image-release-cli.k8s.yaml, .tekton/tasks/helm-release.k8s.yaml, .tekton/tasks/gh-release.k8s.yaml]"
   name: ocidex-ocidex-tag
 spec:
   params:
@@ -298,7 +298,7 @@ spec:
             workspace: buildkit-release-cache
           - name: workspace
             workspace: workspace
-      - name: image-release-operator
+      - name: image-release-k8s-agent
         params:
           - name: repo-full-name
             value: $(params.repo-full-name)
@@ -309,6 +309,26 @@ spec:
           - go-integration-test
           - openapi-verify
           - image-release-web
+          - set-status-pending-ocidex-tag
+        taskRef:
+          kind: Task
+          name: ocidex-image-release-k8s-agent
+        workspaces:
+          - name: buildkit-release-cache
+            workspace: buildkit-release-cache
+          - name: workspace
+            workspace: workspace
+      - name: image-release-operator
+        params:
+          - name: repo-full-name
+            value: $(params.repo-full-name)
+          - name: revision
+            value: $(params.revision)
+        runAfter:
+          - go-test
+          - go-integration-test
+          - openapi-verify
+          - image-release-k8s-agent
           - set-status-pending-ocidex-tag
         taskRef:
           kind: Task
@@ -367,6 +387,7 @@ spec:
           - image-release-provenance-worker
           - image-release-vuln-worker
           - image-release-web
+          - image-release-k8s-agent
           - image-release-operator
           - image-release-cli
           - helm-check
@@ -392,6 +413,7 @@ spec:
           - image-release-provenance-worker
           - image-release-vuln-worker
           - image-release-web
+          - image-release-k8s-agent
           - image-release-operator
           - image-release-cli
           - set-status-pending-ocidex-tag

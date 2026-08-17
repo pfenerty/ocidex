@@ -26,5 +26,10 @@ helm package charts/ocidex-operator \
   --version "${VERSION}" \
   --app-version "sha-${SHORT_SHA}"
 
+helm package charts/ocidex-k8s-agent \
+  --version "${VERSION}" \
+  --app-version "sha-${SHORT_SHA}"
+
 helm push "ocidex-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
 helm push "ocidex-operator-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
+helm push "ocidex-k8s-agent-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts

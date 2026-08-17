@@ -19,6 +19,7 @@ build: ## Build the Go binaries
 	go build -o $(BUILD_DIR)/provenance-worker ./cmd/provenance-worker
 	go build -o $(BUILD_DIR)/git-worker ./cmd/git-worker
 	go build -o $(BUILD_DIR)/vuln-worker ./cmd/vuln-worker
+	go build -o $(BUILD_DIR)/k8s-agent ./cmd/k8s-agent
 	go build -o $(BUILD_DIR)/operator ./cmd/operator
 	go build -o $(BUILD_DIR)/ocidex-cli ./cmd/ocidex-cli
 

@@ -1,0 +1,19 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "ocidex-k8s-agent.fullname" . }}
+  labels:
+    {{- include "ocidex-k8s-agent.labels" . | nindent 4 }}
+# Bound cluster-wide even when .Values.namespaces narrows what the agent reports: the
+# allowlist is an application-level filter, and a namespace can be added to it later
+# without re-granting RBAC. A cluster-scoped read of pods is the permission the inventory
+# needs to be complete, and an inventory that silently omits namespaces the agent cannot
+# see would read as "nothing running there" (ADR-044 K5).
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "ocidex-k8s-agent.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "ocidex-k8s-agent.fullname" . }}
+    namespace: {{ .Release.Namespace }}

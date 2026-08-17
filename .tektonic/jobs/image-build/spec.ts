@@ -236,6 +236,7 @@ const imageSpecs: ImageSpec[] = [
   ["provenance-worker", "docker/Dockerfile", "OCIDex Provenance Worker", "OCI image provenance verification worker", "provenance-worker"],
   ["vuln-worker", "docker/Dockerfile", "OCIDex Vulnerability Worker", "Scheduled OSV.dev vulnerability store refresher", "vuln-worker"],
   ["web", "docker/web/Dockerfile", "OCIDex Web UI", "SolidJS frontend for OCIDex"],
+  ["k8s-agent", "docker/Dockerfile", "OCIDex K8s Inventory Agent", "Reports the images running in a Kubernetes cluster to OCIDex", "k8s-agent"],
   ["operator", "docker/Dockerfile", "OCIDex Operator", "Kubernetes operator for OCIDex CRDs", "operator"],
   // Named "cli", not "ocidex-cli": imageEnv prefixes with `ocidex-`, so this publishes
   // ghcr.io/pfenerty/ocidex-cli alongside its nine siblings (ocidex-5dw).

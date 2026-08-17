@@ -100,14 +100,26 @@ spec:
         echo "resolved $op_ref -> $op_digest"
         sed -i "s|^  digest: \"\"\$|  digest: ${op_digest}|" charts/ocidex-operator/values.yaml
 
+        # Agent chart: single image, scalar image.digest, same shape as the operator.
+        agent_ref="ghcr.io/pfenerty/ocidex-k8s-agent:${TAG}"
+        agent_digest=$(/tmp/crane digest "$agent_ref")
+        if [ -z "$agent_digest" ]; then
+          echo "ERROR: could not resolve digest for $agent_ref" >&2
+          exit 1
+        fi
+        echo "resolved $agent_ref -> $agent_digest"
+        sed -i "s|^  digest: \"\"\$|  digest: ${agent_digest}|" charts/ocidex-k8s-agent/values.yaml
+
         echo "--- charts/ocidex/values.yaml image block ---"
         grep -A 12 '^image:' charts/ocidex/values.yaml
 
         # --- Package and push --------------------------------------------------------
         helm package charts/ocidex --version "${VERSION}" --app-version "${TAG}"
         helm package charts/ocidex-operator --version "${VERSION}" --app-version "${TAG}"
+        helm package charts/ocidex-k8s-agent --version "${VERSION}" --app-version "${TAG}"
         helm push "ocidex-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
         helm push "ocidex-operator-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
+        helm push "ocidex-k8s-agent-${VERSION}.tgz" oci://ghcr.io/pfenerty/charts
         )
         __tek_rc=$?
         if [ "$__tek_rc" -ne 0 ]; then log "error [helm-release/helm-package-push]: exited with status $__tek_rc"; fi

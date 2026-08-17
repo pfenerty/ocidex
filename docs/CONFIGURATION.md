@@ -196,9 +196,10 @@ no OCIDex deployment of its own, and talks only to the OCIDex API over HTTP.
 | `HEALTH_ADDR` | `:9090` | Liveness/readiness listen address (`/healthz`, `/readyz`). |
 | `LOG_LEVEL`, `ENVIRONMENT` | `info`, `development` | As elsewhere. |
 
-RBAC: `get`/`list` on `pods` cluster-wide (or in the allowlisted namespaces). Nothing else —
-workload ownership is resolved from the pod's own `ownerReferences` and `pod-template-hash`
-label rather than by reading ReplicaSets.
+RBAC: `list`/`watch` on `pods` cluster-wide, and nothing else — workload ownership is resolved
+from the pod's own `ownerReferences` and `pod-template-hash` label rather than by reading
+ReplicaSets. `charts/ocidex-k8s-agent` ships exactly that ClusterRole; see
+[DEPLOYMENT.md § Cluster inventory agent](DEPLOYMENT.md#cluster-inventory-agent-separate-chart-per-target-cluster).
 
 **One-shot mode** (`--once` flag): pushes a single snapshot and exits 0, or exits 1 on
 failure. Suitable for a CronJob.

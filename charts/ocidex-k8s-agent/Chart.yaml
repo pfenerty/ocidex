@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ocidex-k8s-agent
+description: Cluster inventory agent — reports the images running in this cluster to OCIDex.
+type: application
+version: 0.1.0
+appVersion: "latest"

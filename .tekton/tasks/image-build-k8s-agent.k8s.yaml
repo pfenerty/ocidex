@@ -1,0 +1,299 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-image-build-k8s-agent
+  namespace: ocidex-ci
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+    - name: revision
+      type: string
+  results:
+    - description: Fully-qualified reference of the k8s-agent image (Tekton Chains subject)
+      name: k8s-agent-IMAGE_URL
+      type: string
+    - description: Digest (alg:hex) of the k8s-agent image (Tekton Chains subject)
+      name: k8s-agent-IMAGE_DIGEST
+      type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    imagePullPolicy: Always
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    workingDir: $(workspaces.workspace.path)
+  steps:
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: prepare-buildkit-root
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        if not ("/tekton/home/.exit-code" | path exists) { try { "0" | save -f /tekton/home/.exit-code } }
+        try { ^chmod 0666 /tekton/home/.exit-code }
+        def main [] {
+        mkdir "$(workspaces.buildkit-cache.path)/root"
+        ^chmod 0777 "$(workspaces.buildkit-cache.path)/root"
+        '[worker.oci]
+          gc = true
+
+        [[worker.oci.gcpolicy]]
+          keepBytes = 15032385536
+          all = true
+        ' | save --force "$(workspaces.buildkit-cache.path)/buildkitd.toml"
+        # Size of the carried-over store, for tuning keepBytes against reality. Best-effort:
+        # a missing du must not fail the build.
+        try { ^du -sh "$(workspaces.buildkit-cache.path)/root" } catch { print "du unavailable" }
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error [image-build-k8s-agent/prepare-buildkit-root]: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
+    - computeResources:
+        limits:
+          cpu: 500m
+          memory: 256Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: prepare-build-context
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        if not ("/tekton/home/.exit-code" | path exists) { try { "0" | save -f /tekton/home/.exit-code } }
+        try { ^chmod 0666 /tekton/home/.exit-code }
+        def main [] {
+        let rev = "$(params.revision)"
+        let stamp = ".buildctx/.ctxrev"
+
+        if ($stamp | path exists) and (open --raw $stamp | str trim) == $rev {
+          log "build context already materialised for this revision"
+        } else {
+          rm --recursive --force ".buildctx"
+          rm --force ".buildctx.tar"
+          # Never pipe git archive into tar here: nushell coerces pipeline data to text and
+          # corrupts the tar stream. Stage it as a file instead.
+          #
+          # -c safe.directory: the workspace PVC's contents are not owned by this step's uid, so
+          # git's dubious-ownership guard refuses to operate on it. Passing the exemption on the
+          # command line keeps it scoped to this one invocation — writing it into a config file
+          # would need a writable GIT_CONFIG_GLOBAL that the other Go tasks already point elsewhere.
+          ^git -c safe.directory='*' archive --format=tar --output ".buildctx.tar" $rev
+          mkdir ".buildctx"
+          ^tar -xf ".buildctx.tar" -C ".buildctx"
+          rm --force ".buildctx.tar"
+          $rev | save --force $stamp
+          log "materialised clean build context"
+        }
+
+        # Written unconditionally, outside the guard above: the extraction is skipped for builds
+        # 2..n of a chain, but the date file must still exist on a workspace that predates it.
+        with-env {TZ: "UTC"} {
+          let created = (^git -c safe.directory='*' show -s --format=%cd --date=format-local:%Y-%m-%dT%H:%M:%SZ $rev | str trim)
+          $created | save --force ".buildctx.date"
+          log $"build-arg DATE pinned to commit time ($created)"
+        }
+        ^du -sh ".buildctx"
+        }
+        let __tek_rc = (try { main; 0 } catch { |e| print $"error [image-build-k8s-agent/prepare-build-context]: ($e.msg)"; 1 })
+        let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
+        let __tek_worst = ([$__tek_prev $__tek_rc] | math max)
+        $"($__tek_worst)" | save -f /tekton/home/.exit-code
+        exit $__tek_rc
+      workingDir: $(workspaces.workspace.path)
+    - computeResources:
+        limits:
+          cpu: "4"
+          memory: 3Gi
+        requests:
+          cpu: 500m
+          memory: 1Gi
+      env:
+        - name: DOCKER_CONFIG
+          value: /tmp/docker-auth
+        - name: BUILDKITD_FLAGS
+          value: --oci-worker-snapshotter=native --oci-worker-no-process-sandbox --root $(workspaces.buildkit-cache.path)/root --config $(workspaces.buildkit-cache.path)/buildkitd.toml
+        - name: CHAINS_IMAGE_URL_PATH
+          value: $(results.k8s-agent-IMAGE_URL.path)
+        - name: CHAINS_IMAGE_DIGEST_PATH
+          value: $(results.k8s-agent-IMAGE_DIGEST.path)
+        - name: IMAGE
+          value: ghcr.io/pfenerty/ocidex-k8s-agent
+        - name: DOCKERFILE
+          value: docker/Dockerfile
+        - name: IMAGE_TITLE
+          value: OCIDex K8s Inventory Agent
+        - name: IMAGE_DESCRIPTION
+          value: Reports the images running in a Kubernetes cluster to OCIDex
+        - name: TARGET
+          value: k8s-agent
+      image: moby/buildkit:rootless
+      name: build-and-push
+      onError: continue
+      script: |-
+        #!/bin/sh
+        log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+        [ -e /tekton/home/.exit-code ] || printf '%s' 0 > /tekton/home/.exit-code
+        chmod 0666 /tekton/home/.exit-code 2>/dev/null || true
+        (
+        # Push build: tags images as sha-<short> and main.
+        # Per-image values come from step env: DOCKERFILE, IMAGE, optional TARGET,
+        # IMAGE_TITLE, IMAGE_DESCRIPTION.
+        # buildctl's exit code is captured in $rc and re-exited after writing Chains hints.
+        # Context is .buildctx (the commit tree, written by the prepare-build-context step),
+        # not the shared workspace — see spec.ts.
+        #
+        # No --export-cache/--import-cache: the registry build cache was measured (ocidex-2vr.3) at
+        # 85-96s of export per build for zero CACHED steps on import. The persistent buildkitd root
+        # (ocidex-2vr.2) supersedes it — it caches both within a run and across runs on the same node,
+        # at no export cost. Do not re-add these flags without re-measuring both sides.
+        SHORT_SHA=$(echo "$(params.revision)" | cut -c1-8)
+        VERSION="main-$SHORT_SHA"
+        CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        # build-arg:DATE must be identical for every image in the chain, or docker/Dockerfile's shared
+        # build-all stage re-runs its `go build` for each one instead of hitting CACHED (ocidex-2j2).
+        # prepare-build-context pins it to the commit's own timestamp; the wall-clock CREATED above
+        # still feeds the OCI labels/annotations, which are applied at export and do not affect the
+        # build cache. Fallback covers a workspace materialised before this file existed.
+        SOURCE_DATE=$(cat .buildctx.date 2>/dev/null) || SOURCE_DATE=""
+        if [ -z "$SOURCE_DATE" ]; then SOURCE_DATE="$CREATED"; fi
+
+        # OCI metadata is applied entirely via buildctl CLI (no Dockerfile LABELs):
+        #   --opt label:KEY=VALUE      -> per-platform image config labels (docker inspect).
+        #     label: is a dockerfile FRONTEND opt; as an image EXPORTER (--output) attribute
+        #     buildkit silently ignores it, which is why labels were previously missing.
+        #   annotation-index.KEY=VALUE -> OCI annotations on the image index (read by GHCR).
+        A=org.opencontainers.image
+        SRC=https://github.com/pfenerty/ocidex
+        ANN="annotation-index.$A.version=$VERSION"
+        ANN="$ANN,annotation-index.$A.revision=$(params.revision)"
+        ANN="$ANN,annotation-index.$A.created=$CREATED"
+        ANN="$ANN,annotation-index.$A.source=$SRC"
+        ANN="$ANN,annotation-index.$A.url=$SRC"
+        ANN="$ANN,annotation-index.$A.licenses=MIT"
+        ANN="$ANN,annotation-index.$A.authors=Patrick Fenerty"
+        ANN="$ANN,annotation-index.$A.title=$IMAGE_TITLE"
+        ANN="$ANN,annotation-index.$A.description=$IMAGE_DESCRIPTION"
+
+        TARGET_OPT=""
+        if [ -n "$TARGET" ]; then TARGET_OPT="--opt target=$TARGET"; fi
+
+        buildctl-daemonless.sh build \
+          --frontend dockerfile.v0 \
+          --local context=.buildctx \
+          --local dockerfile=.buildctx \
+          --opt filename="$DOCKERFILE" \
+          $TARGET_OPT \
+          --opt platform=linux/amd64 \
+          --opt build-arg:VERSION="$VERSION" \
+          --opt build-arg:COMMIT="$(params.revision)" \
+          --opt build-arg:DATE="$SOURCE_DATE" \
+          --opt "label:$A.version=$VERSION" \
+          --opt "label:$A.revision=$(params.revision)" \
+          --opt "label:$A.created=$CREATED" \
+          --opt "label:$A.source=$SRC" \
+          --opt "label:$A.url=$SRC" \
+          --opt "label:$A.licenses=MIT" \
+          --opt "label:$A.authors=Patrick Fenerty" \
+          --opt "label:$A.title=$IMAGE_TITLE" \
+          --opt "label:$A.description=$IMAGE_DESCRIPTION" \
+          --opt attest:provenance=mode=max \
+          --opt attest:sbom= \
+          --metadata-file /tmp/buildctl-metadata.json \
+          --output "type=image,\"name=$IMAGE:sha-$SHORT_SHA,$IMAGE:main\",push=true,attestation-manifest-referrers=true,$ANN"
+        rc=$?
+
+        # Tekton Chains build-subject hints: record the pushed image ref + digest so Chains
+        # attests this run produced this image. Best-effort; never masks buildctl's exit.
+        if [ "$rc" -eq 0 ] && [ -n "$CHAINS_IMAGE_URL_PATH" ]; then
+          DIGEST=$(sed -n 's/.*"containerimage.digest": *"\([^"]*\)".*/\1/p' /tmp/buildctl-metadata.json | head -1)
+          printf '%s' "$IMAGE" > "$CHAINS_IMAGE_URL_PATH"
+          printf '%s' "$DIGEST" > "$CHAINS_IMAGE_DIGEST_PATH"
+        fi
+        exit "$rc"
+        )
+        __tek_rc=$?
+        if [ "$__tek_rc" -ne 0 ]; then log "error [image-build-k8s-agent/build-and-push]: exited with status $__tek_rc"; fi
+        __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
+        if [ "$__tek_rc" -gt "$__tek_prev" ]; then __tek_prev="$__tek_rc"; fi
+        printf '%s' "$__tek_prev" > /tekton/home/.exit-code
+        exit "$__tek_rc"
+      securityContext:
+        allowPrivilegeEscalation: true
+        capabilities:
+          add:
+            - SETUID
+            - SETGID
+          drop: []
+        runAsGroup: 1000
+        runAsUser: 1000
+        seccompProfile:
+          type: Unconfined
+      volumeMounts:
+        - mountPath: /tmp/docker-auth/config.json
+          name: docker-config
+          readOnly: true
+          subPath: .dockerconfigjson
+      workingDir: $(workspaces.workspace.path)
+    - env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: report-status
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let contract_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        # A step that never ran has no file; 0 keeps it out of the max.
+        let step_codes = (["/tekton/steps/step-prepare-buildkit-root/exitCode" "/tekton/steps/step-prepare-build-context/exitCode" "/tekton/steps/step-build-and-push/exitCode"] | each { |p| try { open --raw $p | str trim | into int } catch { 0 } })
+        let exit_code = ([$contract_code ...$step_codes] | math max)
+        let state = if $exit_code == 0 { "success" } else { "failure" }
+        let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
+
+        log $"report-status [image-build-k8s-agent]: exit-code=($exit_code) state=($state)"
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "image-build-k8s-agent", description: $desc }
+
+        log $"report-status [image-build-k8s-agent]: POST ($url)"
+        log $"report-status [image-build-k8s-agent]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "report-status [image-build-k8s-agent]: done"
+        } catch { |e|
+          log $"report-status [image-build-k8s-agent]: error: ($e.msg)"
+        }
+        exit $exit_code
+  volumes:
+    - name: docker-config
+      secret:
+        secretName: ghcr-docker-config
+  workspaces:
+    - name: buildkit-cache
+    - name: workspace

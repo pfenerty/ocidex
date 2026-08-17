@@ -16,6 +16,7 @@ set -e
 OUT=${1:-${TMPDIR:-/tmp}/ocidex-helm-policy-check}
 APP_CHART=charts/ocidex
 OPERATOR_CHART=charts/ocidex-operator
+AGENT_CHART=charts/ocidex-k8s-agent
 POLICIES="policy/pod-security-restricted.yaml policy/ocidex-writable-paths.yaml"
 
 command -v helm >/dev/null 2>&1 || {
@@ -39,7 +40,7 @@ rm -rf "$OUT"
 mkdir -p "$OUT"
 
 echo "==> helm lint"
-helm lint --strict "$APP_CHART" "$OPERATOR_CHART"
+helm lint --strict "$APP_CHART" "$OPERATOR_CHART" "$AGENT_CHART"
 
 # Render a matrix, not just the defaults: the optional features add and remove whole
 # templates, and a chart that only renders cleanly with its defaults is not verified.
@@ -61,6 +62,15 @@ helm template ocidex "$APP_CHART" \
     --set nats.storage.emptyDir=true \
     >"$OUT/app-minimal.yaml"
 helm template ocidex-operator "$OPERATOR_CHART" >"$OUT/operator-defaults.yaml"
+# The agent chart installs into a cluster nobody has configured yet as often as not, so the
+# defaults render is the one that matters; the second render exercises the namespace
+# allowlist, which is the only value that changes the rendered pod.
+helm template ocidex-k8s-agent "$AGENT_CHART" >"$OUT/k8s-agent-defaults.yaml"
+helm template ocidex-k8s-agent "$AGENT_CHART" \
+    --set server.url=https://ocidex.example.com \
+    --set cluster.id=00000000-0000-0000-0000-000000000000 \
+    --set 'namespaces={default,kube-system}' \
+    >"$OUT/k8s-agent-configured.yaml"
 
 echo "==> kyverno apply (rendered manifests must satisfy every policy)"
 for manifest in "$OUT"/*.yaml; do
