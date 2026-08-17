@@ -19,26 +19,33 @@ const (
 	StatsWarmInterval = 5 * time.Minute
 )
 
-type statsCacheEntry struct {
-	stats     *DashboardStats
+type ttlCacheEntry[T any] struct {
+	value     *T
 	expiresAt time.Time
 }
 
-// statsCache is a small TTL cache for dashboard stats, keyed by visibility
-// scope (different viewers see different data). Safe for concurrent use.
-type statsCache struct {
+// ttlCache is a small TTL cache for an out-of-band computed payload, keyed by
+// whatever scope distinguishes one payload from another. Safe for concurrent
+// use.
+type ttlCache[T any] struct {
 	mu    sync.Mutex
 	ttl   time.Duration
 	now   func() time.Time
-	items map[string]statsCacheEntry
+	items map[string]ttlCacheEntry[T]
 }
 
-func newStatsCache(ttl time.Duration) *statsCache {
-	return &statsCache{
+func newTTLCache[T any](ttl time.Duration) *ttlCache[T] {
+	return &ttlCache[T]{
 		ttl:   ttl,
 		now:   time.Now,
-		items: make(map[string]statsCacheEntry),
+		items: make(map[string]ttlCacheEntry[T]),
 	}
+}
+
+// newStatsCache is the dashboard-stats instantiation: keyed by visibility
+// scope, because different viewers see different data.
+func newStatsCache(ttl time.Duration) *ttlCache[DashboardStats] {
+	return newTTLCache[DashboardStats](ttl)
 }
 
 // statsCacheKey collapses a VisibilityFilter to the distinct data scopes:
@@ -61,18 +68,18 @@ func statsCacheKey(vis VisibilityFilter) string {
 }
 
 // get returns a non-expired cached payload, or nil on miss.
-func (c *statsCache) get(key string) *DashboardStats {
+func (c *ttlCache[T]) get(key string) *T {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	entry, ok := c.items[key]
 	if !ok || c.now().After(entry.expiresAt) {
 		return nil
 	}
-	return entry.stats
+	return entry.value
 }
 
-func (c *statsCache) set(key string, stats *DashboardStats) {
+func (c *ttlCache[T]) set(key string, value *T) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.items[key] = statsCacheEntry{stats: stats, expiresAt: c.now().Add(c.ttl)}
+	c.items[key] = ttlCacheEntry[T]{value: value, expiresAt: c.now().Add(c.ttl)}
 }

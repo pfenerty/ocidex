@@ -35,6 +35,8 @@ type SearchService interface {
 	ListComponentPurlTypes(ctx context.Context, vis VisibilityFilter) ([]string, error)
 	GetDashboardStats(ctx context.Context, vis VisibilityFilter) (*DashboardStats, error)
 	WarmDashboardStats(ctx context.Context, vis VisibilityFilter) (*DashboardStats, error)
+	GetDiscovery(ctx context.Context) (*Discovery, error)
+	WarmDiscovery(ctx context.Context) (*Discovery, error)
 	ListTopVulnerabilities(ctx context.Context, filter TopVulnFilter) (PagedResult[TopVulnEntry], error)
 	GetArtifactVulnSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (*VulnSummary, error)
 	GetArtifactUsages(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]ArtifactRelation, error)
@@ -602,9 +604,10 @@ type DependencyEdge struct {
 }
 
 type searchService struct {
-	db         repository.DBTX
-	warmDB     repository.DBTX
-	statsCache *statsCache
+	db            repository.DBTX
+	warmDB        repository.DBTX
+	statsCache    *ttlCache[DashboardStats]
+	discoverCache *ttlCache[Discovery]
 }
 
 // warmHandle is the database handle for out-of-band aggregates, falling back to
@@ -636,7 +639,12 @@ func WithWarmDB(db repository.DBTX) SearchOption {
 
 // NewSearchService creates a new SearchService.
 func NewSearchService(db repository.DBTX, opts ...SearchOption) SearchService {
-	s := &searchService{db: db, warmDB: db, statsCache: newStatsCache(statsCacheTTL)}
+	s := &searchService{
+		db:            db,
+		warmDB:        db,
+		statsCache:    newStatsCache(statsCacheTTL),
+		discoverCache: newTTLCache[Discovery](statsCacheTTL),
+	}
 	for _, opt := range opts {
 		opt(s)
 	}

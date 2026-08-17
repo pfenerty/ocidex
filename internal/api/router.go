@@ -122,6 +122,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	registerSourceOps(api, h)
 	registerClusterOps(api, h)
 	registerStatsOps(api, h)
+	registerDiscoverOps(api, h)
 	registerVulnOps(api, h)
 	registerJobOps(api, h)
 	registerAuthOps(r, api, h)
@@ -833,6 +834,27 @@ func registerStatsOps(api huma.API, h *Handler) {
 		Summary:     "Get dashboard summary statistics",
 		Tags:        []string{"Stats"},
 	}, h.GetDashboardStats)
+}
+
+// ---------------------------------------------------------------------------
+// Discovery
+// ---------------------------------------------------------------------------
+
+// registerDiscoverOps registers the public landing-page aggregate. No auth
+// middleware: the payload is identical for every caller, so a session would only
+// add a cost and a cache key without changing a byte of the response.
+func registerDiscoverOps(api huma.API, h *Handler) {
+	huma.Register(api, huma.Operation{
+		OperationID: "get-discovery",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/discover",
+		Summary:     "Get the public discovery payload",
+		Description: "Popular artifacts, recent activity, widest-blast-radius vulnerabilities " +
+			"and license spread across public namespaces only. Computed out of band; while " +
+			"the first snapshot is still being built the response reports warming with empty " +
+			"sections.",
+		Tags: []string{"Discovery"},
+	}, h.GetDiscovery)
 }
 
 // ---------------------------------------------------------------------------

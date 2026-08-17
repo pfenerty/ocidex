@@ -1373,6 +1373,78 @@ type DiffTree struct {
 	To      SBOMRef             `json:"to"`
 }
 
+// DiscoverArtifact defines model for DiscoverArtifact.
+type DiscoverArtifact struct {
+	Group        *string    `json:"group,omitempty"`
+	Id           string     `json:"id"`
+	LastSeenAt   *time.Time `json:"lastSeenAt,omitempty"`
+	Name         string     `json:"name"`
+	Purl         *string    `json:"purl,omitempty"`
+	SbomCount    int64      `json:"sbomCount"`
+	Score        float64    `json:"score"`
+	Type         string     `json:"type"`
+	UsageCount   int64      `json:"usageCount"`
+	VersionCount int64      `json:"versionCount"`
+}
+
+// DiscoverLicense defines model for DiscoverLicense.
+type DiscoverLicense struct {
+	Category       string  `json:"category"`
+	ComponentCount int64   `json:"componentCount"`
+	Id             string  `json:"id"`
+	Name           string  `json:"name"`
+	SpdxId         *string `json:"spdxId,omitempty"`
+}
+
+// DiscoverRecent defines model for DiscoverRecent.
+type DiscoverRecent struct {
+	ArtifactId     string    `json:"artifactId"`
+	CreatedAt      time.Time `json:"createdAt"`
+	Digest         *string   `json:"digest,omitempty"`
+	Flavor         *string   `json:"flavor,omitempty"`
+	Group          *string   `json:"group,omitempty"`
+	Name           string    `json:"name"`
+	SbomId         string    `json:"sbomId"`
+	SubjectVersion *string   `json:"subjectVersion,omitempty"`
+	Type           string    `json:"type"`
+}
+
+// DiscoverVuln defines model for DiscoverVuln.
+type DiscoverVuln struct {
+	AffectedArtifactCount int64      `json:"affectedArtifactCount"`
+	AffectedSbomCount     int64      `json:"affectedSbomCount"`
+	CanonicalId           string     `json:"canonicalId"`
+	CvssScore             *float32   `json:"cvssScore,omitempty"`
+	Id                    string     `json:"id"`
+	PublishedAt           *time.Time `json:"publishedAt,omitempty"`
+	Severity              string     `json:"severity"`
+	Summary               *string    `json:"summary,omitempty"`
+}
+
+// DiscoveryOutputBody defines model for DiscoveryOutputBody.
+type DiscoveryOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// GeneratedAt When this snapshot was computed; absent while warming
+	GeneratedAt *string `json:"generated_at,omitempty"`
+
+	// LicenseSpread License distribution across public content, by distinct package identity
+	LicenseSpread *[]DiscoverLicense `json:"license_spread"`
+
+	// RecentArtifacts Most recently updated public artifacts, one row per artifact
+	RecentArtifacts *[]DiscoverRecent `json:"recent_artifacts"`
+
+	// TopArtifacts Artifacts ranked by how widely they are used, how many versions are tracked, and how recently they were seen
+	TopArtifacts *[]DiscoverArtifact `json:"top_artifacts"`
+
+	// TopVulnerabilities Vulnerabilities ranked by how many public artifacts they affect
+	TopVulnerabilities *[]DiscoverVuln `json:"top_vulnerabilities"`
+
+	// Warming No snapshot is available yet, so every section is empty because nothing is known — not because the catalog is empty; render a loading state and retry
+	Warming bool `json:"warming"`
+}
+
 // DistinctComponentSummary defines model for DistinctComponentSummary.
 type DistinctComponentSummary struct {
 	Group        *string   `json:"group,omitempty"`

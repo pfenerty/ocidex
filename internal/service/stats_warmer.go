@@ -86,8 +86,9 @@ func (w *StatsWarmer) Run(ctx context.Context) {
 	}
 }
 
-// tick recomputes each warmed scope in turn. Scopes run sequentially: they scan
-// the same tables, so overlapping them would only make each one slower.
+// tick recomputes each warmed scope in turn, then the public discovery payload.
+// Everything runs sequentially: these passes scan the same tables, so
+// overlapping them would only make each one slower.
 func (w *StatsWarmer) tick(ctx context.Context) {
 	for _, vis := range warmedScopes() {
 		if ctx.Err() != nil {
@@ -95,6 +96,10 @@ func (w *StatsWarmer) tick(ctx context.Context) {
 		}
 		w.warm(ctx, vis)
 	}
+	if ctx.Err() != nil {
+		return
+	}
+	w.warmDiscovery(ctx)
 }
 
 func (w *StatsWarmer) warm(ctx context.Context, vis VisibilityFilter) {
@@ -109,4 +114,18 @@ func (w *StatsWarmer) warm(ctx context.Context, vis VisibilityFilter) {
 		return
 	}
 	w.logger.Info("stats warmed", "scope", statsCacheKey(vis), "duration", time.Since(start))
+}
+
+// warmDiscovery refreshes the public discovery payload. There is only one scope
+// — the payload is identical for every caller — so it takes no VisibilityFilter.
+func (w *StatsWarmer) warmDiscovery(ctx context.Context) {
+	scopeCtx, cancel := context.WithTimeout(ctx, statsWarmTimeout)
+	defer cancel()
+
+	start := time.Now()
+	if _, err := w.svc.WarmDiscovery(scopeCtx); err != nil {
+		w.logger.Error("discovery warm failed", "duration", time.Since(start), "err", err)
+		return
+	}
+	w.logger.Info("discovery warmed", "duration", time.Since(start))
 }

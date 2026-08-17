@@ -14,7 +14,11 @@ import (
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
-type fakeSearchService struct{}
+type fakeSearchService struct {
+	// discovery overrides the payload GetDiscovery returns; nil means a warm
+	// snapshot with empty sections.
+	discovery *service.Discovery
+}
 
 func (f *fakeSearchService) GetSBOM(_ context.Context, _ pgtype.UUID, _ bool, _ service.VisibilityFilter) (service.SBOMDetail, error) {
 	return service.SBOMDetail{
@@ -178,6 +182,17 @@ func (f *fakeSearchService) GetDashboardStats(_ context.Context, _ service.Visib
 
 func (f *fakeSearchService) WarmDashboardStats(_ context.Context, _ service.VisibilityFilter) (*service.DashboardStats, error) {
 	return &service.DashboardStats{}, nil
+}
+
+func (f *fakeSearchService) GetDiscovery(_ context.Context) (*service.Discovery, error) {
+	if f.discovery != nil {
+		return f.discovery, nil
+	}
+	return &service.Discovery{GeneratedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)}, nil
+}
+
+func (f *fakeSearchService) WarmDiscovery(_ context.Context) (*service.Discovery, error) {
+	return &service.Discovery{}, nil
 }
 
 func (f *fakeSearchService) ListVersionsByArtifact(_ context.Context, _ pgtype.UUID, limit, offset int32, _ service.VersionSortMode, _ service.VisibilityFilter) (service.ArtifactVersionsPage, error) {
@@ -558,6 +573,71 @@ func TestGetDashboardStats(t *testing.T) {
 	is.Equal(body.VulnSeverity.Medium, int64(0))
 	is.Equal(body.VulnSeverity.Low, int64(0))
 	is.Equal(body.VulnSeverity.Unknown, int64(0))
+}
+
+// TestGetDiscoveryCacheControl pins the two cache dispositions apart. Serving a
+// warming payload as cacheable is the failure that matters: an edge would pin an
+// empty landing page in place for the whole max-age after the real snapshot was
+// already available.
+func TestGetDiscoveryCacheControl(t *testing.T) {
+	tests := []struct {
+		name      string
+		discovery *service.Discovery
+		wantCache string
+	}{
+		{"warm", nil, "public, max-age=60, stale-while-revalidate=300"},
+		{"warming", &service.Discovery{Warming: true}, "no-store"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{discovery: tt.discovery})
+
+			r := httptest.NewRequest(http.MethodGet, "/api/v1/discover", nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, r)
+
+			is.Equal(w.Code, http.StatusOK)
+			is.Equal(w.Header().Get("Cache-Control"), tt.wantCache)
+
+			var body struct {
+				TopArtifacts       []struct{ Name string } `json:"top_artifacts"`
+				RecentArtifacts    []struct{ Name string } `json:"recent_artifacts"`
+				TopVulnerabilities []struct{ ID string }   `json:"top_vulnerabilities"`
+				LicenseSpread      []struct{ Name string } `json:"license_spread"`
+				GeneratedAt        string                  `json:"generated_at"`
+				Warming            bool                    `json:"warming"`
+			}
+			is.NoErr(json.Unmarshal(w.Body.Bytes(), &body))
+			is.Equal(body.Warming, tt.discovery != nil)
+			// generated_at is meaningful only for a real snapshot; a warming
+			// response must not claim one.
+			is.Equal(body.GeneratedAt == "", body.Warming)
+		})
+	}
+}
+
+// TestGetDiscoveryIdenticalForEveryCaller is the cacheability precondition: the
+// endpoint takes no viewer input, so an authenticated request must get exactly
+// the bytes an anonymous one gets. If personalisation ever leaks in here, the
+// edge cache would start serving one user's view to everyone.
+func TestGetDiscoveryIdenticalForEveryCaller(t *testing.T) {
+	is := is.New(t)
+	router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
+
+	get := func(auth string) string {
+		r := httptest.NewRequest(http.MethodGet, "/api/v1/discover", nil)
+		if auth != "" {
+			r.Header.Set("Authorization", auth)
+		}
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, r)
+		is.Equal(w.Code, http.StatusOK)
+		return w.Body.String()
+	}
+
+	is.Equal(get(""), get("Bearer some-api-key"))
 }
 
 func TestGetArtifactLicenseSummary(t *testing.T) {

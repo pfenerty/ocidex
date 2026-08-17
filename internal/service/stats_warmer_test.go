@@ -18,10 +18,11 @@ import (
 type warmRecorder struct {
 	SearchService
 
-	mu     sync.Mutex
-	scopes []string
-	err    error
-	calls  chan struct{}
+	mu         sync.Mutex
+	scopes     []string
+	discovered int
+	err        error
+	calls      chan struct{}
 
 	// delay/before/after let a test observe how long a warm takes and how many
 	// run at once.
@@ -52,10 +53,39 @@ func (w *warmRecorder) WarmDashboardStats(_ context.Context, vis VisibilityFilte
 	return &DashboardStats{}, nil
 }
 
+// WarmDiscovery participates in before/after so the overlap test covers it too:
+// it runs in the same pass and against the same tables, so a pass that let it
+// overlap a scope warm would reintroduce exactly the pool exhaustion
+// TestStatsWarmerNeverOverlapsPasses guards against.
+func (w *warmRecorder) WarmDiscovery(_ context.Context) (*Discovery, error) {
+	if w.before != nil {
+		w.before()
+	}
+	if w.after != nil {
+		defer w.after()
+	}
+	if w.delay > 0 {
+		time.Sleep(w.delay)
+	}
+	w.mu.Lock()
+	w.discovered++
+	w.mu.Unlock()
+	if w.err != nil {
+		return nil, w.err
+	}
+	return &Discovery{}, nil
+}
+
 func (w *warmRecorder) seen() []string {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return append([]string(nil), w.scopes...)
+}
+
+func (w *warmRecorder) discoveries() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.discovered
 }
 
 func discardLogger() *slog.Logger {
@@ -99,6 +129,49 @@ func TestStatsWarmerWarmsBothSessionlessScopesOnStart(t *testing.T) {
 
 	cancel()
 	<-done
+}
+
+// The public discovery payload has no visibility scope, so it is not one of
+// warmedScopes() and would be silently left cold if the warmer only walked that
+// list — and a cold discovery cache means the landing page reports warming
+// forever, since GetDiscovery never computes on the request path.
+func TestStatsWarmerWarmsDiscoveryEachPass(t *testing.T) {
+	is := is.New(t)
+
+	rec := &warmRecorder{calls: make(chan struct{}, 64)}
+	w := NewStatsWarmer(rec, time.Millisecond, discardLogger())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		w.Run(ctx)
+		close(done)
+	}()
+	// Drain the scope handoffs so the passes can keep making progress.
+	drained := make(chan struct{})
+	go func() {
+		defer close(drained)
+		for range rec.calls {
+		}
+	}()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for rec.discoveries() < 2 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("warmer did not stop on context cancellation")
+	}
+	close(rec.calls)
+	<-drained
+
+	// Two, not one: the first proves it warms at all, the second that it keeps
+	// warming on the schedule rather than only at startup.
+	is.True(rec.discoveries() >= 2)
 }
 
 func TestStatsWarmerKeepsTickingAfterAFailure(t *testing.T) {

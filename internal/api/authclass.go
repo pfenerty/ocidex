@@ -143,6 +143,7 @@ var authRules = map[string]AuthRule{
 	"ingest-sbom":                  {Class: ClassMember, Write: true, Notes: "Caller must also own the namespace behind ?source= (resolveIngestSource)."},
 	"delete-sbom":                  {Class: ClassOwner, Write: true, Notes: "RequireSBOMOwner middleware."},
 	"get-dashboard-stats":          {Class: ClassPublic, Notes: noteVisFilter},
+	"get-discovery":                {Class: ClassPublic, Notes: "Public namespaces only, in SQL; no viewer parameter, so the response is identical for every caller."},
 	"get-artifact-changelog":       {Class: ClassPublic, Notes: noteVisFilter},
 	"get-artifact-license-summary": {Class: ClassPublic, Notes: noteVisFilter},
 

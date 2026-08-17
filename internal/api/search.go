@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/pfenerty/ocidex/internal/service"
@@ -612,6 +613,41 @@ func (h *Handler) GetDashboardStats(ctx context.Context, _ *struct{}) (*Dashboar
 		Low:      stats.VulnSeverity.Low,
 		Unknown:  stats.VulnSeverity.Unknown,
 	}
+	return out, nil
+}
+
+// GetDiscovery handles GET /api/v1/discover.
+//
+// It takes no visibility filter, deliberately: every query behind the payload is
+// scoped to public namespaces in SQL and takes no viewer parameter, so a
+// signed-in caller gets the same bytes an anonymous one does. Personalisation
+// lives on the dashboard endpoints, not here.
+func (h *Handler) GetDiscovery(ctx context.Context, _ *struct{}) (*DiscoveryOutput, error) {
+	discovery, err := h.searchService.GetDiscovery(ctx)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	out := &DiscoveryOutput{}
+	out.Body.TopArtifacts = discovery.TopArtifacts
+	out.Body.RecentArtifacts = discovery.RecentArtifacts
+	out.Body.TopVulnerabilities = discovery.TopVulnerabilities
+	out.Body.LicenseSpread = discovery.LicenseSpread
+	out.Body.Warming = discovery.Warming
+
+	if discovery.Warming {
+		// Nothing about a warming response is worth reusing, and caching it would
+		// outlive the condition that produced it.
+		out.CacheControl = "no-store"
+		return out, nil
+	}
+
+	out.Body.GeneratedAt = discovery.GeneratedAt.Format(time.RFC3339)
+	// The payload is identical for everyone and only changes when the warmer
+	// runs, so it is safe to cache publicly. max-age is well under
+	// StatsWarmInterval; stale-while-revalidate covers the refresh so no visitor
+	// waits on the origin for a landing page.
+	out.CacheControl = "public, max-age=60, stale-while-revalidate=300"
 	return out, nil
 }
 

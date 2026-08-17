@@ -96,6 +96,12 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 | GET | `/api/v1/components/{id}` | `get-component` | `public` |  | VisibilityFilter. |
 | GET | `/api/v1/components/{id}/vulns` | `get-component-vulns` | `public` |  | VisibilityFilter. |
 
+### Discovery
+
+| Method | Path | Operation | Class | Write | Notes |
+|---|---|---|---|---|---|
+| GET | `/api/v1/discover` | `get-discovery` | `public` |  | Public namespaces only, in SQL; no viewer parameter, so the response is identical for every caller. |
+
 ### Health
 
 | Method | Path | Operation | Class | Write | Notes |

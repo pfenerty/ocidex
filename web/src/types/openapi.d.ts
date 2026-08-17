@@ -524,6 +524,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the public discovery payload
+         * @description Popular artifacts, recent activity, widest-blast-radius vulnerabilities and license spread across public namespaces only. Computed out of band; while the first snapshot is still being built the response reports warming with empty sections.
+         */
+        get: operations["get-discovery"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/enrichment-jobs": {
         parameters: {
             query?: never;
@@ -2051,6 +2071,77 @@ export interface components {
             roots: string[] | null;
             summary: components["schemas"]["ChangeSummary"];
             to: components["schemas"]["SBOMRef"];
+        };
+        DiscoverArtifact: {
+            group?: string;
+            id: string;
+            /** Format: date-time */
+            lastSeenAt?: string;
+            name: string;
+            purl?: string;
+            /** Format: int64 */
+            sbomCount: number;
+            /** Format: double */
+            score: number;
+            type: string;
+            /** Format: int64 */
+            usageCount: number;
+            /** Format: int64 */
+            versionCount: number;
+        };
+        DiscoverLicense: {
+            category: string;
+            /** Format: int64 */
+            componentCount: number;
+            id: string;
+            name: string;
+            spdxId?: string;
+        };
+        DiscoverRecent: {
+            artifactId: string;
+            /** Format: date-time */
+            createdAt: string;
+            digest?: string;
+            flavor?: string;
+            group?: string;
+            name: string;
+            sbomId: string;
+            subjectVersion?: string;
+            type: string;
+        };
+        DiscoverVuln: {
+            /** Format: int64 */
+            affectedArtifactCount: number;
+            /** Format: int64 */
+            affectedSbomCount: number;
+            canonicalId: string;
+            /** Format: float */
+            cvssScore?: number;
+            id: string;
+            /** Format: date-time */
+            publishedAt?: string;
+            severity: string;
+            summary?: string;
+        };
+        DiscoveryOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/DiscoveryOutputBody.json
+             */
+            readonly $schema?: string;
+            /** @description When this snapshot was computed; absent while warming */
+            generated_at?: string;
+            /** @description License distribution across public content, by distinct package identity */
+            license_spread: components["schemas"]["DiscoverLicense"][] | null;
+            /** @description Most recently updated public artifacts, one row per artifact */
+            recent_artifacts: components["schemas"]["DiscoverRecent"][] | null;
+            /** @description Artifacts ranked by how widely they are used, how many versions are tracked, and how recently they were seen */
+            top_artifacts: components["schemas"]["DiscoverArtifact"][] | null;
+            /** @description Vulnerabilities ranked by how many public artifacts they affect */
+            top_vulnerabilities: components["schemas"]["DiscoverVuln"][] | null;
+            /** @description No snapshot is available yet, so every section is empty because nothing is known — not because the catalog is empty; render a loading state and retry */
+            warming: boolean;
         };
         DistinctComponentSummary: {
             group?: string;
@@ -4370,6 +4461,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GetComponentVulnsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-discovery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoveryOutputBody"];
                 };
             };
             /** @description Error */
