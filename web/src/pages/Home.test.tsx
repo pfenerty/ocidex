@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@solidjs/testing-library";
-import { useDashboardStats } from "~/api/queries";
+import { useDashboardStats, useDiscovery } from "~/api/queries";
 import Home from "~/pages/Home";
 import type { JSX } from "solid-js";
 
@@ -10,6 +10,7 @@ import type { JSX } from "solid-js";
 // HomeBand's own behaviour is covered in HomeBand.test.tsx.
 vi.mock("~/api/queries", () => ({
     useDashboardStats: vi.fn(),
+    useDiscovery: vi.fn(),
     useMyNamespaces: () => ({ data: undefined }),
     useMyDriftFeed: () => ({ data: undefined }),
     useWatches: () => ({ data: undefined }),
@@ -28,6 +29,95 @@ vi.mock("@solidjs/router", () => ({
 }));
 
 const mockUseStats = vi.mocked(useDashboardStats);
+const mockUseDiscovery = vi.mocked(useDiscovery);
+
+interface DiscoveryData {
+    top_artifacts: {
+        id: string;
+        type: string;
+        name: string;
+        usageCount: number;
+        versionCount: number;
+        sbomCount: number;
+        score: number;
+        purl?: string;
+    }[];
+    recent_artifacts: {
+        artifactId: string;
+        type: string;
+        name: string;
+        sbomId: string;
+        createdAt: string;
+        subjectVersion?: string;
+    }[];
+    top_vulnerabilities: {
+        id: string;
+        canonicalId: string;
+        severity: string;
+        affectedArtifactCount: number;
+        affectedSbomCount: number;
+        summary?: string;
+    }[];
+    license_spread: {
+        id: string;
+        name: string;
+        category: string;
+        componentCount: number;
+        spdxId?: string;
+    }[];
+    warming?: boolean;
+}
+
+interface DiscoveryQuery {
+    isError: boolean;
+    data: DiscoveryData | undefined;
+}
+
+/** A snapshot with one row in each section — enough to assert every link. */
+function populatedDiscovery(): DiscoveryData {
+    return {
+        top_artifacts: [
+            {
+                id: "art-1",
+                type: "container",
+                name: "alpine",
+                usageCount: 14,
+                versionCount: 3,
+                sbomCount: 9,
+                score: 12.5,
+            },
+        ],
+        recent_artifacts: [
+            {
+                artifactId: "art-2",
+                type: "container",
+                name: "nginx",
+                sbomId: "sbom-9",
+                createdAt: new Date().toISOString(),
+                subjectVersion: "1.27",
+            },
+        ],
+        top_vulnerabilities: [
+            {
+                id: "vuln-1",
+                canonicalId: "CVE-2024-1234",
+                severity: "CRITICAL",
+                affectedArtifactCount: 7,
+                affectedSbomCount: 21,
+            },
+        ],
+        license_spread: [
+            { id: "lic-1", name: "MIT License", category: "permissive", componentCount: 4210, spdxId: "MIT" },
+        ],
+    };
+}
+
+const emptyDiscovery: DiscoveryData = {
+    top_artifacts: [],
+    recent_artifacts: [],
+    top_vulnerabilities: [],
+    license_spread: [],
+};
 
 interface StatsQuery {
     isLoading: boolean;
@@ -44,9 +134,14 @@ interface StatsQuery {
         | undefined;
 }
 
-function renderHome(query: StatsQuery) {
+function renderHome(query: StatsQuery, discovery?: DiscoveryQuery) {
     // The component only reads these three fields off the query.
     mockUseStats.mockReturnValue(query as unknown as ReturnType<typeof useDashboardStats>);
+    mockUseDiscovery.mockReturnValue(
+        (discovery ?? { isError: false, data: emptyDiscovery }) as unknown as ReturnType<
+            typeof useDiscovery
+        >,
+    );
     return render(() => <Home />);
 }
 
@@ -99,8 +194,8 @@ describe("Home catalog stats", () => {
             },
         });
 
-        // Scoped to the chip row: the feature cards' copy also says "container
-        // images", so a page-wide link query matches more than the chip.
+        // Scoped to the chip row: the discovery panels link to /artifacts too,
+        // so a page-wide link query matches more than the chips.
         const chips = [...container.querySelectorAll(".landing-type")];
         expect(chips.map((c) => c.getAttribute("href"))).toEqual([
             "/artifacts?type=container",
@@ -146,5 +241,74 @@ describe("Home catalog stats", () => {
         });
         expect(container.querySelector(".skeleton")).not.toBeNull();
         expect(container.textContent).not.toContain("0 artifacts");
+    });
+});
+
+// --- live discovery panels (ocidex-q1z7.3) -----------------------------------
+
+const warmStats: StatsQuery = {
+    isLoading: false,
+    isError: false,
+    data: { artifact_count: 1, package_count: 1, license_count: 1, vuln_count: 1 },
+};
+
+describe("Home discovery panels", () => {
+    it("links every ranked row into its detail page", () => {
+        const { container, getByText } = renderHome(warmStats, {
+            isError: false,
+            data: populatedDiscovery(),
+        });
+
+        const hrefs = [...container.querySelectorAll(".landing-list-row a")].map((a) =>
+            a.getAttribute("href"),
+        );
+        expect(hrefs).toContain("/artifacts/art-1");
+        expect(hrefs).toContain("/artifacts/art-2");
+        // The recent row points at the SBOM that produced the timestamp, which
+        // is the thing that actually changed.
+        expect(hrefs).toContain("/sboms/sbom-9");
+        expect(hrefs).toContain("/vulnerabilities/CVE-2024-1234");
+        expect(hrefs).toContain("/licenses/lic-1/components");
+
+        expect(getByText("alpine")).toBeDefined();
+        expect(getByText("14 uses · 3 versions")).toBeDefined();
+        // Blast radius is reported in artifacts, not SBOMs: the SBOM count
+        // (21 here) double-counts every rescan of the same image.
+        expect(getByText("7 artifacts")).toBeDefined();
+        expect(container.textContent).not.toContain("21 sboms");
+    });
+
+    // A warming response is a successful 200 with four empty sections because
+    // the server has not measured the catalog yet. Rendering it as "nothing
+    // here" reports an empty catalog — the same failure the stats band guards.
+    it("shows the loading state, not empty panels, while the server is warming", () => {
+        const { container } = renderHome(warmStats, {
+            isError: false,
+            data: { ...emptyDiscovery, warming: true },
+        });
+
+        expect(container.querySelector(".landing-discover-loading")).not.toBeNull();
+        expect(container.querySelector(".landing-features-grid")).toBeNull();
+        expect(container.textContent).not.toContain("Nothing indexed yet");
+    });
+
+    it("says highlights are unavailable on error rather than rendering nothing", () => {
+        const { container } = renderHome(warmStats, { isError: true, data: undefined });
+
+        expect(container.textContent).toContain("Catalog highlights are unavailable");
+        expect(container.querySelector(".landing-features-grid")).toBeNull();
+        expect(container.querySelector(".landing-discover-loading")).toBeNull();
+    });
+
+    // The three states must stay distinguishable at the far end too: a warm
+    // snapshot of a genuinely empty catalog says so, and does not look like a
+    // page that is still loading.
+    it("says a section is empty when a warm snapshot has no rows", () => {
+        const { container } = renderHome(warmStats, { isError: false, data: emptyDiscovery });
+
+        expect(container.querySelector(".landing-features-grid")).not.toBeNull();
+        expect(container.querySelector(".landing-discover-loading")).toBeNull();
+        expect(container.textContent).toContain("Nothing indexed yet");
+        expect(container.textContent).toContain("No known vulnerabilities");
     });
 });

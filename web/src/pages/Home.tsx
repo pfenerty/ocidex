@@ -1,10 +1,11 @@
 import { A } from "@solidjs/router";
-import { Package, Layers, ShieldCheck, ArrowUpDown, ExternalLink, ShieldAlert } from "lucide-solid";
+import { ExternalLink } from "lucide-solid";
 import { For, Show } from "solid-js";
 import { Skeleton } from "~/components/Skeleton";
 import { TypeBadge } from "~/components/ui";
 import { useDashboardStats } from "~/api/queries";
 import { HomeBand } from "~/pages/Dashboard/HomeBand";
+import { HomeDiscovery } from "~/pages/HomeDiscovery";
 import "./Home.css";
 
 export default function Home() {
@@ -97,74 +98,12 @@ export default function Home() {
                 the discovery cards rather than inside either. */}
             <HomeBand />
 
-            <section class="landing-features">
-                <div class="landing-features-grid">
-                    <A href="/artifacts" class="card entry-card landing-feature-card">
-                        <div class="landing-card-header">
-                            <span class="entry-number">#001</span>
-                            <span class="badge badge-primary">artifacts</span>
-                        </div>
-                        <Package size={28} class="landing-card-icon" />
-                        <h3 class="landing-card-title">Artifacts</h3>
-                        <p class="landing-card-desc">
-                            Browse every tracked artifact — container images, binaries, libraries,
-                            applications — each with full SBOM history and version timeline.
-                        </p>
-                    </A>
-
-                    <A href="/components" class="card entry-card landing-feature-card">
-                        <div class="landing-card-header">
-                            <span class="entry-number">#002</span>
-                            <span class="badge">components</span>
-                        </div>
-                        <Layers size={28} class="landing-card-icon" />
-                        <h3 class="landing-card-title">Components</h3>
-                        <p class="landing-card-desc">
-                            Search packages across your entire catalog — find where a dependency
-                            appears and how many versions carry it.
-                        </p>
-                    </A>
-
-                    <A href="/licenses" class="card entry-card landing-feature-card">
-                        <div class="landing-card-header">
-                            <span class="entry-number">#003</span>
-                            <span class="badge badge-success">licenses</span>
-                        </div>
-                        <ShieldCheck size={28} class="landing-card-icon" />
-                        <h3 class="landing-card-title">Licenses</h3>
-                        <p class="landing-card-desc">
-                            Understand your compliance posture — see every license in use and which
-                            components carry it.
-                        </p>
-                    </A>
-
-                    <A href="/diff" class="card entry-card landing-feature-card">
-                        <div class="landing-card-header">
-                            <span class="entry-number">#004</span>
-                            <span class="badge">compare</span>
-                        </div>
-                        <ArrowUpDown size={28} class="landing-card-icon" />
-                        <h3 class="landing-card-title">Compare</h3>
-                        <p class="landing-card-desc">
-                            Diff two SBOMs side-by-side — understand what changed between builds in
-                            seconds.
-                        </p>
-                    </A>
-
-                    <A href="/vulnerabilities" class="card entry-card landing-feature-card">
-                        <div class="landing-card-header">
-                            <span class="entry-number">#005</span>
-                            <span class="badge badge-danger">vulnerabilities</span>
-                        </div>
-                        <ShieldAlert size={28} class="landing-card-icon" />
-                        <h3 class="landing-card-title">Vulnerabilities</h3>
-                        <p class="landing-card-desc">
-                            See which CVEs affect your catalog — ranked by how many artifacts carry
-                            them.
-                        </p>
-                    </A>
-                </div>
-            </section>
+            {/* Live catalog content, not a description of it (ocidex-q1z7.3).
+                The five static feature cards this replaces said the same thing
+                to a full catalog and an empty one, so they told a first-time
+                visitor nothing about whether the index was worth searching.
+                Section navigation now lives on each panel's "see all" link. */}
+            <HomeDiscovery />
         </div>
     );
 }

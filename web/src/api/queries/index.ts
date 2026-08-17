@@ -4,6 +4,8 @@ export { useDistinctComponents, useComponentPurlTypes, useComponentVersions, use
 export { useLicenses, useLicenseComponents } from "./licenses";
 export { useDiff, useDiffTree } from "./diff";
 export { useDashboardStats } from "./stats";
+export { useDiscovery } from "./discovery";
+export type { DiscoverArtifact, DiscoverRecent, DiscoverVuln, DiscoverLicense } from "./discovery";
 export { useTopVulnerabilities, useVulnerabilityDetail } from "./vulns";
 export { useListAPIKeys, useCreateAPIKey, useDeleteAPIKey, useListUsers, useUpdateUserRole, useGetSystemStatus } from "./auth";
 export { useListSources } from "./sources";
