@@ -17,6 +17,8 @@ import LicenseComponents from "~/pages/LicenseComponents";
 import Vulnerabilities from "~/pages/Vulnerabilities";
 import VulnerabilityDetail from "~/pages/VulnerabilityDetail";
 import Diff from "~/pages/Diff";
+import Clusters from "~/pages/Clusters";
+import ClusterDetail from "~/pages/ClusterDetail";
 import Login from "~/pages/Login";
 import Admin from "~/pages/Admin";
 import NotFound from "~/pages/NotFound";
@@ -62,6 +64,8 @@ export default function App() {
                 <Route path="/vulnerabilities" component={Vulnerabilities} />
                 <Route path="/vulnerabilities/:id" component={VulnerabilityDetail} />
                 <Route path="/diff" component={Diff} />
+                <Route path="/clusters" component={Clusters} />
+                <Route path="/clusters/:id" component={ClusterDetail} />
                 <Route path="/admin" component={Admin} />
                 <Route path="/admin/keys" component={Admin} />
                 <Route path="/admin/namespaces" component={Admin} />

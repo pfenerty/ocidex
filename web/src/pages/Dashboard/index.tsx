@@ -5,6 +5,7 @@ import {
     IngestPanel,
     DriftPanel,
     ExposurePanel,
+    ClustersPanel,
     WatchFeedPanel,
 } from "./panels";
 import "./Dashboard.css";
@@ -18,16 +19,18 @@ interface Section {
 }
 
 /**
- * SECTIONS is the dashboard's extension point. Adding the clusters section on
- * the roadmap means adding one entry here and one panel component — the grid is
- * auto-fill (see Dashboard.css), so nothing about the layout has to change, and
- * ordering is a property of this list rather than of the JSX below.
+ * SECTIONS is the dashboard's extension point: one entry here and one panel
+ * component is the whole cost of a new section — the grid is auto-fill (see
+ * Dashboard.css), so nothing about the layout has to change, and ordering is a
+ * property of this list rather than of the JSX below. The clusters section
+ * (ocidex-zeta.6) was added exactly that way.
  */
 const SECTIONS: Section[] = [
     { id: "namespaces", render: () => <NamespacesPanel /> },
     { id: "ingest", render: () => <IngestPanel /> },
     { id: "drift", render: () => <DriftPanel /> },
     { id: "exposure", render: () => <ExposurePanel /> },
+    { id: "clusters", render: () => <ClustersPanel /> },
     { id: "watch-feed", wide: true, render: () => <WatchFeedPanel /> },
 ];
 

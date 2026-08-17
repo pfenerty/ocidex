@@ -1,14 +1,17 @@
 import { For, type JSX } from "solid-js";
-import { Boxes, Activity, ShieldAlert, GitCompareArrows, Star } from "lucide-solid";
+import { Boxes, Activity, ShieldAlert, GitCompareArrows, Server, Star } from "lucide-solid";
 import { Panel, PanelBody, PanelRow } from "./Panel";
 import { SeverityPill } from "~/components/cells";
+import { StalenessPill } from "~/pages/Clusters";
 import { relativeDate } from "~/utils/format";
+import type { Cluster } from "~/api/client";
 import type { components } from "~/types/openapi";
 import {
     useMyNamespaces,
     useMyActivity,
     useMyDriftFeed,
     useMyVulnerabilities,
+    useMyClusters,
     useWatchFeed,
 } from "~/api/queries";
 
@@ -133,6 +136,41 @@ export function ExposurePanel(): JSX.Element {
                                     <SeverityPill severity={v.severity}>{v.severity}</SeverityPill>
                                 }
                                 meta={`${v.affectedSbomCount} SBOMs`}
+                            />
+                        )}
+                    </For>
+                )}
+            </PanelBody>
+        </Panel>
+    );
+}
+
+/** ClustersPanel — the caller's clusters and when each last reported (ADR-044).
+ *  The meta slot carries the staleness pill rather than a bare timestamp: a
+ *  cluster that stopped reporting still shows its last inventory everywhere
+ *  else, so silence has to be stated where the cluster is listed (K5). */
+export function ClustersPanel(): JSX.Element {
+    const query = useMyClusters();
+    return (
+        <Panel
+            title="My clusters"
+            icon={<Server size={ICON} />}
+            href="/clusters"
+            linkLabel="Manage"
+            count={query.data?.data.length}
+        >
+            <PanelBody
+                query={query}
+                empty="No clusters registered. Register one to see what your clusters actually run."
+            >
+                {(rows: Cluster[]) => (
+                    <For each={rows}>
+                        {(c) => (
+                            <PanelRow
+                                href={`/clusters/${c.id}`}
+                                title={c.name}
+                                sub={c.namespace_name}
+                                meta={<StalenessPill lastSeenAt={c.last_seen_at} />}
                             />
                         )}
                     </For>

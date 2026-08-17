@@ -1,7 +1,7 @@
 import "./Layout.css";
 import { A, useNavigate, useLocation } from "@solidjs/router";
 import { createEffect, Show, type ParentProps } from "solid-js";
-import { Home, LayoutDashboard, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Settings, LogOut } from "lucide-solid";
+import { Home, LayoutDashboard, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Server, Settings, LogOut } from "lucide-solid";
 import ThemeToggle from "~/components/ThemeToggle";
 import { useAuth } from "~/context/auth";
 import { API_BASE_URL } from "~/api/client";
@@ -14,7 +14,12 @@ export default function Layout(props: ParentProps) {
     // Paths whose every request is authenticated: /admin's surfaces and the
     // /dashboard workspace, which is built entirely from /users/me/* endpoints
     // and would render five 401s to a signed-out visitor.
-    const authedPaths = ["/admin", "/dashboard"];
+    //
+    // /clusters is here for a sharper reason than convenience: its namespace
+    // picker reads /users/me/namespaces, and a 401 anywhere makes the API client
+    // hard-navigate to /login (see unwrap). Redirecting up front is the same
+    // destination without the flash of a half-rendered page.
+    const authedPaths = ["/admin", "/dashboard", "/clusters"];
     createEffect(() => {
         if (!user.loading && user() === undefined && authedPaths.some(p => location.pathname.startsWith(p))) {
             navigate("/login", { replace: true });
@@ -70,6 +75,12 @@ export default function Layout(props: ParentProps) {
                         <ArrowUpDown size={16} />
                         <span>Compare</span>
                     </A>
+                    <Show when={user()}>
+                        <A href="/clusters">
+                            <Server size={16} />
+                            <span>Clusters</span>
+                        </A>
+                    </Show>
                     <Show when={user()?.role === "admin"}>
                         <A href="/admin">
                             <Settings size={16} />

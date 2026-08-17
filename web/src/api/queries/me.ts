@@ -48,6 +48,22 @@ export function useMyDriftFeed() {
 }
 
 /**
+ * useMyClusters — clusters in namespaces the caller owns (ADR-044).
+ *
+ * Separate from useListClusters, which is visibility-scoped and so also returns
+ * other people's public clusters: the workspace panel is meant to be the
+ * caller's own fleet, and a stale cluster someone else owns is not their
+ * problem to act on.
+ */
+export function useMyClusters() {
+    return createQuery(() => ({
+        queryKey: ["me", "clusters"] as const,
+        queryFn: () => unwrap(client.GET("/api/v1/users/me/clusters")),
+        select: (resp) => ({ ...resp, data: resp.data ?? [] }),
+    }));
+}
+
+/**
  * useMyVulnerabilities — vulnerabilities ranked by exposure across owned
  * namespaces. Distinct from useTopVulnerabilities, which is catalog-wide: the
  * dashboard figure is meant to be the caller's own backlog, and other people's

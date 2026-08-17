@@ -382,7 +382,8 @@ snapshot to the API over HTTP.
 Install (repeat per cluster, against that cluster's kubeconfig context):
 
 ```bash
-# 1. Register the cluster in OCIDex (UI, or the API) and note the returned id.
+# 1. Register the cluster in OCIDex (Clusters page in the UI, or the API) and note the
+#    returned id.
 curl -fsS -X POST https://ocidex.app/api/v1/clusters \
   -H "Authorization: Bearer $OCIDEX_API_KEY" -H 'Content-Type: application/json' \
   -d '{"name":"prod-eu","namespace_id":"<namespace-uuid>"}'
@@ -406,7 +407,10 @@ cluster and its TLS chain must validate there.
 
 Verify: `kubectl -n ocidex-agent logs deploy/ocidex-k8s-agent` shows an `inventory reported`
 line with `pods`, `workloads`, `unresolvable`, `accepted` and `pruned` counts, and the
-cluster's `last_seen_at` advances in OCIDex. A non-zero `unresolvable` count is a real
+cluster's `last_seen_at` advances in OCIDex — the Clusters page shows that timestamp, and the
+cluster's own page shows the reported inventory with its SBOM coverage. A cluster that reads
+`never reported` there has not been pushed to at all, which is not the same as a cluster
+running nothing. A non-zero `unresolvable` count is a real
 signal, not noise: those pods' `imageID`s carry no registry-addressable digest (a
 dockershim-era node runtime, typically) and their images can never be matched to an SBOM.
 

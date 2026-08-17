@@ -67,6 +67,10 @@ export type RegistryTrustCount = components["schemas"]["RegistryTrustCount"];
 export type ComponentSummary = components["schemas"]["ComponentSummary"];
 export type ComponentDetail = components["schemas"]["ComponentDetail"];
 export type VulnSummary = components["schemas"]["VulnSummary"];
+export type Cluster = components["schemas"]["ClusterResponse"];
+export type ClusterWorkload = components["schemas"]["ClusterWorkloadResponse"];
+export type WorkloadCoverage = components["schemas"]["WorkloadCoverageResponse"];
+export type WorkloadMatchState = ClusterWorkload["match_state"];
 export type DistinctComponentSummary =
     components["schemas"]["DistinctComponentSummary"];
 export type ComponentVersionEntry =
