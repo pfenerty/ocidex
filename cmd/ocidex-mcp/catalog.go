@@ -57,6 +57,16 @@ func deref(v *string) string {
 	return *v
 }
 
+// derefSlice flattens the *[]T that the generated types use for JSON arrays.
+// A nil pointer and an empty array mean the same thing to a reader, and the
+// distinction only invites nil checks at every call site.
+func derefSlice[T any](v *[]T) []T {
+	if v == nil {
+		return nil
+	}
+	return *v
+}
+
 func derefInt(v *int64) int64 {
 	if v == nil {
 		return 0

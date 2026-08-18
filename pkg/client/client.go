@@ -73,6 +73,12 @@ type Client interface {
 	LookupSBOM(ctx context.Context, params LookupSbomParams) (SBOMDetail, error)
 	LookupLicense(ctx context.Context, spdxID string) (LicenseCount, error)
 
+	// Vulnerabilities. Resolved by artifact (severity histogram), by component
+	// occurrence (the advisories hitting it), or by advisory id.
+	GetArtifactVulnSummary(ctx context.Context, artifactID string) (VulnSummary, error)
+	GetComponentVulns(ctx context.Context, componentID string) ([]ComponentVulnEntry, error)
+	GetVulnerability(ctx context.Context, vulnID string, opts PageOpts) (GetVulnerabilityOutputBody, error)
+
 	// Component + job + stats
 
 	SearchComponents(ctx context.Context, filter ComponentFilter, opts PageOpts) (Page[ComponentSummary], error)

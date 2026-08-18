@@ -63,6 +63,11 @@ type FakeClient struct {
 	LookupSBOMFn     func(ctx context.Context, params LookupSbomParams) (SBOMDetail, error)
 	LookupLicenseFn  func(ctx context.Context, spdxID string) (LicenseCount, error)
 
+	// Vulnerabilities
+	GetArtifactVulnSummaryFn func(ctx context.Context, artifactID string) (VulnSummary, error)
+	GetComponentVulnsFn      func(ctx context.Context, componentID string) ([]ComponentVulnEntry, error)
+	GetVulnerabilityFn       func(ctx context.Context, vulnID string, opts PageOpts) (GetVulnerabilityOutputBody, error)
+
 	// Component + job + stats
 	SearchComponentsFn         func(ctx context.Context, filter ComponentFilter, opts PageOpts) (Page[ComponentSummary], error)
 	SearchDistinctComponentsFn func(ctx context.Context, filter DistinctComponentFilter, opts PageOpts) (Page[DistinctComponentSummary], error)
@@ -272,6 +277,27 @@ func (f *FakeClient) LookupLicense(ctx context.Context, spdxID string) (LicenseC
 		return f.LookupLicenseFn(ctx, spdxID)
 	}
 	return LicenseCount{}, nil
+}
+
+func (f *FakeClient) GetArtifactVulnSummary(ctx context.Context, artifactID string) (VulnSummary, error) {
+	if f.GetArtifactVulnSummaryFn != nil {
+		return f.GetArtifactVulnSummaryFn(ctx, artifactID)
+	}
+	return VulnSummary{}, nil
+}
+
+func (f *FakeClient) GetComponentVulns(ctx context.Context, componentID string) ([]ComponentVulnEntry, error) {
+	if f.GetComponentVulnsFn != nil {
+		return f.GetComponentVulnsFn(ctx, componentID)
+	}
+	return nil, nil
+}
+
+func (f *FakeClient) GetVulnerability(ctx context.Context, vulnID string, opts PageOpts) (GetVulnerabilityOutputBody, error) {
+	if f.GetVulnerabilityFn != nil {
+		return f.GetVulnerabilityFn(ctx, vulnID, opts)
+	}
+	return GetVulnerabilityOutputBody{}, nil
 }
 
 func (f *FakeClient) SearchComponents(ctx context.Context, filter ComponentFilter, opts PageOpts) (Page[ComponentSummary], error) {
