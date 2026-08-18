@@ -348,7 +348,13 @@ SELECT s.id,
        a.name AS artifact_name,
        COALESCE(s.subject_version,
            COALESCE(e.data->>'imageVersion', u.data->>'imageVersion'))   AS version_key,
-       (COALESCE(e.data->>'architecture', u.data->>'architecture'))::text AS architecture,
+       -- The empty-string fallback is load-bearing, not cosmetic: the cast is what
+    -- lets sqlc type this column at all, and a cast expression is inferred NOT
+    -- NULL, so a row with neither enrichment -- an SBOM that arrived by upload,
+    -- or one the oci-metadata enricher has not reached yet -- would fail to scan
+    -- and 500 the whole lookup (ocidex-klj4). Absent architecture reads as "",
+    -- which is how every other qualifier here already spells absent.
+    COALESCE(e.data->>'architecture', u.data->>'architecture', '')::text AS architecture,
        s.flavor,
        s.digest
 FROM sbom s
