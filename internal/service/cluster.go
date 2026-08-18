@@ -87,6 +87,40 @@ type WorkloadCoverage struct {
 	Unresolvable int64
 }
 
+// RunningVuln is one vulnerability carried by images currently running in a
+// cluster.
+//
+// Rows are keyed by CanonicalID, not by the vulnerability's native id: OSV
+// publishes one finding under several ids that alias a single CVE, and a list
+// that showed each of them would report one problem three times. ID is the
+// representative record the canonical id resolved to, kept so a caller can
+// still reach the raw advisory.
+type RunningVuln struct {
+	ID          string
+	CanonicalID string
+	Severity    string
+	CvssScore   *float32
+	Summary     string
+	// WorkloadCount counts distinct running workloads across the whole alias
+	// group — the number a user can act on, not a count of component rows.
+	WorkloadCount int64
+}
+
+// RunningVulnParams filters and pages ListRunningVulns.
+type RunningVulnParams struct {
+	Severity string // empty means every severity
+	Limit    int32
+	Offset   int32
+}
+
+// RunningWorkload is a workload that carries a given vulnerability, together
+// with the cluster it runs in. It is the reverse of RunningVuln: "which
+// Deployments are running this CVE".
+type RunningWorkload struct {
+	ClusterWorkload
+	ClusterName string
+}
+
 // ReportedWorkload is one entry of an inventory snapshot pushed by an agent.
 type ReportedWorkload struct {
 	K8sNamespace  string
@@ -131,6 +165,17 @@ type ClusterService interface {
 
 	ListWorkloads(ctx context.Context, clusterID string, filter VisibilityFilter) ([]ClusterWorkload, error)
 	Coverage(ctx context.Context, clusterID string, filter VisibilityFilter) (WorkloadCoverage, error)
+
+	// RunningVulns lists vulnerabilities carried by images running in the
+	// cluster. Its result is only meaningful beside Coverage: the findings
+	// cover the matched workloads and say nothing at all about the rest
+	// (ADR-044 K5).
+	RunningVulns(ctx context.Context, clusterID string, params RunningVulnParams, filter VisibilityFilter) (PagedResult[RunningVuln], error)
+
+	// WorkloadsForVulnerability answers the reverse question. clusterID may be
+	// empty, which widens it from one cluster's drill-down to "everywhere the
+	// caller can see".
+	WorkloadsForVulnerability(ctx context.Context, canonicalID, clusterID string, limit int32, filter VisibilityFilter) ([]RunningWorkload, error)
 }
 
 type clusterService struct {
@@ -379,6 +424,119 @@ func (s *clusterService) Coverage(ctx context.Context, clusterID string, filter 
 		Unknown:      row.Unknown,
 		Unresolvable: row.Unresolvable,
 	}, nil
+}
+
+// RunningVulns lists the cluster's running vulnerabilities, most severe first.
+func (s *clusterService) RunningVulns(ctx context.Context, clusterID string, params RunningVulnParams, filter VisibilityFilter) (PagedResult[RunningVuln], error) {
+	cid, err := parseUUID(clusterID)
+	if err != nil {
+		return PagedResult[RunningVuln]{}, ErrNotFound
+	}
+	limit, offset := clampPage(params.Limit, params.Offset)
+
+	var severity pgtype.Text
+	if params.Severity != "" {
+		severity = pgtype.Text{String: params.Severity, Valid: true}
+	}
+
+	total, err := s.repo.CountClusterRunningVulns(ctx, repository.CountClusterRunningVulnsParams{
+		ClusterID: cid,
+		Severity:  severity,
+		UserID:    filter.UserID,
+		IsAdmin:   filter.adminFlag(),
+	})
+	if err != nil {
+		return PagedResult[RunningVuln]{}, fmt.Errorf("counting running vulnerabilities: %w", err)
+	}
+
+	rows, err := s.repo.ListClusterRunningVulns(ctx, repository.ListClusterRunningVulnsParams{
+		ClusterID: cid,
+		Severity:  severity,
+		Limit:     pgtype.Int4{Int32: limit, Valid: true},
+		Offset:    pgtype.Int4{Int32: offset, Valid: true},
+		UserID:    filter.UserID,
+		IsAdmin:   filter.adminFlag(),
+	})
+	if err != nil {
+		return PagedResult[RunningVuln]{}, fmt.Errorf("listing running vulnerabilities: %w", err)
+	}
+
+	data := make([]RunningVuln, len(rows))
+	for i, r := range rows {
+		v := RunningVuln{
+			ID:            r.ID,
+			CanonicalID:   r.CanonicalID,
+			Severity:      r.Severity.String,
+			Summary:       r.Summary.String,
+			WorkloadCount: r.WorkloadCount,
+		}
+		if r.CvssScore.Valid {
+			score := r.CvssScore.Float32
+			v.CvssScore = &score
+		}
+		data[i] = v
+	}
+	return PagedResult[RunningVuln]{Data: data, Total: total, Limit: limit, Offset: offset}, nil
+}
+
+// WorkloadsForVulnerability lists the running workloads carrying a canonical
+// vulnerability id, optionally narrowed to one cluster.
+func (s *clusterService) WorkloadsForVulnerability(ctx context.Context, canonicalID, clusterID string, limit int32, filter VisibilityFilter) ([]RunningWorkload, error) {
+	if canonicalID == "" {
+		return nil, ErrNotFound
+	}
+	params := repository.ListWorkloadsForVulnerabilityParams{
+		CanonicalID: canonicalID,
+		UserID:      filter.UserID,
+		IsAdmin:     filter.adminFlag(),
+	}
+	// An unparseable cluster id is not silently widened to every cluster: that
+	// would answer a different, larger question than the caller asked.
+	if clusterID != "" {
+		cid, err := parseUUID(clusterID)
+		if err != nil {
+			return nil, ErrNotFound
+		}
+		params.ClusterID = cid
+	}
+	lim, _ := clampPage(limit, 0)
+	params.Limit = pgtype.Int4{Int32: lim, Valid: true}
+
+	rows, err := s.repo.ListWorkloadsForVulnerability(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("listing workloads for vulnerability: %w", err)
+	}
+	out := make([]RunningWorkload, len(rows))
+	for i, r := range rows {
+		out[i] = RunningWorkload{
+			ClusterWorkload: workloadFromRepo(repository.ListClusterWorkloadsRow{
+				ClusterWorkload: r.ClusterWorkload,
+				SbomID:          r.SbomID,
+				ArtifactID:      r.ArtifactID,
+				SubjectVersion:  r.SubjectVersion,
+				ArtifactName:    r.ArtifactName,
+				MatchState:      r.MatchState,
+			}),
+			ClusterName: r.ClusterName,
+		}
+	}
+	return out, nil
+}
+
+// clampPage applies the same bounds huma declares on PaginationParams, so a
+// caller that bypasses the HTTP layer (a test, the MCP server) cannot ask for
+// an unbounded page.
+func clampPage(limit, offset int32) (int32, int32) {
+	switch {
+	case limit <= 0:
+		limit = 20
+	case limit > 200:
+		limit = 200
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	return limit, offset
 }
 
 func clusterFromRepo(c repository.Cluster) Cluster {

@@ -172,6 +172,10 @@ var authRules = map[string]AuthRule{
 	// --- Vulnerabilities ----------------------------------------------------
 	"list-top-vulnerabilities": {Class: ClassPublic, Notes: noteVisFilter},
 	"get-vulnerability":        {Class: ClassPublic, Notes: "Advisory data is not tenant-scoped."},
+	// Deliberately not ClassPublic like its two neighbours: the advisory is
+	// public data, but "which of these clusters is running it" is inventory,
+	// and inventory is gated the same way list-cluster-workloads is.
+	"list-vulnerability-workloads": {Class: ClassAuthenticated, Notes: "Workload rows filtered via visible_namespace_ids on the owning namespace, so an invisible cluster contributes nothing rather than 403ing."},
 
 	// --- Namespaces ---------------------------------------------------------
 	"list-namespaces":       {Class: ClassAuthenticated, Notes: "Own plus public namespaces."},
@@ -200,6 +204,7 @@ var authRules = map[string]AuthRule{
 	"delete-cluster":         {Class: ClassOwner, Write: true, Notes: "namespaceOwnerCheck on the cluster's namespace; drops reported inventory only."},
 	"put-cluster-inventory":  {Class: ClassOwner, Write: true, Notes: "namespaceOwnerCheck on the cluster's namespace — ownership, not visibility, because a public namespace must not make inventory writable by anyone."},
 	"list-cluster-workloads": {Class: ClassAuthenticated, Notes: "Cluster gated on namespace visibility; rows additionally filtered via visible_namespace_ids."},
+	"list-cluster-vulns":     {Class: ClassAuthenticated, Notes: "Same gate as list-cluster-workloads; findings and coverage are returned together so neither can be read without the other."},
 
 	// --- Registries ---------------------------------------------------------
 	"list-registries":            {Class: ClassAuthenticated, Notes: "Own plus public registries."},

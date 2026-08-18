@@ -402,6 +402,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/clusters/{id}/vulns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List vulnerabilities running in a cluster
+         * @description Vulnerabilities carried by images this cluster is actually running, most severe first. The response also carries workload coverage: these findings describe only the workloads OCIDex could match to an SBOM, and are silent about the rest (ADR-044).
+         */
+        get: operations["list-cluster-vulns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/clusters/{id}/workloads": {
         parameters: {
             query?: never;
@@ -1426,6 +1446,26 @@ export interface paths {
         };
         /** Get vulnerability detail */
         get: operations["get-vulnerability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vulns/{id}/workloads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List running workloads affected by a vulnerability
+         * @description Kubernetes workloads currently running an image that carries this vulnerability, across every cluster visible to the caller or narrowed to one with cluster_id.
+         */
+        get: operations["list-vulnerability-workloads"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2470,6 +2510,17 @@ export interface components {
             data: components["schemas"]["ArtifactSummary"][] | null;
             pagination: components["schemas"]["CursorMeta"];
         };
+        ListClusterVulnsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListClusterVulnsOutputBody.json
+             */
+            readonly $schema?: string;
+            coverage: components["schemas"]["WorkloadCoverageResponse"];
+            data: components["schemas"]["RunningVulnResponse"][] | null;
+            pagination: components["schemas"]["PaginationMeta"];
+        };
         ListClusterWorkloadsOutputBody: {
             /**
              * Format: uri
@@ -2654,6 +2705,15 @@ export interface components {
              */
             readonly $schema?: string;
             users: components["schemas"]["UserResponse"][] | null;
+        };
+        ListVulnWorkloadsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListVulnWorkloadsOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["RunningWorkloadResponse"][] | null;
         };
         LookupCandidate: {
             /** @description Canonical UUID of the matching resource */
@@ -2920,6 +2980,46 @@ export interface components {
              * @description Number of rows transitioned from 'failed' to 'queued'
              */
             count: number;
+        };
+        RunningVulnResponse: {
+            /** @description The id this finding is keyed and linked by, normally a CVE. Aliased advisories are collapsed into one row. */
+            canonical_id: string;
+            /** Format: float */
+            cvss_score?: number;
+            /** @description Native advisory id of the representative record (OSV, GHSA, …) */
+            id: string;
+            severity?: string;
+            summary?: string;
+            /**
+             * Format: int64
+             * @description Distinct running workloads affected in this cluster
+             */
+            workload_count: number;
+        };
+        RunningWorkloadResponse: {
+            artifact_id?: string;
+            artifact_name?: string;
+            artifact_type?: string;
+            cluster_id: string;
+            cluster_name: string;
+            container_name: string;
+            first_seen_at: string;
+            id: string;
+            image_digest?: string;
+            image_ref: string;
+            k8s_namespace: string;
+            last_seen_at: string;
+            /**
+             * @description exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)
+             * @enum {string}
+             */
+            match_state: "exact" | "index" | "unknown" | "unresolvable";
+            /** Format: int32 */
+            pod_count: number;
+            sbom_id?: string;
+            subject_version?: string;
+            workload_kind: string;
+            workload_name: string;
         };
         SBOMDetail: {
             /**
@@ -4210,6 +4310,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PutInventoryOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-cluster-vulns": {
+        parameters: {
+            query?: {
+                /** @description Filter by severity */
+                severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Number of results to skip */
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Cluster UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListClusterVulnsOutputBody"];
                 };
             };
             /** @description Error */
@@ -6454,6 +6593,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GetVulnerabilityOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-vulnerability-workloads": {
+        parameters: {
+            query?: {
+                /** @description Limit to one cluster. Omitted, the answer spans every cluster the caller can see. */
+                cluster_id?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Vulnerability id (CVE or GHSA); aliases of the same advisory resolve to the same workloads */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListVulnWorkloadsOutputBody"];
                 };
             };
             /** @description Error */

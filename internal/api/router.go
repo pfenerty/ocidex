@@ -26,6 +26,7 @@ const (
 	tagNamespaces = "Namespaces"
 	tagSources    = "Sources"
 	tagClusters   = "Clusters"
+	tagVulns      = "Vulnerabilities"
 	tagJobs       = "Jobs"
 	tagAuth       = "Auth"
 	tagAdmin      = "Admin"
@@ -820,6 +821,18 @@ func registerClusterOps(api huma.API, h *Handler) {
 		Tags:        []string{tagClusters},
 		Middlewares: huma.Middlewares{authMW},
 	}, h.ListClusterWorkloads)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-cluster-vulns",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/clusters/{id}/vulns",
+		Summary:     "List vulnerabilities running in a cluster",
+		Description: "Vulnerabilities carried by images this cluster is actually running, most severe first. " +
+			"The response also carries workload coverage: these findings describe only the workloads OCIDex " +
+			"could match to an SBOM, and are silent about the rest (ADR-044).",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListClusterVulns)
 }
 
 // ---------------------------------------------------------------------------
@@ -862,20 +875,33 @@ func registerDiscoverOps(api huma.API, h *Handler) {
 // ---------------------------------------------------------------------------
 
 func registerVulnOps(api huma.API, h *Handler) {
+	authMW := RequireAuthenticated(api)
+
 	huma.Register(api, huma.Operation{
 		OperationID: "list-top-vulnerabilities",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/vulns",
 		Summary:     "List top vulnerabilities",
-		Tags:        []string{"Vulnerabilities"},
+		Tags:        []string{tagVulns},
 	}, h.ListTopVulnerabilities)
 	huma.Register(api, huma.Operation{
 		OperationID: "get-vulnerability",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/vulns/{id}",
 		Summary:     "Get vulnerability detail",
-		Tags:        []string{"Vulnerabilities"},
+		Tags:        []string{tagVulns},
 	}, h.GetVulnerability)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-vulnerability-workloads",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/vulns/{id}/workloads",
+		Summary:     "List running workloads affected by a vulnerability",
+		Description: "Kubernetes workloads currently running an image that carries this vulnerability, " +
+			"across every cluster visible to the caller or narrowed to one with cluster_id.",
+		Tags:        []string{tagVulns},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListVulnWorkloads)
 }
 
 // ---------------------------------------------------------------------------

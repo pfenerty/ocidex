@@ -213,6 +213,14 @@ func (f *fakeClusterService) Coverage(_ context.Context, _ string, _ service.Vis
 	return service.WorkloadCoverage{}, nil
 }
 
+func (f *fakeClusterService) RunningVulns(_ context.Context, _ string, _ service.RunningVulnParams, _ service.VisibilityFilter) (service.PagedResult[service.RunningVuln], error) {
+	return service.PagedResult[service.RunningVuln]{}, nil
+}
+
+func (f *fakeClusterService) WorkloadsForVulnerability(_ context.Context, _, _ string, _ int32, _ service.VisibilityFilter) ([]service.RunningWorkload, error) {
+	return nil, nil
+}
+
 func (f *fakeClusterService) cluster() service.Cluster {
 	return service.Cluster{
 		ID:          testClusterID,

@@ -82,6 +82,7 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 | GET | `/api/v1/clusters/{id}` | `get-cluster` | `authenticated` |  | 404s when the owning namespace is private and unowned. |
 | PATCH | `/api/v1/clusters/{id}` | `update-cluster` | `owner` | ✓ | namespaceOwnerCheck on the cluster's namespace. |
 | POST | `/api/v1/clusters/{id}/inventory` | `put-cluster-inventory` | `owner` | ✓ | namespaceOwnerCheck on the cluster's namespace — ownership, not visibility, because a public namespace must not make inventory writable by anyone. |
+| GET | `/api/v1/clusters/{id}/vulns` | `list-cluster-vulns` | `authenticated` |  | Same gate as list-cluster-workloads; findings and coverage are returned together so neither can be read without the other. |
 | GET | `/api/v1/clusters/{id}/workloads` | `list-cluster-workloads` | `authenticated` |  | Cluster gated on namespace visibility; rows additionally filtered via visible_namespace_ids. |
 | GET | `/api/v1/users/me/clusters` | `list-my-clusters` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
 
@@ -201,3 +202,4 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 |---|---|---|---|---|---|
 | GET | `/api/v1/vulns` | `list-top-vulnerabilities` | `public` |  | VisibilityFilter. |
 | GET | `/api/v1/vulns/{id}` | `get-vulnerability` | `public` |  | Advisory data is not tenant-scoped. |
+| GET | `/api/v1/vulns/{id}/workloads` | `list-vulnerability-workloads` | `authenticated` |  | Workload rows filtered via visible_namespace_ids on the owning namespace, so an invisible cluster contributes nothing rather than 403ing. |

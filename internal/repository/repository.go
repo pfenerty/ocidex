@@ -138,6 +138,9 @@ type ClusterRepository interface {
 
 	ListClusterWorkloads(ctx context.Context, arg ListClusterWorkloadsParams) ([]ListClusterWorkloadsRow, error)
 	GetClusterWorkloadCoverage(ctx context.Context, arg GetClusterWorkloadCoverageParams) (GetClusterWorkloadCoverageRow, error)
+	ListClusterRunningVulns(ctx context.Context, arg ListClusterRunningVulnsParams) ([]ListClusterRunningVulnsRow, error)
+	CountClusterRunningVulns(ctx context.Context, arg CountClusterRunningVulnsParams) (int64, error)
+	ListWorkloadsForVulnerability(ctx context.Context, arg ListWorkloadsForVulnerabilityParams) ([]ListWorkloadsForVulnerabilityRow, error)
 }
 
 // RegistryRepository defines data access methods for registry management.

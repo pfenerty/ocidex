@@ -11,6 +11,53 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countClusterRunningVulns = `-- name: CountClusterRunningVulns :one
+WITH running AS (
+    SELECT
+        COALESCE(NULLIF(v.canonical_id, ''), v.id) AS canonical_id,
+        v.severity                                 AS severity
+    FROM cluster_workload w
+    JOIN cluster c ON c.id = w.cluster_id
+    JOIN LATERAL (
+        SELECT s2.id
+        FROM sbom s2
+        WHERE w.image_digest IS NOT NULL
+          AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
+        ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+        LIMIT 1
+    ) s ON true
+    JOIN component comp ON comp.sbom_id = s.id AND comp.purl IS NOT NULL
+    JOIN package_vulnerability pv ON pv.purl = comp.purl
+    JOIN vulnerability v ON v.id = pv.vulnerability_id
+    WHERE w.cluster_id = $1
+      AND c.namespace_id IN (SELECT visible_namespace_ids($3::uuid, $4::boolean))
+)
+SELECT COUNT(DISTINCT canonical_id)::bigint AS total
+FROM running
+WHERE ($2::text IS NULL OR severity = $2::text)
+`
+
+type CountClusterRunningVulnsParams struct {
+	ClusterID pgtype.UUID `json:"cluster_id"`
+	Severity  pgtype.Text `json:"severity"`
+	UserID    pgtype.UUID `json:"user_id"`
+	IsAdmin   pgtype.Bool `json:"is_admin"`
+}
+
+// The total for ListClusterRunningVulns' pagination, counted over the same
+// canonical_id grouping so the total and the page agree about what one row is.
+func (q *Queries) CountClusterRunningVulns(ctx context.Context, arg CountClusterRunningVulnsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countClusterRunningVulns,
+		arg.ClusterID,
+		arg.Severity,
+		arg.UserID,
+		arg.IsAdmin,
+	)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
 const createCluster = `-- name: CreateCluster :one
 
 INSERT INTO cluster (namespace_id, name, description)
@@ -150,47 +197,81 @@ func (q *Queries) GetClusterWorkloadCoverage(ctx context.Context, arg GetCluster
 }
 
 const listClusterRunningVulns = `-- name: ListClusterRunningVulns :many
+WITH running AS (
+    SELECT
+        COALESCE(NULLIF(v.canonical_id, ''), v.id) AS canonical_id,
+        w.id                                       AS workload_id
+    FROM cluster_workload w
+    JOIN cluster c ON c.id = w.cluster_id
+    JOIN LATERAL (
+        SELECT s2.id
+        FROM sbom s2
+        WHERE w.image_digest IS NOT NULL
+          AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
+        ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+        LIMIT 1
+    ) s ON true
+    JOIN component comp ON comp.sbom_id = s.id AND comp.purl IS NOT NULL
+    JOIN package_vulnerability pv ON pv.purl = comp.purl
+    JOIN vulnerability v ON v.id = pv.vulnerability_id
+    WHERE w.cluster_id = $1
+      AND c.namespace_id IN (SELECT visible_namespace_ids($5::uuid, $6::boolean))
+),
+counts AS (
+    SELECT canonical_id, COUNT(DISTINCT workload_id)::bigint AS workload_count
+    FROM running
+    GROUP BY canonical_id
+),
+canonical AS (
+    SELECT DISTINCT ON (COALESCE(NULLIF(v.canonical_id, ''), v.id))
+        v.id,
+        COALESCE(NULLIF(v.canonical_id, ''), v.id) AS canonical_id,
+        v.severity,
+        v.cvss_score,
+        v.summary
+    FROM vulnerability v
+    WHERE COALESCE(NULLIF(v.canonical_id, ''), v.id) IN (SELECT canonical_id FROM counts)
+    ORDER BY
+        COALESCE(NULLIF(v.canonical_id, ''), v.id),
+        CASE v.severity
+            WHEN 'CRITICAL' THEN 4
+            WHEN 'HIGH'     THEN 3
+            WHEN 'MEDIUM'   THEN 2
+            WHEN 'LOW'      THEN 1
+            ELSE 0
+        END DESC,
+        v.cvss_score DESC NULLS LAST
+)
 SELECT
-    v.id,
-    v.canonical_id,
-    v.severity,
-    v.cvss_score,
-    v.summary,
-    COUNT(DISTINCT w.id)::bigint AS workload_count
-FROM cluster_workload w
-JOIN cluster c ON c.id = w.cluster_id
-JOIN LATERAL (
-    SELECT s2.id
-    FROM sbom s2
-    WHERE w.image_digest IS NOT NULL
-      AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
-    ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
-    LIMIT 1
-) s ON true
-JOIN component comp ON comp.sbom_id = s.id AND comp.purl IS NOT NULL
-JOIN package_vulnerability pv ON pv.purl = comp.purl
-JOIN vulnerability v ON v.id = pv.vulnerability_id
-WHERE w.cluster_id = $1
-  AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
-  AND ($4::text IS NULL OR v.severity = $4::text)
-GROUP BY v.id, v.canonical_id, v.severity, v.cvss_score, v.summary
+    cv.id,
+    cv.canonical_id,
+    cv.severity,
+    cv.cvss_score,
+    cv.summary,
+    k.workload_count
+FROM canonical cv
+JOIN counts k ON k.canonical_id = cv.canonical_id
+WHERE ($2::text IS NULL OR cv.severity = $2::text)
 ORDER BY
-    CASE v.severity
+    CASE cv.severity
         WHEN 'CRITICAL' THEN 4
         WHEN 'HIGH'     THEN 3
         WHEN 'MEDIUM'   THEN 2
         WHEN 'LOW'      THEN 1
         ELSE 0
     END DESC,
-    v.cvss_score DESC NULLS LAST,
-    v.canonical_id ASC
+    cv.cvss_score DESC NULLS LAST,
+    cv.canonical_id ASC
+LIMIT $4::int OFFSET $3::int
 `
 
 type ListClusterRunningVulnsParams struct {
 	ClusterID pgtype.UUID `json:"cluster_id"`
+	Severity  pgtype.Text `json:"severity"`
+	Offset    pgtype.Int4 `json:"offset"`
+	Limit     pgtype.Int4 `json:"limit"`
 	UserID    pgtype.UUID `json:"user_id"`
 	IsAdmin   pgtype.Bool `json:"is_admin"`
-	Severity  pgtype.Text `json:"severity"`
 }
 
 type ListClusterRunningVulnsRow struct {
@@ -205,17 +286,25 @@ type ListClusterRunningVulnsRow struct {
 // Vulnerabilities scoped to images actually running in one cluster — the view
 // the whole epic exists for.
 //
-// Findings are deduplicated by canonical_id per vulnerability but counted
-// against distinct workloads, so "affects 3 running workloads" is the number a
-// user can act on rather than a count of component rows.
+// Rows are keyed by canonical_id, not by vulnerability.id: OSV publishes the
+// same finding under several native ids (GO-… and GHSA-… both aliasing one
+// CVE), and listing each of them separately would report one problem three
+// times. The representative row is the highest-severity member of the alias
+// group, which is also the one the UI links to.
+//
+// Workloads are counted DISTINCT across the whole alias group, so "affects 3
+// running workloads" is a number a user can act on rather than a count of
+// component rows.
 //
 // Read alongside GetClusterWorkloadCoverage, never alone.
 func (q *Queries) ListClusterRunningVulns(ctx context.Context, arg ListClusterRunningVulnsParams) ([]ListClusterRunningVulnsRow, error) {
 	rows, err := q.db.Query(ctx, listClusterRunningVulns,
 		arg.ClusterID,
+		arg.Severity,
+		arg.Offset,
+		arg.Limit,
 		arg.UserID,
 		arg.IsAdmin,
-		arg.Severity,
 	)
 	if err != nil {
 		return nil, err
@@ -441,44 +530,80 @@ func (q *Queries) ListClustersByNamespace(ctx context.Context, namespaceID pgtyp
 const listWorkloadsForVulnerability = `-- name: ListWorkloadsForVulnerability :many
 SELECT
     w.id, w.cluster_id, w.k8s_namespace, w.workload_kind, w.workload_name, w.container_name, w.image_ref, w.image_digest, w.pod_count, w.first_seen_at, w.last_seen_at,
-    c.id   AS cluster_id_out,
-    c.name AS cluster_name
+    c.id            AS cluster_id_out,
+    c.name          AS cluster_name,
+    s.id            AS sbom_id,
+    s.artifact_id   AS artifact_id,
+    s.subject_version AS subject_version,
+    a.name          AS artifact_name,
+    -- Matched by construction here (the LATERAL join is inner), but which tier
+    -- still has to be reported: an index match means the running platform is
+    -- unknown, and a caller must be able to say so rather than imply an exact
+    -- per-platform match it does not have (ADR-044 K4).
+    (CASE WHEN s.digest = w.image_digest THEN 'exact' ELSE 'index' END)::text AS match_state
 FROM cluster_workload w
 JOIN cluster c ON c.id = w.cluster_id
 JOIN LATERAL (
-    SELECT s2.id
+    SELECT s2.id, s2.artifact_id, s2.subject_version, s2.digest
     FROM sbom s2
     WHERE w.image_digest IS NOT NULL
       AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
     ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
     LIMIT 1
 ) s ON true
+LEFT JOIN artifact a ON a.id = s.artifact_id
 WHERE EXISTS (
     SELECT 1
     FROM component comp
     JOIN package_vulnerability pv ON pv.purl = comp.purl
-    WHERE comp.sbom_id = s.id AND comp.purl IS NOT NULL AND pv.vulnerability_id = $1
+    JOIN vulnerability v ON v.id = pv.vulnerability_id
+    WHERE comp.sbom_id = s.id
+      AND comp.purl IS NOT NULL
+      AND COALESCE(NULLIF(v.canonical_id, ''), v.id) = $1::text
 )
-  AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+  AND ($2::uuid IS NULL OR w.cluster_id = $2::uuid)
+  AND c.namespace_id IN (SELECT visible_namespace_ids($3::uuid, $4::boolean))
 ORDER BY c.name ASC, w.k8s_namespace ASC, w.workload_name ASC
+LIMIT $5::int
 `
 
 type ListWorkloadsForVulnerabilityParams struct {
-	VulnerabilityID string      `json:"vulnerability_id"`
-	UserID          pgtype.UUID `json:"user_id"`
-	IsAdmin         pgtype.Bool `json:"is_admin"`
+	CanonicalID string      `json:"canonical_id"`
+	ClusterID   pgtype.UUID `json:"cluster_id"`
+	UserID      pgtype.UUID `json:"user_id"`
+	IsAdmin     pgtype.Bool `json:"is_admin"`
+	Limit       pgtype.Int4 `json:"limit"`
 }
 
 type ListWorkloadsForVulnerabilityRow struct {
 	ClusterWorkload ClusterWorkload `json:"cluster_workload"`
 	ClusterIDOut    pgtype.UUID     `json:"cluster_id_out"`
 	ClusterName     string          `json:"cluster_name"`
+	SbomID          pgtype.UUID     `json:"sbom_id"`
+	ArtifactID      pgtype.UUID     `json:"artifact_id"`
+	SubjectVersion  pgtype.Text     `json:"subject_version"`
+	ArtifactName    pgtype.Text     `json:"artifact_name"`
+	MatchState      string          `json:"match_state"`
 }
 
 // The reverse of ListClusterRunningVulns: given a vulnerability, which running
 // workloads carry it. "These three Deployments have CVE-X" in one query.
+//
+// Keyed by canonical_id rather than vulnerability.id for two reasons: it is
+// what travels in the URL (/vulns/{canonical}/workloads), and matching the id
+// alone would miss workloads affected through a sibling alias record.
+//
+// cluster_id is optional. Passed, this is the cluster page's drill-down; NULL,
+// it answers "where is this CVE running anywhere I can see", which is the
+// question the catalogue's vulnerability page cannot otherwise answer.
 func (q *Queries) ListWorkloadsForVulnerability(ctx context.Context, arg ListWorkloadsForVulnerabilityParams) ([]ListWorkloadsForVulnerabilityRow, error) {
-	rows, err := q.db.Query(ctx, listWorkloadsForVulnerability, arg.VulnerabilityID, arg.UserID, arg.IsAdmin)
+	rows, err := q.db.Query(ctx, listWorkloadsForVulnerability,
+		arg.CanonicalID,
+		arg.ClusterID,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -500,6 +625,11 @@ func (q *Queries) ListWorkloadsForVulnerability(ctx context.Context, arg ListWor
 			&i.ClusterWorkload.LastSeenAt,
 			&i.ClusterIDOut,
 			&i.ClusterName,
+			&i.SbomID,
+			&i.ArtifactID,
+			&i.SubjectVersion,
+			&i.ArtifactName,
+			&i.MatchState,
 		); err != nil {
 			return nil, err
 		}

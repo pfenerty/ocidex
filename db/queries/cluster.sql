@@ -155,68 +155,156 @@ WHERE w.cluster_id = $1
 -- Vulnerabilities scoped to images actually running in one cluster — the view
 -- the whole epic exists for.
 --
--- Findings are deduplicated by canonical_id per vulnerability but counted
--- against distinct workloads, so "affects 3 running workloads" is the number a
--- user can act on rather than a count of component rows.
+-- Rows are keyed by canonical_id, not by vulnerability.id: OSV publishes the
+-- same finding under several native ids (GO-… and GHSA-… both aliasing one
+-- CVE), and listing each of them separately would report one problem three
+-- times. The representative row is the highest-severity member of the alias
+-- group, which is also the one the UI links to.
+--
+-- Workloads are counted DISTINCT across the whole alias group, so "affects 3
+-- running workloads" is a number a user can act on rather than a count of
+-- component rows.
 --
 -- Read alongside GetClusterWorkloadCoverage, never alone.
+WITH running AS (
+    SELECT
+        COALESCE(NULLIF(v.canonical_id, ''), v.id) AS canonical_id,
+        w.id                                       AS workload_id
+    FROM cluster_workload w
+    JOIN cluster c ON c.id = w.cluster_id
+    JOIN LATERAL (
+        SELECT s2.id
+        FROM sbom s2
+        WHERE w.image_digest IS NOT NULL
+          AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
+        ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+        LIMIT 1
+    ) s ON true
+    JOIN component comp ON comp.sbom_id = s.id AND comp.purl IS NOT NULL
+    JOIN package_vulnerability pv ON pv.purl = comp.purl
+    JOIN vulnerability v ON v.id = pv.vulnerability_id
+    WHERE w.cluster_id = $1
+      AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+),
+counts AS (
+    SELECT canonical_id, COUNT(DISTINCT workload_id)::bigint AS workload_count
+    FROM running
+    GROUP BY canonical_id
+),
+canonical AS (
+    SELECT DISTINCT ON (COALESCE(NULLIF(v.canonical_id, ''), v.id))
+        v.id,
+        COALESCE(NULLIF(v.canonical_id, ''), v.id) AS canonical_id,
+        v.severity,
+        v.cvss_score,
+        v.summary
+    FROM vulnerability v
+    WHERE COALESCE(NULLIF(v.canonical_id, ''), v.id) IN (SELECT canonical_id FROM counts)
+    ORDER BY
+        COALESCE(NULLIF(v.canonical_id, ''), v.id),
+        CASE v.severity
+            WHEN 'CRITICAL' THEN 4
+            WHEN 'HIGH'     THEN 3
+            WHEN 'MEDIUM'   THEN 2
+            WHEN 'LOW'      THEN 1
+            ELSE 0
+        END DESC,
+        v.cvss_score DESC NULLS LAST
+)
 SELECT
-    v.id,
-    v.canonical_id,
-    v.severity,
-    v.cvss_score,
-    v.summary,
-    COUNT(DISTINCT w.id)::bigint AS workload_count
-FROM cluster_workload w
-JOIN cluster c ON c.id = w.cluster_id
-JOIN LATERAL (
-    SELECT s2.id
-    FROM sbom s2
-    WHERE w.image_digest IS NOT NULL
-      AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
-    ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
-    LIMIT 1
-) s ON true
-JOIN component comp ON comp.sbom_id = s.id AND comp.purl IS NOT NULL
-JOIN package_vulnerability pv ON pv.purl = comp.purl
-JOIN vulnerability v ON v.id = pv.vulnerability_id
-WHERE w.cluster_id = $1
-  AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
-  AND (sqlc.narg('severity')::text IS NULL OR v.severity = sqlc.narg('severity')::text)
-GROUP BY v.id, v.canonical_id, v.severity, v.cvss_score, v.summary
+    cv.id,
+    cv.canonical_id,
+    cv.severity,
+    cv.cvss_score,
+    cv.summary,
+    k.workload_count
+FROM canonical cv
+JOIN counts k ON k.canonical_id = cv.canonical_id
+WHERE (sqlc.narg('severity')::text IS NULL OR cv.severity = sqlc.narg('severity')::text)
 ORDER BY
-    CASE v.severity
+    CASE cv.severity
         WHEN 'CRITICAL' THEN 4
         WHEN 'HIGH'     THEN 3
         WHEN 'MEDIUM'   THEN 2
         WHEN 'LOW'      THEN 1
         ELSE 0
     END DESC,
-    v.cvss_score DESC NULLS LAST,
-    v.canonical_id ASC;
+    cv.cvss_score DESC NULLS LAST,
+    cv.canonical_id ASC
+LIMIT sqlc.narg('limit')::int OFFSET sqlc.narg('offset')::int;
+
+-- name: CountClusterRunningVulns :one
+-- The total for ListClusterRunningVulns' pagination, counted over the same
+-- canonical_id grouping so the total and the page agree about what one row is.
+WITH running AS (
+    SELECT
+        COALESCE(NULLIF(v.canonical_id, ''), v.id) AS canonical_id,
+        v.severity                                 AS severity
+    FROM cluster_workload w
+    JOIN cluster c ON c.id = w.cluster_id
+    JOIN LATERAL (
+        SELECT s2.id
+        FROM sbom s2
+        WHERE w.image_digest IS NOT NULL
+          AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
+        ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+        LIMIT 1
+    ) s ON true
+    JOIN component comp ON comp.sbom_id = s.id AND comp.purl IS NOT NULL
+    JOIN package_vulnerability pv ON pv.purl = comp.purl
+    JOIN vulnerability v ON v.id = pv.vulnerability_id
+    WHERE w.cluster_id = $1
+      AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+)
+SELECT COUNT(DISTINCT canonical_id)::bigint AS total
+FROM running
+WHERE (sqlc.narg('severity')::text IS NULL OR severity = sqlc.narg('severity')::text);
 
 -- name: ListWorkloadsForVulnerability :many
 -- The reverse of ListClusterRunningVulns: given a vulnerability, which running
 -- workloads carry it. "These three Deployments have CVE-X" in one query.
+--
+-- Keyed by canonical_id rather than vulnerability.id for two reasons: it is
+-- what travels in the URL (/vulns/{canonical}/workloads), and matching the id
+-- alone would miss workloads affected through a sibling alias record.
+--
+-- cluster_id is optional. Passed, this is the cluster page's drill-down; NULL,
+-- it answers "where is this CVE running anywhere I can see", which is the
+-- question the catalogue's vulnerability page cannot otherwise answer.
 SELECT
     sqlc.embed(w),
-    c.id   AS cluster_id_out,
-    c.name AS cluster_name
+    c.id            AS cluster_id_out,
+    c.name          AS cluster_name,
+    s.id            AS sbom_id,
+    s.artifact_id   AS artifact_id,
+    s.subject_version AS subject_version,
+    a.name          AS artifact_name,
+    -- Matched by construction here (the LATERAL join is inner), but which tier
+    -- still has to be reported: an index match means the running platform is
+    -- unknown, and a caller must be able to say so rather than imply an exact
+    -- per-platform match it does not have (ADR-044 K4).
+    (CASE WHEN s.digest = w.image_digest THEN 'exact' ELSE 'index' END)::text AS match_state
 FROM cluster_workload w
 JOIN cluster c ON c.id = w.cluster_id
 JOIN LATERAL (
-    SELECT s2.id
+    SELECT s2.id, s2.artifact_id, s2.subject_version, s2.digest
     FROM sbom s2
     WHERE w.image_digest IS NOT NULL
       AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
     ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
     LIMIT 1
 ) s ON true
+LEFT JOIN artifact a ON a.id = s.artifact_id
 WHERE EXISTS (
     SELECT 1
     FROM component comp
     JOIN package_vulnerability pv ON pv.purl = comp.purl
-    WHERE comp.sbom_id = s.id AND comp.purl IS NOT NULL AND pv.vulnerability_id = $1
+    JOIN vulnerability v ON v.id = pv.vulnerability_id
+    WHERE comp.sbom_id = s.id
+      AND comp.purl IS NOT NULL
+      AND COALESCE(NULLIF(v.canonical_id, ''), v.id) = @canonical_id::text
 )
+  AND (sqlc.narg('cluster_id')::uuid IS NULL OR w.cluster_id = sqlc.narg('cluster_id')::uuid)
   AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
-ORDER BY c.name ASC, w.k8s_namespace ASC, w.workload_name ASC;
+ORDER BY c.name ASC, w.k8s_namespace ASC, w.workload_name ASC
+LIMIT sqlc.narg('limit')::int;

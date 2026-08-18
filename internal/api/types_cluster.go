@@ -170,3 +170,60 @@ type ListClusterWorkloadsOutput struct {
 		Coverage WorkloadCoverageResponse  `json:"coverage"`
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Running vulnerabilities
+// ---------------------------------------------------------------------------
+
+// RunningVulnResponse is one vulnerability carried by an image currently
+// running in a cluster.
+type RunningVulnResponse struct {
+	ID            string   `json:"id" doc:"Native advisory id of the representative record (OSV, GHSA, …)"`
+	CanonicalID   string   `json:"canonical_id" doc:"The id this finding is keyed and linked by, normally a CVE. Aliased advisories are collapsed into one row."`
+	Severity      string   `json:"severity,omitempty"`
+	CvssScore     *float32 `json:"cvss_score,omitempty"`
+	Summary       string   `json:"summary,omitempty"`
+	WorkloadCount int64    `json:"workload_count" doc:"Distinct running workloads affected in this cluster"`
+}
+
+// ListClusterVulnsInput is the request for GET /api/v1/clusters/{id}/vulns.
+type ListClusterVulnsInput struct {
+	ID       string `path:"id" doc:"Cluster UUID" format:"uuid"`
+	Severity string `query:"severity" enum:"CRITICAL,HIGH,MEDIUM,LOW" doc:"Filter by severity"`
+	PaginationParams
+}
+
+// ListClusterVulnsOutput is the response for GET /api/v1/clusters/{id}/vulns.
+//
+// Coverage rides along for the same reason it rides along with the workload
+// listing, and here it matters more: these findings describe only the matched
+// workloads. A client that renders the counts without the denominator is
+// reporting missing data as safety (ADR-044 K5).
+type ListClusterVulnsOutput struct {
+	Body struct {
+		Data       []RunningVulnResponse    `json:"data"`
+		Coverage   WorkloadCoverageResponse `json:"coverage"`
+		Pagination PaginationMeta           `json:"pagination"`
+	}
+}
+
+// RunningWorkloadResponse is a workload carrying a vulnerability, named
+// together with the cluster it runs in.
+type RunningWorkloadResponse struct {
+	ClusterWorkloadResponse
+	ClusterName string `json:"cluster_name"`
+}
+
+// ListVulnWorkloadsInput is the request for GET /api/v1/vulns/{id}/workloads.
+type ListVulnWorkloadsInput struct {
+	ID        string `path:"id" doc:"Vulnerability id (CVE or GHSA); aliases of the same advisory resolve to the same workloads"`
+	ClusterID string `query:"cluster_id" doc:"Limit to one cluster. Omitted, the answer spans every cluster the caller can see."`
+	Limit     int32  `query:"limit" default:"50" minimum:"1" maximum:"200"`
+}
+
+// ListVulnWorkloadsOutput is the response for GET /api/v1/vulns/{id}/workloads.
+type ListVulnWorkloadsOutput struct {
+	Body struct {
+		Data []RunningWorkloadResponse `json:"data"`
+	}
+}

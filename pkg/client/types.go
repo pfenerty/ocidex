@@ -43,22 +43,22 @@ func (e ArtifactVersionSummarySigningStatus) Valid() bool {
 
 // Defines values for ClusterWorkloadResponseMatchState.
 const (
-	Exact        ClusterWorkloadResponseMatchState = "exact"
-	Index        ClusterWorkloadResponseMatchState = "index"
-	Unknown      ClusterWorkloadResponseMatchState = "unknown"
-	Unresolvable ClusterWorkloadResponseMatchState = "unresolvable"
+	ClusterWorkloadResponseMatchStateExact        ClusterWorkloadResponseMatchState = "exact"
+	ClusterWorkloadResponseMatchStateIndex        ClusterWorkloadResponseMatchState = "index"
+	ClusterWorkloadResponseMatchStateUnknown      ClusterWorkloadResponseMatchState = "unknown"
+	ClusterWorkloadResponseMatchStateUnresolvable ClusterWorkloadResponseMatchState = "unresolvable"
 )
 
 // Valid indicates whether the value is a known member of the ClusterWorkloadResponseMatchState enum.
 func (e ClusterWorkloadResponseMatchState) Valid() bool {
 	switch e {
-	case Exact:
+	case ClusterWorkloadResponseMatchStateExact:
 		return true
-	case Index:
+	case ClusterWorkloadResponseMatchStateIndex:
 		return true
-	case Unknown:
+	case ClusterWorkloadResponseMatchStateUnknown:
 		return true
-	case Unresolvable:
+	case ClusterWorkloadResponseMatchStateUnresolvable:
 		return true
 	default:
 		return false
@@ -329,6 +329,30 @@ func (e RegistryResponseVerificationMode) Valid() bool {
 	}
 }
 
+// Defines values for RunningWorkloadResponseMatchState.
+const (
+	RunningWorkloadResponseMatchStateExact        RunningWorkloadResponseMatchState = "exact"
+	RunningWorkloadResponseMatchStateIndex        RunningWorkloadResponseMatchState = "index"
+	RunningWorkloadResponseMatchStateUnknown      RunningWorkloadResponseMatchState = "unknown"
+	RunningWorkloadResponseMatchStateUnresolvable RunningWorkloadResponseMatchState = "unresolvable"
+)
+
+// Valid indicates whether the value is a known member of the RunningWorkloadResponseMatchState enum.
+func (e RunningWorkloadResponseMatchState) Valid() bool {
+	switch e {
+	case RunningWorkloadResponseMatchStateExact:
+		return true
+	case RunningWorkloadResponseMatchStateIndex:
+		return true
+	case RunningWorkloadResponseMatchStateUnknown:
+		return true
+	case RunningWorkloadResponseMatchStateUnresolvable:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ScanJobResponseState.
 const (
 	ScanJobResponseStateFailed    ScanJobResponseState = "failed"
@@ -575,6 +599,30 @@ func (e ListArtifactVersionsParamsMode) Valid() bool {
 	}
 }
 
+// Defines values for ListClusterVulnsParamsSeverity.
+const (
+	ListClusterVulnsParamsSeverityCRITICAL ListClusterVulnsParamsSeverity = "CRITICAL"
+	ListClusterVulnsParamsSeverityHIGH     ListClusterVulnsParamsSeverity = "HIGH"
+	ListClusterVulnsParamsSeverityLOW      ListClusterVulnsParamsSeverity = "LOW"
+	ListClusterVulnsParamsSeverityMEDIUM   ListClusterVulnsParamsSeverity = "MEDIUM"
+)
+
+// Valid indicates whether the value is a known member of the ListClusterVulnsParamsSeverity enum.
+func (e ListClusterVulnsParamsSeverity) Valid() bool {
+	switch e {
+	case ListClusterVulnsParamsSeverityCRITICAL:
+		return true
+	case ListClusterVulnsParamsSeverityHIGH:
+		return true
+	case ListClusterVulnsParamsSeverityLOW:
+		return true
+	case ListClusterVulnsParamsSeverityMEDIUM:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListEnrichmentJobsParamsState.
 const (
 	ListEnrichmentJobsParamsStateFailed    ListEnrichmentJobsParamsState = "failed"
@@ -718,22 +766,22 @@ func (e ListMyVulnerabilitiesParamsSortDir) Valid() bool {
 
 // Defines values for ListTopVulnerabilitiesParamsSeverity.
 const (
-	ListTopVulnerabilitiesParamsSeverityCRITICAL ListTopVulnerabilitiesParamsSeverity = "CRITICAL"
-	ListTopVulnerabilitiesParamsSeverityHIGH     ListTopVulnerabilitiesParamsSeverity = "HIGH"
-	ListTopVulnerabilitiesParamsSeverityLOW      ListTopVulnerabilitiesParamsSeverity = "LOW"
-	ListTopVulnerabilitiesParamsSeverityMEDIUM   ListTopVulnerabilitiesParamsSeverity = "MEDIUM"
+	CRITICAL ListTopVulnerabilitiesParamsSeverity = "CRITICAL"
+	HIGH     ListTopVulnerabilitiesParamsSeverity = "HIGH"
+	LOW      ListTopVulnerabilitiesParamsSeverity = "LOW"
+	MEDIUM   ListTopVulnerabilitiesParamsSeverity = "MEDIUM"
 )
 
 // Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSeverity enum.
 func (e ListTopVulnerabilitiesParamsSeverity) Valid() bool {
 	switch e {
-	case ListTopVulnerabilitiesParamsSeverityCRITICAL:
+	case CRITICAL:
 		return true
-	case ListTopVulnerabilitiesParamsSeverityHIGH:
+	case HIGH:
 		return true
-	case ListTopVulnerabilitiesParamsSeverityLOW:
+	case LOW:
 		return true
-	case ListTopVulnerabilitiesParamsSeverityMEDIUM:
+	case MEDIUM:
 		return true
 	default:
 		return false
@@ -1749,6 +1797,15 @@ type ListArtifactsOutputBody struct {
 	Pagination CursorMeta         `json:"pagination"`
 }
 
+// ListClusterVulnsOutputBody defines model for ListClusterVulnsOutputBody.
+type ListClusterVulnsOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema     *string                  `json:"$schema,omitempty"`
+	Coverage   WorkloadCoverageResponse `json:"coverage"`
+	Data       *[]RunningVulnResponse   `json:"data"`
+	Pagination PaginationMeta           `json:"pagination"`
+}
+
 // ListClusterWorkloadsOutputBody defines model for ListClusterWorkloadsOutputBody.
 type ListClusterWorkloadsOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -1894,6 +1951,13 @@ type ListUsersOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema *string         `json:"$schema,omitempty"`
 	Users  *[]UserResponse `json:"users"`
+}
+
+// ListVulnWorkloadsOutputBody defines model for ListVulnWorkloadsOutputBody.
+type ListVulnWorkloadsOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string                    `json:"$schema,omitempty"`
+	Data   *[]RunningWorkloadResponse `json:"data"`
 }
 
 // LookupCandidate defines model for LookupCandidate.
@@ -2153,6 +2217,48 @@ type RetryAllFailedScanJobsOutputBody struct {
 	// Count Number of rows transitioned from 'failed' to 'queued'
 	Count int64 `json:"count"`
 }
+
+// RunningVulnResponse defines model for RunningVulnResponse.
+type RunningVulnResponse struct {
+	// CanonicalId The id this finding is keyed and linked by, normally a CVE. Aliased advisories are collapsed into one row.
+	CanonicalId string   `json:"canonical_id"`
+	CvssScore   *float32 `json:"cvss_score,omitempty"`
+
+	// Id Native advisory id of the representative record (OSV, GHSA, …)
+	Id       string  `json:"id"`
+	Severity *string `json:"severity,omitempty"`
+	Summary  *string `json:"summary,omitempty"`
+
+	// WorkloadCount Distinct running workloads affected in this cluster
+	WorkloadCount int64 `json:"workload_count"`
+}
+
+// RunningWorkloadResponse defines model for RunningWorkloadResponse.
+type RunningWorkloadResponse struct {
+	ArtifactId    *string `json:"artifact_id,omitempty"`
+	ArtifactName  *string `json:"artifact_name,omitempty"`
+	ArtifactType  *string `json:"artifact_type,omitempty"`
+	ClusterId     string  `json:"cluster_id"`
+	ClusterName   string  `json:"cluster_name"`
+	ContainerName string  `json:"container_name"`
+	FirstSeenAt   string  `json:"first_seen_at"`
+	Id            string  `json:"id"`
+	ImageDigest   *string `json:"image_digest,omitempty"`
+	ImageRef      string  `json:"image_ref"`
+	K8sNamespace  string  `json:"k8s_namespace"`
+	LastSeenAt    string  `json:"last_seen_at"`
+
+	// MatchState exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)
+	MatchState     RunningWorkloadResponseMatchState `json:"match_state"`
+	PodCount       int32                             `json:"pod_count"`
+	SbomId         *string                           `json:"sbom_id,omitempty"`
+	SubjectVersion *string                           `json:"subject_version,omitempty"`
+	WorkloadKind   string                            `json:"workload_kind"`
+	WorkloadName   string                            `json:"workload_name"`
+}
+
+// RunningWorkloadResponseMatchState exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)
+type RunningWorkloadResponseMatchState string
 
 // SBOMDetail defines model for SBOMDetail.
 type SBOMDetail struct {
@@ -2664,6 +2770,21 @@ type ListClustersParams struct {
 	NamespaceId *string `form:"namespace_id,omitempty" json:"namespace_id,omitempty"`
 }
 
+// ListClusterVulnsParams defines parameters for ListClusterVulns.
+type ListClusterVulnsParams struct {
+	// Severity Filter by severity
+	Severity *ListClusterVulnsParamsSeverity `form:"severity,omitempty" json:"severity,omitempty"`
+
+	// Limit Maximum number of results per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListClusterVulnsParamsSeverity defines parameters for ListClusterVulns.
+type ListClusterVulnsParamsSeverity string
+
 // SearchComponentsParams defines parameters for SearchComponents.
 type SearchComponentsParams struct {
 	// Limit Maximum number of results per page
@@ -3063,6 +3184,13 @@ type GetVulnerabilityParams struct {
 
 	// Offset Number of results to skip
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListVulnerabilityWorkloadsParams defines parameters for ListVulnerabilityWorkloads.
+type ListVulnerabilityWorkloadsParams struct {
+	// ClusterId Limit to one cluster. Omitted, the answer spans every cluster the caller can see.
+	ClusterId *string `form:"cluster_id,omitempty" json:"cluster_id,omitempty"`
+	Limit     *int32  `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // CreateApiKeyJSONRequestBody defines body for CreateApiKey for application/json ContentType.

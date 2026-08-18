@@ -187,6 +187,75 @@ func (h *Handler) ListClusterWorkloads(ctx context.Context, in *ListClusterWorkl
 	return out, nil
 }
 
+// ListClusterVulns handles GET /api/v1/clusters/{id}/vulns: the
+// vulnerabilities carried by images this cluster is actually running.
+//
+// Coverage is returned with them, not alongside them in a second call, because
+// these findings are silent about every workload OCIDex could not match.
+func (h *Handler) ListClusterVulns(ctx context.Context, in *ListClusterVulnsInput) (*ListClusterVulnsOutput, error) {
+	if _, err := h.visibleCluster(ctx, in.ID); err != nil {
+		return nil, err
+	}
+	vis := visibilityFilterFromContext(ctx)
+
+	page, err := h.clusterService.RunningVulns(ctx, in.ID, service.RunningVulnParams{
+		Severity: in.Severity,
+		Limit:    in.Limit,
+		Offset:   in.Offset,
+	}, vis)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	coverage, err := h.clusterService.Coverage(ctx, in.ID, vis)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	out := &ListClusterVulnsOutput{}
+	out.Body.Data = make([]RunningVulnResponse, len(page.Data))
+	for i, v := range page.Data {
+		out.Body.Data[i] = RunningVulnResponse{
+			ID:            v.ID,
+			CanonicalID:   v.CanonicalID,
+			Severity:      v.Severity,
+			CvssScore:     v.CvssScore,
+			Summary:       v.Summary,
+			WorkloadCount: v.WorkloadCount,
+		}
+	}
+	out.Body.Coverage = WorkloadCoverageResponse{
+		Total:        coverage.Total,
+		Matched:      coverage.Matched,
+		Unknown:      coverage.Unknown,
+		Unresolvable: coverage.Unresolvable,
+	}
+	out.Body.Pagination = PaginationMeta{Total: page.Total, Limit: page.Limit, Offset: page.Offset}
+	return out, nil
+}
+
+// ListVulnWorkloads handles GET /api/v1/vulns/{id}/workloads: which running
+// workloads carry a vulnerability, across every cluster the caller can see or
+// narrowed to one.
+//
+// Visibility is enforced by the query through each workload's owning namespace,
+// so this needs no cluster pre-check: a cluster the caller cannot see
+// contributes no rows rather than an error that would confirm it exists.
+func (h *Handler) ListVulnWorkloads(ctx context.Context, in *ListVulnWorkloadsInput) (*ListVulnWorkloadsOutput, error) {
+	rows, err := h.clusterService.WorkloadsForVulnerability(ctx, in.ID, in.ClusterID, in.Limit, visibilityFilterFromContext(ctx))
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	out := &ListVulnWorkloadsOutput{}
+	out.Body.Data = make([]RunningWorkloadResponse, len(rows))
+	for i, w := range rows {
+		out.Body.Data[i] = RunningWorkloadResponse{
+			ClusterWorkloadResponse: toWorkloadResponse(w.ClusterWorkload),
+			ClusterName:             w.ClusterName,
+		}
+	}
+	return out, nil
+}
+
 // visibleCluster loads a cluster and 404s if the caller cannot see its
 // namespace. 404 rather than 403 so a private cluster's existence is not
 // confirmed to someone who cannot see it.

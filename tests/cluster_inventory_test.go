@@ -455,3 +455,223 @@ func TestClusterVisibility(t *testing.T) {
 	// owned_only is strictly narrower: it drops others' public rows.
 	is.Equal(len(listFor(outsider, true)), 0)
 }
+
+// seedSBOMWithPurl inserts an artifact, an SBOM at the given digest, and one
+// component carrying purl.
+func seedSBOMWithPurl(t *testing.T, pool *pgxpool.Pool, nsID, name, dgst, purl string) {
+	t.Helper()
+	ctx := t.Context()
+	var artifactID string
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO artifact (type, name) VALUES ('container', $1) RETURNING id::text
+	`, name).Scan(&artifactID); err != nil {
+		t.Fatalf("seed artifact %q: %v", name, err)
+	}
+	var sbomID string
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO sbom (spec_version, raw_bom, digest, artifact_id, namespace_id, subject_version)
+		VALUES ('1.6', '{}'::jsonb, $1, $2::uuid, $3::uuid, '1.0.0')
+		RETURNING id::text
+	`, dgst, artifactID, nsID).Scan(&sbomID); err != nil {
+		t.Fatalf("seed sbom for %q: %v", name, err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO component (sbom_id, type, name, version, purl)
+		VALUES ($1::uuid, 'library', 'lib', '1.0.0', $2)
+	`, sbomID, purl); err != nil {
+		t.Fatalf("seed component for %q: %v", name, err)
+	}
+}
+
+// seedAdvisory inserts one vulnerability record and links it to purl. id is the
+// native advisory id; canonical is what it aliases to.
+func seedAdvisory(t *testing.T, pool *pgxpool.Pool, id, canonical, severity string, score float32, purl string) {
+	t.Helper()
+	ctx := t.Context()
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO vulnerability (id, aliases, canonical_id, severity, cvss_score, summary)
+		VALUES ($1, ARRAY[$2]::text[], $2, $3, $4, 'seeded')
+	`, id, canonical, severity, score); err != nil {
+		t.Fatalf("seed vulnerability %q: %v", id, err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO package_vulnerability (purl, vulnerability_id) VALUES ($1, $2)
+	`, purl, id); err != nil {
+		t.Fatalf("link %q to %q: %v", id, purl, err)
+	}
+}
+
+// TestClusterRunningVulns covers the two properties the cluster vulnerability
+// drill-down rests on, neither of which is visible from a single-advisory
+// fixture:
+//
+//   - aliased advisories collapse to one row, because OSV publishes the same
+//     finding as GO-… and GHSA-… both pointing at one CVE, and listing each
+//     separately would report one problem twice;
+//   - the workload count is DISTINCT across the whole alias group and across
+//     components, so it is a number of things to go and fix.
+//
+// The reverse lookup is asserted from the same fixture: the two directions
+// disagreeing is precisely the bug that makes a drill-down untrustworthy.
+func TestClusterRunningVulns(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := t.Context()
+	is := is.New(t)
+	q := repository.New(pool)
+
+	owner := seedUser(t, pool, 9101, "vuln-cluster-owner", "member")
+	nsID := seedNamespace(t, pool, "vuln-cluster-ns", owner, "private")
+	clusterID := seedCluster(t, pool, nsID, "prod")
+
+	runningDigest := digest('a')
+	otherDigest := digest('b')
+	unknownDigest := digest('c')
+
+	const (
+		vulnPurl  = "pkg:golang/example.com/vulnerable@1.0.0"
+		cleanPurl = "pkg:golang/example.com/clean@1.0.0"
+	)
+
+	seedSBOMWithPurl(t, pool, nsID, "docker.io/api", runningDigest, vulnPurl)
+	seedSBOMWithPurl(t, pool, nsID, "docker.io/web", otherDigest, vulnPurl)
+	seedSBOMWithPurl(t, pool, nsID, "docker.io/idle", digest('d'), cleanPurl)
+
+	// Two native records aliasing one CVE, plus an unrelated lower-severity one.
+	seedAdvisory(t, pool, "GHSA-aaaa", "CVE-2026-0001", "CRITICAL", 9.8, vulnPurl)
+	seedAdvisory(t, pool, "GO-2026-0001", "CVE-2026-0001", "HIGH", 7.5, vulnPurl)
+	seedAdvisory(t, pool, "GHSA-bbbb", "CVE-2026-0002", "LOW", 3.1, vulnPurl)
+
+	observed := pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
+	upsert := func(ns, name, dgst string, pods int32) {
+		t.Helper()
+		var d pgtype.Text
+		if dgst != "" {
+			d = txt(dgst)
+		}
+		if err := q.UpsertClusterWorkload(ctx, repository.UpsertClusterWorkloadParams{
+			ClusterID:     mustUUID(t, clusterID),
+			K8sNamespace:  ns,
+			WorkloadKind:  "Deployment",
+			WorkloadName:  name,
+			ContainerName: "app",
+			ImageRef:      name + ":latest",
+			ImageDigest:   d,
+			PodCount:      pods,
+			ObservedAt:    observed,
+		}); err != nil {
+			t.Fatalf("upsert %q: %v", name, err)
+		}
+	}
+	upsert("default", "api", runningDigest, 3)
+	upsert("frontend", "web", otherDigest, 1)
+	upsert("batch", "orphan", unknownDigest, 1) // no SBOM: contributes no findings
+
+	cid := mustUUID(t, clusterID)
+	admin := pgtype.Bool{Bool: true, Valid: true}
+	page := func(severity pgtype.Text, limit, offset int32) []repository.ListClusterRunningVulnsRow {
+		t.Helper()
+		rows, err := q.ListClusterRunningVulns(ctx, repository.ListClusterRunningVulnsParams{
+			ClusterID: cid,
+			Severity:  severity,
+			Limit:     pgtype.Int4{Int32: limit, Valid: true},
+			Offset:    pgtype.Int4{Int32: offset, Valid: true},
+			IsAdmin:   admin,
+		})
+		if err != nil {
+			t.Fatalf("listing running vulns: %v", err)
+		}
+		return rows
+	}
+
+	t.Run("aliases collapse and workloads are counted distinctly", func(t *testing.T) {
+		is := is.New(t)
+		rows := page(pgtype.Text{}, 20, 0)
+		is.Equal(len(rows), 2) // CVE-2026-0001 once, not twice, plus CVE-2026-0002
+
+		is.Equal(rows[0].CanonicalID, "CVE-2026-0001") // most severe first
+		is.Equal(rows[0].Severity.String, "CRITICAL")  // representative is the worst of the group
+		is.Equal(rows[0].WorkloadCount, int64(2))      // api and web; orphan has no SBOM
+		is.Equal(rows[1].CanonicalID, "CVE-2026-0002")
+		is.Equal(rows[1].WorkloadCount, int64(2))
+
+		total, err := q.CountClusterRunningVulns(ctx, repository.CountClusterRunningVulnsParams{
+			ClusterID: cid,
+			IsAdmin:   admin,
+		})
+		is.NoErr(err)
+		is.Equal(total, int64(2)) // the total counts rows as the page does
+	})
+
+	t.Run("severity filter and paging agree with the total", func(t *testing.T) {
+		is := is.New(t)
+		rows := page(txt("CRITICAL"), 20, 0)
+		is.Equal(len(rows), 1)
+		is.Equal(rows[0].CanonicalID, "CVE-2026-0001")
+
+		total, err := q.CountClusterRunningVulns(ctx, repository.CountClusterRunningVulnsParams{
+			ClusterID: cid,
+			Severity:  txt("CRITICAL"),
+			IsAdmin:   admin,
+		})
+		is.NoErr(err)
+		is.Equal(total, int64(1))
+
+		is.Equal(len(page(pgtype.Text{}, 1, 0)), 1)
+		second := page(pgtype.Text{}, 1, 1)
+		is.Equal(len(second), 1)
+		is.Equal(second[0].CanonicalID, "CVE-2026-0002") // offset advanced, no repeat
+	})
+
+	t.Run("reverse lookup agrees with the forward count", func(t *testing.T) {
+		is := is.New(t)
+		rows, err := q.ListWorkloadsForVulnerability(ctx, repository.ListWorkloadsForVulnerabilityParams{
+			CanonicalID: "CVE-2026-0001",
+			ClusterID:   cid,
+			Limit:       pgtype.Int4{Int32: 50, Valid: true},
+			IsAdmin:     admin,
+		})
+		is.NoErr(err)
+		is.Equal(len(rows), 2)
+
+		names := map[string]string{}
+		for _, r := range rows {
+			names[r.ClusterWorkload.WorkloadName] = r.MatchState
+			is.Equal(r.ClusterName, "prod")
+		}
+		is.Equal(names["api"], "exact")
+		is.Equal(names["web"], "exact")
+		_, orphaned := names["orphan"]
+		is.True(!orphaned)
+
+		// Reached through the sibling alias, the answer must be the same set —
+		// a workload is affected by the finding, not by the id it was filed under.
+		byAlias, err := q.ListWorkloadsForVulnerability(ctx, repository.ListWorkloadsForVulnerabilityParams{
+			CanonicalID: "CVE-2026-0001",
+			Limit:       pgtype.Int4{Int32: 50, Valid: true},
+			IsAdmin:     admin,
+		})
+		is.NoErr(err)
+		is.Equal(len(byAlias), 2) // cluster_id omitted: every visible cluster
+	})
+
+	t.Run("an invisible namespace yields nothing", func(t *testing.T) {
+		is := is.New(t)
+		stranger := seedUser(t, pool, 9102, "vuln-cluster-stranger", "member")
+		rows, err := q.ListClusterRunningVulns(ctx, repository.ListClusterRunningVulnsParams{
+			ClusterID: cid,
+			Limit:     pgtype.Int4{Int32: 20, Valid: true},
+			Offset:    pgtype.Int4{Int32: 0, Valid: true},
+			UserID:    stranger,
+			IsAdmin:   pgtype.Bool{Bool: false, Valid: true},
+		})
+		is.NoErr(err)
+		is.Equal(len(rows), 0)
+	})
+}
