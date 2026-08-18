@@ -103,6 +103,85 @@ func TestNormalizeImageID(t *testing.T) {
 	}
 }
 
+// displayRef is what stands between the UI and a table full of hex. containerd
+// reports the local image ID in containerStatuses[].image far more often than
+// the field's name suggests, and only the pod spec still holds the authored
+// name.
+func TestDisplayRef(t *testing.T) {
+	bare := strings.TrimPrefix(digestA, "sha256:")
+
+	tests := []struct {
+		name        string
+		statusImage string
+		specImage   string
+		want        string
+	}{
+		{
+			name:        "status name is preferred when it is a name",
+			statusImage: "ghcr.io/pfenerty/ocidex/api:v1.2.3",
+			specImage:   "ghcr.io/pfenerty/ocidex/api:latest",
+			want:        "ghcr.io/pfenerty/ocidex/api:v1.2.3",
+		},
+		{
+			name:        "resolved status name wins over a rewritten spec",
+			statusImage: "mirror.internal/nginx:1.25",
+			specImage:   "nginx:1.25",
+			want:        "mirror.internal/nginx:1.25",
+		},
+		{
+			name:        "prefixed bare id falls back to the spec",
+			statusImage: digestA,
+			specImage:   "nginx:1.25",
+			want:        "nginx:1.25",
+		},
+		{
+			name:        "unprefixed 64 hex chars also count as bare",
+			statusImage: bare,
+			specImage:   "nginx:1.25",
+			want:        "nginx:1.25",
+		},
+		{
+			name:        "upper-case hex is still a bare id",
+			statusImage: strings.ToUpper(bare),
+			specImage:   "nginx:1.25",
+			want:        "nginx:1.25",
+		},
+		{
+			name:      "empty status falls back to the spec",
+			specImage: "nginx:1.25",
+			want:      "nginx:1.25",
+		},
+		{
+			name:        "a name carrying a digest is a name, not a bare id",
+			statusImage: "nginx@" + digestA,
+			specImage:   "nginx:1.25",
+			want:        "nginx@" + digestA,
+		},
+		{
+			name:        "bare id survives when the spec has nothing better",
+			statusImage: digestA,
+			want:        digestA,
+		},
+		{
+			name: "nothing anywhere",
+			want: "",
+		},
+		{
+			name:        "whitespace is not mistaken for a name",
+			statusImage: "  ",
+			specImage:   "nginx:1.25",
+			want:        "nginx:1.25",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			is := is.New(t)
+			is.Equal(displayRef(tc.statusImage, tc.specImage), tc.want)
+		})
+	}
+}
+
 // podOpt mutates a fixture pod.
 type podOpt func(*corev1.Pod)
 

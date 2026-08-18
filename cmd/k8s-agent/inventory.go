@@ -157,6 +157,37 @@ func specImages(pod *corev1.Pod) map[string]string {
 	return m
 }
 
+// bareIDRe matches a value that identifies an image without naming it: a
+// digest-shaped string with no repository in front of it.
+var bareIDRe = regexp.MustCompile(`^(sha256:)?[0-9a-fA-F]{64}$`)
+
+// displayRef picks the reference a human should see for a container.
+//
+// The obvious source is containerStatuses[].image, and usually it is
+// `repo:tag`. But containerd frequently reports the local image ID there
+// instead — a bare `sha256:…` — and the pod spec is the only place the
+// authored name survives. Preferring the spec whenever the status is a bare
+// identifier is what keeps rows from rendering as 71 characters of hex.
+//
+// The reverse preference would be wrong: when the status *does* carry a name it
+// is the resolved one, which can differ from the spec's after a mutating
+// webhook or an image policy rewrite, and the resolved name is what actually
+// ran.
+func displayRef(statusImage, specImage string) string {
+	status := strings.TrimSpace(statusImage)
+	if status != "" && !bareIDRe.MatchString(status) {
+		return status
+	}
+	if spec := strings.TrimSpace(specImage); spec != "" {
+		return spec
+	}
+	// Nothing better exists. The bare id is still returned rather than dropped:
+	// it is a real running container, and the row's digest is what OCIDex
+	// matches on. The UI is responsible for not printing it as if it were a
+	// name.
+	return status
+}
+
 // buildSnapshot aggregates pods into the inventory rows to report. The result is
 // sorted, so a snapshot is a deterministic function of cluster state — which is
 // what makes a diff of two consecutive pushes readable.
@@ -182,10 +213,7 @@ func buildSnapshot(pods []corev1.Pod) []client.InventoryWorkload {
 		for _, cs := range containerStatuses(pod) {
 			digest, _ := normalizeImageID(cs.ImageID)
 
-			ref := cs.Image
-			if ref == "" {
-				ref = spec[cs.Name]
-			}
+			ref := displayRef(cs.Image, spec[cs.Name])
 			if ref == "" {
 				// image_ref is required with minLength 1 server-side, and a
 				// container with no image in either status or spec cannot exist in

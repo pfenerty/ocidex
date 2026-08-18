@@ -113,3 +113,20 @@ export function friendlyUrlDisplay(url: string): string {
     return url;
   }
 }
+
+const BARE_IMAGE_ID = /^(sha256:)?[0-9a-fA-F]{64}$/;
+
+/**
+ * Returns the human-readable name in an image reference, or null when the
+ * reference names nothing.
+ *
+ * The k8s agent already prefers the pod spec's image when the runtime reports a
+ * bare local image ID, so a null here means neither source had a name — a node
+ * runtime gap, not something the reader can look up. Printing the raw value
+ * would put 71 characters of hex in a table cell that promises a name.
+ */
+export function imageRefName(ref: string): string | null {
+    const trimmed = ref.trim();
+    if (trimmed === "" || BARE_IMAGE_ID.test(trimmed)) return null;
+    return trimmed;
+}

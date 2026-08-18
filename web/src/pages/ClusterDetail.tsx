@@ -15,6 +15,7 @@ import { VulnSummaryBar } from "~/components/VulnBadge";
 import { SkeletonHeader } from "~/components/Skeleton";
 import { StalenessPill } from "./Clusters";
 import { relativeDate, shortDigest, plural } from "~/utils/format";
+import { imageRefName } from "~/utils/oci";
 import type { ClusterWorkload, WorkloadCoverage, WorkloadMatchState } from "~/api/client";
 import { useCluster, useClusterWorkloads, useRunningVulnSummaries } from "~/api/queries";
 
@@ -228,7 +229,14 @@ export default function ClusterDetail() {
             sortValue: (w) => w.image_ref,
             render: (w) => (
                 <span class="font-mono text-sm" title={w.image_digest ?? w.image_ref}>
-                    {w.image_ref}
+                    <Show
+                        when={imageRefName(w.image_ref)}
+                        fallback={
+                            <span class="text-muted italic">name not reported by runtime</span>
+                        }
+                    >
+                        {(name) => <>{name()}</>}
+                    </Show>
                     <Show when={w.image_digest}>
                         {(d) => <span class="text-muted"> @ {shortDigest(d())}</span>}
                     </Show>
