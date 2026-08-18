@@ -156,7 +156,11 @@ type WorkloadCoverageResponse struct {
 
 // ListClusterWorkloadsInput is the request for GET /api/v1/clusters/{id}/workloads.
 type ListClusterWorkloadsInput struct {
-	ID string `path:"id" doc:"Cluster UUID" format:"uuid"`
+	ID           string `path:"id" doc:"Cluster UUID" format:"uuid"`
+	K8sNamespace string `query:"k8s_namespace" doc:"Filter to one Kubernetes namespace"`
+	MatchState   string `query:"match_state" enum:"exact,index,unknown,unresolvable" doc:"Filter by SBOM match state"`
+	Q            string `query:"q" doc:"Substring match over workload name, container name and image reference"`
+	PaginationParams
 }
 
 // ListClusterWorkloadsOutput is the response for GET /api/v1/clusters/{id}/workloads.
@@ -166,8 +170,36 @@ type ListClusterWorkloadsInput struct {
 // omitted will eventually ship without making it.
 type ListClusterWorkloadsOutput struct {
 	Body struct {
-		Data     []ClusterWorkloadResponse `json:"data"`
-		Coverage WorkloadCoverageResponse  `json:"coverage"`
+		Data []ClusterWorkloadResponse `json:"data"`
+		// Coverage counts the whole cluster and ignores the filters above.
+		// Narrowing it to the filter would make the number mean something
+		// different on every page, which is precisely what K5 forbids.
+		Coverage   WorkloadCoverageResponse `json:"coverage"`
+		Pagination PaginationMeta           `json:"pagination"`
+	}
+}
+
+// ListClusterNamespacesInput is the request for
+// GET /api/v1/clusters/{id}/k8s-namespaces.
+type ListClusterNamespacesInput struct {
+	ID string `path:"id" doc:"Cluster UUID" format:"uuid"`
+}
+
+// NamespaceFacetResponse is one selectable value for the namespace filter.
+type NamespaceFacetResponse struct {
+	K8sNamespace  string `json:"k8s_namespace"`
+	WorkloadCount int64  `json:"workload_count" doc:"Containers reported in this namespace"`
+}
+
+// ListClusterNamespacesOutput is the response for
+// GET /api/v1/clusters/{id}/k8s-namespaces.
+//
+// The facets are served separately from the workload page because they describe
+// the whole cluster: derived from a page of rows they would offer only the
+// namespaces that page happens to contain.
+type ListClusterNamespacesOutput struct {
+	Body struct {
+		Data []NamespaceFacetResponse `json:"data"`
 	}
 }
 

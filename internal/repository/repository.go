@@ -137,6 +137,8 @@ type ClusterRepository interface {
 	TouchClusterLastSeen(ctx context.Context, arg TouchClusterLastSeenParams) error
 
 	ListClusterWorkloads(ctx context.Context, arg ListClusterWorkloadsParams) ([]ListClusterWorkloadsRow, error)
+	CountClusterWorkloads(ctx context.Context, arg CountClusterWorkloadsParams) (int64, error)
+	ListClusterK8sNamespaces(ctx context.Context, arg ListClusterK8sNamespacesParams) ([]ListClusterK8sNamespacesRow, error)
 	GetClusterWorkloadCoverage(ctx context.Context, arg GetClusterWorkloadCoverageParams) (GetClusterWorkloadCoverageRow, error)
 	ListClusterRunningVulns(ctx context.Context, arg ListClusterRunningVulnsParams) ([]ListClusterRunningVulnsRow, error)
 	CountClusterRunningVulns(ctx context.Context, arg CountClusterRunningVulnsParams) (int64, error)

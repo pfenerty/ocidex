@@ -197,14 +197,15 @@ var authRules = map[string]AuthRule{
 	// getting a scope of its own, so a key issued for uploading SBOMs can also
 	// push inventory into any cluster its owner has. That is stated here rather
 	// than left implicit; narrowing it is ocidex-wp9b.2's job.
-	"list-clusters":          {Class: ClassAuthenticated, Notes: "Visibility resolved through the owning namespace."},
-	"get-cluster":            {Class: ClassAuthenticated, Notes: "404s when the owning namespace is private and unowned."},
-	"create-cluster":         {Class: ClassOwner, Write: true, Notes: "namespaceOwnerCheck on the body's namespace_id."},
-	"update-cluster":         {Class: ClassOwner, Write: true, Notes: "namespaceOwnerCheck on the cluster's namespace."},
-	"delete-cluster":         {Class: ClassOwner, Write: true, Notes: "namespaceOwnerCheck on the cluster's namespace; drops reported inventory only."},
-	"put-cluster-inventory":  {Class: ClassOwner, Write: true, Notes: "namespaceOwnerCheck on the cluster's namespace — ownership, not visibility, because a public namespace must not make inventory writable by anyone."},
-	"list-cluster-workloads": {Class: ClassAuthenticated, Notes: "Cluster gated on namespace visibility; rows additionally filtered via visible_namespace_ids."},
-	"list-cluster-vulns":     {Class: ClassAuthenticated, Notes: "Same gate as list-cluster-workloads; findings and coverage are returned together so neither can be read without the other."},
+	"list-clusters":               {Class: ClassAuthenticated, Notes: "Visibility resolved through the owning namespace."},
+	"get-cluster":                 {Class: ClassAuthenticated, Notes: "404s when the owning namespace is private and unowned."},
+	"create-cluster":              {Class: ClassOwner, Write: true, Notes: "namespaceOwnerCheck on the body's namespace_id."},
+	"update-cluster":              {Class: ClassOwner, Write: true, Notes: "namespaceOwnerCheck on the cluster's namespace."},
+	"delete-cluster":              {Class: ClassOwner, Write: true, Notes: "namespaceOwnerCheck on the cluster's namespace; drops reported inventory only."},
+	"put-cluster-inventory":       {Class: ClassOwner, Write: true, Notes: "namespaceOwnerCheck on the cluster's namespace — ownership, not visibility, because a public namespace must not make inventory writable by anyone."},
+	"list-cluster-workloads":      {Class: ClassAuthenticated, Notes: "Cluster gated on namespace visibility; rows additionally filtered via visible_namespace_ids."},
+	"list-cluster-vulns":          {Class: ClassAuthenticated, Notes: "Same gate as list-cluster-workloads; findings and coverage are returned together so neither can be read without the other."},
+	"list-cluster-k8s-namespaces": {Class: ClassAuthenticated, Notes: "Same gate as list-cluster-workloads; the facet counts describe only the rows that gate admits."},
 
 	// --- Registries ---------------------------------------------------------
 	"list-registries":            {Class: ClassAuthenticated, Notes: "Own plus public registries."},

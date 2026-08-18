@@ -164,7 +164,13 @@ func (h *Handler) ListClusterWorkloads(ctx context.Context, in *ListClusterWorkl
 	}
 
 	vis := visibilityFilterFromContext(ctx)
-	rows, err := h.clusterService.ListWorkloads(ctx, in.ID, vis)
+	result, err := h.clusterService.ListWorkloads(ctx, in.ID, service.WorkloadParams{
+		K8sNamespace: in.K8sNamespace,
+		MatchState:   in.MatchState,
+		Query:        in.Q,
+		Limit:        in.Limit,
+		Offset:       in.Offset,
+	}, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -174,15 +180,35 @@ func (h *Handler) ListClusterWorkloads(ctx context.Context, in *ListClusterWorkl
 	}
 
 	out := &ListClusterWorkloadsOutput{}
-	out.Body.Data = make([]ClusterWorkloadResponse, len(rows))
-	for i, w := range rows {
+	out.Body.Data = make([]ClusterWorkloadResponse, len(result.Data))
+	for i, w := range result.Data {
 		out.Body.Data[i] = toWorkloadResponse(w)
 	}
+	out.Body.Pagination = paginationMeta(result)
 	out.Body.Coverage = WorkloadCoverageResponse{
 		Total:        coverage.Total,
 		Matched:      coverage.Matched,
 		Unknown:      coverage.Unknown,
 		Unresolvable: coverage.Unresolvable,
+	}
+	return out, nil
+}
+
+// ListClusterNamespaces returns the k8s namespaces the cluster reports, for the
+// workload filter's select.
+func (h *Handler) ListClusterNamespaces(ctx context.Context, in *ListClusterNamespacesInput) (*ListClusterNamespacesOutput, error) {
+	if _, err := h.visibleCluster(ctx, in.ID); err != nil {
+		return nil, err
+	}
+	facets, err := h.clusterService.NamespaceFacets(ctx, in.ID, visibilityFilterFromContext(ctx))
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	out := &ListClusterNamespacesOutput{}
+	out.Body.Data = make([]NamespaceFacetResponse, len(facets))
+	for i, f := range facets {
+		out.Body.Data[i] = NamespaceFacetResponse{K8sNamespace: f.K8sNamespace, WorkloadCount: f.WorkloadCount}
 	}
 	return out, nil
 }

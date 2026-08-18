@@ -823,6 +823,16 @@ func registerClusterOps(api huma.API, h *Handler) {
 	}, h.ListClusterWorkloads)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "list-cluster-k8s-namespaces",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/clusters/{id}/k8s-namespaces",
+		Summary:     "List reported Kubernetes namespaces",
+		Description: "The namespace facet for the workload filter, covering the whole cluster rather than the current page of workloads.",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListClusterNamespaces)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "list-cluster-vulns",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/clusters/{id}/vulns",

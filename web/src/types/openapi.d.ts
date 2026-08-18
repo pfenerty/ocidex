@@ -402,6 +402,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/clusters/{id}/k8s-namespaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List reported Kubernetes namespaces
+         * @description The namespace facet for the workload filter, covering the whole cluster rather than the current page of workloads.
+         */
+        get: operations["list-cluster-k8s-namespaces"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/clusters/{id}/vulns": {
         parameters: {
             query?: never;
@@ -2510,6 +2530,15 @@ export interface components {
             data: components["schemas"]["ArtifactSummary"][] | null;
             pagination: components["schemas"]["CursorMeta"];
         };
+        ListClusterNamespacesOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListClusterNamespacesOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["NamespaceFacetResponse"][] | null;
+        };
         ListClusterVulnsOutputBody: {
             /**
              * Format: uri
@@ -2530,6 +2559,7 @@ export interface components {
             readonly $schema?: string;
             coverage: components["schemas"]["WorkloadCoverageResponse"];
             data: components["schemas"]["ClusterWorkloadResponse"][] | null;
+            pagination: components["schemas"]["PaginationMeta"];
         };
         ListClustersOutputBody: {
             /**
@@ -2759,6 +2789,14 @@ export interface components {
         NATSStatus: {
             enabled: boolean;
             url: string;
+        };
+        NamespaceFacetResponse: {
+            k8s_namespace: string;
+            /**
+             * Format: int64
+             * @description Containers reported in this namespace
+             */
+            workload_count: number;
         };
         NamespaceResponse: {
             /**
@@ -4323,6 +4361,38 @@ export interface operations {
             };
         };
     };
+    "list-cluster-k8s-namespaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cluster UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListClusterNamespacesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "list-cluster-vulns": {
         parameters: {
             query?: {
@@ -4364,7 +4434,18 @@ export interface operations {
     };
     "list-cluster-workloads": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Filter to one Kubernetes namespace */
+                k8s_namespace?: string;
+                /** @description Filter by SBOM match state */
+                match_state?: "exact" | "index" | "unknown" | "unresolvable";
+                /** @description Substring match over workload name, container name and image reference */
+                q?: string;
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Number of results to skip */
+                offset?: number;
+            };
             header?: never;
             path: {
                 /** @description Cluster UUID */

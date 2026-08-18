@@ -675,3 +675,195 @@ func TestClusterRunningVulns(t *testing.T) {
 		is.Equal(len(rows), 0)
 	})
 }
+
+// TestClusterWorkloadFilters covers the filter, paging and facet story: the
+// filters must agree with the count that pages them, the facet list must
+// describe the whole cluster rather than the current page, and coverage must
+// stay cluster-wide no matter what the table is filtered to (ADR-044 K5).
+func TestClusterWorkloadFilters(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := t.Context()
+	is := is.New(t)
+	q := repository.New(pool)
+
+	owner := seedUser(t, pool, 9401, "filter-owner", "member")
+	nsID := seedNamespace(t, pool, "filter-ns", owner, "private")
+	clusterID := seedCluster(t, pool, nsID, "filter-prod")
+	admin := pgtype.Bool{Bool: false, Valid: true}
+	cid := mustUUID(t, clusterID)
+
+	matchedDigest := digest('a')
+	seedArtifactSBOM(t, pool, nsID, "docker.io/api", matchedDigest, "")
+
+	observed := time.Now().UTC()
+	upsert := func(k8sNS, name, container, ref, dgst string) {
+		t.Helper()
+		var d pgtype.Text
+		if dgst != "" {
+			d = txt(dgst)
+		}
+		err := q.UpsertClusterWorkload(ctx, repository.UpsertClusterWorkloadParams{
+			ClusterID:     cid,
+			K8sNamespace:  k8sNS,
+			WorkloadKind:  "Deployment",
+			WorkloadName:  name,
+			ContainerName: container,
+			ImageRef:      ref,
+			ImageDigest:   d,
+			PodCount:      1,
+			ObservedAt:    pgtype.Timestamptz{Time: observed, Valid: true},
+		})
+		if err != nil {
+			t.Fatalf("upsert %q: %v", name, err)
+		}
+	}
+
+	upsert("prod", "api", "app", "docker.io/api:v1", matchedDigest)
+	upsert("prod", "worker", "app", "docker.io/worker:v1", digest('b'))
+	upsert("prod", "cache", "redis", "docker.io/redis:7", digest('c'))
+	upsert("staging", "api", "app", "docker.io/api:v2", matchedDigest)
+	upsert("staging", "legacy", "app", "docker.io/legacy:v1", "")
+
+	list := func(p repository.ListClusterWorkloadsParams) []repository.ListClusterWorkloadsRow {
+		t.Helper()
+		p.ClusterID, p.UserID, p.IsAdmin = cid, owner, admin
+		rows, err := q.ListClusterWorkloads(ctx, p)
+		if err != nil {
+			t.Fatalf("listing workloads: %v", err)
+		}
+		return rows
+	}
+	count := func(p repository.CountClusterWorkloadsParams) int64 {
+		t.Helper()
+		p.ClusterID, p.UserID, p.IsAdmin = cid, owner, admin
+		total, err := q.CountClusterWorkloads(ctx, p)
+		if err != nil {
+			t.Fatalf("counting workloads: %v", err)
+		}
+		return total
+	}
+
+	t.Run("namespace filter", func(t *testing.T) {
+		is := is.New(t)
+		rows := list(repository.ListClusterWorkloadsParams{K8sNamespace: txt("staging")})
+		is.Equal(len(rows), 2)
+		is.Equal(count(repository.CountClusterWorkloadsParams{K8sNamespace: txt("staging")}), int64(2))
+	})
+
+	// The filter reads the same computed state the column projects. A second
+	// copy of the CASE is what this asserts against: if the two ever disagree,
+	// the filtered rows would carry a state the filter did not ask for.
+	t.Run("match state filter agrees with the projected column", func(t *testing.T) {
+		is := is.New(t)
+		for state, want := range map[string]int64{"exact": 2, "unknown": 2, "unresolvable": 1, "index": 0} {
+			rows := list(repository.ListClusterWorkloadsParams{MatchState: txt(state)})
+			is.Equal(int64(len(rows)), want)
+			is.Equal(count(repository.CountClusterWorkloadsParams{MatchState: txt(state)}), want)
+			for _, r := range rows {
+				is.Equal(r.MatchState, state)
+			}
+		}
+	})
+
+	t.Run("q matches workload, container and image ref", func(t *testing.T) {
+		is := is.New(t)
+		// Matches two workload names.
+		is.Equal(count(repository.CountClusterWorkloadsParams{Q: txt("api")}), int64(2))
+		// Matches a container name no workload name contains.
+		is.Equal(count(repository.CountClusterWorkloadsParams{Q: txt("redis")}), int64(1))
+		// Matches an image tag that appears in no name at all.
+		is.Equal(count(repository.CountClusterWorkloadsParams{Q: txt(":v2")}), int64(1))
+	})
+
+	t.Run("filters compose", func(t *testing.T) {
+		is := is.New(t)
+		p := repository.ListClusterWorkloadsParams{K8sNamespace: txt("prod"), MatchState: txt("unknown")}
+		rows := list(p)
+		is.Equal(len(rows), 2)
+		is.Equal(count(repository.CountClusterWorkloadsParams{K8sNamespace: p.K8sNamespace, MatchState: p.MatchState}), int64(2))
+	})
+
+	// Offset paging over a stable ordering: the pages must partition the list,
+	// not overlap it.
+	t.Run("paging partitions the list", func(t *testing.T) {
+		is := is.New(t)
+		total := count(repository.CountClusterWorkloadsParams{})
+		is.Equal(total, int64(5))
+
+		var seen []string
+		for offset := int32(0); offset < int32(total); offset += 2 {
+			page := list(repository.ListClusterWorkloadsParams{
+				Limit:  pgtype.Int4{Int32: 2, Valid: true},
+				Offset: pgtype.Int4{Int32: offset, Valid: true},
+			})
+			for _, r := range page {
+				seen = append(seen, r.ClusterWorkload.K8sNamespace+"/"+r.ClusterWorkload.WorkloadName)
+			}
+		}
+		is.Equal(len(seen), 5)
+		is.Equal(seen, []string{"prod/api", "prod/cache", "prod/worker", "staging/api", "staging/legacy"})
+	})
+
+	// The facet is the reason a separate query exists: page one holds only
+	// "prod", so a client deriving the filter from its rows would never offer
+	// "staging".
+	t.Run("namespace facets cover the cluster, not the page", func(t *testing.T) {
+		is := is.New(t)
+		facets, err := q.ListClusterK8sNamespaces(ctx, repository.ListClusterK8sNamespacesParams{
+			ClusterID: cid, UserID: owner, IsAdmin: admin,
+		})
+		if err != nil {
+			t.Fatalf("listing namespaces: %v", err)
+		}
+		is.Equal(len(facets), 2)
+		is.Equal(facets[0].K8sNamespace, "prod")
+		is.Equal(facets[0].WorkloadCount, int64(3))
+		is.Equal(facets[1].K8sNamespace, "staging")
+		is.Equal(facets[1].WorkloadCount, int64(2))
+	})
+
+	// Coverage takes no filters at all: whatever the table is showing, the
+	// denominator is the whole cluster.
+	t.Run("coverage stays cluster-wide", func(t *testing.T) {
+		is := is.New(t)
+		cov, err := q.GetClusterWorkloadCoverage(ctx, repository.GetClusterWorkloadCoverageParams{
+			ClusterID: cid, UserID: owner, IsAdmin: admin,
+		})
+		if err != nil {
+			t.Fatalf("coverage: %v", err)
+		}
+		is.Equal(cov.Total, int64(5))
+		is.Equal(cov.Matched, int64(2))
+		is.Equal(cov.Unknown, int64(2))
+		is.Equal(cov.Unresolvable, int64(1))
+	})
+
+	// Visibility is enforced inside the filtered queries too, not only in the
+	// unfiltered ones.
+	t.Run("invisible to another member", func(t *testing.T) {
+		is := is.New(t)
+		other := seedUser(t, pool, 9402, "filter-outsider", "member")
+		rows, err := q.ListClusterWorkloads(ctx, repository.ListClusterWorkloadsParams{
+			ClusterID: cid, UserID: other, IsAdmin: admin, MatchState: txt("exact"),
+		})
+		if err != nil {
+			t.Fatalf("listing workloads: %v", err)
+		}
+		is.Equal(len(rows), 0)
+
+		facets, err := q.ListClusterK8sNamespaces(ctx, repository.ListClusterK8sNamespacesParams{
+			ClusterID: cid, UserID: other, IsAdmin: admin,
+		})
+		if err != nil {
+			t.Fatalf("listing namespaces: %v", err)
+		}
+		is.Equal(len(facets), 0)
+	})
+}

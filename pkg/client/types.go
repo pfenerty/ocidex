@@ -623,6 +623,30 @@ func (e ListClusterVulnsParamsSeverity) Valid() bool {
 	}
 }
 
+// Defines values for ListClusterWorkloadsParamsMatchState.
+const (
+	Exact        ListClusterWorkloadsParamsMatchState = "exact"
+	Index        ListClusterWorkloadsParamsMatchState = "index"
+	Unknown      ListClusterWorkloadsParamsMatchState = "unknown"
+	Unresolvable ListClusterWorkloadsParamsMatchState = "unresolvable"
+)
+
+// Valid indicates whether the value is a known member of the ListClusterWorkloadsParamsMatchState enum.
+func (e ListClusterWorkloadsParamsMatchState) Valid() bool {
+	switch e {
+	case Exact:
+		return true
+	case Index:
+		return true
+	case Unknown:
+		return true
+	case Unresolvable:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListEnrichmentJobsParamsState.
 const (
 	ListEnrichmentJobsParamsStateFailed    ListEnrichmentJobsParamsState = "failed"
@@ -1797,6 +1821,13 @@ type ListArtifactsOutputBody struct {
 	Pagination CursorMeta         `json:"pagination"`
 }
 
+// ListClusterNamespacesOutputBody defines model for ListClusterNamespacesOutputBody.
+type ListClusterNamespacesOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string                   `json:"$schema,omitempty"`
+	Data   *[]NamespaceFacetResponse `json:"data"`
+}
+
 // ListClusterVulnsOutputBody defines model for ListClusterVulnsOutputBody.
 type ListClusterVulnsOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -1809,9 +1840,10 @@ type ListClusterVulnsOutputBody struct {
 // ListClusterWorkloadsOutputBody defines model for ListClusterWorkloadsOutputBody.
 type ListClusterWorkloadsOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema   *string                    `json:"$schema,omitempty"`
-	Coverage WorkloadCoverageResponse   `json:"coverage"`
-	Data     *[]ClusterWorkloadResponse `json:"data"`
+	Schema     *string                    `json:"$schema,omitempty"`
+	Coverage   WorkloadCoverageResponse   `json:"coverage"`
+	Data       *[]ClusterWorkloadResponse `json:"data"`
+	Pagination PaginationMeta             `json:"pagination"`
 }
 
 // ListClustersOutputBody defines model for ListClustersOutputBody.
@@ -2006,6 +2038,14 @@ type MeOutputBody struct {
 type NATSStatus struct {
 	Enabled bool   `json:"enabled"`
 	Url     string `json:"url"`
+}
+
+// NamespaceFacetResponse defines model for NamespaceFacetResponse.
+type NamespaceFacetResponse struct {
+	K8sNamespace string `json:"k8s_namespace"`
+
+	// WorkloadCount Containers reported in this namespace
+	WorkloadCount int64 `json:"workload_count"`
 }
 
 // NamespaceResponse defines model for NamespaceResponse.
@@ -2784,6 +2824,27 @@ type ListClusterVulnsParams struct {
 
 // ListClusterVulnsParamsSeverity defines parameters for ListClusterVulns.
 type ListClusterVulnsParamsSeverity string
+
+// ListClusterWorkloadsParams defines parameters for ListClusterWorkloads.
+type ListClusterWorkloadsParams struct {
+	// K8sNamespace Filter to one Kubernetes namespace
+	K8sNamespace *string `form:"k8s_namespace,omitempty" json:"k8s_namespace,omitempty"`
+
+	// MatchState Filter by SBOM match state
+	MatchState *ListClusterWorkloadsParamsMatchState `form:"match_state,omitempty" json:"match_state,omitempty"`
+
+	// Q Substring match over workload name, container name and image reference
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// Limit Maximum number of results per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListClusterWorkloadsParamsMatchState defines parameters for ListClusterWorkloads.
+type ListClusterWorkloadsParamsMatchState string
 
 // SearchComponentsParams defines parameters for SearchComponents.
 type SearchComponentsParams struct {

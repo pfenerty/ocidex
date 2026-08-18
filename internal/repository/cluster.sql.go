@@ -58,6 +58,61 @@ func (q *Queries) CountClusterRunningVulns(ctx context.Context, arg CountCluster
 	return total, err
 }
 
+const countClusterWorkloads = `-- name: CountClusterWorkloads :one
+SELECT COUNT(*)::bigint AS total
+FROM cluster_workload w
+JOIN cluster c ON c.id = w.cluster_id
+LEFT JOIN LATERAL (
+    SELECT s2.id, s2.digest
+    FROM sbom s2
+    WHERE w.image_digest IS NOT NULL
+      AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
+    ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+    LIMIT 1
+) s ON true
+CROSS JOIN LATERAL (
+    SELECT (CASE WHEN s.id IS NOT NULL AND s.digest = w.image_digest THEN 'exact'
+                 WHEN s.id IS NOT NULL                               THEN 'index'
+                 WHEN w.image_digest IS NULL                         THEN 'unresolvable'
+                 ELSE                                                     'unknown'
+            END)::text AS state
+) ms
+WHERE w.cluster_id = $1
+  AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+  AND ($4::text IS NULL OR w.k8s_namespace = $4::text)
+  AND ($5::text IS NULL OR ms.state = $5::text)
+  AND ($6::text IS NULL OR (
+        w.workload_name  ILIKE '%' || $6::text || '%'
+     OR w.container_name ILIKE '%' || $6::text || '%'
+     OR w.image_ref      ILIKE '%' || $6::text || '%'))
+`
+
+type CountClusterWorkloadsParams struct {
+	ClusterID    pgtype.UUID `json:"cluster_id"`
+	UserID       pgtype.UUID `json:"user_id"`
+	IsAdmin      pgtype.Bool `json:"is_admin"`
+	K8sNamespace pgtype.Text `json:"k8s_namespace"`
+	MatchState   pgtype.Text `json:"match_state"`
+	Q            pgtype.Text `json:"q"`
+}
+
+// The total for ListClusterWorkloads' pagination. It takes the same filters, and
+// only the filters — it is the size of the filtered list, never a substitute for
+// GetClusterWorkloadCoverage, which is deliberately unfiltered.
+func (q *Queries) CountClusterWorkloads(ctx context.Context, arg CountClusterWorkloadsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countClusterWorkloads,
+		arg.ClusterID,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.K8sNamespace,
+		arg.MatchState,
+		arg.Q,
+	)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
 const createCluster = `-- name: CreateCluster :one
 
 INSERT INTO cluster (namespace_id, name, description)
@@ -194,6 +249,53 @@ func (q *Queries) GetClusterWorkloadCoverage(ctx context.Context, arg GetCluster
 		&i.Matched,
 	)
 	return i, err
+}
+
+const listClusterK8sNamespaces = `-- name: ListClusterK8sNamespaces :many
+SELECT
+    w.k8s_namespace,
+    COUNT(*)::bigint AS workload_count
+FROM cluster_workload w
+JOIN cluster c ON c.id = w.cluster_id
+WHERE w.cluster_id = $1
+  AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+GROUP BY w.k8s_namespace
+ORDER BY w.k8s_namespace ASC
+`
+
+type ListClusterK8sNamespacesParams struct {
+	ClusterID pgtype.UUID `json:"cluster_id"`
+	UserID    pgtype.UUID `json:"user_id"`
+	IsAdmin   pgtype.Bool `json:"is_admin"`
+}
+
+type ListClusterK8sNamespacesRow struct {
+	K8sNamespace  string `json:"k8s_namespace"`
+	WorkloadCount int64  `json:"workload_count"`
+}
+
+// The namespace facet for the workload filter. It exists because the list is
+// paginated: the set of namespaces present in the cluster is not derivable from
+// one page of rows, and a filter that only offers the values on the current page
+// silently hides the rest of the cluster.
+func (q *Queries) ListClusterK8sNamespaces(ctx context.Context, arg ListClusterK8sNamespacesParams) ([]ListClusterK8sNamespacesRow, error) {
+	rows, err := q.db.Query(ctx, listClusterK8sNamespaces, arg.ClusterID, arg.UserID, arg.IsAdmin)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListClusterK8sNamespacesRow{}
+	for rows.Next() {
+		var i ListClusterK8sNamespacesRow
+		if err := rows.Scan(&i.K8sNamespace, &i.WorkloadCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listClusterRunningVulns = `-- name: ListClusterRunningVulns :many
@@ -339,11 +441,7 @@ SELECT
     s.subject_version AS subject_version,
     a.name          AS artifact_name,
     a.type          AS artifact_type,
-    (CASE WHEN s.id IS NOT NULL AND s.digest = w.image_digest THEN 'exact'
-          WHEN s.id IS NOT NULL                               THEN 'index'
-          WHEN w.image_digest IS NULL                         THEN 'unresolvable'
-          ELSE                                                     'unknown'
-     END)::text     AS match_state
+    ms.state        AS match_state
 FROM cluster_workload w
 JOIN cluster c ON c.id = w.cluster_id
 LEFT JOIN LATERAL (
@@ -355,15 +453,34 @@ LEFT JOIN LATERAL (
     LIMIT 1
 ) s ON true
 LEFT JOIN artifact a ON a.id = s.artifact_id
+CROSS JOIN LATERAL (
+    SELECT (CASE WHEN s.id IS NOT NULL AND s.digest = w.image_digest THEN 'exact'
+                 WHEN s.id IS NOT NULL                               THEN 'index'
+                 WHEN w.image_digest IS NULL                         THEN 'unresolvable'
+                 ELSE                                                     'unknown'
+            END)::text AS state
+) ms
 WHERE w.cluster_id = $1
   AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+  AND ($4::text IS NULL OR w.k8s_namespace = $4::text)
+  AND ($5::text IS NULL OR ms.state = $5::text)
+  AND ($6::text IS NULL OR (
+        w.workload_name  ILIKE '%' || $6::text || '%'
+     OR w.container_name ILIKE '%' || $6::text || '%'
+     OR w.image_ref      ILIKE '%' || $6::text || '%'))
 ORDER BY w.k8s_namespace ASC, w.workload_name ASC, w.container_name ASC
+LIMIT $8::int OFFSET $7::int
 `
 
 type ListClusterWorkloadsParams struct {
-	ClusterID pgtype.UUID `json:"cluster_id"`
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
+	ClusterID    pgtype.UUID `json:"cluster_id"`
+	UserID       pgtype.UUID `json:"user_id"`
+	IsAdmin      pgtype.Bool `json:"is_admin"`
+	K8sNamespace pgtype.Text `json:"k8s_namespace"`
+	MatchState   pgtype.Text `json:"match_state"`
+	Q            pgtype.Text `json:"q"`
+	Offset       pgtype.Int4 `json:"offset"`
+	Limit        pgtype.Int4 `json:"limit"`
 }
 
 type ListClusterWorkloadsRow struct {
@@ -391,12 +508,26 @@ type ListClusterWorkloadsRow struct {
 // SBOM render the same as a matched workload with zero vulnerabilities (K5).
 // Making the state non-null means every consumer has to name the case.
 //
+// The state is computed in a LATERAL rather than inline so the projection and
+// the match_state filter below read the same expression. Two copies of a CASE
+// this load-bearing would eventually disagree, and a filter that disagreed with
+// the column it filters is invisible until someone counts the rows.
+//
 // Visibility is enforced here, not by the caller: the cluster's namespace must
 // be visible. The matched SBOM is NOT re-filtered — a workload's own cluster
 // being visible is the authorization for seeing what it runs, and hiding the
 // match would report a coverage gap that does not exist.
 func (q *Queries) ListClusterWorkloads(ctx context.Context, arg ListClusterWorkloadsParams) ([]ListClusterWorkloadsRow, error) {
-	rows, err := q.db.Query(ctx, listClusterWorkloads, arg.ClusterID, arg.UserID, arg.IsAdmin)
+	rows, err := q.db.Query(ctx, listClusterWorkloads,
+		arg.ClusterID,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.K8sNamespace,
+		arg.MatchState,
+		arg.Q,
+		arg.Offset,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}

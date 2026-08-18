@@ -106,6 +106,29 @@ type RunningVuln struct {
 	WorkloadCount int64
 }
 
+// WorkloadParams filters and pages ListWorkloads.
+//
+// The filters deliberately do not reach Coverage: the coverage band stays
+// cluster-wide however the table is filtered, because a vulnerability count
+// whose denominator moves with the filter is the ambiguity ADR-044 K5 exists to
+// prevent.
+type WorkloadParams struct {
+	K8sNamespace string // empty means every namespace
+	MatchState   string // empty means every state
+	Query        string // substring over workload, container and image ref
+	Limit        int32
+	Offset       int32
+}
+
+// NamespaceFacet is one k8s namespace present in a cluster and how many
+// containers it accounts for. It is computed server-side because the workload
+// list is paginated: a filter built from the current page would silently hide
+// every other namespace in the cluster.
+type NamespaceFacet struct {
+	K8sNamespace  string
+	WorkloadCount int64
+}
+
 // RunningVulnParams filters and pages ListRunningVulns.
 type RunningVulnParams struct {
 	Severity string // empty means every severity
@@ -163,7 +186,10 @@ type ClusterService interface {
 	// (ADR-044 K7).
 	ReplaceInventory(ctx context.Context, clusterID string, workloads []ReportedWorkload) (int, error)
 
-	ListWorkloads(ctx context.Context, clusterID string, filter VisibilityFilter) ([]ClusterWorkload, error)
+	ListWorkloads(ctx context.Context, clusterID string, params WorkloadParams, filter VisibilityFilter) (PagedResult[ClusterWorkload], error)
+
+	// NamespaceFacets enumerates the k8s namespaces the filter above can select.
+	NamespaceFacets(ctx context.Context, clusterID string, filter VisibilityFilter) ([]NamespaceFacet, error)
 	Coverage(ctx context.Context, clusterID string, filter VisibilityFilter) (WorkloadCoverage, error)
 
 	// RunningVulns lists vulnerabilities carried by images running in the
@@ -385,22 +411,64 @@ func (s *clusterService) ReplaceInventory(ctx context.Context, clusterID string,
 	return int(pruned), nil
 }
 
-func (s *clusterService) ListWorkloads(ctx context.Context, clusterID string, filter VisibilityFilter) ([]ClusterWorkload, error) {
+func (s *clusterService) ListWorkloads(ctx context.Context, clusterID string, params WorkloadParams, filter VisibilityFilter) (PagedResult[ClusterWorkload], error) {
+	cid, err := parseUUID(clusterID)
+	if err != nil {
+		return PagedResult[ClusterWorkload]{}, ErrNotFound
+	}
+	limit, offset := clampPage(params.Limit, params.Offset)
+
+	total, err := s.repo.CountClusterWorkloads(ctx, repository.CountClusterWorkloadsParams{
+		ClusterID:    cid,
+		K8sNamespace: optionalText(params.K8sNamespace),
+		MatchState:   optionalText(params.MatchState),
+		Q:            optionalText(params.Query),
+		UserID:       filter.UserID,
+		IsAdmin:      filter.adminFlag(),
+	})
+	if err != nil {
+		return PagedResult[ClusterWorkload]{}, fmt.Errorf("counting workloads: %w", err)
+	}
+
+	rows, err := s.repo.ListClusterWorkloads(ctx, repository.ListClusterWorkloadsParams{
+		ClusterID:    cid,
+		K8sNamespace: optionalText(params.K8sNamespace),
+		MatchState:   optionalText(params.MatchState),
+		Q:            optionalText(params.Query),
+		Limit:        pgtype.Int4{Int32: limit, Valid: true},
+		Offset:       pgtype.Int4{Int32: offset, Valid: true},
+		UserID:       filter.UserID,
+		IsAdmin:      filter.adminFlag(),
+	})
+	if err != nil {
+		return PagedResult[ClusterWorkload]{}, fmt.Errorf("listing workloads: %w", err)
+	}
+	out := make([]ClusterWorkload, len(rows))
+	for i, r := range rows {
+		out[i] = workloadFromRepo(r)
+	}
+	return PagedResult[ClusterWorkload]{Data: out, Total: total, Limit: limit, Offset: offset}, nil
+}
+
+// NamespaceFacets lists every k8s namespace the cluster reports, with its
+// container count, so the workload filter offers the whole cluster rather than
+// whichever namespaces happen to be on the current page.
+func (s *clusterService) NamespaceFacets(ctx context.Context, clusterID string, filter VisibilityFilter) ([]NamespaceFacet, error) {
 	cid, err := parseUUID(clusterID)
 	if err != nil {
 		return nil, ErrNotFound
 	}
-	rows, err := s.repo.ListClusterWorkloads(ctx, repository.ListClusterWorkloadsParams{
+	rows, err := s.repo.ListClusterK8sNamespaces(ctx, repository.ListClusterK8sNamespacesParams{
 		ClusterID: cid,
 		UserID:    filter.UserID,
 		IsAdmin:   filter.adminFlag(),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("listing workloads: %w", err)
+		return nil, fmt.Errorf("listing cluster namespaces: %w", err)
 	}
-	out := make([]ClusterWorkload, len(rows))
+	out := make([]NamespaceFacet, len(rows))
 	for i, r := range rows {
-		out[i] = workloadFromRepo(r)
+		out[i] = NamespaceFacet{K8sNamespace: r.K8sNamespace, WorkloadCount: r.WorkloadCount}
 	}
 	return out, nil
 }
@@ -434,10 +502,7 @@ func (s *clusterService) RunningVulns(ctx context.Context, clusterID string, par
 	}
 	limit, offset := clampPage(params.Limit, params.Offset)
 
-	var severity pgtype.Text
-	if params.Severity != "" {
-		severity = pgtype.Text{String: params.Severity, Valid: true}
-	}
+	severity := optionalText(params.Severity)
 
 	total, err := s.repo.CountClusterRunningVulns(ctx, repository.CountClusterRunningVulnsParams{
 		ClusterID: cid,
@@ -521,6 +586,15 @@ func (s *clusterService) WorkloadsForVulnerability(ctx context.Context, canonica
 		}
 	}
 	return out, nil
+}
+
+// optionalText maps an empty filter value to SQL NULL, which every filter in
+// db/queries/cluster.sql reads as "no filter".
+func optionalText(v string) pgtype.Text {
+	if v == "" {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: v, Valid: true}
 }
 
 // clampPage applies the same bounds huma declares on PaginationParams, so a

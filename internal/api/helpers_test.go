@@ -205,7 +205,11 @@ func (f *fakeClusterService) ReplaceInventory(_ context.Context, _ string, _ []s
 	return 0, nil
 }
 
-func (f *fakeClusterService) ListWorkloads(_ context.Context, _ string, _ service.VisibilityFilter) ([]service.ClusterWorkload, error) {
+func (f *fakeClusterService) ListWorkloads(_ context.Context, _ string, _ service.WorkloadParams, _ service.VisibilityFilter) (service.PagedResult[service.ClusterWorkload], error) {
+	return service.PagedResult[service.ClusterWorkload]{}, nil
+}
+
+func (f *fakeClusterService) NamespaceFacets(_ context.Context, _ string, _ service.VisibilityFilter) ([]service.NamespaceFacet, error) {
 	return nil, nil
 }
 

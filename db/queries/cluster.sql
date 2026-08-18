@@ -99,6 +99,11 @@ WHERE cluster_id = $1 AND last_seen_at < @observed_at;
 -- SBOM render the same as a matched workload with zero vulnerabilities (K5).
 -- Making the state non-null means every consumer has to name the case.
 --
+-- The state is computed in a LATERAL rather than inline so the projection and
+-- the match_state filter below read the same expression. Two copies of a CASE
+-- this load-bearing would eventually disagree, and a filter that disagreed with
+-- the column it filters is invisible until someone counts the rows.
+--
 -- Visibility is enforced here, not by the caller: the cluster's namespace must
 -- be visible. The matched SBOM is NOT re-filtered — a workload's own cluster
 -- being visible is the authorization for seeing what it runs, and hiding the
@@ -110,11 +115,7 @@ SELECT
     s.subject_version AS subject_version,
     a.name          AS artifact_name,
     a.type          AS artifact_type,
-    (CASE WHEN s.id IS NOT NULL AND s.digest = w.image_digest THEN 'exact'
-          WHEN s.id IS NOT NULL                               THEN 'index'
-          WHEN w.image_digest IS NULL                         THEN 'unresolvable'
-          ELSE                                                     'unknown'
-     END)::text     AS match_state
+    ms.state        AS match_state
 FROM cluster_workload w
 JOIN cluster c ON c.id = w.cluster_id
 LEFT JOIN LATERAL (
@@ -126,9 +127,69 @@ LEFT JOIN LATERAL (
     LIMIT 1
 ) s ON true
 LEFT JOIN artifact a ON a.id = s.artifact_id
+CROSS JOIN LATERAL (
+    SELECT (CASE WHEN s.id IS NOT NULL AND s.digest = w.image_digest THEN 'exact'
+                 WHEN s.id IS NOT NULL                               THEN 'index'
+                 WHEN w.image_digest IS NULL                         THEN 'unresolvable'
+                 ELSE                                                     'unknown'
+            END)::text AS state
+) ms
 WHERE w.cluster_id = $1
   AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
-ORDER BY w.k8s_namespace ASC, w.workload_name ASC, w.container_name ASC;
+  AND (sqlc.narg('k8s_namespace')::text IS NULL OR w.k8s_namespace = sqlc.narg('k8s_namespace')::text)
+  AND (sqlc.narg('match_state')::text IS NULL OR ms.state = sqlc.narg('match_state')::text)
+  AND (sqlc.narg('q')::text IS NULL OR (
+        w.workload_name  ILIKE '%' || sqlc.narg('q')::text || '%'
+     OR w.container_name ILIKE '%' || sqlc.narg('q')::text || '%'
+     OR w.image_ref      ILIKE '%' || sqlc.narg('q')::text || '%'))
+ORDER BY w.k8s_namespace ASC, w.workload_name ASC, w.container_name ASC
+LIMIT sqlc.narg('limit')::int OFFSET sqlc.narg('offset')::int;
+
+-- name: CountClusterWorkloads :one
+-- The total for ListClusterWorkloads' pagination. It takes the same filters, and
+-- only the filters — it is the size of the filtered list, never a substitute for
+-- GetClusterWorkloadCoverage, which is deliberately unfiltered.
+SELECT COUNT(*)::bigint AS total
+FROM cluster_workload w
+JOIN cluster c ON c.id = w.cluster_id
+LEFT JOIN LATERAL (
+    SELECT s2.id, s2.digest
+    FROM sbom s2
+    WHERE w.image_digest IS NOT NULL
+      AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
+    ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+    LIMIT 1
+) s ON true
+CROSS JOIN LATERAL (
+    SELECT (CASE WHEN s.id IS NOT NULL AND s.digest = w.image_digest THEN 'exact'
+                 WHEN s.id IS NOT NULL                               THEN 'index'
+                 WHEN w.image_digest IS NULL                         THEN 'unresolvable'
+                 ELSE                                                     'unknown'
+            END)::text AS state
+) ms
+WHERE w.cluster_id = $1
+  AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+  AND (sqlc.narg('k8s_namespace')::text IS NULL OR w.k8s_namespace = sqlc.narg('k8s_namespace')::text)
+  AND (sqlc.narg('match_state')::text IS NULL OR ms.state = sqlc.narg('match_state')::text)
+  AND (sqlc.narg('q')::text IS NULL OR (
+        w.workload_name  ILIKE '%' || sqlc.narg('q')::text || '%'
+     OR w.container_name ILIKE '%' || sqlc.narg('q')::text || '%'
+     OR w.image_ref      ILIKE '%' || sqlc.narg('q')::text || '%'));
+
+-- name: ListClusterK8sNamespaces :many
+-- The namespace facet for the workload filter. It exists because the list is
+-- paginated: the set of namespaces present in the cluster is not derivable from
+-- one page of rows, and a filter that only offers the values on the current page
+-- silently hides the rest of the cluster.
+SELECT
+    w.k8s_namespace,
+    COUNT(*)::bigint AS workload_count
+FROM cluster_workload w
+JOIN cluster c ON c.id = w.cluster_id
+WHERE w.cluster_id = $1
+  AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+GROUP BY w.k8s_namespace
+ORDER BY w.k8s_namespace ASC;
 
 -- name: GetClusterWorkloadCoverage :one
 -- The counts that must accompany any vulnerability figure reported over running
@@ -150,7 +211,6 @@ LEFT JOIN LATERAL (
 ) s ON true
 WHERE w.cluster_id = $1
   AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean));
-
 -- name: ListClusterRunningVulns :many
 -- Vulnerabilities scoped to images actually running in one cluster — the view
 -- the whole epic exists for.
