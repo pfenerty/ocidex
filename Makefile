@@ -22,6 +22,7 @@ build: ## Build the Go binaries
 	go build -o $(BUILD_DIR)/k8s-agent ./cmd/k8s-agent
 	go build -o $(BUILD_DIR)/operator ./cmd/operator
 	go build -o $(BUILD_DIR)/ocidex-cli ./cmd/ocidex-cli
+	go build -o $(BUILD_DIR)/ocidex-mcp ./cmd/ocidex-mcp
 
 run: build ## Run the API server
 	./$(BUILD_DIR)/$(BINARY_NAME)

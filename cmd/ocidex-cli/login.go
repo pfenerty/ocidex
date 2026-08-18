@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
+	"github.com/pfenerty/ocidex/internal/cliconfig"
 	"github.com/pfenerty/ocidex/pkg/client"
 )
 
@@ -22,7 +23,7 @@ func newLoginCmd(cfg *rootConfig) *cobra.Command {
 		Long: `Save a server URL and API key to the config file.
 
 Prompts for whatever is not given as a flag, verifies the key by asking the
-server who you are, and only then writes ` + "`" + configPath() + "`" + ` with
+server who you are, and only then writes ` + "`" + cliconfig.Path() + "`" + ` with
 mode 0600. A key that does not work is rejected here rather than at the next
 command.
 
@@ -30,7 +31,7 @@ command.
 argument is visible in the process table and in most runners' command logs.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			file, err := loadConfigFile()
+			file, err := cliconfig.Load()
 			if err != nil {
 				return err
 			}
@@ -69,12 +70,12 @@ argument is visible in the process table and in most runners' command logs.`,
 			}
 
 			file.Server, file.APIKey = server, key
-			if err := saveConfigFile(file); err != nil {
+			if err := cliconfig.Save(file); err != nil {
 				return err
 			}
 
 			fmt.Fprintf(cmd.ErrOrStderr(), "logged in to %s as %s (%s); credentials saved to %s\n",
-				server, me.GithubUsername, me.Role, configPath())
+				server, me.GithubUsername, me.Role, cliconfig.Path())
 			return nil
 		},
 	}
@@ -98,7 +99,7 @@ benefit. The file is deleted outright once nothing is left in it.
 This does not revoke the key server-side — use ` + "`key delete <id>`" + ` for that.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			file, err := loadConfigFile()
+			file, err := cliconfig.Load()
 			if err != nil {
 				return err
 			}
@@ -109,11 +110,11 @@ This does not revoke the key server-side — use ` + "`key delete <id>`" + ` for
 			}
 
 			file.APIKey = ""
-			if file == (configFile{}) {
-				if err := os.Remove(configPath()); err != nil {
-					return fmt.Errorf("removing %s: %w", configPath(), err)
+			if file == (cliconfig.File{}) {
+				if err := os.Remove(cliconfig.Path()); err != nil {
+					return fmt.Errorf("removing %s: %w", cliconfig.Path(), err)
 				}
-			} else if err := saveConfigFile(file); err != nil {
+			} else if err := cliconfig.Save(file); err != nil {
 				return err
 			}
 
@@ -122,7 +123,7 @@ This does not revoke the key server-side — use ` + "`key delete <id>`" + ` for
 			if os.Getenv("OCIDEX_API_KEY") != "" {
 				fmt.Fprintln(cmd.ErrOrStderr(), "warning: OCIDEX_API_KEY is still set and takes precedence")
 			}
-			fmt.Fprintf(cmd.ErrOrStderr(), "removed the API key from %s\n", configPath())
+			fmt.Fprintf(cmd.ErrOrStderr(), "removed the API key from %s\n", cliconfig.Path())
 			return nil
 		},
 	}

@@ -2,18 +2,19 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 
 	"github.com/pfenerty/ocidex/cmd/ocidex-cli/output"
+	"github.com/pfenerty/ocidex/internal/cliconfig"
 	"github.com/pfenerty/ocidex/internal/version"
 	"github.com/pfenerty/ocidex/pkg/client"
 )
 
 // defaultServer is the last resort when no flag, environment variable, or
-// config file names a server.
-const defaultServer = "http://localhost:8080"
+// config file names a server. It is shared with ocidex-mcp, which resolves its
+// server the same way.
+const defaultServer = cliconfig.DefaultServer
 
 // Vocabulary shared across the command files: the same verb and the same table
 // headers appear in every noun, and they should stay spelled the same way.
@@ -122,21 +123,15 @@ func (c *rootConfig) resolve(cmd *cobra.Command) error {
 	// problem with the configuration, not a malformed command line.
 	c.resolved = true
 
-	file, err := loadConfigFile()
+	file, err := cliconfig.Load()
 	if err != nil {
 		return err
 	}
 
-	c.server = firstNonEmpty(
-		flagValue(cmd, "server", c.serverFlag),
-		os.Getenv("OCIDEX_URL"),
-		file.Server,
-		defaultServer,
-	)
-
-	// Env before file, and no flag at all: a key in argv is visible in the
-	// process table and echoed by any CI runner that logs its commands.
-	c.apiKey = firstNonEmpty(os.Getenv("OCIDEX_API_KEY"), file.APIKey)
+	// Precedence — flag, environment, file, default — lives in cliconfig so that
+	// ocidex-mcp resolves its server and key identically.
+	settings := cliconfig.Resolve(file, flagValue(cmd, "server", c.serverFlag))
+	c.server, c.apiKey = settings.Server, settings.APIKey
 
 	format := output.Format(firstNonEmpty(flagValue(cmd, "output", c.outputFlag), file.Output, string(output.Table)))
 	if !output.Valid(format) {
@@ -151,8 +146,8 @@ func (c *rootConfig) resolve(cmd *cobra.Command) error {
 // authed returns the client for commands that cannot work anonymously, naming
 // both places a key can come from when there is none.
 func (c *rootConfig) authed() (client.Client, error) {
-	if c.apiKey == "" {
-		return nil, fmt.Errorf("no API key: set OCIDEX_API_KEY or add api-key to %s", configPath())
+	if err := (cliconfig.Settings{APIKey: c.apiKey}).RequireKey(); err != nil {
+		return nil, err
 	}
 	return c.api, nil
 }

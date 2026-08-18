@@ -12,6 +12,7 @@ import (
 	"github.com/matryer/is"
 	"sigs.k8s.io/yaml"
 
+	"github.com/pfenerty/ocidex/internal/cliconfig"
 	"github.com/pfenerty/ocidex/pkg/client"
 )
 
@@ -34,7 +35,7 @@ func runAuthCLI(t *testing.T, fake *client.FakeClient, home, stdin string, args 
 	return out.String(), errOut.String(), err
 }
 
-func writeConfig(t *testing.T, home string, cfg configFile) string {
+func writeConfig(t *testing.T, home string, cfg cliconfig.File) string {
 	t.Helper()
 	path := filepath.Join(home, "ocidex", "config.yaml")
 	is.New(t).NoErr(os.MkdirAll(filepath.Dir(path), 0o700))
@@ -44,11 +45,11 @@ func writeConfig(t *testing.T, home string, cfg configFile) string {
 	return path
 }
 
-func readConfig(t *testing.T, home string) configFile {
+func readConfig(t *testing.T, home string) cliconfig.File {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(home, "ocidex", "config.yaml"))
 	is.New(t).NoErr(err)
-	var cfg configFile
+	var cfg cliconfig.File
 	is.New(t).NoErr(yaml.Unmarshal(data, &cfg))
 	return cfg
 }
@@ -103,7 +104,7 @@ func TestLoginPrompts(t *testing.T) {
 func TestLoginServerDefault(t *testing.T) {
 	is := is.New(t)
 	home := t.TempDir()
-	writeConfig(t, home, configFile{Server: "https://existing.example"})
+	writeConfig(t, home, cliconfig.File{Server: "https://existing.example"})
 
 	_, _, err := runAuthCLI(t, fakeUser(), home, "\nocidex_typed\n", "login")
 	is.NoErr(err)
@@ -138,7 +139,7 @@ func TestLoginRequiresKey(t *testing.T) {
 func TestLogout(t *testing.T) {
 	is := is.New(t)
 	home := t.TempDir()
-	writeConfig(t, home, configFile{Server: "https://ocidex.app", APIKey: "ocidex_abc", Output: "json"})
+	writeConfig(t, home, cliconfig.File{Server: "https://ocidex.app", APIKey: "ocidex_abc", Output: "json"})
 
 	_, stderr, err := runAuthCLI(t, &client.FakeClient{}, home, "", "logout")
 	is.NoErr(err)
@@ -156,7 +157,7 @@ func TestLogout(t *testing.T) {
 func TestLogoutRemovesEmptyFile(t *testing.T) {
 	is := is.New(t)
 	home := t.TempDir()
-	path := writeConfig(t, home, configFile{APIKey: "ocidex_abc"})
+	path := writeConfig(t, home, cliconfig.File{APIKey: "ocidex_abc"})
 
 	_, _, err := runAuthCLI(t, &client.FakeClient{}, home, "", "logout")
 	is.NoErr(err)
@@ -177,7 +178,7 @@ func TestLogoutWithoutKey(t *testing.T) {
 func TestLogoutWarnsAboutEnv(t *testing.T) {
 	is := is.New(t)
 	home := t.TempDir()
-	writeConfig(t, home, configFile{APIKey: "ocidex_abc"})
+	writeConfig(t, home, cliconfig.File{APIKey: "ocidex_abc"})
 	t.Setenv("OCIDEX_API_KEY", "ocidex_env")
 
 	out, errOut := &bytes.Buffer{}, &bytes.Buffer{}
