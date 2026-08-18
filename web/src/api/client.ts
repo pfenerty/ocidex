@@ -71,6 +71,9 @@ export type Cluster = components["schemas"]["ClusterResponse"];
 export type ClusterWorkload = components["schemas"]["ClusterWorkloadResponse"];
 export type WorkloadCoverage = components["schemas"]["WorkloadCoverageResponse"];
 export type WorkloadMatchState = ClusterWorkload["match_state"];
+export type RunningVuln = components["schemas"]["RunningVulnResponse"];
+export type RunningWorkload = components["schemas"]["RunningWorkloadResponse"];
+export type NamespaceFacet = components["schemas"]["NamespaceFacetResponse"];
 export type DistinctComponentSummary =
     components["schemas"]["DistinctComponentSummary"];
 export type ComponentVersionEntry =

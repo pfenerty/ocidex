@@ -1,6 +1,6 @@
-import { createMemo, type Accessor } from "solid-js";
-import { createQuery, createQueries, createMutation, useQueryClient } from "@tanstack/solid-query";
-import { client, unwrap, type VulnSummary } from "~/api/client";
+import type { Accessor } from "solid-js";
+import { createQuery, createMutation, useQueryClient } from "@tanstack/solid-query";
+import { client, unwrap, type WorkloadMatchState } from "~/api/client";
 import { hasText } from "~/utils/format";
 
 // ---------------------------------------------------------------------------
@@ -35,21 +35,111 @@ export function useCluster(id: Accessor<string | undefined>) {
     }));
 }
 
+/** Filters and paging for the workload table. */
+export interface WorkloadQueryParams {
+    k8s_namespace?: string;
+    match_state?: WorkloadMatchState;
+    q?: string;
+    limit?: number;
+    offset?: number;
+}
+
 /**
- * useClusterWorkloads — every container running in the cluster, with its match
- * state and the coverage rollup.
+ * useClusterWorkloads — the containers running in the cluster, with each row's
+ * match state, the coverage rollup, and pagination.
  *
- * Unpaginated by design: the response is one row per distinct
- * (workload, container, image), which is bounded by what the cluster actually
- * runs, and the coverage counts have to describe the same set the table shows.
+ * The coverage counts describe the whole cluster whatever the filters say. That
+ * is the point of them: a filtered table showing three clean rows must not read
+ * as a clean cluster (ADR-044 K5).
  */
-export function useClusterWorkloads(id: Accessor<string | undefined>) {
+export function useClusterWorkloads(
+    id: Accessor<string | undefined>,
+    params?: Accessor<WorkloadQueryParams>,
+) {
+    // Empty strings are dropped rather than sent: the API would read
+    // `match_state=` as a filter for a state named "".
+    const query = (): WorkloadQueryParams => {
+        const p = params?.() ?? {};
+        const state = p.match_state;
+        return {
+            ...(hasText(p.k8s_namespace) ? { k8s_namespace: p.k8s_namespace } : {}),
+            ...(state !== undefined ? { match_state: state } : {}),
+            ...(hasText(p.q) ? { q: p.q } : {}),
+            ...(p.limit !== undefined ? { limit: p.limit } : {}),
+            ...(p.offset !== undefined ? { offset: p.offset } : {}),
+        };
+    };
     return createQuery(() => ({
-        queryKey: ["clusters", id(), "workloads"] as const,
+        queryKey: ["clusters", id(), "workloads", query()] as const,
         queryFn: () =>
             unwrap(
                 client.GET("/api/v1/clusters/{id}/workloads", {
+                    params: { path: { id: id() ?? "" }, query: query() },
+                }),
+            ),
+        enabled: id() !== undefined,
+        select: (resp) => ({ ...resp, data: resp.data ?? [] }),
+    }));
+}
+
+/**
+ * useClusterNamespaces — the namespace facet for the workload filter.
+ *
+ * Separate from the workload page because it describes the whole cluster: built
+ * from a page of rows the filter would only ever offer the namespaces that page
+ * happened to contain.
+ */
+export function useClusterNamespaces(id: Accessor<string | undefined>) {
+    return createQuery(() => ({
+        queryKey: ["clusters", id(), "k8s-namespaces"] as const,
+        queryFn: () =>
+            unwrap(
+                client.GET("/api/v1/clusters/{id}/k8s-namespaces", {
                     params: { path: { id: id() ?? "" } },
+                }),
+            ),
+        enabled: id() !== undefined,
+        select: (resp) => ({ ...resp, data: resp.data ?? [] }),
+    }));
+}
+
+/** Filters and paging for the running-vulnerability list. */
+export type VulnSeverityFilter = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+
+export interface ClusterVulnQueryParams {
+    severity?: VulnSeverityFilter;
+    limit?: number;
+    offset?: number;
+}
+
+/**
+ * useClusterVulns — vulnerabilities carried by the images the cluster is
+ * actually running, counted once per advisory rather than once per workload.
+ *
+ * This replaces a per-artifact fan-out the browser used to do. The server keys
+ * the rollup by canonical id, so aliased advisories (GO-…, GHSA-…, CVE-…)
+ * collapse into one row instead of appearing three times with a third of the
+ * workload count each.
+ */
+export function useClusterVulns(
+    id: Accessor<string | undefined>,
+    params?: Accessor<ClusterVulnQueryParams>,
+) {
+    const query = (): ClusterVulnQueryParams => {
+        const p = params?.() ?? {};
+        const severity = p.severity;
+        return {
+            ...(severity !== undefined ? { severity } : {}),
+            ...(p.limit !== undefined ? { limit: p.limit } : {}),
+            ...(p.offset !== undefined ? { offset: p.offset } : {}),
+        };
+    };
+    return createQuery(() => ({
+        queryKey: ["clusters", id(), "vulns", query()] as const,
+        queryFn: () =>
+            unwrap(
+                client.GET("/api/v1/clusters/{id}/vulns", {
+                    params: { path: { id: id() ?? "" }, query: query() },
                 }),
             ),
         enabled: id() !== undefined,
@@ -91,90 +181,4 @@ export function useDeleteCluster() {
             void queryClient.invalidateQueries({ queryKey: ["me", "clusters"] });
         },
     }));
-}
-
-/** One artifact's vulnerability counts, paired back with the artifact it came from. */
-export interface RunningVulnRow {
-    artifactId: string;
-    summary: VulnSummary | undefined;
-}
-
-export interface RunningVulnAggregate {
-    isPending: boolean;
-    isError: boolean;
-    /** Severity totals across the distinct running artifacts, not per workload. */
-    totals: VulnSummary;
-    /** Per-artifact rows, in the order the artifact ids were passed. */
-    rows: RunningVulnRow[];
-}
-
-const EMPTY_TOTALS: VulnSummary = {
-    critical: 0,
-    high: 0,
-    medium: 0,
-    low: 0,
-    unknown: 0,
-    total: 0,
-};
-
-/**
- * useRunningVulnSummaries — vulnerability counts for the images a cluster is
- * actually running.
- *
- * There is no cluster-scoped vulnerability endpoint, and adding one would
- * duplicate the digest join that /workloads already performs. So the scoping
- * happens here: the caller passes the *distinct* artifact ids of the matched
- * workloads and this fans out to the per-artifact summary each artifact page
- * already uses. De-duplication is the caller's job precisely because a single
- * artifact commonly runs as many workloads, and counting it once per workload
- * would inflate the totals into a number that means nothing.
- *
- * The query keys are identical to useArtifactVulnSummary's, so a cluster view
- * and an artifact page share one cache entry rather than double-fetching.
- */
-export function useRunningVulnSummaries(
-    artifactIds: Accessor<string[]>,
-): Accessor<RunningVulnAggregate> {
-    const results = createQueries(() => ({
-        queries: artifactIds().map((id) => ({
-            queryKey: ["artifact", id, "vuln-summary"] as const,
-            queryFn: () =>
-                unwrap(
-                    client.GET("/api/v1/artifacts/{id}/vuln-summary", {
-                        params: { path: { id } },
-                    }),
-                ),
-        })),
-    }));
-
-    // Aggregated in a memo rather than through createQueries' `combine`: the
-    // combined result is typed as having to extend the results array itself, so
-    // a scalar rollup does not type-check there. The memo tracks the same store.
-    const aggregate = createMemo(() => {
-        const ids = artifactIds();
-        const totals = { ...EMPTY_TOTALS };
-        let isPending = false;
-        let isError = false;
-        const rows: RunningVulnRow[] = [];
-        // Bounded by both lengths: this memo depends on the id list *and* on the
-        // results store, and nothing guarantees it re-runs after the store has
-        // caught up with a shortened list rather than before.
-        const n = Math.min(ids.length, results.length);
-        for (let i = 0; i < n; i++) {
-            const r = results[i];
-            if (r.isPending) isPending = true;
-            if (r.isError) isError = true;
-            const s = r.data?.summary;
-            rows.push({ artifactId: ids[i], summary: s });
-            if (s === undefined) continue;
-            totals.critical += s.critical;
-            totals.high += s.high;
-            totals.medium += s.medium;
-            totals.low += s.low;
-            totals.unknown += s.unknown;
-            totals.total += s.total;
-        }
-        return { isPending, isError, totals, rows };
-    });
-    return aggregate;
 }

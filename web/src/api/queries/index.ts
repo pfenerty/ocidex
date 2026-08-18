@@ -11,7 +11,21 @@ export { useListAPIKeys, useCreateAPIKey, useDeleteAPIKey, useListUsers, useUpda
 export { useListSources } from "./sources";
 export { useWatches, useWatchFeed, useToggleWatch } from "./watches";
 export { useMyNamespaces, useMyActivity, useMyDriftFeed, useMyVulnerabilities, useMyClusters } from "./me";
-export { useListClusters, useCluster, useClusterWorkloads, useCreateCluster, useUpdateCluster, useDeleteCluster, useRunningVulnSummaries } from "./clusters";
+export {
+    useListClusters,
+    useCluster,
+    useClusterWorkloads,
+    useClusterNamespaces,
+    useClusterVulns,
+    useCreateCluster,
+    useUpdateCluster,
+    useDeleteCluster,
+} from "./clusters";
+export type {
+    WorkloadQueryParams,
+    ClusterVulnQueryParams,
+    VulnSeverityFilter,
+} from "./clusters";
 export { useListNamespaces, useNamespace, useCreateNamespace, useUpdateNamespace, useDeleteNamespace } from "./namespaces";
 export { useListRegistries, useCreateRegistry, useUpdateRegistry, useDeleteRegistry, useTestRegistryConnection, useScanRegistry, useRegenerateWebhookSecret, useRegistryTrustSummary, useRecentDrift } from "./registries";
 export { useListScanJobs, useGetScanJob, useRetryScanJob, useRetryAllFailedScanJobs, useListEnrichmentJobs, useEnrichmentJobsSummary, useRetryEnrichmentJob, useRetryAllFailedEnrichmentJobs } from "./jobs";
