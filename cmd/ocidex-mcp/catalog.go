@@ -270,6 +270,9 @@ func registerLicenseTools(srv *mcp.Server, api client.Client) {
 }
 
 type componentOutput struct {
+	// The id is what ocidex_component_vulnerabilities takes, and this is the only
+	// tool that hands one out — omitting it left that tool unreachable.
+	ID          string `json:"id" jsonschema:"UUID of this component occurrence; pass it to ocidex_component_vulnerabilities"`
 	Name        string `json:"name" jsonschema:"Component name"`
 	Version     string `json:"version,omitempty" jsonschema:"Component version as recorded in the SBOM"`
 	Group       string `json:"group,omitempty" jsonschema:"Component group, where the ecosystem has one"`
@@ -341,6 +344,7 @@ func registerComponentTools(srv *mcp.Server, api client.Client) {
 		}
 		for _, c := range page.Data {
 			out.Components = append(out.Components, componentOutput{
+				ID:          c.Id,
 				Name:        c.Name,
 				Version:     deref(c.Version),
 				Group:       deref(c.Group),

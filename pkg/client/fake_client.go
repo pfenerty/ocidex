@@ -1,6 +1,9 @@
 package client
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+)
 
 // FakeClient is a test double that implements Client.
 // Set function fields to stub individual methods; unset fields return zero values and nil error.
@@ -81,6 +84,8 @@ type FakeClient struct {
 	GetJobFn            func(ctx context.Context, id string) (ScanJobResponse, error)
 	RetryJobFn          func(ctx context.Context, id string) error
 	GetDashboardStatsFn func(ctx context.Context) (DashboardStatsOutputBody, error)
+
+	GetOpenAPISpecFn func(ctx context.Context) (json.RawMessage, error)
 }
 
 func (f *FakeClient) ListRegistries(ctx context.Context, opts PageOpts) (Page[RegistryResponse], error) {
@@ -505,3 +510,10 @@ func (f *FakeClient) ListClusterWorkloads(ctx context.Context, clusterID string)
 
 // Compile-time assertion that *FakeClient satisfies Client.
 var _ Client = (*FakeClient)(nil)
+
+func (f *FakeClient) GetOpenAPISpec(ctx context.Context) (json.RawMessage, error) {
+	if f.GetOpenAPISpecFn != nil {
+		return f.GetOpenAPISpecFn(ctx)
+	}
+	return nil, nil
+}

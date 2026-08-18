@@ -126,6 +126,19 @@ version. Point it at a server with `OCIDEX_URL` and authenticate with `OCIDEX_AP
 `ocidex-cli login` to write `~/.config/ocidex/config.yaml`. See
 [ADR-029](docs/adr/0029-cli-design.md) for the full configuration precedence and exit codes.
 
+### Connecting an Agent
+
+`ocidex-mcp` serves the catalog to MCP clients over stdio, reusing the credentials
+`ocidex-cli login` already wrote:
+
+```sh
+go install github.com/pfenerty/ocidex/cmd/ocidex-mcp@latest
+claude mcp add ocidex -- ocidex-mcp
+```
+
+Fourteen tools cover lookup, diff, changelog, vulnerabilities and ingest. See the
+[MCP Server guide](docs/MCP.md) for the full list, client configuration and troubleshooting.
+
 ### Ingest Your First SBOM
 
 Generate an SBOM with [syft](https://github.com/anchore/syft) and send it to OCIDex:
@@ -230,6 +243,7 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full reference. Key v
 | [Configuration](docs/CONFIGURATION.md) | All environment variables with descriptions and defaults |
 | [Deployment](docs/DEPLOYMENT.md) | Production deployment guide (K8s + Flux) |
 | [Ephemeral Jobs](docs/EPHEMERAL_JOBS.md) | K8s Job / `--once` mode for scanner and enrichment workers |
+| [MCP Server](docs/MCP.md) | Serving the catalog to agents over stdio: setup, tools, troubleshooting |
 | [API Versioning](docs/API_VERSIONING.md) | Versioning policy and breaking-change definition |
 | [Architecture Decision Records](docs/adr/) | 27 ADRs documenting every major technical choice |
 | [How AI Was Used](docs/AI.md) | Transparent account of AI's role in development |

@@ -265,6 +265,9 @@ func TestSearchComponents(t *testing.T) {
 	text := resultText(res)
 	i.True(strings.Contains(text, "pkg:apk/alpine/openssl@3.0.1"))
 	i.True(strings.Contains(text, "high"))
+	// Without the occurrence id, ocidex_component_vulnerabilities has no
+	// reachable argument: no other tool returns one.
+	i.True(strings.Contains(text, `"id":"c1"`))
 }
 
 // An empty page is a legitimate answer, not an error: the model needs to see

@@ -347,6 +347,32 @@ func TestIngestSBOM(t *testing.T) {
 	i.True(strings.Contains(resultText(res), "s9"))
 }
 
+// Container SBOMs are rejected by the API unless version, architecture and
+// build date are all present, so leaving build_date off the tool would make the
+// most common subject type un-ingestable through it — a gap only a live server
+// surfaces, since a fake accepts whatever it is handed.
+func TestIngestSBOMPassesContainerMetadata(t *testing.T) {
+	i := is.New(t)
+	var gotParams client.IngestSbomParams
+	api := &client.FakeClient{
+		IngestSBOMFn: func(_ context.Context, _ []byte, params client.IngestSbomParams) (client.IngestSBOMOutputBody, error) {
+			gotParams = params
+			return client.IngestSBOMOutputBody{Id: "s10", ComponentCount: 1, SpecVersion: "1.5"}, nil
+		},
+	}
+
+	res := callTool(t, connect(t, api), "ocidex_ingest_sbom", map[string]any{
+		"bom":          `{"bomFormat":"CycloneDX","specVersion":"1.5","components":[]}`,
+		"source":       "pfenerty/ci",
+		"version":      "3.15",
+		"architecture": "arm64",
+		"build_date":   "2021-11-24T00:00:00Z",
+	})
+	i.True(!res.IsError)
+	i.Equal(*gotParams.Architecture, "arm64")
+	i.Equal(*gotParams.BuildDate, "2021-11-24T00:00:00Z")
+}
+
 // A read-only key is the predictable way for the one write tool to fail, and
 // the message has to name the scope and the fix rather than say "forbidden".
 func TestIngestSBOMOnReadOnlyKey(t *testing.T) {

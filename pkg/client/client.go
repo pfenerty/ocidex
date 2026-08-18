@@ -1,6 +1,9 @@
 package client
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+)
 
 // Client is the interface for the OCIDex HTTP API.
 // The concrete implementation is httpClient, constructed via New.
@@ -94,4 +97,8 @@ type Client interface {
 	RetryJob(ctx context.Context, id string) error
 
 	GetDashboardStats(ctx context.Context) (DashboardStatsOutputBody, error)
+
+	// GetOpenAPISpec returns the running server's own OpenAPI document, for
+	// callers that need the full surface rather than the typed methods above.
+	GetOpenAPISpec(ctx context.Context) (json.RawMessage, error)
 }

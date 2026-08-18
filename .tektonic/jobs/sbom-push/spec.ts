@@ -33,11 +33,16 @@ import { goSetup } from "../../script-lib";
 // semantics nor flag skew can break this task again.
 const ocidexSource = "ocidex/ci";
 
-// The binaries OCIDex ships — one image each in docker/Dockerfile, so one uploaded
-// SBOM each. ocidex-cli is also the tool doing the pushing, but since ocidex-5dw it
-// ships an image of its own, so it is a subject here like the rest — which is why
-// switching the push to the published image saved no build time: this list, not the
-// pushing, is what compiles it.
+// The binaries OCIDex ships — mostly one image each in docker/Dockerfile, so one
+// uploaded SBOM each. ocidex-cli is also the tool doing the pushing, but since
+// ocidex-5dw it ships an image of its own, so it is a subject here like the rest —
+// which is why switching the push to the published image saved no build time: this
+// list, not the pushing, is what compiles it.
+//
+// ocidex-mcp is the exception: ADR-045 makes it a local stdio server an agent
+// launches itself, so it has no image. It is still shipped — `make build` produces it
+// and users run it — and something users run is exactly what needs its own SBOM here,
+// image or not.
 const shippedBinaries = [
   "ocidex",
   "scanner-worker",
@@ -49,6 +54,7 @@ const shippedBinaries = [
   "k8s-agent",
   "operator",
   "ocidex-cli",
+  "ocidex-mcp",
 ];
 
 const nuList = (xs: string[]) => `[${xs.map((x) => `"${x}"`).join(" ")}]`;

@@ -492,6 +492,7 @@ type ingestSBOMInput struct {
 	Source       string `json:"source" jsonschema:"Ingest channel to attribute this SBOM to: a source UUID or <namespace>/<name>. Its namespace owns the result"`
 	Version      string `json:"version,omitempty" jsonschema:"Artifact version or image tag; overrides the value in the document"`
 	Architecture string `json:"architecture,omitempty" jsonschema:"Architecture, e.g. amd64"`
+	BuildDate    string `json:"build_date,omitempty" jsonschema:"Build date of the image, RFC3339. A container SBOM is rejected without it, alongside version and architecture, unless the document supplies it"`
 	SubjectType  string `json:"subject_type,omitempty" jsonschema:"CycloneDX type of the subject, e.g. container or application"`
 	SubjectName  string `json:"subject_name,omitempty" jsonschema:"Subject name; takes precedence over the document"`
 	SubjectGroup string `json:"subject_group,omitempty" jsonschema:"Subject group, e.g. github.com/pfenerty"`
@@ -528,6 +529,7 @@ func registerIngestTool(srv *mcp.Server, api client.Client) {
 			Source:       optional(in.Source),
 			Version:      optional(in.Version),
 			Architecture: optional(in.Architecture),
+			BuildDate:    optional(in.BuildDate),
 			SubjectType:  optional(in.SubjectType),
 			SubjectName:  optional(in.SubjectName),
 			SubjectGroup: optional(in.SubjectGroup),
