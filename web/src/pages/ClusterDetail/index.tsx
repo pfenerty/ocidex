@@ -1,5 +1,5 @@
 import "./ClusterDetail.css";
-import { Show } from "solid-js";
+import { Show, createSignal } from "solid-js";
 import { useParams, useSearchParams } from "@solidjs/router";
 import {
     DetailGrid,
@@ -10,11 +10,13 @@ import {
 } from "~/components/ui";
 import { SkeletonHeader } from "~/components/Skeleton";
 import { StalenessPill } from "../Clusters";
-import { useCluster, useClusterWorkloads } from "~/api/queries";
+import { useCluster, useClusterNamespaces, useClusterWorkloads } from "~/api/queries";
+import type { WorkloadSortKey } from "~/api/queries";
+import type { SortDir } from "~/components/DataTable";
 import type { WorkloadMatchState } from "~/api/client";
 import { CoverageBand } from "./CoverageBand";
 import { OverviewTab } from "./OverviewTab";
-import { WorkloadsTab } from "./WorkloadsTab";
+import { WorkloadsTab, WorkloadsFilterBar } from "./WorkloadsTab";
 import { VulnerabilitiesTab } from "./VulnerabilitiesTab";
 import { GapsTab } from "./GapsTab";
 
@@ -107,7 +109,15 @@ export default function ClusterDetail() {
                     // Filters belong to the tab that owns them; carrying a
                     // match_state onto the vulnerability list would silently
                     // apply to nothing.
-                    setSearchParams({ tab: id, match_state: undefined });
+                    setSearchParams({
+                        tab: id,
+                        match_state: undefined,
+                        k8s_namespace: undefined,
+                        q: undefined,
+                        sort: undefined,
+                        dir: undefined,
+                        offset: undefined,
+                    });
                 }}
             />
 
@@ -118,7 +128,12 @@ export default function ClusterDetail() {
                             <OverviewTab clusterId={params.id} coverage={data().coverage} />
                         </Show>
                         <Show when={tab() === "workloads"}>
-                            <WorkloadsTabPanel clusterId={params.id} matchState={matchState()} />
+                            <WorkloadsTabPanel
+                                clusterId={params.id}
+                                matchState={matchState()}
+                                searchParams={searchParams}
+                                setSearchParams={setSearchParams}
+                            />
                         </Show>
                         <Show when={tab() === "vulnerabilities"}>
                             <VulnerabilitiesTab
@@ -136,18 +151,96 @@ export default function ClusterDetail() {
     );
 }
 
-/** Fetches the workload page for the current filters and renders the table. */
-function WorkloadsTabPanel(props: { clusterId: string; matchState: WorkloadMatchState | undefined }) {
+/** The sort keys the API accepts, so a hand-edited URL cannot request one it doesn't. */
+const SORT_KEYS: WorkloadSortKey[] = [
+    "k8s_namespace",
+    "workload_name",
+    "container_name",
+    "image_ref",
+    "match_state",
+    "pod_count",
+    "last_seen_at",
+    "vuln_count",
+];
+
+/**
+ * WorkloadsTabPanel owns the workload filters, sort and page offset, all of
+ * which live in search params so a narrowed view is linkable.
+ *
+ * The text box is the one exception: it is debounced through a local signal so
+ * typing does not push a history entry per keystroke, and the search param
+ * catches up 300ms later.
+ */
+function WorkloadsTabPanel(props: {
+    clusterId: string;
+    matchState: WorkloadMatchState | undefined;
+    searchParams: Record<string, string | string[] | undefined>;
+    setSearchParams: (params: Record<string, string | number | undefined>) => void;
+}) {
+    const q = () => one(props.searchParams.q) ?? "";
+    const k8sNamespace = () => one(props.searchParams.k8s_namespace) ?? "";
+    const sortBy = (): WorkloadSortKey => {
+        const raw = one(props.searchParams.sort);
+        return SORT_KEYS.find((candidate) => candidate === raw) ?? "k8s_namespace";
+    };
+    const sortDir = (): SortDir => (one(props.searchParams.dir) === "desc" ? "desc" : "asc");
+    const offset = () => {
+        const parsed = Number(one(props.searchParams.offset));
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    };
+
+    // Mirrors q() so the input stays responsive while the debounce runs; the
+    // search param remains the source of truth for the query itself.
+    const [draftQuery, setDraftQuery] = createSignal(q());
+    let debounce: ReturnType<typeof setTimeout> | undefined;
+    const onQueryInput = (value: string) => {
+        setDraftQuery(value);
+        clearTimeout(debounce);
+        debounce = setTimeout(() => {
+            props.setSearchParams({ q: value === "" ? undefined : value, offset: undefined });
+        }, 300);
+    };
+
+    const namespacesQuery = useClusterNamespaces(() => props.clusterId);
     const query = useClusterWorkloads(
         () => props.clusterId,
-        () => ({ match_state: props.matchState, limit: 200 }),
+        () => ({
+            match_state: props.matchState,
+            ...(k8sNamespace() === "" ? {} : { k8s_namespace: k8sNamespace() }),
+            ...(q() === "" ? {} : { q: q() }),
+            sort: sortBy(),
+            dir: sortDir(),
+            limit: 50,
+            offset: offset(),
+        }),
     );
+
     return (
-        <WorkloadsTab
-            rows={query.data?.data}
-            loading={query.isLoading}
-            isError={query.isError}
-            error={query.error}
-        />
+        <>
+            <WorkloadsFilterBar
+                filters={{ q: draftQuery(), k8sNamespace: k8sNamespace(), matchState: props.matchState ?? "" }}
+                namespaces={namespacesQuery.data?.data}
+                onQueryInput={onQueryInput}
+                // Every filter change resets the offset: page 4 of the old
+                // result set is a meaningless place to land in the new one.
+                onNamespaceChange={(value) =>
+                    props.setSearchParams({ k8s_namespace: value, offset: undefined })
+                }
+                onMatchStateChange={(value) =>
+                    props.setSearchParams({ match_state: value, offset: undefined })
+                }
+            />
+            <WorkloadsTab
+                rows={query.data?.data}
+                loading={query.isFetching}
+                isError={query.isError}
+                error={query.error}
+                sortBy={sortBy()}
+                sortDir={sortDir()}
+                onSort={(key, dir) => props.setSearchParams({ sort: key, dir, offset: undefined })}
+                pagination={query.data?.pagination}
+                onPageChange={(next) => props.setSearchParams({ offset: next === 0 ? undefined : next })}
+            />
+        </>
     );
 }

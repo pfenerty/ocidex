@@ -168,6 +168,8 @@ func (h *Handler) ListClusterWorkloads(ctx context.Context, in *ListClusterWorkl
 		K8sNamespace: in.K8sNamespace,
 		MatchState:   in.MatchState,
 		Query:        in.Q,
+		SortBy:       in.Sort,
+		SortDir:      in.Dir,
 		Limit:        in.Limit,
 		Offset:       in.Offset,
 	}, vis)
@@ -356,5 +358,15 @@ func toWorkloadResponse(w service.ClusterWorkload) ClusterWorkloadResponse {
 		ArtifactName:   w.ArtifactName,
 		ArtifactType:   w.ArtifactType,
 		SubjectVersion: w.SubjectVersion,
+		Vulns:          toWorkloadVulnCounts(w.Vulns),
 	}
+}
+
+// toWorkloadVulnCounts preserves the nil the service used to say "never
+// assessed"; it does not substitute zeros for it.
+func toWorkloadVulnCounts(v *service.VulnCounts) *WorkloadVulnCounts {
+	if v == nil {
+		return nil
+	}
+	return &WorkloadVulnCounts{Critical: v.Critical, High: v.High, Medium: v.Medium, Low: v.Low}
 }

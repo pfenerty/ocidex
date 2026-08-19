@@ -23,6 +23,7 @@ export {
 } from "./clusters";
 export type {
     WorkloadQueryParams,
+    WorkloadSortKey,
     ClusterVulnQueryParams,
     VulnSeverityFilter,
 } from "./clusters";

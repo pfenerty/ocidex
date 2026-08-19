@@ -115,7 +115,11 @@ SELECT
     s.subject_version AS subject_version,
     a.name          AS artifact_name,
     a.type          AS artifact_type,
-    ms.state        AS match_state
+    ms.state        AS match_state,
+    COALESCE(vs.critical, 0)::bigint AS critical_count,
+    COALESCE(vs.high, 0)::bigint     AS high_count,
+    COALESCE(vs.medium, 0)::bigint   AS medium_count,
+    COALESCE(vs.low, 0)::bigint      AS low_count
 FROM cluster_workload w
 JOIN cluster c ON c.id = w.cluster_id
 LEFT JOIN LATERAL (
@@ -134,6 +138,36 @@ CROSS JOIN LATERAL (
                  ELSE                                                     'unknown'
             END)::text AS state
 ) ms
+-- Per-severity finding counts for the matched SBOM, so "which images have
+-- vulnerabilities" is answerable from the table instead of by fanning out one
+-- request per row from the browser. Counts distinct canonical_ids, matching
+-- GetSBOMVulnSummary, so an alias group is one finding here too.
+--
+-- The join is LEFT ... ON s.id IS NOT NULL, so an unmatched workload produces
+-- no counts at all. They are projected through COALESCE only because a NULL
+-- bigint out of a lateral aggregate is not something sqlc can type; the
+-- zero it yields for an unmatched row is not a finding count and must never be
+-- read as one. match_state is the column that says which, and it is non-null
+-- precisely so every consumer has to name the case (K5) — the service layer
+-- drops the counts entirely for a workload that never matched.
+--
+-- The sort term below reads vs.* directly rather than the coalesced projection,
+-- so an unassessed workload sorts last in both directions instead of ranking
+-- alongside a clean one.
+LEFT JOIN LATERAL (
+    SELECT
+        COUNT(DISTINCT COALESCE(NULLIF(v.canonical_id, ''), v.id))
+            FILTER (WHERE v.severity = 'CRITICAL')::bigint AS critical,
+        COUNT(DISTINCT COALESCE(NULLIF(v.canonical_id, ''), v.id))
+            FILTER (WHERE v.severity = 'HIGH')::bigint     AS high,
+        COUNT(DISTINCT COALESCE(NULLIF(v.canonical_id, ''), v.id))
+            FILTER (WHERE v.severity = 'MEDIUM')::bigint   AS medium,
+        COUNT(DISTINCT COALESCE(NULLIF(v.canonical_id, ''), v.id))
+            FILTER (WHERE v.severity = 'LOW')::bigint      AS low
+    FROM (SELECT DISTINCT purl FROM component WHERE sbom_id = s.id AND purl IS NOT NULL) comp
+    JOIN package_vulnerability pv ON pv.purl = comp.purl
+    JOIN vulnerability v ON v.id = pv.vulnerability_id
+) vs ON s.id IS NOT NULL
 WHERE w.cluster_id = $1
   AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
   AND (sqlc.narg('k8s_namespace')::text IS NULL OR w.k8s_namespace = sqlc.narg('k8s_namespace')::text)
@@ -142,7 +176,43 @@ WHERE w.cluster_id = $1
         w.workload_name  ILIKE '%' || sqlc.narg('q')::text || '%'
      OR w.container_name ILIKE '%' || sqlc.narg('q')::text || '%'
      OR w.image_ref      ILIKE '%' || sqlc.narg('q')::text || '%'))
-ORDER BY w.k8s_namespace ASC, w.workload_name ASC, w.container_name ASC
+-- Sorting is parameterised because the list is server-paginated: reordering
+-- only the rows that happen to be on the current page would misrepresent the
+-- whole cluster (same argument as ListTopVulnerabilities).
+ORDER BY
+    -- Numeric keys share one term; the direction flips the sign.
+    CASE @sort_by::text
+        WHEN 'pod_count'    THEN w.pod_count::float8
+        WHEN 'last_seen_at' THEN EXTRACT(EPOCH FROM w.last_seen_at)::float8
+        -- Severity counts packed into one number, most severe most
+        -- significant, so "worst first" is one sort rather than four. NULL
+        -- (never assessed) stays NULL and sorts last in both directions —
+        -- an unassessed workload must not rank alongside a clean one.
+        WHEN 'vuln_count'   THEN (vs.critical * 1000000 + vs.high * 1000 + vs.medium)::float8
+    END * CASE @sort_dir::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
+    -- Text keys can't ride the sign trick, but they can share one nested CASE
+    -- per direction instead of two terms per key.
+    CASE WHEN @sort_dir::text = 'asc' THEN
+        CASE @sort_by::text
+            WHEN 'k8s_namespace'  THEN w.k8s_namespace
+            WHEN 'workload_name'  THEN w.workload_name
+            WHEN 'container_name' THEN w.container_name
+            WHEN 'image_ref'      THEN w.image_ref
+            WHEN 'match_state'    THEN ms.state
+        END
+    END ASC NULLS LAST,
+    CASE WHEN @sort_dir::text = 'desc' THEN
+        CASE @sort_by::text
+            WHEN 'k8s_namespace'  THEN w.k8s_namespace
+            WHEN 'workload_name'  THEN w.workload_name
+            WHEN 'container_name' THEN w.container_name
+            WHEN 'image_ref'      THEN w.image_ref
+            WHEN 'match_state'    THEN ms.state
+        END
+    END DESC NULLS LAST,
+    -- The default ordering, and the tiebreaker under every other key: without
+    -- a total order, two pages of an offset-paginated list can repeat a row.
+    w.k8s_namespace ASC, w.workload_name ASC, w.container_name ASC
 LIMIT sqlc.narg('limit')::int OFFSET sqlc.narg('offset')::int;
 
 -- name: CountClusterWorkloads :one

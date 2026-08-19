@@ -1,6 +1,7 @@
 import type { Accessor } from "solid-js";
 import { createQuery, createMutation, useQueryClient } from "@tanstack/solid-query";
 import { client, unwrap, type WorkloadMatchState } from "~/api/client";
+import type { paths } from "~/types/openapi";
 import { hasText } from "~/utils/format";
 
 // ---------------------------------------------------------------------------
@@ -40,9 +41,17 @@ export interface WorkloadQueryParams {
     k8s_namespace?: string;
     match_state?: WorkloadMatchState;
     q?: string;
+    sort?: WorkloadSortKey;
+    dir?: SortDir;
     limit?: number;
     offset?: number;
 }
+
+/** The columns the API will order the workload list by. */
+export type WorkloadSortKey =
+    NonNullable<paths["/api/v1/clusters/{id}/workloads"]["get"]["parameters"]["query"]>["sort"];
+
+export type SortDir = "asc" | "desc";
 
 /**
  * useClusterWorkloads — the containers running in the cluster, with each row's
@@ -65,6 +74,8 @@ export function useClusterWorkloads(
             ...(hasText(p.k8s_namespace) ? { k8s_namespace: p.k8s_namespace } : {}),
             ...(state !== undefined ? { match_state: state } : {}),
             ...(hasText(p.q) ? { q: p.q } : {}),
+            ...(p.sort !== undefined ? { sort: p.sort } : {}),
+            ...(p.dir !== undefined ? { dir: p.dir } : {}),
             ...(p.limit !== undefined ? { limit: p.limit } : {}),
             ...(p.offset !== undefined ? { offset: p.offset } : {}),
         };

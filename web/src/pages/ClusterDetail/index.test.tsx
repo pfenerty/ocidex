@@ -2,7 +2,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render } from "@solidjs/testing-library";
 import type { JSX } from "solid-js";
-import { useCluster, useClusterWorkloads, useClusterVulns } from "~/api/queries";
+import {
+    useCluster,
+    useClusterWorkloads,
+    useClusterVulns,
+    useClusterNamespaces,
+} from "~/api/queries";
 import ClusterDetail from "./index";
 
 // The mutation hooks are never called here, but StalenessPill lives in
@@ -25,7 +30,31 @@ vi.mock("~/context/toast", () => ({ useToast: () => vi.fn() }));
 let searchParams: Record<string, string | undefined> = {};
 
 /** The last query params the workload hook was asked for. */
-let lastWorkloadParams: { match_state?: string; limit?: number } | undefined;
+let lastWorkloadParams:
+    | {
+          match_state?: string;
+          k8s_namespace?: string;
+          q?: string;
+          sort?: string;
+          dir?: string;
+          limit?: number;
+          offset?: number;
+      }
+    | undefined;
+
+/** One setSearchParams call: the keys the page writes, undefined meaning cleared. */
+interface ParamWrite {
+    tab?: string;
+    k8s_namespace?: string;
+    match_state?: string;
+    q?: string;
+    sort?: string;
+    dir?: string;
+    offset?: number;
+}
+
+/** Search-param writes the page made, newest last. */
+let searchParamWrites: ParamWrite[] = [];
 
 vi.mock("@solidjs/router", () => ({
     A: (props: { href: string; children?: JSX.Element; class?: string }) => (
@@ -34,12 +63,18 @@ vi.mock("@solidjs/router", () => ({
         </a>
     ),
     useParams: () => ({ id: "c-prod" }),
-    useSearchParams: () => [searchParams, vi.fn()],
+    useSearchParams: () => [
+        searchParams,
+        (next: ParamWrite) => {
+            searchParamWrites.push(next);
+        },
+    ],
 }));
 
 const mockCluster = vi.mocked(useCluster);
 const mockWorkloads = vi.mocked(useClusterWorkloads);
 const mockVulns = vi.mocked(useClusterVulns);
+const mockNamespaces = vi.mocked(useClusterNamespaces);
 
 const cluster = {
     id: "c-prod",
@@ -97,20 +132,32 @@ function renderPage(
     })) as never);
     mockWorkloads.mockImplementation(((
         _id: unknown,
-        params?: () => { match_state?: string; limit?: number },
+        params?: () => NonNullable<typeof lastWorkloadParams>,
     ) => {
         lastWorkloadParams = params?.();
         return {
             data: {
                 data: workloads,
                 coverage,
-                pagination: { total: workloads.length, limit: 200, offset: 0 },
+                pagination: { total: workloads.length, limit: 50, offset: 0 },
             },
             isLoading: false,
+            isFetching: false,
             isError: false,
             error: null,
         };
     }) as never);
+    mockNamespaces.mockImplementation((() => ({
+        data: {
+            data: [
+                { k8s_namespace: "default", workload_count: 7 },
+                { k8s_namespace: "kube-system", workload_count: 3 },
+            ],
+        },
+        isLoading: false,
+        isError: false,
+        error: null,
+    })) as never);
     mockVulns.mockImplementation((() => ({
         data: { data: vulns, coverage, pagination: { total: vulns.length, limit: 5, offset: 0 } },
         isLoading: false,
@@ -118,6 +165,11 @@ function renderPage(
         error: null,
     })) as never);
     return render(() => <ClusterDetail />);
+}
+
+/** The most recent setSearchParams call, or a failure if the page made none. */
+function lastWrite(): ParamWrite {
+    return must(searchParamWrites[searchParamWrites.length - 1], "a search-param write");
 }
 
 function must<T>(value: T | null | undefined, what: string): T {
@@ -132,6 +184,7 @@ describe("ClusterDetail", () => {
         vi.clearAllMocks();
         searchParams = {};
         lastWorkloadParams = undefined;
+        searchParamWrites = [];
     });
 
     it("states coverage before any vulnerability figure", () => {
@@ -267,6 +320,128 @@ describe("ClusterDetail", () => {
         const hrefs = [...row.querySelectorAll("a")].map((a) => a.getAttribute("href"));
         expect(hrefs).toContain("/artifacts/a-1");
         expect(hrefs).toContain("/sboms/s-1");
+    });
+
+    // The whole point of the vulnerability column: "which of these images have
+    // vulnerabilities" must be answerable from the table itself.
+    it("shows per-severity findings on a matched workload", () => {
+        searchParams = { tab: "workloads" };
+        const { container } = renderPage(
+            [workload({ vulns: { critical: 2, high: 1, medium: 0, low: 4 } })],
+            GAPPY,
+        );
+
+        const row = must(container.querySelector("tbody tr"), "workload row");
+        const chip = must(row.querySelector(".vuln-chip"), "severity chip");
+        expect(chip.getAttribute("title")).toContain("2 critical");
+        expect(chip.getAttribute("title")).toContain("1 high");
+        expect(chip.getAttribute("title")).toContain("4 low");
+    });
+
+    // ADR-044 K5 in a single cell. An image nobody assessed and an image
+    // assessed with nothing wrong are different facts, and the table is where
+    // they are most easily confused into one clean-looking dash.
+    it("distinguishes an unassessed image from an assessed clean one", () => {
+        searchParams = { tab: "workloads" };
+        const { container, unmount } = renderPage(
+            [workload({ match_state: "unknown", artifact_id: undefined, sbom_id: undefined })],
+            GAPPY,
+        );
+        expect(must(container.querySelector("tbody tr"), "row").textContent).toContain(
+            "not assessed",
+        );
+        unmount();
+
+        searchParams = { tab: "workloads" };
+        const clean = renderPage(
+            [workload({ vulns: { critical: 0, high: 0, medium: 0, low: 0 } })],
+            GAPPY,
+        );
+        const cleanRow = must(clean.container.querySelector("tbody tr"), "row");
+        expect(cleanRow.textContent).toContain("no findings");
+        expect(cleanRow.textContent).not.toContain("not assessed");
+    });
+
+    // Filters must reach the server, not just the rows already fetched — the
+    // list is paginated, so filtering the current page would be a lie.
+    it("passes the filter and sort params through to the query", () => {
+        searchParams = {
+            tab: "workloads",
+            k8s_namespace: "kube-system",
+            match_state: "unknown",
+            q: "redis",
+            sort: "vuln_count",
+            dir: "desc",
+            offset: "50",
+        };
+        renderPage([workload()], GAPPY);
+
+        expect(lastWorkloadParams).toMatchObject({
+            k8s_namespace: "kube-system",
+            match_state: "unknown",
+            q: "redis",
+            sort: "vuln_count",
+            dir: "desc",
+            offset: 50,
+        });
+    });
+
+    // A sort key the API does not define would otherwise reach a SQL CASE that
+    // matches no branch, producing an arbitrary order that looks like a sort.
+    it("ignores a sort key the API does not define", () => {
+        searchParams = { tab: "workloads", sort: "whatever", dir: "sideways" };
+        renderPage([workload()], GAPPY);
+
+        expect(lastWorkloadParams?.sort).toBe("k8s_namespace");
+        expect(lastWorkloadParams?.dir).toBe("asc");
+    });
+
+    // Page 4 of the old result set is a meaningless place to land in the new
+    // one, so any filter or sort change has to clear the offset.
+    it("resets paging when a filter or sort changes", () => {
+        searchParams = { tab: "workloads", offset: "50" };
+        const { container } = renderPage([workload()], GAPPY);
+
+        const selects = [...container.querySelectorAll(".search-bar select")];
+        const namespaceSelect = must(selects[0], "namespace select") as HTMLSelectElement;
+        namespaceSelect.value = "kube-system";
+        namespaceSelect.dispatchEvent(new Event("change", { bubbles: true }));
+
+        const filterWrite = lastWrite();
+        expect(filterWrite.k8s_namespace).toBe("kube-system");
+        // The key must be *present* and undefined — an absent key would leave
+        // the stale offset in the URL rather than clearing it.
+        expect("offset" in filterWrite).toBe(true);
+        expect(filterWrite.offset).toBeUndefined();
+
+        const header = must(
+            [...container.querySelectorAll("th")].find((th) =>
+                th.textContent.includes("Vulnerabilities"),
+            ),
+            "vulnerabilities header",
+        );
+        must(header.querySelector("button") ?? header, "sortable header").dispatchEvent(
+            new MouseEvent("click", { bubbles: true }),
+        );
+
+        const sortWrite = lastWrite();
+        expect(sortWrite.sort).toBe("vuln_count");
+        expect("offset" in sortWrite).toBe(true);
+        expect(sortWrite.offset).toBeUndefined();
+    });
+
+    // The facet query describes the whole cluster; options built from the rows
+    // on screen would silently omit every namespace off the current page.
+    it("offers namespaces the current page does not contain", () => {
+        searchParams = { tab: "workloads" };
+        const { container } = renderPage([workload({ k8s_namespace: "default" })], GAPPY);
+
+        const namespaceSelect = must(
+            container.querySelector(".search-bar select"),
+            "namespace select",
+        );
+        expect(namespaceSelect.textContent).toContain("kube-system");
+        expect(namespaceSelect.textContent).toContain("(3)");
     });
 
     // The two gaps have different remedies, so they are stated separately

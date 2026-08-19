@@ -12,6 +12,7 @@ import (
 
 	"github.com/pfenerty/ocidex/db"
 	"github.com/pfenerty/ocidex/internal/repository"
+	"github.com/pfenerty/ocidex/internal/service"
 )
 
 // clusterMigrationVersion is the goose version of 00059_cluster_workload.sql.
@@ -865,5 +866,162 @@ func TestClusterWorkloadFilters(t *testing.T) {
 			t.Fatalf("listing namespaces: %v", err)
 		}
 		is.Equal(len(facets), 0)
+	})
+}
+
+// TestClusterWorkloadVulnCountsAndSort covers the two things that make the
+// workload table answer "which images have vulnerabilities": the per-row
+// severity counts, and the vuln_count sort that ranks by them.
+func TestClusterWorkloadVulnCountsAndSort(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := t.Context()
+	is := is.New(t)
+	q := repository.New(pool)
+	svc := service.NewClusterService(pool)
+
+	owner := seedUser(t, pool, 9501, "vulncount-owner", "member")
+	nsID := seedNamespace(t, pool, "vulncount-ns", owner, "private")
+	clusterID := seedCluster(t, pool, nsID, "vulncount-prod")
+	admin := pgtype.Bool{Bool: false, Valid: true}
+	cid := mustUUID(t, clusterID)
+
+	riskyDigest, cleanDigest := digest('a'), digest('b')
+	seedSBOMWithPurl(t, pool, nsID, "docker.io/risky", riskyDigest, "pkg:deb/debian/openssl@3.0.1")
+	seedSBOMWithPurl(t, pool, nsID, "docker.io/clean", cleanDigest, "pkg:deb/debian/tzdata@2024a")
+
+	// Two ids aliasing one CVE plus a distinct HIGH: the alias group must count
+	// once, so this image carries one critical and one high, not two and one.
+	seedAdvisory(t, pool, "GO-2024-0001", "CVE-2024-1111", "CRITICAL", 9.8, "pkg:deb/debian/openssl@3.0.1")
+	seedAdvisory(t, pool, "GHSA-aaaa-bbbb-cccc", "CVE-2024-1111", "CRITICAL", 9.8, "pkg:deb/debian/openssl@3.0.1")
+	seedAdvisory(t, pool, "GO-2024-0002", "CVE-2024-2222", "HIGH", 7.5, "pkg:deb/debian/openssl@3.0.1")
+
+	observed := time.Now().UTC()
+	upsert := func(name, ref, dgst string) {
+		t.Helper()
+		var d pgtype.Text
+		if dgst != "" {
+			d = txt(dgst)
+		}
+		err := q.UpsertClusterWorkload(ctx, repository.UpsertClusterWorkloadParams{
+			ClusterID:     cid,
+			K8sNamespace:  "prod",
+			WorkloadKind:  "Deployment",
+			WorkloadName:  name,
+			ContainerName: "app",
+			ImageRef:      ref,
+			ImageDigest:   d,
+			PodCount:      1,
+			ObservedAt:    pgtype.Timestamptz{Time: observed, Valid: true},
+		})
+		if err != nil {
+			t.Fatalf("upsert %q: %v", name, err)
+		}
+	}
+
+	// Names are deliberately in the opposite order to their risk, so a sort by
+	// vuln_count cannot pass by accidentally reproducing the default ordering.
+	upsert("a-clean", "docker.io/clean:v1", cleanDigest)
+	upsert("b-risky", "docker.io/risky:v1", riskyDigest)
+	upsert("c-unmatched", "docker.io/mystery:v1", digest('c'))
+
+	vis := service.VisibilityFilter{UserID: owner}
+
+	t.Run("counts are per severity and deduplicated by canonical id", func(t *testing.T) {
+		is := is.New(t)
+		rows, err := q.ListClusterWorkloads(ctx, repository.ListClusterWorkloadsParams{
+			ClusterID: cid, UserID: owner, IsAdmin: admin, Q: txt("b-risky"),
+		})
+		if err != nil {
+			t.Fatalf("listing workloads: %v", err)
+		}
+		is.Equal(len(rows), 1)
+		is.Equal(rows[0].CriticalCount, int64(1))
+		is.Equal(rows[0].HighCount, int64(1))
+		is.Equal(rows[0].MediumCount, int64(0))
+		is.Equal(rows[0].LowCount, int64(0))
+	})
+
+	// The distinction ADR-044 K5 exists for: an image nobody assessed must not
+	// report the same "no findings" a scanned image with none reports.
+	t.Run("unassessed carries no counts, assessed and clean carries zeros", func(t *testing.T) {
+		is := is.New(t)
+		result, err := svc.ListWorkloads(ctx, clusterID, service.WorkloadParams{}, vis)
+		if err != nil {
+			t.Fatalf("listing workloads: %v", err)
+		}
+		is.Equal(len(result.Data), 3)
+
+		byName := map[string]service.ClusterWorkload{}
+		for _, w := range result.Data {
+			byName[w.WorkloadName] = w
+		}
+
+		clean := byName["a-clean"]
+		if clean.Vulns == nil {
+			t.Fatal("a matched workload with no findings must report zeros, not nothing")
+		}
+		is.Equal(*clean.Vulns, service.VulnCounts{})
+
+		if byName["c-unmatched"].Vulns != nil {
+			t.Fatal("an unmatched workload must report no counts at all")
+		}
+	})
+
+	t.Run("vuln_count sorts by severity and puts the unassessed last", func(t *testing.T) {
+		is := is.New(t)
+		order := func(dir string) []string {
+			t.Helper()
+			result, err := svc.ListWorkloads(ctx, clusterID, service.WorkloadParams{
+				SortBy: "vuln_count", SortDir: dir,
+			}, vis)
+			if err != nil {
+				t.Fatalf("listing workloads: %v", err)
+			}
+			names := make([]string, len(result.Data))
+			for i, w := range result.Data {
+				names[i] = w.WorkloadName
+			}
+			return names
+		}
+		is.Equal(order("desc"), []string{"b-risky", "a-clean", "c-unmatched"})
+		// Ascending flips the two assessed rows but not the unassessed one:
+		// "least vulnerable first" is a claim only about images we looked at.
+		is.Equal(order("asc"), []string{"a-clean", "b-risky", "c-unmatched"})
+	})
+
+	// An unrecognised key must not reach the CASE, where it would silently
+	// produce an arbitrary order that reads like a working sort.
+	t.Run("an unknown sort key falls back to the default ordering", func(t *testing.T) {
+		is := is.New(t)
+		result, err := svc.ListWorkloads(ctx, clusterID, service.WorkloadParams{
+			SortBy: "'; DROP TABLE cluster_workload; --", SortDir: "desc",
+		}, vis)
+		if err != nil {
+			t.Fatalf("listing workloads: %v", err)
+		}
+		names := make([]string, len(result.Data))
+		for i, w := range result.Data {
+			names[i] = w.WorkloadName
+		}
+		is.Equal(names, []string{"a-clean", "b-risky", "c-unmatched"})
+	})
+
+	t.Run("text keys sort in both directions", func(t *testing.T) {
+		is := is.New(t)
+		result, err := svc.ListWorkloads(ctx, clusterID, service.WorkloadParams{
+			SortBy: "workload_name", SortDir: "desc",
+		}, vis)
+		if err != nil {
+			t.Fatalf("listing workloads: %v", err)
+		}
+		is.Equal(result.Data[0].WorkloadName, "c-unmatched")
+		is.Equal(result.Data[2].WorkloadName, "a-clean")
 	})
 }

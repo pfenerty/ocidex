@@ -142,6 +142,21 @@ type ClusterWorkloadResponse struct {
 	ArtifactName   string `json:"artifact_name,omitempty"`
 	ArtifactType   string `json:"artifact_type,omitempty"`
 	SubjectVersion string `json:"subject_version,omitempty"`
+
+	// Vulns is present only for a matched workload. Its absence means the image
+	// was never assessed, which is a different fact from an assessed image with
+	// no findings — omitting the object rather than sending zeros is what stops
+	// a client from rendering the two identically (ADR-044 K5).
+	Vulns *WorkloadVulnCounts `json:"vulns,omitempty" doc:"Findings in the matched SBOM. Absent when no SBOM matched — absence is not zero"`
+}
+
+// WorkloadVulnCounts is the per-severity finding count for a matched workload's
+// SBOM, deduplicated by canonical id so an OSV alias group counts once.
+type WorkloadVulnCounts struct {
+	Critical int64 `json:"critical"`
+	High     int64 `json:"high"`
+	Medium   int64 `json:"medium"`
+	Low      int64 `json:"low"`
 }
 
 // WorkloadCoverageResponse accompanies every workload listing. It exists so a
@@ -160,6 +175,8 @@ type ListClusterWorkloadsInput struct {
 	K8sNamespace string `query:"k8s_namespace" doc:"Filter to one Kubernetes namespace"`
 	MatchState   string `query:"match_state" enum:"exact,index,unknown,unresolvable" doc:"Filter by SBOM match state"`
 	Q            string `query:"q" doc:"Substring match over workload name, container name and image reference"`
+	Sort         string `query:"sort" enum:"k8s_namespace,workload_name,container_name,image_ref,match_state,pod_count,last_seen_at,vuln_count" doc:"Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction"`
+	Dir          string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc)"`
 	PaginationParams
 }
 

@@ -68,6 +68,21 @@ type ClusterWorkload struct {
 	ArtifactName   string
 	ArtifactType   string
 	SubjectVersion string
+
+	// Vulns is the finding count for the matched SBOM, and is nil for a
+	// workload that never matched one. Nil and an all-zero count are different
+	// facts — "not assessed" versus "assessed and clean" — and the pointer is
+	// what keeps a renderer from printing the first as the second (ADR-044 K5).
+	Vulns *VulnCounts
+}
+
+// VulnCounts is a per-severity finding count over one SBOM, deduplicated by
+// canonical id so an OSV alias group counts once.
+type VulnCounts struct {
+	Critical int64
+	High     int64
+	Medium   int64
+	Low      int64
 }
 
 // Matched reports whether this workload resolved to a known SBOM by either
@@ -116,8 +131,25 @@ type WorkloadParams struct {
 	K8sNamespace string // empty means every namespace
 	MatchState   string // empty means every state
 	Query        string // substring over workload, container and image ref
+	SortBy       string // one of WorkloadSortKeys; empty means the default
+	SortDir      string // "asc" or "desc"; empty means "asc"
 	Limit        int32
 	Offset       int32
+}
+
+// WorkloadSortKeys are the columns ListWorkloads will order by. Anything else
+// falls back to the query's default ordering rather than reaching the database:
+// the sort key is interpolated into a CASE, so an unrecognised value would
+// silently produce an arbitrary order that looks like a working sort.
+var WorkloadSortKeys = map[string]bool{
+	"k8s_namespace":  true,
+	"workload_name":  true,
+	"container_name": true,
+	"image_ref":      true,
+	"match_state":    true,
+	"pod_count":      true,
+	"last_seen_at":   true,
+	"vuln_count":     true,
 }
 
 // NamespaceFacet is one k8s namespace present in a cluster and how many
@@ -430,11 +462,14 @@ func (s *clusterService) ListWorkloads(ctx context.Context, clusterID string, pa
 		return PagedResult[ClusterWorkload]{}, fmt.Errorf("counting workloads: %w", err)
 	}
 
+	sortBy, sortDir := clampWorkloadSort(params.SortBy, params.SortDir)
 	rows, err := s.repo.ListClusterWorkloads(ctx, repository.ListClusterWorkloadsParams{
 		ClusterID:    cid,
 		K8sNamespace: optionalText(params.K8sNamespace),
 		MatchState:   optionalText(params.MatchState),
 		Q:            optionalText(params.Query),
+		SortBy:       sortBy,
+		SortDir:      sortDir,
 		Limit:        pgtype.Int4{Int32: limit, Valid: true},
 		Offset:       pgtype.Int4{Int32: offset, Valid: true},
 		UserID:       filter.UserID,
@@ -600,6 +635,19 @@ func optionalText(v string) pgtype.Text {
 // clampPage applies the same bounds huma declares on PaginationParams, so a
 // caller that bypasses the HTTP layer (a test, the MCP server) cannot ask for
 // an unbounded page.
+// clampWorkloadSort reduces a caller's sort request to a pair the query
+// understands. An unknown key becomes the empty string, which matches no CASE
+// branch and so leaves the query's default ordering in place.
+func clampWorkloadSort(sortBy, sortDir string) (string, string) {
+	if !WorkloadSortKeys[sortBy] {
+		sortBy = ""
+	}
+	if sortDir != "desc" {
+		sortDir = "asc"
+	}
+	return sortBy, sortDir
+}
+
 func clampPage(limit, offset int32) (int32, int32) {
 	switch {
 	case limit <= 0:
@@ -657,6 +705,18 @@ func workloadFromRepo(r repository.ListClusterWorkloadsRow) ClusterWorkload {
 	}
 	if w.LastSeenAt.Valid {
 		out.LastSeenAt = w.LastSeenAt.Time
+	}
+	// The query coalesces the counts to zero because a lateral aggregate's NULL
+	// is not something sqlc can type. Zero from an unmatched row is an artefact
+	// of that, not a finding of none, so it is dropped here rather than handed
+	// on as a clean bill of health.
+	if out.Matched() {
+		out.Vulns = &VulnCounts{
+			Critical: r.CriticalCount,
+			High:     r.HighCount,
+			Medium:   r.MediumCount,
+			Low:      r.LowCount,
+		}
 	}
 	return out
 }

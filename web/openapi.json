@@ -622,6 +622,10 @@
           "subject_version": {
             "type": "string"
           },
+          "vulns": {
+            "$ref": "#/components/schemas/WorkloadVulnCounts",
+            "description": "Findings in the matched SBOM. Absent when no SBOM matched — absence is not zero"
+          },
           "workload_kind": {
             "type": "string"
           },
@@ -4323,6 +4327,10 @@
           "subject_version": {
             "type": "string"
           },
+          "vulns": {
+            "$ref": "#/components/schemas/WorkloadVulnCounts",
+            "description": "Findings in the matched SBOM. Absent when no SBOM matched — absence is not zero"
+          },
           "workload_kind": {
             "type": "string"
           },
@@ -5520,6 +5528,34 @@
           "matched",
           "unknown",
           "unresolvable"
+        ],
+        "type": "object"
+      },
+      "WorkloadVulnCounts": {
+        "additionalProperties": false,
+        "properties": {
+          "critical": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "high": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "low": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "medium": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "critical",
+          "high",
+          "medium",
+          "low"
         ],
         "type": "object"
       }
@@ -6999,6 +7035,40 @@
             "name": "q",
             "schema": {
               "description": "Substring match over workload name, container name and image reference",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction",
+            "explode": false,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction",
+              "enum": [
+                "k8s_namespace",
+                "workload_name",
+                "container_name",
+                "image_ref",
+                "match_state",
+                "pod_count",
+                "last_seen_at",
+                "vuln_count"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction (default asc)",
+            "explode": false,
+            "in": "query",
+            "name": "dir",
+            "schema": {
+              "description": "Sort direction (default asc)",
+              "enum": [
+                "asc",
+                "desc"
+              ],
               "type": "string"
             }
           },

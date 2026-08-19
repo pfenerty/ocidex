@@ -647,6 +647,60 @@ func (e ListClusterWorkloadsParamsMatchState) Valid() bool {
 	}
 }
 
+// Defines values for ListClusterWorkloadsParamsSort.
+const (
+	ContainerName ListClusterWorkloadsParamsSort = "container_name"
+	ImageRef      ListClusterWorkloadsParamsSort = "image_ref"
+	K8sNamespace  ListClusterWorkloadsParamsSort = "k8s_namespace"
+	LastSeenAt    ListClusterWorkloadsParamsSort = "last_seen_at"
+	MatchState    ListClusterWorkloadsParamsSort = "match_state"
+	PodCount      ListClusterWorkloadsParamsSort = "pod_count"
+	VulnCount     ListClusterWorkloadsParamsSort = "vuln_count"
+	WorkloadName  ListClusterWorkloadsParamsSort = "workload_name"
+)
+
+// Valid indicates whether the value is a known member of the ListClusterWorkloadsParamsSort enum.
+func (e ListClusterWorkloadsParamsSort) Valid() bool {
+	switch e {
+	case ContainerName:
+		return true
+	case ImageRef:
+		return true
+	case K8sNamespace:
+		return true
+	case LastSeenAt:
+		return true
+	case MatchState:
+		return true
+	case PodCount:
+		return true
+	case VulnCount:
+		return true
+	case WorkloadName:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListClusterWorkloadsParamsDir.
+const (
+	ListClusterWorkloadsParamsDirAsc  ListClusterWorkloadsParamsDir = "asc"
+	ListClusterWorkloadsParamsDirDesc ListClusterWorkloadsParamsDir = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ListClusterWorkloadsParamsDir enum.
+func (e ListClusterWorkloadsParamsDir) Valid() bool {
+	switch e {
+	case ListClusterWorkloadsParamsDirAsc:
+		return true
+	case ListClusterWorkloadsParamsDirDesc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListEnrichmentJobsParamsState.
 const (
 	ListEnrichmentJobsParamsStateFailed    ListEnrichmentJobsParamsState = "failed"
@@ -844,16 +898,16 @@ func (e ListTopVulnerabilitiesParamsSort) Valid() bool {
 
 // Defines values for ListTopVulnerabilitiesParamsSortDir.
 const (
-	ListTopVulnerabilitiesParamsSortDirAsc  ListTopVulnerabilitiesParamsSortDir = "asc"
-	ListTopVulnerabilitiesParamsSortDirDesc ListTopVulnerabilitiesParamsSortDir = "desc"
+	Asc  ListTopVulnerabilitiesParamsSortDir = "asc"
+	Desc ListTopVulnerabilitiesParamsSortDir = "desc"
 )
 
 // Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSortDir enum.
 func (e ListTopVulnerabilitiesParamsSortDir) Valid() bool {
 	switch e {
-	case ListTopVulnerabilitiesParamsSortDirAsc:
+	case Asc:
 		return true
-	case ListTopVulnerabilitiesParamsSortDirDesc:
+	case Desc:
 		return true
 	default:
 		return false
@@ -1049,6 +1103,7 @@ type ClusterWorkloadResponse struct {
 	PodCount       int32                             `json:"pod_count"`
 	SbomId         *string                           `json:"sbom_id,omitempty"`
 	SubjectVersion *string                           `json:"subject_version,omitempty"`
+	Vulns          *WorkloadVulnCounts               `json:"vulns,omitempty"`
 	WorkloadKind   string                            `json:"workload_kind"`
 	WorkloadName   string                            `json:"workload_name"`
 }
@@ -2293,6 +2348,7 @@ type RunningWorkloadResponse struct {
 	PodCount       int32                             `json:"pod_count"`
 	SbomId         *string                           `json:"sbom_id,omitempty"`
 	SubjectVersion *string                           `json:"subject_version,omitempty"`
+	Vulns          *WorkloadVulnCounts               `json:"vulns,omitempty"`
 	WorkloadKind   string                            `json:"workload_kind"`
 	WorkloadName   string                            `json:"workload_name"`
 }
@@ -2711,6 +2767,14 @@ type WorkloadCoverageResponse struct {
 	Unresolvable int64 `json:"unresolvable"`
 }
 
+// WorkloadVulnCounts defines model for WorkloadVulnCounts.
+type WorkloadVulnCounts struct {
+	Critical int64 `json:"critical"`
+	High     int64 `json:"high"`
+	Low      int64 `json:"low"`
+	Medium   int64 `json:"medium"`
+}
+
 // bearerAuthContextKey is the context key for bearerAuth security scheme
 type bearerAuthContextKey string
 
@@ -2836,6 +2900,12 @@ type ListClusterWorkloadsParams struct {
 	// Q Substring match over workload name, container name and image reference
 	Q *string `form:"q,omitempty" json:"q,omitempty"`
 
+	// Sort Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction
+	Sort *ListClusterWorkloadsParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// Dir Sort direction (default asc)
+	Dir *ListClusterWorkloadsParamsDir `form:"dir,omitempty" json:"dir,omitempty"`
+
 	// Limit Maximum number of results per page
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 
@@ -2845,6 +2915,12 @@ type ListClusterWorkloadsParams struct {
 
 // ListClusterWorkloadsParamsMatchState defines parameters for ListClusterWorkloads.
 type ListClusterWorkloadsParamsMatchState string
+
+// ListClusterWorkloadsParamsSort defines parameters for ListClusterWorkloads.
+type ListClusterWorkloadsParamsSort string
+
+// ListClusterWorkloadsParamsDir defines parameters for ListClusterWorkloads.
+type ListClusterWorkloadsParamsDir string
 
 // SearchComponentsParams defines parameters for SearchComponents.
 type SearchComponentsParams struct {

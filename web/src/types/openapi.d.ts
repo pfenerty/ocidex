@@ -1738,6 +1738,8 @@ export interface components {
             pod_count: number;
             sbom_id?: string;
             subject_version?: string;
+            /** @description Findings in the matched SBOM. Absent when no SBOM matched — absence is not zero */
+            vulns?: components["schemas"]["WorkloadVulnCounts"];
             workload_kind: string;
             workload_name: string;
         };
@@ -3056,6 +3058,8 @@ export interface components {
             pod_count: number;
             sbom_id?: string;
             subject_version?: string;
+            /** @description Findings in the matched SBOM. Absent when no SBOM matched — absence is not zero */
+            vulns?: components["schemas"]["WorkloadVulnCounts"];
             workload_kind: string;
             workload_name: string;
         };
@@ -3494,6 +3498,16 @@ export interface components {
              * @description Containers whose imageID yielded no digest: an agent or runtime gap
              */
             unresolvable: number;
+        };
+        WorkloadVulnCounts: {
+            /** Format: int64 */
+            critical: number;
+            /** Format: int64 */
+            high: number;
+            /** Format: int64 */
+            low: number;
+            /** Format: int64 */
+            medium: number;
         };
     };
     responses: never;
@@ -4441,6 +4455,10 @@ export interface operations {
                 match_state?: "exact" | "index" | "unknown" | "unresolvable";
                 /** @description Substring match over workload name, container name and image reference */
                 q?: string;
+                /** @description Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction */
+                sort?: "k8s_namespace" | "workload_name" | "container_name" | "image_ref" | "match_state" | "pod_count" | "last_seen_at" | "vuln_count";
+                /** @description Sort direction (default asc) */
+                dir?: "asc" | "desc";
                 /** @description Maximum number of results per page */
                 limit?: number;
                 /** @description Number of results to skip */
