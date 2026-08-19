@@ -833,6 +833,16 @@ func registerClusterOps(api huma.API, h *Handler) {
 	}, h.ListClusterNamespaces)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "list-cluster-unknown-images",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/clusters/{id}/unknown-images",
+		Summary:     "List running images with no ingested SBOM",
+		Description: "The No-SBOM coverage gap grouped by image, each resolved against the registries of the cluster's own namespace so the row says whether ingesting it is possible and, if not, why.",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListClusterUnknownImages)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "list-cluster-vulns",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/clusters/{id}/vulns",

@@ -69,6 +69,10 @@ func (f *fakeRegistryRepo) GetRegistryByName(ctx context.Context, name string) (
 	return repository.GetRegistryByNameRow{}, errors.New("not found")
 }
 
+func (f *fakeRegistryRepo) ListRegistriesByNamespace(_ context.Context, _ pgtype.UUID) ([]repository.ListRegistriesByNamespaceRow, error) {
+	return nil, nil
+}
+
 func (f *fakeRegistryRepo) ListRegistries(ctx context.Context, arg repository.ListRegistriesParams) ([]repository.ListRegistriesRow, error) {
 	if f.listFn != nil {
 		return f.listFn(ctx, arg)

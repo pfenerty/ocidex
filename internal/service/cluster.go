@@ -247,6 +247,10 @@ type ClusterService interface {
 	// empty, which widens it from one cluster's drill-down to "everywhere the
 	// caller can see".
 	WorkloadsForVulnerability(ctx context.Context, canonicalID, clusterID string, limit int32, filter VisibilityFilter) ([]RunningWorkload, error)
+
+	// UnknownImages lists the cluster's No-SBOM gap grouped by image, each
+	// resolved against the registries of the cluster's own namespace.
+	UnknownImages(ctx context.Context, clusterID string, limit int32, filter VisibilityFilter) ([]UnknownImage, error)
 }
 
 type clusterService struct {

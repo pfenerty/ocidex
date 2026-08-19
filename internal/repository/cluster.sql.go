@@ -455,6 +455,92 @@ func (q *Queries) ListClusterRunningVulns(ctx context.Context, arg ListClusterRu
 	return items, nil
 }
 
+const listClusterUnknownImages = `-- name: ListClusterUnknownImages :many
+SELECT
+    w.image_ref,
+    w.image_digest::text                     AS image_digest,
+    COUNT(*)::bigint                         AS workload_count,
+    SUM(w.pod_count)::bigint                 AS pod_count,
+    MIN(w.k8s_namespace)::text               AS sample_k8s_namespace,
+    MIN(w.workload_name)::text               AS sample_workload_name,
+    MAX(w.last_seen_at)::timestamptz         AS last_seen_at
+FROM cluster_workload w
+JOIN cluster c ON c.id = w.cluster_id
+LEFT JOIN LATERAL (
+    SELECT s2.id
+    FROM sbom s2
+    WHERE (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
+    LIMIT 1
+) s ON true
+WHERE w.cluster_id = $1
+  AND w.image_digest IS NOT NULL
+  AND s.id IS NULL
+  AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+GROUP BY w.image_ref, w.image_digest
+ORDER BY COUNT(*) DESC, w.image_ref ASC
+LIMIT $4::int
+`
+
+type ListClusterUnknownImagesParams struct {
+	ClusterID pgtype.UUID `json:"cluster_id"`
+	UserID    pgtype.UUID `json:"user_id"`
+	IsAdmin   pgtype.Bool `json:"is_admin"`
+	Limit     pgtype.Int4 `json:"limit"`
+}
+
+type ListClusterUnknownImagesRow struct {
+	ImageRef           string             `json:"image_ref"`
+	ImageDigest        string             `json:"image_digest"`
+	WorkloadCount      int64              `json:"workload_count"`
+	PodCount           int64              `json:"pod_count"`
+	SampleK8sNamespace string             `json:"sample_k8s_namespace"`
+	SampleWorkloadName string             `json:"sample_workload_name"`
+	LastSeenAt         pgtype.Timestamptz `json:"last_seen_at"`
+}
+
+// The No-SBOM gap, grouped by image rather than by container.
+//
+// The workload table lists containers, but the remedy is per image: twelve
+// replicas of one unscanned image are one thing to ingest, not twelve. Grouping
+// here rather than in the browser also means the count is the whole cluster's,
+// not the current page's.
+//
+// Only rows with a readable digest are included. A NULL digest is the
+// 'unresolvable' state, which no amount of ingesting will fix, and folding the
+// two together would offer an action that cannot work (ADR-044 K3/K5).
+func (q *Queries) ListClusterUnknownImages(ctx context.Context, arg ListClusterUnknownImagesParams) ([]ListClusterUnknownImagesRow, error) {
+	rows, err := q.db.Query(ctx, listClusterUnknownImages,
+		arg.ClusterID,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListClusterUnknownImagesRow{}
+	for rows.Next() {
+		var i ListClusterUnknownImagesRow
+		if err := rows.Scan(
+			&i.ImageRef,
+			&i.ImageDigest,
+			&i.WorkloadCount,
+			&i.PodCount,
+			&i.SampleK8sNamespace,
+			&i.SampleWorkloadName,
+			&i.LastSeenAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listClusterWorkloads = `-- name: ListClusterWorkloads :many
 SELECT
     w.id, w.cluster_id, w.k8s_namespace, w.workload_kind, w.workload_name, w.container_name, w.image_ref, w.image_digest, w.pod_count, w.first_seen_at, w.last_seen_at,

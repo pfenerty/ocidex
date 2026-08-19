@@ -205,6 +205,34 @@ export function useVulnWorkloads(
     }));
 }
 
+/**
+ * useClusterUnknownImages — the No-SBOM gap grouped by image, each row carrying
+ * the registry that would serve it or the reason none would.
+ *
+ * Grouped server-side: twelve replicas of one unscanned image are one thing to
+ * ingest, and the count has to describe the cluster rather than a page of it.
+ */
+export function useClusterUnknownImages(
+    id: Accessor<string | undefined>,
+    options?: Accessor<{ enabled?: boolean; limit?: number }>,
+) {
+    const query = (): { limit?: number } => {
+        const limit = options?.().limit;
+        return limit === undefined ? {} : { limit };
+    };
+    return createQuery(() => ({
+        queryKey: ["clusters", id(), "unknown-images", query()] as const,
+        queryFn: () =>
+            unwrap(
+                client.GET("/api/v1/clusters/{id}/unknown-images", {
+                    params: { path: { id: id() ?? "" }, query: query() },
+                }),
+            ),
+        enabled: id() !== undefined && (options?.().enabled ?? true),
+        select: (resp) => ({ ...resp, data: resp.data ?? [] }),
+    }));
+}
+
 export function useCreateCluster() {
     const queryClient = useQueryClient();
     return createMutation(() => ({

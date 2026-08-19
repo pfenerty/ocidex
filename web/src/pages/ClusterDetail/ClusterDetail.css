@@ -109,3 +109,12 @@
 .link-button:hover {
     text-decoration: underline;
 }
+
+/* The ingest-resolution cell in the Gaps table: a state pill, then whatever
+ * names the remedy for that state. */
+.ingest-target {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.4rem;
+}

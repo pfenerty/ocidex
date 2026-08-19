@@ -83,6 +83,7 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 | PATCH | `/api/v1/clusters/{id}` | `update-cluster` | `owner` | ✓ | namespaceOwnerCheck on the cluster's namespace. |
 | POST | `/api/v1/clusters/{id}/inventory` | `put-cluster-inventory` | `owner` | ✓ | namespaceOwnerCheck on the cluster's namespace — ownership, not visibility, because a public namespace must not make inventory writable by anyone. |
 | GET | `/api/v1/clusters/{id}/k8s-namespaces` | `list-cluster-k8s-namespaces` | `authenticated` |  | Same gate as list-cluster-workloads; the facet counts describe only the rows that gate admits. |
+| GET | `/api/v1/clusters/{id}/unknown-images` | `list-cluster-unknown-images` | `authenticated` |  | Same gate as list-cluster-workloads. It names the namespace's registries, so cluster visibility is what authorizes learning them; resolution never leaves the cluster's own namespace. |
 | GET | `/api/v1/clusters/{id}/vulns` | `list-cluster-vulns` | `authenticated` |  | Same gate as list-cluster-workloads; findings and coverage are returned together so neither can be read without the other. |
 | GET | `/api/v1/clusters/{id}/workloads` | `list-cluster-workloads` | `authenticated` |  | Cluster gated on namespace visibility; rows additionally filtered via visible_namespace_ids. |
 | GET | `/api/v1/users/me/clusters` | `list-my-clusters` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |

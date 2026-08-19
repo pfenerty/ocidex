@@ -8,6 +8,7 @@ import {
     useClusterVulns,
     useClusterNamespaces,
     useVulnWorkloads,
+    useClusterUnknownImages,
 } from "~/api/queries";
 import ClusterDetail from "./index";
 
@@ -20,6 +21,7 @@ vi.mock("~/api/queries", () => ({
     useClusterVulns: vi.fn(),
     useClusterNamespaces: vi.fn(),
     useVulnWorkloads: vi.fn(),
+    useClusterUnknownImages: vi.fn(),
     useListClusters: vi.fn(),
     useMyNamespaces: vi.fn(),
     useCreateCluster: vi.fn(),
@@ -97,6 +99,7 @@ const mockWorkloads = vi.mocked(useClusterWorkloads);
 const mockVulns = vi.mocked(useClusterVulns);
 const mockNamespaces = vi.mocked(useClusterNamespaces);
 const mockVulnWorkloads = vi.mocked(useVulnWorkloads);
+const mockUnknownImages = vi.mocked(useClusterUnknownImages);
 
 const cluster = {
     id: "c-prod",
@@ -137,6 +140,24 @@ function vuln(overrides: Record<string, unknown> = {}) {
         cvss_score: 9.8,
         summary: "Remote code execution",
         workload_count: 3,
+        ...overrides,
+    };
+}
+
+/** Rows the unknown-image hook returns; the gaps tests set this. */
+let unknownImages: unknown[] = [];
+
+function unknownImage(overrides: Record<string, unknown> = {}) {
+    return {
+        image_ref: "ghcr.io/pfenerty/api:v1",
+        image_digest: "sha256:aaaabbbbccccdddd0000111122223333444455556666777788889999aaaabbbb",
+        registry_host: "ghcr.io",
+        repository: "pfenerty/api",
+        workload_count: 3,
+        pod_count: 9,
+        sample_k8s_namespace: "default",
+        sample_workload_name: "api",
+        reason: "ready",
         ...overrides,
     };
 }
@@ -222,6 +243,12 @@ function renderPage(
             error: null,
         };
     }) as never);
+    mockUnknownImages.mockImplementation((() => ({
+        data: { data: unknownImages },
+        isLoading: false,
+        isError: false,
+        error: null,
+    })) as never);
     return render(() => <ClusterDetail />);
 }
 
@@ -244,6 +271,7 @@ describe("ClusterDetail", () => {
         lastWorkloadParams = undefined;
         lastVulnParams = undefined;
         lastVulnWorkloadArgs = undefined;
+        unknownImages = [];
         searchParamWrites = [];
     });
 
@@ -596,5 +624,63 @@ describe("ClusterDetail", () => {
         expect(container.textContent).toContain("No SBOM ingested");
         expect(container.textContent).toContain("No digest readable");
         expect(container.textContent).toContain("scanning the image will not help");
+    });
+
+    // Twelve replicas of one unscanned image are one thing to ingest. Listing
+    // them per container would make the gap look twelve times larger and give
+    // twelve copies of the same action.
+    it("lists the No-SBOM gap by image, not by container", () => {
+        searchParams = { tab: "gaps" };
+        unknownImages = [unknownImage({ workload_count: 3, pod_count: 9 })];
+        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+
+        expect(container.textContent).toContain("ghcr.io/pfenerty/api:v1");
+        expect(container.textContent).toContain("and 2 other containers");
+        expect(container.textContent).toContain("9");
+    });
+
+    // The whole point of the tab: every row says what stands between this image
+    // and an SBOM, and each answer is a different thing to go and do.
+    it("names the remedy for each unresolved image", () => {
+        searchParams = { tab: "gaps" };
+        unknownImages = [
+            unknownImage({ image_ref: "ghcr.io/a:v1", reason: "ready", registry_id: "r-1", registry_name: "ghcr" }),
+            unknownImage({ image_ref: "gcr.io/b:v1", reason: "no_registry", registry_host: "gcr.io" }),
+            unknownImage({ image_ref: "quay.io/c:v1", reason: "registry_disabled", registry_id: "r-2", registry_name: "quay" }),
+            unknownImage({ image_ref: "quay.io/d:v1", reason: "pattern_excluded", registry_id: "r-2", registry_name: "quay" }),
+        ];
+        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+
+        expect(container.textContent).toContain("ready to ingest");
+        expect(container.textContent).toContain("no registry");
+        expect(container.textContent).toContain("gcr.io");
+        // "switched off" and "never configured" are different problems, so the
+        // matched registry is named rather than reported as absent.
+        expect(container.textContent).toContain("registry disabled");
+        expect(container.textContent).toContain("excluded by patterns");
+        expect(container.textContent).toContain("quay");
+
+        const addRegistry = [...container.querySelectorAll("a")].find(
+            (a) => a.textContent === "add a registry",
+        );
+        expect(addRegistry?.getAttribute("href")).toBe("/registries");
+        const named = [...container.querySelectorAll("a")].find(
+            (a) => a.getAttribute("href") === "/registries/r-2",
+        );
+        expect(named).toBeDefined();
+    });
+
+    // A gap that cannot be ingested must not be counted as work the existing
+    // registries can absorb.
+    it("counts only the images the namespace's registries can serve", () => {
+        searchParams = { tab: "gaps" };
+        unknownImages = [
+            unknownImage({ image_ref: "ghcr.io/a:v1", reason: "ready" }),
+            unknownImage({ image_ref: "gcr.io/b:v1", reason: "no_registry" }),
+            unknownImage({ image_ref: "gcr.io/c:v1", reason: "no_registry" }),
+        ];
+        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+
+        expect(container.textContent).toContain("1 of 3 images can be ingested");
     });
 });

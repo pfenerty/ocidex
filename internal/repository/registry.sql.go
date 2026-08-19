@@ -394,6 +394,73 @@ func (q *Queries) ListRegistries(ctx context.Context, arg ListRegistriesParams) 
 	return items, nil
 }
 
+const listRegistriesByNamespace = `-- name: ListRegistriesByNamespace :many
+SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, src.name, n.owner_id, n.visibility
+FROM registry r
+JOIN source src ON src.id = r.id
+JOIN namespace n ON n.id = src.namespace_id
+WHERE src.namespace_id = $1
+ORDER BY r.created_at ASC
+`
+
+type ListRegistriesByNamespaceRow struct {
+	Registry   Registry    `json:"registry"`
+	Name       string      `json:"name"`
+	OwnerID    pgtype.UUID `json:"owner_id"`
+	Visibility string      `json:"visibility"`
+}
+
+// Registries a namespace owns, in namespace order rather than visibility order.
+// Cluster auto-ingest resolves an image host against these and nothing else: a
+// registry in another namespace could match the host, but using it would let one
+// namespace's cluster trigger pulls with another namespace's credentials.
+func (q *Queries) ListRegistriesByNamespace(ctx context.Context, namespaceID pgtype.UUID) ([]ListRegistriesByNamespaceRow, error) {
+	rows, err := q.db.Query(ctx, listRegistriesByNamespace, namespaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRegistriesByNamespaceRow{}
+	for rows.Next() {
+		var i ListRegistriesByNamespaceRow
+		if err := rows.Scan(
+			&i.Registry.ID,
+			&i.Registry.Type,
+			&i.Registry.Url,
+			&i.Registry.Insecure,
+			&i.Registry.WebhookSecret,
+			&i.Registry.Enabled,
+			&i.Registry.CreatedAt,
+			&i.Registry.UpdatedAt,
+			&i.Registry.RepositoryPatterns,
+			&i.Registry.TagPatterns,
+			&i.Registry.ScanMode,
+			&i.Registry.PollIntervalMinutes,
+			&i.Registry.LastPolledAt,
+			&i.Registry.Repositories,
+			&i.Registry.AuthUsername,
+			&i.Registry.AuthToken,
+			&i.Registry.IncludeUntagged,
+			&i.Registry.VerificationMode,
+			&i.Registry.TrustPublicKey,
+			&i.Registry.TrustIdentity,
+			&i.Registry.TrustIssuer,
+			&i.Registry.ManagedBy,
+			&i.Registry.ManagedRef,
+			&i.Name,
+			&i.OwnerID,
+			&i.Visibility,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRegistriesPaged = `-- name: ListRegistriesPaged :many
 SELECT r.id, r.type, r.url, r.insecure, r.webhook_secret, r.enabled, r.created_at, r.updated_at, r.repository_patterns, r.tag_patterns, r.scan_mode, r.poll_interval_minutes, r.last_polled_at, r.repositories, r.auth_username, r.auth_token, r.include_untagged, r.verification_mode, r.trust_public_key, r.trust_identity, r.trust_issuer, r.managed_by, r.managed_ref, src.name, n.owner_id, n.visibility, COUNT(*) OVER() AS total_count
 FROM registry r

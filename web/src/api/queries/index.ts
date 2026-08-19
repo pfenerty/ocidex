@@ -21,6 +21,7 @@ export {
     useUpdateCluster,
     useDeleteCluster,
     useVulnWorkloads,
+    useClusterUnknownImages,
 } from "./clusters";
 export type {
     WorkloadQueryParams,

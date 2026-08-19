@@ -263,6 +263,41 @@ func (h *Handler) ListClusterVulns(ctx context.Context, in *ListClusterVulnsInpu
 	return out, nil
 }
 
+// ListClusterUnknownImages handles GET /api/v1/clusters/{id}/unknown-images:
+// the No-SBOM gap grouped by image, each one resolved against the registries of
+// the cluster's own namespace.
+//
+// This is the preview of what ingest would do. It shares its resolver with the
+// ingest path, so what the gap list promises and what ingest attempts cannot
+// drift apart.
+func (h *Handler) ListClusterUnknownImages(ctx context.Context, in *ListClusterUnknownImagesInput) (*ListClusterUnknownImagesOutput, error) {
+	if _, err := h.visibleCluster(ctx, in.ID); err != nil {
+		return nil, err
+	}
+	images, err := h.clusterService.UnknownImages(ctx, in.ID, in.Limit, visibilityFilterFromContext(ctx))
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	out := &ListClusterUnknownImagesOutput{}
+	out.Body.Data = make([]UnknownImageResponse, len(images))
+	for i, img := range images {
+		out.Body.Data[i] = UnknownImageResponse{
+			ImageRef:           img.ImageRef,
+			ImageDigest:        img.ImageDigest,
+			RegistryHost:       img.RegistryHost,
+			Repository:         img.Repository,
+			WorkloadCount:      img.WorkloadCount,
+			PodCount:           img.PodCount,
+			SampleK8sNamespace: img.SampleK8sNamespace,
+			SampleWorkloadName: img.SampleWorkloadName,
+			Reason:             img.Reason,
+			RegistryID:         img.RegistryID,
+			RegistryName:       img.RegistryName,
+		}
+	}
+	return out, nil
+}
+
 // ListVulnWorkloads handles GET /api/v1/vulns/{id}/workloads: which running
 // workloads carry a vulnerability, across every cluster the caller can see or
 // narrowed to one.

@@ -278,3 +278,39 @@ type ListVulnWorkloadsOutput struct {
 		Data []RunningWorkloadResponse `json:"data"`
 	}
 }
+
+// ListClusterUnknownImagesInput is the request for
+// GET /api/v1/clusters/{id}/unknown-images.
+type ListClusterUnknownImagesInput struct {
+	ID    string `path:"id" doc:"Cluster UUID" format:"uuid"`
+	Limit int32  `query:"limit" default:"200" minimum:"1" maximum:"500"`
+}
+
+// UnknownImageResponse is one image running in the cluster with no ingested
+// SBOM, together with whether OCIDex could ingest it.
+//
+// The reason is reported rather than reduced to a boolean because the remedies
+// differ: adding a registry, enabling one, and widening its repository patterns
+// are three different actions, and a bare "cannot ingest" would send everyone
+// to the first one.
+type UnknownImageResponse struct {
+	ImageRef           string  `json:"image_ref"`
+	ImageDigest        string  `json:"image_digest"`
+	RegistryHost       string  `json:"registry_host,omitempty" doc:"Host parsed out of image_ref; empty when the reference carries none"`
+	Repository         string  `json:"repository,omitempty"`
+	WorkloadCount      int64   `json:"workload_count" doc:"Containers running this image"`
+	PodCount           int64   `json:"pod_count"`
+	SampleK8sNamespace string  `json:"sample_k8s_namespace,omitempty"`
+	SampleWorkloadName string  `json:"sample_workload_name,omitempty"`
+	Reason             string  `json:"reason" enum:"ready,no_registry,registry_disabled,pattern_excluded,unparseable_ref" doc:"Why this image can or cannot be ingested"`
+	RegistryID         *string `json:"registry_id,omitempty" doc:"Registry that serves this host, when one was matched at all"`
+	RegistryName       *string `json:"registry_name,omitempty"`
+}
+
+// ListClusterUnknownImagesOutput is the response for
+// GET /api/v1/clusters/{id}/unknown-images.
+type ListClusterUnknownImagesOutput struct {
+	Body struct {
+		Data []UnknownImageResponse `json:"data"`
+	}
+}

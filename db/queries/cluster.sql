@@ -261,6 +261,41 @@ WHERE w.cluster_id = $1
 GROUP BY w.k8s_namespace
 ORDER BY w.k8s_namespace ASC;
 
+-- name: ListClusterUnknownImages :many
+-- The No-SBOM gap, grouped by image rather than by container.
+--
+-- The workload table lists containers, but the remedy is per image: twelve
+-- replicas of one unscanned image are one thing to ingest, not twelve. Grouping
+-- here rather than in the browser also means the count is the whole cluster's,
+-- not the current page's.
+--
+-- Only rows with a readable digest are included. A NULL digest is the
+-- 'unresolvable' state, which no amount of ingesting will fix, and folding the
+-- two together would offer an action that cannot work (ADR-044 K3/K5).
+SELECT
+    w.image_ref,
+    w.image_digest::text                     AS image_digest,
+    COUNT(*)::bigint                         AS workload_count,
+    SUM(w.pod_count)::bigint                 AS pod_count,
+    MIN(w.k8s_namespace)::text               AS sample_k8s_namespace,
+    MIN(w.workload_name)::text               AS sample_workload_name,
+    MAX(w.last_seen_at)::timestamptz         AS last_seen_at
+FROM cluster_workload w
+JOIN cluster c ON c.id = w.cluster_id
+LEFT JOIN LATERAL (
+    SELECT s2.id
+    FROM sbom s2
+    WHERE (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
+    LIMIT 1
+) s ON true
+WHERE w.cluster_id = $1
+  AND w.image_digest IS NOT NULL
+  AND s.id IS NULL
+  AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+GROUP BY w.image_ref, w.image_digest
+ORDER BY COUNT(*) DESC, w.image_ref ASC
+LIMIT sqlc.narg('limit')::int;
+
 -- name: GetClusterWorkloadCoverage :one
 -- The counts that must accompany any vulnerability figure reported over running
 -- workloads (ADR-044 K5). Without these, "3 criticals running" is misleadingly

@@ -328,15 +328,12 @@ func submitUntaggedIndex(ctx context.Context, client *http.Client, baseURL, repo
 // redirect to the web frontend; registry-1.docker.io is the actual API.
 // It also strips any scheme prefix (e.g. "https://quay.io" → "quay.io") so
 // callers that store full URLs in the registry config still work.
+//
+// The rule lives in internal/service because cluster ingest matches a running
+// image's host against a registry's configured URL, and two copies of this
+// mapping would eventually disagree about whether they name the same registry.
 func normalizeRegistryHost(host string) string {
-	if i := strings.Index(host, "://"); i != -1 {
-		host = strings.TrimSuffix(host[i+3:], "/")
-	}
-	switch host {
-	case "docker.io", "index.docker.io", "hub.docker.com":
-		return "registry-1.docker.io"
-	}
-	return host
+	return service.NormalizeRegistryHost(host)
 }
 
 // decodeJSONBody reads the response body and JSON-decodes it into v.

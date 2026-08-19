@@ -395,6 +395,33 @@ func (e SourceResponseKind) Valid() bool {
 	}
 }
 
+// Defines values for UnknownImageResponseReason.
+const (
+	NoRegistry       UnknownImageResponseReason = "no_registry"
+	PatternExcluded  UnknownImageResponseReason = "pattern_excluded"
+	Ready            UnknownImageResponseReason = "ready"
+	RegistryDisabled UnknownImageResponseReason = "registry_disabled"
+	UnparseableRef   UnknownImageResponseReason = "unparseable_ref"
+)
+
+// Valid indicates whether the value is a known member of the UnknownImageResponseReason enum.
+func (e UnknownImageResponseReason) Valid() bool {
+	switch e {
+	case NoRegistry:
+		return true
+	case PatternExcluded:
+		return true
+	case Ready:
+		return true
+	case RegistryDisabled:
+		return true
+	case UnparseableRef:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UpdateNamespaceInputBodyVisibility.
 const (
 	UpdateNamespaceInputBodyVisibilityPrivate UpdateNamespaceInputBodyVisibility = "private"
@@ -1925,6 +1952,13 @@ type ListClusterNamespacesOutputBody struct {
 	Data   *[]NamespaceFacetResponse `json:"data"`
 }
 
+// ListClusterUnknownImagesOutputBody defines model for ListClusterUnknownImagesOutputBody.
+type ListClusterUnknownImagesOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string                 `json:"$schema,omitempty"`
+	Data   *[]UnknownImageResponse `json:"data"`
+}
+
 // ListClusterVulnsOutputBody defines model for ListClusterVulnsOutputBody.
 type ListClusterVulnsOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -2603,6 +2637,32 @@ type TopVulnEntry struct {
 	Summary           *string    `json:"summary,omitempty"`
 }
 
+// UnknownImageResponse defines model for UnknownImageResponse.
+type UnknownImageResponse struct {
+	ImageDigest string `json:"image_digest"`
+	ImageRef    string `json:"image_ref"`
+	PodCount    int64  `json:"pod_count"`
+
+	// Reason Why this image can or cannot be ingested
+	Reason UnknownImageResponseReason `json:"reason"`
+
+	// RegistryHost Host parsed out of image_ref; empty when the reference carries none
+	RegistryHost *string `json:"registry_host,omitempty"`
+
+	// RegistryId Registry that serves this host, when one was matched at all
+	RegistryId         *string `json:"registry_id,omitempty"`
+	RegistryName       *string `json:"registry_name,omitempty"`
+	Repository         *string `json:"repository,omitempty"`
+	SampleK8sNamespace *string `json:"sample_k8s_namespace,omitempty"`
+	SampleWorkloadName *string `json:"sample_workload_name,omitempty"`
+
+	// WorkloadCount Containers running this image
+	WorkloadCount int64 `json:"workload_count"`
+}
+
+// UnknownImageResponseReason Why this image can or cannot be ingested
+type UnknownImageResponseReason string
+
 // UpdateClusterInputBody defines model for UpdateClusterInputBody.
 type UpdateClusterInputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -2914,6 +2974,11 @@ type ListArtifactVersionsParamsMode string
 type ListClustersParams struct {
 	// NamespaceId Limit to clusters in one namespace
 	NamespaceId *string `form:"namespace_id,omitempty" json:"namespace_id,omitempty"`
+}
+
+// ListClusterUnknownImagesParams defines parameters for ListClusterUnknownImages.
+type ListClusterUnknownImagesParams struct {
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // ListClusterVulnsParams defines parameters for ListClusterVulns.

@@ -79,6 +79,18 @@ WHERE (
 )
 ORDER BY r.created_at ASC;
 
+-- name: ListRegistriesByNamespace :many
+-- Registries a namespace owns, in namespace order rather than visibility order.
+-- Cluster auto-ingest resolves an image host against these and nothing else: a
+-- registry in another namespace could match the host, but using it would let one
+-- namespace's cluster trigger pulls with another namespace's credentials.
+SELECT sqlc.embed(r), src.name, n.owner_id, n.visibility
+FROM registry r
+JOIN source src ON src.id = r.id
+JOIN namespace n ON n.id = src.namespace_id
+WHERE src.namespace_id = $1
+ORDER BY r.created_at ASC;
+
 -- name: ListRegistriesPaged :many
 -- owned_only switches from the visibility path to the ownership path, which is
 -- what /api/v1/users/me/registries needs — see ListNamespaces.

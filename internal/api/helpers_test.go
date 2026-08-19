@@ -225,6 +225,10 @@ func (f *fakeClusterService) WorkloadsForVulnerability(_ context.Context, _, _ s
 	return nil, nil
 }
 
+func (f *fakeClusterService) UnknownImages(_ context.Context, _ string, _ int32, _ service.VisibilityFilter) ([]service.UnknownImage, error) {
+	return nil, nil
+}
+
 func (f *fakeClusterService) cluster() service.Cluster {
 	return service.Cluster{
 		ID:          testClusterID,

@@ -422,6 +422,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/clusters/{id}/unknown-images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List running images with no ingested SBOM
+         * @description The No-SBOM coverage gap grouped by image, each resolved against the registries of the cluster's own namespace so the row says whether ingesting it is possible and, if not, why.
+         */
+        get: operations["list-cluster-unknown-images"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/clusters/{id}/vulns": {
         parameters: {
             query?: never;
@@ -2541,6 +2561,15 @@ export interface components {
             readonly $schema?: string;
             data: components["schemas"]["NamespaceFacetResponse"][] | null;
         };
+        ListClusterUnknownImagesOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListClusterUnknownImagesOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["UnknownImageResponse"][] | null;
+        };
         ListClusterVulnsOutputBody: {
             /**
              * Format: uri
@@ -3281,6 +3310,30 @@ export interface components {
             publishedAt?: string;
             severity: string;
             summary?: string;
+        };
+        UnknownImageResponse: {
+            image_digest: string;
+            image_ref: string;
+            /** Format: int64 */
+            pod_count: number;
+            /**
+             * @description Why this image can or cannot be ingested
+             * @enum {string}
+             */
+            reason: "ready" | "no_registry" | "registry_disabled" | "pattern_excluded" | "unparseable_ref";
+            /** @description Host parsed out of image_ref; empty when the reference carries none */
+            registry_host?: string;
+            /** @description Registry that serves this host, when one was matched at all */
+            registry_id?: string;
+            registry_name?: string;
+            repository?: string;
+            sample_k8s_namespace?: string;
+            sample_workload_name?: string;
+            /**
+             * Format: int64
+             * @description Containers running this image
+             */
+            workload_count: number;
         };
         UpdateClusterInputBody: {
             /**
@@ -4394,6 +4447,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListClusterNamespacesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-cluster-unknown-images": {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Cluster UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListClusterUnknownImagesOutputBody"];
                 };
             };
             /** @description Error */

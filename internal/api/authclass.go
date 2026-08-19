@@ -206,6 +206,7 @@ var authRules = map[string]AuthRule{
 	"list-cluster-workloads":      {Class: ClassAuthenticated, Notes: "Cluster gated on namespace visibility; rows additionally filtered via visible_namespace_ids."},
 	"list-cluster-vulns":          {Class: ClassAuthenticated, Notes: "Same gate as list-cluster-workloads; findings and coverage are returned together so neither can be read without the other."},
 	"list-cluster-k8s-namespaces": {Class: ClassAuthenticated, Notes: "Same gate as list-cluster-workloads; the facet counts describe only the rows that gate admits."},
+	"list-cluster-unknown-images": {Class: ClassAuthenticated, Notes: "Same gate as list-cluster-workloads. It names the namespace's registries, so cluster visibility is what authorizes learning them; resolution never leaves the cluster's own namespace."},
 
 	// --- Registries ---------------------------------------------------------
 	"list-registries":            {Class: ClassAuthenticated, Notes: "Own plus public registries."},

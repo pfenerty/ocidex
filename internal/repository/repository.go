@@ -143,6 +143,8 @@ type ClusterRepository interface {
 	ListClusterRunningVulns(ctx context.Context, arg ListClusterRunningVulnsParams) ([]ListClusterRunningVulnsRow, error)
 	CountClusterRunningVulns(ctx context.Context, arg CountClusterRunningVulnsParams) (int64, error)
 	ListWorkloadsForVulnerability(ctx context.Context, arg ListWorkloadsForVulnerabilityParams) ([]ListWorkloadsForVulnerabilityRow, error)
+	ListClusterUnknownImages(ctx context.Context, arg ListClusterUnknownImagesParams) ([]ListClusterUnknownImagesRow, error)
+	ListRegistriesByNamespace(ctx context.Context, namespaceID pgtype.UUID) ([]ListRegistriesByNamespaceRow, error)
 }
 
 // RegistryRepository defines data access methods for registry management.
@@ -152,6 +154,7 @@ type RegistryRepository interface {
 	GetRegistryByName(ctx context.Context, name string) (GetRegistryByNameRow, error)
 	ListRegistries(ctx context.Context, arg ListRegistriesParams) ([]ListRegistriesRow, error)
 	ListRegistriesPaged(ctx context.Context, arg ListRegistriesPagedParams) ([]ListRegistriesPagedRow, error)
+	ListRegistriesByNamespace(ctx context.Context, namespaceID pgtype.UUID) ([]ListRegistriesByNamespaceRow, error)
 	UpdateRegistry(ctx context.Context, arg UpdateRegistryParams) (Registry, error)
 	SetRegistryEnabled(ctx context.Context, arg SetRegistryEnabledParams) (Registry, error)
 	DeleteRegistry(ctx context.Context, id pgtype.UUID) (int64, error)
