@@ -317,7 +317,7 @@ WITH running AS (
     JOIN package_vulnerability pv ON pv.purl = comp.purl
     JOIN vulnerability v ON v.id = pv.vulnerability_id
     WHERE w.cluster_id = $1
-      AND c.namespace_id IN (SELECT visible_namespace_ids($5::uuid, $6::boolean))
+      AND c.namespace_id IN (SELECT visible_namespace_ids($7::uuid, $8::boolean))
 ),
 counts AS (
     SELECT canonical_id, COUNT(DISTINCT workload_id)::bigint AS workload_count
@@ -355,6 +355,21 @@ FROM canonical cv
 JOIN counts k ON k.canonical_id = cv.canonical_id
 WHERE ($2::text IS NULL OR cv.severity = $2::text)
 ORDER BY
+    CASE $3::text
+        WHEN 'cvss_score'     THEN cv.cvss_score::float8
+        WHEN 'workload_count' THEN k.workload_count::float8
+        WHEN 'severity'       THEN (CASE cv.severity
+                                        WHEN 'CRITICAL' THEN 4
+                                        WHEN 'HIGH'     THEN 3
+                                        WHEN 'MEDIUM'   THEN 2
+                                        WHEN 'LOW'      THEN 1
+                                        ELSE 0
+                                    END)::float8
+    END * CASE $4::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
+    CASE WHEN $3::text = 'canonical_id' AND $4::text = 'asc'  THEN cv.canonical_id END ASC  NULLS LAST,
+    CASE WHEN $3::text = 'canonical_id' AND $4::text = 'desc' THEN cv.canonical_id END DESC NULLS LAST,
+    -- Severity then CVSS remain the tiebreakers, which keeps the default
+    -- ordering byte-identical to the hardcoded one this replaced.
     CASE cv.severity
         WHEN 'CRITICAL' THEN 4
         WHEN 'HIGH'     THEN 3
@@ -364,12 +379,14 @@ ORDER BY
     END DESC,
     cv.cvss_score DESC NULLS LAST,
     cv.canonical_id ASC
-LIMIT $4::int OFFSET $3::int
+LIMIT $6::int OFFSET $5::int
 `
 
 type ListClusterRunningVulnsParams struct {
 	ClusterID pgtype.UUID `json:"cluster_id"`
 	Severity  pgtype.Text `json:"severity"`
+	SortBy    string      `json:"sort_by"`
+	SortDir   string      `json:"sort_dir"`
 	Offset    pgtype.Int4 `json:"offset"`
 	Limit     pgtype.Int4 `json:"limit"`
 	UserID    pgtype.UUID `json:"user_id"`
@@ -399,10 +416,15 @@ type ListClusterRunningVulnsRow struct {
 // component rows.
 //
 // Read alongside GetClusterWorkloadCoverage, never alone.
+// Sorting is parameterised for the same reason as ListTopVulnerabilities: the
+// list is server-paginated, so reordering the rows on the current page would
+// claim a ranking the other pages do not share.
 func (q *Queries) ListClusterRunningVulns(ctx context.Context, arg ListClusterRunningVulnsParams) ([]ListClusterRunningVulnsRow, error) {
 	rows, err := q.db.Query(ctx, listClusterRunningVulns,
 		arg.ClusterID,
 		arg.Severity,
+		arg.SortBy,
+		arg.SortDir,
 		arg.Offset,
 		arg.Limit,
 		arg.UserID,

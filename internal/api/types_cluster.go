@@ -239,6 +239,8 @@ type RunningVulnResponse struct {
 type ListClusterVulnsInput struct {
 	ID       string `path:"id" doc:"Cluster UUID" format:"uuid"`
 	Severity string `query:"severity" enum:"CRITICAL,HIGH,MEDIUM,LOW" doc:"Filter by severity"`
+	Sort     string `query:"sort" enum:"severity,cvss_score,workload_count,canonical_id" doc:"Column to sort by (default severity, worst first)"`
+	Dir      string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc)"`
 	PaginationParams
 }
 

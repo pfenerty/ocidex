@@ -351,7 +351,25 @@ SELECT
 FROM canonical cv
 JOIN counts k ON k.canonical_id = cv.canonical_id
 WHERE (sqlc.narg('severity')::text IS NULL OR cv.severity = sqlc.narg('severity')::text)
+-- Sorting is parameterised for the same reason as ListTopVulnerabilities: the
+-- list is server-paginated, so reordering the rows on the current page would
+-- claim a ranking the other pages do not share.
 ORDER BY
+    CASE @sort_by::text
+        WHEN 'cvss_score'     THEN cv.cvss_score::float8
+        WHEN 'workload_count' THEN k.workload_count::float8
+        WHEN 'severity'       THEN (CASE cv.severity
+                                        WHEN 'CRITICAL' THEN 4
+                                        WHEN 'HIGH'     THEN 3
+                                        WHEN 'MEDIUM'   THEN 2
+                                        WHEN 'LOW'      THEN 1
+                                        ELSE 0
+                                    END)::float8
+    END * CASE @sort_dir::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
+    CASE WHEN @sort_by::text = 'canonical_id' AND @sort_dir::text = 'asc'  THEN cv.canonical_id END ASC  NULLS LAST,
+    CASE WHEN @sort_by::text = 'canonical_id' AND @sort_dir::text = 'desc' THEN cv.canonical_id END DESC NULLS LAST,
+    -- Severity then CVSS remain the tiebreakers, which keeps the default
+    -- ordering byte-identical to the hardcoded one this replaced.
     CASE cv.severity
         WHEN 'CRITICAL' THEN 4
         WHEN 'HIGH'     THEN 3

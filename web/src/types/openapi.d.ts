@@ -4412,6 +4412,10 @@ export interface operations {
             query?: {
                 /** @description Filter by severity */
                 severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+                /** @description Column to sort by (default severity, worst first) */
+                sort?: "severity" | "cvss_score" | "workload_count" | "canonical_id";
+                /** @description Sort direction (default asc) */
+                dir?: "asc" | "desc";
                 /** @description Maximum number of results per page */
                 limit?: number;
                 /** @description Number of results to skip */

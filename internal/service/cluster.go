@@ -164,8 +164,21 @@ type NamespaceFacet struct {
 // RunningVulnParams filters and pages ListRunningVulns.
 type RunningVulnParams struct {
 	Severity string // empty means every severity
+	SortBy   string // one of RunningVulnSortKeys; empty means the default
+	SortDir  string // "asc" or "desc"; empty means "asc"
 	Limit    int32
 	Offset   int32
+}
+
+// RunningVulnSortKeys are the columns RunningVulns will order by. As with
+// WorkloadSortKeys, anything else is dropped before it reaches the query's
+// CASE, where an unmatched key would produce an arbitrary order that looks
+// like a working sort.
+var RunningVulnSortKeys = map[string]bool{
+	sortBySeverity:   true,
+	"cvss_score":     true,
+	"workload_count": true,
+	"canonical_id":   true,
 }
 
 // RunningWorkload is a workload that carries a given vulnerability, together
@@ -462,7 +475,7 @@ func (s *clusterService) ListWorkloads(ctx context.Context, clusterID string, pa
 		return PagedResult[ClusterWorkload]{}, fmt.Errorf("counting workloads: %w", err)
 	}
 
-	sortBy, sortDir := clampWorkloadSort(params.SortBy, params.SortDir)
+	sortBy, sortDir := clampSort(params.SortBy, params.SortDir, WorkloadSortKeys)
 	rows, err := s.repo.ListClusterWorkloads(ctx, repository.ListClusterWorkloadsParams{
 		ClusterID:    cid,
 		K8sNamespace: optionalText(params.K8sNamespace),
@@ -549,9 +562,12 @@ func (s *clusterService) RunningVulns(ctx context.Context, clusterID string, par
 		return PagedResult[RunningVuln]{}, fmt.Errorf("counting running vulnerabilities: %w", err)
 	}
 
+	sortBy, sortDir := clampSort(params.SortBy, params.SortDir, RunningVulnSortKeys)
 	rows, err := s.repo.ListClusterRunningVulns(ctx, repository.ListClusterRunningVulnsParams{
 		ClusterID: cid,
 		Severity:  severity,
+		SortBy:    sortBy,
+		SortDir:   sortDir,
 		Limit:     pgtype.Int4{Int32: limit, Valid: true},
 		Offset:    pgtype.Int4{Int32: offset, Valid: true},
 		UserID:    filter.UserID,
@@ -635,11 +651,11 @@ func optionalText(v string) pgtype.Text {
 // clampPage applies the same bounds huma declares on PaginationParams, so a
 // caller that bypasses the HTTP layer (a test, the MCP server) cannot ask for
 // an unbounded page.
-// clampWorkloadSort reduces a caller's sort request to a pair the query
-// understands. An unknown key becomes the empty string, which matches no CASE
-// branch and so leaves the query's default ordering in place.
-func clampWorkloadSort(sortBy, sortDir string) (string, string) {
-	if !WorkloadSortKeys[sortBy] {
+// clampSort reduces a caller's sort request to a pair the query understands. An
+// unknown key becomes the empty string, which matches no CASE branch and so
+// leaves the query's default ordering in place.
+func clampSort(sortBy, sortDir string, allowed map[string]bool) (string, string) {
+	if !allowed[sortBy] {
 		sortBy = ""
 	}
 	if sortDir != "desc" {

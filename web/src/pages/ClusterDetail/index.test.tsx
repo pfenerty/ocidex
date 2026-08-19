@@ -7,6 +7,7 @@ import {
     useClusterWorkloads,
     useClusterVulns,
     useClusterNamespaces,
+    useVulnWorkloads,
 } from "~/api/queries";
 import ClusterDetail from "./index";
 
@@ -18,6 +19,7 @@ vi.mock("~/api/queries", () => ({
     useClusterWorkloads: vi.fn(),
     useClusterVulns: vi.fn(),
     useClusterNamespaces: vi.fn(),
+    useVulnWorkloads: vi.fn(),
     useListClusters: vi.fn(),
     useMyNamespaces: vi.fn(),
     useCreateCluster: vi.fn(),
@@ -53,6 +55,25 @@ interface ParamWrite {
     offset?: number;
 }
 
+/** The last query params the running-vulnerability hook was asked for. */
+let lastVulnParams:
+    | { severity?: string; sort?: string; dir?: string; limit?: number; offset?: number }
+    | undefined;
+
+/**
+ * The last reverse-workload lookup's arguments, kept as the accessors the hook
+ * was handed rather than their values: `enabled` is what the row expansion
+ * changes, and reading it once at call time would only ever see the closed
+ * state.
+ */
+let lastVulnWorkloadArgs:
+    | {
+          canonicalId: () => string | undefined;
+          clusterId?: () => string | undefined;
+          options?: () => { enabled?: boolean };
+      }
+    | undefined;
+
 /** Search-param writes the page made, newest last. */
 let searchParamWrites: ParamWrite[] = [];
 
@@ -75,6 +96,7 @@ const mockCluster = vi.mocked(useCluster);
 const mockWorkloads = vi.mocked(useClusterWorkloads);
 const mockVulns = vi.mocked(useClusterVulns);
 const mockNamespaces = vi.mocked(useClusterNamespaces);
+const mockVulnWorkloads = vi.mocked(useVulnWorkloads);
 
 const cluster = {
     id: "c-prod",
@@ -158,12 +180,48 @@ function renderPage(
         isError: false,
         error: null,
     })) as never);
-    mockVulns.mockImplementation((() => ({
-        data: { data: vulns, coverage, pagination: { total: vulns.length, limit: 5, offset: 0 } },
-        isLoading: false,
-        isError: false,
-        error: null,
-    })) as never);
+    mockVulns.mockImplementation(((
+        _id: unknown,
+        params?: () => NonNullable<typeof lastVulnParams>,
+    ) => {
+        lastVulnParams = params?.();
+        return {
+            data: {
+                data: vulns,
+                coverage,
+                pagination: { total: vulns.length, limit: 50, offset: 0 },
+            },
+            isLoading: false,
+            isFetching: false,
+            isError: false,
+            error: null,
+        };
+    }) as never);
+    mockVulnWorkloads.mockImplementation(((
+        canonicalId: () => string | undefined,
+        clusterId?: () => string | undefined,
+        options?: () => { enabled?: boolean },
+    ) => {
+        lastVulnWorkloadArgs = { canonicalId, clusterId, options };
+        return {
+            data: {
+                data: [
+                    {
+                        cluster_id: "c-prod",
+                        cluster_name: "prod-eu-west",
+                        k8s_namespace: "payments",
+                        workload_name: "checkout",
+                        container_name: "app",
+                        image_ref: "ghcr.io/pfenerty/checkout:v2",
+                        pod_count: 2,
+                    },
+                ],
+            },
+            isLoading: false,
+            isError: false,
+            error: null,
+        };
+    }) as never);
     return render(() => <ClusterDetail />);
 }
 
@@ -184,6 +242,8 @@ describe("ClusterDetail", () => {
         vi.clearAllMocks();
         searchParams = {};
         lastWorkloadParams = undefined;
+        lastVulnParams = undefined;
+        lastVulnWorkloadArgs = undefined;
         searchParamWrites = [];
     });
 
@@ -442,6 +502,89 @@ describe("ClusterDetail", () => {
         );
         expect(namespaceSelect.textContent).toContain("kube-system");
         expect(namespaceSelect.textContent).toContain("(3)");
+    });
+
+    // ---------------------------------------------------------------------
+    // Vulnerabilities tab
+    // ---------------------------------------------------------------------
+
+    // The original page showed a bar of counts with nothing behind it. The
+    // point of the tab is that every number is a row you can open.
+    it("lists running vulnerabilities with a severity strip", () => {
+        searchParams = { tab: "vulnerabilities" };
+        const { container } = renderPage([workload()], GAPPY, [vuln()]);
+
+        expect(container.textContent).toContain("CVE-2026-1000");
+        expect(container.textContent).toContain("Remote code execution");
+
+        const severityTabs = [...container.querySelectorAll(".tab-bar .tab-btn")].map(
+            (b) => b.textContent,
+        );
+        expect(severityTabs).toContain("CRITICAL");
+        expect(severityTabs).toContain("LOW");
+    });
+
+    // A severity strip that filtered client-side would filter one page and
+    // call it the answer; the choice has to reach the query.
+    it("sends the severity filter and sort to the server", () => {
+        searchParams = {
+            tab: "vulnerabilities",
+            severity: "HIGH",
+            sort: "workload_count",
+            dir: "asc",
+        };
+        renderPage([workload()], GAPPY, [vuln()]);
+
+        expect(lastVulnParams?.severity).toBe("HIGH");
+        expect(lastVulnParams?.sort).toBe("workload_count");
+        expect(lastVulnParams?.dir).toBe("asc");
+    });
+
+    // Same reasoning as the workload table: an unrecognised key would reach the
+    // SQL CASE and produce an arbitrary order that looks like a working sort.
+    it("ignores a sort key the API does not accept", () => {
+        searchParams = { tab: "vulnerabilities", sort: "blast_radius", severity: "SPICY" };
+        renderPage([workload()], GAPPY, [vuln()]);
+
+        expect(lastVulnParams?.sort).toBe("severity");
+        expect(lastVulnParams?.severity).toBeUndefined();
+    });
+
+    // "3 workloads" is not actionable until you can see which three, and the
+    // list must not be fetched for every row of the page up front.
+    it("fetches the workloads behind a count only once the row is opened", async () => {
+        searchParams = { tab: "vulnerabilities" };
+        const { container } = renderPage([workload()], GAPPY, [vuln()]);
+
+        const toggle = must(
+            container.querySelector(".link-button"),
+            "workload-count toggle",
+        ) as HTMLButtonElement;
+        expect(toggle.getAttribute("aria-expanded")).toBe("false");
+        expect(lastVulnWorkloadArgs?.options?.().enabled).toBe(false);
+        expect(container.textContent).not.toContain("checkout");
+
+        toggle.click();
+        await Promise.resolve();
+
+        expect(toggle.getAttribute("aria-expanded")).toBe("true");
+        expect(lastVulnWorkloadArgs?.options?.().enabled).toBe(true);
+        // Scoped to this cluster: the same advisory elsewhere is a different
+        // question, asked on the vulnerability page.
+        expect(lastVulnWorkloadArgs?.clusterId?.()).toBe("c-prod");
+        expect(container.textContent).toContain("checkout");
+        expect(container.textContent).toContain("payments");
+    });
+
+    // Counts with no denominator are the failure ADR-044 K5 names: rows the
+    // cluster could not assess must be stated wherever findings are.
+    it("names the containers this list could not assess", () => {
+        searchParams = { tab: "vulnerabilities" };
+        const { container } = renderPage([workload()], GAPPY, [vuln()]);
+
+        const caveat = must(container.querySelector(".coverage-caveat"), "coverage caveat");
+        expect(caveat.textContent).toContain("6 running containers");
+        expect(caveat.textContent).toContain("unknown, not zero");
     });
 
     // The two gaps have different remedies, so they are stated separately

@@ -228,6 +228,8 @@ func (h *Handler) ListClusterVulns(ctx context.Context, in *ListClusterVulnsInpu
 
 	page, err := h.clusterService.RunningVulns(ctx, in.ID, service.RunningVulnParams{
 		Severity: in.Severity,
+		SortBy:   in.Sort,
+		SortDir:  in.Dir,
 		Limit:    in.Limit,
 		Offset:   in.Offset,
 	}, vis)

@@ -6931,6 +6931,36 @@
             }
           },
           {
+            "description": "Column to sort by (default severity, worst first)",
+            "explode": false,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Column to sort by (default severity, worst first)",
+              "enum": [
+                "severity",
+                "cvss_score",
+                "workload_count",
+                "canonical_id"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction (default asc)",
+            "explode": false,
+            "in": "query",
+            "name": "dir",
+            "schema": {
+              "description": "Sort direction (default asc)",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string"
+            }
+          },
+          {
             "description": "Maximum number of results per page",
             "explode": false,
             "in": "query",

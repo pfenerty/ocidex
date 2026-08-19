@@ -623,6 +623,48 @@ func (e ListClusterVulnsParamsSeverity) Valid() bool {
 	}
 }
 
+// Defines values for ListClusterVulnsParamsSort.
+const (
+	ListClusterVulnsParamsSortCanonicalId   ListClusterVulnsParamsSort = "canonical_id"
+	ListClusterVulnsParamsSortCvssScore     ListClusterVulnsParamsSort = "cvss_score"
+	ListClusterVulnsParamsSortSeverity      ListClusterVulnsParamsSort = "severity"
+	ListClusterVulnsParamsSortWorkloadCount ListClusterVulnsParamsSort = "workload_count"
+)
+
+// Valid indicates whether the value is a known member of the ListClusterVulnsParamsSort enum.
+func (e ListClusterVulnsParamsSort) Valid() bool {
+	switch e {
+	case ListClusterVulnsParamsSortCanonicalId:
+		return true
+	case ListClusterVulnsParamsSortCvssScore:
+		return true
+	case ListClusterVulnsParamsSortSeverity:
+		return true
+	case ListClusterVulnsParamsSortWorkloadCount:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListClusterVulnsParamsDir.
+const (
+	ListClusterVulnsParamsDirAsc  ListClusterVulnsParamsDir = "asc"
+	ListClusterVulnsParamsDirDesc ListClusterVulnsParamsDir = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ListClusterVulnsParamsDir enum.
+func (e ListClusterVulnsParamsDir) Valid() bool {
+	switch e {
+	case ListClusterVulnsParamsDirAsc:
+		return true
+	case ListClusterVulnsParamsDirDesc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListClusterWorkloadsParamsMatchState.
 const (
 	Exact        ListClusterWorkloadsParamsMatchState = "exact"
@@ -868,28 +910,28 @@ func (e ListTopVulnerabilitiesParamsSeverity) Valid() bool {
 
 // Defines values for ListTopVulnerabilitiesParamsSort.
 const (
-	ListTopVulnerabilitiesParamsSortAffectedPurlCount ListTopVulnerabilitiesParamsSort = "affected_purl_count"
-	ListTopVulnerabilitiesParamsSortAffectedSbomCount ListTopVulnerabilitiesParamsSort = "affected_sbom_count"
-	ListTopVulnerabilitiesParamsSortCanonicalId       ListTopVulnerabilitiesParamsSort = "canonical_id"
-	ListTopVulnerabilitiesParamsSortCvssScore         ListTopVulnerabilitiesParamsSort = "cvss_score"
-	ListTopVulnerabilitiesParamsSortPublishedAt       ListTopVulnerabilitiesParamsSort = "published_at"
-	ListTopVulnerabilitiesParamsSortSeverity          ListTopVulnerabilitiesParamsSort = "severity"
+	AffectedPurlCount ListTopVulnerabilitiesParamsSort = "affected_purl_count"
+	AffectedSbomCount ListTopVulnerabilitiesParamsSort = "affected_sbom_count"
+	CanonicalId       ListTopVulnerabilitiesParamsSort = "canonical_id"
+	CvssScore         ListTopVulnerabilitiesParamsSort = "cvss_score"
+	PublishedAt       ListTopVulnerabilitiesParamsSort = "published_at"
+	Severity          ListTopVulnerabilitiesParamsSort = "severity"
 )
 
 // Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSort enum.
 func (e ListTopVulnerabilitiesParamsSort) Valid() bool {
 	switch e {
-	case ListTopVulnerabilitiesParamsSortAffectedPurlCount:
+	case AffectedPurlCount:
 		return true
-	case ListTopVulnerabilitiesParamsSortAffectedSbomCount:
+	case AffectedSbomCount:
 		return true
-	case ListTopVulnerabilitiesParamsSortCanonicalId:
+	case CanonicalId:
 		return true
-	case ListTopVulnerabilitiesParamsSortCvssScore:
+	case CvssScore:
 		return true
-	case ListTopVulnerabilitiesParamsSortPublishedAt:
+	case PublishedAt:
 		return true
-	case ListTopVulnerabilitiesParamsSortSeverity:
+	case Severity:
 		return true
 	default:
 		return false
@@ -898,16 +940,16 @@ func (e ListTopVulnerabilitiesParamsSort) Valid() bool {
 
 // Defines values for ListTopVulnerabilitiesParamsSortDir.
 const (
-	Asc  ListTopVulnerabilitiesParamsSortDir = "asc"
-	Desc ListTopVulnerabilitiesParamsSortDir = "desc"
+	ListTopVulnerabilitiesParamsSortDirAsc  ListTopVulnerabilitiesParamsSortDir = "asc"
+	ListTopVulnerabilitiesParamsSortDirDesc ListTopVulnerabilitiesParamsSortDir = "desc"
 )
 
 // Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSortDir enum.
 func (e ListTopVulnerabilitiesParamsSortDir) Valid() bool {
 	switch e {
-	case Asc:
+	case ListTopVulnerabilitiesParamsSortDirAsc:
 		return true
-	case Desc:
+	case ListTopVulnerabilitiesParamsSortDirDesc:
 		return true
 	default:
 		return false
@@ -2879,6 +2921,12 @@ type ListClusterVulnsParams struct {
 	// Severity Filter by severity
 	Severity *ListClusterVulnsParamsSeverity `form:"severity,omitempty" json:"severity,omitempty"`
 
+	// Sort Column to sort by (default severity, worst first)
+	Sort *ListClusterVulnsParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// Dir Sort direction (default asc)
+	Dir *ListClusterVulnsParamsDir `form:"dir,omitempty" json:"dir,omitempty"`
+
 	// Limit Maximum number of results per page
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
 
@@ -2888,6 +2936,12 @@ type ListClusterVulnsParams struct {
 
 // ListClusterVulnsParamsSeverity defines parameters for ListClusterVulns.
 type ListClusterVulnsParamsSeverity string
+
+// ListClusterVulnsParamsSort defines parameters for ListClusterVulns.
+type ListClusterVulnsParamsSort string
+
+// ListClusterVulnsParamsDir defines parameters for ListClusterVulns.
+type ListClusterVulnsParamsDir string
 
 // ListClusterWorkloadsParams defines parameters for ListClusterWorkloads.
 type ListClusterWorkloadsParams struct {

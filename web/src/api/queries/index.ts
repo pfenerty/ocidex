@@ -20,11 +20,13 @@ export {
     useCreateCluster,
     useUpdateCluster,
     useDeleteCluster,
+    useVulnWorkloads,
 } from "./clusters";
 export type {
     WorkloadQueryParams,
     WorkloadSortKey,
     ClusterVulnQueryParams,
+    ClusterVulnSortKey,
     VulnSeverityFilter,
 } from "./clusters";
 export { useListNamespaces, useNamespace, useCreateNamespace, useUpdateNamespace, useDeleteNamespace } from "./namespaces";

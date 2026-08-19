@@ -119,9 +119,15 @@ export type VulnSeverityFilter = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 
 export interface ClusterVulnQueryParams {
     severity?: VulnSeverityFilter;
+    sort?: ClusterVulnSortKey;
+    dir?: SortDir;
     limit?: number;
     offset?: number;
 }
+
+/** The columns the API will order the running-vulnerability list by. */
+export type ClusterVulnSortKey =
+    NonNullable<paths["/api/v1/clusters/{id}/vulns"]["get"]["parameters"]["query"]>["sort"];
 
 /**
  * useClusterVulns — vulnerabilities carried by the images the cluster is
@@ -141,6 +147,8 @@ export function useClusterVulns(
         const severity = p.severity;
         return {
             ...(severity !== undefined ? { severity } : {}),
+            ...(p.sort !== undefined ? { sort: p.sort } : {}),
+            ...(p.dir !== undefined ? { dir: p.dir } : {}),
             ...(p.limit !== undefined ? { limit: p.limit } : {}),
             ...(p.offset !== undefined ? { offset: p.offset } : {}),
         };
@@ -154,6 +162,45 @@ export function useClusterVulns(
                 }),
             ),
         enabled: id() !== undefined,
+        select: (resp) => ({ ...resp, data: resp.data ?? [] }),
+    }));
+}
+
+/**
+ * useVulnWorkloads — which running workloads carry one advisory.
+ *
+ * The reverse of useClusterVulns. Omit clusterId to ask across every cluster
+ * the caller can see, which is the question the catalog page could not answer
+ * before: "am I actually running this?"
+ *
+ * The id is a canonical id, so an advisory published under several native ids
+ * answers the same for all of them.
+ */
+export function useVulnWorkloads(
+    canonicalId: Accessor<string | undefined>,
+    clusterId?: Accessor<string | undefined>,
+    options?: Accessor<{ enabled?: boolean; limit?: number }>,
+) {
+    const query = (): { cluster_id?: string; limit?: number } => {
+        const cid = clusterId?.();
+        const limit = options?.().limit;
+        return {
+            ...(hasText(cid) ? { cluster_id: cid } : {}),
+            ...(limit !== undefined ? { limit } : {}),
+        };
+    };
+    return createQuery(() => ({
+        queryKey: ["vulns", canonicalId(), "workloads", query()] as const,
+        queryFn: () =>
+            unwrap(
+                client.GET("/api/v1/vulns/{id}/workloads", {
+                    params: { path: { id: canonicalId() ?? "" }, query: query() },
+                }),
+            ),
+        // Row expansion mounts this hook before the row is opened, so the
+        // caller gates it rather than fetching every advisory's workloads up
+        // front.
+        enabled: canonicalId() !== undefined && (options?.().enabled ?? true),
         select: (resp) => ({ ...resp, data: resp.data ?? [] }),
     }));
 }

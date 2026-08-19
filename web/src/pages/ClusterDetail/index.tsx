@@ -11,13 +11,13 @@ import {
 import { SkeletonHeader } from "~/components/Skeleton";
 import { StalenessPill } from "../Clusters";
 import { useCluster, useClusterNamespaces, useClusterWorkloads } from "~/api/queries";
-import type { WorkloadSortKey } from "~/api/queries";
+import type { WorkloadSortKey, ClusterVulnSortKey, VulnSeverityFilter } from "~/api/queries";
 import type { SortDir } from "~/components/DataTable";
 import type { WorkloadMatchState } from "~/api/client";
 import { CoverageBand } from "./CoverageBand";
 import { OverviewTab } from "./OverviewTab";
 import { WorkloadsTab, WorkloadsFilterBar } from "./WorkloadsTab";
-import { VulnerabilitiesTab } from "./VulnerabilitiesTab";
+import { VulnerabilitiesTab, SEVERITIES, SORT_KEYS as VULN_SORT_KEYS } from "./VulnerabilitiesTab";
 import { GapsTab } from "./GapsTab";
 
 const TABS = ["overview", "workloads", "vulnerabilities", "gaps"] as const;
@@ -114,6 +114,7 @@ export default function ClusterDetail() {
                         match_state: undefined,
                         k8s_namespace: undefined,
                         q: undefined,
+                        severity: undefined,
                         sort: undefined,
                         dir: undefined,
                         offset: undefined,
@@ -136,9 +137,11 @@ export default function ClusterDetail() {
                             />
                         </Show>
                         <Show when={tab() === "vulnerabilities"}>
-                            <VulnerabilitiesTab
+                            <VulnerabilitiesTabPanel
                                 clusterId={params.id}
                                 coverage={data().coverage}
+                                searchParams={searchParams}
+                                setSearchParams={setSearchParams}
                             />
                         </Show>
                         <Show when={tab() === "gaps"}>
@@ -242,5 +245,55 @@ function WorkloadsTabPanel(props: {
                 onPageChange={(next) => props.setSearchParams({ offset: next === 0 ? undefined : next })}
             />
         </>
+    );
+}
+
+/**
+ * VulnerabilitiesTabPanel keeps the severity filter, sort and offset in search
+ * params, for the same reason the workload panel does: a narrowed view of what
+ * a cluster is running is the thing people want to send each other.
+ */
+function VulnerabilitiesTabPanel(props: {
+    clusterId: string;
+    coverage: { total: number; matched: number; unknown: number; unresolvable: number };
+    searchParams: Record<string, string | string[] | undefined>;
+    setSearchParams: (params: Record<string, string | number | undefined>) => void;
+}) {
+    const severity = (): VulnSeverityFilter | undefined => {
+        const raw = one(props.searchParams.severity);
+        return SEVERITIES.find((candidate) => candidate === raw);
+    };
+    const sortBy = (): ClusterVulnSortKey => {
+        const raw = one(props.searchParams.sort);
+        return VULN_SORT_KEYS.find((candidate) => candidate === raw) ?? "severity";
+    };
+    // Severity's useful default is worst-first, which is the opposite of the
+    // ascending default every other column wants.
+    const sortDir = (): SortDir => {
+        const raw = one(props.searchParams.dir);
+        if (raw === "asc" || raw === "desc") return raw;
+        return sortBy() === "canonical_id" ? "asc" : "desc";
+    };
+    const offset = () => {
+        const parsed = Number(one(props.searchParams.offset));
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    };
+
+    return (
+        <VulnerabilitiesTab
+            clusterId={props.clusterId}
+            coverage={props.coverage}
+            severity={severity()}
+            sortBy={sortBy()}
+            sortDir={sortDir()}
+            offset={offset()}
+            onSeverityChange={(value) =>
+                props.setSearchParams({ severity: value, offset: undefined })
+            }
+            onSort={(key, dir) => props.setSearchParams({ sort: key, dir, offset: undefined })}
+            onPageChange={(next) =>
+                props.setSearchParams({ offset: next === 0 ? undefined : next })
+            }
+        />
     );
 }
