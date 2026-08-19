@@ -117,7 +117,7 @@ const createCluster = `-- name: CreateCluster :one
 
 INSERT INTO cluster (namespace_id, name, description)
 VALUES ($1, $2, $3)
-RETURNING id, namespace_id, name, description, last_seen_at, created_at, updated_at
+RETURNING id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest
 `
 
 type CreateClusterParams struct {
@@ -143,6 +143,7 @@ func (q *Queries) CreateCluster(ctx context.Context, arg CreateClusterParams) (C
 		&i.LastSeenAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AutoIngest,
 	)
 	return i, err
 }
@@ -162,7 +163,7 @@ func (q *Queries) DeleteCluster(ctx context.Context, id pgtype.UUID) (int64, err
 }
 
 const getCluster = `-- name: GetCluster :one
-SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at FROM cluster WHERE id = $1
+SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest FROM cluster WHERE id = $1
 `
 
 func (q *Queries) GetCluster(ctx context.Context, id pgtype.UUID) (Cluster, error) {
@@ -176,12 +177,13 @@ func (q *Queries) GetCluster(ctx context.Context, id pgtype.UUID) (Cluster, erro
 		&i.LastSeenAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AutoIngest,
 	)
 	return i, err
 }
 
 const getClusterByName = `-- name: GetClusterByName :one
-SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at FROM cluster WHERE namespace_id = $1 AND name = $2
+SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest FROM cluster WHERE namespace_id = $1 AND name = $2
 `
 
 type GetClusterByNameParams struct {
@@ -200,6 +202,7 @@ func (q *Queries) GetClusterByName(ctx context.Context, arg GetClusterByNamePara
 		&i.LastSeenAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AutoIngest,
 	)
 	return i, err
 }
@@ -755,7 +758,7 @@ func (q *Queries) ListClusterWorkloads(ctx context.Context, arg ListClusterWorkl
 }
 
 const listClusters = `-- name: ListClusters :many
-SELECT c.id, c.namespace_id, c.name, c.description, c.last_seen_at, c.created_at, c.updated_at, n.name AS namespace_name, n.owner_id, n.visibility
+SELECT c.id, c.namespace_id, c.name, c.description, c.last_seen_at, c.created_at, c.updated_at, c.auto_ingest, n.name AS namespace_name, n.owner_id, n.visibility
 FROM cluster c
 JOIN namespace n ON n.id = c.namespace_id
 WHERE (
@@ -802,6 +805,7 @@ func (q *Queries) ListClusters(ctx context.Context, arg ListClustersParams) ([]L
 			&i.Cluster.LastSeenAt,
 			&i.Cluster.CreatedAt,
 			&i.Cluster.UpdatedAt,
+			&i.Cluster.AutoIngest,
 			&i.NamespaceName,
 			&i.OwnerID,
 			&i.Visibility,
@@ -817,7 +821,7 @@ func (q *Queries) ListClusters(ctx context.Context, arg ListClustersParams) ([]L
 }
 
 const listClustersByNamespace = `-- name: ListClustersByNamespace :many
-SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at FROM cluster WHERE namespace_id = $1 ORDER BY created_at ASC
+SELECT id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest FROM cluster WHERE namespace_id = $1 ORDER BY created_at ASC
 `
 
 func (q *Queries) ListClustersByNamespace(ctx context.Context, namespaceID pgtype.UUID) ([]Cluster, error) {
@@ -837,6 +841,7 @@ func (q *Queries) ListClustersByNamespace(ctx context.Context, namespaceID pgtyp
 			&i.LastSeenAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.AutoIngest,
 		); err != nil {
 			return nil, err
 		}
@@ -1006,19 +1011,28 @@ const updateCluster = `-- name: UpdateCluster :one
 UPDATE cluster
 SET name        = $2,
     description = $3,
+    auto_ingest = COALESCE($4::boolean, auto_ingest),
     updated_at  = now()
 WHERE id = $1
-RETURNING id, namespace_id, name, description, last_seen_at, created_at, updated_at
+RETURNING id, namespace_id, name, description, last_seen_at, created_at, updated_at, auto_ingest
 `
 
 type UpdateClusterParams struct {
 	ID          pgtype.UUID `json:"id"`
 	Name        string      `json:"name"`
 	Description string      `json:"description"`
+	AutoIngest  pgtype.Bool `json:"auto_ingest"`
 }
 
+// auto_ingest is a narg rather than a plain column: a PATCH that only renames
+// the cluster must not silently switch ingest off by omitting the field.
 func (q *Queries) UpdateCluster(ctx context.Context, arg UpdateClusterParams) (Cluster, error) {
-	row := q.db.QueryRow(ctx, updateCluster, arg.ID, arg.Name, arg.Description)
+	row := q.db.QueryRow(ctx, updateCluster,
+		arg.ID,
+		arg.Name,
+		arg.Description,
+		arg.AutoIngest,
+	)
 	var i Cluster
 	err := row.Scan(
 		&i.ID,
@@ -1028,6 +1042,7 @@ func (q *Queries) UpdateCluster(ctx context.Context, arg UpdateClusterParams) (C
 		&i.LastSeenAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AutoIngest,
 	)
 	return i, err
 }

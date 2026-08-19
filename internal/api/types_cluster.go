@@ -14,6 +14,7 @@ type ClusterResponse struct {
 	Name          string `json:"name"`
 	Description   string `json:"description,omitempty"`
 	LastSeenAt    string `json:"last_seen_at,omitempty" doc:"When an agent last pushed a snapshot. Empty means no agent has ever reported: a cluster showing no workloads for this reason is not a cluster running nothing."`
+	AutoIngest    bool   `json:"auto_ingest" doc:"Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot."`
 	CreatedAt     string `json:"created_at"`
 	UpdatedAt     string `json:"updated_at"`
 }
@@ -65,6 +66,9 @@ type UpdateClusterInput struct {
 	Body struct {
 		Name        string `json:"name" minLength:"1" maxLength:"100"`
 		Description string `json:"description,omitempty" maxLength:"500"`
+		// A pointer so omitting the field leaves the setting alone: a rename
+		// must not be able to switch ingest off as a side effect.
+		AutoIngest *bool `json:"auto_ingest,omitempty" doc:"Auto-ingest unknown running images on every accepted snapshot. Omit to leave unchanged."`
 	}
 }
 
@@ -312,5 +316,28 @@ type UnknownImageResponse struct {
 type ListClusterUnknownImagesOutput struct {
 	Body struct {
 		Data []UnknownImageResponse `json:"data"`
+	}
+}
+
+// IngestUnknownInput is the request for POST /api/v1/clusters/{id}/ingest-unknown.
+type IngestUnknownInput struct {
+	ID string `path:"id" doc:"Cluster UUID" format:"uuid"`
+}
+
+// IngestUnknownOutput reports what an ingest run did with every unknown image
+// it considered.
+//
+// The skips are broken out by reason rather than summed. A single "skipped"
+// number cannot be acted on: adding a registry, enabling one, widening its
+// repository patterns, and fixing a node runtime are four different jobs.
+type IngestUnknownOutput struct {
+	Body struct {
+		Considered              int `json:"considered" doc:"Unknown images looked at; the counts below account for all of them"`
+		Queued                  int `json:"queued" doc:"Scan jobs enqueued. A multi-arch image expands into one job per platform, so this can exceed the image count."`
+		SkippedNoRegistry       int `json:"skipped_no_registry" doc:"No registry in this cluster's namespace is configured for the image's host"`
+		SkippedRegistryDisabled int `json:"skipped_registry_disabled" doc:"The host matches a registry that is switched off"`
+		SkippedPatternExcluded  int `json:"skipped_pattern_excluded" doc:"The registry's repository patterns exclude this repository"`
+		SkippedUnparseableRef   int `json:"skipped_unparseable_ref" doc:"The reported reference carries no host to resolve against"`
+		Failed                  int `json:"failed" doc:"Submission errored against a reachable registry — transient, unlike the skips"`
 	}
 }

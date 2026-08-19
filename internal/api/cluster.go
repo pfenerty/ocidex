@@ -2,10 +2,12 @@ package api
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -101,6 +103,7 @@ func (h *Handler) UpdateCluster(ctx context.Context, in *UpdateClusterInput) (*U
 		ID:          in.ID,
 		Name:        in.Body.Name,
 		Description: in.Body.Description,
+		AutoIngest:  in.Body.AutoIngest,
 	})
 	if err != nil {
 		return nil, mapServiceError(err)
@@ -149,10 +152,84 @@ func (h *Handler) PutInventory(ctx context.Context, in *PutInventoryInput) (*Put
 		return nil, mapServiceError(err)
 	}
 
+	h.autoIngestAfterSnapshot(ctx, in.ID)
+
 	out := &PutInventoryOutput{}
 	out.Body.Accepted = len(workloads)
 	out.Body.Pruned = pruned
 	out.Body.SeenAt = time.Now().UTC().Format(time.RFC3339)
+	return out, nil
+}
+
+// autoIngestAfterSnapshot queues scans for the images the snapshot just
+// revealed as unscanned, when the cluster has auto-ingest on.
+//
+// It runs detached from the request. A snapshot names every container in the
+// cluster, so ingest can mean hundreds of registry round-trips, and an agent
+// pushing its inventory must not block on them — nor should a slow registry
+// turn a successful snapshot into a failed push. Anything that goes wrong is
+// logged and dropped: the next snapshot retries it, and the submitter's
+// (registry, digest) key makes that retry free.
+func (h *Handler) autoIngestAfterSnapshot(ctx context.Context, clusterID string) {
+	if h.scanSubmitter == nil {
+		return
+	}
+	cluster, err := h.clusterService.Get(ctx, clusterID)
+	if err != nil || !cluster.AutoIngest {
+		return
+	}
+	vis := visibilityFilterFromContext(ctx)
+	go func() { //nolint:gosec
+		ingestCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
+		defer cancel()
+		ingestor := scanner.NewClusterIngestor(h.scanSubmitter, slog.Default())
+		res, err := h.clusterService.IngestUnknown(ingestCtx, clusterID, ingestor, vis)
+		if err != nil {
+			slog.Error("cluster auto-ingest failed", "cluster", cluster.Name, "err", err)
+			return
+		}
+		if res.Considered == 0 {
+			return
+		}
+		slog.Info("cluster auto-ingest complete",
+			"cluster", cluster.Name,
+			"considered", res.Considered,
+			"queued", res.Queued,
+			"no_registry", res.SkippedNoRegistry,
+			"registry_disabled", res.SkippedRegistryDisabled,
+			"pattern_excluded", res.SkippedPatternExcluded,
+			"unparseable_ref", res.SkippedUnparseableRef,
+			"failed", res.Failed)
+	}()
+}
+
+// IngestUnknown queues scans for the cluster's unscanned running images and
+// waits for the answer.
+//
+// The synchronous twin of the push trigger: a button that reports "queued 4,
+// 2 have no registry" is worth waiting for, where an agent's push is not.
+// Ownership rather than visibility is required — this spends registry
+// credentials and enqueues work, which reading a cluster does not.
+func (h *Handler) IngestUnknown(ctx context.Context, in *IngestUnknownInput) (*IngestUnknownOutput, error) {
+	if err := h.clusterOwnerCheck(ctx, in.ID); err != nil {
+		return nil, err
+	}
+	if h.scanSubmitter == nil {
+		return nil, huma.Error503ServiceUnavailable("scanner not enabled")
+	}
+	ingestor := scanner.NewClusterIngestor(h.scanSubmitter, slog.Default())
+	res, err := h.clusterService.IngestUnknown(ctx, in.ID, ingestor, visibilityFilterFromContext(ctx))
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	out := &IngestUnknownOutput{}
+	out.Body.Considered = res.Considered
+	out.Body.Queued = res.Queued
+	out.Body.SkippedNoRegistry = res.SkippedNoRegistry
+	out.Body.SkippedRegistryDisabled = res.SkippedRegistryDisabled
+	out.Body.SkippedPatternExcluded = res.SkippedPatternExcluded
+	out.Body.SkippedUnparseableRef = res.SkippedUnparseableRef
+	out.Body.Failed = res.Failed
 	return out, nil
 }
 
@@ -367,6 +444,7 @@ func toClusterResponse(c service.Cluster) ClusterResponse {
 		NamespaceName: c.NamespaceName,
 		Name:          c.Name,
 		Description:   c.Description,
+		AutoIngest:    c.AutoIngest,
 		CreatedAt:     c.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:     c.UpdatedAt.UTC().Format(time.RFC3339),
 	}

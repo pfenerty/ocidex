@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 	"time"
@@ -1024,4 +1025,166 @@ func TestClusterWorkloadVulnCountsAndSort(t *testing.T) {
 		is.Equal(result.Data[0].WorkloadName, "c-unmatched")
 		is.Equal(result.Data[2].WorkloadName, "a-clean")
 	})
+}
+
+// seedClusterRegistry inserts a source/registry pair in nsID with an explicit
+// URL, enabled flag and repository patterns, which is what auto-ingest
+// resolution actually keys on.
+func seedClusterRegistry(t *testing.T, pool *pgxpool.Pool, nsID, name, url string, enabled bool, patterns []string) {
+	t.Helper()
+	srcID := seedSource(t, pool, nsID, "oci_registry", name)
+	_, err := pool.Exec(t.Context(), `
+		INSERT INTO registry (id, url, type, enabled, repository_patterns)
+		VALUES ($1, $2, 'generic', $3, $4)
+	`, srcID, url, enabled, patterns)
+	if err != nil {
+		t.Fatalf("insert registry %q: %v", name, err)
+	}
+}
+
+// fakeRunningImageSubmitter records what auto-ingest asked it to scan, standing
+// in for the registry round-trip so the test stays about resolution.
+type fakeRunningImageSubmitter struct {
+	calls []string
+}
+
+func (f *fakeRunningImageSubmitter) SubmitForRunningImage(_ context.Context, reg service.Registry, repo, dgst, _ string) (int, error) {
+	f.calls = append(f.calls, reg.URL+"/"+repo+"@"+dgst)
+	return 1, nil
+}
+
+// TestClusterIngestUnknown covers the auto-ingest resolver against a real
+// database: which running images become scan jobs, and — the part that matters
+// for the UI — that each image that does not is filed under the reason naming
+// its own remedy rather than a single "skipped" total (ADR-044).
+func TestClusterIngestUnknown(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := t.Context()
+	is := is.New(t)
+	q := repository.New(pool)
+	svc := service.NewClusterService(pool)
+
+	owner := seedUser(t, pool, 9601, "ingest-owner", "member")
+	nsID := seedNamespace(t, pool, "ingest-ns", owner, "private")
+	clusterID := seedCluster(t, pool, nsID, "ingest-prod")
+	cid := mustUUID(t, clusterID)
+	vis := service.VisibilityFilter{UserID: owner}
+
+	seedClusterRegistry(t, pool, nsID, "ghcr", "ghcr.io", true, nil)
+	seedClusterRegistry(t, pool, nsID, "quay-off", "quay.io", false, nil)
+	seedClusterRegistry(t, pool, nsID, "narrow", "registry.example.com", true, []string{"team/**"})
+	// A registry that would serve docker.io, but in someone else's namespace.
+	// Using it would pull with credentials this cluster was never granted.
+	otherOwner := seedUser(t, pool, 9602, "other-owner", "member")
+	otherNS := seedNamespace(t, pool, "other-ns", otherOwner, "public")
+	seedClusterRegistry(t, pool, otherNS, "hub", "docker.io", true, nil)
+
+	// An image that is already ingested must not appear in the gap at all.
+	knownDigest := digest('a')
+	seedArtifactSBOM(t, pool, nsID, "ghcr.io/team/known", knownDigest, "")
+
+	observed := time.Now().UTC()
+	upsert := func(name, ref, dgst string) {
+		t.Helper()
+		var d pgtype.Text
+		if dgst != "" {
+			d = txt(dgst)
+		}
+		err := q.UpsertClusterWorkload(ctx, repository.UpsertClusterWorkloadParams{
+			ClusterID:     cid,
+			K8sNamespace:  "prod",
+			WorkloadKind:  "Deployment",
+			WorkloadName:  name,
+			ContainerName: "app",
+			ImageRef:      ref,
+			ImageDigest:   d,
+			PodCount:      1,
+			ObservedAt:    pgtype.Timestamptz{Time: observed, Valid: true},
+		})
+		if err != nil {
+			t.Fatalf("upsert %q: %v", name, err)
+		}
+	}
+
+	upsert("known", "ghcr.io/team/known:v1", knownDigest)
+	upsert("api", "ghcr.io/team/api:v1", digest('b'))
+	upsert("api-replica", "ghcr.io/team/api:v1", digest('b')) // same image, one remedy
+	upsert("legacy", "quay.io/team/legacy:v1", digest('c'))
+	upsert("tools", "registry.example.com/other/tools:v1", digest('d'))
+	upsert("hub-app", "docker.io/library/nginx:1.27", digest('e'))
+	upsert("nameless", "sha256:deadbeef", "") // unresolvable: no digest at all
+
+	sub := &fakeRunningImageSubmitter{}
+	res, err := svc.IngestUnknown(ctx, clusterID, sub, vis)
+	is.NoErr(err)
+
+	// The ingested image and the digest-less workload are both absent from the
+	// gap: one has nothing to do, the other has nothing ingest can do.
+	is.Equal(res.Considered, 4)
+	is.Equal(res.Queued, 1)
+	is.Equal(res.SkippedRegistryDisabled, 1) // quay.io is switched off
+	is.Equal(res.SkippedPatternExcluded, 1)  // other/** is not team/**
+	is.Equal(res.SkippedNoRegistry, 1)       // docker.io registry is another namespace's
+	is.Equal(res.Failed, 0)
+
+	is.Equal(len(sub.calls), 1)
+	is.Equal(sub.calls[0], "ghcr.io/team/api@"+digest('b'))
+
+	// The listing the Gaps tab renders must agree with what ingest did, since
+	// they share a resolver: same four images, same four reasons.
+	images, err := svc.UnknownImages(ctx, clusterID, 200, vis)
+	is.NoErr(err)
+	is.Equal(len(images), 4)
+	reasons := map[string]int{}
+	for _, img := range images {
+		reasons[img.Reason]++
+	}
+	is.Equal(reasons[service.IngestReasonReady], 1)
+	is.Equal(reasons[service.IngestReasonRegistryDisabled], 1)
+	is.Equal(reasons[service.IngestReasonPatternExcluded], 1)
+	is.Equal(reasons[service.IngestReasonNoRegistry], 1)
+}
+
+// TestClusterAutoIngestDefaultsOn pins the default. A cluster that reports what
+// it runs and then leaves it unscanned is the gap the inventory exists to
+// close, so opt-out is the only defensible direction for the flag.
+func TestClusterAutoIngestDefaultsOn(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	is := is.New(t)
+	svc := service.NewClusterService(pool)
+
+	owner := seedUser(t, pool, 9603, "autoingest-owner", "member")
+	nsID := seedNamespace(t, pool, "autoingest-ns", owner, "private")
+	clusterID := seedCluster(t, pool, nsID, "autoingest-prod")
+
+	cluster, err := svc.Get(t.Context(), clusterID)
+	is.NoErr(err)
+	is.True(cluster.AutoIngest)
+
+	// A rename must not switch it off as a side effect: the field is a pointer
+	// precisely so an omitted value means "leave it alone".
+	renamed, err := svc.Update(t.Context(), service.UpdateClusterParams{ID: clusterID, Name: "renamed"})
+	is.NoErr(err)
+	is.True(renamed.AutoIngest)
+
+	off := false
+	updated, err := svc.Update(t.Context(), service.UpdateClusterParams{
+		ID: clusterID, Name: "renamed", AutoIngest: &off,
+	})
+	is.NoErr(err)
+	is.True(!updated.AutoIngest)
 }

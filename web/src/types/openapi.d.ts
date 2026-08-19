@@ -382,6 +382,26 @@ export interface paths {
         patch: operations["update-cluster"];
         trace?: never;
     };
+    "/api/v1/clusters/{id}/ingest-unknown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Scan the cluster's unscanned running images
+         * @description Submits a scan job for every running image with no SBOM whose host resolves to an enabled registry in the cluster's own namespace, and reports per-reason counts for the ones it could not. Repeat runs enqueue nothing new: scan jobs are keyed on (registry, digest).
+         */
+        post: operations["ingest-cluster-unknown-images"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/clusters/{id}/inventory": {
         parameters: {
             query?: never;
@@ -1726,6 +1746,8 @@ export interface components {
              * @example https://example.com/schemas/ClusterResponse.json
              */
             readonly $schema?: string;
+            /** @description Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot. */
+            auto_ingest: boolean;
             created_at: string;
             description?: string;
             id: string;
@@ -2451,6 +2473,49 @@ export interface components {
              * @example accepted
              */
             status: string;
+        };
+        IngestUnknownOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/IngestUnknownOutputBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Unknown images looked at; the counts below account for all of them
+             */
+            considered: number;
+            /**
+             * Format: int64
+             * @description Submission errored against a reachable registry — transient, unlike the skips
+             */
+            failed: number;
+            /**
+             * Format: int64
+             * @description Scan jobs enqueued. A multi-arch image expands into one job per platform, so this can exceed the image count.
+             */
+            queued: number;
+            /**
+             * Format: int64
+             * @description No registry in this cluster's namespace is configured for the image's host
+             */
+            skipped_no_registry: number;
+            /**
+             * Format: int64
+             * @description The registry's repository patterns exclude this repository
+             */
+            skipped_pattern_excluded: number;
+            /**
+             * Format: int64
+             * @description The host matches a registry that is switched off
+             */
+            skipped_registry_disabled: number;
+            /**
+             * Format: int64
+             * @description The reported reference carries no host to resolve against
+             */
+            skipped_unparseable_ref: number;
         };
         InventoryWorkload: {
             container_name: string;
@@ -3342,6 +3407,8 @@ export interface components {
              * @example https://example.com/schemas/UpdateClusterInputBody.json
              */
             readonly $schema?: string;
+            /** @description Auto-ingest unknown running images on every accepted snapshot. Omit to leave unchanged. */
+            auto_ingest?: boolean;
             description?: string;
             name: string;
         };
@@ -4379,6 +4446,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClusterResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "ingest-cluster-unknown-images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Cluster UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IngestUnknownOutputBody"];
                 };
             };
             /** @description Error */

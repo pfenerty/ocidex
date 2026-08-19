@@ -52,6 +52,8 @@ type Cluster struct {
 	LastSeenAt pgtype.Timestamptz `json:"last_seen_at"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	// When true, an accepted inventory snapshot submits scan jobs for every running image with no SBOM whose host resolves to a registry in this cluster's namespace (ADR-044). Defaults to true: a cluster that reports what it runs and then leaves it unscanned is the gap the inventory exists to close. Resolution never leaves the namespace — using another namespace's registry would pull with credentials this cluster was never granted.
+	AutoIngest bool `json:"auto_ingest"`
 }
 
 // Current running-image inventory reported by a cluster agent. Full-snapshot semantics: rows absent from a snapshot are deleted (ADR-044 K7). Not a history table.

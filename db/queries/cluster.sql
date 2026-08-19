@@ -37,9 +37,12 @@ WHERE (
 ORDER BY c.created_at ASC;
 
 -- name: UpdateCluster :one
+-- auto_ingest is a narg rather than a plain column: a PATCH that only renames
+-- the cluster must not silently switch ingest off by omitting the field.
 UPDATE cluster
 SET name        = $2,
     description = $3,
+    auto_ingest = COALESCE(sqlc.narg('auto_ingest')::boolean, auto_ingest),
     updated_at  = now()
 WHERE id = $1
 RETURNING *;

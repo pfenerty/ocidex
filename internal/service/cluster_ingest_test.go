@@ -1,6 +1,9 @@
 package service
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestSplitImageRef(t *testing.T) {
 	tests := []struct {
@@ -122,6 +125,53 @@ func TestResolveIngestTarget(t *testing.T) {
 				t.Errorf("named no registry, want %q", tt.wantRegistry)
 			case *img.RegistryID != tt.wantRegistry:
 				t.Errorf("registry = %q, want %q", *img.RegistryID, tt.wantRegistry)
+			}
+		})
+	}
+}
+
+func TestImageRefTag(t *testing.T) {
+	tests := []struct {
+		name string
+		ref  string
+		want string
+	}{
+		{"tagged", "ghcr.io/pfenerty/ocidex:v1.2.3", "v1.2.3"},
+		{"digest only", "ghcr.io/pfenerty/ocidex@sha256:" + strings.Repeat("a", 64), ""},
+		{"tag and digest", "ghcr.io/pfenerty/ocidex:v1.2.3@sha256:" + strings.Repeat("a", 64), "v1.2.3"},
+		{"untagged", "ghcr.io/pfenerty/ocidex", ""},
+		// The colon here is the registry port, not a tag separator.
+		{"port in host, no tag", "localhost:5005/ocidex", ""},
+		{"port in host and tag", "localhost:5005/ocidex:dev", "dev"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := imageRefTag(tt.ref); got != tt.want {
+				t.Errorf("imageRefTag(%q) = %q, want %q", tt.ref, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestIngestResultCountSkip pins every non-ready reason to its own counter. A
+// reason that fell through the switch would be counted as considered and not
+// skipped, which reads as a silent success — precisely the collapse ADR-044 K5
+// forbids.
+func TestIngestResultCountSkip(t *testing.T) {
+	reasons := []string{
+		IngestReasonNoRegistry,
+		IngestReasonRegistryDisabled,
+		IngestReasonPatternExcluded,
+		IngestReasonUnparseableRef,
+	}
+	for _, reason := range reasons {
+		t.Run(reason, func(t *testing.T) {
+			var res IngestResult
+			res.countSkip(reason)
+			total := res.SkippedNoRegistry + res.SkippedRegistryDisabled +
+				res.SkippedPatternExcluded + res.SkippedUnparseableRef
+			if total != 1 {
+				t.Errorf("countSkip(%q) filed %d skips, want exactly 1", reason, total)
 			}
 		})
 	}

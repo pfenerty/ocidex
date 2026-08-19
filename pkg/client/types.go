@@ -1138,7 +1138,10 @@ type ChangelogEntry struct {
 // ClusterResponse defines model for ClusterResponse.
 type ClusterResponse struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema      *string `json:"$schema,omitempty"`
+	Schema *string `json:"$schema,omitempty"`
+
+	// AutoIngest Submit a scan job for every running image with no SBOM whose host resolves to a registry in this cluster's namespace, on every accepted snapshot.
+	AutoIngest  bool    `json:"auto_ingest"`
 	CreatedAt   string  `json:"created_at"`
 	Description *string `json:"description,omitempty"`
 	Id          string  `json:"id"`
@@ -1843,6 +1846,33 @@ type IngestSBOMOutputBody struct {
 
 	// Status Ingestion status
 	Status string `json:"status"`
+}
+
+// IngestUnknownOutputBody defines model for IngestUnknownOutputBody.
+type IngestUnknownOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// Considered Unknown images looked at; the counts below account for all of them
+	Considered int64 `json:"considered"`
+
+	// Failed Submission errored against a reachable registry — transient, unlike the skips
+	Failed int64 `json:"failed"`
+
+	// Queued Scan jobs enqueued. A multi-arch image expands into one job per platform, so this can exceed the image count.
+	Queued int64 `json:"queued"`
+
+	// SkippedNoRegistry No registry in this cluster's namespace is configured for the image's host
+	SkippedNoRegistry int64 `json:"skipped_no_registry"`
+
+	// SkippedPatternExcluded The registry's repository patterns exclude this repository
+	SkippedPatternExcluded int64 `json:"skipped_pattern_excluded"`
+
+	// SkippedRegistryDisabled The host matches a registry that is switched off
+	SkippedRegistryDisabled int64 `json:"skipped_registry_disabled"`
+
+	// SkippedUnparseableRef The reported reference carries no host to resolve against
+	SkippedUnparseableRef int64 `json:"skipped_unparseable_ref"`
 }
 
 // InventoryWorkload defines model for InventoryWorkload.
@@ -2666,7 +2696,10 @@ type UnknownImageResponseReason string
 // UpdateClusterInputBody defines model for UpdateClusterInputBody.
 type UpdateClusterInputBody struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema      *string `json:"$schema,omitempty"`
+	Schema *string `json:"$schema,omitempty"`
+
+	// AutoIngest Auto-ingest unknown running images on every accepted snapshot. Omit to leave unchanged.
+	AutoIngest  *bool   `json:"auto_ingest,omitempty"`
 	Description *string `json:"description,omitempty"`
 	Name        string  `json:"name"`
 }

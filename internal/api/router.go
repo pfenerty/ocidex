@@ -843,6 +843,16 @@ func registerClusterOps(api huma.API, h *Handler) {
 	}, h.ListClusterUnknownImages)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "ingest-cluster-unknown-images",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/clusters/{id}/ingest-unknown",
+		Summary:     "Scan the cluster's unscanned running images",
+		Description: "Submits a scan job for every running image with no SBOM whose host resolves to an enabled registry in the cluster's own namespace, and reports per-reason counts for the ones it could not. Repeat runs enqueue nothing new: scan jobs are keyed on (registry, digest).",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW, writeMW},
+	}, h.IngestUnknown)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "list-cluster-vulns",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/clusters/{id}/vulns",

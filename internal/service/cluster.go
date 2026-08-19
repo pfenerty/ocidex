@@ -42,8 +42,12 @@ type Cluster struct {
 	Name          string
 	Description   string
 	LastSeenAt    *time.Time // nil until an agent has reported
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	// AutoIngest submits a scan job for every unknown running image whose host
+	// resolves to a registry in this cluster's namespace, on every accepted
+	// snapshot. On by default: the point of knowing what runs is to scan it.
+	AutoIngest bool
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 // ClusterWorkload is one running container image in a cluster, as last reported.
@@ -214,6 +218,9 @@ type UpdateClusterParams struct {
 	ID          string
 	Name        string
 	Description string
+	// AutoIngest is a pointer so an omitted field leaves the setting alone. A
+	// rename must not be able to switch ingest off as a side effect.
+	AutoIngest *bool
 }
 
 // ClusterService manages registered clusters and the inventory they report.
@@ -251,6 +258,13 @@ type ClusterService interface {
 	// UnknownImages lists the cluster's No-SBOM gap grouped by image, each
 	// resolved against the registries of the cluster's own namespace.
 	UnknownImages(ctx context.Context, clusterID string, limit int32, filter VisibilityFilter) ([]UnknownImage, error)
+
+	// IngestUnknown submits a scan job for every unknown running image that
+	// resolves to a usable registry, and reports what it skipped and why. The
+	// skips are returned rather than logged away: "nothing was queued" and
+	// "nothing could be queued because no registry serves ghcr.io" look
+	// identical from a count alone.
+	IngestUnknown(ctx context.Context, clusterID string, sub RunningImageSubmitter, filter VisibilityFilter) (IngestResult, error)
 }
 
 type clusterService struct {
@@ -349,10 +363,15 @@ func (s *clusterService) Update(ctx context.Context, params UpdateClusterParams)
 	if err != nil {
 		return Cluster{}, ErrNotFound
 	}
+	auto := pgtype.Bool{}
+	if params.AutoIngest != nil {
+		auto = pgtype.Bool{Bool: *params.AutoIngest, Valid: true}
+	}
 	row, err := s.repo.UpdateCluster(ctx, repository.UpdateClusterParams{
 		ID:          cid,
 		Name:        params.Name,
 		Description: params.Description,
+		AutoIngest:  auto,
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -687,6 +706,7 @@ func clusterFromRepo(c repository.Cluster) Cluster {
 		NamespaceID: uuidToStr(c.NamespaceID),
 		Name:        c.Name,
 		Description: c.Description,
+		AutoIngest:  c.AutoIngest,
 	}
 	if c.LastSeenAt.Valid {
 		t := c.LastSeenAt.Time

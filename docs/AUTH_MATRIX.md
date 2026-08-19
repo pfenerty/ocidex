@@ -81,6 +81,7 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 | DELETE | `/api/v1/clusters/{id}` | `delete-cluster` | `owner` | ✓ | namespaceOwnerCheck on the cluster's namespace; drops reported inventory only. |
 | GET | `/api/v1/clusters/{id}` | `get-cluster` | `authenticated` |  | 404s when the owning namespace is private and unowned. |
 | PATCH | `/api/v1/clusters/{id}` | `update-cluster` | `owner` | ✓ | namespaceOwnerCheck on the cluster's namespace. |
+| POST | `/api/v1/clusters/{id}/ingest-unknown` | `ingest-cluster-unknown-images` | `owner` | ✓ | Ownership, not the visibility that guards the matching list: this spends the namespace's registry credentials and enqueues scan work. Same gate as put-cluster-inventory, which is the other trigger for the same action. |
 | POST | `/api/v1/clusters/{id}/inventory` | `put-cluster-inventory` | `owner` | ✓ | namespaceOwnerCheck on the cluster's namespace — ownership, not visibility, because a public namespace must not make inventory writable by anyone. |
 | GET | `/api/v1/clusters/{id}/k8s-namespaces` | `list-cluster-k8s-namespaces` | `authenticated` |  | Same gate as list-cluster-workloads; the facet counts describe only the rows that gate admits. |
 | GET | `/api/v1/clusters/{id}/unknown-images` | `list-cluster-unknown-images` | `authenticated` |  | Same gate as list-cluster-workloads. It names the namespace's registries, so cluster visibility is what authorizes learning them; resolution never leaves the cluster's own namespace. |
