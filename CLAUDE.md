@@ -342,6 +342,7 @@ tests/                 # Integration tests (testcontainers)
 docs/adr/              # Architecture Decision Records (see summary below)
 docs/DEVELOPMENT.md    # Coding patterns and examples
 docs/SBOM_DIFF.md      # User guide: diff views, identity rules, flavor axis, troubleshooting
+docs/CLUSTER_INVENTORY.md  # User guide: cluster page tabs, coverage semantics, auto-ingest
 ```
 
 ## Generated Files

@@ -264,7 +264,7 @@ type ClusterService interface {
 	// skips are returned rather than logged away: "nothing was queued" and
 	// "nothing could be queued because no registry serves ghcr.io" look
 	// identical from a count alone.
-	IngestUnknown(ctx context.Context, clusterID string, sub RunningImageSubmitter, filter VisibilityFilter) (IngestResult, error)
+	IngestUnknown(ctx context.Context, clusterID string, sub RunningImageSubmitter, params IngestUnknownParams, filter VisibilityFilter) (IngestResult, error)
 }
 
 type clusterService struct {

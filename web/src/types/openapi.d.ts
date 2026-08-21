@@ -2474,6 +2474,16 @@ export interface components {
              */
             status: string;
         };
+        IngestUnknownInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/IngestUnknownInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Limit the run to these running image digests. Omit to ingest every unknown image the cluster reports. */
+            image_digests?: string[] | null;
+        };
         IngestUnknownOutputBody: {
             /**
              * Format: uri
@@ -4469,7 +4479,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IngestUnknownInputBody"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {

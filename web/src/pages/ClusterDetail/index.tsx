@@ -126,7 +126,15 @@ export default function ClusterDetail() {
                 {(data) => (
                     <>
                         <Show when={tab() === "overview"}>
-                            <OverviewTab clusterId={params.id} coverage={data().coverage} />
+                            <OverviewTab
+                                clusterId={params.id}
+                                coverage={data().coverage}
+                                // Defaults to on server-side; treated as off
+                                // only while the cluster is still loading, so
+                                // the line never claims ingest is running
+                                // before it knows.
+                                autoIngest={clusterQuery.data?.auto_ingest ?? false}
+                            />
                         </Show>
                         <Show when={tab() === "workloads"}>
                             <WorkloadsTabPanel

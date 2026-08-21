@@ -45,6 +45,7 @@ const prod = {
     namespace_id: "ns-acme",
     namespace_name: "acme",
     description: "production",
+    auto_ingest: true,
     last_seen_at: new Date().toISOString(),
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
@@ -169,6 +170,39 @@ describe("Clusters", () => {
             id: "c-prod",
             name: "prod-eu-west-1",
             description: "production",
+            // Carried through unchanged: a rename that omitted this would be
+            // read by the API as "leave it alone", but sending the value the
+            // row was showing keeps the form honest either way.
+            auto_ingest: true,
+        });
+    });
+
+    // Ingest spends the namespace's registry credentials, so the state is
+    // visible on every row rather than buried behind Edit.
+    it("shows each cluster's auto-ingest state without entering edit mode", () => {
+        const { container } = renderPage([prod, { ...prod, id: "c-dev", auto_ingest: false }]);
+
+        const rows = [...container.querySelectorAll("tbody tr")];
+        expect(must(rows[0], "first row").textContent).toContain("On");
+        expect(must(rows[1], "second row").textContent).toContain("Off");
+    });
+
+    it("turns auto-ingest off through the same save as a rename", () => {
+        const { container } = renderPage();
+
+        fireEvent.click(button(container, "Edit"));
+        const toggle = must(
+            container.querySelector('[data-testid="edit-auto-ingest"]'),
+            "auto-ingest toggle",
+        );
+        fireEvent.click(toggle);
+        fireEvent.click(button(container, "Save"));
+
+        expect(updateMutate.mock.calls[0][0]).toEqual({
+            id: "c-prod",
+            name: "prod-eu-west",
+            description: "production",
+            auto_ingest: false,
         });
     });
 

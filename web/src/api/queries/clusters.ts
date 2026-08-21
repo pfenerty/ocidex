@@ -248,11 +248,52 @@ export function useCreateCluster() {
 export function useUpdateCluster() {
     const queryClient = useQueryClient();
     return createMutation(() => ({
-        mutationFn: ({ id, ...body }: { id: string; name: string; description?: string }) =>
-            unwrap(client.PATCH("/api/v1/clusters/{id}", { params: { path: { id } }, body })),
+        mutationFn: ({
+            id,
+            ...body
+        }: {
+            id: string;
+            name: string;
+            description?: string;
+            // Omitted rather than sent as false when the caller isn't editing
+            // it: the API reads an absent auto_ingest as "leave it alone", so a
+            // rename cannot switch ingest off as a side effect.
+            auto_ingest?: boolean;
+        }) => unwrap(client.PATCH("/api/v1/clusters/{id}", { params: { path: { id } }, body })),
         onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: ["clusters"] });
             void queryClient.invalidateQueries({ queryKey: ["me", "clusters"] });
+        },
+    }));
+}
+
+/**
+ * useIngestUnknown — queue scans for the cluster's unscanned running images.
+ *
+ * Pass image_digests to ingest named images, or omit it for the whole gap. The
+ * per-row button passes one digest so it queues what it points at rather than
+ * quietly queueing the cluster.
+ *
+ * Repeat runs are free — scan jobs are keyed on (registry, digest) — so the
+ * button is safe to press twice.
+ */
+export function useIngestUnknown() {
+    const queryClient = useQueryClient();
+    return createMutation(() => ({
+        mutationFn: ({ id, imageDigests }: { id: string; imageDigests?: string[] }) =>
+            unwrap(
+                client.POST("/api/v1/clusters/{id}/ingest-unknown", {
+                    params: { path: { id } },
+                    body: imageDigests === undefined ? {} : { image_digests: imageDigests },
+                }),
+            ),
+        // Queueing does not scan: the gap list, the workload states and the
+        // coverage counts all stay as they were until a worker finishes. They
+        // are invalidated anyway so a run that raced a completed scan shows the
+        // new state rather than a stale one.
+        onSuccess: (_data, vars) => {
+            void queryClient.invalidateQueries({ queryKey: ["clusters", vars.id] });
+            void queryClient.invalidateQueries({ queryKey: ["jobs"] });
         },
     }));
 }

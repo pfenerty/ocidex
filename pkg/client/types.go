@@ -1848,6 +1848,15 @@ type IngestSBOMOutputBody struct {
 	Status string `json:"status"`
 }
 
+// IngestUnknownInputBody defines model for IngestUnknownInputBody.
+type IngestUnknownInputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// ImageDigests Limit the run to these running image digests. Omit to ingest every unknown image the cluster reports.
+	ImageDigests *[]string `json:"image_digests,omitempty"`
+}
+
 // IngestUnknownOutputBody defines model for IngestUnknownOutputBody.
 type IngestUnknownOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -3490,6 +3499,9 @@ type CreateClusterJSONRequestBody = CreateClusterInputBody
 
 // UpdateClusterJSONRequestBody defines body for UpdateCluster for application/json ContentType.
 type UpdateClusterJSONRequestBody = UpdateClusterInputBody
+
+// IngestClusterUnknownImagesJSONRequestBody defines body for IngestClusterUnknownImages for application/json ContentType.
+type IngestClusterUnknownImagesJSONRequestBody = IngestUnknownInputBody
 
 // PutClusterInventoryJSONRequestBody defines body for PutClusterInventory for application/json ContentType.
 type PutClusterInventoryJSONRequestBody = PutInventoryInputBody

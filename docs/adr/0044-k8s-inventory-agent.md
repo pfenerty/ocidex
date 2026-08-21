@@ -172,6 +172,44 @@ The interim exposure is stated plainly so it is not discovered later: **an agent
 upload SBOMs and mutate other resources in namespaces its owner controls.** Mitigation available
 today is to give the agent a key belonging to a user who owns only the cluster's namespace.
 
+### Rule K9 — Unknown running images are ingested automatically, within the namespace
+
+*Amendment, epic `ocidex-6zoe`. This answers the last Consequence below: gaps that "appear forever
+until someone ingests them" now close themselves wherever OCIDex already has a registry for them.*
+
+An accepted snapshot ends by submitting a scan job for every running image with **no SBOM** whose
+registry host resolves to an enabled registry **in the cluster's own namespace**. Resolution never
+crosses a namespace boundary: using another namespace's registry would pull with credentials this
+cluster was never granted, and K6 already says a cluster sees only what its namespace can see.
+
+Three properties make this safe to run on every push rather than on a schedule:
+
+* **Repeat runs enqueue nothing.** Scan jobs are keyed on `registry_id@digest` (ADR-024), so a
+  cluster that reports the same unscanned images every two minutes creates exactly one job for
+  them, ever. No dedup state was added; the queue's existing uniqueness is the whole mechanism.
+* **The trigger does not block the push.** It runs in a goroutine with its own timeout and a
+  context detached from the request, because a snapshot must not wait on registry round-trips for
+  hundreds of images. The explicit `POST /clusters/{id}/ingest-unknown` runs synchronously instead
+  and returns the counts, which is what makes the UI button honest.
+* **Index digests expand.** containerd reports the *index* digest for a multi-arch image (K3), so a
+  reported digest is HEAD-ed first and, when it is an index, submitted as one job per platform with
+  `IndexDigest` set — the tier-two match in K4. Submitting the index digest alone would queue work
+  that matches nothing.
+
+**A host with no registry is reported, not retried.** `no_registry`, `registry_disabled`,
+`pattern_excluded` and `unparseable_ref` are four separate counters and four separate row states in
+the UI, never one "could not ingest" total. This is K5's argument applied to the ingest side: the
+remedies are *add a registry*, *switch this one on*, *widen its patterns*, and *fix the node
+runtime*, and collapsing them sends every reader to the wrong one. Retrying instead would be worse
+than useless — nothing about a missing registry changes between snapshots, so a retry loop would
+spend credentials it does not have against a host it cannot reach, forever.
+
+Auto-ingest is per cluster (`cluster.auto_ingest`) and **defaults to on**: a cluster that reports
+what it runs and then leaves it unscanned is precisely the gap the inventory exists to close. It is
+a `PATCH`-omission field, so editing a cluster's name cannot switch ingest off as a side effect.
+Ownership, not visibility, gates the endpoint — it spends the namespace's registry credentials and
+enqueues work, so it carries the same `ClassOwner` + `Write` gate as the inventory push (K8).
+
 ### Consequences
 
 * Good, because a cluster can be inventoried without CRDs, without inbound network access, and
@@ -191,7 +229,12 @@ today is to give the agent a key belonging to a user who owns only the cluster's
   answer is a longer interval or a content hash short-circuit, not deltas.
 * Bad, because workloads whose image was deleted from the registry, or that run from a digest never
   ingested, appear as coverage gaps forever until someone ingests them. That is honest reporting,
-  but it is noise until coverage is good.
+  but it is noise until coverage is good. K9 removes most of it: a gap OCIDex has a registry for
+  closes on the next snapshot. What remains — images from hosts no registry covers — is the part
+  that genuinely needs a human, and it is reported as such.
+* Bad, because K9 makes an accepted snapshot spend the namespace's registry credentials without a
+  human in the loop. Bounded by the namespace scope, the enabled-registry check, and each
+  registry's repository patterns; a namespace that wants none of it sets `auto_ingest` to false.
 
 ### Confirmation
 
@@ -203,6 +246,10 @@ today is to give the agent a key belonging to a user who owns only the cluster's
   including the unresolvable one.
 * End to end: verified against `make dev-cluster-up`, with workloads running in the dev cluster
   appearing in the API afterwards.
+* Auto-ingest (K9): `ocidex-6zoe.8` — an integration test over a snapshot carrying one image per
+  reason (enabled registry, disabled registry, pattern-excluded repository, and a matching registry
+  in a *different* namespace) asserting one queued job and three distinctly-counted skips; unit
+  tests over index expansion and over every skip reason reaching its own counter.
 
 ## Pros and Cons of the Options
 

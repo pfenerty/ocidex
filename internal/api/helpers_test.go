@@ -229,7 +229,7 @@ func (f *fakeClusterService) UnknownImages(_ context.Context, _ string, _ int32,
 	return nil, nil
 }
 
-func (f *fakeClusterService) IngestUnknown(_ context.Context, _ string, _ service.RunningImageSubmitter, _ service.VisibilityFilter) (service.IngestResult, error) {
+func (f *fakeClusterService) IngestUnknown(_ context.Context, _ string, _ service.RunningImageSubmitter, _ service.IngestUnknownParams, _ service.VisibilityFilter) (service.IngestResult, error) {
 	return service.IngestResult{}, nil
 }
 

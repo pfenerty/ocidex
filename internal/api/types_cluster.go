@@ -321,7 +321,13 @@ type ListClusterUnknownImagesOutput struct {
 
 // IngestUnknownInput is the request for POST /api/v1/clusters/{id}/ingest-unknown.
 type IngestUnknownInput struct {
-	ID string `path:"id" doc:"Cluster UUID" format:"uuid"`
+	ID   string `path:"id" doc:"Cluster UUID" format:"uuid"`
+	Body struct {
+		// Naming digests is what lets a per-image button mean one image. An
+		// empty list is the whole gap, which is what the bulk button and the
+		// snapshot trigger both want.
+		ImageDigests []string `json:"image_digests,omitempty" doc:"Limit the run to these running image digests. Omit to ingest every unknown image the cluster reports."`
+	}
 }
 
 // IngestUnknownOutput reports what an ingest run did with every unknown image

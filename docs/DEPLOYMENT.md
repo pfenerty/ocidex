@@ -414,6 +414,10 @@ running nothing. A non-zero `unresolvable` count is a real
 signal, not noise: those pods' `imageID`s carry no registry-addressable digest (a
 dockershim-era node runtime, typically) and their images can never be matched to an SBOM.
 
+What the cluster page then shows, and what to do about each thing it reports, is covered in
+[CLUSTER_INVENTORY.md](CLUSTER_INVENTORY.md) — including auto-ingest, which is **on by default**
+and queues a scan for every reported image that a registry in the cluster's namespace can serve.
+
 Two operational notes that look like bugs and are not:
 
 - Every push **replaces** the cluster's whole inventory (ADR-044 K7). Narrowing

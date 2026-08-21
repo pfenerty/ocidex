@@ -9,6 +9,7 @@ import {
     useClusterNamespaces,
     useVulnWorkloads,
     useClusterUnknownImages,
+    useIngestUnknown,
 } from "~/api/queries";
 import ClusterDetail from "./index";
 
@@ -22,6 +23,7 @@ vi.mock("~/api/queries", () => ({
     useClusterNamespaces: vi.fn(),
     useVulnWorkloads: vi.fn(),
     useClusterUnknownImages: vi.fn(),
+    useIngestUnknown: vi.fn(),
     useListClusters: vi.fn(),
     useMyNamespaces: vi.fn(),
     useCreateCluster: vi.fn(),
@@ -100,6 +102,10 @@ const mockVulns = vi.mocked(useClusterVulns);
 const mockNamespaces = vi.mocked(useClusterNamespaces);
 const mockVulnWorkloads = vi.mocked(useVulnWorkloads);
 const mockUnknownImages = vi.mocked(useClusterUnknownImages);
+const mockIngest = vi.mocked(useIngestUnknown);
+
+/** Whether the rendered cluster has auto-ingest on; the ingest tests set this. */
+let autoIngest = true;
 
 const cluster = {
     id: "c-prod",
@@ -110,6 +116,12 @@ const cluster = {
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
 };
+
+/** Every ingest run the page asked for, in order. */
+let ingestCalls: { id: string; imageDigests?: string[] }[] = [];
+
+/** The result the ingest mutation reports as its last outcome, if any. */
+let ingestResult: Record<string, number> | undefined;
 
 function workload(overrides: Record<string, unknown> = {}) {
     return {
@@ -167,8 +179,15 @@ function renderPage(
     coverage: { total: number; matched: number; unknown: number; unresolvable: number },
     vulns: unknown[] = [],
 ) {
+    mockIngest.mockImplementation((() => ({
+        mutate: (vars: { id: string; imageDigests?: string[] }) => ingestCalls.push(vars),
+        data: ingestResult,
+        isPending: false,
+        isError: false,
+        error: null,
+    })) as never);
     mockCluster.mockImplementation((() => ({
-        data: cluster,
+        data: { ...cluster, auto_ingest: autoIngest },
         isLoading: false,
         isError: false,
         error: null,
@@ -273,6 +292,9 @@ describe("ClusterDetail", () => {
         lastVulnWorkloadArgs = undefined;
         unknownImages = [];
         searchParamWrites = [];
+        ingestCalls = [];
+        ingestResult = undefined;
+        autoIngest = true;
     });
 
     it("states coverage before any vulnerability figure", () => {
@@ -682,5 +704,118 @@ describe("ClusterDetail", () => {
         const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
 
         expect(container.textContent).toContain("1 of 3 images can be ingested");
+    });
+
+    // The gap is only actionable if the action is on the page. The bulk button
+    // ingests the whole gap, so it names the count it will actually queue
+    // rather than the size of the gap.
+    it("offers a bulk ingest sized to what can actually be ingested", () => {
+        searchParams = { tab: "gaps" };
+        unknownImages = [
+            unknownImage({ image_ref: "ghcr.io/a:v1", reason: "ready" }),
+            unknownImage({ image_ref: "ghcr.io/b:v1", reason: "ready" }),
+            unknownImage({ image_ref: "gcr.io/c:v1", reason: "no_registry" }),
+        ];
+        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+
+        const bulk = [...container.querySelectorAll("button")].find((b) =>
+            b.textContent.startsWith("Ingest 2 images"),
+        );
+        must(bulk, "the bulk ingest button").click();
+
+        // No digests: the whole gap, which is what the button says.
+        expect(ingestCalls).toEqual([{ id: "c-prod", imageDigests: undefined }]);
+    });
+
+    // A per-row button that queued the whole cluster would be lying about what
+    // it points at, so it names its own digest.
+    it("ingests one image from its own row", () => {
+        searchParams = { tab: "gaps" };
+        unknownImages = [
+            unknownImage({ image_ref: "ghcr.io/a:v1", image_digest: "sha256:aaa", reason: "ready" }),
+            unknownImage({ image_ref: "ghcr.io/b:v1", image_digest: "sha256:bbb", reason: "ready" }),
+        ];
+        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+
+        const rowButtons = [...container.querySelectorAll("button")].filter(
+            (b) => b.textContent === "Ingest",
+        );
+        expect(rowButtons).toHaveLength(2);
+        must(rowButtons[1], "the second row's ingest button").click();
+
+        expect(ingestCalls).toEqual([{ id: "c-prod", imageDigests: ["sha256:bbb"] }]);
+    });
+
+    // A row that cannot be ingested must not offer a button that would do
+    // nothing — the reason is the remedy there, not the action.
+    it("offers no row action for an image no registry can serve", () => {
+        searchParams = { tab: "gaps" };
+        unknownImages = [unknownImage({ reason: "no_registry" })];
+        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+
+        const rowButtons = [...container.querySelectorAll("button")].filter(
+            (b) => b.textContent === "Ingest",
+        );
+        expect(rowButtons).toHaveLength(0);
+    });
+
+    // Queueing is not scanning, and a skip is not a failure. The result names
+    // every reason so "queued 1 of 3" is never left to be read as an error.
+    it("reports queued and skipped counts separately after a run", () => {
+        searchParams = { tab: "gaps" };
+        unknownImages = [unknownImage()];
+        ingestResult = {
+            considered: 3,
+            queued: 1,
+            skipped_no_registry: 1,
+            skipped_registry_disabled: 0,
+            skipped_pattern_excluded: 1,
+            skipped_unparseable_ref: 0,
+            failed: 0,
+        };
+        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+
+        expect(container.textContent).toContain("Queued 1 scan job");
+        expect(container.textContent).toContain("1 skipped: no registry configured");
+        expect(container.textContent).toContain("1 skipped: excluded by registry patterns");
+        expect(container.textContent).not.toContain("registry disabled");
+        expect(container.textContent).toContain("in the background");
+    });
+
+    // Overview has to say whether the gap is closing on its own. Without this
+    // the only way to know is to read the cluster list.
+    it("states on the overview whether auto-ingest is closing the gap", () => {
+        unknownImages = [
+            unknownImage({ image_ref: "ghcr.io/a:v1", reason: "ready" }),
+            unknownImage({ image_ref: "gcr.io/b:v1", reason: "no_registry" }),
+        ];
+        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+
+        expect(container.textContent).toContain("Auto-ingest is");
+        expect(container.textContent).toContain("on");
+        expect(container.textContent).toContain("1 image can be ingested now");
+        expect(container.textContent).toContain("1 cannot");
+    });
+
+    it("says so on the overview when auto-ingest is off", () => {
+        autoIngest = false;
+        unknownImages = [unknownImage({ reason: "ready" })];
+        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+
+        expect(container.textContent).toContain("off");
+        expect(container.textContent).toContain("stays unscanned");
+    });
+
+    // Nothing to ingest is its own state: an ingest card offering a run over an
+    // empty gap reads as unfinished work that does not exist.
+    it("says there is nothing to ingest when every digest matched", () => {
+        const { container } = renderPage([workload()], {
+            total: 4,
+            matched: 4,
+            unknown: 0,
+            unresolvable: 0,
+        });
+
+        expect(container.textContent).toContain("There is nothing to ingest");
     });
 });

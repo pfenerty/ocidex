@@ -183,7 +183,7 @@ func (h *Handler) autoIngestAfterSnapshot(ctx context.Context, clusterID string)
 		ingestCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
 		defer cancel()
 		ingestor := scanner.NewClusterIngestor(h.scanSubmitter, slog.Default())
-		res, err := h.clusterService.IngestUnknown(ingestCtx, clusterID, ingestor, vis)
+		res, err := h.clusterService.IngestUnknown(ingestCtx, clusterID, ingestor, service.IngestUnknownParams{}, vis)
 		if err != nil {
 			slog.Error("cluster auto-ingest failed", "cluster", cluster.Name, "err", err)
 			return
@@ -218,7 +218,8 @@ func (h *Handler) IngestUnknown(ctx context.Context, in *IngestUnknownInput) (*I
 		return nil, huma.Error503ServiceUnavailable("scanner not enabled")
 	}
 	ingestor := scanner.NewClusterIngestor(h.scanSubmitter, slog.Default())
-	res, err := h.clusterService.IngestUnknown(ctx, in.ID, ingestor, visibilityFilterFromContext(ctx))
+	res, err := h.clusterService.IngestUnknown(ctx, in.ID, ingestor,
+		service.IngestUnknownParams{ImageDigests: in.Body.ImageDigests}, visibilityFilterFromContext(ctx))
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

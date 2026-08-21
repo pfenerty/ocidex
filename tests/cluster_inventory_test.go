@@ -1122,7 +1122,7 @@ func TestClusterIngestUnknown(t *testing.T) {
 	upsert("nameless", "sha256:deadbeef", "") // unresolvable: no digest at all
 
 	sub := &fakeRunningImageSubmitter{}
-	res, err := svc.IngestUnknown(ctx, clusterID, sub, vis)
+	res, err := svc.IngestUnknown(ctx, clusterID, sub, service.IngestUnknownParams{}, vis)
 	is.NoErr(err)
 
 	// The ingested image and the digest-less workload are both absent from the
@@ -1150,6 +1150,16 @@ func TestClusterIngestUnknown(t *testing.T) {
 	is.Equal(reasons[service.IngestReasonRegistryDisabled], 1)
 	is.Equal(reasons[service.IngestReasonPatternExcluded], 1)
 	is.Equal(reasons[service.IngestReasonNoRegistry], 1)
+
+	// Naming one digest ingests one image: the per-row button in the UI would
+	// otherwise queue the whole cluster while claiming to queue a row.
+	one := &fakeRunningImageSubmitter{}
+	scoped, err := svc.IngestUnknown(ctx, clusterID, one,
+		service.IngestUnknownParams{ImageDigests: []string{digest('b')}}, vis)
+	is.NoErr(err)
+	is.Equal(scoped.Considered, 1)
+	is.Equal(scoped.Queued, 1)
+	is.Equal(len(one.calls), 1)
 }
 
 // TestClusterAutoIngestDefaultsOn pins the default. A cluster that reports what

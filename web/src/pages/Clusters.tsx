@@ -87,6 +87,7 @@ export default function Clusters() {
     const [editingID, setEditingID] = createSignal<string | null>(null);
     const [editName, setEditName] = createSignal("");
     const [editDescription, setEditDescription] = createSignal("");
+    const [editAutoIngest, setEditAutoIngest] = createSignal(true);
 
     function handleCreate(e: Event) {
         e.preventDefault();
@@ -111,13 +112,14 @@ export default function Clusters() {
         setEditingID(c.id);
         setEditName(c.name);
         setEditDescription(c.description ?? "");
+        setEditAutoIngest(c.auto_ingest);
     }
 
     function saveEdit(id: string) {
         const name = editName().trim();
         if (name === "") return;
         updateCluster.mutate(
-            { id, name, description: editDescription().trim() },
+            { id, name, description: editDescription().trim(), auto_ingest: editAutoIngest() },
             {
                 onSuccess: () => {
                     setEditingID(null);
@@ -182,6 +184,31 @@ export default function Clusters() {
                         onInput={(e) => setEditDescription(e.currentTarget.value)}
                         style={{ "min-width": "12rem" }}
                     />
+                </Show>
+            ),
+        },
+        {
+            // Read-only outside edit mode: flipping ingest on for a cluster is
+            // a decision to spend that namespace's registry credentials, so it
+            // goes through the same Save as a rename rather than firing off a
+            // stray click in a table.
+            header: "Auto-ingest",
+            render: (c) => (
+                <Show
+                    when={editingID() === c.id}
+                    fallback={
+                        <span class="text-muted">{c.auto_ingest ? "On" : "Off"}</span>
+                    }
+                >
+                    <label style={{ display: "flex", gap: "0.375rem", "align-items": "center" }}>
+                        <input
+                            type="checkbox"
+                            data-testid="edit-auto-ingest"
+                            checked={editAutoIngest()}
+                            onChange={(e) => setEditAutoIngest(e.currentTarget.checked)}
+                        />
+                        <span class="text-muted text-sm">scan unknown images on push</span>
+                    </label>
                 </Show>
             ),
         },

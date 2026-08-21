@@ -1,11 +1,11 @@
-import { Show } from "solid-js";
+import { Show, createSignal } from "solid-js";
 import { A } from "@solidjs/router";
 import { Card, CardHeader, StatusPill } from "~/components/ui";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { plural, shortDigest } from "~/utils/format";
-import type { IngestReason, UnknownImage, WorkloadCoverage } from "~/api/client";
-import { useClusterWorkloads, useClusterUnknownImages } from "~/api/queries";
+import type { IngestReason, IngestResult, UnknownImage, WorkloadCoverage } from "~/api/client";
+import { useClusterWorkloads, useClusterUnknownImages, useIngestUnknown } from "~/api/queries";
 import { workloadColumns } from "./WorkloadsTab";
 
 /**
@@ -31,11 +31,24 @@ const REASON_PRESENTATION: Record<
  * switched off or excludes the repository: "ghcr is disabled" is only
  * actionable if you know it is ghcr.
  */
-function IngestTargetCell(props: { image: UnknownImage }) {
+function IngestTargetCell(props: {
+    image: UnknownImage;
+    onIngest: (digest: string) => void;
+    pending: boolean;
+}) {
     const reason = () => REASON_PRESENTATION[props.image.reason];
     return (
         <div class="ingest-target">
             <StatusPill variant={reason().variant}>{reason().label}</StatusPill>
+            <Show when={props.image.reason === "ready"}>
+                <button
+                    class="btn btn-sm"
+                    disabled={props.pending}
+                    onClick={() => props.onIngest(props.image.image_digest)}
+                >
+                    {props.pending ? "Queueing…" : "Ingest"}
+                </button>
+            </Show>
             <Show when={props.image.registry_id}>
                 {(id) => (
                     <A href={`/registries/${id()}`} class="text-sm">
@@ -59,7 +72,17 @@ function IngestTargetCell(props: { image: UnknownImage }) {
     );
 }
 
-const unknownImageColumns: Column<UnknownImage>[] = [
+/**
+ * unknownImageColumns is a factory rather than a constant because the last
+ * column carries an action. Passing the handler in keeps the mutation owned by
+ * the tab, so the bulk button and the row buttons share one pending state and
+ * one result.
+ */
+function unknownImageColumns(
+    onIngest: (digest: string) => void,
+    pendingDigest: () => string | null,
+): Column<UnknownImage>[] {
+    return [
     {
         header: "Image",
         sortValue: (i) => i.image_ref,
@@ -94,9 +117,38 @@ const unknownImageColumns: Column<UnknownImage>[] = [
     {
         header: "Ingest",
         sortValue: (i) => i.reason,
-        render: (i) => <IngestTargetCell image={i} />,
+        render: (i) => (
+            <IngestTargetCell
+                image={i}
+                onIngest={onIngest}
+                pending={pendingDigest() === i.image_digest}
+            />
+        ),
     },
-];
+    ];
+}
+
+/**
+ * ingestSummary reports what a run did, per reason.
+ *
+ * Every skip is named rather than folded into one number: "queued 3 of 9" with
+ * no explanation of the other six is the shape of message that gets read as a
+ * failure. Each reason here is a different job for the reader.
+ */
+function ingestSummary(res: IngestResult): string {
+    const parts: string[] = [`Queued ${plural(res.queued, "scan job")}`];
+    const skips: [number, string][] = [
+        [res.skipped_no_registry, "no registry configured"],
+        [res.skipped_registry_disabled, "registry disabled"],
+        [res.skipped_pattern_excluded, "excluded by registry patterns"],
+        [res.skipped_unparseable_ref, "no host in the reference"],
+        [res.failed, "registry unreachable"],
+    ];
+    for (const [n, label] of skips) {
+        if (n > 0) parts.push(`${n.toLocaleString()} skipped: ${label}`);
+    }
+    return `${parts.join(" · ")}. Scanning happens in the background — this list updates as workers finish.`;
+}
 
 /**
  * GapsTab is the actionable half of the coverage band: the containers OCIDex
@@ -121,25 +173,59 @@ export function GapsTab(props: { clusterId: string; coverage: WorkloadCoverage }
         () => ({ match_state: "unresolvable" as const, limit: 200 }),
     );
 
-    const ingestable = () =>
-        (images.data?.data ?? []).filter((i) => i.reason === "ready").length;
+    const ingestable = () => (images.data?.data ?? []).filter((i) => i.reason === "ready");
+
+    const ingest = useIngestUnknown();
+    // Which row is mid-flight, so only that row's button shows its own pending
+    // label. A bulk run is not a row, hence null.
+    const [pendingDigest, setPendingDigest] = createSignal<string | null>(null);
+
+    const runIngest = (digests?: string[]) => {
+        setPendingDigest(digests?.length === 1 ? digests[0] : null);
+        ingest.mutate(
+            { id: props.clusterId, imageDigests: digests },
+            { onSettled: () => setPendingDigest(null) },
+        );
+    };
 
     return (
         <>
             <Card style={{ "margin-bottom": "1rem" }}>
-                <CardHeader title="No SBOM ingested" count={props.coverage.unknown} />
+                <CardHeader
+                    title="No SBOM ingested"
+                    count={props.coverage.unknown}
+                    actions={
+                        <Show when={ingestable().length > 0}>
+                            <button
+                                class="btn btn-sm btn-primary"
+                                disabled={ingest.isPending}
+                                onClick={() => runIngest(undefined)}
+                            >
+                                {ingest.isPending
+                                    ? "Queueing…"
+                                    : `Ingest ${plural(ingestable().length, "image")}`}
+                            </button>
+                        </Show>
+                    }
+                />
                 <p class="text-muted">
                     These images report a registry-addressable digest that matches nothing in the
                     catalog. Ingesting the image is what closes this gap.
                     <Show when={(images.data?.data.length ?? 0) > 0}>
                         {" "}
-                        {ingestable().toLocaleString()} of{" "}
+                        {ingestable().length.toLocaleString()} of{" "}
                         {plural(images.data?.data.length ?? 0, "image")} can be ingested with the
                         registries this namespace already has.
                     </Show>
                 </p>
+                <Show when={ingest.data}>
+                    {(res) => <p class="text-muted">{ingestSummary(res())}</p>}
+                </Show>
+                <Show when={ingest.error}>
+                    {(err) => <p class="text-muted">Could not queue scans: {err().message}</p>}
+                </Show>
                 <DataTable
-                    columns={unknownImageColumns}
+                    columns={unknownImageColumns((d) => runIngest([d]), pendingDigest)}
                     rows={images.data?.data}
                     loading={images.isLoading}
                     isError={images.isError}

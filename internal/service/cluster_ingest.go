@@ -273,13 +273,22 @@ type IngestResult struct {
 	Failed int
 }
 
+// IngestUnknownParams narrows an ingest run.
+type IngestUnknownParams struct {
+	// ImageDigests, when non-empty, limits the run to those images. Empty means
+	// the whole gap, which is what the snapshot trigger wants; the per-row
+	// button in the UI passes one digest so the button does what it says
+	// rather than quietly queueing the cluster.
+	ImageDigests []string
+}
+
 // IngestUnknown submits a scan job for every running image with no SBOM whose
 // host resolves to an enabled registry in the cluster's own namespace.
 //
 // Repeat runs are free: the submitter keys scan jobs on (registry, digest), so
 // a snapshot that reports the same unscanned images again enqueues nothing new.
 // That is what makes it safe to fire this on every push.
-func (s *clusterService) IngestUnknown(ctx context.Context, clusterID string, sub RunningImageSubmitter, filter VisibilityFilter) (IngestResult, error) {
+func (s *clusterService) IngestUnknown(ctx context.Context, clusterID string, sub RunningImageSubmitter, params IngestUnknownParams, filter VisibilityFilter) (IngestResult, error) {
 	if sub == nil {
 		return IngestResult{}, &ValidationError{Message: "scanning is not enabled on this deployment"}
 	}
@@ -287,6 +296,23 @@ func (s *clusterService) IngestUnknown(ctx context.Context, clusterID string, su
 	images, registries, err := s.resolveUnknownImages(ctx, clusterID, 0, filter)
 	if err != nil {
 		return IngestResult{}, err
+	}
+
+	// Filtering here rather than in SQL keeps one resolver for both callers:
+	// a digest the caller names but the cluster is not running unknown simply
+	// matches nothing, which is the right answer for a stale button.
+	if len(params.ImageDigests) > 0 {
+		wanted := make(map[string]bool, len(params.ImageDigests))
+		for _, d := range params.ImageDigests {
+			wanted[d] = true
+		}
+		kept := images[:0]
+		for _, img := range images {
+			if wanted[img.ImageDigest] {
+				kept = append(kept, img)
+			}
+		}
+		images = kept
 	}
 
 	var res IngestResult
