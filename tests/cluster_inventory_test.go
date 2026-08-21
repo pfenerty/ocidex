@@ -1033,6 +1033,12 @@ func TestClusterWorkloadVulnCountsAndSort(t *testing.T) {
 func seedClusterRegistry(t *testing.T, pool *pgxpool.Pool, nsID, name, url string, enabled bool, patterns []string) {
 	t.Helper()
 	srcID := seedSource(t, pool, nsID, "oci_registry", name)
+	// Naming the column overrides its DEFAULT '{}', so a nil slice would be
+	// sent as NULL and fail the NOT NULL constraint. "No patterns" is an empty
+	// array, which is also what the column means: match every repository.
+	if patterns == nil {
+		patterns = []string{}
+	}
 	_, err := pool.Exec(t.Context(), `
 		INSERT INTO registry (id, url, type, enabled, repository_patterns)
 		VALUES ($1, $2, 'generic', $3, $4)
