@@ -49,6 +49,22 @@
         sans-serif;
     --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
 
+    /* Type scale. The root stays 14px — the density is deliberate — so these are
+       the ratios that have to do the work: the old spread was body 14px against
+       a 21px page title and 14px card titles, which is why every page read flat.
+
+       These also back Tailwind's text-* utilities (v4 generates them from this
+       namespace), so --text-xs/sm/base keep their default values: 70 `text-sm`
+       call sites would otherwise all move. The heading end of the scale is where
+       the widening happens. px values are at the 14px root. */
+    --text-xs: 0.75rem;      /* 10.5px */
+    --text-sm: 0.875rem;     /* 12.25px */
+    --text-base: 1rem;       /* 14px */
+    --text-lg: 1.143rem;     /* 16px */
+    --text-xl: 1.286rem;     /* 18px */
+    --text-2xl: 1.571rem;    /* 22px */
+    --text-3xl: 2rem;        /* 28px */
+
     /* --- Radius --- */
     --radius-sm: 0.25rem;
     --radius-md: 0.375rem;
@@ -117,6 +133,35 @@
         font-size: 14px;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Tailwind preflight resets headings to `font-size: inherit; font-weight:
+       inherit`, so without these every <h1>-<h4> in the app rendered at body
+       size and body weight. Anything with its own rule (.sidebar-brand h1,
+       .page-header h2, .card-header h3) still wins on specificity. */
+    h1,
+    h2,
+    h3,
+    h4 {
+        font-weight: 600;
+        letter-spacing: -0.015em;
+        line-height: 1.25;
+    }
+
+    h1 {
+        font-size: var(--text-3xl);
+    }
+
+    h2 {
+        font-size: var(--text-2xl);
+    }
+
+    h3 {
+        font-size: var(--text-xl);
+    }
+
+    h4 {
+        font-size: var(--text-lg);
     }
 
     body {
@@ -288,7 +333,7 @@
     }
 
     .card-header h3 {
-        font-size: 1rem;
+        font-size: var(--text-lg);
         font-weight: 600;
     }
 
