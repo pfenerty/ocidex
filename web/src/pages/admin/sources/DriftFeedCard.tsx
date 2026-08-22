@@ -19,7 +19,7 @@ export function DriftFeedCard() {
             </p>
             <Show
                 when={(recentDrift.data?.data?.length ?? 0) > 0}
-                fallback={<p style={{ color: "var(--color-text-muted)" }}>No drift events recorded.</p>}
+                fallback={<p class="text-muted">No drift events recorded.</p>}
             >
                 <table class="table">
                     <thead>
@@ -35,17 +35,17 @@ export function DriftFeedCard() {
                         <For each={recentDrift.data?.data ?? []}>
                             {(entry) => (
                                 <tr>
-                                    <td style={{ "font-size": "0.85rem" }}>{formatDateTime(entry.detectedAt)}</td>
+                                    <td class="text-sm">{formatDateTime(entry.detectedAt)}</td>
                                     <td>{entry.registryName ?? "—"}</td>
                                     <td>
-                                        <A href={`/sboms/${entry.sbomId}`} style={{ "font-size": "0.85rem" }}>
+                                        <A href={`/sboms/${entry.sbomId}`} class="text-sm">
                                             {entry.artifactName ?? entry.sbomId}
                                         </A>
                                     </td>
-                                    <td style={{ "font-size": "0.85rem" }}>
+                                    <td class="text-sm">
                                         {signingStatusLabel(entry.previousStatus)} → {signingStatusLabel(entry.newStatus)}
                                     </td>
-                                    <td style={{ color: "var(--color-text-muted)", "font-size": "0.85rem" }}>
+                                    <td class="text-muted text-sm">
                                         {driftReasonLabel(entry.reason)}
                                     </td>
                                 </tr>

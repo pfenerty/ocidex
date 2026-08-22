@@ -173,7 +173,7 @@ export default function ProvenanceCard(props: {
             <Show when={p.subjects !== undefined && p.subjects.length > 0 ? p.subjects : undefined}>
                 {(subjects) => (
                     <details class="mt-4">
-                        <summary class="text-muted text-sm" style={{ cursor: "pointer" }}>
+                        <summary class="text-muted text-sm cursor-pointer">
                             Subjects ({subjects().length})
                         </summary>
                         <ul class="subjects-list">
@@ -189,10 +189,10 @@ export default function ProvenanceCard(props: {
             <Show when={(props.driftHistory?.length ?? 0) > 1 ? props.driftHistory : undefined}>
                 {(history) => (
                     <details class="mt-4">
-                        <summary class="text-muted text-sm" style={{ cursor: "pointer" }}>
+                        <summary class="text-muted text-sm cursor-pointer">
                             History ({history().length})
                         </summary>
-                        <table class="table" style={{ "margin-top": "0.5rem" }}>
+                        <table class="table mt-2">
                             <thead>
                                 <tr>
                                     <th>Detected</th>

@@ -30,8 +30,7 @@ export function AnnotationsSection(props: {
         <Show when={entries().length > 0}>
             <details class="mt-4">
                 <summary
-                    class="text-muted text-sm"
-                    style={{ cursor: "pointer" }}
+                    class="text-muted text-sm cursor-pointer"
                 >
                     {props.title} ({entries().length})
                 </summary>

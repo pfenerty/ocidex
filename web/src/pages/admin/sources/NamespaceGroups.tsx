@@ -165,7 +165,7 @@ export function NamespaceGroups(props: {
                                             >
                                                 <span class="badge">upload</span>
                                                 <span>{src.name}</span>
-                                                <span style={{ color: "var(--color-text-muted)", "font-size": "0.85rem" }}>
+                                                <span class="text-muted text-sm">
                                                     SBOMs pushed to the API — nothing to configure
                                                 </span>
                                             </div>

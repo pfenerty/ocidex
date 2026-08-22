@@ -224,7 +224,7 @@ export default function Clusters() {
                 <Show
                     when={editingID() === c.id}
                     fallback={
-                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <div class="flex gap-2">
                             <button class="btn btn-sm" onClick={() => startEdit(c)}>
                                 Edit
                             </button>
@@ -238,7 +238,7 @@ export default function Clusters() {
                         </div>
                     }
                 >
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <div class="flex gap-2">
                         <button
                             class="btn btn-sm btn-primary"
                             onClick={() => saveEdit(c.id)}
@@ -269,7 +269,7 @@ export default function Clusters() {
                 </div>
             </div>
 
-            <Card style={{ "margin-bottom": "1rem" }}>
+            <Card class="mb-4">
                 <CardHeader title="Register cluster" />
                 <form
                     onSubmit={handleCreate}
@@ -281,7 +281,7 @@ export default function Clusters() {
                             placeholder="prod-eu-west"
                             value={newName()}
                             onInput={(e) => setNewName(e.currentTarget.value)}
-                            style={{ "min-width": "14rem" }}
+                            class="min-w-56"
                         />
                     </FormField>
                     <FormField label="Namespace" hint="who owns the cluster and can see its inventory">
@@ -301,7 +301,7 @@ export default function Clusters() {
                             placeholder="optional"
                             value={newDescription()}
                             onInput={(e) => setNewDescription(e.currentTarget.value)}
-                            style={{ "min-width": "14rem" }}
+                            class="min-w-56"
                         />
                     </FormField>
                     <button

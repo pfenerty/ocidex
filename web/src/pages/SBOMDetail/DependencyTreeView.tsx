@@ -240,11 +240,7 @@ export function DependencyTreeView(props: {
                                                     keyed
                                                     fallback={
                                                         <span
-                                                            class="font-mono"
-                                                            style={{
-                                                                "font-size": "0.85rem",
-                                                                color: "var(--color-text-muted)",
-                                                            }}
+                                                            class="font-mono text-muted text-sm"
                                                         >
                                                             {row.node.name}
                                                         </span>
@@ -253,8 +249,7 @@ export function DependencyTreeView(props: {
                                                     {(_id) => (
                                                         <A
                                                             href={componentHref(row.node.name, row.node.group, row.node.version)}
-                                                            class="font-mono"
-                                                            style={{ "font-size": "0.85rem" }}
+                                                            class="font-mono text-sm"
                                                             onClick={(e: MouseEvent) => e.stopPropagation()}
                                                         >
                                                             {row.node.name}

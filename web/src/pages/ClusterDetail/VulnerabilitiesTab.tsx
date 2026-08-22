@@ -149,7 +149,7 @@ export function VulnerabilitiesTab(props: {
                 emptyTitle="Nothing known running here"
                 emptyMessage="No vulnerability is known for the images this cluster runs that OCIDex could match. Check the coverage figures above before reading that as clean."
             />
-            <p class="text-muted" style={{ "margin-top": "0.5rem" }}>
+            <p class="text-muted mt-2">
                 <A href="/vulnerabilities">
                     Catalog-wide vulnerabilities
                 </A>

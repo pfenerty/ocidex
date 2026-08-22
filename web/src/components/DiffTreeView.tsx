@@ -214,8 +214,7 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
                                                         keyed
                                                         fallback={
                                                             <span
-                                                                class="font-mono"
-                                                                style={{ "font-size": "0.85rem" }}
+                                                                class="font-mono text-sm"
                                                             >
                                                                 {row.node.name}
                                                             </span>
@@ -224,8 +223,7 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
                                                         {(id) => (
                                                             <A
                                                                 href={`/components/${id}`}
-                                                                class="font-mono"
-                                                                style={{ "font-size": "0.85rem" }}
+                                                                class="font-mono text-sm"
                                                                 onClick={(e: MouseEvent) =>
                                                                     e.stopPropagation()
                                                                 }
@@ -262,7 +260,7 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
                                                     </span>
                                                 </Show>
                                             </td>
-                                            <td class="font-mono" style={{ "font-size": "0.85rem" }}>
+                                            <td class="font-mono text-sm">
                                                 <Show when={row.node.previousVersion}>
                                                     <span class="text-muted">{row.node.previousVersion}</span>
                                                     {" → "}
@@ -299,7 +297,7 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
                                                     {c.direction !== "" ? c.direction : c.type}
                                                 </span>
                                             </td>
-                                            <td class="font-mono" style={{ "font-size": "0.85rem" }}>
+                                            <td class="font-mono text-sm">
                                                 <Show when={c.previousVersion}>
                                                     <span class="text-muted">{c.previousVersion}</span>
                                                     {" → "}

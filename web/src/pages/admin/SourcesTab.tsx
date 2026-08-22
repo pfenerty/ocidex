@@ -94,7 +94,7 @@ export function SourcesTab() {
         <>
             <WebhookSecretBanner secret={revealedSecret()} onDismiss={() => setRevealedSecret(null)} />
 
-            <div style={{ "margin-bottom": "1rem" }}>
+            <div class="mb-4">
                 <button class="btn btn-primary" onClick={() => dialog?.openAdd()}>Add Registry</button>
             </div>
 

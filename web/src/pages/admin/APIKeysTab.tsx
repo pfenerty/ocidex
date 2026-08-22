@@ -46,7 +46,7 @@ export function APIKeysTab() {
             render: (k) =>
                 k.last_used_at !== undefined
                     ? <>{new Date(k.last_used_at).toLocaleDateString()}</>
-                    : <span style={{ color: "var(--color-text-muted)" }}>Never</span>,
+                    : <span class="text-muted">Never</span>,
         },
         {
             header: "",
@@ -75,7 +75,7 @@ export function APIKeysTab() {
                     <code style={{ "word-break": "break-all", display: "block", "margin-bottom": "0.5rem" }}>
                         {revealedKey()}
                     </code>
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <div class="flex gap-2">
                         <button class="btn btn-primary" onClick={() => {
                             void copyText(revealedKey() ?? "").then(() => {
                                 toast("Copied to clipboard", "success");
@@ -90,7 +90,7 @@ export function APIKeysTab() {
                 </div>
             </Show>
 
-            <div class="card" style={{ "margin-bottom": "1rem" }}>
+            <div class="card mb-4">
                 <div class="card-header">
                     <h3>Create Bot Token</h3>
                 </div>

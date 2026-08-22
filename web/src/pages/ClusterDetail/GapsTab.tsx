@@ -214,7 +214,7 @@ export function GapsTab(props: { clusterId: string; coverage: WorkloadCoverage }
 
     return (
         <>
-            <Card style={{ "margin-bottom": "1rem" }}>
+            <Card class="mb-4">
                 <CardHeader
                     title="No SBOM ingested"
                     count={props.coverage.unknown}

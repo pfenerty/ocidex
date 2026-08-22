@@ -28,7 +28,7 @@ export function ArtifactUsageTable(props: { groups: ArtifactGroup[] }) {
                         <For each={props.groups}>
                             {(ag) => (
                                 <>
-                                    <tr style={{ cursor: "pointer" }} onClick={() => expanded.toggle(ag.key)}>
+                                    <tr class="cursor-pointer" onClick={() => expanded.toggle(ag.key)}>
                                         <td class="text-muted" style={{ "font-size": "0.7em", "user-select": "none" }}>
                                             {expanded.has(ag.key) ? "▼" : "▶"}
                                         </td>
@@ -61,7 +61,7 @@ export function ArtifactUsageTable(props: { groups: ArtifactGroup[] }) {
                                                         </A>
                                                         <Show when={e.architecture} keyed>
                                                             {(arch) => (
-                                                                <span class="badge badge-primary" style={{ "margin-left": "8px" }}>
+                                                                <span class="badge badge-primary ml-2">
                                                                     {arch}
                                                                 </span>
                                                             )}

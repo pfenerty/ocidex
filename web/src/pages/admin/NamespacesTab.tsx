@@ -145,7 +145,7 @@ export function NamespacesTab() {
             render: (ns) => (
                 <Show
                     when={ns.owner_username ?? ns.owner_id}
-                    fallback={<span style={{ color: "var(--color-text-muted)" }}>unowned</span>}
+                    fallback={<span class="text-muted">unowned</span>}
                 >
                     {(owner) => <span>{owner()}</span>}
                 </Show>
@@ -173,7 +173,7 @@ export function NamespacesTab() {
                 <Show
                     when={editingID() === ns.id}
                     fallback={
-                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <div class="flex gap-2">
                             <button class="btn btn-sm" onClick={() => startEdit(ns)}>
                                 Edit
                             </button>
@@ -187,7 +187,7 @@ export function NamespacesTab() {
                         </div>
                     }
                 >
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <div class="flex gap-2">
                         <button
                             class="btn btn-sm btn-primary"
                             onClick={() => saveEdit(ns.id)}
@@ -206,7 +206,7 @@ export function NamespacesTab() {
 
     return (
         <>
-            <Card style={{ "margin-bottom": "1rem" }}>
+            <Card class="mb-4">
                 <CardHeader title="Create Namespace" />
                 <form
                     onSubmit={handleCreate}
@@ -218,7 +218,7 @@ export function NamespacesTab() {
                             placeholder="team-name"
                             value={newName()}
                             onInput={(e) => setNewName(e.currentTarget.value)}
-                            style={{ "min-width": "14rem" }}
+                            class="min-w-56"
                         />
                     </FormField>
                     <FormField label="Visibility" hint="private is only visible to you and admins">

@@ -23,6 +23,19 @@
     border-radius: 50%;
 }
 
+/*
+ * Flows with surrounding text instead of breaking onto its own line — the
+ * shape a page title's placeholder needs, where the skeleton stands in for one
+ * word inside a heading.
+ *
+ * This has to live here rather than being a Tailwind `inline-block` on the call
+ * site: `.skeleton` above is unlayered, and unlayered CSS wins over anything in
+ * `@layer utilities` no matter the source order, so the utility would be inert.
+ */
+.skeleton-inline {
+    display: inline-block;
+}
+
 .skeleton-text {
     display: flex;
     flex-direction: column;

@@ -156,7 +156,7 @@ export function RelationshipsTab(props: {
                         />
                     }
                 >
-                    <p class="text-muted" style={{ "margin-bottom": "1rem" }}>
+                    <p class="text-muted mb-4">
                         <strong>{props.artifactName}</strong>
                         <Show when={currentVersion()}>
                             {(v) => <> {v()}</>}

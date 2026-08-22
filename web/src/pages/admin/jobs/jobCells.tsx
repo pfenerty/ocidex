@@ -95,7 +95,7 @@ export function sbomColumn<T extends JobRow>(): Column<T> {
         header: "SBOM",
         render: (job) => (
             <Show when={job.sbom_id}>
-                <A href={`/sboms/${job.sbom_id}`} style={{ "font-size": "0.85rem" }}>
+                <A href={`/sboms/${job.sbom_id}`} class="text-sm">
                     View SBOM
                 </A>
             </Show>

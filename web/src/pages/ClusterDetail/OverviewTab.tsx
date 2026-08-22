@@ -49,7 +49,7 @@ export function OverviewTab(props: {
             when={reported()}
             fallback={<AgentSetup clusterId={props.clusterId} clusterName={props.clusterName} />}
         >
-            <Card style={{ "margin-bottom": "1rem" }}>
+            <Card class="mb-4">
                 <CardHeader
                     // "Top 5 of 487", not a 487 badge beside five rows: the
                     // badge read as the length of the list under it.

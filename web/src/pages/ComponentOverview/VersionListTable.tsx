@@ -38,7 +38,7 @@ export function VersionListTable(props: {
                                             </A>
                                             <Show when={group.purl} keyed>
                                                 {(purl) => (
-                                                    <span style={{ "margin-left": "8px" }}>
+                                                    <span class="ml-2">
                                                         <PurlLink purl={purl} showBadge />
                                                     </span>
                                                 )}

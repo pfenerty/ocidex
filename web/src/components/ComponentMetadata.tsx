@@ -20,7 +20,7 @@ const vulnColumns: Column<ComponentVulnEntry>[] = [
             <>
                 <VulnId canonicalId={v.canonicalId} nativeId={v.id} />
                 <Show when={v.matchedViaSource}>
-                    <span style={{ "margin-left": "8px" }}>
+                    <span class="ml-2">
                         <StatusPill
                             variant="default"
                             title="Matched via the component's source package, not its own purl"
@@ -156,7 +156,7 @@ export default function ComponentMetadata(props: {
                                     <span class="detail-value">
                                         {detail.foundBy}
                                         <Show when={hasText(detail.confidence)}>
-                                            <span style={{ "margin-left": "8px" }}>
+                                            <span class="ml-2">
                                                 <StatusPill variant="warning">
                                                     {detail.confidence} confidence
                                                 </StatusPill>
@@ -177,7 +177,7 @@ export default function ComponentMetadata(props: {
                                     <span class="detail-value">
                                         {detail.layer}
                                         <Show when={detail.fromBaseImage}>
-                                            <span style={{ "margin-left": "8px" }}>
+                                            <span class="ml-2">
                                                 <StatusPill
                                                     variant="primary"
                                                     title="Introduced by the image's base layer"

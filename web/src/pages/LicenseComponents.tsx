@@ -77,7 +77,7 @@ export default function LicenseComponents() {
                 <span class="separator">/</span>
                 <span>
                     {licenseQuery.isLoading ? (
-                        <Skeleton width="6rem" style={{ display: "inline-block" }} />
+                        <Skeleton width="6rem" inline />
                     ) : (
                         licenseName()
                     )}

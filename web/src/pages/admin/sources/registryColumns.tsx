@@ -58,7 +58,7 @@ export function registryColumns(opts: {
         {
             header: "Owner",
             render: (reg) => (
-                <span style={{ color: "var(--color-text-muted)", "font-size": "0.85rem" }}>
+                <span class="text-muted text-sm">
                     {reg.owner_username ?? "—"}
                 </span>
             ),
@@ -79,7 +79,7 @@ export function registryColumns(opts: {
                         const s = opts.trustByRegistry().get(reg.id);
                         return s !== undefined && s.size > 0 ? s : undefined;
                     })()}
-                    fallback={<span style={{ color: "var(--color-text-muted)" }}>—</span>}
+                    fallback={<span class="text-muted">—</span>}
                 >
                     {(statuses) => (
                         <div style={{ display: "flex", "flex-wrap": "wrap", gap: "0.3rem" }}>
@@ -88,8 +88,7 @@ export function registryColumns(opts: {
                                     const t = trustStatus(status);
                                     return (
                                         <span
-                                            class={t !== null ? trustBadgeClass(t.variant) : "badge"}
-                                            style={{ "font-size": "0.75rem" }}
+                                            class={`${t !== null ? trustBadgeClass(t.variant) : "badge"} text-xs`}
                                             title={signingStatusLabel(status)}
                                         >
                                             {signingStatusLabel(status)}: {count}
@@ -107,7 +106,7 @@ export function registryColumns(opts: {
             header: "Webhook URL",
             render: (reg) => (
                 <div style={{ display: "flex", gap: "0.3rem" }}>
-                    <Show when={hasWebhook(reg)} fallback={<span style={{ color: "var(--color-text-muted)" }}>—</span>}>
+                    <Show when={hasWebhook(reg)} fallback={<span class="text-muted">—</span>}>
                         <button
                             class="btn"
                             style={{ "font-size": "0.75rem", padding: "0.2rem 0.5rem" }}
@@ -164,7 +163,7 @@ export function registryColumns(opts: {
                         Force
                     </button>
                     <Show when={(opts.activeByRegistry().get(reg.id) ?? 0) > 0}>
-                        <span class="badge badge-primary" style={{ "font-size": "0.75rem" }}>
+                        <span class="badge badge-primary text-xs">
                             {opts.activeByRegistry().get(reg.id)} active
                         </span>
                     </Show>

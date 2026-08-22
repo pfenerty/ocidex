@@ -118,10 +118,9 @@ export function ScanJobsView() {
                 </select>
                 <Show when={stateFilter() === "failed"}>
                     <button
-                        class="btn"
+                        class="btn ml-auto"
                         disabled={retryAll.isPending}
                         onClick={() => { void confirmRetryAll("", "scan", () => retryAll.mutateAsync()); }}
-                        style={{ "margin-left": "auto" }}
                     >
                         {retryAll.isPending ? "Re-queuing…" : "Retry all failed"}
                     </button>

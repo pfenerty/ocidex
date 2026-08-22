@@ -95,7 +95,7 @@ export default function ArtifactDetail() {
                 <A href="/artifacts">Artifacts</A>
                 <span class="separator">/</span>
                 <span>
-                    {artifactQuery.data?.name ?? <Skeleton width="6rem" style={{ display: "inline-block" }} />}
+                    {artifactQuery.data?.name ?? <Skeleton width="6rem" inline />}
                 </span>
             </div>
 

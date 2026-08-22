@@ -29,7 +29,7 @@ export default function ComponentDetail() {
                 <span class="separator">/</span>
                 <span>
                     {detailQuery.data?.name ?? (
-                        <Skeleton width="6rem" style={{ display: "inline-block" }} />
+                        <Skeleton width="6rem" inline />
                     )}
                 </span>
             </div>

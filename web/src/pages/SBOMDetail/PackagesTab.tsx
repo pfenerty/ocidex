@@ -186,7 +186,7 @@ export function PackagesTab(props: {
                         <Tooltip content={countExplanation()}>{countLabel()}</Tooltip>
                     </span>
                     <Show when={hasTree()}>
-                        <div class="btn-group" style={{ "margin-left": "auto" }}>
+                        <div class="btn-group ml-auto">
                             <button
                                 class={`btn btn-sm${effectiveMode() === "tree" ? " active" : ""}`}
                                 onClick={() => setViewMode("tree")}

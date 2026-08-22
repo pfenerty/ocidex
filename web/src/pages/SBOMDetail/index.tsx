@@ -109,7 +109,7 @@ export default function SBOMDetail() {
                 </Show>
                 <span>
                     {sbomQuery.isLoading ? (
-                        <Skeleton width="6rem" style={{ display: "inline-block" }} />
+                        <Skeleton width="6rem" inline />
                     ) : (
                         (sbomQuery.data?.subjectVersion ??
                             formatDateTime(sbomQuery.data?.createdAt ?? "")) || params.id

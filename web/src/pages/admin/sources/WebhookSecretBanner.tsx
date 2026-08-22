@@ -18,7 +18,7 @@ export function WebhookSecretBanner(props: { secret: string | null; onDismiss: (
                 <code style={{ "word-break": "break-all", display: "block", "margin-bottom": "0.5rem" }}>
                     {props.secret}
                 </code>
-                <div style={{ display: "flex", gap: "0.5rem" }}>
+                <div class="flex gap-2">
                     <button class="btn btn-primary" onClick={() => {
                         void copyText(props.secret ?? "").then(() => {
                             toast("Copied to clipboard", "success");

@@ -120,10 +120,9 @@ export function EnrichmentJobsView() {
                 />
                 <Show when={stateFilter() === "failed"}>
                     <button
-                        class="btn"
+                        class="btn ml-auto"
                         disabled={retryAll.isPending}
                         onClick={retryAllFailed}
-                        style={{ "margin-left": "auto" }}
                     >
                         {retryAll.isPending ? "Re-queuing…" : enricherFilter() ? `Retry all failed (${enricherFilter()})` : "Retry all failed"}
                     </button>

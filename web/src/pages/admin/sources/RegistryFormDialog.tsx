@@ -184,7 +184,7 @@ export function RegistryFormDialog(props: {
                                 value={form().name}
                                 onInput={(e) => setForm(f => ({ ...f, name: e.currentTarget.value }))}
                                 placeholder="my-registry"
-                                style={{ width: "100%" }}
+                                class="w-full"
                                 required
                             />
                         </FormField>
@@ -202,7 +202,7 @@ export function RegistryFormDialog(props: {
                                         includeUntagged: caps.untagged ? f.includeUntagged : false,
                                     }));
                                 }}
-                                style={{ width: "100%" }}
+                                class="w-full"
                             >
                                 <For each={Object.entries(TYPE_CAPS) as [RegType, typeof TYPE_CAPS[RegType]][]}>{([type, caps]) => (
                                     <option value={type}>{caps.label}</option>
@@ -251,7 +251,7 @@ export function RegistryFormDialog(props: {
                                 value={form().authUsername}
                                 onInput={(e) => setForm(f => ({ ...f, authUsername: e.currentTarget.value }))}
                                 placeholder={editingID() !== null ? "Leave blank to keep existing" : "Leave blank for anonymous"}
-                                style={{ width: "100%" }}
+                                class="w-full"
                             />
                         </FormField>
                         <FormField label="Auth Token" hint="(PAT or password; for registries requiring credentials)">
@@ -260,7 +260,7 @@ export function RegistryFormDialog(props: {
                                 value={form().authToken}
                                 onInput={(e) => setForm(f => ({ ...f, authToken: e.currentTarget.value }))}
                                 placeholder={editingID() !== null ? "Leave blank to keep existing" : "Leave blank for anonymous"}
-                                style={{ width: "100%" }}
+                                class="w-full"
                             />
                         </FormField>
                         <FormField
@@ -300,7 +300,7 @@ export function RegistryFormDialog(props: {
                             <select
                                 value={form().scanMode}
                                 onChange={(e) => setForm(f => ({ ...f, scanMode: e.currentTarget.value as ScanMode }))}
-                                style={{ width: "100%" }}
+                                class="w-full"
                                 disabled={!TYPE_CAPS[form().type].webhook}
                             >
                                 <Show when={TYPE_CAPS[form().type].webhook}>
@@ -321,7 +321,7 @@ export function RegistryFormDialog(props: {
                             <select
                                 value={form().visibility}
                                 onChange={(e) => setForm(f => ({ ...f, visibility: e.currentTarget.value as Visibility }))}
-                                style={{ width: "100%" }}
+                                class="w-full"
                             >
                                 <option value="public">Public</option>
                                 <option value="private">Private</option>
@@ -334,7 +334,7 @@ export function RegistryFormDialog(props: {
                                     min={1}
                                     value={form().pollIntervalMinutes}
                                     onInput={(e) => setForm(f => ({ ...f, pollIntervalMinutes: parseInt(e.currentTarget.value, 10) || 60 }))}
-                                    style={{ width: "100%" }}
+                                    class="w-full"
                                 />
                             </FormField>
                         </Show>
@@ -348,7 +348,7 @@ export function RegistryFormDialog(props: {
                                     trustIdentity: e.currentTarget.value !== "keyless" ? "" : f.trustIdentity,
                                     trustIssuer: e.currentTarget.value !== "keyless" ? "" : f.trustIssuer,
                                 }))}
-                                style={{ width: "100%" }}
+                                class="w-full"
                             >
                                 <option value="none">None</option>
                                 <option value="public_key">Public Key</option>
@@ -404,7 +404,7 @@ export function RegistryFormDialog(props: {
                         </Show>
                     </div>
                 </fieldset>
-                <div style={{ display: "flex", gap: "0.5rem" }}>
+                <div class="flex gap-2">
                     <button class="btn btn-primary" type="submit" disabled={createReg.isPending || updateReg.isPending || editingManaged()}>
                         {editingID() !== null ? "Save" : "Create"}
                     </button>

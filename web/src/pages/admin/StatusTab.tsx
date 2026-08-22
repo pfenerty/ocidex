@@ -18,7 +18,7 @@ export function StatusTab() {
                 <div style={{ display: "flex", "flex-direction": "column", gap: "1.5rem" }}>
 
                     <div>
-                        <div class="section-title" style={{ "margin-bottom": "0.75rem" }}>Services</div>
+                        <div class="section-title mb-3">Services</div>
                         <div class="stats-grid">
                             <div class="stat-card">
                                 <div class="stat-label">Enrichment</div>
@@ -26,7 +26,7 @@ export function StatusTab() {
                                     {query.data?.enrichment.enabled === true ? "Enabled" : "Disabled"}
                                 </div>
                                 <Show when={query.data?.enrichment.enabled === true}>
-                                    <div style={{ "font-size": "0.8rem", "margin-top": "0.25rem", color: "var(--color-text-muted)" }}>
+                                    <div class="text-muted text-sm mt-1">
                                         {query.data?.enrichment.workers} workers · queue {query.data?.enrichment.queue_size}
                                     </div>
                                 </Show>
@@ -49,7 +49,7 @@ export function StatusTab() {
                                     {query.data?.nats.enabled === true ? "Enabled" : "Disabled"}
                                 </div>
                                 <Show when={query.data?.nats.enabled === true}>
-                                    <div style={{ "font-size": "0.8rem", "margin-top": "0.25rem", color: "var(--color-text-muted)" }}>
+                                    <div class="text-muted text-sm mt-1">
                                         {query.data?.nats.url}
                                     </div>
                                 </Show>
@@ -58,7 +58,7 @@ export function StatusTab() {
                     </div>
 
                     <div>
-                        <div class="section-title" style={{ "margin-bottom": "0.75rem" }}>Scan Pipeline</div>
+                        <div class="section-title mb-3">Scan Pipeline</div>
                         <div class="stats-grid">
                             <div class="stat-card">
                                 <div class="stat-label">Queued</div>
@@ -86,14 +86,14 @@ export function StatusTab() {
                     </div>
 
                     <div>
-                        <div class="section-title" style={{ "margin-bottom": "0.75rem" }}>Infrastructure</div>
+                        <div class="section-title mb-3">Infrastructure</div>
                         <div class="stats-grid">
                             <div class="stat-card">
                                 <div class="stat-label">Database</div>
                                 <div class="stat-value" style={{ color: query.data?.db.ok === true ? "var(--color-success)" : "var(--color-error)" }}>
                                     {query.data?.db.ok === true ? "OK" : "Error"}
                                 </div>
-                                <div style={{ "font-size": "0.8rem", "margin-top": "0.25rem", color: "var(--color-text-muted)" }}>
+                                <div class="text-muted text-sm mt-1">
                                     {query.data?.db.latency_ms} ms
                                 </div>
                             </div>
@@ -102,7 +102,7 @@ export function StatusTab() {
 
                     <Show when={polledRegistries().length > 0}>
                         <div>
-                            <div class="section-title" style={{ "margin-bottom": "0.75rem" }}>Registry Polling</div>
+                            <div class="section-title mb-3">Registry Polling</div>
                             <div class="card">
                                 <div class="table-wrapper">
                                     <table>
