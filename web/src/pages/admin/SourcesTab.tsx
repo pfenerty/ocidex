@@ -14,6 +14,7 @@ import { prefillForHost } from "./sources/registryTypes";
 import { NamespaceGroups } from "./sources/NamespaceGroups";
 import { DriftFeedCard } from "./sources/DriftFeedCard";
 import { WebhookSecretBanner } from "./sources/WebhookSecretBanner";
+import { Button } from "~/components/ui";
 
 /**
  * SourcesTab lists every ingest channel grouped by namespace, and owns the
@@ -95,7 +96,7 @@ export function SourcesTab() {
             <WebhookSecretBanner secret={revealedSecret()} onDismiss={() => setRevealedSecret(null)} />
 
             <div class="mb-4">
-                <button class="btn btn-primary" onClick={() => dialog?.openAdd()}>Add Registry</button>
+                <Button variant="primary" onClick={() => dialog?.openAdd()}>Add Registry</Button>
             </div>
 
             <RegistryFormDialog ref={(h) => (dialog = h)} onSecretRevealed={setRevealedSecret} />

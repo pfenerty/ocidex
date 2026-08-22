@@ -1,7 +1,7 @@
 import { Show, createSignal, createMemo } from "solid-js";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
-import { Card, CardHeader, FormField } from "~/components/ui";
+import { Button, Card, CardHeader, FormField } from "~/components/ui";
 import { useToast } from "~/context/toast";
 import { relativeDate } from "~/utils/format";
 import type { Namespace, Source } from "~/api/client";
@@ -174,30 +174,31 @@ export function NamespacesTab() {
                     when={editingID() === ns.id}
                     fallback={
                         <div class="flex gap-2">
-                            <button class="btn btn-sm" onClick={() => startEdit(ns)}>
+                            <Button size="sm" onClick={() => startEdit(ns)}>
                                 Edit
-                            </button>
-                            <button
-                                class="btn btn-sm"
+                            </Button>
+                            <Button
+                                size="sm"
                                 onClick={() => handleDelete(ns)}
                                 disabled={deleteNamespace.isPending}
                             >
                                 Delete
-                            </button>
+                            </Button>
                         </div>
                     }
                 >
                     <div class="flex gap-2">
-                        <button
-                            class="btn btn-sm btn-primary"
+                        <Button
+                            variant="primary"
+                            size="sm"
                             onClick={() => saveEdit(ns.id)}
                             disabled={updateNamespace.isPending || editName().trim() === ""}
                         >
                             Save
-                        </button>
-                        <button class="btn btn-sm" onClick={() => setEditingID(null)}>
+                        </Button>
+                        <Button size="sm" onClick={() => setEditingID(null)}>
                             Cancel
-                        </button>
+                        </Button>
                     </div>
                 </Show>
             ),
@@ -230,13 +231,13 @@ export function NamespacesTab() {
                             <option value="public">public</option>
                         </select>
                     </FormField>
-                    <button
-                        class="btn btn-primary"
+                    <Button
+                        variant="primary"
                         type="submit"
                         disabled={createNamespace.isPending || newName().trim() === ""}
                     >
                         Create
-                    </button>
+                    </Button>
                 </form>
             </Card>
 

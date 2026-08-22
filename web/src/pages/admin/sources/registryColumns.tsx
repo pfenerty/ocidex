@@ -10,6 +10,7 @@ import {
     useRegenerateWebhookSecret,
 } from "~/api/queries";
 import { hasWebhook, regTypeLabel } from "./registryTypes";
+import { Button } from "~/components/ui";
 
 /**
  * registryColumns builds the registry table's columns. It is a function rather
@@ -107,16 +108,14 @@ export function registryColumns(opts: {
             render: (reg) => (
                 <div style={{ display: "flex", gap: "0.3rem" }}>
                     <Show when={hasWebhook(reg)} fallback={<span class="text-muted">—</span>}>
-                        <button
-                            class="btn"
-                            style={{ "font-size": "0.75rem", padding: "0.2rem 0.5rem" }}
+                        <Button
+                            size="sm"
                             onClick={() => copyWebhookURL(reg.webhook_url)}
                         >
                             Copy URL
-                        </button>
-                        <button
-                            class="btn"
-                            style={{ "font-size": "0.75rem", padding: "0.2rem 0.5rem" }}
+                        </Button>
+                        <Button
+                            size="sm"
                             title="Generate a new webhook secret (invalidates the old one)"
                             disabled={regenSecret.isPending}
                             onClick={() => regenSecret.mutate(reg.id, {
@@ -125,7 +124,7 @@ export function registryColumns(opts: {
                             })}
                         >
                             Regen Secret
-                        </button>
+                        </Button>
                     </Show>
                 </div>
             ),
@@ -134,11 +133,10 @@ export function registryColumns(opts: {
             header: "",
             render: (reg) => (
                 <div style={{ display: "flex", gap: "0.4rem" }}>
-                    <button class="btn" onClick={() => opts.onEdit(reg)}>
+                    <Button onClick={() => opts.onEdit(reg)}>
                         Edit
-                    </button>
-                    <button
-                        class="btn"
+                    </Button>
+                    <Button
                         title="Scan new/changed images; already-scanned digests are skipped"
                         onClick={() => scanReg.mutate({ id: reg.id }, {
                             onSuccess: (data) => toast(data.message, "success"),
@@ -147,9 +145,8 @@ export function registryColumns(opts: {
                         disabled={scanReg.isPending}
                     >
                         Scan
-                    </button>
-                    <button
-                        class="btn"
+                    </Button>
+                    <Button
                         title="Re-scan every image, including already-scanned digests (repopulates enrichment)"
                         onClick={() => {
                             if (!confirm("Force a full re-scan of every image in this registry, including digests already ingested? This re-pulls and re-scans everything.")) return;
@@ -161,14 +158,13 @@ export function registryColumns(opts: {
                         disabled={scanReg.isPending}
                     >
                         Force
-                    </button>
+                    </Button>
                     <Show when={(opts.activeByRegistry().get(reg.id) ?? 0) > 0}>
                         <span class="badge badge-primary text-xs">
                             {opts.activeByRegistry().get(reg.id)} active
                         </span>
                     </Show>
-                    <button
-                        class="btn"
+                    <Button
                         onClick={() => deleteReg.mutate(reg.id, {
                             onSuccess: () => toast("Registry deleted", "success"),
                             onError: () => toast("Failed to delete registry", "error"),
@@ -176,7 +172,7 @@ export function registryColumns(opts: {
                         disabled={deleteReg.isPending}
                     >
                         Delete
-                    </button>
+                    </Button>
                 </div>
             ),
         },

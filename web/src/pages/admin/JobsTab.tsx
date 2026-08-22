@@ -1,6 +1,7 @@
 import { Show, createSignal } from "solid-js";
 import { ScanJobsView } from "./jobs/ScanJobsView";
 import { EnrichmentJobsView } from "./jobs/EnrichmentJobsView";
+import { Button } from "~/components/ui";
 
 type Pipeline = "scan" | "enrichment";
 
@@ -12,22 +13,20 @@ export function JobsTab() {
     return (
         <div>
             <div style={{ display: "flex", gap: "0.25rem", "margin-bottom": "1rem" }}>
-                <button
-                    class="btn"
+                <Button
                     aria-pressed={pipeline() === "scan"}
                     onClick={() => setPipeline("scan")}
                     style={pipeline() === "scan" ? activeStyle : {}}
                 >
                     Scan jobs
-                </button>
-                <button
-                    class="btn"
+                </Button>
+                <Button
                     aria-pressed={pipeline() === "enrichment"}
                     onClick={() => setPipeline("enrichment")}
                     style={pipeline() === "enrichment" ? activeStyle : {}}
                 >
                     Enrichment jobs
-                </button>
+                </Button>
             </div>
             <Show when={pipeline() === "scan"} fallback={<EnrichmentJobsView />}>
                 <ScanJobsView />

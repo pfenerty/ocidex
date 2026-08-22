@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createSignal } from "solid-js";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
-import { FilterBar, createExpandedSet } from "~/components/ui";
+import { Button, FilterBar, createExpandedSet } from "~/components/ui";
 import { DEFAULT_PAGE_SIZE, type EnrichmentJob } from "~/api/client";
 import {
     useListEnrichmentJobs,
@@ -119,13 +119,13 @@ export function EnrichmentJobsView() {
                     onInput={e => setTextFilter(e.currentTarget.value)}
                 />
                 <Show when={stateFilter() === "failed"}>
-                    <button
-                        class="btn ml-auto"
+                    <Button
+                        class="ml-auto"
                         disabled={retryAll.isPending}
                         onClick={retryAllFailed}
                     >
                         {retryAll.isPending ? "Re-queuing…" : enricherFilter() ? `Retry all failed (${enricherFilter()})` : "Retry all failed"}
-                    </button>
+                    </Button>
                 </Show>
             </FilterBar>
 

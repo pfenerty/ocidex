@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createSignal } from "solid-js";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
-import { FilterBar, createExpandedSet } from "~/components/ui";
+import { Button, FilterBar, createExpandedSet } from "~/components/ui";
 import { DEFAULT_PAGE_SIZE, type ScanJob } from "~/api/client";
 import {
     useListRegistries,
@@ -117,13 +117,13 @@ export function ScanJobsView() {
                     </For>
                 </select>
                 <Show when={stateFilter() === "failed"}>
-                    <button
-                        class="btn ml-auto"
+                    <Button
+                        class="ml-auto"
                         disabled={retryAll.isPending}
                         onClick={() => { void confirmRetryAll("", "scan", () => retryAll.mutateAsync()); }}
                     >
                         {retryAll.isPending ? "Re-queuing…" : "Retry all failed"}
-                    </button>
+                    </Button>
                 </Show>
             </FilterBar>
             <DataTable

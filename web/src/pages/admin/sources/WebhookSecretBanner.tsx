@@ -1,6 +1,7 @@
 import { Show } from "solid-js";
 import { copyText } from "~/utils/clipboard";
 import { useToast } from "~/context/toast";
+import { Button } from "~/components/ui";
 
 /**
  * WebhookSecretBanner shows a newly minted webhook secret. The server never
@@ -19,16 +20,16 @@ export function WebhookSecretBanner(props: { secret: string | null; onDismiss: (
                     {props.secret}
                 </code>
                 <div class="flex gap-2">
-                    <button class="btn btn-primary" onClick={() => {
+                    <Button variant="primary" onClick={() => {
                         void copyText(props.secret ?? "").then(() => {
                             toast("Copied to clipboard", "success");
                         });
                     }}>
                         Copy
-                    </button>
-                    <button class="btn" onClick={() => props.onDismiss()}>
+                    </Button>
+                    <Button onClick={() => props.onDismiss()}>
                         Dismiss
-                    </button>
+                    </Button>
                 </div>
             </div>
         </Show>

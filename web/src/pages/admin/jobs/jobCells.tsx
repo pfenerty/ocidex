@@ -2,6 +2,7 @@ import { Show, type JSX } from "solid-js";
 import { A } from "@solidjs/router";
 import type { Column } from "~/components/DataTable";
 import { TimestampCell } from "~/components/cells";
+import { Button } from "~/components/ui";
 
 export const JOB_STATE_COLORS: Record<string, string> = {
     queued: "var(--color-text-muted)",
@@ -112,14 +113,13 @@ export function retryColumn<T extends JobRow>(retry: {
         header: "Actions",
         render: (job) => (
             <Show when={job.state === "failed"}>
-                <button
-                    class="btn"
-                    style={{ "font-size": "0.8rem", padding: "0.25rem 0.5rem" }}
+                <Button
+                    size="sm"
                     disabled={retry.isPending}
                     onClick={() => retry.mutate(job.id)}
                 >
                     Retry
-                </button>
+                </Button>
             </Show>
         ),
     };

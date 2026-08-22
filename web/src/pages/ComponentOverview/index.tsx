@@ -180,7 +180,7 @@ export default function ComponentOverview() {
                                             </div>
                                             <div class="btn-group">
                                                 <Show when={hasVersion()}>
-                                                    <A href={allVersionsHref()} class="btn btn-sm btn-secondary">
+                                                    <A href={allVersionsHref()} class="btn btn-sm">
                                                         ← All versions
                                                     </A>
                                                 </Show>

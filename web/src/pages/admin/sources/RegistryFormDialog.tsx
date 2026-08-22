@@ -1,5 +1,5 @@
 import { For, Show, createSignal } from "solid-js";
-import { CheckboxField, FormField, Modal } from "~/components/ui";
+import { Button, CheckboxField, FormField, Modal } from "~/components/ui";
 import { useToast } from "~/context/toast";
 import type { Registry } from "~/api/client";
 import {
@@ -220,9 +220,8 @@ export function RegistryFormDialog(props: {
                                     readOnly={TYPE_CAPS[form().type].fixedUrl !== null}
                                     required
                                 />
-                                <button
+                                <Button
                                     type="button"
-                                    class="btn"
                                     disabled={testConn.isPending || !form().url.trim()}
                                     onClick={() => {
                                         setTestResult(null);
@@ -233,7 +232,7 @@ export function RegistryFormDialog(props: {
                                     }}
                                 >
                                     {testConn.isPending ? "Testing…" : "Test"}
-                                </button>
+                                </Button>
                             </div>
                             <Show when={testResult()}>
                                 <div style={{
@@ -405,12 +404,12 @@ export function RegistryFormDialog(props: {
                     </div>
                 </fieldset>
                 <div class="flex gap-2">
-                    <button class="btn btn-primary" type="submit" disabled={createReg.isPending || updateReg.isPending || editingManaged()}>
+                    <Button variant="primary" type="submit" disabled={createReg.isPending || updateReg.isPending || editingManaged()}>
                         {editingID() !== null ? "Save" : "Create"}
-                    </button>
-                    <button class="btn" type="button" onClick={() => dialogRef?.close()}>
+                    </Button>
+                    <Button type="button" onClick={() => dialogRef?.close()}>
                         Cancel
-                    </button>
+                    </Button>
                 </div>
             </form>
         </Modal>

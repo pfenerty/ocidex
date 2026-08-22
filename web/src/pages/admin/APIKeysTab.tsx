@@ -5,6 +5,7 @@ import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import type { APIKey } from "~/api/client";
 import { useListAPIKeys, useCreateAPIKey, useDeleteAPIKey } from "~/api/queries";
+import { Button } from "~/components/ui";
 
 export function APIKeysTab() {
     const query = useListAPIKeys();
@@ -51,8 +52,7 @@ export function APIKeysTab() {
         {
             header: "",
             render: (k) => (
-                <button
-                    class="btn"
+                <Button
                     onClick={() => deleteKey.mutate(k.id, {
                         onSuccess: () => toast("API key deleted", "success"),
                         onError: () => toast("Failed to delete API key", "error"),
@@ -60,7 +60,7 @@ export function APIKeysTab() {
                     disabled={deleteKey.isPending}
                 >
                     Delete
-                </button>
+                </Button>
             ),
         },
     ];
@@ -76,16 +76,16 @@ export function APIKeysTab() {
                         {revealedKey()}
                     </code>
                     <div class="flex gap-2">
-                        <button class="btn btn-primary" onClick={() => {
+                        <Button variant="primary" onClick={() => {
                             void copyText(revealedKey() ?? "").then(() => {
                                 toast("Copied to clipboard", "success");
                             });
                         }}>
                             Copy
-                        </button>
-                        <button class="btn" onClick={() => setRevealedKey(null)}>
+                        </Button>
+                        <Button onClick={() => setRevealedKey(null)}>
                             Dismiss
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </Show>
@@ -109,9 +109,9 @@ export function APIKeysTab() {
                         <option value="read-write">Read-write</option>
                         <option value="read">Read-only</option>
                     </select>
-                    <button class="btn btn-primary" type="submit" disabled={createKey.isPending || !newKeyName().trim()}>
+                    <Button variant="primary" type="submit" disabled={createKey.isPending || !newKeyName().trim()}>
                         Create
-                    </button>
+                    </Button>
                 </form>
             </div>
 
