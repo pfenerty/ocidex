@@ -1,4 +1,4 @@
-import "./SummaryBand.css";
+import "./TileBand.css";
 import { Show } from "solid-js";
 import type { OCIMetadata, Provenance, GitCommitMetadata } from "~/api/client";
 import { relativeDate } from "~/utils/format";
@@ -58,38 +58,38 @@ export default function SummaryBand(props: {
     };
 
     return (
-        <div class="summary-band">
+        <div class="tile-band">
             {/* Provenance */}
             <button
-                class={`summary-tile ${props.active === "provenance" ? "active" : ""}`}
+                class={`tile ${props.active === "provenance" ? "active" : ""}`}
                 onClick={() => props.onSelect("provenance")}
             >
-                <span class="summary-tile-head">
+                <span class="tile-head">
                     <ShieldIcon />
                     Provenance
                 </span>
                 <Show
                     when={trust()}
-                    fallback={<span class="summary-tile-value text-muted">Not enriched</span>}
+                    fallback={<span class="tile-value text-muted">Not enriched</span>}
                 >
-                    {(t) => <span class={`${trustBadgeClass(t().variant)} summary-tile-value`}>{t().label}</span>}
+                    {(t) => <span class={`${trustBadgeClass(t().variant)} tile-value`}>{t().label}</span>}
                 </Show>
-                <span class="summary-tile-sub">
+                <span class="tile-sub">
                     {provenanceSubline(props.provenance)}
                 </span>
             </button>
 
             {/* Image */}
             <button
-                class={`summary-tile ${props.active === "image" ? "active" : ""}`}
+                class={`tile ${props.active === "image" ? "active" : ""}`}
                 onClick={() => props.onSelect("image")}
             >
-                <span class="summary-tile-head">
+                <span class="tile-head">
                     <OciIcon />
                     Image
                 </span>
-                <span class="summary-tile-value">{platform() ?? "—"}</span>
-                <span class="summary-tile-sub">
+                <span class="tile-value">{platform() ?? "—"}</span>
+                <span class="tile-sub">
                     <Show when={props.metadata?.baseName} fallback="OCI image">
                         {(base) => (
                             <>
@@ -102,17 +102,17 @@ export default function SummaryBand(props: {
 
             {/* Git */}
             <button
-                class={`summary-tile ${props.active === "git" ? "active" : ""}`}
+                class={`tile ${props.active === "git" ? "active" : ""}`}
                 onClick={() => props.onSelect("git")}
             >
-                <span class="summary-tile-head">
+                <span class="tile-head">
                     <GitHubIcon />
                     Git
                 </span>
-                <span class="summary-tile-value">
+                <span class="tile-value">
                     {props.git?.resolved === true ? props.git.commitSha?.substring(0, 8) : "—"}
                 </span>
-                <span class="summary-tile-sub">
+                <span class="tile-sub">
                     {props.git?.resolved === true
                         ? `${props.git.owner}/${props.git.repo}`
                         : "not enriched"}
@@ -121,24 +121,24 @@ export default function SummaryBand(props: {
 
             {/* Packages */}
             <button
-                class={`summary-tile ${props.active === "packages" ? "active" : ""}`}
+                class={`tile ${props.active === "packages" ? "active" : ""}`}
                 onClick={() => props.onSelect("packages")}
             >
-                <span class="summary-tile-head">Packages</span>
-                <span class="summary-tile-value">{props.packageCount ?? "—"}</span>
-                <span class="summary-tile-sub">
+                <span class="tile-head">Packages</span>
+                <span class="tile-value">{props.packageCount ?? "—"}</span>
+                <span class="tile-sub">
                     {props.ecosystems.length > 0 ? props.ecosystems.join(" · ") : "components"}
                 </span>
             </button>
 
             {/* SBOM */}
             <button
-                class={`summary-tile ${props.active === "raw" ? "active" : ""}`}
+                class={`tile ${props.active === "raw" ? "active" : ""}`}
                 onClick={() => props.onSelect("raw")}
             >
-                <span class="summary-tile-head">SBOM</span>
-                <span class="summary-tile-value">CycloneDX {props.specVersion}</span>
-                <span class="summary-tile-sub">ingested {relativeDate(props.ingestedAt)}</span>
+                <span class="tile-head">SBOM</span>
+                <span class="tile-value">CycloneDX {props.specVersion}</span>
+                <span class="tile-sub">ingested {relativeDate(props.ingestedAt)}</span>
             </button>
         </div>
     );

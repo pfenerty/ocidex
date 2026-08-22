@@ -1,4 +1,9 @@
-/* Coverage tiles for a cluster's running inventory (ADR-044 K5).
+/* Cluster-specific modifiers on the shared tile band (components/TileBand.css).
+ *
+ * The band, tile, head/value/sub rules and the `.active` selection border all
+ * live there now — this file had grown a byte-for-byte second copy of them
+ * under `coverage-` names. What stays here is the part that is about coverage
+ * rather than about tiles (ADR-044 K5).
  *
  * The tiles used to be tinted whenever a gap existed. On a real cluster a gap
  * always exists, so the tint was permanently on and told the reader nothing —
@@ -8,68 +13,26 @@
  * sub-label that states the remedy. K5 still holds: a gap tile never looks
  * like a clean one. */
 
-.coverage-band {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 0.75rem;
-    margin-bottom: 1rem;
-}
-
-@media (max-width: 720px) {
-    .coverage-band {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-.coverage-tile {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    padding: 0.75rem 0.9rem;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    color: inherit;
-    text-decoration: none;
-}
-
-.coverage-tile:hover {
-    border-color: var(--color-primary);
-}
-
-/* Selection, not severity: this is the tile whose rows are on screen. */
-.coverage-tile.selected {
-    border-color: var(--color-primary);
-    background: var(--color-surface-hover, var(--color-surface));
+/* Coverage counts are the headline of the page, not a caption on it, so they
+ * run larger than the SBOM band's values. */
+.coverage-tile .tile-value {
+    font-size: 1.35rem;
+    line-height: 1.1;
 }
 
 /* A non-zero gap count is coloured, the tile around it is not. Enough to keep
  * "not assessed" from reading like "assessed and clean", without turning a
  * permanent condition into a permanent alarm. */
-.coverage-tile.gap .coverage-tile-value {
+.coverage-tile.gap .tile-value {
     color: var(--color-warning);
 }
 
-.coverage-tile-head {
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--color-text-muted);
+/* The band's sub-labels wrap; a truncated remedy is not a remedy. */
+.coverage-tile .tile-sub {
+    white-space: normal;
+    overflow: visible;
 }
 
-.coverage-tile-value {
-    font-size: 1.35rem;
-    font-weight: 600;
-    line-height: 1.1;
-}
-
-.coverage-tile-sub {
-    font-size: 0.78rem;
-    color: var(--color-text-muted);
-}
-
-/* The caveat line under the running-vulnerability totals. Not muted: it is the
- * qualification that stops the number above it from being read as complete. */
 .coverage-caveat {
     display: block;
     margin-top: 0.5rem;

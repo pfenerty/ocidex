@@ -273,6 +273,15 @@
         margin-bottom: 1rem;
     }
 
+    /* Title and its count travel together on the left; `actions` is the only
+       thing space-between should push to the far edge. */
+    .card-header-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        min-width: 0;
+    }
+
     .card-header h3 {
         font-size: 1rem;
         font-weight: 600;

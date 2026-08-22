@@ -22,6 +22,11 @@ export function Card(props: {
  * CardHeader renders the title row. `count` is the muted badge convention used
  * for "how many rows are under this heading"; `actions` occupies the right-hand
  * slot the flexbox already reserves.
+ *
+ * The title and count are wrapped together rather than emitted as siblings of
+ * `actions`. `.card-header` is `justify-content: space-between`, so three bare
+ * children spread across the row and the badge ends up marooned in the middle,
+ * reading as a stray number rather than as this heading's count.
  */
 export function CardHeader(props: {
     title: JSX.Element;
@@ -30,10 +35,12 @@ export function CardHeader(props: {
 }): JSX.Element {
     return (
         <div class="card-header">
-            <h3>{props.title}</h3>
-            <Show when={props.count !== undefined}>
-                <span class="badge">{props.count}</span>
-            </Show>
+            <div class="card-header-title">
+                <h3>{props.title}</h3>
+                <Show when={props.count !== undefined}>
+                    <span class="badge">{props.count}</span>
+                </Show>
+            </div>
             <Show when={props.actions !== undefined}>{props.actions}</Show>
         </div>
     );

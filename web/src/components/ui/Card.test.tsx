@@ -9,14 +9,30 @@ import { createExpandedSet } from "./expanded";
 import { createRoot } from "solid-js";
 
 describe("Card", () => {
-    it("keeps the card > card-header > h3 nesting the CSS targets", () => {
+    it("keeps the card > card-header nesting the CSS targets", () => {
         const { container } = render(() => (
             <Card>
                 <CardHeader title="Artifacts" count={3} />
             </Card>
         ));
-        expect(container.querySelector(".card > .card-header > h3")?.textContent).toBe("Artifacts");
+        expect(container.querySelector(".card > .card-header h3")?.textContent).toBe("Artifacts");
         expect(container.querySelector(".card-header .badge")?.textContent).toBe("3");
+    });
+
+    // `.card-header` is space-between. If the title, the badge and the actions
+    // are three bare children, the badge lands in the middle of the row and
+    // reads as a stray number; it belongs beside the heading it counts.
+    it("groups the count with the title so only actions sit on the right", () => {
+        const { container } = render(() => (
+            <CardHeader title="Artifacts" count={3} actions={<button>See all</button>} />
+        ));
+        const header = container.querySelector(".card-header");
+        if (header === null) throw new Error("no card-header rendered");
+        expect(header.children.length).toBe(2);
+        expect(header.children[0].className).toBe("card-header-title");
+        expect(header.children[0].querySelector("h3")?.textContent).toBe("Artifacts");
+        expect(header.children[0].querySelector(".badge")?.textContent).toBe("3");
+        expect(header.children[1].textContent).toBe("See all");
     });
 
     it("omits the count badge when no count is given", () => {

@@ -1,4 +1,5 @@
 import { A } from "@solidjs/router";
+import "~/components/TileBand.css";
 import type { WorkloadCoverage } from "~/api/client";
 
 /**
@@ -30,41 +31,41 @@ export function CoverageBand(props: {
 
     const href = (query: string) => `/clusters/${props.clusterId}?${query}`;
     const cls = (selected: boolean, gap = false) =>
-        ["coverage-tile", gap ? "gap" : "", selected ? "selected" : ""]
+        ["tile", "coverage-tile", gap ? "gap" : "", selected ? "active" : ""]
             .filter((c) => c !== "")
             .join(" ");
     const onWorkloads = (state?: string) =>
         props.active === "workloads" && props.activeMatchState === state;
 
     return (
-        <div class="coverage-band">
+        <div class="tile-band">
             <A class={cls(onWorkloads(undefined))} href={href("tab=workloads")}>
-                <span class="coverage-tile-head">Containers</span>
-                <span class="coverage-tile-value">{props.coverage.total.toLocaleString()}</span>
-                <span class="coverage-tile-sub">running, deduplicated per image</span>
+                <span class="tile-head">Containers</span>
+                <span class="tile-value">{props.coverage.total.toLocaleString()}</span>
+                <span class="tile-sub">running, deduplicated per image</span>
             </A>
             <A class={cls(onWorkloads("exact"))} href={href("tab=workloads&match_state=exact")}>
-                <span class="coverage-tile-head">Matched</span>
-                <span class="coverage-tile-value">{props.coverage.matched.toLocaleString()}</span>
-                <span class="coverage-tile-sub">{pct()} of what is running</span>
+                <span class="tile-head">Matched</span>
+                <span class="tile-value">{props.coverage.matched.toLocaleString()}</span>
+                <span class="tile-sub">{pct()} of what is running</span>
             </A>
             <A
                 class={cls(props.active === "gaps", props.coverage.unknown > 0)}
                 href={href("tab=gaps")}
             >
-                <span class="coverage-tile-head">No SBOM</span>
-                <span class="coverage-tile-value">{props.coverage.unknown.toLocaleString()}</span>
-                <span class="coverage-tile-sub">not assessed — ingest to fix</span>
+                <span class="tile-head">No SBOM</span>
+                <span class="tile-value">{props.coverage.unknown.toLocaleString()}</span>
+                <span class="tile-sub">not assessed — ingest to fix</span>
             </A>
             <A
                 class={cls(props.active === "gaps", props.coverage.unresolvable > 0)}
                 href={href("tab=gaps")}
             >
-                <span class="coverage-tile-head">Unresolvable</span>
-                <span class="coverage-tile-value">
+                <span class="tile-head">Unresolvable</span>
+                <span class="tile-value">
                     {props.coverage.unresolvable.toLocaleString()}
                 </span>
-                <span class="coverage-tile-sub">no digest readable — runtime gap</span>
+                <span class="tile-sub">no digest readable — runtime gap</span>
             </A>
         </div>
     );

@@ -1,4 +1,13 @@
-.summary-band {
+/* The tile band: a row of compact stat tiles that double as navigation.
+ *
+ * Two pages render one — the SBOM detail band and the cluster coverage band —
+ * and they had grown byte-identical grid, breakpoint and sub-element rules
+ * under two sets of names. The markup still differs (one band's tiles are
+ * buttons, the other's are links), so only the styling is shared here; each
+ * caller keeps whatever semantic modifiers it needs.
+ */
+
+.tile-band {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 0.75rem;
@@ -6,12 +15,12 @@
 }
 
 @media (max-width: 720px) {
-    .summary-band {
+    .tile-band {
         grid-template-columns: repeat(2, 1fr);
     }
 }
 
-.summary-tile {
+.tile {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -20,21 +29,24 @@
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: 8px;
-    cursor: pointer;
+    color: inherit;
     text-align: left;
+    text-decoration: none;
+    cursor: pointer;
     transition: background 0.12s, border-color 0.12s;
 }
 
-.summary-tile:hover {
+.tile:hover {
     background: var(--color-surface-hover);
     border-color: var(--color-border-hover);
 }
 
-.summary-tile.active {
+/* Selection, not severity: this is the tile whose rows are on screen. */
+.tile.active {
     border-color: var(--color-primary);
 }
 
-.summary-tile-head {
+.tile-head {
     display: flex;
     align-items: center;
     gap: 0.35rem;
@@ -44,19 +56,19 @@
     color: var(--color-text-muted);
 }
 
-.summary-tile-value {
+.tile-value {
     font-size: 1.05rem;
     font-weight: 600;
     line-height: 1.2;
 }
 
 /* When the value is a badge, don't inflate it to heading size. */
-.summary-tile-value.badge {
+.tile-value.badge {
     font-size: 0.8rem;
     font-weight: 600;
 }
 
-.summary-tile-sub {
+.tile-sub {
     display: flex;
     align-items: center;
     gap: 0.3rem;

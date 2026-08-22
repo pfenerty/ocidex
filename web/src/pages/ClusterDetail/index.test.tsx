@@ -315,7 +315,7 @@ describe("ClusterDetail", () => {
 
         for (const tile of container.querySelectorAll(".coverage-tile")) {
             expect(tile.className).not.toContain("bad");
-            expect(tile.className).not.toContain("selected");
+            expect(tile.className).not.toContain("active");
         }
     });
 
@@ -397,8 +397,8 @@ describe("ClusterDetail", () => {
         const { container } = renderPage([workload()], GAPPY);
 
         const tiles = [...container.querySelectorAll(".coverage-tile")];
-        expect(must(tiles[1], "matched tile").className).toContain("selected");
-        expect(must(tiles[0], "containers tile").className).not.toContain("selected");
+        expect(must(tiles[1], "matched tile").className).toContain("active");
+        expect(must(tiles[0], "containers tile").className).not.toContain("active");
     });
 
     it("labels every match state in words, not colour alone", () => {

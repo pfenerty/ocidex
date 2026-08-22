@@ -19,7 +19,7 @@ function renderBand(provenance: Provenance | undefined, signingStatus: string | 
             onSelect={() => undefined}
         />
     ));
-    const sub = container.querySelector(".summary-tile-sub");
+    const sub = container.querySelector(".tile-sub");
     if (sub === null) throw new Error("provenance tile has no sub-line");
     return { tile: container.textContent, sub: sub.textContent };
 }
