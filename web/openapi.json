@@ -7191,12 +7191,12 @@
             }
           },
           {
-            "description": "Column to sort by. vuln_count orders by severity, worst first, and sorts unassessed images last in either direction",
+            "description": "Column to sort by. vuln_count orders by severity, worst first, and sorts unassessed images last in either direction. Unset means image reference order.",
             "explode": false,
             "in": "query",
             "name": "sort",
             "schema": {
-              "description": "Column to sort by. vuln_count orders by severity, worst first, and sorts unassessed images last in either direction",
+              "description": "Column to sort by. vuln_count orders by severity, worst first, and sorts unassessed images last in either direction. Unset means image reference order.",
               "enum": [
                 "image_ref",
                 "match_state",
@@ -7209,12 +7209,12 @@
             }
           },
           {
-            "description": "Sort direction (default asc)",
+            "description": "Sort direction (default asc). Applies to sort only — with sort unset the default ordering ignores it.",
             "explode": false,
             "in": "query",
             "name": "dir",
             "schema": {
-              "description": "Sort direction (default asc)",
+              "description": "Sort direction (default asc). Applies to sort only — with sort unset the default ordering ignores it.",
               "enum": [
                 "asc",
                 "desc"
@@ -7538,12 +7538,12 @@
             }
           },
           {
-            "description": "Column to sort by (default severity, worst first)",
+            "description": "Column to sort by. Unset means worst first: severity, then CVSS.",
             "explode": false,
             "in": "query",
             "name": "sort",
             "schema": {
-              "description": "Column to sort by (default severity, worst first)",
+              "description": "Column to sort by. Unset means worst first: severity, then CVSS.",
               "enum": [
                 "severity",
                 "cvss_score",
@@ -7554,12 +7554,12 @@
             }
           },
           {
-            "description": "Sort direction (default asc)",
+            "description": "Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it.",
             "explode": false,
             "in": "query",
             "name": "dir",
             "schema": {
-              "description": "Sort direction (default asc)",
+              "description": "Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it.",
               "enum": [
                 "asc",
                 "desc"
@@ -7676,12 +7676,12 @@
             }
           },
           {
-            "description": "Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction",
+            "description": "Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction. Unset means namespace, then workload, then container.",
             "explode": false,
             "in": "query",
             "name": "sort",
             "schema": {
-              "description": "Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction",
+              "description": "Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction. Unset means namespace, then workload, then container.",
               "enum": [
                 "k8s_namespace",
                 "workload_name",
@@ -7696,12 +7696,12 @@
             }
           },
           {
-            "description": "Sort direction (default asc)",
+            "description": "Sort direction (default asc). Applies to sort only — with sort unset the default ordering ignores it.",
             "explode": false,
             "in": "query",
             "name": "dir",
             "schema": {
-              "description": "Sort direction (default asc)",
+              "description": "Sort direction (default asc). Applies to sort only — with sort unset the default ordering ignores it.",
               "enum": [
                 "asc",
                 "desc"

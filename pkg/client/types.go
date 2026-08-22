@@ -3187,10 +3187,10 @@ type ListClusterImagesParams struct {
 	// Q Substring match over workload name, container name and image reference
 	Q *string `form:"q,omitempty" json:"q,omitempty"`
 
-	// Sort Column to sort by. vuln_count orders by severity, worst first, and sorts unassessed images last in either direction
+	// Sort Column to sort by. vuln_count orders by severity, worst first, and sorts unassessed images last in either direction. Unset means image reference order.
 	Sort *ListClusterImagesParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
 
-	// Dir Sort direction (default asc)
+	// Dir Sort direction (default asc). Applies to sort only — with sort unset the default ordering ignores it.
 	Dir *ListClusterImagesParamsDir `form:"dir,omitempty" json:"dir,omitempty"`
 
 	// Limit Maximum number of results per page
@@ -3223,10 +3223,10 @@ type ListClusterVulnsParams struct {
 	// Severity Filter by severity
 	Severity *ListClusterVulnsParamsSeverity `form:"severity,omitempty" json:"severity,omitempty"`
 
-	// Sort Column to sort by (default severity, worst first)
+	// Sort Column to sort by. Unset means worst first: severity, then CVSS.
 	Sort *ListClusterVulnsParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
 
-	// Dir Sort direction (default asc)
+	// Dir Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it.
 	Dir *ListClusterVulnsParamsDir `form:"dir,omitempty" json:"dir,omitempty"`
 
 	// Limit Maximum number of results per page
@@ -3256,10 +3256,10 @@ type ListClusterWorkloadsParams struct {
 	// Q Substring match over workload name, container name and image reference
 	Q *string `form:"q,omitempty" json:"q,omitempty"`
 
-	// Sort Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction
+	// Sort Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction. Unset means namespace, then workload, then container.
 	Sort *ListClusterWorkloadsParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
 
-	// Dir Sort direction (default asc)
+	// Dir Sort direction (default asc). Applies to sort only — with sort unset the default ordering ignores it.
 	Dir *ListClusterWorkloadsParamsDir `form:"dir,omitempty" json:"dir,omitempty"`
 
 	// Limit Maximum number of results per page

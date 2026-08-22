@@ -4578,9 +4578,9 @@ export interface operations {
                 match_state?: "exact" | "index" | "unknown" | "unresolvable";
                 /** @description Substring match over workload name, container name and image reference */
                 q?: string;
-                /** @description Column to sort by. vuln_count orders by severity, worst first, and sorts unassessed images last in either direction */
+                /** @description Column to sort by. vuln_count orders by severity, worst first, and sorts unassessed images last in either direction. Unset means image reference order. */
                 sort?: "image_ref" | "match_state" | "workload_count" | "pod_count" | "last_seen_at" | "vuln_count";
-                /** @description Sort direction (default asc) */
+                /** @description Sort direction (default asc). Applies to sort only — with sort unset the default ordering ignores it. */
                 dir?: "asc" | "desc";
                 /** @description Maximum number of results per page */
                 limit?: number;
@@ -4762,9 +4762,9 @@ export interface operations {
             query?: {
                 /** @description Filter by severity */
                 severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
-                /** @description Column to sort by (default severity, worst first) */
+                /** @description Column to sort by. Unset means worst first: severity, then CVSS. */
                 sort?: "severity" | "cvss_score" | "workload_count" | "canonical_id";
-                /** @description Sort direction (default asc) */
+                /** @description Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it. */
                 dir?: "asc" | "desc";
                 /** @description Maximum number of results per page */
                 limit?: number;
@@ -4809,9 +4809,9 @@ export interface operations {
                 match_state?: "exact" | "index" | "unknown" | "unresolvable";
                 /** @description Substring match over workload name, container name and image reference */
                 q?: string;
-                /** @description Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction */
+                /** @description Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction. Unset means namespace, then workload, then container. */
                 sort?: "k8s_namespace" | "workload_name" | "container_name" | "image_ref" | "match_state" | "pod_count" | "last_seen_at" | "vuln_count";
-                /** @description Sort direction (default asc) */
+                /** @description Sort direction (default asc). Applies to sort only — with sort unset the default ordering ignores it. */
                 dir?: "asc" | "desc";
                 /** @description Maximum number of results per page */
                 limit?: number;

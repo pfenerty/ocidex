@@ -18,10 +18,16 @@ current filter. A filtered table showing three clean rows must not read as a cle
 
 | Tile | Meaning | What to do |
 |---|---|---|
-| **Running** | Containers in the last snapshot | — |
+| **Running** | Workload containers in the last snapshot, with the pod total beneath | — |
 | **Matched** | Image digest matched an ingested SBOM | Nothing; these are the assessed ones |
 | **No SBOM** | Valid registry digest, nothing ingested for it | Ingest the image — see [Gaps](#gaps) |
 | **Unresolvable** | The runtime reported no registry-addressable digest | Upgrade the node runtime |
+
+The Running tile counts **workload containers**, not pods and not distinct images: one row per
+`(namespace, workload, container, image)`, which is the unit the other three tiles partition. The
+pod figure beneath it is the replica total those containers add up to, so a 3-replica Deployment is
+one container and three pods. Every vulnerability figure on the page is denominated in the first
+number, never the second.
 
 Each tile is a link into the tab that acts on it. Colour marks the tile you have selected, not a
 permanent alarm: on a real cluster the gap is never zero, and a tile that is always red carries no
@@ -35,16 +41,35 @@ not the same as *clean* — the page says so explicitly wherever a count appears
 
 ### Overview
 
-Most severe running vulnerabilities (top five, linking into the full list), the coverage caveat,
-staleness, and the ingest status line: whether auto-ingest is on, and how much of the current gap
-is ready to close.
+Most severe running vulnerabilities — five rows, each carrying its severity, id, CVSS score,
+summary and the number of workloads running it, headed "top 5 of N" so the five are never mistaken
+for the whole list. Then the coverage caveat, staleness, and the ingest status line: whether
+auto-ingest is on, and how much of the current gap is ready to close.
+
+**Before the first snapshot** the Overview shows agent-install commands instead, carrying this
+cluster's own id. A registered cluster with nothing in it is the expected first state, not a fault
+— the agent runs in the target cluster, which may be nowhere near this one — so the page says what
+is missing rather than showing four zeroed tiles that read as a clean cluster.
 
 ### Workloads
 
-Every reported container, filterable by Kubernetes namespace, match state, and free text over
-workload/container/image. Filters live in the URL, so a filtered view is a link you can send
-someone. Matched rows carry their image's vulnerability counts, so "which images have
-vulnerabilities" is answerable from the table itself.
+Two groupings of the same inventory, switched with the **Group by** control and carried in the URL
+as `group`, so either view is a link you can send someone:
+
+- **By image** (the default) — one row per running image, with the workload and pod counts it
+  accounts for. This is the unit of most remedies: fourteen deployments of one bad image are one
+  upgrade, and by-workload would show that as fourteen rows saying the same thing.
+- **By workload** — one row per `namespace/workload · container`, for the other question: *where is
+  this actually running?*
+
+Both open on **worst findings first** rather than alphabetically by namespace, so the first screen
+is the actionable one, and both filter by Kubernetes namespace, match state, and free text over
+workload/container/image. Changing the grouping keeps your filters and resets the sort, since the
+two groupings do not share every sort key.
+
+Matched rows carry their image's vulnerability counts, so "which images have vulnerabilities" is
+answerable from the table itself. An unassessed row says so in words — it never shows a zero, and
+it sorts last in either direction rather than ranking beside a genuinely clean one.
 
 ### Vulnerabilities
 
@@ -65,13 +90,22 @@ are one thing to ingest. Each row says what stands between it and an SBOM:
 | Row state | Meaning | Remedy |
 |---|---|---|
 | `ready to ingest` | A registry in this namespace serves this host | Press **Ingest** (or let auto-ingest do it) |
-| `no registry` | Nothing in this namespace is configured for that host | Add a registry |
+| `no registry` | Nothing in this namespace is configured for that host | Add a registry — the link opens the add dialog with the host filled in |
 | `registry disabled` | The matching registry is switched off | Enable it |
 | `excluded by patterns` | The registry's repository patterns exclude this repo | Widen them, if that is intended |
 | `no host in reference` | The reported reference names no registry at all | Node runtime issue; see below |
 
+Both link into **Sources**, where registries are managed: `no registry` opens the add dialog
+prefilled with the host that has none, and a named registry opens its editor. You do not need to be
+an administrator — owning the cluster's namespace is enough, and the Sources entry appears in the
+nav for anyone signed in.
+
 **No digest readable** — the runtime reported a local image ID rather than a registry digest. No
 amount of scanning helps; the remedy is on the node, not in OCIDex.
+
+Both tables paginate. The counts above them — the size of the gap, and how much of it is ready to
+ingest — describe the **whole gap**, not the page on screen, so the bulk button's figure is what it
+will actually queue.
 
 ## Auto-ingest
 

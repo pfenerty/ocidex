@@ -180,8 +180,8 @@ type ListClusterWorkloadsInput struct {
 	K8sNamespace string `query:"k8s_namespace" doc:"Filter to one Kubernetes namespace"`
 	MatchState   string `query:"match_state" enum:"exact,index,unknown,unresolvable" doc:"Filter by SBOM match state"`
 	Q            string `query:"q" doc:"Substring match over workload name, container name and image reference"`
-	Sort         string `query:"sort" enum:"k8s_namespace,workload_name,container_name,image_ref,match_state,pod_count,last_seen_at,vuln_count" doc:"Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction"`
-	Dir          string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc)"`
+	Sort         string `query:"sort" enum:"k8s_namespace,workload_name,container_name,image_ref,match_state,pod_count,last_seen_at,vuln_count" doc:"Column to sort by. vuln_count orders by severity, worst first, and sorts unmatched workloads last in either direction. Unset means namespace, then workload, then container."`
+	Dir          string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc). Applies to sort only — with sort unset the default ordering ignores it."`
 	PaginationParams
 }
 
@@ -241,8 +241,8 @@ type ListClusterImagesInput struct {
 	K8sNamespace string `query:"k8s_namespace" doc:"Filter to one Kubernetes namespace"`
 	MatchState   string `query:"match_state" enum:"exact,index,unknown,unresolvable" doc:"Filter by SBOM match state"`
 	Q            string `query:"q" doc:"Substring match over workload name, container name and image reference"`
-	Sort         string `query:"sort" enum:"image_ref,match_state,workload_count,pod_count,last_seen_at,vuln_count" doc:"Column to sort by. vuln_count orders by severity, worst first, and sorts unassessed images last in either direction"`
-	Dir          string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc)"`
+	Sort         string `query:"sort" enum:"image_ref,match_state,workload_count,pod_count,last_seen_at,vuln_count" doc:"Column to sort by. vuln_count orders by severity, worst first, and sorts unassessed images last in either direction. Unset means image reference order."`
+	Dir          string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc). Applies to sort only — with sort unset the default ordering ignores it."`
 	PaginationParams
 }
 
@@ -302,8 +302,8 @@ type RunningVulnResponse struct {
 type ListClusterVulnsInput struct {
 	ID       string `path:"id" doc:"Cluster UUID" format:"uuid"`
 	Severity string `query:"severity" enum:"CRITICAL,HIGH,MEDIUM,LOW" doc:"Filter by severity"`
-	Sort     string `query:"sort" enum:"severity,cvss_score,workload_count,canonical_id" doc:"Column to sort by (default severity, worst first)"`
-	Dir      string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc)"`
+	Sort     string `query:"sort" enum:"severity,cvss_score,workload_count,canonical_id" doc:"Column to sort by. Unset means worst first: severity, then CVSS."`
+	Dir      string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it."`
 	PaginationParams
 }
 
