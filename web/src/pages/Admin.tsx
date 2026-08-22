@@ -1,6 +1,7 @@
 import { Show, For, type JSX } from "solid-js";
 import { useLocation, A } from "@solidjs/router";
 import { useAuth } from "~/context/auth";
+import { SkeletonHeader } from "~/components/Skeleton";
 import { UsersTab } from "./admin/UsersTab";
 import { APIKeysTab } from "./admin/APIKeysTab";
 import { StatusTab } from "./admin/StatusTab";
@@ -53,6 +54,11 @@ export default function Admin() {
     const { user } = useAuth();
     // A non-admin sees only the tabs they can actually use. Showing the other
     // five would offer them a row of 403s.
+    //
+    // This is role-dependent, so it is wrong while the session is still in
+    // flight: `user()` is undefined during the first paint and every visitor
+    // would briefly read as a non-admin. Nothing below renders until the
+    // session resolves — see the loading gate on the return.
     const tabs = () => (user()?.role === "admin" ? TABS : TABS.filter((t) => !t.adminOnly));
     // A non-admin who lands on an admin-only path (a stale bookmark, a shared
     // link) gets the tabs they do have rather than an empty page — the tab strip
@@ -60,8 +66,13 @@ export default function Admin() {
     const active = () => tabs().find((t) => t.paths.includes(location.pathname)) ?? tabs()[0];
     const isActive = (tab: AdminTab) => tab === active();
 
+    // Held until the session resolves. Rendering early produced a tab strip and
+    // a panel computed from different values of `tabs()`: the strip re-derived
+    // itself when `user()` arrived, but the panel below was mounted by a
+    // non-keyed <Show> whose children function never re-ran, so /admin/jobs
+    // highlighted Jobs and rendered Sources forever (ocidex-ag4q.5).
     return (
-        <>
+        <Show when={!user.loading} fallback={<SkeletonHeader />}>
             <div class="page-header">
                 <div class="page-header-row">
                     <div>
@@ -94,7 +105,12 @@ export default function Admin() {
                 </For>
             </nav>
 
-            <Show when={active()}>{(tab) => tab().render()}</Show>
-        </>
+            {/* `keyed` is load-bearing: without it the children function runs
+                once and the panel is frozen at whichever tab was active on
+                mount, even as the strip above tracks the route. */}
+            <Show when={active()} keyed>
+                {(tab) => tab.render()}
+            </Show>
+        </Show>
     );
 }
