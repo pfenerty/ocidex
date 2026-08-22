@@ -2902,7 +2902,10 @@ type WatchEventKind string
 // WorkloadCoverageResponse defines model for WorkloadCoverageResponse.
 type WorkloadCoverageResponse struct {
 	Matched int64 `json:"matched"`
-	Total   int64 `json:"total"`
+
+	// Pods Running pods those workload-containers add up to. Reported beside total, not instead of it: total is the unit the match states partition
+	Pods  int64 `json:"pods"`
+	Total int64 `json:"total"`
 
 	// Unknown Valid digests with no ingested SBOM: a coverage gap
 	Unknown int64 `json:"unknown"`

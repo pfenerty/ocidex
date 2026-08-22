@@ -1,6 +1,7 @@
 import { A } from "@solidjs/router";
 import "~/components/TileBand.css";
 import type { WorkloadCoverage } from "~/api/client";
+import { plural } from "~/utils/format";
 
 /**
  * CoverageBand is the honest header for everything below it: how much of what
@@ -42,7 +43,15 @@ export function CoverageBand(props: {
             <A class={cls(onWorkloads(undefined))} href={href("tab=workloads")}>
                 <span class="tile-head">Containers</span>
                 <span class="tile-value">{props.coverage.total.toLocaleString()}</span>
-                <span class="tile-sub">running, deduplicated per image</span>
+                {/* The count is workload-containers — one row per container of
+                    one workload on one image — which is the unit the match
+                    states partition and so the denominator under every
+                    vulnerability figure below. It said "deduplicated per image",
+                    which it is not. Pods rides alongside so a 40-replica
+                    Deployment is not mistaken for 40 distinct services. */}
+                <span class="tile-sub">
+                    workload containers · {plural(props.coverage.pods, "pod")}
+                </span>
             </A>
             <A class={cls(onWorkloads("exact"))} href={href("tab=workloads&match_state=exact")}>
                 <span class="tile-head">Matched</span>

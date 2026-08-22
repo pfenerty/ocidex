@@ -263,7 +263,7 @@ function WorkloadsTabPanel(props: {
  */
 function VulnerabilitiesTabPanel(props: {
     clusterId: string;
-    coverage: { total: number; matched: number; unknown: number; unresolvable: number };
+    coverage: { total: number; matched: number; unknown: number; unresolvable: number; pods: number };
     searchParams: Record<string, string | string[] | undefined>;
     setSearchParams: (params: Record<string, string | number | undefined>) => void;
 }) {

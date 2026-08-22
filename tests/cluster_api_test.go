@@ -191,6 +191,7 @@ func TestClusterInventoryAPI(t *testing.T) {
 				Matched      int `json:"matched"`
 				Unknown      int `json:"unknown"`
 				Unresolvable int `json:"unresolvable"`
+				Pods         int `json:"pods"`
 			} `json:"coverage"`
 		}
 		is.NoErr(json.NewDecoder(resp.Body).Decode(&body))
@@ -217,6 +218,9 @@ func TestClusterInventoryAPI(t *testing.T) {
 		is.Equal(body.Coverage.Matched, 0)
 		is.Equal(body.Coverage.Unknown, 1)
 		is.Equal(body.Coverage.Unresolvable, 1)
+		// Pods is a second figure beside the K5 denominator, not a replacement
+		// for it: two workload-containers, three running pods.
+		is.Equal(body.Coverage.Pods, 3)
 	})
 
 	t.Run("empty snapshot means running nothing, not no report", func(t *testing.T) {

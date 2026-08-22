@@ -104,6 +104,10 @@ type WorkloadCoverage struct {
 	Matched      int64
 	Unknown      int64
 	Unresolvable int64
+	// Pods is how many running pods those workload-containers add up to. It is
+	// reported beside Total, never instead of it: Total is the unit the match
+	// states partition, so it stays the denominator.
+	Pods int64
 }
 
 // RunningVuln is one vulnerability carried by images currently running in a
@@ -562,6 +566,7 @@ func (s *clusterService) Coverage(ctx context.Context, clusterID string, filter 
 		Matched:      row.Matched,
 		Unknown:      row.Unknown,
 		Unresolvable: row.Unresolvable,
+		Pods:         row.Pods,
 	}, nil
 }
 

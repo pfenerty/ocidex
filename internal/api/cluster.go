@@ -265,12 +265,7 @@ func (h *Handler) ListClusterWorkloads(ctx context.Context, in *ListClusterWorkl
 		out.Body.Data[i] = toWorkloadResponse(w)
 	}
 	out.Body.Pagination = paginationMeta(result)
-	out.Body.Coverage = WorkloadCoverageResponse{
-		Total:        coverage.Total,
-		Matched:      coverage.Matched,
-		Unknown:      coverage.Unknown,
-		Unresolvable: coverage.Unresolvable,
-	}
+	out.Body.Coverage = toCoverageResponse(coverage)
 	return out, nil
 }
 
@@ -331,12 +326,7 @@ func (h *Handler) ListClusterVulns(ctx context.Context, in *ListClusterVulnsInpu
 			WorkloadCount: v.WorkloadCount,
 		}
 	}
-	out.Body.Coverage = WorkloadCoverageResponse{
-		Total:        coverage.Total,
-		Matched:      coverage.Matched,
-		Unknown:      coverage.Unknown,
-		Unresolvable: coverage.Unresolvable,
-	}
+	out.Body.Coverage = toCoverageResponse(coverage)
 	out.Body.Pagination = PaginationMeta{Total: page.Total, Limit: page.Limit, Offset: page.Offset}
 	return out, nil
 }
@@ -485,4 +475,17 @@ func toWorkloadVulnCounts(v *service.VulnCounts) *WorkloadVulnCounts {
 		return nil
 	}
 	return &WorkloadVulnCounts{Critical: v.Critical, High: v.High, Medium: v.Medium, Low: v.Low}
+}
+
+// toCoverageResponse projects the K5 accounting onto the wire. It exists once
+// so a new field cannot be added to one listing's coverage and forgotten on the
+// other's.
+func toCoverageResponse(c service.WorkloadCoverage) WorkloadCoverageResponse {
+	return WorkloadCoverageResponse{
+		Total:        c.Total,
+		Matched:      c.Matched,
+		Unknown:      c.Unknown,
+		Unresolvable: c.Unresolvable,
+		Pods:         c.Pods,
+	}
 }

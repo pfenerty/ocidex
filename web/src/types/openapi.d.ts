@@ -3616,6 +3616,11 @@ export interface components {
         WorkloadCoverageResponse: {
             /** Format: int64 */
             matched: number;
+            /**
+             * Format: int64
+             * @description Running pods those workload-containers add up to. Reported beside total, not instead of it: total is the unit the match states partition
+             */
+            pods: number;
             /** Format: int64 */
             total: number;
             /**

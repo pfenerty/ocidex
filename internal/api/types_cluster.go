@@ -171,6 +171,7 @@ type WorkloadCoverageResponse struct {
 	Matched      int64 `json:"matched"`
 	Unknown      int64 `json:"unknown" doc:"Valid digests with no ingested SBOM: a coverage gap"`
 	Unresolvable int64 `json:"unresolvable" doc:"Containers whose imageID yielded no digest: an agent or runtime gap"`
+	Pods         int64 `json:"pods" doc:"Running pods those workload-containers add up to. Reported beside total, not instead of it: total is the unit the match states partition"`
 }
 
 // ListClusterWorkloadsInput is the request for GET /api/v1/clusters/{id}/workloads.

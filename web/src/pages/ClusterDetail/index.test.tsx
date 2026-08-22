@@ -176,7 +176,7 @@ function unknownImage(overrides: Record<string, unknown> = {}) {
 
 function renderPage(
     workloads: unknown[],
-    coverage: { total: number; matched: number; unknown: number; unresolvable: number },
+    coverage: { total: number; matched: number; unknown: number; unresolvable: number; pods: number },
     vulns: unknown[] = [],
 ) {
     mockIngest.mockImplementation((() => ({
@@ -281,7 +281,7 @@ function must<T>(value: T | null | undefined, what: string): T {
     return value;
 }
 
-const GAPPY = { total: 10, matched: 4, unknown: 5, unresolvable: 1 };
+const GAPPY = { total: 10, matched: 4, unknown: 5, unresolvable: 1, pods: 23 };
 
 describe("ClusterDetail", () => {
     beforeEach(() => {
@@ -304,6 +304,23 @@ describe("ClusterDetail", () => {
         expect(tiles).toHaveLength(4);
         expect(must(tiles[1], "matched tile").textContent).toContain("4");
         expect(must(tiles[1], "matched tile").textContent).toContain("40%");
+    });
+
+    // The tile counts workload-containers, which is the denominator every
+    // vulnerability figure below it is computed over (ADR-044 K5). It used to
+    // claim it was "deduplicated per image", which it never was — and a wrong
+    // denominator is the failure K5 exists to prevent.
+    it("labels the containers tile with what it actually counts", () => {
+        const { container } = renderPage([workload()], GAPPY);
+
+        const containers = must(
+            container.querySelectorAll(".coverage-tile")[0],
+            "containers tile",
+        );
+        expect(containers.textContent).toContain("10");
+        expect(containers.textContent).toContain("workload containers");
+        expect(containers.textContent).toContain("23 pods");
+        expect(containers.textContent).not.toContain("deduplicated");
     });
 
     // The complaint this epic started from: the No-SBOM tile was tinted red on
@@ -341,6 +358,7 @@ describe("ClusterDetail", () => {
             matched: 4,
             unknown: 0,
             unresolvable: 0,
+            pods: 9,
         });
 
         for (const tile of container.querySelectorAll(".coverage-tile")) {
@@ -415,6 +433,7 @@ describe("ClusterDetail", () => {
                 matched: state === "exact" || state === "index" ? 1 : 0,
                 unknown: state === "unknown" ? 1 : 0,
                 unresolvable: state === "unresolvable" ? 1 : 0,
+                pods: 1,
             });
             const row = must(container.querySelector("tbody tr"), "workload row");
             expect(row.textContent).toContain(label);
@@ -814,6 +833,7 @@ describe("ClusterDetail", () => {
             matched: 4,
             unknown: 0,
             unresolvable: 0,
+            pods: 9,
         });
 
         expect(container.textContent).toContain("There is nothing to ingest");

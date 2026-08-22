@@ -212,7 +212,13 @@ SELECT
     COUNT(*)                                                            AS total,
     COUNT(*) FILTER (WHERE w.image_digest IS NULL)                      AS unresolvable,
     COUNT(*) FILTER (WHERE w.image_digest IS NOT NULL AND s.id IS NULL) AS unknown,
-    COUNT(*) FILTER (WHERE s.id IS NOT NULL)                            AS matched
+    COUNT(*) FILTER (WHERE s.id IS NOT NULL)                            AS matched,
+    -- The four counts above are workload-containers, which is the unit the
+    -- match states partition and therefore the denominator under every
+    -- vulnerability figure on the page. Pods is reported alongside so the
+    -- reader can tell a 40-replica Deployment from 40 distinct services; it is
+    -- a second figure, never a substitute for the denominator.
+    COALESCE(SUM(w.pod_count), 0)::bigint                               AS pods
 FROM cluster_workload w
 JOIN cluster c ON c.id = w.cluster_id
 LEFT JOIN LATERAL (
@@ -237,6 +243,7 @@ type GetClusterWorkloadCoverageRow struct {
 	Unresolvable int64 `json:"unresolvable"`
 	Unknown      int64 `json:"unknown"`
 	Matched      int64 `json:"matched"`
+	Pods         int64 `json:"pods"`
 }
 
 // The counts that must accompany any vulnerability figure reported over running
@@ -250,6 +257,7 @@ func (q *Queries) GetClusterWorkloadCoverage(ctx context.Context, arg GetCluster
 		&i.Unresolvable,
 		&i.Unknown,
 		&i.Matched,
+		&i.Pods,
 	)
 	return i, err
 }
