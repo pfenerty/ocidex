@@ -5,7 +5,7 @@ image:
   repository: ghcr.io/pfenerty/ocidex-operator
   # tag defaults to Chart.appVersion (set to sha-<short> or vX.Y.Z at package time).
   # Override with --set image.tag=<tag> to pin a specific version.
-  tag: ""
+  tag: "@sha256:e84c25c5d6ccc34fdea3167b52254ab1c7e0bcee7690492f9eddf3bbe29d7feb"
   pullPolicy: IfNotPresent
   # digest pins the operator image to an immutable sha256 digest and is baked in at
   # release-package time by the helm-release CI task (release builds only; empty for
