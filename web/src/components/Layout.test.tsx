@@ -101,6 +101,21 @@ describe("Layout", () => {
         expect(mockNavigate).not.toHaveBeenCalled();
     });
 
+    // Every public route must survive a signed-out visit. `authedPaths` is a
+    // prefix match, so adding a bare "/" — or a prefix that happens to cover a
+    // public detail route — would bounce anonymous readers off pages the API
+    // serves them anonymously (/api/v1/stats, /discover and /vulns/{id} all
+    // answer 200 with no session).
+    it.each(["/", "/vulnerabilities/CVE-2026-46595", "/artifacts", "/components"])(
+        "does not redirect an unauthenticated visitor on %s",
+        (path) => {
+            mockLocation.pathname = path;
+            mockUserFn = asResource(undefined);
+            render(() => <Layout>page</Layout>);
+            expect(mockNavigate).not.toHaveBeenCalled();
+        },
+    );
+
     it("calls fetch and refetch when logout button is clicked", async () => {
         const mockFetch = vi.fn().mockResolvedValue({ ok: true });
         vi.stubGlobal("fetch", mockFetch);

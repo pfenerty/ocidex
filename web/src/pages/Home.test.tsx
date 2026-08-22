@@ -145,6 +145,34 @@ function renderHome(query: StatsQuery, discovery?: DiscoveryQuery) {
     return render(() => <Home />);
 }
 
+// The landing page is the one route an anonymous visitor always hits first.
+// It used to bounce to /login because HomeBand's three /users/me/* queries ran
+// unconditionally and unwrap() hard-navigated on any 401 (ocidex-ag4q.1/.2).
+// Both mechanisms are gone; this pins the outcome at the page level, and
+// Layout.test.tsx pins that "/" is not an authed path.
+describe("Home for signed-out visitors", () => {
+    it("renders the catalog without navigating to /login", () => {
+        const before = window.location.pathname;
+        const { container } = renderHome(
+            {
+                isLoading: false,
+                isError: false,
+                data: {
+                    artifact_count: 38,
+                    package_count: 107868,
+                    license_count: 545,
+                    vuln_count: 12,
+                },
+            },
+            { isError: false, data: populatedDiscovery() },
+        );
+
+        expect(container.textContent).toContain("38 artifacts");
+        expect(container.textContent).not.toContain("Catalog stats are unavailable");
+        expect(window.location.pathname).toBe(before);
+    });
+});
+
 describe("Home catalog stats", () => {
     it("renders the counts once stats load", () => {
         const { getByText } = renderHome({
