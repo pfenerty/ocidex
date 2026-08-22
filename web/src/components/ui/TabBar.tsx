@@ -17,10 +17,15 @@ export function TabBar<T extends string>(props: {
     tabs: readonly TabDef<T>[];
     active: T;
     onSelect: (id: T) => void;
+    /** Appended to `.tab-bar`, for spacing utilities like `mb-4`. */
+    class?: string;
     style?: JSX.CSSProperties;
 }): JSX.Element {
     return (
-        <div class="tab-bar" style={props.style}>
+        <div
+            class={props.class !== undefined ? `tab-bar ${props.class}` : "tab-bar"}
+            style={props.style}
+        >
             <For each={props.tabs}>
                 {(t) => (
                     <button

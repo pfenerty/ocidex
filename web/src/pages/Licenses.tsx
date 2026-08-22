@@ -1,12 +1,12 @@
 import { createSignal } from "solid-js";
 import { DEFAULT_PAGE_SIZE } from "~/api/client";
-import { For } from "solid-js";
 import { A } from "@solidjs/router";
 import { useLicenses } from "~/api/queries";
 import type { components } from "~/types/openapi";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { SpdxBadgeCell, LicenseCategoryCell } from "~/components/cells";
+import { TabBar } from "~/components/ui";
 
 type LicenseCount = components["schemas"]["LicenseCount"];
 
@@ -77,21 +77,18 @@ export default function Licenses() {
                 </div>
             </div>
 
-            <div class="tab-bar mb-4">
-                <For each={categoryTabs}>
-                    {(tab) => (
-                        <button
-                            class={`tab-btn${categoryFilter() === tab.value ? " active" : ""}`}
-                            onClick={() => {
-                                setCategoryFilter(tab.value);
-                                setOffset(0);
-                            }}
-                        >
-                            {tab.label}
-                        </button>
-                    )}
-                </For>
-            </div>
+            {/* This strip highlighted correctly on its own, but carried the same
+                stray `tab-btn` class as the two that did not. <TabBar> is the
+                only writer of the `.tab-bar button.active` contract. */}
+            <TabBar
+                tabs={categoryTabs.map((t) => ({ id: t.value, label: t.label }))}
+                active={categoryFilter()}
+                onSelect={(value) => {
+                    setCategoryFilter(value);
+                    setOffset(0);
+                }}
+                class="mb-4"
+            />
 
             <form class="search-bar mb-4" onSubmit={handleSearch}>
                 <input

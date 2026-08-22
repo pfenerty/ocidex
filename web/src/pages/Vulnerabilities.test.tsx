@@ -62,6 +62,42 @@ function renderPage() {
     return { ...rendered, params: () => latest() };
 }
 
+// The severity strip highlighted nothing at all for as long as it existed: its
+// markup emitted class names the stylesheet never defined, so all six tabs
+// computed identically and the current filter was unreadable (ocidex-ag4q.6).
+// The contract is `.tab-bar button.active`, and these assert the rendered DOM
+// against it rather than against the strip's internal state.
+describe("Vulnerabilities severity filter", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it("marks All active before a severity is chosen", () => {
+        const { container } = renderPage();
+        const active = container.querySelectorAll(".tab-bar button.active");
+        expect(active.length).toBe(1);
+        expect(active[0].textContent).toBe("All");
+    });
+
+    it("moves the highlight to the clicked severity and filters the query", () => {
+        const { container, params } = renderPage();
+        expect(params().severity).toBe("");
+
+        // Scoped to the strip: "HIGH" also appears as a severity pill in the
+        // rows below.
+        const [high] = [...container.querySelectorAll(".tab-bar button")].filter(
+            (b) => b.textContent === "HIGH",
+        );
+        expect(high).toBeDefined();
+        fireEvent.click(high);
+
+        const active = container.querySelectorAll(".tab-bar button.active");
+        expect(active.length).toBe(1);
+        expect(active[0].textContent).toBe("HIGH");
+        expect(params().severity).toBe("HIGH");
+    });
+});
+
 describe("Vulnerabilities sorting", () => {
     beforeEach(() => {
         vi.clearAllMocks();

@@ -1,4 +1,4 @@
-import { createSignal, Show, For } from "solid-js";
+import { createSignal, Show } from "solid-js";
 import { DEFAULT_PAGE_SIZE } from "~/api/client";
 import { useNavigate } from "@solidjs/router";
 import { useTopVulnerabilities } from "~/api/queries";
@@ -7,10 +7,12 @@ import type { components } from "~/types/openapi";
 import DataTable from "~/components/DataTable";
 import type { Column, SortDir } from "~/components/DataTable";
 import { SeverityPill, VulnId } from "~/components/cells";
+import { TabBar } from "~/components/ui";
 
 type TopVulnEntry = components["schemas"]["TopVulnEntry"];
 
 const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"] as const;
+type SeverityTab = (typeof SEVERITY_TABS)[number];
 const limit = DEFAULT_PAGE_SIZE;
 
 export default function Vulnerabilities() {
@@ -31,7 +33,11 @@ export default function Vulnerabilities() {
         sort_dir: sortDir(),
     }));
 
-    const handleTabChange = (tab: string) => {
+    // The query wants "" for no filter; the strip wants a tab id. "All" is the
+    // one value where those two representations differ.
+    const activeSeverityTab = (): SeverityTab =>
+        (severityFilter() === "" ? "All" : severityFilter()) as SeverityTab;
+    const handleTabChange = (tab: SeverityTab) => {
         setSeverityFilter(tab === "All" ? "" : tab);
         setOffset(0);
     };
@@ -125,18 +131,17 @@ export default function Vulnerabilities() {
                     </div>
                 </div>
 
-                <div class="tab-bar">
-                    <For each={SEVERITY_TABS}>
-                        {(tab) => (
-                            <button
-                                class={`tab-btn${(tab === "All" ? "" : tab) === severityFilter() ? " tab-active" : ""}`}
-                                onClick={() => handleTabChange(tab)}
-                            >
-                                {tab}
-                            </button>
-                        )}
-                    </For>
-                </div>
+                {/* The severity strip is <TabBar>, not hand-rolled markup: the
+                    hand-rolled version emitted `tab-btn`/`tab-active`, neither
+                    of which exists in the stylesheet, so the active severity
+                    was indistinguishable from the other five (ocidex-ag4q.6).
+                    The real contract is `.tab-bar button.active`, and TabBar is
+                    the one place that writes it. */}
+                <TabBar
+                    tabs={SEVERITY_TABS.map((t) => ({ id: t, label: t }))}
+                    active={activeSeverityTab()}
+                    onSelect={handleTabChange}
+                />
 
                 <form class="search-bar mb-4" onSubmit={submitIdSearch}>
                     <input
