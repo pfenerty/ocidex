@@ -8,6 +8,7 @@ export * from "./PageHeader";
 export * from "./QueryBoundary";
 export * from "./SigningBadge";
 export * from "./TabBar";
+export * from "./Toolbar";
 export * from "./Tooltip";
 export * from "./TypeBadge";
 export * from "./expanded";

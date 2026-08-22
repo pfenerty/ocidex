@@ -578,6 +578,17 @@
         min-width: 260px;
     }
 
+    /* The inline `style={{}}` that Artifacts' "Show all" checkbox carries today.
+       A checkbox label must not wrap between the box and its text, or the row
+       reflows mid-word at the 768px breakpoint. */
+    .toolbar-check {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
     /* Tab bar */
     .tab-bar {
         display: flex;
