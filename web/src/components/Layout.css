@@ -247,6 +247,21 @@
     padding: 2rem;
     overflow-x: auto;
     min-width: 0;
+    /* Without this the column takes whatever the window gives it: measured at
+       2200px, 1220px of content was spread over the full field, so table rows
+       became mostly whitespace with the first and last cell a screen apart.
+
+       1600px is chosen against the content, not by feel. The widest public
+       table (/vulnerabilities, 7 columns) wants 803px at min-content; the
+       widest in the app is admin Sources at 9 columns. 1600 clears both with
+       room, and anything that still exceeds it scrolls in this column's own
+       overflow-x rather than stretching the page.
+
+       `margin-inline: auto` centres it in the area beside the sidebar, so the
+       reading column stays put as the window grows. Below 1600px `flex: 1`
+       wins and nothing about the current layout changes. */
+    max-width: 1600px;
+    margin-inline: auto;
 }
 
 @media (max-width: 768px) {

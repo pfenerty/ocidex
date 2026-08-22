@@ -2,8 +2,16 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const index = readFileSync(join(__dirname, "index.css"), "utf-8");
-const layout = readFileSync(join(__dirname, "components/Layout.css"), "utf-8");
+// Comments are stripped, or these assertions read the prose explaining a rule
+// instead of the rule: the .main-content cap's own comment names
+// `margin-inline: auto`, which made the centring assertion pass with the
+// declaration deleted.
+function declarations(path: string): string {
+    return readFileSync(join(__dirname, path), "utf-8").replace(/\/\*[\s\S]*?\*\//g, "");
+}
+
+const index = declarations("index.css");
+const layout = declarations("components/Layout.css");
 
 const STEPS = ["xs", "sm", "base", "lg", "xl", "2xl", "3xl"] as const;
 
@@ -65,5 +73,30 @@ describe("headings are sized from the scale, not from literals", () => {
 
     it(".page-header h2", () => {
         expect(rule(layout, ".page-header h2")).toMatch(/font-size:\s*var\(--text-/);
+    });
+});
+
+describe("the reading column is bounded", () => {
+    // Measured at a 2200px window before this cap: 1220px of content spread
+    // across the full field, so a table row put its first and last cell a
+    // screen apart. A width no rule states is a width nothing keeps.
+    const main = rule(layout, ".main-content");
+
+    it("caps .main-content", () => {
+        const m = /max-width:\s*(\d+)px/.exec(main);
+        expect(m).not.toBeNull();
+        // Wide enough for the app's widest table -- admin Sources, 9 columns --
+        // without turning the cap itself into the thing that clips content.
+        expect(Number(m?.[1])).toBeGreaterThanOrEqual(1400);
+    });
+
+    it("centres it rather than pinning it left", () => {
+        expect(main).toMatch(/margin-inline:\s*auto/);
+    });
+
+    it("still scrolls anything wider inside the column", () => {
+        // The cap must not become a clip: a table that exceeds it scrolls here
+        // instead of stretching the page.
+        expect(main).toMatch(/overflow-x:\s*auto/);
     });
 });
