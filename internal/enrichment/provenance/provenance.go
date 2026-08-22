@@ -185,7 +185,10 @@ func (e *Enricher) Enrich(ctx context.Context, ref subject.Ref) ([]byte, error) 
 		return data, nil
 	}
 
-	raw := e.discover(digestRef, repo, lookupDigest, opts)
+	raw, err := e.discover(digestRef, repo, lookupDigest, opts)
+	if err != nil {
+		return nil, fmt.Errorf("discovering provenance for %q: %w", imageRef, err)
+	}
 	p := buildProvenance(raw)
 	if p.RekorLogIndex > 0 {
 		p.RekorUUID = fetchRekorUUID(ctx, p.RekorLogIndex)
@@ -229,13 +232,23 @@ func (e *Enricher) applyTrust(ctx context.Context, p *Provenance, raw RawArtifac
 	}
 }
 
+// isNotFound reports whether err is a registry 404 (MANIFEST_UNKNOWN /
+// NAME_UNKNOWN), i.e. positive evidence that the thing being fetched does not
+// exist. Every other failure — 401, 429, 5xx, TLS, context deadline — is
+// transient and says nothing about existence. Discovery must not confuse the
+// two: doing so turns a rate-limited recheck into a false "unsigned" and, in
+// turn, a false verified -> unsigned drift event.
+func isNotFound(err error) bool {
+	var terr *transport.Error
+	return errors.As(err, &terr) && terr.StatusCode == http.StatusNotFound
+}
+
 // artifactMissing reports whether digestRef no longer exists in the registry
 // (404/MANIFEST_UNKNOWN). Any other error (network, auth, 5xx) is returned as
 // an error so the caller treats it as transient rather than deletion.
 func artifactMissing(digestRef name.Digest, opts []remote.Option) (bool, error) {
 	if _, err := remote.Head(digestRef, opts...); err != nil {
-		var terr *transport.Error
-		if errors.As(err, &terr) && terr.StatusCode == http.StatusNotFound {
+		if isNotFound(err) {
 			return true, nil
 		}
 		return false, err
@@ -244,12 +257,22 @@ func artifactMissing(digestRef name.Digest, opts []remote.Option) (bool, error) 
 }
 
 // discover tries the OCI 1.1 referrers API first, then falls back to the cosign tag scheme.
-func (e *Enricher) discover(digestRef name.Digest, repo name.Repository, rawDigest string, opts []remote.Option) RawArtifacts {
+//
+// A Referrers error is deliberately NOT fatal: registries that don't implement
+// OCI 1.1 reject the endpoint with assorted non-404 codes, so the error is no
+// evidence either way and the tag scheme is still worth trying. Once we reach
+// the tag scheme, though, its result is authoritative — a transient failure
+// there is returned as an error rather than reported as "no signature".
+func (e *Enricher) discover(digestRef name.Digest, repo name.Repository, rawDigest string, opts []remote.Option) (RawArtifacts, error) {
 	// OCI 1.1 referrers API (go-containerregistry also tries the sha256-<hex> fallback tag internally).
 	idx, err := remote.Referrers(digestRef, opts...)
 	if err == nil {
-		if result, found := e.extractFromReferrers(idx, repo, opts); found {
-			return result
+		result, found, extractErr := e.extractFromReferrers(idx, repo, opts)
+		if extractErr != nil {
+			return RawArtifacts{}, extractErr
+		}
+		if found {
+			return result, nil
 		}
 	}
 	// Cosign tag scheme: sha256-<hex>.sig and sha256-<hex>.att
@@ -259,10 +282,10 @@ func (e *Enricher) discover(digestRef name.Digest, repo name.Repository, rawDige
 // extractFromReferrers iterates a referrers index and extracts sig/att artifacts.
 // go-containerregistry's remoteIndex.Image() panics when called on a referrers index
 // (the ref field is unset), so child images are fetched directly via remote.Image().
-func (e *Enricher) extractFromReferrers(idx v1.ImageIndex, repo name.Repository, opts []remote.Option) (RawArtifacts, bool) {
+func (e *Enricher) extractFromReferrers(idx v1.ImageIndex, repo name.Repository, opts []remote.Option) (RawArtifacts, bool, error) {
 	idxManifest, err := idx.IndexManifest()
 	if err != nil {
-		return RawArtifacts{}, false
+		return RawArtifacts{}, false, fmt.Errorf("reading referrers index: %w", err)
 	}
 
 	var result RawArtifacts
@@ -274,9 +297,12 @@ func (e *Enricher) extractFromReferrers(idx v1.ImageIndex, repo name.Repository,
 			if result.SigPresent {
 				continue // take first sig only
 			}
-			annotations, layerBytes, ok := fetchReferrerLayer(repo, desc, opts)
-			if !ok {
-				continue
+			annotations, layerBytes, err := fetchReferrerLayer(repo, desc, opts)
+			if isNotFound(err) {
+				continue // dangling index entry; the tag scheme gets the final say
+			}
+			if err != nil {
+				return RawArtifacts{}, false, err
 			}
 			result.SigAnnotations = annotations
 			result.SigLayerBytes = layerBytes
@@ -286,9 +312,12 @@ func (e *Enricher) extractFromReferrers(idx v1.ImageIndex, repo name.Repository,
 			if result.AttPresent {
 				continue // take first att only; prefer earlier-listed match if multiple present
 			}
-			annotations, layerBytes, ok := fetchReferrerLayer(repo, desc, opts)
-			if !ok {
-				continue
+			annotations, layerBytes, err := fetchReferrerLayer(repo, desc, opts)
+			if isNotFound(err) {
+				continue // dangling index entry; the tag scheme gets the final say
+			}
+			if err != nil {
+				return RawArtifacts{}, false, err
 			}
 			result.AttAnnotations = annotations
 			result.AttLayerBytes = layerBytes
@@ -297,45 +326,75 @@ func (e *Enricher) extractFromReferrers(idx v1.ImageIndex, repo name.Repository,
 		}
 	}
 
-	return result, result.SigPresent || result.AttPresent
+	return result, result.SigPresent || result.AttPresent, nil
 }
 
 // fetchReferrerLayer fetches a referrer's child image and returns its merged
 // manifest annotations and first-layer bytes. go-containerregistry's
 // remoteIndex.Image() panics when called on a referrers index (the ref field
 // is unset), so child images are fetched directly via remote.Image().
-func fetchReferrerLayer(repo name.Repository, desc v1.Descriptor, opts []remote.Option) (annotations map[string]string, layerBytes []byte, ok bool) {
+//
+// Failures here do not mean "unsigned": the referrers index has already told us
+// this artifact exists, so being unable to fetch it is never evidence of
+// absence. Errors propagate rather than degrading to "no signature found". The
+// caller makes one exception, for a 404 — an index entry contradicted by the
+// manifest store is a dangling entry, not a transient fault, and erroring on it
+// would wedge that SBOM's enrichment for as long as the registry stayed
+// inconsistent. That case falls back to the tag scheme instead.
+func fetchReferrerLayer(repo name.Repository, desc v1.Descriptor, opts []remote.Option) (annotations map[string]string, layerBytes []byte, err error) {
 	childRef := repo.Digest(desc.Digest.String())
 	img, err := remote.Image(childRef, opts...)
 	if err != nil {
-		return nil, nil, false
+		return nil, nil, fmt.Errorf("fetching referrer %s: %w", desc.Digest.String(), err)
 	}
-	layerBytes, _ = readFirstLayer(img)
-	return manifestAnnotations(img), layerBytes, true
+	layerBytes, err = readFirstLayer(img)
+	if err != nil {
+		return nil, nil, fmt.Errorf("reading referrer %s layer: %w", desc.Digest.String(), err)
+	}
+	return manifestAnnotations(img), layerBytes, nil
 }
 
 // discoverViaTagScheme fetches sha256-<hex>.sig and sha256-<hex>.att tags from the same repo.
-func (e *Enricher) discoverViaTagScheme(repo name.Repository, rawDigest string, opts []remote.Option) RawArtifacts {
+//
+// This is the authoritative "is it signed?" answer, so only a 404 counts as
+// absent. Any other failure is returned as an error and surfaces as a failed
+// enrichment, which the outbox retries — rather than being recorded as a
+// successful "unsigned" result.
+func (e *Enricher) discoverViaTagScheme(repo name.Repository, rawDigest string, opts []remote.Option) (RawArtifacts, error) {
 	hexDigest := strings.Replace(rawDigest, ":", "-", 1) // sha256:abc → sha256-abc
 
 	var result RawArtifacts
 	result.DiscoveryMethod = "tag-scheme"
 
 	sigRef := repo.Tag(hexDigest + ".sig")
-	if img, err := remote.Image(sigRef, opts...); err == nil {
+	img, err := remote.Image(sigRef, opts...)
+	switch {
+	case err == nil:
+		result.SigLayerBytes, err = readFirstLayer(img)
+		if err != nil {
+			return RawArtifacts{}, fmt.Errorf("reading %s layer: %w", sigRef, err)
+		}
 		result.SigAnnotations = manifestAnnotations(img)
-		result.SigLayerBytes, _ = readFirstLayer(img)
 		result.SigPresent = true
+	case !isNotFound(err):
+		return RawArtifacts{}, fmt.Errorf("fetching %s: %w", sigRef, err)
 	}
 
 	attRef := repo.Tag(hexDigest + ".att")
-	if img, err := remote.Image(attRef, opts...); err == nil {
+	img, err = remote.Image(attRef, opts...)
+	switch {
+	case err == nil:
+		result.AttLayerBytes, err = readFirstLayer(img)
+		if err != nil {
+			return RawArtifacts{}, fmt.Errorf("reading %s layer: %w", attRef, err)
+		}
 		result.AttAnnotations = manifestAnnotations(img)
-		result.AttLayerBytes, _ = readFirstLayer(img)
 		result.AttPresent = true
+	case !isNotFound(err):
+		return RawArtifacts{}, fmt.Errorf("fetching %s: %w", attRef, err)
 	}
 
-	return result
+	return result, nil
 }
 
 // manifestAnnotations returns merged manifest + layer[0] annotations.

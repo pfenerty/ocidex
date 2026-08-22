@@ -57,3 +57,27 @@ WHERE (
   )
 ORDER BY d.detected_at DESC, d.id DESC
 LIMIT @row_limit;
+
+-- UpsertProvenanceDriftPending records an unconfirmed signing-status
+-- transition, replacing any prior pending observation for the same SBOM.
+-- See db/migrations/00062_provenance_drift_pending.sql for why "unsigned"
+-- needs a second observation before it becomes an event.
+-- name: UpsertProvenanceDriftPending :exec
+INSERT INTO provenance_drift_pending (sbom_id, previous_status, new_status, reason, previous_data, new_data)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (sbom_id)
+DO UPDATE SET
+    previous_status = EXCLUDED.previous_status,
+    new_status      = EXCLUDED.new_status,
+    reason          = EXCLUDED.reason,
+    previous_data   = EXCLUDED.previous_data,
+    new_data        = EXCLUDED.new_data,
+    first_seen_at   = now();
+
+-- name: GetProvenanceDriftPending :one
+SELECT sbom_id, previous_status, new_status, reason, previous_data, new_data, first_seen_at
+FROM provenance_drift_pending
+WHERE sbom_id = $1;
+
+-- name: DeleteProvenanceDriftPending :exec
+DELETE FROM provenance_drift_pending WHERE sbom_id = $1;

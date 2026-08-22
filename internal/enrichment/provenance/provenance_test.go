@@ -634,6 +634,187 @@ func TestEnrich_ExistenceCheckTransientError(t *testing.T) {
 	is.True(err != nil)
 }
 
+// TestEnrich_TagSchemeTransientError verifies that a non-404 failure fetching
+// a cosign .sig or .att tag surfaces as an Enrich() error rather than a
+// successful "unsigned" result. The existence HEAD has already succeeded here,
+// so the only thing standing between a rate-limited registry and a false
+// verified -> unsigned drift event is this classification.
+func TestEnrich_TagSchemeTransientError(t *testing.T) {
+	hexDigest := strings.TrimPrefix(testImageDigest, "sha256:")
+	repo := "/repo"
+	tagBase := "sha256-" + hexDigest
+
+	tests := []struct {
+		name    string
+		path    string
+		status  int
+		wantErr bool
+	}{
+		{"sig rate limited", repo + "/manifests/" + tagBase + ".sig", http.StatusTooManyRequests, true},
+		{"sig unauthorized", repo + "/manifests/" + tagBase + ".sig", http.StatusUnauthorized, true},
+		{"sig server error", repo + "/manifests/" + tagBase + ".sig", http.StatusInternalServerError, true},
+		{"att rate limited", repo + "/manifests/" + tagBase + ".att", http.StatusTooManyRequests, true},
+		{"sig genuinely absent", repo + "/manifests/" + tagBase + ".sig", http.StatusNotFound, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			is := is.New(t)
+			routes := map[string]route{
+				// No referrers support → tag-scheme fallback.
+				repo + "/referrers/sha256:" + hexDigest: {statusCode: http.StatusNotFound},
+				repo + "/manifests/sha256-" + hexDigest: {statusCode: http.StatusNotFound},
+				// Both cosign tags absent by default; the case under test overrides one.
+				repo + "/manifests/" + tagBase + ".sig": {statusCode: http.StatusNotFound},
+				repo + "/manifests/" + tagBase + ".att": {statusCode: http.StatusNotFound},
+			}
+			routes[tc.path] = route{statusCode: tc.status}
+
+			srv := newTestServer(t, routes)
+			defer srv.Close()
+
+			e := newTestEnricher(srv)
+			data, err := e.Enrich(t.Context(), testRef(strings.TrimPrefix(srv.URL, "http://")))
+			if tc.wantErr {
+				is.True(err != nil)
+				return
+			}
+
+			// A real 404 on both tags is the genuine "never signed" answer.
+			is.NoErr(err)
+			var result Provenance
+			is.NoErr(json.Unmarshal(data, &result))
+			is.True(!result.SignaturePresent)
+			is.True(!result.AttestationPresent)
+			is.True(!result.ArtifactMissing)
+		})
+	}
+}
+
+// TestEnrich_ReferrerFetchTransientError verifies that failing to fetch a
+// referrer the index has already listed is an error, not an absence. The index
+// is positive evidence the signature exists, so degrading to "unsigned" here
+// would report the opposite of what the registry just told us.
+func TestEnrich_ReferrerFetchTransientError(t *testing.T) {
+	is := is.New(t)
+
+	sigLayerDigest := digestOf(fakeSigPayload)
+	configDigest := digestOf(fakeConfig)
+	sigManifestBytes, _ := buildManifest(
+		"application/vnd.dev.cosign.simplesigning.v1+json",
+		sigLayerDigest, len(fakeSigPayload), configDigest,
+		map[string]string{"dev.cosignproject.cosign/signature": "dGVzdHNpZw=="},
+	)
+	sigManifestDigest := digestOf(sigManifestBytes)
+
+	hexDigest := strings.TrimPrefix(testImageDigest, "sha256:")
+	repo := "/repo"
+
+	routes := map[string]route{
+		repo + "/referrers/sha256:" + hexDigest: {
+			contentType: "application/vnd.oci.image.index.v1+json",
+			body:        buildSigOnlyReferrersIndex(sigManifestDigest, len(sigManifestBytes)),
+		},
+		// The referrer is listed but its manifest fetch is throttled.
+		repo + "/manifests/" + sigManifestDigest: {statusCode: http.StatusTooManyRequests},
+	}
+
+	srv := newTestServer(t, routes)
+	defer srv.Close()
+
+	e := newTestEnricher(srv)
+	_, err := e.Enrich(t.Context(), testRef(strings.TrimPrefix(srv.URL, "http://")))
+	is.True(err != nil)
+}
+
+// TestEnrich_ReferrerLayerTransientError covers the same failure one level
+// deeper: the referrer manifest is served but its signature blob is not.
+func TestEnrich_ReferrerLayerTransientError(t *testing.T) {
+	is := is.New(t)
+
+	sigLayerDigest := digestOf(fakeSigPayload)
+	configDigest := digestOf(fakeConfig)
+	sigManifestBytes, _ := buildManifest(
+		"application/vnd.dev.cosign.simplesigning.v1+json",
+		sigLayerDigest, len(fakeSigPayload), configDigest,
+		map[string]string{"dev.cosignproject.cosign/signature": "dGVzdHNpZw=="},
+	)
+	sigManifestDigest := digestOf(sigManifestBytes)
+
+	hexDigest := strings.TrimPrefix(testImageDigest, "sha256:")
+	repo := "/repo"
+
+	routes := map[string]route{
+		repo + "/referrers/sha256:" + hexDigest: {
+			contentType: "application/vnd.oci.image.index.v1+json",
+			body:        buildSigOnlyReferrersIndex(sigManifestDigest, len(sigManifestBytes)),
+		},
+		repo + "/manifests/" + sigManifestDigest: {
+			contentType: "application/vnd.oci.image.manifest.v1+json",
+			body:        sigManifestBytes,
+		},
+		repo + "/blobs/" + sigLayerDigest: {statusCode: http.StatusInternalServerError},
+		repo + "/blobs/" + configDigest:   {body: fakeConfig},
+	}
+
+	srv := newTestServer(t, routes)
+	defer srv.Close()
+
+	e := newTestEnricher(srv)
+	_, err := e.Enrich(t.Context(), testRef(strings.TrimPrefix(srv.URL, "http://")))
+	is.True(err != nil)
+}
+
+// TestEnrich_DanglingReferrerFallsBackToTagScheme verifies that a referrers
+// entry the manifest store 404s on does not wedge enrichment. The index and the
+// store contradict each other, which is a dangling entry rather than a
+// transient fault, so discovery falls through to the cosign tag scheme and
+// takes its answer from there.
+func TestEnrich_DanglingReferrerFallsBackToTagScheme(t *testing.T) {
+	is := is.New(t)
+
+	sigLayerDigest := digestOf(fakeSigPayload)
+	configDigest := digestOf(fakeConfig)
+	sigManifestBytes, _ := buildManifest(
+		"application/vnd.dev.cosign.simplesigning.v1+json",
+		sigLayerDigest, len(fakeSigPayload), configDigest,
+		map[string]string{"dev.cosignproject.cosign/signature": "dGVzdHNpZw=="},
+	)
+	sigManifestDigest := digestOf(sigManifestBytes)
+
+	hexDigest := strings.TrimPrefix(testImageDigest, "sha256:")
+	repo := "/repo"
+	tagBase := "sha256-" + hexDigest
+
+	routes := map[string]route{
+		repo + "/referrers/sha256:" + hexDigest: {
+			contentType: "application/vnd.oci.image.index.v1+json",
+			body:        buildSigOnlyReferrersIndex(sigManifestDigest, len(sigManifestBytes)),
+		},
+		// The index lists it; the manifest store disagrees.
+		repo + "/manifests/" + sigManifestDigest: {statusCode: http.StatusNotFound},
+		// The tag scheme still serves the signature.
+		repo + "/manifests/" + tagBase + ".sig": {
+			contentType: "application/vnd.oci.image.manifest.v1+json",
+			body:        sigManifestBytes,
+		},
+		repo + "/manifests/" + tagBase + ".att": {statusCode: http.StatusNotFound},
+		repo + "/blobs/" + sigLayerDigest:       {body: fakeSigPayload},
+		repo + "/blobs/" + configDigest:         {body: fakeConfig},
+	}
+
+	srv := newTestServer(t, routes)
+	defer srv.Close()
+
+	e := newTestEnricher(srv)
+	data, err := e.Enrich(t.Context(), testRef(strings.TrimPrefix(srv.URL, "http://")))
+	is.NoErr(err)
+
+	var result Provenance
+	is.NoErr(json.Unmarshal(data, &result))
+	is.True(result.SignaturePresent)
+}
+
 // ----- CanEnrich / Name -------------------------------------------------------
 
 func TestCanEnrich(t *testing.T) {

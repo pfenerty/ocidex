@@ -216,6 +216,16 @@ type ProvenanceDriftEvent struct {
 	DetectedAt     pgtype.Timestamptz `json:"detected_at"`
 }
 
+type ProvenanceDriftPending struct {
+	SbomID         pgtype.UUID        `json:"sbom_id"`
+	PreviousStatus string             `json:"previous_status"`
+	NewStatus      string             `json:"new_status"`
+	Reason         string             `json:"reason"`
+	PreviousData   []byte             `json:"previous_data"`
+	NewData        []byte             `json:"new_data"`
+	FirstSeenAt    pgtype.Timestamptz `json:"first_seen_at"`
+}
+
 type PurlVulnState struct {
 	Purl      string             `json:"purl"`
 	CheckedAt pgtype.Timestamptz `json:"checked_at"`
