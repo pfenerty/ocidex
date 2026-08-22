@@ -69,6 +69,7 @@ export type ComponentDetail = components["schemas"]["ComponentDetail"];
 export type VulnSummary = components["schemas"]["VulnSummary"];
 export type Cluster = components["schemas"]["ClusterResponse"];
 export type ClusterWorkload = components["schemas"]["ClusterWorkloadResponse"];
+export type ClusterImage = components["schemas"]["ClusterImageResponse"];
 export type WorkloadCoverage = components["schemas"]["WorkloadCoverageResponse"];
 export type WorkloadMatchState = ClusterWorkload["match_state"];
 export type RunningVuln = components["schemas"]["RunningVulnResponse"];

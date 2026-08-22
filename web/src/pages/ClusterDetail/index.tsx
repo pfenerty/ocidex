@@ -10,13 +10,24 @@ import {
 } from "~/components/ui";
 import { SkeletonHeader } from "~/components/Skeleton";
 import { StalenessPill } from "../Clusters";
-import { useCluster, useClusterNamespaces, useClusterWorkloads } from "~/api/queries";
-import type { WorkloadSortKey, ClusterVulnSortKey, VulnSeverityFilter } from "~/api/queries";
+import {
+    useCluster,
+    useClusterImages,
+    useClusterNamespaces,
+    useClusterWorkloads,
+} from "~/api/queries";
+import type {
+    WorkloadSortKey,
+    ImageSortKey,
+    ClusterVulnSortKey,
+    VulnSeverityFilter,
+} from "~/api/queries";
 import type { SortDir } from "~/components/DataTable";
 import type { WorkloadMatchState } from "~/api/client";
 import { CoverageBand } from "./CoverageBand";
 import { OverviewTab } from "./OverviewTab";
-import { WorkloadsTab, WorkloadsFilterBar } from "./WorkloadsTab";
+import { WorkloadsTab, ImagesTab, WorkloadsFilterBar } from "./WorkloadsTab";
+import type { InventoryGrouping } from "./WorkloadsTab";
 import { VulnerabilitiesTab, SEVERITIES, SORT_KEYS as VULN_SORT_KEYS } from "./VulnerabilitiesTab";
 import { GapsTab } from "./GapsTab";
 
@@ -162,20 +173,36 @@ export default function ClusterDetail() {
     );
 }
 
-/** The sort keys the API accepts, so a hand-edited URL cannot request one it doesn't. */
-const SORT_KEYS: WorkloadSortKey[] = [
-    "k8s_namespace",
-    "workload_name",
-    "container_name",
-    "image_ref",
-    "match_state",
-    "pod_count",
-    "last_seen_at",
-    "vuln_count",
-];
+/**
+ * The sort keys the API accepts for each grouping, so a hand-edited URL cannot
+ * request one it doesn't — and so switching grouping cannot carry over a key
+ * the other list has no column for.
+ */
+const SORT_KEYS: Record<InventoryGrouping, string[]> = {
+    workload: [
+        "k8s_namespace",
+        "workload_name",
+        "container_name",
+        "image_ref",
+        "match_state",
+        "pod_count",
+        "last_seen_at",
+        "vuln_count",
+    ],
+    image: ["image_ref", "match_state", "workload_count", "pod_count", "last_seen_at", "vuln_count"],
+};
 
 /**
- * WorkloadsTabPanel owns the workload filters, sort and page offset, all of
+ * Worst findings first, in both groupings.
+ *
+ * The old default was namespace ascending, which is alphabetical rather than
+ * actionable: it opened on whatever happens to be called "argocd". The first
+ * screen should be the one worth acting on.
+ */
+const DEFAULT_SORT = "vuln_count";
+
+/**
+ * WorkloadsTabPanel owns the grouping, filters, sort and page offset, all of
  * which live in search params so a narrowed view is linkable.
  *
  * The text box is the one exception: it is debounced through a local signal so
@@ -190,11 +217,22 @@ function WorkloadsTabPanel(props: {
 }) {
     const q = () => one(props.searchParams.q) ?? "";
     const k8sNamespace = () => one(props.searchParams.k8s_namespace) ?? "";
-    const sortBy = (): WorkloadSortKey => {
+    // By image is the default because an image is the unit of the remedy: a
+    // rollout of one unscanned image across fourteen deployments is one SBOM to
+    // ingest, and fourteen near-identical rows to read.
+    const group = (): InventoryGrouping =>
+        one(props.searchParams.group) === "workload" ? "workload" : "image";
+    const sortBy = (): string => {
         const raw = one(props.searchParams.sort);
-        return SORT_KEYS.find((candidate) => candidate === raw) ?? "k8s_namespace";
+        return SORT_KEYS[group()].find((candidate) => candidate === raw) ?? DEFAULT_SORT;
     };
-    const sortDir = (): SortDir => (one(props.searchParams.dir) === "desc" ? "desc" : "asc");
+    // Severity's useful default is worst-first, the opposite of the ascending
+    // default every text column wants.
+    const sortDir = (): SortDir => {
+        const raw = one(props.searchParams.dir);
+        if (raw === "asc" || raw === "desc") return raw;
+        return sortBy() === DEFAULT_SORT ? "desc" : "asc";
+    };
     const offset = () => {
         const parsed = Number(one(props.searchParams.offset));
         return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
@@ -212,46 +250,92 @@ function WorkloadsTabPanel(props: {
         }, 300);
     };
 
+    // The filters are shared, so the two hooks take the same params; only the
+    // cluster id is withheld from the inactive one, which is what its `enabled`
+    // gate reads. Both hooks must still be called on every render.
+    const listParams = () => ({
+        match_state: props.matchState,
+        ...(k8sNamespace() === "" ? {} : { k8s_namespace: k8sNamespace() }),
+        ...(q() === "" ? {} : { q: q() }),
+        dir: sortDir(),
+        limit: 50,
+        offset: offset(),
+    });
+    const workloadId = () => (group() === "workload" ? props.clusterId : undefined);
+    const imageId = () => (group() === "image" ? props.clusterId : undefined);
+
     const namespacesQuery = useClusterNamespaces(() => props.clusterId);
-    const query = useClusterWorkloads(
-        () => props.clusterId,
-        () => ({
-            match_state: props.matchState,
-            ...(k8sNamespace() === "" ? {} : { k8s_namespace: k8sNamespace() }),
-            ...(q() === "" ? {} : { q: q() }),
-            sort: sortBy(),
-            dir: sortDir(),
-            limit: 50,
-            offset: offset(),
-        }),
-    );
+    const workloadQuery = useClusterWorkloads(workloadId, () => ({
+        ...listParams(),
+        sort: sortBy() as WorkloadSortKey,
+    }));
+    const imageQuery = useClusterImages(imageId, () => ({
+        ...listParams(),
+        sort: sortBy() as ImageSortKey,
+    }));
+
+    // Every filter change resets the offset: page 4 of the old result set is a
+    // meaningless place to land in the new one. Changing the grouping drops the
+    // sort too — the key it was on may not exist in the other list.
+    const onSort = (key: string, dir: SortDir) =>
+        props.setSearchParams({ sort: key, dir, offset: undefined });
+    const onPageChange = (next: number) =>
+        props.setSearchParams({ offset: next === 0 ? undefined : next });
 
     return (
         <>
             <WorkloadsFilterBar
-                filters={{ q: draftQuery(), k8sNamespace: k8sNamespace(), matchState: props.matchState ?? "" }}
+                filters={{
+                    q: draftQuery(),
+                    k8sNamespace: k8sNamespace(),
+                    matchState: props.matchState ?? "",
+                    group: group(),
+                }}
                 namespaces={namespacesQuery.data?.data}
                 onQueryInput={onQueryInput}
-                // Every filter change resets the offset: page 4 of the old
-                // result set is a meaningless place to land in the new one.
                 onNamespaceChange={(value) =>
                     props.setSearchParams({ k8s_namespace: value, offset: undefined })
                 }
                 onMatchStateChange={(value) =>
                     props.setSearchParams({ match_state: value, offset: undefined })
                 }
+                onGroupChange={(value) =>
+                    props.setSearchParams({
+                        group: value === "image" ? undefined : value,
+                        sort: undefined,
+                        dir: undefined,
+                        offset: undefined,
+                    })
+                }
             />
-            <WorkloadsTab
-                rows={query.data?.data}
-                loading={query.isFetching}
-                isError={query.isError}
-                error={query.error}
-                sortBy={sortBy()}
-                sortDir={sortDir()}
-                onSort={(key, dir) => props.setSearchParams({ sort: key, dir, offset: undefined })}
-                pagination={query.data?.pagination}
-                onPageChange={(next) => props.setSearchParams({ offset: next === 0 ? undefined : next })}
-            />
+            <Show
+                when={group() === "image"}
+                fallback={
+                    <WorkloadsTab
+                        rows={workloadQuery.data?.data}
+                        loading={workloadQuery.isFetching}
+                        isError={workloadQuery.isError}
+                        error={workloadQuery.error}
+                        sortBy={sortBy() as WorkloadSortKey}
+                        sortDir={sortDir()}
+                        onSort={onSort}
+                        pagination={workloadQuery.data?.pagination}
+                        onPageChange={onPageChange}
+                    />
+                }
+            >
+                <ImagesTab
+                    rows={imageQuery.data?.data}
+                    loading={imageQuery.isFetching}
+                    isError={imageQuery.isError}
+                    error={imageQuery.error}
+                    sortBy={sortBy() as ImageSortKey}
+                    sortDir={sortDir()}
+                    onSort={onSort}
+                    pagination={imageQuery.data?.pagination}
+                    onPageChange={onPageChange}
+                />
+            </Show>
         </>
     );
 }

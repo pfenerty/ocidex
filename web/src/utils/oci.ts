@@ -130,3 +130,23 @@ export function imageRefName(ref: string): string | null {
     if (trimmed === "" || BARE_IMAGE_ID.test(trimmed)) return null;
     return trimmed;
 }
+
+/**
+ * Splits an image reference into the part a reader scans for and the part that
+ * only disambiguates it.
+ *
+ * `registry.example.com/team/platform/api-gateway:v2.14.1` is 52 characters of
+ * which the last 22 are what anyone is actually reading; rendering the leading
+ * path muted keeps the whole ref present — truncating it would hide the
+ * registry host, which is exactly what the Gaps tab needs a reader to notice.
+ *
+ * Returns null for a ref that names nothing, on the same grounds as
+ * `imageRefName`.
+ */
+export function splitImageRef(ref: string): { prefix: string; name: string } | null {
+    const named = imageRefName(ref);
+    if (named === null) return null;
+    const cut = named.lastIndexOf("/");
+    if (cut === -1) return { prefix: "", name: named };
+    return { prefix: named.slice(0, cut + 1), name: named.slice(cut + 1) };
+}

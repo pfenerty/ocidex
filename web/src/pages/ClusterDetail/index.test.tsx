@@ -5,6 +5,7 @@ import type { JSX } from "solid-js";
 import {
     useCluster,
     useClusterWorkloads,
+    useClusterImages,
     useClusterVulns,
     useClusterNamespaces,
     useVulnWorkloads,
@@ -19,6 +20,7 @@ import ClusterDetail from "./index";
 vi.mock("~/api/queries", () => ({
     useCluster: vi.fn(),
     useClusterWorkloads: vi.fn(),
+    useClusterImages: vi.fn(),
     useClusterVulns: vi.fn(),
     useClusterNamespaces: vi.fn(),
     useVulnWorkloads: vi.fn(),
@@ -49,8 +51,22 @@ let lastWorkloadParams:
     | undefined;
 
 /** One setSearchParams call: the keys the page writes, undefined meaning cleared. */
+/** The last query params the image hook was asked for. */
+let lastImageParams:
+    | {
+          match_state?: string;
+          k8s_namespace?: string;
+          q?: string;
+          sort?: string;
+          dir?: string;
+          limit?: number;
+          offset?: number;
+      }
+    | undefined;
+
 interface ParamWrite {
     tab?: string;
+    group?: string;
     k8s_namespace?: string;
     match_state?: string;
     q?: string;
@@ -98,6 +114,7 @@ vi.mock("@solidjs/router", () => ({
 
 const mockCluster = vi.mocked(useCluster);
 const mockWorkloads = vi.mocked(useClusterWorkloads);
+const mockImages = vi.mocked(useClusterImages);
 const mockVulns = vi.mocked(useClusterVulns);
 const mockNamespaces = vi.mocked(useClusterNamespaces);
 const mockVulnWorkloads = vi.mocked(useVulnWorkloads);
@@ -144,6 +161,24 @@ function workload(overrides: Record<string, unknown> = {}) {
     };
 }
 
+function image(overrides: Record<string, unknown> = {}) {
+    return {
+        image_ref: "ghcr.io/pfenerty/ocidex-api:v1",
+        image_digest: "sha256:aaaabbbbccccdddd0000111122223333444455556666777788889999aaaabbbb",
+        workload_count: 4,
+        pod_count: 12,
+        namespace_count: 2,
+        sample_namespace: "default",
+        sample_workload: "api",
+        last_seen_at: "2026-08-16T00:00:00Z",
+        match_state: "exact",
+        artifact_id: "a-1",
+        artifact_name: "ocidex-api",
+        sbom_id: "s-1",
+        ...overrides,
+    };
+}
+
 function vuln(overrides: Record<string, unknown> = {}) {
     return {
         id: "GHSA-xxxx",
@@ -178,6 +213,7 @@ function renderPage(
     workloads: unknown[],
     coverage: { total: number; matched: number; unknown: number; unresolvable: number; pods: number },
     vulns: unknown[] = [],
+    images: unknown[] = [image()],
 ) {
     mockIngest.mockImplementation((() => ({
         mutate: (vars: { id: string; imageDigests?: string[] }) => ingestCalls.push(vars),
@@ -202,6 +238,23 @@ function renderPage(
                 data: workloads,
                 coverage,
                 pagination: { total: workloads.length, limit: 50, offset: 0 },
+            },
+            isLoading: false,
+            isFetching: false,
+            isError: false,
+            error: null,
+        };
+    }) as never);
+    mockImages.mockImplementation(((
+        _id: unknown,
+        params?: () => NonNullable<typeof lastImageParams>,
+    ) => {
+        lastImageParams = params?.();
+        return {
+            data: {
+                data: images,
+                coverage,
+                pagination: { total: images.length, limit: 50, offset: 0 },
             },
             isLoading: false,
             isFetching: false,
@@ -288,6 +341,7 @@ describe("ClusterDetail", () => {
         vi.clearAllMocks();
         searchParams = {};
         lastWorkloadParams = undefined;
+        lastImageParams = undefined;
         lastVulnParams = undefined;
         lastVulnWorkloadArgs = undefined;
         unknownImages = [];
@@ -386,7 +440,7 @@ describe("ClusterDetail", () => {
     // A tab in the URL is what makes a filtered view something you can paste
     // into an issue.
     it("renders the tab named in the search param", () => {
-        searchParams = { tab: "workloads" };
+        searchParams = { tab: "workloads", group: "workload" };
         const { container } = renderPage([workload()], GAPPY);
 
         const row = must(container.querySelector("tbody tr"), "workload row");
@@ -404,7 +458,7 @@ describe("ClusterDetail", () => {
     // An unrecognised state would otherwise be forwarded to the API, which
     // would match nothing and show an empty table as if the cluster were empty.
     it("ignores a match_state the API does not define", () => {
-        searchParams = { tab: "workloads", match_state: "bogus" };
+        searchParams = { tab: "workloads", group: "workload", match_state: "bogus" };
         renderPage([workload()], GAPPY);
 
         expect(lastWorkloadParams?.match_state).toBeUndefined();
@@ -427,7 +481,7 @@ describe("ClusterDetail", () => {
             ["unresolvable", "no digest"],
         ] as const;
         for (const [state, label] of states) {
-            searchParams = { tab: "workloads" };
+            searchParams = { tab: "workloads", group: "workload" };
             const { container, unmount } = renderPage([workload({ match_state: state })], {
                 total: 1,
                 matched: state === "exact" || state === "index" ? 1 : 0,
@@ -442,7 +496,7 @@ describe("ClusterDetail", () => {
     });
 
     it("links a matched workload to its artifact and SBOM", () => {
-        searchParams = { tab: "workloads" };
+        searchParams = { tab: "workloads", group: "workload" };
         const { container } = renderPage([workload()], GAPPY);
 
         const row = must(container.querySelector("tbody tr"), "workload row");
@@ -454,7 +508,7 @@ describe("ClusterDetail", () => {
     // The whole point of the vulnerability column: "which of these images have
     // vulnerabilities" must be answerable from the table itself.
     it("shows per-severity findings on a matched workload", () => {
-        searchParams = { tab: "workloads" };
+        searchParams = { tab: "workloads", group: "workload" };
         const { container } = renderPage(
             [workload({ vulns: { critical: 2, high: 1, medium: 0, low: 4 } })],
             GAPPY,
@@ -471,7 +525,7 @@ describe("ClusterDetail", () => {
     // assessed with nothing wrong are different facts, and the table is where
     // they are most easily confused into one clean-looking dash.
     it("distinguishes an unassessed image from an assessed clean one", () => {
-        searchParams = { tab: "workloads" };
+        searchParams = { tab: "workloads", group: "workload" };
         const { container, unmount } = renderPage(
             [workload({ match_state: "unknown", artifact_id: undefined, sbom_id: undefined })],
             GAPPY,
@@ -481,7 +535,7 @@ describe("ClusterDetail", () => {
         );
         unmount();
 
-        searchParams = { tab: "workloads" };
+        searchParams = { tab: "workloads", group: "workload" };
         const clean = renderPage(
             [workload({ vulns: { critical: 0, high: 0, medium: 0, low: 0 } })],
             GAPPY,
@@ -496,6 +550,7 @@ describe("ClusterDetail", () => {
     it("passes the filter and sort params through to the query", () => {
         searchParams = {
             tab: "workloads",
+            group: "workload",
             k8s_namespace: "kube-system",
             match_state: "unknown",
             q: "redis",
@@ -518,11 +573,11 @@ describe("ClusterDetail", () => {
     // A sort key the API does not define would otherwise reach a SQL CASE that
     // matches no branch, producing an arbitrary order that looks like a sort.
     it("ignores a sort key the API does not define", () => {
-        searchParams = { tab: "workloads", sort: "whatever", dir: "sideways" };
+        searchParams = { tab: "workloads", group: "workload", sort: "whatever", dir: "sideways" };
         renderPage([workload()], GAPPY);
 
-        expect(lastWorkloadParams?.sort).toBe("k8s_namespace");
-        expect(lastWorkloadParams?.dir).toBe("asc");
+        expect(lastWorkloadParams?.sort).toBe("vuln_count");
+        expect(lastWorkloadParams?.dir).toBe("desc");
     });
 
     // Page 4 of the old result set is a meaningless place to land in the new
@@ -571,6 +626,105 @@ describe("ClusterDetail", () => {
         );
         expect(namespaceSelect.textContent).toContain("kube-system");
         expect(namespaceSelect.textContent).toContain("(3)");
+    });
+
+    // ---------------------------------------------------------------------
+    // Grouping (ocidex-9do0.5)
+    //
+    // R3: one image rolled out across fourteen deployments used to be fourteen
+    // near-identical rows, sorted alphabetically by namespace. An image is the
+    // unit of the remedy, so it is the default unit of the table.
+    // ---------------------------------------------------------------------
+
+    it("groups by image by default", () => {
+        searchParams = { tab: "workloads" };
+        const { container } = renderPage([workload()], GAPPY);
+
+        const row = must(container.querySelector("tbody tr"), "image row");
+        // The counts the grouping folded away have to stay on screen, or the
+        // row understates how much of the cluster one ingest would cover.
+        expect(row.textContent).toContain("4");
+        expect(row.textContent).toContain("12");
+        expect(row.textContent).toContain("default/api");
+        // The by-workload identity columns are gone in this grouping.
+        const headers = [...container.querySelectorAll("th")].map((th) => th.textContent);
+        expect(headers).toContain("Workloads");
+        expect(headers).not.toContain("Container");
+    });
+
+    it("opens on the worst findings rather than the first namespace alphabetically", () => {
+        searchParams = { tab: "workloads" };
+        renderPage([workload()], GAPPY);
+
+        expect(lastImageParams?.sort).toBe("vuln_count");
+        expect(lastImageParams?.dir).toBe("desc");
+    });
+
+    it("keeps the filters when the grouping changes", () => {
+        searchParams = { tab: "workloads", k8s_namespace: "kube-system", q: "redis" };
+        const { container } = renderPage([workload()], GAPPY);
+
+        const select = must(
+            container.querySelector('[data-testid="grouping-select"]'),
+            "grouping select",
+        ) as HTMLSelectElement;
+        select.value = "workload";
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+
+        const write = lastWrite();
+        expect(write.group).toBe("workload");
+        // Sort and offset are dropped, not kept: the key the reader was sorted
+        // on may not exist as a column in the other grouping, and page 4 of the
+        // old result set is a meaningless place to land in the new one.
+        expect("sort" in write).toBe(true);
+        expect(write.sort).toBeUndefined();
+        expect(write.offset).toBeUndefined();
+        // The narrowing itself survives: the write does not mention those keys
+        // at all, so the merge leaves them in the URL.
+        expect("k8s_namespace" in write).toBe(false);
+        expect("q" in write).toBe(false);
+    });
+
+    // A URL can name a sort key from the other grouping; the image list has no
+    // namespace column to order by, and the SQL CASE it would reach matches no
+    // branch, producing an arbitrary order that looks like a sort.
+    it("drops a sort key that only the other grouping has", () => {
+        searchParams = { tab: "workloads", sort: "k8s_namespace", dir: "asc" };
+        renderPage([workload()], GAPPY);
+
+        expect(lastImageParams?.sort).toBe("vuln_count");
+    });
+
+    // ADR-044 K5 holds in both groupings or it holds in neither: the same cell
+    // renders the three outcomes, and this is the half that the by-image view
+    // would otherwise be free to get wrong.
+    it("distinguishes an unassessed image from an assessed clean one by image", () => {
+        searchParams = { tab: "workloads" };
+        const { container, unmount } = renderPage([workload()], GAPPY, [], [
+            image({ match_state: "unknown", artifact_id: undefined, sbom_id: undefined }),
+        ]);
+        const row = must(container.querySelector("tbody tr"), "image row");
+        expect(row.textContent).toContain("not assessed");
+        expect(row.textContent).toContain("no SBOM");
+        unmount();
+
+        searchParams = { tab: "workloads" };
+        const clean = renderPage([workload()], GAPPY, [], [
+            image({ vulns: { critical: 0, high: 0, medium: 0, low: 0 } }),
+        ]);
+        const cleanRow = must(clean.container.querySelector("tbody tr"), "image row");
+        expect(cleanRow.textContent).toContain("no findings");
+        expect(cleanRow.textContent).not.toContain("not assessed");
+    });
+
+    it("links an image row to the artifact and SBOM behind it", () => {
+        searchParams = { tab: "workloads" };
+        const { container } = renderPage([workload()], GAPPY);
+
+        const row = must(container.querySelector("tbody tr"), "image row");
+        const hrefs = [...row.querySelectorAll("a")].map((a) => a.getAttribute("href"));
+        expect(hrefs).toContain("/artifacts/a-1");
+        expect(hrefs).toContain("/sboms/s-1");
     });
 
     // ---------------------------------------------------------------------

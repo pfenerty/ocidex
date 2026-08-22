@@ -93,6 +93,61 @@ export function useClusterWorkloads(
     }));
 }
 
+export interface ImageQueryParams {
+    k8s_namespace?: string;
+    match_state?: WorkloadMatchState;
+    q?: string;
+    sort?: ImageSortKey;
+    dir?: SortDir;
+    limit?: number;
+    offset?: number;
+}
+
+/** The columns the API will order the image list by. */
+export type ImageSortKey =
+    NonNullable<paths["/api/v1/clusters/{id}/images"]["get"]["parameters"]["query"]>["sort"];
+
+/**
+ * useClusterImages — the same running inventory as useClusterWorkloads, grouped
+ * by image instead of by workload-container.
+ *
+ * An image is the unit of the remedy: fourteen replicas of one unscanned image
+ * are one SBOM to ingest, not fourteen. The filters are deliberately identical
+ * to the workload query's, so switching grouping keeps whatever the reader had
+ * narrowed to. Coverage rides along here for the same reason it rides along
+ * there — it counts workload-containers cluster-wide either way (ADR-044 K5),
+ * so it does not change when the grouping does.
+ */
+export function useClusterImages(
+    id: Accessor<string | undefined>,
+    params?: Accessor<ImageQueryParams>,
+) {
+    const query = (): ImageQueryParams => {
+        const p = params?.() ?? {};
+        const state = p.match_state;
+        return {
+            ...(hasText(p.k8s_namespace) ? { k8s_namespace: p.k8s_namespace } : {}),
+            ...(state !== undefined ? { match_state: state } : {}),
+            ...(hasText(p.q) ? { q: p.q } : {}),
+            ...(p.sort !== undefined ? { sort: p.sort } : {}),
+            ...(p.dir !== undefined ? { dir: p.dir } : {}),
+            ...(p.limit !== undefined ? { limit: p.limit } : {}),
+            ...(p.offset !== undefined ? { offset: p.offset } : {}),
+        };
+    };
+    return createQuery(() => ({
+        queryKey: ["clusters", id(), "images", query()] as const,
+        queryFn: () =>
+            unwrap(
+                client.GET("/api/v1/clusters/{id}/images", {
+                    params: { path: { id: id() ?? "" }, query: query() },
+                }),
+            ),
+        enabled: id() !== undefined,
+        select: (resp) => ({ ...resp, data: resp.data ?? [] }),
+    }));
+}
+
 /**
  * useClusterNamespaces — the namespace facet for the workload filter.
  *

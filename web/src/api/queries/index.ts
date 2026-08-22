@@ -15,6 +15,7 @@ export {
     useListClusters,
     useCluster,
     useClusterWorkloads,
+    useClusterImages,
     useClusterNamespaces,
     useClusterVulns,
     useCreateCluster,
@@ -27,6 +28,8 @@ export {
 export type {
     WorkloadQueryParams,
     WorkloadSortKey,
+    ImageQueryParams,
+    ImageSortKey,
     ClusterVulnQueryParams,
     ClusterVulnSortKey,
     VulnSeverityFilter,
