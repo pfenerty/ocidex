@@ -4,6 +4,7 @@ export * from "./Card";
 export * from "./DetailGrid";
 export * from "./FormField";
 export * from "./Modal";
+export * from "./PageHeader";
 export * from "./QueryBoundary";
 export * from "./SigningBadge";
 export * from "./TabBar";
