@@ -139,7 +139,14 @@ export default function ClusterDetail() {
                         <Show when={tab() === "overview"}>
                             <OverviewTab
                                 clusterId={params.id}
+                                clusterName={clusterQuery.data?.name ?? "This cluster"}
                                 coverage={data().coverage}
+                                // Undefined while the cluster loads, which is
+                                // also the never-reported value — so the
+                                // first-run panel is what shows until the
+                                // timestamp says otherwise, rather than a
+                                // zeroed summary that would read as clean.
+                                lastSeenAt={clusterQuery.data?.last_seen_at}
                                 // Defaults to on server-side; treated as off
                                 // only while the cluster is still loading, so
                                 // the line never claims ingest is running

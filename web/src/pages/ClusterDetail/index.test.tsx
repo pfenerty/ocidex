@@ -335,6 +335,7 @@ function must<T>(value: T | null | undefined, what: string): T {
 }
 
 const GAPPY = { total: 10, matched: 4, unknown: 5, unresolvable: 1, pods: 23 };
+const EMPTY = { total: 0, matched: 0, unknown: 0, unresolvable: 0, pods: 0 };
 
 describe("ClusterDetail", () => {
     beforeEach(() => {
@@ -435,6 +436,54 @@ describe("ClusterDetail", () => {
         const list = must(container.querySelector(".overview-vuln-list"), "vuln list");
         expect(list.textContent).toContain("CVE-2026-1000");
         expect(list.textContent).toContain("3 workloads");
+    });
+
+    // R2b: the old row was [pill][id][count] in a flex line, and severity pills
+    // are different widths, so nothing lined up and the row said nothing about
+    // what the advisory actually is.
+    it("carries the score and summary beside each advisory", () => {
+        const { container } = renderPage([workload()], GAPPY, [vuln()]);
+
+        const row = must(container.querySelector(".overview-vuln-list li"), "vuln row");
+        expect(must(row.querySelector(".overview-vuln-cvss"), "cvss").textContent).toBe("9.8");
+        const summary = must(row.querySelector(".overview-vuln-summary"), "summary");
+        expect(summary.textContent).toBe("Remote code execution");
+        // Clamped to one line, so the whole text has to survive as a title.
+        expect(summary.getAttribute("title")).toBe("Remote code execution");
+    });
+
+    // A "487" badge beside five rows read as the length of the list under it.
+    it("says how much of the list the card is showing", () => {
+        const { container } = renderPage([workload()], GAPPY, [
+            vuln(),
+            vuln({ id: "GHSA-yyyy", canonical_id: "CVE-2026-1001" }),
+        ]);
+
+        const header = must(container.querySelector(".card-header"), "card header");
+        expect(header.textContent).toContain("top 2 of 2");
+    });
+
+    // ADR-044 K5 at the coarsest scale: a cluster nobody has reported on is not
+    // a clean cluster, and a summary of an empty inventory would say it was.
+    it("leads with agent setup when nothing has ever reported", () => {
+        const clusterLastSeen = cluster.last_seen_at;
+        cluster.last_seen_at = "";
+        try {
+            const { container } = renderPage([], EMPTY, []);
+
+            expect(container.textContent).toContain("No agent has reported yet");
+            expect(container.textContent).toContain("not the same as a cluster running nothing");
+            // The command carries the cluster's own id, so there is nothing to
+            // transcribe out of the URL.
+            const commands = must(container.querySelector(".agent-setup-commands"), "commands");
+            expect(commands.textContent).toContain("--set cluster.id=c-prod");
+            // And none of the cards that would summarise an inventory it does
+            // not have.
+            expect(container.querySelector(".overview-vuln-list")).toBeNull();
+            expect(container.textContent).not.toContain("There is nothing to ingest");
+        } finally {
+            cluster.last_seen_at = clusterLastSeen;
+        }
     });
 
     // A tab in the URL is what makes a filtered view something you can paste

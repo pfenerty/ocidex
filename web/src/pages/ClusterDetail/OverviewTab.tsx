@@ -17,8 +17,10 @@ import { useClusterVulns, useClusterUnknownImages } from "~/api/queries";
  */
 export function OverviewTab(props: {
     clusterId: string;
+    clusterName: string;
     coverage: WorkloadCoverage;
     autoIngest: boolean;
+    lastSeenAt: string | undefined;
 }) {
     const topVulns = useClusterVulns(() => props.clusterId, () => ({ limit: 5 }));
     const notAssessed = () => props.coverage.unknown + props.coverage.unresolvable;
@@ -30,15 +32,37 @@ export function OverviewTab(props: {
         () => props.clusterId,
         () => ({ enabled: props.coverage.unknown > 0, limit: 200 }),
     );
+    const shown = () => topVulns.data?.data.length ?? 0;
     const ready = () => (images.data?.data ?? []).filter((i) => i.reason === "ready").length;
     const blocked = () => (images.data?.data.length ?? 0) - ready();
 
+    const reported = () => (props.lastSeenAt ?? "") !== "";
+
     return (
-        <>
+        // A cluster nothing has ever reported has no inventory to summarise,
+        // and cards reading "no known vulnerability affects 0 matched
+        // containers" would be four ways of saying "clean" about a cluster
+        // nobody has looked at (ADR-044 K5). Lead with what is missing.
+        <Show
+            when={reported()}
+            fallback={<AgentSetup clusterId={props.clusterId} clusterName={props.clusterName} />}
+        >
             <Card style={{ "margin-bottom": "1rem" }}>
                 <CardHeader
-                    title="Most severe running vulnerabilities"
-                    count={topVulns.data?.pagination.total}
+                    // "Top 5 of 487", not a 487 badge beside five rows: the
+                    // badge read as the length of the list under it.
+                    title={
+                        <>
+                            Most severe running vulnerabilities
+                            <Show when={shown() > 0}>
+                                <span class="text-muted text-sm">
+                                    {" "}
+                                    top {shown().toLocaleString()} of{" "}
+                                    {(topVulns.data?.pagination.total ?? shown()).toLocaleString()}
+                                </span>
+                            </Show>
+                        </>
+                    }
                     actions={
                         <A href={tabHref("vulnerabilities")} class="dash-link">
                             See all
@@ -67,6 +91,12 @@ export function OverviewTab(props: {
                                 </p>
                             }
                         >
+                            {/*
+                              * One grid rather than five independent flex rows.
+                              * Severity pills are different widths, so the old
+                              * layout put every id at a different indent and
+                              * nothing lined up to be compared down the column.
+                              */}
                             <ul class="overview-vuln-list">
                                 <For each={topVulns.data?.data}>
                                     {(v) => (
@@ -75,7 +105,18 @@ export function OverviewTab(props: {
                                                 {v.severity ?? "unknown"}
                                             </SeverityPill>
                                             <VulnId canonicalId={v.canonical_id} nativeId={v.id} />
-                                            <span class="text-muted">
+                                            <span class="overview-vuln-cvss text-muted">
+                                                <Show when={v.cvss_score} fallback="—">
+                                                    {(score) => <>{score().toFixed(1)}</>}
+                                                </Show>
+                                            </span>
+                                            <span
+                                                class="overview-vuln-summary"
+                                                title={v.summary}
+                                            >
+                                                {v.summary}
+                                            </span>
+                                            <span class="text-muted text-sm">
                                                 {plural(v.workload_count, "workload")}
                                             </span>
                                         </li>
@@ -146,6 +187,53 @@ export function OverviewTab(props: {
                     </p>
                 </Show>
             </Card>
-        </>
+        </Show>
+    );
+}
+
+/**
+ * AgentSetup is the Overview a cluster gets before its first snapshot.
+ *
+ * The registration and the reporting are two separate steps — ADR-044 puts the
+ * agent in the target cluster, which may be nowhere near this one — so a
+ * registered cluster with nothing in it is the expected first state, not a
+ * fault. The commands carry the cluster's own id so there is nothing to
+ * transcribe.
+ */
+function AgentSetup(props: { clusterId: string; clusterName: string }) {
+    const install = () =>
+        [
+            "kubectl create namespace ocidex-agent",
+            "kubectl -n ocidex-agent create secret generic ocidex-k8s-agent-secrets \\",
+            '  --from-literal=OCIDEX_API_KEY="$OCIDEX_API_KEY"',
+            "",
+            "helm install ocidex-k8s-agent oci://ghcr.io/pfenerty/charts/ocidex-k8s-agent \\",
+            "  -n ocidex-agent \\",
+            `  --set server.url=${window.location.origin} \\`,
+            `  --set cluster.id=${props.clusterId}`,
+        ].join("\n");
+
+    return (
+        <Card>
+            <CardHeader title="No agent has reported yet" />
+            <p>
+                <strong>{props.clusterName}</strong> is registered, but nothing has pushed an
+                inventory to it. That is not the same as a cluster running nothing — until an
+                agent reports, OCIDex knows nothing about what is running here.
+            </p>
+            <p class="text-muted">
+                Run these against the target cluster&apos;s kubeconfig context, with an API key
+                that has <code>read-write</code> scope and belongs to someone who owns this
+                cluster&apos;s namespace.
+            </p>
+            <pre class="agent-setup-commands">{install()}</pre>
+            <p class="text-muted">
+                The agent reaches OCIDex from inside the target cluster, so{" "}
+                <code>server.url</code> has to be routable and TLS-valid there. Verify with{" "}
+                <code>kubectl -n ocidex-agent logs deploy/ocidex-k8s-agent</code>: an{" "}
+                <code>inventory reported</code> line means the snapshot landed, and this page
+                will fill in on the next refresh.
+            </p>
+        </Card>
     );
 }
