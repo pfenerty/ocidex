@@ -4,9 +4,9 @@ import type { ArtifactDetail } from "~/api/client";
 import PurlLink from "~/components/PurlLink";
 import CopyShareLink, { artifactLookupPath } from "~/components/CopyShareLink";
 import WatchStar from "~/components/WatchStar";
-import { Card, CardHeader, DetailGrid, DetailField, TypeBadge, SigningBadge } from "~/components/ui";
+import { Card, DetailGrid, DetailField, TypeBadge } from "~/components/ui";
 import { purlToRegistryUrl, purlTypeLabel } from "~/utils/purl";
-import { artifactDisplayName, formatDateTime, relativeDate, plural } from "~/utils/format";
+import { artifactDisplayName, formatDateTime } from "~/utils/format";
 import { containerRegistryUrl, detectRegistry } from "~/utils/oci";
 
 /** ArtifactHeader is the title row: name (linked to its registry), counts, actions. */
@@ -31,10 +31,11 @@ export function ArtifactHeader(props: { artifact: ArtifactDetail }) {
                             </a>
                         </Show>
                     </h2>
-                    <p class="text-muted">
-                        <TypeBadge type={a().type} /> {plural(a().sbomCount, "SBOM")}
-                        {" · First tracked "}
-                        {relativeDate(a().createdAt)}
+                    {/* Type only. The SBOM count and the first-tracked date
+                        are tiles in ArtifactBand now, and repeating them here
+                        was half of what made the old About card redundant. */}
+                    <p>
+                        <TypeBadge type={a().type} />
                     </p>
                 </div>
                 <div class="btn-group">
@@ -62,42 +63,40 @@ export function ArtifactHeader(props: { artifact: ArtifactDetail }) {
 }
 
 /**
- * ArtifactAboutCard is the identity summary. `isContainer` gates the image-only
- * rows: signing status on a library or binary would render as a permanent
- * "unsigned" that no amount of enrichment can change.
+ * ArtifactIdentity is the machine-readable identity: package URL, CPE, and the
+ * internal id. It replaces ArtifactAboutCard, which restated the header's name
+ * and type in a full card above the fold and put signing status — the one fact
+ * on it a reader actually needed — in the middle of a detail grid. Signing is a
+ * band tile now; what is left is reference detail nobody reads on arrival, so it
+ * starts collapsed.
+ *
+ * Group is not a row here: `artifactDisplayName` already prefixes it onto the
+ * title, so a "Group" row was only ever a second rendering of the heading.
  */
-export function ArtifactAboutCard(props: { artifact: ArtifactDetail; isContainer: boolean }) {
+export function ArtifactIdentity(props: { artifact: ArtifactDetail }) {
     const a = () => props.artifact;
+    const hasIdentity = () =>
+        (a().purl !== undefined && a().purl !== "") || (a().cpe !== undefined && a().cpe !== "");
+
     return (
-        <Card class="mb-4">
-            <CardHeader title="About this Artifact" />
-            <DetailGrid>
-                <DetailField label="Name">{a().name}</DetailField>
-                <DetailField label="Type">
-                    <TypeBadge type={a().type} />
-                </DetailField>
-                <DetailField label="Signing" when={props.isContainer}>
-                    <SigningBadge status={a().signingStatus} />
-                </DetailField>
-                <DetailField label="Group" when={a().group}>
-                    {a().group}
-                </DetailField>
-                <DetailField label="Package URL" when={a().purl}>
-                    <PurlLink purl={a().purl ?? ""} showBadge />
-                </DetailField>
-                <DetailField label="CPE" when={a().cpe} valueClass="font-mono text-sm">
-                    {a().cpe}
-                </DetailField>
-                <DetailField label="First Tracked">{formatDateTime(a().createdAt)}</DetailField>
-            </DetailGrid>
-            <details class="mt-4">
-                <summary class="text-muted text-sm" style={{ cursor: "pointer" }}>
-                    Internal ID
-                </summary>
-                <p class="font-mono text-sm mt-2" style={{ "word-break": "break-all" }}>
-                    {a().id}
-                </p>
-            </details>
-        </Card>
+        <details class="mb-4">
+            <summary class="text-muted text-sm cursor-pointer">
+                {hasIdentity() ? "Identity" : "Internal ID"}
+            </summary>
+            <Card class="mt-2">
+                <DetailGrid>
+                    <DetailField label="Package URL" when={a().purl}>
+                        <PurlLink purl={a().purl ?? ""} showBadge />
+                    </DetailField>
+                    <DetailField label="CPE" when={a().cpe} valueClass="font-mono text-sm">
+                        {a().cpe}
+                    </DetailField>
+                    <DetailField label="First tracked">{formatDateTime(a().createdAt)}</DetailField>
+                    <DetailField label="Internal ID" valueClass="font-mono text-sm break-all">
+                        {a().id}
+                    </DetailField>
+                </DetailGrid>
+            </Card>
+        </details>
     );
 }

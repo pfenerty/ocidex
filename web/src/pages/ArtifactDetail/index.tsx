@@ -1,5 +1,5 @@
 import "~/components/DetailSection.css";
-import { createSignal, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import { A, useParams } from "@solidjs/router";
 import {
     useArtifact,
@@ -11,21 +11,19 @@ import {
 } from "~/api/queries";
 import { ErrorBox, EmptyState } from "~/components/Feedback";
 import { Skeleton, SkeletonHeader, SkeletonText } from "~/components/Skeleton";
-import { VulnSummaryBar } from "~/components/VulnBadge";
 import { QueryBoundary, TabBar, type TabDef } from "~/components/ui";
 import { artifactDisplayName } from "~/utils/format";
-import { ArtifactHeader, ArtifactAboutCard } from "./ArtifactHeader";
+import { ArtifactHeader, ArtifactIdentity } from "./ArtifactHeader";
+import { ArtifactBand, type ArtifactTab } from "./ArtifactBand";
 import { VersionsTab } from "./VersionsTab";
 import { LicensesTab } from "./LicensesTab";
 import { ChangelogTab } from "./ChangelogTab";
 import { RelationshipsTab } from "./RelationshipsTab";
 
-type Tab = "versions" | "changelog" | "licenses" | "relationships";
-
 export default function ArtifactDetail() {
     const params = useParams<{ id: string }>();
     const [versionOffset, setVersionOffset] = createSignal(0);
-    const [tab, setTab] = createSignal<Tab>("versions");
+    const [tab, setTab] = createSignal<ArtifactTab>("versions");
     const [selectedArch, setSelectedArch] = createSignal<string | undefined>("amd64");
     const [selectedFlavor, setSelectedFlavor] = createSignal<string | undefined>(undefined);
     // undefined = auto (let the backend pick semver when available, else all).
@@ -75,14 +73,18 @@ export default function ArtifactDetail() {
 
     const vulnSummaryQuery = useArtifactVulnSummary(() => params.id);
 
-    const tabs = (versionCount: number): TabDef<Tab>[] => [
+    const tabs = (versionCount: number): TabDef<ArtifactTab>[] => [
         { id: "versions", label: `Versions (${versionCount})` },
         { id: "changelog", label: "Changelog" },
         { id: "licenses", label: "Licenses" },
         { id: "relationships", label: "Relationships" },
     ];
 
-    const modeTabs: TabDef<"semver" | "all">[] = [
+    // Semver-vs-all is an ordering of the versions list, not a second place to
+    // navigate to, so it renders as a segmented control (the idiom PackagesTab
+    // already uses for tree/list) rather than as a second tab strip. Two tab
+    // strips stacked on one page was the page's worst instance of depth.
+    const MODES: { id: "semver" | "all"; label: string; title: string }[] = [
         { id: "semver", label: "Semver", title: "Only semver versions, ordered by semantic version" },
         { id: "all", label: "All", title: "All versions, ordered by build time" },
     ];
@@ -103,19 +105,35 @@ export default function ArtifactDetail() {
                         {(a) => (
                             <>
                                 <ArtifactHeader artifact={a()} />
-                                <ArtifactAboutCard artifact={a()} isContainer={isContainer()} />
 
-                                <VulnSummaryBar summary={vulnSummaryQuery.data?.summary ?? undefined} />
+                                <ArtifactBand
+                                    artifact={a()}
+                                    isContainer={isContainer()}
+                                    vulns={vulnSummaryQuery.data?.summary ?? undefined}
+                                    ordering={effectiveMode()}
+                                    active={tab()}
+                                    onSelect={setTab}
+                                />
+
+                                <ArtifactIdentity artifact={a()} />
 
                                 <TabBar tabs={tabs(a().versionCount)} active={tab()} onSelect={setTab} />
 
                                 <Show when={hasSemver() && (tab() === "versions" || tab() === "changelog")}>
-                                    <TabBar
-                                        tabs={modeTabs}
-                                        active={effectiveMode()}
-                                        onSelect={selectMode}
-                                        style={{ "margin-bottom": "0.75rem" }}
-                                    />
+                                    <div class="btn-group mb-4">
+                                        <For each={MODES}>
+                                            {(m) => (
+                                                <button
+                                                    class={`btn btn-sm${effectiveMode() === m.id ? " active" : ""}`}
+                                                    title={m.title}
+                                                    aria-pressed={effectiveMode() === m.id}
+                                                    onClick={() => selectMode(m.id)}
+                                                >
+                                                    {m.label}
+                                                </button>
+                                            )}
+                                        </For>
+                                    </div>
                                 </Show>
 
                                 <Show when={tab() === "versions"}>
