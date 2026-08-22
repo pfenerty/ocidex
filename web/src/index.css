@@ -1,4 +1,9 @@
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap");
+/* Every family named first in a --font-* token below must be requested here,
+   or the token silently falls through to its OS fallback: Inter and JetBrains
+   Mono were declared but never fetched, so body text rendered in the system
+   font and every digest/purl in generic monospace (ocidex-ag4q.9).
+   fontContract.test.ts enforces the pairing. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap");
 @import "tailwindcss";
 
 /* ============================================
