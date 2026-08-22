@@ -15,15 +15,22 @@ import "./Dashboard.css";
  * so it deliberately shows counts, not rows: anything more would be a second
  * dashboard to keep in sync with the first.
  *
- * Only mount this when there is a user. Its three queries all hit /users/me/*,
- * which answer 401 to a signed-out visitor, and a landing page must not open
- * with three failed requests.
+ * Its three queries all hit /users/me/*, which answer 401 to a signed-out
+ * visitor, and a landing page must not open with three failed requests. The
+ * <Show> below is not enough to prevent that — it gates the *markup*, while the
+ * hooks run at component scope and fire the moment this is mounted. So the gate
+ * has to be on the queries themselves.
+ *
+ * `enabled` takes an accessor rather than a boolean because the auth resource
+ * resolves after first paint: a by-value `user() !== undefined` would capture
+ * `false` and the queries would never run for a signed-in user either.
  */
 export function HomeBand(): JSX.Element {
     const { user } = useAuth();
-    const namespaces = useMyNamespaces();
-    const watches = useWatches();
-    const drift = useMyDriftFeed();
+    const signedIn = () => user() !== undefined;
+    const namespaces = useMyNamespaces({ enabled: signedIn });
+    const watches = useWatches({ enabled: signedIn });
+    const drift = useMyDriftFeed({ enabled: signedIn });
 
     return (
         <Show when={user()}>

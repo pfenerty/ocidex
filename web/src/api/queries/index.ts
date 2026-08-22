@@ -10,6 +10,7 @@ export { useTopVulnerabilities, useVulnerabilityDetail } from "./vulns";
 export { useListAPIKeys, useCreateAPIKey, useDeleteAPIKey, useListUsers, useUpdateUserRole, useGetSystemStatus } from "./auth";
 export { useListSources } from "./sources";
 export { useWatches, useWatchFeed, useToggleWatch } from "./watches";
+export type { SelfScopedOptions } from "./selfScoped";
 export { useMyNamespaces, useMyActivity, useMyDriftFeed, useMyVulnerabilities, useMyClusters } from "./me";
 export {
     useListClusters,

@@ -54,6 +54,28 @@ beforeEach(() => {
 });
 
 describe("HomeBand", () => {
+    // The <Show> in HomeBand gates markup, not the hooks — those run at
+    // component scope. Before ocidex-ag4q.2 this passed while the component
+    // still fired three /users/me/* requests that 401'd for every anonymous
+    // visitor to the landing page.
+    it("does not enable its self-scoped queries when signed out", () => {
+        setUser(undefined);
+        render(() => <HomeBand />);
+
+        for (const hook of [useMyNamespaces, useWatches, useMyDriftFeed]) {
+            expect(vi.mocked(hook).mock.calls[0]?.[0]?.enabled?.()).toBe(false);
+        }
+    });
+
+    it("enables its self-scoped queries once a user is present", () => {
+        setUser("octocat");
+        render(() => <HomeBand />);
+
+        for (const hook of [useMyNamespaces, useWatches, useMyDriftFeed]) {
+            expect(vi.mocked(hook).mock.calls[0]?.[0]?.enabled?.()).toBe(true);
+        }
+    });
+
     it("renders nothing when signed out — the landing page stays public", () => {
         setUser(undefined);
         const { container } = render(() => <HomeBand />);
