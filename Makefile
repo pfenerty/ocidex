@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
+.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-dev-live frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
 
 all: check build ## Run all checks and build
 
@@ -122,6 +122,11 @@ frontend: frontend-init ## Build the SolidJS frontend
 
 frontend-dev: ## Start the frontend dev server (with API proxy to :8080)
 	cd web && npm run dev --host
+
+# Read-only: requests reach production. See web/vite.config.live.ts for why this
+# exists and what it cannot verify.
+frontend-dev-live: ## Start the frontend dev server on :3100 with the API proxied to prod
+	cd web && npx vite --config vite.config.live.ts
 
 frontend-lint: ## Run ESLint on the frontend
 	cd web && npm run lint

@@ -380,6 +380,48 @@ This regenerates `web/openapi.json` (via `cmd/specgen`) and `web/src/types/opena
 - **API proxy:** Dev server proxies `/api/*` to `localhost:8080`
 - **Styling:** Tailwind CSS
 
+### Verify UI changes in a browser, not only in Vitest
+
+A CSS or markup change that passes `make frontend-test` can still be invisible or
+wrong on screen — the app has shipped several dead class names (`tab-btn`,
+`tab-active`, `btn-secondary`) and two font tokens that were declared for the
+whole app but never fetched. Those all pass unit tests, because a stylesheet that
+does nothing is not an assertion failure. **Look at the page.**
+
+There is no local backend here (docker is unavailable, so no Postgres and no
+API on :8080), which makes plain `make frontend-dev` render a frontend whose
+every request fails. Use the prod-proxied server instead:
+
+```bash
+flox activate -- make frontend-dev-live   # :3100, local frontend + prod data
+```
+
+Then drive it with the Firefox DevTools MCP — `navigate_page` to
+`http://localhost:3100/...`, `evaluate_script` for computed styles, and
+`screenshot_page` to actually look. Assert on computed values, not on the
+stylesheet source:
+
+```js
+// what shipped, not what was written
+getComputedStyle(document.querySelector(".page-header h2")).fontSize
+await document.fonts.ready; [...document.fonts].map(f => f.family + ":" + f.status)
+```
+
+A font only reports `loaded` once some element on the current page uses it, so
+check `--font-mono` on a page that actually renders a digest or purl.
+
+| Limit | Why | Consequence |
+|---|---|---|
+| Signed out only | the prod session cookie is scoped to `ocidex.app` and does not travel to `localhost` | `/dashboard`, `/clusters`, `/admin` redirect to login; those surfaces stay unit-test-verified |
+| Read only | requests reach **production** | never point it at a write flow, and never add credentials |
+| Frontend only | prod runs the deployed API, not your branch | a backend change (new field, new pagination) is invisible until the branch deploys — say so in the issue rather than claiming it was verified |
+
+Pair this with a **contract test** whenever the bug class is "the CSS silently did
+nothing": `fontContract.test.ts`, `typeScale.test.ts` and
+`components/ui/tabBarContract.test.ts` each read the stylesheet and fail if a
+token or class name loses its counterpart. The browser catches it once; the
+contract test keeps it caught.
+
 ## Code Conventions
 
 - Standard Go project layout (`cmd/`, `internal/`, `pkg/`)
