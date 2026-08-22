@@ -21,7 +21,12 @@ import {
 
 /** Imperative handle — the dialog is opened by the table's Edit/Add buttons. */
 export interface RegistryDialogHandle {
-    openAdd: () => void;
+    /**
+     * `prefill` seeds the form for callers that already know something about
+     * the registry being added — a deep link from the cluster Gaps tab carries
+     * the host of an image nothing is configured for.
+     */
+    openAdd: (prefill?: Partial<RegistryFormState>) => void;
     openEdit: (reg: Registry) => void;
 }
 
@@ -68,8 +73,9 @@ export function RegistryFormDialog(props: {
     // setup is exactly the intent.
     // eslint-disable-next-line solid/reactivity
     props.ref({
-        openAdd: () => {
+        openAdd: (prefill) => {
             reset();
+            if (prefill !== undefined) setForm((f) => ({ ...f, ...prefill }));
             dialogRef?.showModal();
         },
         openEdit: (reg) => {

@@ -60,6 +60,29 @@ export const emptyForm = (): RegistryFormState => ({
     trustIssuer: "",
 });
 
+/**
+ * prefillForHost seeds the add-registry form from a registry host observed
+ * somewhere else in the app — the cluster Gaps tab knows an image came from
+ * `ghcr.io` and nothing is configured for it.
+ *
+ * A host that matches a type's fixed URL selects that type, because choosing it
+ * later would overwrite the URL anyway. Fixed-URL types have no webhook, so the
+ * scan mode is moved with it rather than left on a value the form would reject.
+ * Everything stays editable; this only saves typing.
+ */
+export function prefillForHost(host: string): Partial<RegistryFormState> {
+    const match = (Object.keys(TYPE_CAPS) as RegType[]).find(
+        (t) => TYPE_CAPS[t].fixedUrl === host,
+    );
+    const type: RegType = match ?? "generic";
+    return {
+        name: host,
+        type,
+        url: TYPE_CAPS[type].fixedUrl ?? host,
+        scanMode: TYPE_CAPS[type].webhook ? "webhook" : "poll",
+    };
+}
+
 export function toPatternArray(s: string): string[] {
     return s.split("\n").map(p => p.trim()).filter(p => p !== "");
 }

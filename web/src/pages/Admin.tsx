@@ -1,5 +1,6 @@
 import { Show, For, type JSX } from "solid-js";
 import { useLocation, A } from "@solidjs/router";
+import { useAuth } from "~/context/auth";
 import { UsersTab } from "./admin/UsersTab";
 import { APIKeysTab } from "./admin/APIKeysTab";
 import { StatusTab } from "./admin/StatusTab";
@@ -12,16 +13,26 @@ interface AdminTab {
     href: string;
     /** Every path that should light this tab up, including legacy ones. */
     paths: string[];
+    /**
+     * True when every endpoint behind the tab requires the admin role.
+     *
+     * Sources is the exception: creating a registry is `authenticated` and
+     * editing one is `owner`, so a namespace owner can use that tab in full.
+     * It lives here only because this is where it was first built, and the
+     * cluster Gaps tab has to be able to send them to it.
+     */
+    adminOnly: boolean;
     render: () => JSX.Element;
 }
 
 const TABS: AdminTab[] = [
-    { label: "Users", href: "/admin", paths: ["/admin"], render: () => <UsersTab /> },
-    { label: "API Keys", href: "/admin/keys", paths: ["/admin/keys"], render: () => <APIKeysTab /> },
+    { label: "Users", href: "/admin", paths: ["/admin"], adminOnly: true, render: () => <UsersTab /> },
+    { label: "API Keys", href: "/admin/keys", paths: ["/admin/keys"], adminOnly: true, render: () => <APIKeysTab /> },
     {
         label: "Namespaces",
         href: "/admin/namespaces",
         paths: ["/admin/namespaces"],
+        adminOnly: true,
         render: () => <NamespacesTab />,
     },
     {
@@ -30,29 +41,42 @@ const TABS: AdminTab[] = [
         // /admin/registries stays a live path: the tab was called Registries
         // until ADR-039 split that concept, and bookmarks should not 404.
         paths: ["/admin/sources", "/admin/registries"],
+        adminOnly: false,
         render: () => <SourcesTab />,
     },
-    { label: "System Status", href: "/admin/status", paths: ["/admin/status"], render: () => <StatusTab /> },
-    { label: "Jobs", href: "/admin/jobs", paths: ["/admin/jobs"], render: () => <JobsTab /> },
+    { label: "System Status", href: "/admin/status", paths: ["/admin/status"], adminOnly: true, render: () => <StatusTab /> },
+    { label: "Jobs", href: "/admin/jobs", paths: ["/admin/jobs"], adminOnly: true, render: () => <JobsTab /> },
 ];
 
 export default function Admin() {
     const location = useLocation();
-    const isActive = (tab: AdminTab) => tab.paths.includes(location.pathname);
+    const { user } = useAuth();
+    // A non-admin sees only the tabs they can actually use. Showing the other
+    // five would offer them a row of 403s.
+    const tabs = () => (user()?.role === "admin" ? TABS : TABS.filter((t) => !t.adminOnly));
+    // A non-admin who lands on an admin-only path (a stale bookmark, a shared
+    // link) gets the tabs they do have rather than an empty page — the tab strip
+    // already tells them which one they are on.
+    const active = () => tabs().find((t) => t.paths.includes(location.pathname)) ?? tabs()[0];
+    const isActive = (tab: AdminTab) => tab === active();
 
     return (
         <>
             <div class="page-header">
                 <div class="page-header-row">
                     <div>
-                        <h2>Admin</h2>
-                        <p>User management, API keys, and system configuration</p>
+                        <h2>{user()?.role === "admin" ? "Admin" : "Sources"}</h2>
+                        <p>
+                            {user()?.role === "admin"
+                                ? "User management, API keys, and system configuration"
+                                : "Registries and other ingest channels you own"}
+                        </p>
                     </div>
                 </div>
             </div>
 
             <nav style={{ display: "flex", gap: "0", "margin-bottom": "1.5rem", "border-bottom": "1px solid var(--color-border)" }}>
-                <For each={TABS}>
+                <For each={tabs()}>
                     {(tab) => (
                         <A
                             href={tab.href}
@@ -70,7 +94,7 @@ export default function Admin() {
                 </For>
             </nav>
 
-            <For each={TABS}>{(tab) => <Show when={isActive(tab)}>{tab.render()}</Show>}</For>
+            <Show when={active()}>{(tab) => tab().render()}</Show>
         </>
     );
 }

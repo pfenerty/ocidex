@@ -1,7 +1,7 @@
 import "./Layout.css";
 import { A, useNavigate, useLocation } from "@solidjs/router";
 import { createEffect, Show, type ParentProps } from "solid-js";
-import { Home, LayoutDashboard, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Server, Settings, LogOut } from "lucide-solid";
+import { Home, LayoutDashboard, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Server, Database, Settings, LogOut } from "lucide-solid";
 import ThemeToggle from "~/components/ThemeToggle";
 import { useAuth } from "~/context/auth";
 import { API_BASE_URL } from "~/api/client";
@@ -79,6 +79,18 @@ export default function Layout(props: ParentProps) {
                         <A href="/clusters">
                             <Server size={16} />
                             <span>Clusters</span>
+                        </A>
+                    </Show>
+                    {/* Registries are managed on the Sources tab, which lives
+                        under /admin for historical reasons only: creating one
+                        is `authenticated` and editing one is `owner`, so a
+                        namespace owner is allowed to manage registries and
+                        simply had no route to the page. Admins keep reaching it
+                        through Admin, where the rest of the tabs are. */}
+                    <Show when={user() !== undefined && user()?.role !== "admin"}>
+                        <A href="/admin/sources">
+                            <Database size={16} />
+                            <span>Sources</span>
                         </A>
                     </Show>
                     <Show when={user()?.role === "admin"}>

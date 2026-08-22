@@ -701,12 +701,17 @@ describe("ClusterDetail", () => {
         expect(container.textContent).toContain("excluded by patterns");
         expect(container.textContent).toContain("quay");
 
+        // Both links used to point at a top-level /registries route that has
+        // never existed in App.tsx, so a tab whose whole job is naming the
+        // remedy sent the reader to a 404. Registries are managed on the
+        // Sources tab; the host travels with the link so the add dialog opens
+        // knowing what it is being added for.
         const addRegistry = [...container.querySelectorAll("a")].find(
             (a) => a.textContent === "add a registry",
         );
-        expect(addRegistry?.getAttribute("href")).toBe("/registries");
+        expect(addRegistry?.getAttribute("href")).toBe("/admin/sources?add=1&host=gcr.io");
         const named = [...container.querySelectorAll("a")].find(
-            (a) => a.getAttribute("href") === "/registries/r-2",
+            (a) => a.getAttribute("href") === "/admin/sources?registry=r-2",
         );
         expect(named).toBeDefined();
     });

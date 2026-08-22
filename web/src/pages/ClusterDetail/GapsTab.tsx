@@ -49,9 +49,13 @@ function IngestTargetCell(props: {
                     {props.pending ? "Queueing…" : "Ingest"}
                 </button>
             </Show>
+            {/* Registries are managed on the Sources tab. These used to point at
+                a top-level /registries route that has never existed, so both
+                links 404'd — the tab tells a reader exactly what to fix and
+                then sent them nowhere. */}
             <Show when={props.image.registry_id}>
                 {(id) => (
-                    <A href={`/registries/${id()}`} class="text-sm">
+                    <A href={`/admin/sources?registry=${id()}`} class="text-sm">
                         {props.image.registry_name ?? "registry"}
                     </A>
                 )}
@@ -60,7 +64,11 @@ function IngestTargetCell(props: {
                 <span class="text-muted text-sm">
                     nothing configured for{" "}
                     <span class="font-mono">{props.image.registry_host}</span> —{" "}
-                    <A href="/registries">add a registry</A>
+                    <A
+                        href={`/admin/sources?add=1&host=${encodeURIComponent(props.image.registry_host ?? "")}`}
+                    >
+                        add a registry
+                    </A>
                 </span>
             </Show>
             <Show when={props.image.reason === "unparseable_ref"}>

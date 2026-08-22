@@ -28,8 +28,16 @@ vi.mock("~/context/toast", () => ({
     useToast: () => vi.fn(),
 }));
 
+// The tab reads deep-link params (the cluster Gaps tab sends readers here with
+// a host to add or a registry to open), so the mock has to carry them.
+let searchParams: Record<string, string | undefined> = {};
+const setSearchParams = vi.fn((next: Record<string, string | undefined>) => {
+    searchParams = { ...searchParams, ...next };
+});
+
 vi.mock("@solidjs/router", () => ({
     useNavigate: () => vi.fn(),
+    useSearchParams: () => [searchParams, setSearchParams],
     A: (props: { href: string; children?: JSX.Element }) => (
         <a href={props.href}>{props.children}</a>
     ),
@@ -131,6 +139,7 @@ const saveButton = (container: HTMLElement) =>
 describe("SourcesTab managed-registry guard", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        searchParams = {};
     });
 
     it("badges a registry owned by an external controller", () => {
@@ -193,6 +202,7 @@ const headings = (container: HTMLElement) =>
 describe("SourcesTab namespace grouping", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        searchParams = {};
     });
 
     it("groups sources under the namespace that owns them", () => {
@@ -282,5 +292,44 @@ describe("SourcesTab namespace grouping", () => {
         );
         expect(heading.querySelector('[data-testid="namespace-visibility"]')).toBeNull();
         expect(heading.textContent).toContain("acme");
+    });
+});
+
+// The cluster Gaps tab tells a reader exactly which host has no registry. Both
+// of its links pointed at a /registries route that has never existed, so the
+// remedy it named ended in a 404. They now land here, carrying what they know.
+describe("SourcesTab deep links", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        searchParams = {};
+    });
+
+    it("opens the add dialog prefilled from the host that has no registry", () => {
+        searchParams = { add: "1", host: "ghcr.io" };
+        const { container } = renderTab([]);
+
+        const dialog = must(container.querySelector("dialog"), "dialog");
+        expect(dialog.hasAttribute("open")).toBe(true);
+        const urls = [...container.querySelectorAll<HTMLInputElement>("dialog input[type=text]")];
+        expect(urls.some((i) => i.value === "ghcr.io")).toBe(true);
+        // Cleared, or a reload re-opens the dialog over whatever has since been
+        // typed into it.
+        expect(setSearchParams).toHaveBeenCalledWith(
+            { add: undefined, host: undefined },
+            { replace: true },
+        );
+    });
+
+    it("opens the named registry for editing", () => {
+        searchParams = { registry: managedRegistry.id };
+        const { container } = renderTab([managedRegistry]);
+
+        const dialog = must(container.querySelector("dialog"), "dialog");
+        expect(dialog.hasAttribute("open")).toBe(true);
+        const values = [...dialog.querySelectorAll<HTMLInputElement>("input[type=text]")].map(
+            (i) => i.value,
+        );
+        expect(values).toContain(managedRegistry.name);
+        expect(setSearchParams).toHaveBeenCalledWith({ registry: undefined }, { replace: true });
     });
 });
