@@ -239,7 +239,7 @@
 
 .sidebar nav a.active {
     background: var(--color-surface-hover);
-    color: var(--color-primary);
+    color: var(--color-secondary);
 }
 
 .main-content {

@@ -5,9 +5,9 @@ import { TimestampCell } from "~/components/cells";
 
 export const JOB_STATE_COLORS: Record<string, string> = {
     queued: "var(--color-text-muted)",
-    running: "var(--color-primary)",
+    running: "var(--color-info)",
     succeeded: "var(--color-success)",
-    failed: "var(--color-error, #e53e3e)",
+    failed: "var(--color-danger)",
 };
 
 /**
@@ -75,7 +75,7 @@ export function lastErrorColumn<T extends JobRow>(expanded: {
         render: (job) => (
             <Show when={job.last_error}>
                 <button
-                    style={{ cursor: "pointer", "font-size": "0.85rem", background: "none", border: "none", padding: 0, color: "var(--color-primary)" }}
+                    style={{ cursor: "pointer", "font-size": "0.85rem", background: "none", border: "none", padding: 0, color: "var(--color-secondary)" }}
                     onClick={() => expanded.toggle(job.id)}
                 >
                     {expanded.has(job.id) ? "Hide error" : "View error"}

@@ -32,7 +32,7 @@
    compact VulnCountBadges chip segments (.vuln-chip-n) and full-size
    SeverityPill badges (.badge.badge-sm) across the app. */
 .sev-critical {
-    background: var(--color-primary);
+    background: var(--color-severity-critical);
     color: #fff;
 }
 

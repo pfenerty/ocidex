@@ -4,7 +4,7 @@ import { EnrichmentJobsView } from "./jobs/EnrichmentJobsView";
 
 type Pipeline = "scan" | "enrichment";
 
-const activeStyle = { "border-color": "var(--color-primary)", color: "var(--color-primary)" };
+const activeStyle = { "border-color": "var(--color-secondary)", color: "var(--color-secondary)" };
 
 /** JobsTab switches between the two job queues; each view owns its own filters. */
 export function JobsTab() {

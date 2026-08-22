@@ -11,7 +11,33 @@
    ============================================ */
 
 @theme {
-    /* --- Pokedex Brand --- */
+    /* --- Pokedex Brand ---
+
+       Red and blue divide by *what the colour is telling you*, not by rank.
+       Before ocidex-ag4q.11 they were interchangeable — the sidebar slab, the
+       active tab underline and the primary CTA were all the same red, so red
+       carried no information at all.
+
+         red  (--color-primary)   — identity and consequence. OCIDex's own
+                                    chrome (sidebar slab, wordmark,
+                                    --color-entry-edge) and the one action a
+                                    view is built around (.btn-primary,
+                                    .btn-danger). Loud on purpose: at most one
+                                    red thing competes for attention per view.
+
+         blue (--color-secondary) — navigation and state. Links, hovers on
+                                    link-like affordances, active tabs, active
+                                    tiles, selected filters, focus rings.
+                                    Answers "where am I / where can I go",
+                                    never "do this".
+
+       Two things follow. A status vocabulary must not borrow either token:
+       --color-severity-critical exists so that restyling the brand cannot
+       silently restyle the top of the severity scale. And --color-info is an
+       alias of --color-secondary rather than a second copy of the hex, since
+       "informational" and "interactive" are the same blue by construction.
+
+       colorSemantics.test.ts enforces the split. */
     --color-primary: #DC3545;
     --color-primary-hover: #E8525F;
     --color-primary-fg: #FFFFFF;
@@ -41,8 +67,11 @@
     --color-danger: #F06565;
     --color-danger-bg: rgba(240, 101, 101, 0.10);
     --color-danger-hover: #F28888;
-    --color-info: #5B8DEF;
+    --color-info: var(--color-secondary);
     --color-info-bg: rgba(91, 141, 239, 0.12);
+    /* The top of VulnBadge's de-escalating redscale. Deliberately its own
+       value rather than var(--color-primary): severity is not brand. */
+    --color-severity-critical: #DC3545;
 
     /* --- Typography --- */
     --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
@@ -109,8 +138,9 @@
     --color-danger: #DC2626;
     --color-danger-bg: rgba(220, 38, 38, 0.08);
     --color-danger-hover: #B91C1C;
-    --color-info: #2563EB;
+    --color-info: var(--color-secondary);
     --color-info-bg: rgba(37, 99, 235, 0.08);
+    --color-severity-critical: #CC1429;
 
     --color-accent-amber: #D97706;
     --color-chrome-deep: #1A1D27;
@@ -618,8 +648,8 @@
     }
 
     .tab-bar button.active {
-        color: var(--color-primary);
-        border-bottom-color: var(--color-primary);
+        color: var(--color-secondary);
+        border-bottom-color: var(--color-secondary);
         background: transparent;
     }
 

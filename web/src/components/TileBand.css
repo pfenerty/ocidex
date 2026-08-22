@@ -50,9 +50,10 @@
     border-color: var(--color-border-hover);
 }
 
-/* Selection, not severity: this is the tile whose rows are on screen. */
+/* Selection, not severity: this is the tile whose rows are on screen, so it
+   takes the navigation blue rather than the brand red (ocidex-ag4q.11). */
 .tile.active {
-    border-color: var(--color-primary);
+    border-color: var(--color-secondary);
 }
 
 .tile-head {

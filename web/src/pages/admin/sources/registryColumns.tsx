@@ -164,7 +164,7 @@ export function registryColumns(opts: {
                         Force
                     </button>
                     <Show when={(opts.activeByRegistry().get(reg.id) ?? 0) > 0}>
-                        <span class="badge" style={{ background: "var(--color-primary)", color: "#fff", "font-size": "0.75rem" }}>
+                        <span class="badge badge-primary" style={{ "font-size": "0.75rem" }}>
                             {opts.activeByRegistry().get(reg.id)} active
                         </span>
                     </Show>

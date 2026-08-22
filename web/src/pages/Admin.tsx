@@ -93,8 +93,8 @@ export default function Admin() {
                             href={tab.href}
                             style={{
                                 padding: "0.5rem 1rem",
-                                "border-bottom": isActive(tab) ? "2px solid var(--color-primary)" : "2px solid transparent",
-                                color: isActive(tab) ? "var(--color-primary)" : "inherit",
+                                "border-bottom": isActive(tab) ? "2px solid var(--color-secondary)" : "2px solid transparent",
+                                color: isActive(tab) ? "var(--color-secondary)" : "inherit",
                                 "font-weight": isActive(tab) ? "600" : "400",
                                 "margin-bottom": "-1px",
                             }}

@@ -44,7 +44,7 @@
 }
 
 .dash-row:hover .dash-row-title {
-    color: var(--color-primary);
+    color: var(--color-secondary);
 }
 
 .dash-row-main {
@@ -89,7 +89,7 @@
 }
 
 .dash-link:hover {
-    color: var(--color-primary);
+    color: var(--color-secondary);
 }
 
 /* Signed-in band on the public landing page. It sits above the discovery

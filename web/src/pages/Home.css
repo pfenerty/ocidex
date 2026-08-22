@@ -21,6 +21,7 @@
     line-height: 1.1;
 }
 
+/* The wordmark. Brand red, per the split documented in index.css. */
 .landing-title span { color: var(--color-primary); }
 
 .landing-tagline {
@@ -129,7 +130,7 @@
     text-decoration: none;
 }
 
-.landing-panel-all:hover { color: var(--color-primary); }
+.landing-panel-all:hover { color: var(--color-secondary); }
 
 .landing-panel-icon {
     color: var(--color-text-muted);
@@ -186,7 +187,7 @@
     font-family: var(--font-mono);
 }
 
-.landing-list-name:hover { color: var(--color-primary); }
+.landing-list-name:hover { color: var(--color-secondary); }
 
 .landing-list-meta {
     font-family: var(--font-mono);
@@ -196,7 +197,7 @@
 }
 
 .landing-list-time { text-decoration: none; }
-.landing-list-time:hover { color: var(--color-primary); }
+.landing-list-time:hover { color: var(--color-secondary); }
 
 .landing-list-empty {
     padding: 0.375rem 0;

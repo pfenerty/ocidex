@@ -54,7 +54,7 @@ export function EnricherHealthMatrix(props: {
                                 <tr>
                                     <td>
                                         <button
-                                            style={{ cursor: "pointer", background: "none", border: "none", padding: 0, color: props.enricher === e ? "var(--color-primary)" : "inherit", "font-weight": props.enricher === e ? "600" : "400" }}
+                                            style={{ cursor: "pointer", background: "none", border: "none", padding: 0, color: props.enricher === e ? "var(--color-secondary)" : "inherit", "font-weight": props.enricher === e ? "600" : "400" }}
                                             onClick={() => props.onEnricher(props.enricher === e ? "" : e)}
                                         >
                                             <code>{e}</code>
