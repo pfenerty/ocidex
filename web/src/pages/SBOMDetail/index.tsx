@@ -15,7 +15,7 @@ import SummaryBand, { type SbomTab } from "~/components/SummaryBand";
 import { VulnSummaryBar } from "~/components/VulnBadge";
 import { trustStatus, trustBadgeClass } from "~/utils/trust";
 import { parsePurl } from "~/utils/purl";
-import { artifactDisplayName, formatDateTime, plural } from "~/utils/format";
+import { artifactDisplayName, formatDateTime } from "~/utils/format";
 import { PackagesTab } from "./PackagesTab";
 
 export default function SBOMDetail() {
@@ -84,8 +84,12 @@ export default function SBOMDetail() {
     const subtitle = () => {
         const s = sbomQuery.data;
         if (!s) return "";
+        // No component count here. It counted every component including file
+        // entries (4,193 on a typical image), so it sat directly above a tile
+        // and a tab both reading the package count (958) with nothing to say
+        // which was authoritative. The band owns the package figure now, and
+        // the packages tab explains what it excludes.
         const parts: string[] = [`CycloneDX ${s.specVersion}`];
-        if (s.componentCount !== undefined) parts.push(plural(s.componentCount, "component"));
         parts.push(`Ingested ${formatDateTime(s.createdAt)}`);
         return parts.join(" · ");
     };
@@ -217,6 +221,8 @@ export default function SBOMDetail() {
                                             hasMore={componentsQuery.hasNextPage}
                                             loadingMore={componentsQuery.isFetchingNextPage}
                                             onLoadMore={() => void componentsQuery.fetchNextPage()}
+                                            totalCount={s.packageCount}
+                                            componentCount={s.componentCount}
                                         />
                                     </Show>
                                 </Show>
