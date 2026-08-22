@@ -16,7 +16,7 @@ type SearchService interface {
 	ListSBOMs(ctx context.Context, filter SBOMFilter) (CursorPage[SBOMSummary], error)
 	SearchComponents(ctx context.Context, filter ComponentFilter) (PagedResult[ComponentSummary], error)
 	SearchDistinctComponents(ctx context.Context, filter ComponentFilter) (PagedResult[DistinctComponentSummary], error)
-	GetComponentVersions(ctx context.Context, name, group, version, compType string, vis VisibilityFilter) ([]ComponentVersionEntry, error)
+	GetComponentVersions(ctx context.Context, filter ComponentVersionFilter) (PagedResult[ComponentVersionEntry], error)
 	GetComponent(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ComponentDetail, error)
 	ListLicenses(ctx context.Context, filter LicenseFilter) (PagedResult[LicenseCount], error)
 	ListComponentsByLicense(ctx context.Context, licenseID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ComponentSummary], error)
@@ -247,6 +247,21 @@ type ComponentFilter struct {
 	PurlType   string
 	Sort       string
 	SortDir    string
+	Limit      int32
+	Offset     int32
+	Visibility VisibilityFilter
+}
+
+// ComponentVersionFilter holds parameters for GetComponentVersions.
+//
+// Paginated per ADR-043: the ordering is a stable version sort over immutable
+// rows, but the UI shows numbered pages with a total, so offset is the derived
+// style rather than a keyset cursor.
+type ComponentVersionFilter struct {
+	Name       string
+	Group      string
+	Version    string
+	Type       string
 	Limit      int32
 	Offset     int32
 	Visibility VisibilityFilter

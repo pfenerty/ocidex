@@ -1909,8 +1909,9 @@ type GetArtifactVulnSummaryOutputBody struct {
 // GetComponentVersionsOutputBody defines model for GetComponentVersionsOutputBody.
 type GetComponentVersionsOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema   *string                  `json:"$schema,omitempty"`
-	Versions *[]ComponentVersionEntry `json:"versions"`
+	Schema     *string                  `json:"$schema,omitempty"`
+	Pagination PaginationMeta           `json:"pagination"`
+	Versions   *[]ComponentVersionEntry `json:"versions"`
 }
 
 // GetComponentVulnsOutputBody defines model for GetComponentVulnsOutputBody.
@@ -3328,6 +3329,12 @@ type SearchDistinctComponentsParams struct {
 
 // GetComponentVersionsParams defines parameters for GetComponentVersions.
 type GetComponentVersionsParams struct {
+	// Limit Maximum number of results per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+
 	// Name Component name
 	Name string `form:"name" json:"name"`
 

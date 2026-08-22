@@ -2454,6 +2454,7 @@ export interface components {
              * @example https://example.com/schemas/GetComponentVersionsOutputBody.json
              */
             readonly $schema?: string;
+            pagination: components["schemas"]["PaginationMeta"];
             versions: components["schemas"]["ComponentVersionEntry"][] | null;
         };
         GetComponentVulnsOutputBody: {
@@ -4967,6 +4968,10 @@ export interface operations {
     "get-component-versions": {
         parameters: {
             query: {
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Number of results to skip */
+                offset?: number;
                 /** @description Component name */
                 name: string;
                 /** @description Filter by component group */

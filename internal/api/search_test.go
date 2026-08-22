@@ -154,9 +154,14 @@ func (f *fakeSearchService) SearchDistinctComponents(_ context.Context, filter s
 	}, nil
 }
 
-func (f *fakeSearchService) GetComponentVersions(_ context.Context, name, _, _, _ string, _ service.VisibilityFilter) ([]service.ComponentVersionEntry, error) {
-	return []service.ComponentVersionEntry{
-		{ID: "comp1", SbomID: "sbom1", Type: "library", Name: name, SbomCreatedAt: "2025-01-01T00:00:00Z"},
+func (f *fakeSearchService) GetComponentVersions(_ context.Context, filter service.ComponentVersionFilter) (service.PagedResult[service.ComponentVersionEntry], error) {
+	return service.PagedResult[service.ComponentVersionEntry]{
+		Data: []service.ComponentVersionEntry{
+			{ID: "comp1", SbomID: "sbom1", Type: "library", Name: filter.Name, SbomCreatedAt: "2025-01-01T00:00:00Z"},
+		},
+		Total:  1,
+		Limit:  filter.Limit,
+		Offset: filter.Offset,
 	}, nil
 }
 
@@ -390,6 +395,75 @@ func TestSearchComponentsPassesPurlThrough(t *testing.T) {
 	is.Equal(w.Code, http.StatusOK)
 	is.Equal(search.filter.Purl, "pkg:npm/@scope/lodash@4.17.21")
 	is.Equal(search.filter.Name, "")
+}
+
+type capturingVersionsService struct {
+	fakeSearchService
+	filter service.ComponentVersionFilter
+}
+
+func (f *capturingVersionsService) GetComponentVersions(_ context.Context, filter service.ComponentVersionFilter) (service.PagedResult[service.ComponentVersionEntry], error) {
+	f.filter = filter
+	return service.PagedResult[service.ComponentVersionEntry]{
+		Data:   []service.ComponentVersionEntry{{ID: "comp1", Name: filter.Name}},
+		Total:  4210,
+		Limit:  filter.Limit,
+		Offset: filter.Offset,
+	}, nil
+}
+
+// The endpoint was unpaginated and returned a component's whole version
+// history, which timed out at 30s for the very names /components links most
+// (ocidex-ag4q.7). Paginating it is only useful if the window reaches the
+// service and the total comes back out — a page with no total leaves the UI
+// unable to say there is a second one.
+func TestGetComponentVersionsPaginates(t *testing.T) {
+	is := is.New(t)
+	search := &capturingVersionsService{}
+	router := newTestRouter(&fakeSBOMService{}, search)
+
+	r := httptest.NewRequest(http.MethodGet,
+		"/api/v1/components/versions?name="+url.QueryEscape("golang.org/x/crypto")+"&limit=20&offset=40", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, r)
+
+	is.Equal(w.Code, http.StatusOK)
+	is.Equal(search.filter.Name, "golang.org/x/crypto")
+	is.Equal(search.filter.Limit, int32(20))
+	is.Equal(search.filter.Offset, int32(40))
+
+	var body struct {
+		Versions   []service.ComponentVersionEntry `json:"versions"`
+		Pagination struct {
+			Total  int64 `json:"total"`
+			Limit  int32 `json:"limit"`
+			Offset int32 `json:"offset"`
+		} `json:"pagination"`
+	}
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &body))
+	is.Equal(len(body.Versions), 1)
+	is.Equal(body.Pagination.Total, int64(4210))
+	is.Equal(body.Pagination.Limit, int32(20))
+	is.Equal(body.Pagination.Offset, int32(40))
+}
+
+// An unbounded caller must not be able to ask for the whole history again.
+func TestGetComponentVersionsDefaultsAndCapsTheWindow(t *testing.T) {
+	is := is.New(t)
+	search := &capturingVersionsService{}
+	router := newTestRouter(&fakeSBOMService{}, search)
+
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/components/versions?name=zlib", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, r)
+	is.Equal(w.Code, http.StatusOK)
+	is.Equal(search.filter.Limit, int32(20))
+	is.Equal(search.filter.Offset, int32(0))
+
+	r = httptest.NewRequest(http.MethodGet, "/api/v1/components/versions?name=zlib&limit=5000", nil)
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, r)
+	is.Equal(w.Code, http.StatusUnprocessableEntity)
 }
 
 func TestGetComponent(t *testing.T) {

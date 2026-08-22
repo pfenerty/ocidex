@@ -37,13 +37,22 @@ func (h *Handler) SearchDistinctComponents(ctx context.Context, input *SearchDis
 // GetComponentVersions handles GET /api/v1/components/versions.
 func (h *Handler) GetComponentVersions(ctx context.Context, input *GetComponentVersionsInput) (*GetComponentVersionsOutput, error) {
 	vis := visibilityFilterFromContext(ctx)
-	versions, err := h.searchService.GetComponentVersions(ctx, input.Name, input.Group, input.Version, input.Type, vis)
+	result, err := h.searchService.GetComponentVersions(ctx, service.ComponentVersionFilter{
+		Name:       input.Name,
+		Group:      input.Group,
+		Version:    input.Version,
+		Type:       input.Type,
+		Limit:      input.Limit,
+		Offset:     input.Offset,
+		Visibility: vis,
+	})
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
 
 	out := &GetComponentVersionsOutput{}
-	out.Body.Versions = versions
+	out.Body.Versions = result.Data
+	out.Body.Pagination = paginationMeta(result)
 	return out, nil
 }
 

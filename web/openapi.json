@@ -2475,6 +2475,9 @@
             "readOnly": true,
             "type": "string"
           },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          },
           "versions": {
             "items": {
               "$ref": "#/components/schemas/ComponentVersionEntry"
@@ -2486,7 +2489,8 @@
           }
         },
         "required": [
-          "versions"
+          "versions",
+          "pagination"
         ],
         "type": "object"
       },
@@ -8020,6 +8024,33 @@
       "get": {
         "operationId": "get-component-versions",
         "parameters": [
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of results to skip",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Number of results to skip",
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
           {
             "description": "Component name",
             "explode": false,

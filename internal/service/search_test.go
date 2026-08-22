@@ -245,14 +245,103 @@ func TestListComponentsByLicense_DBError(t *testing.T) {
 func TestGetComponentVersions_DBError(t *testing.T) {
 	is := is.New(t)
 	db := &fakeDB{
+		// The count runs first, so it has to succeed for the page query's
+		// error to be the one under test.
+		queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
+			return &fakeRow{scanFn: func(dest ...any) error {
+				if n, ok := dest[0].(*int64); ok {
+					*n = 7
+				}
+				return nil
+			}}
+		},
 		queryFn: func(_ context.Context, _ string, _ ...any) (pgx.Rows, error) {
 			return nil, errors.New("db error")
 		},
 	}
 	svc := &searchService{db: db}
 
-	_, err := svc.GetComponentVersions(context.Background(), "", "", "", "", VisibilityFilter{})
+	_, err := svc.GetComponentVersions(context.Background(), ComponentVersionFilter{})
 	is.True(err != nil)
+}
+
+func TestGetComponentVersions_CountError(t *testing.T) {
+	is := is.New(t)
+	pageQueried := false
+	db := &fakeDB{
+		queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
+			return &fakeRow{scanFn: func(...any) error { return errors.New("db error") }}
+		},
+		queryFn: func(_ context.Context, _ string, _ ...any) (pgx.Rows, error) {
+			pageQueried = true
+			return nil, nil
+		},
+	}
+	svc := &searchService{db: db}
+
+	_, err := svc.GetComponentVersions(context.Background(), ComponentVersionFilter{})
+	is.True(err != nil)
+	// A failed count must not be reported as a page of zero rows.
+	is.True(!pageQueried)
+}
+
+// The endpoint returned every row a component name had ever produced. The
+// most-used names have thousands, and the query carries three LEFT JOINs and a
+// four-key sort, so /components' top rows -- the ones most likely to be clicked
+// -- timed out at 30s (ocidex-ag4q.7). This pins that the caller's window
+// actually reaches the query, and that the total is counted separately rather
+// than derived from the page.
+func TestGetComponentVersions_PassesWindowAndCountsSeparately(t *testing.T) {
+	is := is.New(t)
+	var pageArgs []any
+	db := &fakeDB{
+		queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
+			return &fakeRow{scanFn: func(dest ...any) error {
+				if n, ok := dest[0].(*int64); ok {
+					*n = 4210
+				}
+				return nil
+			}}
+		},
+		queryFn: func(_ context.Context, _ string, args ...any) (pgx.Rows, error) {
+			pageArgs = args
+			return nil, errors.New("stop after capturing the window")
+		},
+	}
+	svc := &searchService{db: db}
+
+	_, err := svc.GetComponentVersions(context.Background(), ComponentVersionFilter{
+		Name:   "golang.org/x/crypto",
+		Limit:  20,
+		Offset: 40,
+	})
+	is.True(err != nil)
+	is.True(containsArg(pageArgs, int32(20)))
+	is.True(containsArg(pageArgs, int32(40)))
+
+	// And with a working page query, the total is the counted value, not len(rows).
+	db.queryFn = func(_ context.Context, _ string, _ ...any) (pgx.Rows, error) {
+		return emptyRows(), nil
+	}
+	result, err := svc.GetComponentVersions(context.Background(), ComponentVersionFilter{
+		Name:   "golang.org/x/crypto",
+		Limit:  20,
+		Offset: 40,
+	})
+	is.NoErr(err)
+	is.Equal(len(result.Data), 0)
+	is.Equal(result.Total, int64(4210))
+	is.Equal(result.Limit, int32(20))
+	is.Equal(result.Offset, int32(40))
+}
+
+func containsArg(args []any, want any) bool {
+	for _, a := range args {
+		if a == want {
+			return true
+		}
+	}
+	return false
 }
 
 func TestListComponentPurlTypes_DBError(t *testing.T) {

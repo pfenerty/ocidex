@@ -110,19 +110,33 @@ func (s *searchService) SearchDistinctComponents(ctx context.Context, filter Com
 	}, nil
 }
 
-func (s *searchService) GetComponentVersions(ctx context.Context, name, group, version, compType string, vis VisibilityFilter) ([]ComponentVersionEntry, error) {
+func (s *searchService) GetComponentVersions(ctx context.Context, filter ComponentVersionFilter) (PagedResult[ComponentVersionEntry], error) {
 	q := repository.New(s.db)
 
-	rows, err := q.GetComponentVersions(ctx, repository.GetComponentVersionsParams{
-		Name:      name,
-		GroupName: textOrNull(group),
-		Version:   textOrNull(version),
-		Type:      textOrNull(compType),
-		UserID:    vis.UserID,
-		IsAdmin:   visAdminBool(vis),
+	total, err := q.CountComponentVersions(ctx, repository.CountComponentVersionsParams{
+		Name:      filter.Name,
+		GroupName: textOrNull(filter.Group),
+		Version:   textOrNull(filter.Version),
+		Type:      textOrNull(filter.Type),
+		UserID:    filter.Visibility.UserID,
+		IsAdmin:   visAdminBool(filter.Visibility),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("getting component versions: %w", err)
+		return PagedResult[ComponentVersionEntry]{}, fmt.Errorf("counting component versions: %w", err)
+	}
+
+	rows, err := q.GetComponentVersions(ctx, repository.GetComponentVersionsParams{
+		Name:      filter.Name,
+		GroupName: textOrNull(filter.Group),
+		Version:   textOrNull(filter.Version),
+		Type:      textOrNull(filter.Type),
+		UserID:    filter.Visibility.UserID,
+		IsAdmin:   visAdminBool(filter.Visibility),
+		RowLimit:  filter.Limit,
+		RowOffset: filter.Offset,
+	})
+	if err != nil {
+		return PagedResult[ComponentVersionEntry]{}, fmt.Errorf("getting component versions: %w", err)
 	}
 
 	items := make([]ComponentVersionEntry, 0, len(rows))
@@ -151,13 +165,20 @@ func (s *searchService) GetComponentVersions(ctx context.Context, name, group, v
 		items = append(items, entry)
 	}
 
+	// Only the page's purls, not the whole history: this was already the shape
+	// of the call, and pagination is what makes it bounded.
 	if len(purls) > 0 {
 		if err := decorateVersionVulns(ctx, q, purls, items); err != nil {
-			return nil, err
+			return PagedResult[ComponentVersionEntry]{}, err
 		}
 	}
 
-	return items, nil
+	return PagedResult[ComponentVersionEntry]{
+		Data:   items,
+		Total:  total,
+		Limit:  filter.Limit,
+		Offset: filter.Offset,
+	}, nil
 }
 
 func decorateVersionVulns(ctx context.Context, q *repository.Queries, purls []string, items []ComponentVersionEntry) error {

@@ -11,6 +11,51 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countComponentVersions = `-- name: CountComponentVersions :one
+SELECT COUNT(*)
+FROM component c
+JOIN sbom s ON s.id = c.sbom_id
+WHERE c.name = $1
+  AND ($2::text IS NULL OR c.group_name = $2)
+  AND ($3::text IS NULL OR c.version = $3)
+  AND ($4::text IS NULL OR c.type = $4)
+  AND sbom_visible(s.namespace_id, $5::uuid, $6::boolean)
+`
+
+type CountComponentVersionsParams struct {
+	Name      string      `json:"name"`
+	GroupName pgtype.Text `json:"group_name"`
+	Version   pgtype.Text `json:"version"`
+	Type      pgtype.Text `json:"type"`
+	UserID    pgtype.UUID `json:"user_id"`
+	IsAdmin   pgtype.Bool `json:"is_admin"`
+}
+
+// The total for GetComponentVersions, deliberately NOT a COUNT(*) OVER() inside
+// that query. The window function is the convention elsewhere in this file, but
+// it only pays where the page and the count cost the same scan. Here the page
+// query carries three LEFT JOINs (artifact plus two enrichment lookups) and a
+// four-key sort purely to shape the rows it returns; a window count would drag
+// every matching row through all of that just to discard it. The most-used
+// component names have thousands of rows, which is what made the unpaginated
+// version time out at 30s (ocidex-ag4q.7).
+//
+// Counting needs only the visibility join, so it stays on
+// idx_component_name_group.
+func (q *Queries) CountComponentVersions(ctx context.Context, arg CountComponentVersionsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countComponentVersions,
+		arg.Name,
+		arg.GroupName,
+		arg.Version,
+		arg.Type,
+		arg.UserID,
+		arg.IsAdmin,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countSBOMComponents = `-- name: CountSBOMComponents :one
 SELECT COUNT(*) FROM component WHERE sbom_id = $1
 `
@@ -110,7 +155,7 @@ ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST,
          s.created_at DESC
-LIMIT 5000
+LIMIT $8 OFFSET $7
 `
 
 type GetComponentVersionsParams struct {
@@ -120,6 +165,8 @@ type GetComponentVersionsParams struct {
 	Type      pgtype.Text `json:"type"`
 	UserID    pgtype.UUID `json:"user_id"`
 	IsAdmin   pgtype.Bool `json:"is_admin"`
+	RowOffset int32       `json:"row_offset"`
+	RowLimit  int32       `json:"row_limit"`
 }
 
 type GetComponentVersionsRow struct {
@@ -138,7 +185,6 @@ type GetComponentVersionsRow struct {
 	Architecture   interface{}        `json:"architecture"`
 }
 
-// Safety cap: bound a component's version history to the most recent rows.
 func (q *Queries) GetComponentVersions(ctx context.Context, arg GetComponentVersionsParams) ([]GetComponentVersionsRow, error) {
 	rows, err := q.db.Query(ctx, getComponentVersions,
 		arg.Name,
@@ -147,6 +193,8 @@ func (q *Queries) GetComponentVersions(ctx context.Context, arg GetComponentVers
 		arg.Type,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.RowOffset,
+		arg.RowLimit,
 	)
 	if err != nil {
 		return nil, err

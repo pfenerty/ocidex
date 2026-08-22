@@ -63,6 +63,7 @@ type ListComponentPurlTypesOutput struct {
 
 // GetComponentVersionsInput is the request for GET /api/v1/components/versions.
 type GetComponentVersionsInput struct {
+	PaginationParams
 	Name    string `query:"name" required:"true" doc:"Component name"`
 	Group   string `query:"group" doc:"Filter by component group"`
 	Version string `query:"version" doc:"Filter by component version"`
@@ -72,7 +73,8 @@ type GetComponentVersionsInput struct {
 // GetComponentVersionsOutput is the response for GET /api/v1/components/versions.
 type GetComponentVersionsOutput struct {
 	Body struct {
-		Versions []service.ComponentVersionEntry `json:"versions"`
+		Versions   []service.ComponentVersionEntry `json:"versions"`
+		Pagination PaginationMeta                  `json:"pagination"`
 	}
 }
 

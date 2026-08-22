@@ -335,5 +335,25 @@ ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST,
          s.created_at DESC
--- Safety cap: bound a component's version history to the most recent rows.
-LIMIT 5000;
+LIMIT @row_limit OFFSET @row_offset;
+
+-- name: CountComponentVersions :one
+-- The total for GetComponentVersions, deliberately NOT a COUNT(*) OVER() inside
+-- that query. The window function is the convention elsewhere in this file, but
+-- it only pays where the page and the count cost the same scan. Here the page
+-- query carries three LEFT JOINs (artifact plus two enrichment lookups) and a
+-- four-key sort purely to shape the rows it returns; a window count would drag
+-- every matching row through all of that just to discard it. The most-used
+-- component names have thousands of rows, which is what made the unpaginated
+-- version time out at 30s (ocidex-ag4q.7).
+--
+-- Counting needs only the visibility join, so it stays on
+-- idx_component_name_group.
+SELECT COUNT(*)
+FROM component c
+JOIN sbom s ON s.id = c.sbom_id
+WHERE c.name = @name
+  AND (sqlc.narg('group_name')::text IS NULL OR c.group_name = sqlc.narg('group_name'))
+  AND (sqlc.narg('version')::text IS NULL OR c.version = sqlc.narg('version'))
+  AND (sqlc.narg('type')::text IS NULL OR c.type = sqlc.narg('type'))
+  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
