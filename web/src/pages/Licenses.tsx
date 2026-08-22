@@ -6,7 +6,7 @@ import type { components } from "~/types/openapi";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { SpdxBadgeCell, LicenseCategoryCell } from "~/components/cells";
-import { TabBar } from "~/components/ui";
+import { Button, TabBar } from "~/components/ui";
 
 type LicenseCount = components["schemas"]["LicenseCount"];
 
@@ -59,9 +59,9 @@ export default function Licenses() {
         {
             header: "",
             render: (l) => (
-                <A href={`/licenses/${l.id}/components`} class="btn btn-sm">
+                <Button as={A} href={`/licenses/${l.id}/components`} size="sm">
                     View
-                </A>
+                </Button>
             ),
         },
     ];
@@ -103,9 +103,9 @@ export default function Licenses() {
                     value={spdxFilter()}
                     onInput={(e) => setSpdxFilter(e.currentTarget.value)}
                 />
-                <button type="submit" class="btn-primary">
+                <Button type="submit" variant="primary">
                     Search
-                </button>
+                </Button>
             </form>
 
             <DataTable

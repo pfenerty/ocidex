@@ -7,7 +7,7 @@ import type { components } from "~/types/openapi";
 import DataTable from "~/components/DataTable";
 import type { Column, SortDir } from "~/components/DataTable";
 import { SeverityPill, VulnId } from "~/components/cells";
-import { TabBar } from "~/components/ui";
+import { Button, TabBar } from "~/components/ui";
 
 type TopVulnEntry = components["schemas"]["TopVulnEntry"];
 
@@ -150,9 +150,9 @@ export default function Vulnerabilities() {
                         value={idQuery()}
                         onInput={(e) => setIdQuery(e.currentTarget.value)}
                     />
-                    <button type="submit" class="btn-primary">
+                    <Button type="submit" variant="primary">
                         Go
-                    </button>
+                    </Button>
                 </form>
             </div>
 

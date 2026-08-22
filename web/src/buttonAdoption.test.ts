@@ -16,7 +16,15 @@ import { join, relative } from "node:path";
  * tree, .20 the flat list pages, .21 the detail pages. Add each directory here
  * as its story closes, so a later edit cannot regress an earlier one.
  */
-const MIGRATED = ["pages/admin", "pages/Admin.tsx"];
+const MIGRATED = [
+    "pages/admin",
+    "pages/Admin.tsx",
+    "pages/Clusters.tsx",
+    "pages/Components.tsx",
+    "pages/Diff.tsx",
+    "pages/Licenses.tsx",
+    "pages/Vulnerabilities.tsx",
+];
 
 const SRC = __dirname;
 
@@ -36,7 +44,15 @@ function migratedFiles(): string[] {
     });
 }
 
-/** A `class="… btn …"` string, i.e. the shape `<Button>` replaces. */
+/**
+ * A `class="… btn …"` string, i.e. the shape `<Button>` replaces.
+ *
+ * The `btn-?` alternation matters: three call sites wrote `class="btn-primary"`
+ * with no `btn`, and `.btn-primary` sets only background/border/color — so they
+ * rendered red with none of the padding, radius or font sizing that makes a
+ * button a button. A pattern anchored on the word `btn` alone would have walked
+ * straight past all three.
+ */
 const RAW_BTN = /class="[^"]*\bbtn(-[a-z]+)?\b[^"]*"/;
 
 describe("migrated directories use the Button primitive", () => {

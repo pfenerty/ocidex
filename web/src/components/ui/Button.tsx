@@ -1,4 +1,4 @@
-import type { JSX } from "solid-js";
+import type { Component, JSX } from "solid-js";
 import { splitProps, Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
 
@@ -44,9 +44,19 @@ type ButtonProps = Common &
         as?: "button";
     };
 
+/**
+ * `as` takes a component as well as the string `"a"` so that an in-app
+ * destination can pass the router's `<A>`. A plain `<a href="/artifacts">`
+ * inside an SPA is a full page reload, so "make this link look like a button"
+ * must not silently cost client-side routing — which is exactly what would
+ * happen if the only escape hatch were hand-writing `class="btn btn-sm"` on an
+ * `<A>`, the drift this primitive exists to stop.
+ */
+type AnchorLike = Component<JSX.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }>;
+
 type AnchorProps = Common &
     Omit<JSX.AnchorHTMLAttributes<HTMLAnchorElement>, "class" | "children"> & {
-        as: "a";
+        as: "a" | AnchorLike;
     };
 
 /**
@@ -58,7 +68,7 @@ type AnchorProps = Common &
  * anchor is how the class strings drifted in the first place.
  */
 export function Button(props: ButtonProps | AnchorProps): JSX.Element {
-    const [local, rest] = splitProps(props as Common & { as?: "button" | "a" }, [
+    const [local, rest] = splitProps(props as Common & { as?: "button" | "a" | AnchorLike }, [
         "variant",
         "size",
         "loading",
@@ -87,7 +97,7 @@ export function Button(props: ButtonProps | AnchorProps): JSX.Element {
             // reads, and it is correct on both elements.
             aria-disabled={disabled() ? "true" : undefined}
             aria-busy={local.loading === true ? "true" : undefined}
-            {...(local.as === "a" ? {} : { disabled: disabled() })}
+            {...(local.as === undefined || local.as === "button" ? { disabled: disabled() } : {})}
             {...rest}
         >
             <Show when={local.loading === true}>

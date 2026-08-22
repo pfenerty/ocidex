@@ -12,6 +12,7 @@ import type { components } from "~/types/openapi";
 import DataTable from "~/components/DataTable";
 import type { Column, SortDir } from "~/components/DataTable";
 import { ComponentNameCell } from "~/components/cells";
+import { Button } from "~/components/ui";
 
 type DistinctComponentSummary = components["schemas"]["DistinctComponentSummary"];
 type ComponentSummary = components["schemas"]["ComponentSummary"];
@@ -75,9 +76,9 @@ function PurlOccurrences(props: { purl: string }) {
                             </Show>
                         </p>
                     </div>
-                    <A href="/components" class="btn btn-sm">
+                    <Button as={A} href="/components" size="sm">
                         All components
-                    </A>
+                    </Button>
                 </div>
             </div>
 
@@ -219,9 +220,9 @@ function ComponentBrowser() {
                     </For>
                 </select>
                 <Show when={nameFilter() !== "" || groupFilter() !== "" || purlTypeFilter() !== ""}>
-                    <button type="button" onClick={handleClear}>
+                    <Button type="button" size="sm" onClick={handleClear}>
                         Clear
-                    </button>
+                    </Button>
                 </Show>
             </div>
 

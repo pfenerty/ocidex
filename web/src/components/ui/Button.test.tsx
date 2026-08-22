@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
+import { A, Router } from "@solidjs/router";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Button } from "./Button";
@@ -99,6 +100,36 @@ describe("Button as an anchor", () => {
         expect(el.tagName).toBe("A");
         expect(el.getAttribute("href")).toBe("/artifacts");
         expect(el.className).toBe("btn btn-primary btn-sm");
+    });
+
+    // `as` also takes a component, so an in-app destination can pass the
+    // router's <A>. Without this the only way to make a routed link look like a
+    // button is to hand-write `class="btn btn-sm"` on the <A> — the drift this
+    // primitive exists to stop — and `as="a"` is not a substitute, because a
+    // plain <a href> inside an SPA is a full page reload.
+    it("renders the router's <A> when handed one, keeping the button classes", () => {
+        const { container } = render(() => (
+            <Router root={(r) => <>{r.children}</>}>
+                {[{
+                    path: "/",
+                    component: () => (
+                        <Button as={A} href="/components" size="sm">
+                            All versions
+                        </Button>
+                    ),
+                }]}
+            </Router>
+        ));
+        const el = btn(container);
+        expect(el.tagName).toBe("A");
+        expect(el.getAttribute("href")).toBe("/components");
+        expect(el.className).toContain("btn btn-sm");
+        // Proof it is the router's <A> and not a bare anchor: <A> stamps its own
+        // active/inactive class, which a plain <a> never would. That class is
+        // harmless here — nothing styles a bare `.active` outside
+        // `.btn-group .btn.active`, where a link pointing at the current route
+        // reading as pressed is the behaviour you want anyway.
+        expect(el.className).toContain("inactive");
     });
 
     // An anchor has no `disabled` property; writing one emits an invalid

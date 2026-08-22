@@ -2,7 +2,7 @@ import { For, Show, createSignal } from "solid-js";
 import { A } from "@solidjs/router";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
-import { Card, CardHeader, FormField, StatusPill } from "~/components/ui";
+import { Button, Card, CardHeader, FormField, StatusPill } from "~/components/ui";
 import { useToast } from "~/context/toast";
 import { relativeDate } from "~/utils/format";
 import type { Cluster } from "~/api/client";
@@ -225,30 +225,31 @@ export default function Clusters() {
                     when={editingID() === c.id}
                     fallback={
                         <div class="flex gap-2">
-                            <button class="btn btn-sm" onClick={() => startEdit(c)}>
+                            <Button size="sm" onClick={() => startEdit(c)}>
                                 Edit
-                            </button>
-                            <button
-                                class="btn btn-sm"
+                            </Button>
+                            <Button
+                                size="sm"
                                 onClick={() => handleDelete(c)}
                                 disabled={deleteCluster.isPending}
                             >
                                 Delete
-                            </button>
+                            </Button>
                         </div>
                     }
                 >
                     <div class="flex gap-2">
-                        <button
-                            class="btn btn-sm btn-primary"
+                        <Button
+                            variant="primary"
+                            size="sm"
                             onClick={() => saveEdit(c.id)}
                             disabled={updateCluster.isPending || editName().trim() === ""}
                         >
                             Save
-                        </button>
-                        <button class="btn btn-sm" onClick={() => setEditingID(null)}>
+                        </Button>
+                        <Button size="sm" onClick={() => setEditingID(null)}>
                             Cancel
-                        </button>
+                        </Button>
                     </div>
                 </Show>
             ),
@@ -304,15 +305,15 @@ export default function Clusters() {
                             class="min-w-56"
                         />
                     </FormField>
-                    <button
-                        class="btn btn-primary"
+                    <Button
+                        variant="primary"
                         type="submit"
                         disabled={
                             createCluster.isPending || newName().trim() === "" || newNamespace() === ""
                         }
                     >
                         Register
-                    </button>
+                    </Button>
                 </form>
             </Card>
 

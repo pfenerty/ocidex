@@ -7,6 +7,7 @@ import { useArtifacts, useArtifactSBOMs } from "~/api/queries";
 import { EmptyState } from "~/components/Feedback";
 import { DiffPairView, ViewToggle } from "~/components/DiffPairView";
 import { sbomPickerLabel } from "~/utils/format";
+import { Button } from "~/components/ui";
 
 export default function Diff() {
     const [searchParams, setSearchParams] = useSearchParams<{
@@ -156,13 +157,13 @@ export default function Diff() {
                 </Show>
 
                 <div class="mt-4">
-                    <button
-                        class="btn-primary"
+                    <Button
+                        variant="primary"
                         disabled={fromSbomId() === "" || toSbomId() === ""}
                         onClick={handleCompare}
                     >
                         Compare
-                    </button>
+                    </Button>
                 </div>
             </div>
 
