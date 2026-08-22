@@ -1,7 +1,9 @@
-import { Show, createMemo } from "solid-js";
+import { Show, createMemo, createSignal, createEffect, on } from "solid-js";
 import { A, useSearchParams } from "@solidjs/router";
 import { useComponent, useComponentVersions, useComponentVulns } from "~/api/queries";
+import { DEFAULT_PAGE_SIZE } from "~/api/client";
 import { ErrorBox, EmptyState } from "~/components/Feedback";
+import Pagination from "~/components/Pagination";
 import { SkeletonHeader } from "~/components/Skeleton";
 import ComponentMetadata from "~/components/ComponentMetadata";
 import { purlToRegistryUrl, purlTypeLabel } from "~/utils/purl";
@@ -12,6 +14,7 @@ import { VersionListTable } from "./VersionListTable";
 
 export default function ComponentOverview() {
     const [params] = useSearchParams<{ name: string; group?: string; version?: string }>();
+    const [offset, setOffset] = createSignal(0);
 
     const hasVersion = () => params.version !== undefined && params.version !== "";
 
@@ -22,10 +25,24 @@ export default function ComponentOverview() {
                       name: params.name,
                       group: params.group !== "" ? params.group : undefined,
                       version: params.version !== "" ? params.version : undefined,
+                      limit: DEFAULT_PAGE_SIZE,
+                      offset: offset(),
                   }
                 : undefined,
         { enabled: () => params.name !== undefined },
     );
+
+    // A different component (or a drill-down into one version) is a different
+    // result set, so the window has to go back to the top.
+    createEffect(
+        on(
+            () => [params.name, params.group, params.version],
+            () => setOffset(0),
+            { defer: true },
+        ),
+    );
+
+    const pagination = () => query.data?.pagination;
 
     const firstVersionId = () => query.data?.versions[0]?.id ?? "";
     const firstVersionPurl = () =>
@@ -57,6 +74,10 @@ export default function ComponentOverview() {
     );
 
     const componentType = () => query.data?.versions[0]?.type ?? "library";
+
+    const totalRows = () => pagination()?.total ?? query.data?.versions.length ?? 0;
+    // One page of results needs no controls and no "on this page" hedging.
+    const isPaged = () => totalRows() > DEFAULT_PAGE_SIZE;
 
     const firstPurl = () => query.data?.versions.find((v) => v.purl !== undefined)?.purl;
 
@@ -121,16 +142,39 @@ export default function ComponentOverview() {
                                                 </h2>
                                                 <p class="text-muted">
                                                     <span class="badge">{componentType()}</span>{" "}
+                                                    {/* These count the rows on screen, and the
+                                                        list is paginated, so they are qualified
+                                                        the moment there is more than one page.
+                                                        The total is SBOM occurrences, which is
+                                                        what the endpoint counts; distinct
+                                                        versions across all pages is not a figure
+                                                        the API reports, so it is never claimed. */}
                                                     <Show
                                                         when={hasVersion()}
                                                         fallback={
-                                                            <>
-                                                                {plural(grouped().length, "version")} across{" "}
-                                                                {plural(qd.versions.length, "SBOM")}
-                                                            </>
+                                                            <Show
+                                                                when={isPaged()}
+                                                                fallback={
+                                                                    <>
+                                                                        {plural(grouped().length, "version")} across{" "}
+                                                                        {plural(qd.versions.length, "SBOM")}
+                                                                    </>
+                                                                }
+                                                            >
+                                                                {plural(grouped().length, "version")} on this page
+                                                                {" · "}
+                                                                {plural(totalRows(), "SBOM")} in total
+                                                            </Show>
                                                         }
                                                     >
-                                                        {plural(artifactGroups().length, "artifact")}
+                                                        <Show
+                                                            when={isPaged()}
+                                                            fallback={plural(artifactGroups().length, "artifact")}
+                                                        >
+                                                            {plural(artifactGroups().length, "artifact")} on this page
+                                                            {" · "}
+                                                            {plural(totalRows(), "SBOM")} in total
+                                                        </Show>
                                                     </Show>
                                                 </p>
                                             </div>
@@ -175,6 +219,12 @@ export default function ComponentOverview() {
                                     {/* ── Summary: compact version list ── */}
                                     <Show when={!hasVersion()}>
                                         <VersionListTable groups={grouped()} versionHref={versionHref} />
+                                    </Show>
+
+                                    <Show when={isPaged() ? pagination() : undefined}>
+                                        {(p) => (
+                                            <Pagination pagination={p()} onPageChange={setOffset} />
+                                        )}
                                     </Show>
                                 </>
                             )}
