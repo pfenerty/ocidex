@@ -345,8 +345,8 @@ type ListVulnWorkloadsOutput struct {
 // ListClusterUnknownImagesInput is the request for
 // GET /api/v1/clusters/{id}/unknown-images.
 type ListClusterUnknownImagesInput struct {
-	ID    string `path:"id" doc:"Cluster UUID" format:"uuid"`
-	Limit int32  `query:"limit" default:"200" minimum:"1" maximum:"500"`
+	ID string `path:"id" doc:"Cluster UUID" format:"uuid"`
+	PaginationParams
 }
 
 // UnknownImageResponse is one image running in the cluster with no ingested
@@ -370,11 +370,26 @@ type UnknownImageResponse struct {
 	RegistryName       *string `json:"registry_name,omitempty"`
 }
 
+// UnknownImageReasonCounts breaks the whole gap down by remedy.
+//
+// It counts the gap, not the page: a reader looking at twenty "no registry"
+// rows out of four hundred needs to know whether adding that registry closes
+// the gap or a twentieth of it (ADR-044 K5).
+type UnknownImageReasonCounts struct {
+	Ready            int64 `json:"ready" doc:"A registry in the namespace serves the image and accepts its repository"`
+	NoRegistry       int64 `json:"no_registry" doc:"No registry in the namespace is configured for the image's host"`
+	RegistryDisabled int64 `json:"registry_disabled" doc:"The host matches a registry that is switched off"`
+	PatternExcluded  int64 `json:"pattern_excluded" doc:"The registry's repository patterns exclude this repository"`
+	UnparseableRef   int64 `json:"unparseable_ref" doc:"The reported reference carries no host to resolve against"`
+}
+
 // ListClusterUnknownImagesOutput is the response for
 // GET /api/v1/clusters/{id}/unknown-images.
 type ListClusterUnknownImagesOutput struct {
 	Body struct {
-		Data []UnknownImageResponse `json:"data"`
+		Data       []UnknownImageResponse   `json:"data"`
+		Reasons    UnknownImageReasonCounts `json:"reasons" doc:"Breakdown of the entire gap by remedy, independent of the page returned"`
+		Pagination PaginationMeta           `json:"pagination"`
 	}
 }
 

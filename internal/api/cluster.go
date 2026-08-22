@@ -388,13 +388,13 @@ func (h *Handler) ListClusterUnknownImages(ctx context.Context, in *ListClusterU
 	if _, err := h.visibleCluster(ctx, in.ID); err != nil {
 		return nil, err
 	}
-	images, err := h.clusterService.UnknownImages(ctx, in.ID, in.Limit, visibilityFilterFromContext(ctx))
+	page, err := h.clusterService.UnknownImages(ctx, in.ID, in.Limit, in.Offset, visibilityFilterFromContext(ctx))
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
 	out := &ListClusterUnknownImagesOutput{}
-	out.Body.Data = make([]UnknownImageResponse, len(images))
-	for i, img := range images {
+	out.Body.Data = make([]UnknownImageResponse, len(page.Images.Data))
+	for i, img := range page.Images.Data {
 		out.Body.Data[i] = UnknownImageResponse{
 			ImageRef:           img.ImageRef,
 			ImageDigest:        img.ImageDigest,
@@ -409,6 +409,14 @@ func (h *Handler) ListClusterUnknownImages(ctx context.Context, in *ListClusterU
 			RegistryName:       img.RegistryName,
 		}
 	}
+	out.Body.Reasons = UnknownImageReasonCounts{
+		Ready:            page.Reasons[service.IngestReasonReady],
+		NoRegistry:       page.Reasons[service.IngestReasonNoRegistry],
+		RegistryDisabled: page.Reasons[service.IngestReasonRegistryDisabled],
+		PatternExcluded:  page.Reasons[service.IngestReasonPatternExcluded],
+		UnparseableRef:   page.Reasons[service.IngestReasonUnparseableRef],
+	}
+	out.Body.Pagination = paginationMeta(page.Images)
 	return out, nil
 }
 

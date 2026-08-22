@@ -2709,6 +2709,9 @@ export interface components {
              */
             readonly $schema?: string;
             data: components["schemas"]["UnknownImageResponse"][] | null;
+            pagination: components["schemas"]["PaginationMeta"];
+            /** @description Breakdown of the entire gap by remedy, independent of the page returned */
+            reasons: components["schemas"]["UnknownImageReasonCounts"];
         };
         ListClusterVulnsOutputBody: {
             /**
@@ -3450,6 +3453,33 @@ export interface components {
             publishedAt?: string;
             severity: string;
             summary?: string;
+        };
+        UnknownImageReasonCounts: {
+            /**
+             * Format: int64
+             * @description No registry in the namespace is configured for the image's host
+             */
+            no_registry: number;
+            /**
+             * Format: int64
+             * @description The registry's repository patterns exclude this repository
+             */
+            pattern_excluded: number;
+            /**
+             * Format: int64
+             * @description A registry in the namespace serves the image and accepts its repository
+             */
+            ready: number;
+            /**
+             * Format: int64
+             * @description The host matches a registry that is switched off
+             */
+            registry_disabled: number;
+            /**
+             * Format: int64
+             * @description The reported reference carries no host to resolve against
+             */
+            unparseable_ref: number;
         };
         UnknownImageResponse: {
             image_digest: string;
@@ -4693,7 +4723,10 @@ export interface operations {
     "list-cluster-unknown-images": {
         parameters: {
             query?: {
+                /** @description Maximum number of results per page */
                 limit?: number;
+                /** @description Number of results to skip */
+                offset?: number;
             };
             header?: never;
             path: {

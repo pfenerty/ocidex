@@ -756,14 +756,12 @@ WHERE w.cluster_id = $1
   AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
 GROUP BY w.image_ref, w.image_digest
 ORDER BY COUNT(*) DESC, w.image_ref ASC
-LIMIT $4::int
 `
 
 type ListClusterUnknownImagesParams struct {
 	ClusterID pgtype.UUID `json:"cluster_id"`
 	UserID    pgtype.UUID `json:"user_id"`
 	IsAdmin   pgtype.Bool `json:"is_admin"`
-	Limit     pgtype.Int4 `json:"limit"`
 }
 
 type ListClusterUnknownImagesRow struct {
@@ -786,13 +784,14 @@ type ListClusterUnknownImagesRow struct {
 // Only rows with a readable digest are included. A NULL digest is the
 // 'unresolvable' state, which no amount of ingesting will fix, and folding the
 // two together would offer an action that cannot work (ADR-044 K3/K5).
+//
+// Deliberately unpaged. Whether an image can be ingested is decided in Go,
+// against the registries of the cluster's namespace, so no SQL aggregate can
+// produce the per-reason tally that has to describe the whole gap rather than
+// the page being displayed. The caller resolves everything and slices the page
+// itself; ingest already reads the gap whole.
 func (q *Queries) ListClusterUnknownImages(ctx context.Context, arg ListClusterUnknownImagesParams) ([]ListClusterUnknownImagesRow, error) {
-	rows, err := q.db.Query(ctx, listClusterUnknownImages,
-		arg.ClusterID,
-		arg.UserID,
-		arg.IsAdmin,
-		arg.Limit,
-	)
+	rows, err := q.db.Query(ctx, listClusterUnknownImages, arg.ClusterID, arg.UserID, arg.IsAdmin)
 	if err != nil {
 		return nil, err
 	}

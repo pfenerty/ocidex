@@ -1148,17 +1148,39 @@ func TestClusterIngestUnknown(t *testing.T) {
 
 	// The listing the Gaps tab renders must agree with what ingest did, since
 	// they share a resolver: same four images, same four reasons.
-	images, err := svc.UnknownImages(ctx, clusterID, 200, vis)
+	page, err := svc.UnknownImages(ctx, clusterID, 200, 0, vis)
 	is.NoErr(err)
-	is.Equal(len(images), 4)
-	reasons := map[string]int{}
-	for _, img := range images {
-		reasons[img.Reason]++
-	}
-	is.Equal(reasons[service.IngestReasonReady], 1)
-	is.Equal(reasons[service.IngestReasonRegistryDisabled], 1)
-	is.Equal(reasons[service.IngestReasonPatternExcluded], 1)
-	is.Equal(reasons[service.IngestReasonNoRegistry], 1)
+	is.Equal(len(page.Images.Data), 4)
+	is.Equal(page.Images.Total, int64(4))
+	is.Equal(page.Reasons[service.IngestReasonReady], int64(1))
+	is.Equal(page.Reasons[service.IngestReasonRegistryDisabled], int64(1))
+	is.Equal(page.Reasons[service.IngestReasonPatternExcluded], int64(1))
+	is.Equal(page.Reasons[service.IngestReasonNoRegistry], int64(1))
+
+	// A short page must not shorten the story it tells about the gap. The total
+	// and the reason tally describe all four images while only two are
+	// returned, which is what stops the Gaps tab from truncating in silence and
+	// the Overview from counting the page it happens to hold (ADR-044 K5).
+	short, err := svc.UnknownImages(ctx, clusterID, 2, 0, vis)
+	is.NoErr(err)
+	is.Equal(len(short.Images.Data), 2)
+	is.Equal(short.Images.Total, int64(4))
+	is.Equal(short.Reasons, page.Reasons)
+
+	// The second page holds the rest, in the same order, with no row repeated
+	// or dropped across the seam.
+	rest, err := svc.UnknownImages(ctx, clusterID, 2, 2, vis)
+	is.NoErr(err)
+	is.Equal(len(rest.Images.Data), 2)
+	is.Equal(rest.Images.Data[0].ImageRef, page.Images.Data[2].ImageRef)
+	is.Equal(rest.Images.Data[1].ImageRef, page.Images.Data[3].ImageRef)
+
+	// Paging off the end is empty, not an error — and still reports the total,
+	// so a client that has overshot can tell that it has.
+	past, err := svc.UnknownImages(ctx, clusterID, 2, 400, vis)
+	is.NoErr(err)
+	is.Equal(len(past.Images.Data), 0)
+	is.Equal(past.Images.Total, int64(4))
 
 	// Naming one digest ingests one image: the per-row button in the UI would
 	// otherwise queue the whole cluster while claiming to queue a row.

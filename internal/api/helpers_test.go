@@ -229,8 +229,8 @@ func (f *fakeClusterService) WorkloadsForVulnerability(_ context.Context, _, _ s
 	return nil, nil
 }
 
-func (f *fakeClusterService) UnknownImages(_ context.Context, _ string, _ int32, _ service.VisibilityFilter) ([]service.UnknownImage, error) {
-	return nil, nil
+func (f *fakeClusterService) UnknownImages(_ context.Context, _ string, _, _ int32, _ service.VisibilityFilter) (service.UnknownImagesPage, error) {
+	return service.UnknownImagesPage{}, nil
 }
 
 func (f *fakeClusterService) IngestUnknown(_ context.Context, _ string, _ service.RunningImageSubmitter, _ service.IngestUnknownParams, _ service.VisibilityFilter) (service.IngestResult, error) {

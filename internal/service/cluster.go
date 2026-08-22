@@ -333,7 +333,7 @@ type ClusterService interface {
 
 	// UnknownImages lists the cluster's No-SBOM gap grouped by image, each
 	// resolved against the registries of the cluster's own namespace.
-	UnknownImages(ctx context.Context, clusterID string, limit int32, filter VisibilityFilter) ([]UnknownImage, error)
+	UnknownImages(ctx context.Context, clusterID string, limit, offset int32, filter VisibilityFilter) (UnknownImagesPage, error)
 
 	// IngestUnknown submits a scan job for every unknown running image that
 	// resolves to a usable registry, and reports what it skipped and why. The

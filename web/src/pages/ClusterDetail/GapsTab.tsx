@@ -13,6 +13,10 @@ import { workloadColumns } from "./WorkloadsTab";
  * to do — add a registry, switch one on, widen its patterns, fix the node —
  * so a single "cannot ingest" would send everyone to the wrong remedy.
  */
+/** Rows per page in both tables. Small enough that the pager is visible on the
+ *  first screen, which is the point of having one. */
+const PAGE_SIZE = 50;
+
 const REASON_PRESENTATION: Record<
     IngestReason,
     { label: string; variant: "success" | "warning" | "danger" }
@@ -172,16 +176,28 @@ function ingestSummary(res: IngestResult): string {
  * ingest.
  */
 export function GapsTab(props: { clusterId: string; coverage: WorkloadCoverage }) {
+    // Both tables used to ask for 200 rows and render no pager, so a cluster
+    // past that showed a short list with nothing saying it was short — the
+    // quiet omission ADR-044 K5 exists to prevent. Offsets are local rather
+    // than in the URL: this is a review workflow, and two more search params
+    // for it would be the only state on the tab.
+    const [imageOffset, setImageOffset] = createSignal(0);
+    const [workloadOffset, setWorkloadOffset] = createSignal(0);
+
     const images = useClusterUnknownImages(
         () => props.clusterId,
-        () => ({ limit: 200 }),
+        () => ({ limit: PAGE_SIZE, offset: imageOffset() }),
     );
     const unresolvable = useClusterWorkloads(
         () => props.clusterId,
-        () => ({ match_state: "unresolvable" as const, limit: 200 }),
+        () => ({ match_state: "unresolvable" as const, limit: PAGE_SIZE, offset: workloadOffset() }),
     );
 
-    const ingestable = () => (images.data?.data ?? []).filter((i) => i.reason === "ready");
+    // From the server's tally of the whole gap, not from the page in hand: the
+    // bulk button ingests everything, so a count taken off one page would
+    // understate what the click is about to do.
+    const readyCount = () => images.data?.reasons.ready ?? 0;
+    const gapTotal = () => images.data?.pagination.total ?? 0;
 
     const ingest = useIngestUnknown();
     // Which row is mid-flight, so only that row's button shows its own pending
@@ -203,7 +219,7 @@ export function GapsTab(props: { clusterId: string; coverage: WorkloadCoverage }
                     title="No SBOM ingested"
                     count={props.coverage.unknown}
                     actions={
-                        <Show when={ingestable().length > 0}>
+                        <Show when={readyCount() > 0}>
                             <button
                                 class="btn btn-sm btn-primary"
                                 disabled={ingest.isPending}
@@ -211,7 +227,7 @@ export function GapsTab(props: { clusterId: string; coverage: WorkloadCoverage }
                             >
                                 {ingest.isPending
                                     ? "Queueing…"
-                                    : `Ingest ${plural(ingestable().length, "image")}`}
+                                    : `Ingest ${plural(readyCount(), "image")}`}
                             </button>
                         </Show>
                     }
@@ -219,11 +235,10 @@ export function GapsTab(props: { clusterId: string; coverage: WorkloadCoverage }
                 <p class="text-muted">
                     These images report a registry-addressable digest that matches nothing in the
                     catalog. Ingesting the image is what closes this gap.
-                    <Show when={(images.data?.data.length ?? 0) > 0}>
+                    <Show when={gapTotal() > 0}>
                         {" "}
-                        {ingestable().length.toLocaleString()} of{" "}
-                        {plural(images.data?.data.length ?? 0, "image")} can be ingested with the
-                        registries this namespace already has.
+                        {readyCount().toLocaleString()} of {plural(gapTotal(), "image")} can be
+                        ingested with the registries this namespace already has.
                     </Show>
                 </p>
                 <Show when={ingest.data}>
@@ -238,6 +253,14 @@ export function GapsTab(props: { clusterId: string; coverage: WorkloadCoverage }
                     loading={images.isLoading}
                     isError={images.isError}
                     error={images.error}
+                    pagination={
+                        images.data
+                            ? {
+                                  pagination: images.data.pagination,
+                                  onPageChange: setImageOffset,
+                              }
+                            : undefined
+                    }
                     emptyTitle="Every reported digest matched"
                     emptyMessage="No running container is missing an SBOM."
                 />
@@ -260,6 +283,14 @@ export function GapsTab(props: { clusterId: string; coverage: WorkloadCoverage }
                     loading={unresolvable.isLoading}
                     isError={unresolvable.isError}
                     error={unresolvable.error}
+                    pagination={
+                        unresolvable.data
+                            ? {
+                                  pagination: unresolvable.data.pagination,
+                                  onPageChange: setWorkloadOffset,
+                              }
+                            : undefined
+                    }
                     emptyTitle="Every container reported a digest"
                     emptyMessage="No running container is unmatchable."
                 />

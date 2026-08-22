@@ -269,11 +269,14 @@ export function useVulnWorkloads(
  */
 export function useClusterUnknownImages(
     id: Accessor<string | undefined>,
-    options?: Accessor<{ enabled?: boolean; limit?: number }>,
+    options?: Accessor<{ enabled?: boolean; limit?: number; offset?: number }>,
 ) {
-    const query = (): { limit?: number } => {
-        const limit = options?.().limit;
-        return limit === undefined ? {} : { limit };
+    const query = (): { limit?: number; offset?: number } => {
+        const { limit, offset } = options?.() ?? {};
+        return {
+            ...(limit === undefined ? {} : { limit }),
+            ...(offset === undefined || offset === 0 ? {} : { offset }),
+        };
     };
     return createQuery(() => ({
         queryKey: ["clusters", id(), "unknown-images", query()] as const,

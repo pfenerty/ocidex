@@ -26,15 +26,17 @@ export function OverviewTab(props: {
     const notAssessed = () => props.coverage.unknown + props.coverage.unresolvable;
     const tabHref = (tab: string) => `/clusters/${props.clusterId}?tab=${tab}`;
 
-    // Same limit as the Gaps tab so the two share one cached response rather
-    // than fetching the gap list twice.
+    // One row is enough: this line reports the shape of the whole gap, and the
+    // server sends the reason tally and the total for the gap rather than for
+    // the page. Counting a page here would have quietly capped both figures at
+    // whatever the list happened to hold.
     const images = useClusterUnknownImages(
         () => props.clusterId,
-        () => ({ enabled: props.coverage.unknown > 0, limit: 200 }),
+        () => ({ enabled: props.coverage.unknown > 0, limit: 1 }),
     );
     const shown = () => topVulns.data?.data.length ?? 0;
-    const ready = () => (images.data?.data ?? []).filter((i) => i.reason === "ready").length;
-    const blocked = () => (images.data?.data.length ?? 0) - ready();
+    const ready = () => images.data?.reasons.ready ?? 0;
+    const blocked = () => (images.data?.pagination.total ?? 0) - ready();
 
     const reported = () => (props.lastSeenAt ?? "") !== "";
 

@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
@@ -63,15 +61,60 @@ type UnknownImage struct {
 // Ingestable reports whether a scan job can be submitted for this image now.
 func (u UnknownImage) Ingestable() bool { return u.Reason == IngestReasonReady }
 
+// UnknownImagesPage is a page of the No-SBOM gap plus the two totals that make
+// the page honest: how many images the gap holds, and how many of them each
+// remedy applies to.
+//
+// Reasons covers the whole gap, never the page. A reader who is shown twenty
+// rows of "no registry" out of a gap of four hundred needs to know whether
+// adding that registry closes the gap or a twentieth of it (ADR-044 K5).
+type UnknownImagesPage struct {
+	Images  PagedResult[UnknownImage]
+	Reasons map[string]int64
+}
+
 // UnknownImages lists the cluster's No-SBOM gap, each image resolved against
 // the registries of the cluster's own namespace.
 //
 // Resolution is deliberately namespace-local. A registry in another namespace
 // could well serve the host, but using it would let one namespace's cluster
 // trigger pulls with another namespace's credentials.
-func (s *clusterService) UnknownImages(ctx context.Context, clusterID string, limit int32, filter VisibilityFilter) ([]UnknownImage, error) {
-	images, _, err := s.resolveUnknownImages(ctx, clusterID, limit, filter)
-	return images, err
+//
+// The gap is resolved whole and sliced here rather than paged in SQL: whether
+// an image is ingestable is decided in Go, so the reason tally has no SQL form,
+// and ingest already reads the gap whole on every run.
+func (s *clusterService) UnknownImages(ctx context.Context, clusterID string, limit, offset int32, filter VisibilityFilter) (UnknownImagesPage, error) {
+	all, _, err := s.resolveUnknownImages(ctx, clusterID, filter)
+	if err != nil {
+		return UnknownImagesPage{}, err
+	}
+	reasons := make(map[string]int64, 5)
+	for _, img := range all {
+		reasons[img.Reason]++
+	}
+	return UnknownImagesPage{
+		Images: PagedResult[UnknownImage]{
+			Data:   pageOf(all, limit, offset),
+			Total:  int64(len(all)),
+			Limit:  limit,
+			Offset: offset,
+		},
+		Reasons: reasons,
+	}, nil
+}
+
+// pageOf slices one page out of an already-materialized list. An offset past
+// the end yields no rows rather than an error: the total travels with the page,
+// so a client that has paged off the end can see that it has.
+func pageOf[T any](all []T, limit, offset int32) []T {
+	if offset < 0 || int(offset) >= len(all) {
+		return nil
+	}
+	end := len(all)
+	if limit > 0 && int(offset)+int(limit) < end {
+		end = int(offset) + int(limit)
+	}
+	return all[offset:end]
 }
 
 // resolveUnknownImages does the work behind both UnknownImages and
@@ -79,7 +122,7 @@ func (s *clusterService) UnknownImages(ctx context.Context, clusterID string, li
 // keyed by id. Ingest needs the whole Registry — URL, credentials, insecure
 // flag — where the listing needs only its name; running one resolver for both
 // is what keeps the gap list's promise and the ingest attempt from drifting.
-func (s *clusterService) resolveUnknownImages(ctx context.Context, clusterID string, limit int32, filter VisibilityFilter) ([]UnknownImage, map[string]Registry, error) {
+func (s *clusterService) resolveUnknownImages(ctx context.Context, clusterID string, filter VisibilityFilter) ([]UnknownImage, map[string]Registry, error) {
 	cid, err := parseUUID(clusterID)
 	if err != nil {
 		return nil, nil, ErrNotFound
@@ -95,9 +138,6 @@ func (s *clusterService) resolveUnknownImages(ctx context.Context, clusterID str
 		ClusterID: cid,
 		UserID:    filter.UserID,
 		IsAdmin:   filter.adminFlag(),
-		// A NULL limit is no limit, which is what ingest wants: the gap list
-		// is a page, the ingest is the whole gap.
-		Limit: pgtype.Int4{Int32: limit, Valid: limit > 0},
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("listing unknown cluster images: %w", err)
@@ -292,8 +332,7 @@ func (s *clusterService) IngestUnknown(ctx context.Context, clusterID string, su
 	if sub == nil {
 		return IngestResult{}, &ValidationError{Message: "scanning is not enabled on this deployment"}
 	}
-	// No limit: this is the whole gap, not a page of it.
-	images, registries, err := s.resolveUnknownImages(ctx, clusterID, 0, filter)
+	images, registries, err := s.resolveUnknownImages(ctx, clusterID, filter)
 	if err != nil {
 		return IngestResult{}, err
 	}

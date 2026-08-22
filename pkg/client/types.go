@@ -2129,8 +2129,10 @@ type ListClusterNamespacesOutputBody struct {
 // ListClusterUnknownImagesOutputBody defines model for ListClusterUnknownImagesOutputBody.
 type ListClusterUnknownImagesOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema *string                 `json:"$schema,omitempty"`
-	Data   *[]UnknownImageResponse `json:"data"`
+	Schema     *string                  `json:"$schema,omitempty"`
+	Data       *[]UnknownImageResponse  `json:"data"`
+	Pagination PaginationMeta           `json:"pagination"`
+	Reasons    UnknownImageReasonCounts `json:"reasons"`
 }
 
 // ListClusterVulnsOutputBody defines model for ListClusterVulnsOutputBody.
@@ -2811,6 +2813,24 @@ type TopVulnEntry struct {
 	Summary           *string    `json:"summary,omitempty"`
 }
 
+// UnknownImageReasonCounts defines model for UnknownImageReasonCounts.
+type UnknownImageReasonCounts struct {
+	// NoRegistry No registry in the namespace is configured for the image's host
+	NoRegistry int64 `json:"no_registry"`
+
+	// PatternExcluded The registry's repository patterns exclude this repository
+	PatternExcluded int64 `json:"pattern_excluded"`
+
+	// Ready A registry in the namespace serves the image and accepts its repository
+	Ready int64 `json:"ready"`
+
+	// RegistryDisabled The host matches a registry that is switched off
+	RegistryDisabled int64 `json:"registry_disabled"`
+
+	// UnparseableRef The reported reference carries no host to resolve against
+	UnparseableRef int64 `json:"unparseable_ref"`
+}
+
 // UnknownImageResponse defines model for UnknownImageResponse.
 type UnknownImageResponse struct {
 	ImageDigest string `json:"image_digest"`
@@ -3191,7 +3211,11 @@ type ListClusterImagesParamsDir string
 
 // ListClusterUnknownImagesParams defines parameters for ListClusterUnknownImages.
 type ListClusterUnknownImagesParams struct {
+	// Limit Maximum number of results per page
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
 // ListClusterVulnsParams defines parameters for ListClusterVulns.

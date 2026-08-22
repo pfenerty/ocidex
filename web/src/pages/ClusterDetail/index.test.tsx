@@ -194,6 +194,32 @@ function vuln(overrides: Record<string, unknown> = {}) {
 /** Rows the unknown-image hook returns; the gaps tests set this. */
 let unknownImages: unknown[] = [];
 
+/**
+ * The whole-gap figures the server sends beside the page.
+ *
+ * Left unset they are derived from `unknownImages`, which is the truthful
+ * answer while the fixture fits on one page. The truncation tests set them
+ * directly to describe a gap larger than the page they are handed.
+ */
+let unknownGap: { total: number; reasons: Record<string, number> } | undefined;
+
+const NO_REASONS = {
+    ready: 0,
+    no_registry: 0,
+    registry_disabled: 0,
+    pattern_excluded: 0,
+    unparseable_ref: 0,
+};
+
+/** Tallies the fixture the way the server tallies the gap. */
+function reasonsOf(rows: unknown[]): Record<string, number> {
+    const tally = { ...NO_REASONS };
+    for (const row of rows as { reason?: string }[]) {
+        if (row.reason !== undefined) tally[row.reason as keyof typeof tally]++;
+    }
+    return tally;
+}
+
 function unknownImage(overrides: Record<string, unknown> = {}) {
     return {
         image_ref: "ghcr.io/pfenerty/api:v1",
@@ -316,7 +342,15 @@ function renderPage(
         };
     }) as never);
     mockUnknownImages.mockImplementation((() => ({
-        data: { data: unknownImages },
+        data: {
+            data: unknownImages,
+            reasons: unknownGap?.reasons ?? reasonsOf(unknownImages),
+            pagination: {
+                total: unknownGap?.total ?? unknownImages.length,
+                limit: 50,
+                offset: 0,
+            },
+        },
         isLoading: false,
         isError: false,
         error: null,
@@ -346,6 +380,7 @@ describe("ClusterDetail", () => {
         lastVulnParams = undefined;
         lastVulnWorkloadArgs = undefined;
         unknownImages = [];
+        unknownGap = undefined;
         searchParamWrites = [];
         ingestCalls = [];
         ingestResult = undefined;
@@ -1022,6 +1057,47 @@ describe("ClusterDetail", () => {
         expect(container.textContent).toContain("on");
         expect(container.textContent).toContain("1 image can be ingested now");
         expect(container.textContent).toContain("1 cannot");
+    });
+
+    // Both Gaps tables asked for 200 rows and rendered no pager, so a bigger
+    // cluster showed a short list with nothing saying it was short. Every
+    // figure on the tab now comes from the server's tally of the whole gap.
+    it("describes the whole gap rather than the page it was handed", () => {
+        searchParams = { tab: "gaps" };
+        unknownImages = [unknownImage({ image_ref: "ghcr.io/a:v1", reason: "ready" })];
+        unknownGap = { total: 412, reasons: { ...NO_REASONS, ready: 300, no_registry: 112 } };
+        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+
+        expect(container.textContent).toContain("300 of 412 images can be ingested");
+        // The bulk button ingests the whole gap, so it must name the whole
+        // gap: sized off the page it would have promised one job and queued
+        // three hundred.
+        const bulk = [...container.querySelectorAll("button")].find((b) =>
+            b.textContent.startsWith("Ingest "),
+        );
+        expect(bulk?.textContent).toBe("Ingest 300 images");
+    });
+
+    it("pages the gap instead of stopping at the end of the first screen", () => {
+        searchParams = { tab: "gaps" };
+        unknownImages = [unknownImage({ image_ref: "ghcr.io/a:v1" })];
+        unknownGap = { total: 412, reasons: { ...NO_REASONS, ready: 412 } };
+        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+
+        // Two pagers: one per table. Their presence is the fix — a table that
+        // holds one page of 412 with no pager is the silent truncation.
+        expect(container.querySelectorAll(".pagination").length).toBe(2);
+    });
+
+    // The overview line is a summary of the gap, so it must not be a summary of
+    // whatever page the shared query happened to hold.
+    it("counts the overview's ready and blocked images across the whole gap", () => {
+        unknownImages = [unknownImage({ reason: "ready" })];
+        unknownGap = { total: 412, reasons: { ...NO_REASONS, ready: 300, no_registry: 112 } };
+        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+
+        expect(container.textContent).toContain("300 images can be ingested now");
+        expect(container.textContent).toContain("112 cannot");
     });
 
     it("says so on the overview when auto-ingest is off", () => {
