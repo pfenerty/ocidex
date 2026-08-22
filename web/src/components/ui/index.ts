@@ -7,6 +7,7 @@ export * from "./Modal";
 export * from "./PageHeader";
 export * from "./QueryBoundary";
 export * from "./SigningBadge";
+export * from "./StatBand";
 export * from "./TabBar";
 export * from "./Toolbar";
 export * from "./Tooltip";

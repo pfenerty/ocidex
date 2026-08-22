@@ -1,8 +1,9 @@
-import "./TileBand.css";
 import { Show } from "solid-js";
-import type { OCIMetadata, Provenance, GitCommitMetadata } from "~/api/client";
+import type { OCIMetadata, Provenance, GitCommitMetadata, VulnSummary } from "~/api/client";
 import { relativeDate } from "~/utils/format";
 import { trustStatus, trustBadgeClass } from "~/utils/trust";
+import { StatBand, type StatTile } from "./ui/StatBand";
+import { SeverityPill } from "./VulnBadge";
 import { ShieldIcon, OciIcon, ContainerIcon, GitHubIcon } from "./metadata/OciIcons";
 
 export type SbomTab = "packages" | "provenance" | "image" | "git" | "raw";
@@ -37,6 +38,27 @@ function provenanceSubline(p: Provenance | undefined): string {
     return facts.length > 0 ? facts.join(" · ") : "no signing material";
 }
 
+// VulnTileSub captions the vulnerability tile. "no known vulnerabilities" is a
+// claim about what has been scanned, so it is only made when a summary exists —
+// an SBOM that was never scanned says so instead of reading as clean, which is
+// the same distinction ADR-044 insists on for unmatched cluster workloads.
+function VulnTileSub(props: {
+    vulns: VulnSummary | undefined;
+    worst: { label: string; count: number } | undefined;
+}) {
+    return (
+        <Show when={props.vulns !== undefined} fallback={<>not scanned</>}>
+            <Show when={props.worst} fallback={<>no known vulnerabilities</>}>
+                {(w) => (
+                    <SeverityPill severity={w().label}>
+                        {w().count} {w().label}
+                    </SeverityPill>
+                )}
+            </Show>
+        </Show>
+    );
+}
+
 export default function SummaryBand(props: {
     provenance: Provenance | undefined;
     signingStatus: string | undefined;
@@ -44,6 +66,7 @@ export default function SummaryBand(props: {
     git: GitCommitMetadata | undefined;
     packageCount: number | undefined;
     ecosystems: string[];
+    vulns: VulnSummary | undefined;
     specVersion: string;
     ingestedAt: string;
     active: SbomTab;
@@ -57,89 +80,87 @@ export default function SummaryBand(props: {
         return p === "" ? undefined : p;
     };
 
-    return (
-        <div class="tile-band">
-            {/* Provenance */}
-            <button
-                class={`tile ${props.active === "provenance" ? "active" : ""}`}
-                onClick={() => props.onSelect("provenance")}
-            >
-                <span class="tile-head">
-                    <ShieldIcon />
-                    Provenance
-                </span>
-                <Show
-                    when={trust()}
-                    fallback={<span class="tile-value text-muted">Not enriched</span>}
-                >
-                    {(t) => <span class={`${trustBadgeClass(t().variant)} tile-value`}>{t().label}</span>}
-                </Show>
-                <span class="tile-sub">
-                    {provenanceSubline(props.provenance)}
-                </span>
-            </button>
+    // The worst severity present, which is the figure that decides whether this
+    // SBOM needs attention. A bare total flattens "1 critical" into the same
+    // shape as "40 low".
+    const worstSeverity = (): { label: string; count: number } | undefined => {
+        const v = props.vulns;
+        if (v === undefined) return undefined;
+        const ranked = [
+            { label: "critical", count: v.critical },
+            { label: "high", count: v.high },
+            { label: "medium", count: v.medium },
+            { label: "low", count: v.low },
+            { label: "unknown", count: v.unknown },
+        ];
+        return ranked.find((r) => r.count > 0);
+    };
 
-            {/* Image */}
-            <button
-                class={`tile ${props.active === "image" ? "active" : ""}`}
-                onClick={() => props.onSelect("image")}
-            >
-                <span class="tile-head">
-                    <OciIcon />
-                    Image
-                </span>
-                <span class="tile-value">{platform() ?? "—"}</span>
-                <span class="tile-sub">
-                    <Show when={props.metadata?.baseName} fallback="OCI image">
-                        {(base) => (
-                            <>
-                                <ContainerIcon /> {base()}
-                            </>
-                        )}
-                    </Show>
-                </span>
-            </button>
+    const tiles = (): StatTile<SbomTab>[] => [
+        {
+            id: "provenance",
+            icon: <ShieldIcon />,
+            head: "Provenance",
+            // trustStatus returns null, not undefined, for an unenriched SBOM.
+            value: trust()?.label ?? "Not enriched",
+            valueClass: (() => {
+                const t = trust();
+                return t !== null ? trustBadgeClass(t.variant) : "text-muted";
+            })(),
+            sub: provenanceSubline(props.provenance),
+        },
+        {
+            id: "image",
+            icon: <OciIcon />,
+            head: "Image",
+            value: platform() ?? "\u2014",
+            sub:
+                props.metadata?.baseName !== undefined && props.metadata.baseName !== "" ? (
+                    <>
+                        <ContainerIcon /> {props.metadata.baseName}
+                    </>
+                ) : (
+                    "OCI image"
+                ),
+        },
+        {
+            id: "git",
+            icon: <GitHubIcon />,
+            head: "Git",
+            value:
+                props.git?.resolved === true
+                    ? (props.git.commitSha?.substring(0, 8) ?? "\u2014")
+                    : "\u2014",
+            sub:
+                props.git?.resolved === true
+                    ? `${props.git.owner}/${props.git.repo}`
+                    : "not enriched",
+        },
+        {
+            id: "packages",
+            head: "Packages",
+            value: props.packageCount ?? "\u2014",
+            sub: props.ecosystems.length > 0 ? props.ecosystems.join(" \u00b7 ") : "components",
+        },
+        // Not selectable: the page has no vulnerabilities tab yet, and a tile
+        // that looks like a button but does nothing is worse than a plain stat.
+        // ocidex-ag4q.34 gives it a destination.
+        {
+            head: "Vulnerabilities",
+            value: props.vulns?.total ?? "\u2014",
+            // The severity signal is a SeverityPill in the sub-line rather than a
+            // colour on the number: the shared redscale (`sev-*`) is a set of
+            // badge *backgrounds*, so applying it to `.tile-value` would paint a
+            // full-bleed block behind the count instead of tinting it.
+            sub: <VulnTileSub vulns={props.vulns} worst={worstSeverity()} />,
+        },
+        {
+            id: "raw",
+            head: "SBOM",
+            value: `CycloneDX ${props.specVersion}`,
+            sub: `ingested ${relativeDate(props.ingestedAt)}`,
+        },
+    ];
 
-            {/* Git */}
-            <button
-                class={`tile ${props.active === "git" ? "active" : ""}`}
-                onClick={() => props.onSelect("git")}
-            >
-                <span class="tile-head">
-                    <GitHubIcon />
-                    Git
-                </span>
-                <span class="tile-value">
-                    {props.git?.resolved === true ? props.git.commitSha?.substring(0, 8) : "—"}
-                </span>
-                <span class="tile-sub">
-                    {props.git?.resolved === true
-                        ? `${props.git.owner}/${props.git.repo}`
-                        : "not enriched"}
-                </span>
-            </button>
-
-            {/* Packages */}
-            <button
-                class={`tile ${props.active === "packages" ? "active" : ""}`}
-                onClick={() => props.onSelect("packages")}
-            >
-                <span class="tile-head">Packages</span>
-                <span class="tile-value">{props.packageCount ?? "—"}</span>
-                <span class="tile-sub">
-                    {props.ecosystems.length > 0 ? props.ecosystems.join(" · ") : "components"}
-                </span>
-            </button>
-
-            {/* SBOM */}
-            <button
-                class={`tile ${props.active === "raw" ? "active" : ""}`}
-                onClick={() => props.onSelect("raw")}
-            >
-                <span class="tile-head">SBOM</span>
-                <span class="tile-value">CycloneDX {props.specVersion}</span>
-                <span class="tile-sub">ingested {relativeDate(props.ingestedAt)}</span>
-            </button>
-        </div>
-    );
+    return <StatBand tiles={tiles()} active={props.active} onSelect={props.onSelect} />;
 }

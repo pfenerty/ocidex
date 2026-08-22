@@ -183,6 +183,7 @@ export default function SBOMDetail() {
                                 git={gitCommit()}
                                 packageCount={s.packageCount}
                                 ecosystems={ecosystems()}
+                                vulns={s.vulnSummary}
                                 specVersion={s.specVersion}
                                 ingestedAt={s.createdAt}
                                 active={tab()}
