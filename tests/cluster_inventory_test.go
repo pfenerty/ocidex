@@ -244,6 +244,9 @@ func TestClusterWorkloadDigestJoin(t *testing.T) {
 	is.Equal(cov.Matched, int64(2))
 	is.Equal(cov.Unknown, int64(1))
 	is.Equal(cov.Unresolvable, int64(1))
+	// Pods is a second figure beside the four match-state counts, never a
+	// replacement for them: 3 + 2 + 1 + 1 replicas across those four rows.
+	is.Equal(cov.Pods, int64(7))
 }
 
 // TestClusterWorkloadSnapshotReplaces proves K7's full-snapshot semantics: a
@@ -1203,4 +1206,153 @@ func TestClusterAutoIngestDefaultsOn(t *testing.T) {
 	})
 	is.NoErr(err)
 	is.True(!updated.AutoIngest)
+}
+
+// TestClusterImagesGrouping is the by-image view of the same inventory the
+// by-workload list reports.
+//
+// The two must agree about every image: a reader who switches grouping and sees
+// an image go from unknown to matched has no way to tell which view is lying,
+// and the by-image row is the one that decides whether an SBOM gets ingested.
+// The match expression is copied between the two queries, so this test is what
+// keeps the copies honest.
+func TestClusterImagesGrouping(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := t.Context()
+	is := is.New(t)
+	q := repository.New(pool)
+
+	owner := seedUser(t, pool, 9401, "images-owner", "member")
+	nsID := seedNamespace(t, pool, "images-ns", owner, "private")
+	clusterID := seedCluster(t, pool, nsID, "prod")
+
+	sharedDigest := digest('a')
+	loneDigest := digest('b')
+	seedArtifactSBOM(t, pool, nsID, "docker.io/shared", sharedDigest, "")
+
+	observed := time.Now().UTC()
+	upsert := func(k8sNS, workload, ref, dgst string, pods int32) {
+		t.Helper()
+		var d pgtype.Text
+		if dgst != "" {
+			d = txt(dgst)
+		}
+		err := q.UpsertClusterWorkload(ctx, repository.UpsertClusterWorkloadParams{
+			ClusterID:     mustUUID(t, clusterID),
+			K8sNamespace:  k8sNS,
+			WorkloadKind:  "Deployment",
+			WorkloadName:  workload,
+			ContainerName: "app",
+			ImageRef:      ref,
+			ImageDigest:   d,
+			PodCount:      pods,
+			ObservedAt:    pgtype.Timestamptz{Time: observed, Valid: true},
+		})
+		if err != nil {
+			t.Fatalf("upsert %q: %v", workload, err)
+		}
+	}
+
+	// One image on two workloads in two namespaces — the case the by-workload
+	// view renders as two near-identical rows and one SBOM fixes.
+	upsert("default", "web", "docker.io/shared:v1", sharedDigest, 3)
+	upsert("batch", "worker", "docker.io/shared:v1", sharedDigest, 2)
+	upsert("default", "lone", "docker.io/lone:v1", loneDigest, 1)
+	upsert("default", "no-digest", "docker.io/mystery:v1", "", 4)
+
+	images, err := q.ListClusterImages(ctx, repository.ListClusterImagesParams{
+		ClusterID: mustUUID(t, clusterID),
+		UserID:    owner,
+		IsAdmin:   pgtype.Bool{Bool: false, Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("listing images: %v", err)
+	}
+	// Four workload-containers, three distinct images.
+	is.Equal(len(images), 3)
+
+	byRef := map[string]repository.ListClusterImagesRow{}
+	for _, r := range images {
+		byRef[r.ImageRef] = r
+	}
+
+	shared := byRef["docker.io/shared:v1"]
+	is.Equal(shared.WorkloadCount, int64(2))
+	is.Equal(shared.PodCount, int64(5))
+	is.Equal(shared.NamespaceCount, int64(2))
+	is.Equal(shared.MatchState, "exact")
+
+	is.Equal(byRef["docker.io/lone:v1"].WorkloadCount, int64(1))
+	is.Equal(byRef["docker.io/lone:v1"].MatchState, "unknown")
+	// A NULL digest still groups: an unresolvable image is a row, not a silent
+	// omission (ADR-044 K5).
+	is.Equal(byRef["docker.io/mystery:v1"].MatchState, "unresolvable")
+	is.Equal(byRef["docker.io/mystery:v1"].PodCount, int64(4))
+
+	total, err := q.CountClusterImages(ctx, repository.CountClusterImagesParams{
+		ClusterID: mustUUID(t, clusterID),
+		UserID:    owner,
+		IsAdmin:   pgtype.Bool{Bool: false, Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("counting images: %v", err)
+	}
+	// Distinct images, not the workload-containers running them.
+	is.Equal(total, int64(3))
+
+	// Parity with the by-workload list, which is the point: same digest, same
+	// verdict.
+	workloads, err := q.ListClusterWorkloads(ctx, repository.ListClusterWorkloadsParams{
+		ClusterID: mustUUID(t, clusterID),
+		UserID:    owner,
+		IsAdmin:   pgtype.Bool{Bool: false, Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("listing workloads: %v", err)
+	}
+	for _, w := range workloads {
+		img, ok := byRef[w.ClusterWorkload.ImageRef]
+		is.True(ok) // every running image appears in the by-image list
+		is.Equal(img.MatchState, w.MatchState)
+		is.Equal(img.SbomID, w.SbomID)
+	}
+
+	// The namespace filter applies before the grouping, so filtering to one
+	// namespace counts that namespace's replicas rather than the cluster's.
+	inDefault, err := q.ListClusterImages(ctx, repository.ListClusterImagesParams{
+		ClusterID:    mustUUID(t, clusterID),
+		K8sNamespace: txt("default"),
+		UserID:       owner,
+		IsAdmin:      pgtype.Bool{Bool: false, Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("listing images in one namespace: %v", err)
+	}
+	for _, r := range inDefault {
+		if r.ImageRef == "docker.io/shared:v1" {
+			is.Equal(r.WorkloadCount, int64(1))
+			is.Equal(r.PodCount, int64(3))
+			is.Equal(r.NamespaceCount, int64(1))
+		}
+	}
+
+	// match_state applies after grouping, because it is a property of the image.
+	gaps, err := q.ListClusterImages(ctx, repository.ListClusterImagesParams{
+		ClusterID:  mustUUID(t, clusterID),
+		MatchState: txt("unknown"),
+		UserID:     owner,
+		IsAdmin:    pgtype.Bool{Bool: false, Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("listing unknown images: %v", err)
+	}
+	is.Equal(len(gaps), 1)
+	is.Equal(gaps[0].ImageRef, "docker.io/lone:v1")
 }

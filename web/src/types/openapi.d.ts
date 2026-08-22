@@ -382,6 +382,26 @@ export interface paths {
         patch: operations["update-cluster"];
         trace?: never;
     };
+    "/api/v1/clusters/{id}/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List running images
+         * @description The same inventory as the workload listing, grouped by image: one row per distinct image with the workloads running it collapsed into counts. Carries the same coverage counts.
+         */
+        get: operations["list-cluster-images"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/clusters/{id}/ingest-unknown": {
         parameters: {
             query?: never;
@@ -1739,6 +1759,40 @@ export interface components {
             summary: components["schemas"]["ChangeSummary"];
             to: components["schemas"]["SBOMRef"];
         };
+        ClusterImageResponse: {
+            artifact_id?: string;
+            artifact_name?: string;
+            artifact_type?: string;
+            image_digest?: string;
+            image_ref: string;
+            last_seen_at: string;
+            /**
+             * @description exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)
+             * @enum {string}
+             */
+            match_state: "exact" | "index" | "unknown" | "unresolvable";
+            /**
+             * Format: int64
+             * @description Kubernetes namespaces the image appears in
+             */
+            namespace_count: number;
+            /**
+             * Format: int64
+             * @description Running pods those workload-containers add up to
+             */
+            pod_count: number;
+            sample_namespace?: string;
+            sample_workload?: string;
+            sbom_id?: string;
+            subject_version?: string;
+            /** @description Findings in the matched SBOM. Absent when no SBOM matched — absence is not zero */
+            vulns?: components["schemas"]["WorkloadVulnCounts"];
+            /**
+             * Format: int64
+             * @description Workload-containers running this image
+             */
+            workload_count: number;
+        };
         ClusterResponse: {
             /**
              * Format: uri
@@ -2626,6 +2680,17 @@ export interface components {
             readonly $schema?: string;
             data: components["schemas"]["ArtifactSummary"][] | null;
             pagination: components["schemas"]["CursorMeta"];
+        };
+        ListClusterImagesOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListClusterImagesOutputBody.json
+             */
+            readonly $schema?: string;
+            coverage: components["schemas"]["WorkloadCoverageResponse"];
+            data: components["schemas"]["ClusterImageResponse"][] | null;
+            pagination: components["schemas"]["PaginationMeta"];
         };
         ListClusterNamespacesOutputBody: {
             /**
@@ -4461,6 +4526,53 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClusterResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-cluster-images": {
+        parameters: {
+            query?: {
+                /** @description Filter to one Kubernetes namespace */
+                k8s_namespace?: string;
+                /** @description Filter by SBOM match state */
+                match_state?: "exact" | "index" | "unknown" | "unresolvable";
+                /** @description Substring match over workload name, container name and image reference */
+                q?: string;
+                /** @description Column to sort by. vuln_count orders by severity, worst first, and sorts unassessed images last in either direction */
+                sort?: "image_ref" | "match_state" | "workload_count" | "pod_count" | "last_seen_at" | "vuln_count";
+                /** @description Sort direction (default asc) */
+                dir?: "asc" | "desc";
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Number of results to skip */
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Cluster UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListClusterImagesOutputBody"];
                 };
             };
             /** @description Error */

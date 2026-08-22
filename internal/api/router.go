@@ -823,6 +823,16 @@ func registerClusterOps(api huma.API, h *Handler) {
 	}, h.ListClusterWorkloads)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "list-cluster-images",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/clusters/{id}/images",
+		Summary:     "List running images",
+		Description: "The same inventory as the workload listing, grouped by image: one row per distinct image with the workloads running it collapsed into counts. Carries the same coverage counts.",
+		Tags:        []string{tagClusters},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListClusterImages)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "list-cluster-k8s-namespaces",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/clusters/{id}/k8s-namespaces",

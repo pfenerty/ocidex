@@ -237,36 +237,82 @@ func (h *Handler) IngestUnknown(ctx context.Context, in *IngestUnknownInput) (*I
 // ListClusterWorkloads returns what a cluster is running, each row joined to
 // the SBOM its digest matches, together with the coverage counts.
 func (h *Handler) ListClusterWorkloads(ctx context.Context, in *ListClusterWorkloadsInput) (*ListClusterWorkloadsOutput, error) {
-	if _, err := h.visibleCluster(ctx, in.ID); err != nil {
+	out := &ListClusterWorkloadsOutput{}
+	data, coverage, page, err := listClusterInventory(ctx, h, in.ID,
+		func(ctx context.Context, vis service.VisibilityFilter) (service.PagedResult[service.ClusterWorkload], error) {
+			return h.clusterService.ListWorkloads(ctx, in.ID, service.WorkloadParams{
+				K8sNamespace: in.K8sNamespace,
+				MatchState:   in.MatchState,
+				Query:        in.Q,
+				SortBy:       in.Sort,
+				SortDir:      in.Dir,
+				Limit:        in.Limit,
+				Offset:       in.Offset,
+			}, vis)
+		}, toWorkloadResponse)
+	if err != nil {
 		return nil, err
 	}
-
-	vis := visibilityFilterFromContext(ctx)
-	result, err := h.clusterService.ListWorkloads(ctx, in.ID, service.WorkloadParams{
-		K8sNamespace: in.K8sNamespace,
-		MatchState:   in.MatchState,
-		Query:        in.Q,
-		SortBy:       in.Sort,
-		SortDir:      in.Dir,
-		Limit:        in.Limit,
-		Offset:       in.Offset,
-	}, vis)
-	if err != nil {
-		return nil, mapServiceError(err)
-	}
-	coverage, err := h.clusterService.Coverage(ctx, in.ID, vis)
-	if err != nil {
-		return nil, mapServiceError(err)
-	}
-
-	out := &ListClusterWorkloadsOutput{}
-	out.Body.Data = make([]ClusterWorkloadResponse, len(result.Data))
-	for i, w := range result.Data {
-		out.Body.Data[i] = toWorkloadResponse(w)
-	}
-	out.Body.Pagination = paginationMeta(result)
-	out.Body.Coverage = toCoverageResponse(coverage)
+	out.Body.Data, out.Body.Coverage, out.Body.Pagination = data, coverage, page
 	return out, nil
+}
+
+// ListClusterImages returns what a cluster is running grouped by image, which
+// is the unit of the remedy: fourteen replicas of one unscanned image are one
+// SBOM to ingest, not fourteen problems.
+func (h *Handler) ListClusterImages(ctx context.Context, in *ListClusterImagesInput) (*ListClusterImagesOutput, error) {
+	out := &ListClusterImagesOutput{}
+	data, coverage, page, err := listClusterInventory(ctx, h, in.ID,
+		func(ctx context.Context, vis service.VisibilityFilter) (service.PagedResult[service.ClusterImage], error) {
+			return h.clusterService.ListImages(ctx, in.ID, service.ImageParams{
+				K8sNamespace: in.K8sNamespace,
+				MatchState:   in.MatchState,
+				Query:        in.Q,
+				SortBy:       in.Sort,
+				SortDir:      in.Dir,
+				Limit:        in.Limit,
+				Offset:       in.Offset,
+			}, vis)
+		}, toImageResponse)
+	if err != nil {
+		return nil, err
+	}
+	out.Body.Data, out.Body.Coverage, out.Body.Pagination = data, coverage, page
+	return out, nil
+}
+
+// listClusterInventory is the shape both inventory listings share: authorize
+// the cluster, page the rows, and fetch the coverage that has to travel with
+// them.
+//
+// It is one function rather than two near-identical handlers so that a third
+// listing cannot be added that returns finding counts without the denominator
+// they are computed over (ADR-044 K5) — the coverage fetch is not optional
+// here, it is the return type.
+func listClusterInventory[T, R any](
+	ctx context.Context,
+	h *Handler,
+	clusterID string,
+	list func(context.Context, service.VisibilityFilter) (service.PagedResult[T], error),
+	project func(T) R,
+) ([]R, WorkloadCoverageResponse, PaginationMeta, error) {
+	if _, err := h.visibleCluster(ctx, clusterID); err != nil {
+		return nil, WorkloadCoverageResponse{}, PaginationMeta{}, err
+	}
+	vis := visibilityFilterFromContext(ctx)
+	result, err := list(ctx, vis)
+	if err != nil {
+		return nil, WorkloadCoverageResponse{}, PaginationMeta{}, mapServiceError(err)
+	}
+	coverage, err := h.clusterService.Coverage(ctx, clusterID, vis)
+	if err != nil {
+		return nil, WorkloadCoverageResponse{}, PaginationMeta{}, mapServiceError(err)
+	}
+	rows := make([]R, len(result.Data))
+	for i, row := range result.Data {
+		rows[i] = project(row)
+	}
+	return rows, toCoverageResponse(coverage), paginationMeta(result), nil
 }
 
 // ListClusterNamespaces returns the k8s namespaces the cluster reports, for the
@@ -487,5 +533,25 @@ func toCoverageResponse(c service.WorkloadCoverage) WorkloadCoverageResponse {
 		Unknown:      c.Unknown,
 		Unresolvable: c.Unresolvable,
 		Pods:         c.Pods,
+	}
+}
+
+func toImageResponse(i service.ClusterImage) ClusterImageResponse {
+	return ClusterImageResponse{
+		ImageRef:        i.ImageRef,
+		ImageDigest:     i.ImageDigest,
+		WorkloadCount:   i.WorkloadCount,
+		PodCount:        i.PodCount,
+		NamespaceCount:  i.NamespaceCount,
+		SampleNamespace: i.SampleNamespace,
+		SampleWorkload:  i.SampleWorkload,
+		LastSeenAt:      i.LastSeenAt.UTC().Format(time.RFC3339),
+		MatchState:      i.MatchState,
+		SBOMID:          i.SBOMID,
+		ArtifactID:      i.ArtifactID,
+		ArtifactName:    i.ArtifactName,
+		ArtifactType:    i.ArtifactType,
+		SubjectVersion:  i.SubjectVersion,
+		Vulns:           toWorkloadVulnCounts(i.Vulns),
 	}
 }

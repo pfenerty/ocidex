@@ -201,6 +201,64 @@ type ListClusterWorkloadsOutput struct {
 	}
 }
 
+// ClusterImageResponse is one distinct image the cluster runs, with the
+// workloads running it collapsed into counts.
+//
+// MatchState and Vulns carry exactly the meaning they carry on
+// ClusterWorkloadResponse, including Vulns being absent rather than zero for an
+// image that was never assessed (ADR-044 K5).
+type ClusterImageResponse struct {
+	ImageRef    string `json:"image_ref"`
+	ImageDigest string `json:"image_digest,omitempty"`
+
+	WorkloadCount  int64 `json:"workload_count" doc:"Workload-containers running this image"`
+	PodCount       int64 `json:"pod_count" doc:"Running pods those workload-containers add up to"`
+	NamespaceCount int64 `json:"namespace_count" doc:"Kubernetes namespaces the image appears in"`
+
+	// One place the image runs, chosen deterministically. An example, not the
+	// whole answer: the by-workload listing enumerates them all.
+	SampleNamespace string `json:"sample_namespace,omitempty"`
+	SampleWorkload  string `json:"sample_workload,omitempty"`
+
+	LastSeenAt string `json:"last_seen_at"`
+
+	MatchState string `json:"match_state" enum:"exact,index,unknown,unresolvable" doc:"exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)"`
+
+	SBOMID         string `json:"sbom_id,omitempty"`
+	ArtifactID     string `json:"artifact_id,omitempty"`
+	ArtifactName   string `json:"artifact_name,omitempty"`
+	ArtifactType   string `json:"artifact_type,omitempty"`
+	SubjectVersion string `json:"subject_version,omitempty"`
+
+	Vulns *WorkloadVulnCounts `json:"vulns,omitempty" doc:"Findings in the matched SBOM. Absent when no SBOM matched — absence is not zero"`
+}
+
+// ListClusterImagesInput is the request for GET /api/v1/clusters/{id}/images.
+// It takes the same filters as the workload listing, so switching grouping in a
+// client keeps whatever the reader had narrowed to.
+type ListClusterImagesInput struct {
+	ID           string `path:"id" doc:"Cluster UUID" format:"uuid"`
+	K8sNamespace string `query:"k8s_namespace" doc:"Filter to one Kubernetes namespace"`
+	MatchState   string `query:"match_state" enum:"exact,index,unknown,unresolvable" doc:"Filter by SBOM match state"`
+	Q            string `query:"q" doc:"Substring match over workload name, container name and image reference"`
+	Sort         string `query:"sort" enum:"image_ref,match_state,workload_count,pod_count,last_seen_at,vuln_count" doc:"Column to sort by. vuln_count orders by severity, worst first, and sorts unassessed images last in either direction"`
+	Dir          string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc)"`
+	PaginationParams
+}
+
+// ListClusterImagesOutput is the response for GET /api/v1/clusters/{id}/images.
+//
+// Coverage rides along for the same reason it rides along with the workload
+// listing: a client must not be able to render finding counts without also
+// holding the number of running containers those counts say nothing about.
+type ListClusterImagesOutput struct {
+	Body struct {
+		Data       []ClusterImageResponse   `json:"data"`
+		Coverage   WorkloadCoverageResponse `json:"coverage"`
+		Pagination PaginationMeta           `json:"pagination"`
+	}
+}
+
 // ListClusterNamespacesInput is the request for
 // GET /api/v1/clusters/{id}/k8s-namespaces.
 type ListClusterNamespacesInput struct {

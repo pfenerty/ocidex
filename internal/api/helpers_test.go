@@ -209,6 +209,10 @@ func (f *fakeClusterService) ListWorkloads(_ context.Context, _ string, _ servic
 	return service.PagedResult[service.ClusterWorkload]{}, nil
 }
 
+func (f *fakeClusterService) ListImages(_ context.Context, _ string, _ service.ImageParams, _ service.VisibilityFilter) (service.PagedResult[service.ClusterImage], error) {
+	return service.PagedResult[service.ClusterImage]{}, nil
+}
+
 func (f *fakeClusterService) NamespaceFacets(_ context.Context, _ string, _ service.VisibilityFilter) ([]service.NamespaceFacet, error) {
 	return nil, nil
 }

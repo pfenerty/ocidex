@@ -218,6 +218,164 @@ ORDER BY
     w.k8s_namespace ASC, w.workload_name ASC, w.container_name ASC
 LIMIT sqlc.narg('limit')::int OFFSET sqlc.narg('offset')::int;
 
+-- name: ListClusterImages :many
+-- The same inventory as ListClusterWorkloads, keyed by image instead of by
+-- workload-container.
+--
+-- An image is the unit of the remedy: fourteen replicas of one unscanned image
+-- are one SBOM to ingest, not fourteen problems, and by-workload rendered them
+-- as fourteen near-identical rows sorted alphabetically by namespace. The
+-- by-workload list stays for the other question — "where is this running".
+--
+-- Grouping happens first, in the CTE, so the per-image joins below run once per
+-- image rather than once per replica. Everything they depend on (image_digest)
+-- is constant within a group, so the match and its finding counts are the same
+-- values ListClusterWorkloads reports for any row of that group. That parity is
+-- asserted in tests/cluster_inventory_test.go: the two lists disagreeing about
+-- whether an image is matched would be invisible from either one alone.
+--
+-- The k8s_namespace and q filters are applied before the grouping, so filtering
+-- to one namespace counts that namespace's replicas rather than the cluster's.
+-- match_state is applied after, because it is a property of the image.
+WITH img AS (
+    SELECT
+        w.image_ref,
+        w.image_digest,
+        COUNT(*)::bigint                      AS workload_count,
+        SUM(w.pod_count)::bigint              AS pod_count,
+        COUNT(DISTINCT w.k8s_namespace)::bigint AS namespace_count,
+        MAX(w.last_seen_at)::timestamptz      AS last_seen_at,
+        -- One example to show in the row, chosen deterministically so the same
+        -- image does not name a different workload on every refresh. The full
+        -- list is one click away in the by-workload view.
+        (array_agg(w.k8s_namespace ORDER BY w.k8s_namespace, w.workload_name, w.container_name))[1]::text AS sample_namespace,
+        (array_agg(w.workload_name ORDER BY w.k8s_namespace, w.workload_name, w.container_name))[1]::text AS sample_workload
+    FROM cluster_workload w
+    JOIN cluster c ON c.id = w.cluster_id
+    WHERE w.cluster_id = $1
+      AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+      AND (sqlc.narg('k8s_namespace')::text IS NULL OR w.k8s_namespace = sqlc.narg('k8s_namespace')::text)
+      AND (sqlc.narg('q')::text IS NULL OR (
+            w.workload_name  ILIKE '%' || sqlc.narg('q')::text || '%'
+         OR w.container_name ILIKE '%' || sqlc.narg('q')::text || '%'
+         OR w.image_ref      ILIKE '%' || sqlc.narg('q')::text || '%'))
+    GROUP BY w.image_ref, w.image_digest
+)
+SELECT
+    w.image_ref,
+    w.image_digest,
+    w.workload_count,
+    w.pod_count,
+    w.namespace_count,
+    w.last_seen_at,
+    w.sample_namespace,
+    w.sample_workload,
+    s.id            AS sbom_id,
+    s.artifact_id   AS artifact_id,
+    s.subject_version AS subject_version,
+    a.name          AS artifact_name,
+    a.type          AS artifact_type,
+    ms.state        AS match_state,
+    COALESCE(vs.critical, 0)::bigint AS critical_count,
+    COALESCE(vs.high, 0)::bigint     AS high_count,
+    COALESCE(vs.medium, 0)::bigint   AS medium_count,
+    COALESCE(vs.low, 0)::bigint      AS low_count
+FROM img w
+LEFT JOIN LATERAL (
+    SELECT s2.id, s2.artifact_id, s2.subject_version, s2.digest
+    FROM sbom s2
+    WHERE w.image_digest IS NOT NULL
+      AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
+    ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+    LIMIT 1
+) s ON true
+LEFT JOIN artifact a ON a.id = s.artifact_id
+CROSS JOIN LATERAL (
+    SELECT (CASE WHEN s.id IS NOT NULL AND s.digest = w.image_digest THEN 'exact'
+                 WHEN s.id IS NOT NULL                               THEN 'index'
+                 WHEN w.image_digest IS NULL                         THEN 'unresolvable'
+                 ELSE                                                     'unknown'
+            END)::text AS state
+) ms
+LEFT JOIN LATERAL (
+    SELECT
+        COUNT(DISTINCT COALESCE(NULLIF(v.canonical_id, ''), v.id))
+            FILTER (WHERE v.severity = 'CRITICAL')::bigint AS critical,
+        COUNT(DISTINCT COALESCE(NULLIF(v.canonical_id, ''), v.id))
+            FILTER (WHERE v.severity = 'HIGH')::bigint     AS high,
+        COUNT(DISTINCT COALESCE(NULLIF(v.canonical_id, ''), v.id))
+            FILTER (WHERE v.severity = 'MEDIUM')::bigint   AS medium,
+        COUNT(DISTINCT COALESCE(NULLIF(v.canonical_id, ''), v.id))
+            FILTER (WHERE v.severity = 'LOW')::bigint      AS low
+    FROM (SELECT DISTINCT purl FROM component WHERE sbom_id = s.id AND purl IS NOT NULL) comp
+    JOIN package_vulnerability pv ON pv.purl = comp.purl
+    JOIN vulnerability v ON v.id = pv.vulnerability_id
+) vs ON s.id IS NOT NULL
+WHERE (sqlc.narg('match_state')::text IS NULL OR ms.state = sqlc.narg('match_state')::text)
+-- Same parameterised shape as ListClusterWorkloads, for the same reason: the
+-- list is server-paginated, so sorting only the current page would misrepresent
+-- the cluster.
+ORDER BY
+    CASE @sort_by::text
+        WHEN 'workload_count' THEN w.workload_count::float8
+        WHEN 'pod_count'      THEN w.pod_count::float8
+        WHEN 'last_seen_at'   THEN EXTRACT(EPOCH FROM w.last_seen_at)::float8
+        -- Severity counts packed into one number, most severe most significant.
+        -- NULL (never assessed) stays NULL and sorts last in both directions, so
+        -- an unassessed image never ranks alongside a clean one.
+        WHEN 'vuln_count'     THEN (vs.critical * 1000000 + vs.high * 1000 + vs.medium)::float8
+    END * CASE @sort_dir::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
+    CASE WHEN @sort_dir::text = 'asc' THEN
+        CASE @sort_by::text
+            WHEN 'image_ref'   THEN w.image_ref
+            WHEN 'match_state' THEN ms.state
+        END
+    END ASC NULLS LAST,
+    CASE WHEN @sort_dir::text = 'desc' THEN
+        CASE @sort_by::text
+            WHEN 'image_ref'   THEN w.image_ref
+            WHEN 'match_state' THEN ms.state
+        END
+    END DESC NULLS LAST,
+    -- Total order, so offset pagination cannot repeat or skip a row.
+    w.image_ref ASC, w.image_digest ASC NULLS LAST
+LIMIT sqlc.narg('limit')::int OFFSET sqlc.narg('offset')::int;
+
+-- name: CountClusterImages :one
+-- The total behind ListClusterImages' page. Distinct (image_ref, image_digest)
+-- pairs under the same filters, so a page of 50 out of 300 images says 300 and
+-- not the 1,400 workload-containers they run as.
+SELECT COUNT(*)::bigint AS total
+FROM (
+    SELECT w.image_ref, w.image_digest
+    FROM cluster_workload w
+    JOIN cluster c ON c.id = w.cluster_id
+    LEFT JOIN LATERAL (
+        SELECT s2.id, s2.digest
+        FROM sbom s2
+        WHERE w.image_digest IS NOT NULL
+          AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
+        ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+        LIMIT 1
+    ) s ON true
+    CROSS JOIN LATERAL (
+        SELECT (CASE WHEN s.id IS NOT NULL AND s.digest = w.image_digest THEN 'exact'
+                     WHEN s.id IS NOT NULL                               THEN 'index'
+                     WHEN w.image_digest IS NULL                         THEN 'unresolvable'
+                     ELSE                                                     'unknown'
+                END)::text AS state
+    ) ms
+    WHERE w.cluster_id = $1
+      AND c.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+      AND (sqlc.narg('k8s_namespace')::text IS NULL OR w.k8s_namespace = sqlc.narg('k8s_namespace')::text)
+      AND (sqlc.narg('match_state')::text IS NULL OR ms.state = sqlc.narg('match_state')::text)
+      AND (sqlc.narg('q')::text IS NULL OR (
+            w.workload_name  ILIKE '%' || sqlc.narg('q')::text || '%'
+         OR w.container_name ILIKE '%' || sqlc.narg('q')::text || '%'
+         OR w.image_ref      ILIKE '%' || sqlc.narg('q')::text || '%'))
+    GROUP BY w.image_ref, w.image_digest
+) grouped;
+
 -- name: CountClusterWorkloads :one
 -- The total for ListClusterWorkloads' pagination. It takes the same filters, and
 -- only the filters — it is the size of the filtered list, never a substitute for

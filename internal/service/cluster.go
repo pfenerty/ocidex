@@ -160,6 +160,74 @@ var WorkloadSortKeys = map[string]bool{
 	"vuln_count":     true,
 }
 
+// ClusterImage is one distinct image running in a cluster, with the workloads
+// running it collapsed into counts.
+//
+// It is the same inventory ClusterWorkload describes, keyed by the unit of the
+// remedy rather than the unit of the deployment: fourteen replicas of one
+// unscanned image are one SBOM to ingest. MatchState and Vulns carry exactly
+// the meaning they carry on ClusterWorkload — including Vulns being nil rather
+// than zero for an image that was never assessed (ADR-044 K5).
+type ClusterImage struct {
+	ImageRef    string
+	ImageDigest string // empty when the agent could not resolve one
+
+	// WorkloadCount is how many workload-containers run this image; PodCount is
+	// how many running pods they add up to. NamespaceCount is how many k8s
+	// namespaces it appears in.
+	WorkloadCount  int64
+	PodCount       int64
+	NamespaceCount int64
+
+	// SampleNamespace and SampleWorkload name one place the image runs, chosen
+	// deterministically. They are an example, not the whole answer: the
+	// by-workload view lists every one.
+	SampleNamespace string
+	SampleWorkload  string
+
+	LastSeenAt time.Time
+
+	MatchState     string
+	SBOMID         string
+	ArtifactID     string
+	ArtifactName   string
+	ArtifactType   string
+	SubjectVersion string
+
+	Vulns *VulnCounts
+}
+
+// Matched reports whether this image resolved to a known SBOM by either join
+// tier.
+func (i ClusterImage) Matched() bool {
+	return i.MatchState == MatchExact || i.MatchState == MatchIndex
+}
+
+// ImageParams filters and pages the by-image inventory. The filters are the
+// same ones WorkloadParams carries, so switching the grouping in the UI keeps
+// whatever the reader had narrowed to.
+type ImageParams struct {
+	K8sNamespace string
+	MatchState   string
+	Query        string
+	SortBy       string // one of ImageSortKeys; empty means the default
+	SortDir      string // "asc" or "desc"; empty means "asc"
+	Limit        int32
+	Offset       int32
+}
+
+// ImageSortKeys are the columns ListImages will order by. Same contract as
+// WorkloadSortKeys: an unrecognised key is dropped before it reaches the CASE
+// it would be interpolated into.
+var ImageSortKeys = map[string]bool{
+	"image_ref":      true,
+	"match_state":    true,
+	"workload_count": true,
+	"pod_count":      true,
+	"last_seen_at":   true,
+	"vuln_count":     true,
+}
+
 // NamespaceFacet is one k8s namespace present in a cluster and how many
 // containers it accounts for. It is computed server-side because the workload
 // list is paginated: a filter built from the current page would silently hide
@@ -243,6 +311,10 @@ type ClusterService interface {
 	ReplaceInventory(ctx context.Context, clusterID string, workloads []ReportedWorkload) (int, error)
 
 	ListWorkloads(ctx context.Context, clusterID string, params WorkloadParams, filter VisibilityFilter) (PagedResult[ClusterWorkload], error)
+
+	// ListImages is the same inventory grouped by image rather than by
+	// workload-container.
+	ListImages(ctx context.Context, clusterID string, params ImageParams, filter VisibilityFilter) (PagedResult[ClusterImage], error)
 
 	// NamespaceFacets enumerates the k8s namespaces the filter above can select.
 	NamespaceFacets(ctx context.Context, clusterID string, filter VisibilityFilter) ([]NamespaceFacet, error)
@@ -483,46 +555,108 @@ func (s *clusterService) ReplaceInventory(ctx context.Context, clusterID string,
 	return int(pruned), nil
 }
 
+//nolint:dupl // The by-image listing has the same shape; see ListImages.
 func (s *clusterService) ListWorkloads(ctx context.Context, clusterID string, params WorkloadParams, filter VisibilityFilter) (PagedResult[ClusterWorkload], error) {
 	cid, err := parseUUID(clusterID)
 	if err != nil {
 		return PagedResult[ClusterWorkload]{}, ErrNotFound
 	}
-	limit, offset := clampPage(params.Limit, params.Offset)
-
-	total, err := s.repo.CountClusterWorkloads(ctx, repository.CountClusterWorkloadsParams{
-		ClusterID:    cid,
-		K8sNamespace: optionalText(params.K8sNamespace),
-		MatchState:   optionalText(params.MatchState),
-		Q:            optionalText(params.Query),
-		UserID:       filter.UserID,
-		IsAdmin:      filter.adminFlag(),
-	})
-	if err != nil {
-		return PagedResult[ClusterWorkload]{}, fmt.Errorf("counting workloads: %w", err)
-	}
-
 	sortBy, sortDir := clampSort(params.SortBy, params.SortDir, WorkloadSortKeys)
-	rows, err := s.repo.ListClusterWorkloads(ctx, repository.ListClusterWorkloadsParams{
-		ClusterID:    cid,
-		K8sNamespace: optionalText(params.K8sNamespace),
-		MatchState:   optionalText(params.MatchState),
-		Q:            optionalText(params.Query),
-		SortBy:       sortBy,
-		SortDir:      sortDir,
-		Limit:        pgtype.Int4{Int32: limit, Valid: true},
-		Offset:       pgtype.Int4{Int32: offset, Valid: true},
-		UserID:       filter.UserID,
-		IsAdmin:      filter.adminFlag(),
-	})
+	return pagedInventory("workloads", params.Limit, params.Offset,
+		func() (int64, error) {
+			return s.repo.CountClusterWorkloads(ctx, repository.CountClusterWorkloadsParams{
+				ClusterID:    cid,
+				K8sNamespace: optionalText(params.K8sNamespace),
+				MatchState:   optionalText(params.MatchState),
+				Q:            optionalText(params.Query),
+				UserID:       filter.UserID,
+				IsAdmin:      filter.adminFlag(),
+			})
+		},
+		func(limit, offset int32) ([]repository.ListClusterWorkloadsRow, error) {
+			return s.repo.ListClusterWorkloads(ctx, repository.ListClusterWorkloadsParams{
+				ClusterID:    cid,
+				K8sNamespace: optionalText(params.K8sNamespace),
+				MatchState:   optionalText(params.MatchState),
+				Q:            optionalText(params.Query),
+				SortBy:       sortBy,
+				SortDir:      sortDir,
+				Limit:        pgtype.Int4{Int32: limit, Valid: true},
+				Offset:       pgtype.Int4{Int32: offset, Valid: true},
+				UserID:       filter.UserID,
+				IsAdmin:      filter.adminFlag(),
+			})
+		}, workloadFromRepo)
+}
+
+// ListImages is deliberately the same shape as ListWorkloads. Everything that
+// can be shared already is (pagedInventory); what is left is filling in two
+// sqlc-generated param structs, which are distinct types with no common
+// interface, so the remaining repetition cannot be factored out without
+// hand-writing a mapping layer over generated code.
+//
+//nolint:dupl // see above: the duplicated part is sqlc param assignment.
+func (s *clusterService) ListImages(ctx context.Context, clusterID string, params ImageParams, filter VisibilityFilter) (PagedResult[ClusterImage], error) {
+	cid, err := parseUUID(clusterID)
 	if err != nil {
-		return PagedResult[ClusterWorkload]{}, fmt.Errorf("listing workloads: %w", err)
+		return PagedResult[ClusterImage]{}, ErrNotFound
 	}
-	out := make([]ClusterWorkload, len(rows))
+	sortBy, sortDir := clampSort(params.SortBy, params.SortDir, ImageSortKeys)
+	return pagedInventory("images", params.Limit, params.Offset,
+		func() (int64, error) {
+			return s.repo.CountClusterImages(ctx, repository.CountClusterImagesParams{
+				ClusterID:    cid,
+				K8sNamespace: optionalText(params.K8sNamespace),
+				MatchState:   optionalText(params.MatchState),
+				Q:            optionalText(params.Query),
+				UserID:       filter.UserID,
+				IsAdmin:      filter.adminFlag(),
+			})
+		},
+		func(limit, offset int32) ([]repository.ListClusterImagesRow, error) {
+			return s.repo.ListClusterImages(ctx, repository.ListClusterImagesParams{
+				ClusterID:    cid,
+				K8sNamespace: optionalText(params.K8sNamespace),
+				MatchState:   optionalText(params.MatchState),
+				Q:            optionalText(params.Query),
+				SortBy:       sortBy,
+				SortDir:      sortDir,
+				Limit:        pgtype.Int4{Int32: limit, Valid: true},
+				Offset:       pgtype.Int4{Int32: offset, Valid: true},
+				UserID:       filter.UserID,
+				IsAdmin:      filter.adminFlag(),
+			})
+		}, imageFromRepo)
+}
+
+// pagedInventory is the count-then-page-then-project sequence the two inventory
+// listings share.
+//
+// The count is a separate query rather than len(rows) because the list is
+// paginated: a total taken from the page would report a 50-row page of a
+// 300-image cluster as 50, which is the same class of quiet undercount the
+// coverage figures exist to prevent.
+func pagedInventory[Row, Out any](
+	what string,
+	reqLimit, reqOffset int32,
+	count func() (int64, error),
+	list func(limit, offset int32) ([]Row, error),
+	project func(Row) Out,
+) (PagedResult[Out], error) {
+	limit, offset := clampPage(reqLimit, reqOffset)
+	total, err := count()
+	if err != nil {
+		return PagedResult[Out]{}, fmt.Errorf("counting %s: %w", what, err)
+	}
+	rows, err := list(limit, offset)
+	if err != nil {
+		return PagedResult[Out]{}, fmt.Errorf("listing %s: %w", what, err)
+	}
+	out := make([]Out, len(rows))
 	for i, r := range rows {
-		out[i] = workloadFromRepo(r)
+		out[i] = project(r)
 	}
-	return PagedResult[ClusterWorkload]{Data: out, Total: total, Limit: limit, Offset: offset}, nil
+	return PagedResult[Out]{Data: out, Total: total, Limit: limit, Offset: offset}, nil
 }
 
 // NamespaceFacets lists every k8s namespace the cluster reports, with its
@@ -755,6 +889,39 @@ func workloadFromRepo(r repository.ListClusterWorkloadsRow) ClusterWorkload {
 	// is not something sqlc can type. Zero from an unmatched row is an artefact
 	// of that, not a finding of none, so it is dropped here rather than handed
 	// on as a clean bill of health.
+	if out.Matched() {
+		out.Vulns = &VulnCounts{
+			Critical: r.CriticalCount,
+			High:     r.HighCount,
+			Medium:   r.MediumCount,
+			Low:      r.LowCount,
+		}
+	}
+	return out
+}
+
+func imageFromRepo(r repository.ListClusterImagesRow) ClusterImage {
+	out := ClusterImage{
+		ImageRef:        r.ImageRef,
+		ImageDigest:     r.ImageDigest.String,
+		WorkloadCount:   r.WorkloadCount,
+		PodCount:        r.PodCount,
+		NamespaceCount:  r.NamespaceCount,
+		SampleNamespace: r.SampleNamespace,
+		SampleWorkload:  r.SampleWorkload,
+		MatchState:      r.MatchState,
+		SBOMID:          uuidToStr(r.SbomID),
+		ArtifactID:      uuidToStr(r.ArtifactID),
+		ArtifactName:    r.ArtifactName.String,
+		ArtifactType:    r.ArtifactType.String,
+		SubjectVersion:  r.SubjectVersion.String,
+	}
+	if r.LastSeenAt.Valid {
+		out.LastSeenAt = r.LastSeenAt.Time
+	}
+	// Same reasoning as workloadFromRepo: the query's COALESCE to zero is a
+	// typing artefact, and handing it on for an image that was never assessed
+	// would report "no findings" where the truth is "no SBOM".
 	if out.Matched() {
 		out.Vulns = &VulnCounts{
 			Critical: r.CriticalCount,

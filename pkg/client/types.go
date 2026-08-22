@@ -41,6 +41,30 @@ func (e ArtifactVersionSummarySigningStatus) Valid() bool {
 	}
 }
 
+// Defines values for ClusterImageResponseMatchState.
+const (
+	ClusterImageResponseMatchStateExact        ClusterImageResponseMatchState = "exact"
+	ClusterImageResponseMatchStateIndex        ClusterImageResponseMatchState = "index"
+	ClusterImageResponseMatchStateUnknown      ClusterImageResponseMatchState = "unknown"
+	ClusterImageResponseMatchStateUnresolvable ClusterImageResponseMatchState = "unresolvable"
+)
+
+// Valid indicates whether the value is a known member of the ClusterImageResponseMatchState enum.
+func (e ClusterImageResponseMatchState) Valid() bool {
+	switch e {
+	case ClusterImageResponseMatchStateExact:
+		return true
+	case ClusterImageResponseMatchStateIndex:
+		return true
+	case ClusterImageResponseMatchStateUnknown:
+		return true
+	case ClusterImageResponseMatchStateUnresolvable:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ClusterWorkloadResponseMatchState.
 const (
 	ClusterWorkloadResponseMatchStateExact        ClusterWorkloadResponseMatchState = "exact"
@@ -626,6 +650,78 @@ func (e ListArtifactVersionsParamsMode) Valid() bool {
 	}
 }
 
+// Defines values for ListClusterImagesParamsMatchState.
+const (
+	ListClusterImagesParamsMatchStateExact        ListClusterImagesParamsMatchState = "exact"
+	ListClusterImagesParamsMatchStateIndex        ListClusterImagesParamsMatchState = "index"
+	ListClusterImagesParamsMatchStateUnknown      ListClusterImagesParamsMatchState = "unknown"
+	ListClusterImagesParamsMatchStateUnresolvable ListClusterImagesParamsMatchState = "unresolvable"
+)
+
+// Valid indicates whether the value is a known member of the ListClusterImagesParamsMatchState enum.
+func (e ListClusterImagesParamsMatchState) Valid() bool {
+	switch e {
+	case ListClusterImagesParamsMatchStateExact:
+		return true
+	case ListClusterImagesParamsMatchStateIndex:
+		return true
+	case ListClusterImagesParamsMatchStateUnknown:
+		return true
+	case ListClusterImagesParamsMatchStateUnresolvable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListClusterImagesParamsSort.
+const (
+	ListClusterImagesParamsSortImageRef      ListClusterImagesParamsSort = "image_ref"
+	ListClusterImagesParamsSortLastSeenAt    ListClusterImagesParamsSort = "last_seen_at"
+	ListClusterImagesParamsSortMatchState    ListClusterImagesParamsSort = "match_state"
+	ListClusterImagesParamsSortPodCount      ListClusterImagesParamsSort = "pod_count"
+	ListClusterImagesParamsSortVulnCount     ListClusterImagesParamsSort = "vuln_count"
+	ListClusterImagesParamsSortWorkloadCount ListClusterImagesParamsSort = "workload_count"
+)
+
+// Valid indicates whether the value is a known member of the ListClusterImagesParamsSort enum.
+func (e ListClusterImagesParamsSort) Valid() bool {
+	switch e {
+	case ListClusterImagesParamsSortImageRef:
+		return true
+	case ListClusterImagesParamsSortLastSeenAt:
+		return true
+	case ListClusterImagesParamsSortMatchState:
+		return true
+	case ListClusterImagesParamsSortPodCount:
+		return true
+	case ListClusterImagesParamsSortVulnCount:
+		return true
+	case ListClusterImagesParamsSortWorkloadCount:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListClusterImagesParamsDir.
+const (
+	ListClusterImagesParamsDirAsc  ListClusterImagesParamsDir = "asc"
+	ListClusterImagesParamsDirDesc ListClusterImagesParamsDir = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ListClusterImagesParamsDir enum.
+func (e ListClusterImagesParamsDir) Valid() bool {
+	switch e {
+	case ListClusterImagesParamsDirAsc:
+		return true
+	case ListClusterImagesParamsDirDesc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListClusterVulnsParamsSeverity.
 const (
 	ListClusterVulnsParamsSeverityCRITICAL ListClusterVulnsParamsSeverity = "CRITICAL"
@@ -937,28 +1033,28 @@ func (e ListTopVulnerabilitiesParamsSeverity) Valid() bool {
 
 // Defines values for ListTopVulnerabilitiesParamsSort.
 const (
-	AffectedPurlCount ListTopVulnerabilitiesParamsSort = "affected_purl_count"
-	AffectedSbomCount ListTopVulnerabilitiesParamsSort = "affected_sbom_count"
-	CanonicalId       ListTopVulnerabilitiesParamsSort = "canonical_id"
-	CvssScore         ListTopVulnerabilitiesParamsSort = "cvss_score"
-	PublishedAt       ListTopVulnerabilitiesParamsSort = "published_at"
-	Severity          ListTopVulnerabilitiesParamsSort = "severity"
+	ListTopVulnerabilitiesParamsSortAffectedPurlCount ListTopVulnerabilitiesParamsSort = "affected_purl_count"
+	ListTopVulnerabilitiesParamsSortAffectedSbomCount ListTopVulnerabilitiesParamsSort = "affected_sbom_count"
+	ListTopVulnerabilitiesParamsSortCanonicalId       ListTopVulnerabilitiesParamsSort = "canonical_id"
+	ListTopVulnerabilitiesParamsSortCvssScore         ListTopVulnerabilitiesParamsSort = "cvss_score"
+	ListTopVulnerabilitiesParamsSortPublishedAt       ListTopVulnerabilitiesParamsSort = "published_at"
+	ListTopVulnerabilitiesParamsSortSeverity          ListTopVulnerabilitiesParamsSort = "severity"
 )
 
 // Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSort enum.
 func (e ListTopVulnerabilitiesParamsSort) Valid() bool {
 	switch e {
-	case AffectedPurlCount:
+	case ListTopVulnerabilitiesParamsSortAffectedPurlCount:
 		return true
-	case AffectedSbomCount:
+	case ListTopVulnerabilitiesParamsSortAffectedSbomCount:
 		return true
-	case CanonicalId:
+	case ListTopVulnerabilitiesParamsSortCanonicalId:
 		return true
-	case CvssScore:
+	case ListTopVulnerabilitiesParamsSortCvssScore:
 		return true
-	case PublishedAt:
+	case ListTopVulnerabilitiesParamsSortPublishedAt:
 		return true
-	case Severity:
+	case ListTopVulnerabilitiesParamsSortSeverity:
 		return true
 	default:
 		return false
@@ -967,16 +1063,16 @@ func (e ListTopVulnerabilitiesParamsSort) Valid() bool {
 
 // Defines values for ListTopVulnerabilitiesParamsSortDir.
 const (
-	ListTopVulnerabilitiesParamsSortDirAsc  ListTopVulnerabilitiesParamsSortDir = "asc"
-	ListTopVulnerabilitiesParamsSortDirDesc ListTopVulnerabilitiesParamsSortDir = "desc"
+	Asc  ListTopVulnerabilitiesParamsSortDir = "asc"
+	Desc ListTopVulnerabilitiesParamsSortDir = "desc"
 )
 
 // Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSortDir enum.
 func (e ListTopVulnerabilitiesParamsSortDir) Valid() bool {
 	switch e {
-	case ListTopVulnerabilitiesParamsSortDirAsc:
+	case Asc:
 		return true
-	case ListTopVulnerabilitiesParamsSortDirDesc:
+	case Desc:
 		return true
 	default:
 		return false
@@ -1134,6 +1230,36 @@ type ChangelogEntry struct {
 	Summary ChangeSummary    `json:"summary"`
 	To      SBOMRef          `json:"to"`
 }
+
+// ClusterImageResponse defines model for ClusterImageResponse.
+type ClusterImageResponse struct {
+	ArtifactId   *string `json:"artifact_id,omitempty"`
+	ArtifactName *string `json:"artifact_name,omitempty"`
+	ArtifactType *string `json:"artifact_type,omitempty"`
+	ImageDigest  *string `json:"image_digest,omitempty"`
+	ImageRef     string  `json:"image_ref"`
+	LastSeenAt   string  `json:"last_seen_at"`
+
+	// MatchState exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)
+	MatchState ClusterImageResponseMatchState `json:"match_state"`
+
+	// NamespaceCount Kubernetes namespaces the image appears in
+	NamespaceCount int64 `json:"namespace_count"`
+
+	// PodCount Running pods those workload-containers add up to
+	PodCount        int64               `json:"pod_count"`
+	SampleNamespace *string             `json:"sample_namespace,omitempty"`
+	SampleWorkload  *string             `json:"sample_workload,omitempty"`
+	SbomId          *string             `json:"sbom_id,omitempty"`
+	SubjectVersion  *string             `json:"subject_version,omitempty"`
+	Vulns           *WorkloadVulnCounts `json:"vulns,omitempty"`
+
+	// WorkloadCount Workload-containers running this image
+	WorkloadCount int64 `json:"workload_count"`
+}
+
+// ClusterImageResponseMatchState exact = digest matched an SBOM; index = matched a multi-arch image index, so the exact platform is unknown; unknown = real digest with no ingested SBOM (coverage gap); unresolvable = no digest could be read from the container (agent/runtime gap)
+type ClusterImageResponseMatchState string
 
 // ClusterResponse defines model for ClusterResponse.
 type ClusterResponse struct {
@@ -1982,6 +2108,15 @@ type ListArtifactsOutputBody struct {
 	Schema     *string            `json:"$schema,omitempty"`
 	Data       *[]ArtifactSummary `json:"data"`
 	Pagination CursorMeta         `json:"pagination"`
+}
+
+// ListClusterImagesOutputBody defines model for ListClusterImagesOutputBody.
+type ListClusterImagesOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema     *string                  `json:"$schema,omitempty"`
+	Coverage   WorkloadCoverageResponse `json:"coverage"`
+	Data       *[]ClusterImageResponse  `json:"data"`
+	Pagination PaginationMeta           `json:"pagination"`
 }
 
 // ListClusterNamespacesOutputBody defines model for ListClusterNamespacesOutputBody.
@@ -3020,6 +3155,39 @@ type ListClustersParams struct {
 	// NamespaceId Limit to clusters in one namespace
 	NamespaceId *string `form:"namespace_id,omitempty" json:"namespace_id,omitempty"`
 }
+
+// ListClusterImagesParams defines parameters for ListClusterImages.
+type ListClusterImagesParams struct {
+	// K8sNamespace Filter to one Kubernetes namespace
+	K8sNamespace *string `form:"k8s_namespace,omitempty" json:"k8s_namespace,omitempty"`
+
+	// MatchState Filter by SBOM match state
+	MatchState *ListClusterImagesParamsMatchState `form:"match_state,omitempty" json:"match_state,omitempty"`
+
+	// Q Substring match over workload name, container name and image reference
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// Sort Column to sort by. vuln_count orders by severity, worst first, and sorts unassessed images last in either direction
+	Sort *ListClusterImagesParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// Dir Sort direction (default asc)
+	Dir *ListClusterImagesParamsDir `form:"dir,omitempty" json:"dir,omitempty"`
+
+	// Limit Maximum number of results per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListClusterImagesParamsMatchState defines parameters for ListClusterImages.
+type ListClusterImagesParamsMatchState string
+
+// ListClusterImagesParamsSort defines parameters for ListClusterImages.
+type ListClusterImagesParamsSort string
+
+// ListClusterImagesParamsDir defines parameters for ListClusterImages.
+type ListClusterImagesParamsDir string
 
 // ListClusterUnknownImagesParams defines parameters for ListClusterUnknownImages.
 type ListClusterUnknownImagesParams struct {

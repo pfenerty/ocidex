@@ -11,6 +11,65 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countClusterImages = `-- name: CountClusterImages :one
+SELECT COUNT(*)::bigint AS total
+FROM (
+    SELECT w.image_ref, w.image_digest
+    FROM cluster_workload w
+    JOIN cluster c ON c.id = w.cluster_id
+    LEFT JOIN LATERAL (
+        SELECT s2.id, s2.digest
+        FROM sbom s2
+        WHERE w.image_digest IS NOT NULL
+          AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
+        ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+        LIMIT 1
+    ) s ON true
+    CROSS JOIN LATERAL (
+        SELECT (CASE WHEN s.id IS NOT NULL AND s.digest = w.image_digest THEN 'exact'
+                     WHEN s.id IS NOT NULL                               THEN 'index'
+                     WHEN w.image_digest IS NULL                         THEN 'unresolvable'
+                     ELSE                                                     'unknown'
+                END)::text AS state
+    ) ms
+    WHERE w.cluster_id = $1
+      AND c.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+      AND ($4::text IS NULL OR w.k8s_namespace = $4::text)
+      AND ($5::text IS NULL OR ms.state = $5::text)
+      AND ($6::text IS NULL OR (
+            w.workload_name  ILIKE '%' || $6::text || '%'
+         OR w.container_name ILIKE '%' || $6::text || '%'
+         OR w.image_ref      ILIKE '%' || $6::text || '%'))
+    GROUP BY w.image_ref, w.image_digest
+) grouped
+`
+
+type CountClusterImagesParams struct {
+	ClusterID    pgtype.UUID `json:"cluster_id"`
+	UserID       pgtype.UUID `json:"user_id"`
+	IsAdmin      pgtype.Bool `json:"is_admin"`
+	K8sNamespace pgtype.Text `json:"k8s_namespace"`
+	MatchState   pgtype.Text `json:"match_state"`
+	Q            pgtype.Text `json:"q"`
+}
+
+// The total behind ListClusterImages' page. Distinct (image_ref, image_digest)
+// pairs under the same filters, so a page of 50 out of 300 images says 300 and
+// not the 1,400 workload-containers they run as.
+func (q *Queries) CountClusterImages(ctx context.Context, arg CountClusterImagesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countClusterImages,
+		arg.ClusterID,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.K8sNamespace,
+		arg.MatchState,
+		arg.Q,
+	)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
 const countClusterRunningVulns = `-- name: CountClusterRunningVulns :one
 WITH running AS (
     SELECT
@@ -260,6 +319,214 @@ func (q *Queries) GetClusterWorkloadCoverage(ctx context.Context, arg GetCluster
 		&i.Pods,
 	)
 	return i, err
+}
+
+const listClusterImages = `-- name: ListClusterImages :many
+WITH img AS (
+    SELECT
+        w.image_ref,
+        w.image_digest,
+        COUNT(*)::bigint                      AS workload_count,
+        SUM(w.pod_count)::bigint              AS pod_count,
+        COUNT(DISTINCT w.k8s_namespace)::bigint AS namespace_count,
+        MAX(w.last_seen_at)::timestamptz      AS last_seen_at,
+        -- One example to show in the row, chosen deterministically so the same
+        -- image does not name a different workload on every refresh. The full
+        -- list is one click away in the by-workload view.
+        (array_agg(w.k8s_namespace ORDER BY w.k8s_namespace, w.workload_name, w.container_name))[1]::text AS sample_namespace,
+        (array_agg(w.workload_name ORDER BY w.k8s_namespace, w.workload_name, w.container_name))[1]::text AS sample_workload
+    FROM cluster_workload w
+    JOIN cluster c ON c.id = w.cluster_id
+    WHERE w.cluster_id = $1
+      AND c.namespace_id IN (SELECT visible_namespace_ids($7::uuid, $8::boolean))
+      AND ($9::text IS NULL OR w.k8s_namespace = $9::text)
+      AND ($10::text IS NULL OR (
+            w.workload_name  ILIKE '%' || $10::text || '%'
+         OR w.container_name ILIKE '%' || $10::text || '%'
+         OR w.image_ref      ILIKE '%' || $10::text || '%'))
+    GROUP BY w.image_ref, w.image_digest
+)
+SELECT
+    w.image_ref,
+    w.image_digest,
+    w.workload_count,
+    w.pod_count,
+    w.namespace_count,
+    w.last_seen_at,
+    w.sample_namespace,
+    w.sample_workload,
+    s.id            AS sbom_id,
+    s.artifact_id   AS artifact_id,
+    s.subject_version AS subject_version,
+    a.name          AS artifact_name,
+    a.type          AS artifact_type,
+    ms.state        AS match_state,
+    COALESCE(vs.critical, 0)::bigint AS critical_count,
+    COALESCE(vs.high, 0)::bigint     AS high_count,
+    COALESCE(vs.medium, 0)::bigint   AS medium_count,
+    COALESCE(vs.low, 0)::bigint      AS low_count
+FROM img w
+LEFT JOIN LATERAL (
+    SELECT s2.id, s2.artifact_id, s2.subject_version, s2.digest
+    FROM sbom s2
+    WHERE w.image_digest IS NOT NULL
+      AND (s2.digest = w.image_digest OR s2.index_digest = w.image_digest)
+    ORDER BY (s2.digest = w.image_digest) DESC, s2.created_at DESC
+    LIMIT 1
+) s ON true
+LEFT JOIN artifact a ON a.id = s.artifact_id
+CROSS JOIN LATERAL (
+    SELECT (CASE WHEN s.id IS NOT NULL AND s.digest = w.image_digest THEN 'exact'
+                 WHEN s.id IS NOT NULL                               THEN 'index'
+                 WHEN w.image_digest IS NULL                         THEN 'unresolvable'
+                 ELSE                                                     'unknown'
+            END)::text AS state
+) ms
+LEFT JOIN LATERAL (
+    SELECT
+        COUNT(DISTINCT COALESCE(NULLIF(v.canonical_id, ''), v.id))
+            FILTER (WHERE v.severity = 'CRITICAL')::bigint AS critical,
+        COUNT(DISTINCT COALESCE(NULLIF(v.canonical_id, ''), v.id))
+            FILTER (WHERE v.severity = 'HIGH')::bigint     AS high,
+        COUNT(DISTINCT COALESCE(NULLIF(v.canonical_id, ''), v.id))
+            FILTER (WHERE v.severity = 'MEDIUM')::bigint   AS medium,
+        COUNT(DISTINCT COALESCE(NULLIF(v.canonical_id, ''), v.id))
+            FILTER (WHERE v.severity = 'LOW')::bigint      AS low
+    FROM (SELECT DISTINCT purl FROM component WHERE sbom_id = s.id AND purl IS NOT NULL) comp
+    JOIN package_vulnerability pv ON pv.purl = comp.purl
+    JOIN vulnerability v ON v.id = pv.vulnerability_id
+) vs ON s.id IS NOT NULL
+WHERE ($2::text IS NULL OR ms.state = $2::text)
+ORDER BY
+    CASE $3::text
+        WHEN 'workload_count' THEN w.workload_count::float8
+        WHEN 'pod_count'      THEN w.pod_count::float8
+        WHEN 'last_seen_at'   THEN EXTRACT(EPOCH FROM w.last_seen_at)::float8
+        -- Severity counts packed into one number, most severe most significant.
+        -- NULL (never assessed) stays NULL and sorts last in both directions, so
+        -- an unassessed image never ranks alongside a clean one.
+        WHEN 'vuln_count'     THEN (vs.critical * 1000000 + vs.high * 1000 + vs.medium)::float8
+    END * CASE $4::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
+    CASE WHEN $4::text = 'asc' THEN
+        CASE $3::text
+            WHEN 'image_ref'   THEN w.image_ref
+            WHEN 'match_state' THEN ms.state
+        END
+    END ASC NULLS LAST,
+    CASE WHEN $4::text = 'desc' THEN
+        CASE $3::text
+            WHEN 'image_ref'   THEN w.image_ref
+            WHEN 'match_state' THEN ms.state
+        END
+    END DESC NULLS LAST,
+    -- Total order, so offset pagination cannot repeat or skip a row.
+    w.image_ref ASC, w.image_digest ASC NULLS LAST
+LIMIT $6::int OFFSET $5::int
+`
+
+type ListClusterImagesParams struct {
+	ClusterID    pgtype.UUID `json:"cluster_id"`
+	MatchState   pgtype.Text `json:"match_state"`
+	SortBy       string      `json:"sort_by"`
+	SortDir      string      `json:"sort_dir"`
+	Offset       pgtype.Int4 `json:"offset"`
+	Limit        pgtype.Int4 `json:"limit"`
+	UserID       pgtype.UUID `json:"user_id"`
+	IsAdmin      pgtype.Bool `json:"is_admin"`
+	K8sNamespace pgtype.Text `json:"k8s_namespace"`
+	Q            pgtype.Text `json:"q"`
+}
+
+type ListClusterImagesRow struct {
+	ImageRef        string             `json:"image_ref"`
+	ImageDigest     pgtype.Text        `json:"image_digest"`
+	WorkloadCount   int64              `json:"workload_count"`
+	PodCount        int64              `json:"pod_count"`
+	NamespaceCount  int64              `json:"namespace_count"`
+	LastSeenAt      pgtype.Timestamptz `json:"last_seen_at"`
+	SampleNamespace string             `json:"sample_namespace"`
+	SampleWorkload  string             `json:"sample_workload"`
+	SbomID          pgtype.UUID        `json:"sbom_id"`
+	ArtifactID      pgtype.UUID        `json:"artifact_id"`
+	SubjectVersion  pgtype.Text        `json:"subject_version"`
+	ArtifactName    pgtype.Text        `json:"artifact_name"`
+	ArtifactType    pgtype.Text        `json:"artifact_type"`
+	MatchState      string             `json:"match_state"`
+	CriticalCount   int64              `json:"critical_count"`
+	HighCount       int64              `json:"high_count"`
+	MediumCount     int64              `json:"medium_count"`
+	LowCount        int64              `json:"low_count"`
+}
+
+// The same inventory as ListClusterWorkloads, keyed by image instead of by
+// workload-container.
+//
+// An image is the unit of the remedy: fourteen replicas of one unscanned image
+// are one SBOM to ingest, not fourteen problems, and by-workload rendered them
+// as fourteen near-identical rows sorted alphabetically by namespace. The
+// by-workload list stays for the other question — "where is this running".
+//
+// Grouping happens first, in the CTE, so the per-image joins below run once per
+// image rather than once per replica. Everything they depend on (image_digest)
+// is constant within a group, so the match and its finding counts are the same
+// values ListClusterWorkloads reports for any row of that group. That parity is
+// asserted in tests/cluster_inventory_test.go: the two lists disagreeing about
+// whether an image is matched would be invisible from either one alone.
+//
+// The k8s_namespace and q filters are applied before the grouping, so filtering
+// to one namespace counts that namespace's replicas rather than the cluster's.
+// match_state is applied after, because it is a property of the image.
+// Same parameterised shape as ListClusterWorkloads, for the same reason: the
+// list is server-paginated, so sorting only the current page would misrepresent
+// the cluster.
+func (q *Queries) ListClusterImages(ctx context.Context, arg ListClusterImagesParams) ([]ListClusterImagesRow, error) {
+	rows, err := q.db.Query(ctx, listClusterImages,
+		arg.ClusterID,
+		arg.MatchState,
+		arg.SortBy,
+		arg.SortDir,
+		arg.Offset,
+		arg.Limit,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.K8sNamespace,
+		arg.Q,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListClusterImagesRow{}
+	for rows.Next() {
+		var i ListClusterImagesRow
+		if err := rows.Scan(
+			&i.ImageRef,
+			&i.ImageDigest,
+			&i.WorkloadCount,
+			&i.PodCount,
+			&i.NamespaceCount,
+			&i.LastSeenAt,
+			&i.SampleNamespace,
+			&i.SampleWorkload,
+			&i.SbomID,
+			&i.ArtifactID,
+			&i.SubjectVersion,
+			&i.ArtifactName,
+			&i.ArtifactType,
+			&i.MatchState,
+			&i.CriticalCount,
+			&i.HighCount,
+			&i.MediumCount,
+			&i.LowCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listClusterK8sNamespaces = `-- name: ListClusterK8sNamespaces :many
