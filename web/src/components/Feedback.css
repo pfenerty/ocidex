@@ -8,11 +8,8 @@
     margin-right: 0.5rem;
 }
 
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
+/* `spin` is defined in index.css alongside .btn-spinner — keyframes are global,
+   and index.css is the one stylesheet always loaded. */
 
 .loading {
     display: flex;

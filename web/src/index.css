@@ -512,9 +512,43 @@
         border-color: var(--color-danger);
     }
 
+    /* The only rule added for the Button primitive, because the app already had
+       ghost buttons — it just spelled them as inline styles on bare <button>s.
+       No new tokens or colours: this is .btn with its chrome removed, and it
+       gains that chrome back on hover from .btn:hover. */
+    .btn-ghost {
+        background: transparent;
+        border-color: transparent;
+        color: var(--color-text-muted);
+    }
+
+    .btn-ghost:hover {
+        color: var(--color-text);
+    }
+
     .btn-sm {
         padding: 0.3rem 0.625rem;
         font-size: 0.8rem;
+    }
+
+    /* Sized from the text so it scales with .btn-sm, and inherits currentColor
+       so it is legible on .btn-primary's filled background as well as on the
+       surface variants. */
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .btn-spinner {
+        display: inline-block;
+        width: 0.85em;
+        height: 0.85em;
+        border: 2px solid currentColor;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+        flex-shrink: 0;
     }
 
     .btn-group {
