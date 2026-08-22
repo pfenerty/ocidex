@@ -155,7 +155,13 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
     // inside the {body()} expression lets Solid re-render just the tbody on
     // pagination, sort, and refetch without rebuilding the card/headers.
     const tableShell = (body: () => JSX.Element) => (
-        <div class="card">
+        // aria-busy rather than a swap to shimmer: a refetch on this table is
+        // almost always a sort, a page, or a keystroke in a debounced filter,
+        // and blanking the rows the reader is mid-sentence in loses their place
+        // to announce something they already know they asked for. The rows stay
+        // put and dim; a screen reader gets the busy state it would otherwise
+        // have to infer from the content vanishing.
+        <div class="card" classList={{ "table-refetching": isRefetching() }} aria-busy={isRefetching()}>
             <div class="table-wrapper">
                 <table>
                     <thead>
@@ -203,10 +209,8 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
                     {(rows) =>
                         // The thunk's reads are realized inside the tracked {body()}
                         // scope in tableShell; reactivity is covered by DataTable.test.tsx.
-                        // eslint-disable-next-line solid/reactivity
-                        tableShell(() =>
-                            isRefetching() ? skeletonBody(rows().length) : realBody(rows()),
-                        )
+                         
+                        tableShell(() => realBody(rows()))
                     }
                 </Show>
             </Show>

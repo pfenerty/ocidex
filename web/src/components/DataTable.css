@@ -17,3 +17,21 @@ th.th-sortable .sort-arrow {
     font-size: 0.65rem;
     color: var(--color-accent-amber);
 }
+
+/*
+ * Refetch state. The rows a reader is already looking at stay on screen and
+ * dim, rather than being replaced by shimmer: on this table a refetch is
+ * nearly always a sort, a page, or a keystroke in a debounced filter, and
+ * blanking the content to announce work the reader just asked for costs them
+ * their place. First load still shimmers — there is nothing to keep.
+ */
+.card.table-refetching .table-wrapper {
+    opacity: 0.55;
+    transition: opacity 0.12s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .card.table-refetching .table-wrapper {
+        transition: none;
+    }
+}

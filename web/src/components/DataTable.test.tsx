@@ -84,9 +84,13 @@ describe("DataTable reactivity", () => {
         expect(queryByText("alpha")).toBeNull();
     });
 
-    it("swaps to skeleton rows when loading flips true with rows present (refetch)", () => {
+    // A refetch here is a sort, a page, or a keystroke in a debounced filter.
+    // Replacing the rows with shimmer for it blanked the table the reader was
+    // mid-sentence in, several times per search, to announce work they had just
+    // asked for themselves.
+    it("keeps the rows on screen while refetching and marks the table busy", () => {
         const [loading, setLoading] = createSignal(false);
-        const { container } = render(() => (
+        const { container, queryByText } = render(() => (
             <DataTable
                 columns={columns}
                 rows={[{ name: "alpha" }]}
@@ -95,8 +99,30 @@ describe("DataTable reactivity", () => {
                 emptyTitle="Nothing here"
             />
         ));
-        expect(container.querySelectorAll("tbody .skeleton")).toHaveLength(0);
+        const card = container.querySelector(".card");
+        expect(card?.getAttribute("aria-busy")).toBe("false");
+
         setLoading(true);
+
+        expect(queryByText("alpha")).not.toBeNull();
+        expect(container.querySelectorAll("tbody .skeleton")).toHaveLength(0);
+        // The state is on the element rather than only in a class, so a screen
+        // reader gets it too instead of inferring it from content vanishing.
+        expect(card?.getAttribute("aria-busy")).toBe("true");
+        expect(card?.classList.contains("table-refetching")).toBe(true);
+    });
+
+    // First load is the one case with nothing to keep, so it still shimmers.
+    it("still shimmers on first load, when there are no rows to keep", () => {
+        const { container } = render(() => (
+            <DataTable
+                columns={columns}
+                rows={undefined}
+                loading={true}
+                isError={false}
+                emptyTitle="Nothing here"
+            />
+        ));
         expect(container.querySelectorAll("tbody .skeleton").length).toBeGreaterThan(0);
     });
 });
