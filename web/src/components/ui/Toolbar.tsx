@@ -9,6 +9,9 @@ export type ToolbarOption = string | { value: string; label: string };
 const optValue = (o: ToolbarOption): string => (typeof o === "string" ? o : o.value);
 const optLabel = (o: ToolbarOption): string => (typeof o === "string" ? o : o.label);
 
+const optionsOf = (f: { options: readonly ToolbarOption[] | (() => readonly ToolbarOption[]) }) =>
+    typeof f.options === "function" ? f.options() : f.options;
+
 /** The URL value a checked checkbox writes. Unchecked drops the param entirely. */
 const CHECKED = "1";
 
@@ -17,7 +20,14 @@ export type ToolbarField =
     | {
           kind: "select";
           key: string;
-          options: readonly ToolbarOption[];
+          /**
+           * The choices, or a function returning them when they are fetched
+           * rather than fixed. The Components list gets its package types from
+           * a query, and a caller that rebuilt the whole `fields` array when
+           * that query resolved would remount the text inputs beside the
+           * select, taking focus and any in-flight keystroke with them.
+           */
+          options: readonly ToolbarOption[] | (() => readonly ToolbarOption[]);
           /** Label for the empty choice. Default "All". */
           allLabel?: string;
           label?: string;
@@ -151,14 +161,24 @@ export function Toolbar(props: {
             );
         }
         if (f.kind === "select") {
+            let el!: HTMLSelectElement;
+            // Re-assert the value whenever the choices change, rather than
+            // binding it once. A select whose options arrive from a query is
+            // created holding only "All", and a browser silently drops a value
+            // that matches no option — so a link into `?purlType=npm` landed on
+            // a filtered list sitting under a control that said "All types".
+            createEffect(() => {
+                optionsOf(f);
+                el.value = param(f.key);
+            });
             return (
                 <select
+                    ref={el}
                     aria-label={f.label ?? f.allLabel ?? "Filter"}
-                    value={param(f.key)}
                     onChange={(e) => commit(f.key, e.currentTarget.value)}
                 >
                     <option value="">{f.allLabel ?? "All"}</option>
-                    <For each={f.options}>
+                    <For each={optionsOf(f)}>
                         {(o) => <option value={optValue(o)}>{optLabel(o)}</option>}
                     </For>
                 </select>

@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createSignal } from "solid-js";
 import { Router, Route } from "@solidjs/router";
 import { render, fireEvent, waitFor, cleanup } from "@solidjs/testing-library";
 import { Toolbar, type ToolbarField } from "./Toolbar";
@@ -185,5 +186,49 @@ describe("Toolbar markup contract", () => {
         const { container } = renderAt("/list");
         expect(nameInput(container).getAttribute("aria-label")).toBe("Filter by name…");
         expect(select(container).getAttribute("aria-label")).toBe("All types");
+    });
+});
+
+describe("Toolbar fetched options", () => {
+    it("fills a select from a thunk without remounting the row", async () => {
+        const [types, setTypes] = createSignal<string[]>([]);
+        const fields: ToolbarField[] = [
+            { kind: "text", key: "name", placeholder: "Filter by name…" },
+            { kind: "select", key: "type", options: () => types(), allLabel: "All types" },
+        ];
+        const { container } = renderAt("/list", fields);
+        expect([...select(container).options].map((o) => o.value)).toEqual([""]);
+
+        // A caller whose choices come from a query must not have to rebuild the
+        // `fields` array to show them: that array is what the toolbar renders
+        // one row per, so a new identity would remount the text input beside
+        // the select and take the half-typed word with it.
+        const input = nameInput(container);
+        fireEvent.input(input, { target: { value: "half-typed" } });
+        setTypes(["npm", "golang"]);
+
+        expect([...select(container).options].map((o) => o.value)).toEqual(["", "npm", "golang"]);
+        expect(nameInput(container)).toBe(input);
+        expect(input.value).toBe("half-typed");
+
+        await waitFor(() => {
+            expect(search()).toBe("?name=half-typed");
+        });
+    });
+
+    it("still seeds a fetched select from the URL when the options arrive late", () => {
+        const [types, setTypes] = createSignal<string[]>([]);
+        const fields: ToolbarField[] = [
+            { kind: "select", key: "type", options: () => types(), allLabel: "All types" },
+        ];
+        const { container } = renderAt("/list?type=npm", fields);
+        // Nothing to select yet, so the browser holds "All".
+        expect(select(container).value).toBe("");
+
+        setTypes(["npm", "golang"]);
+
+        // Without re-asserting on the option list, the value binding never runs
+        // again and the row reads "All types" over an npm-filtered list.
+        expect(select(container).value).toBe("npm");
     });
 });

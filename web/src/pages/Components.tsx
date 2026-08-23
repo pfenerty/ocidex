@@ -1,7 +1,7 @@
 import "./Components.css";
 import { DEFAULT_PAGE_SIZE } from "~/api/client";
 import { createSignal } from "solid-js";
-import { Show, For } from "solid-js";
+import { Show } from "solid-js";
 import { A, useSearchParams } from "@solidjs/router";
 import {
     useDistinctComponents,
@@ -12,7 +12,8 @@ import type { components } from "~/types/openapi";
 import DataTable from "~/components/DataTable";
 import type { Column, SortDir } from "~/components/DataTable";
 import { ComponentNameCell } from "~/components/cells";
-import { Button, PageHeader } from "~/components/ui";
+import { Button, PageHeader, Toolbar } from "~/components/ui";
+import type { ToolbarField } from "~/components/ui";
 
 type DistinctComponentSummary = components["schemas"]["DistinctComponentSummary"];
 type ComponentSummary = components["schemas"]["ComponentSummary"];
@@ -100,32 +101,48 @@ function PurlOccurrences(props: { purl: string }) {
 
 function ComponentBrowser() {
     const [offset, setOffset] = createSignal(0);
-    const [nameFilter, setNameFilter] = createSignal("");
-    const [groupFilter, setGroupFilter] = createSignal("");
-    const [purlTypeFilter, setPurlTypeFilter] = createSignal("");
     const [sortBy, setSortBy] = createSignal<SortColumn>("sbom_count");
     const [sortDir, setSortDir] = createSignal<SortDir>("desc");
     const limit = DEFAULT_PAGE_SIZE;
 
+    // The three filters were undebounced local signals: a request per keystroke
+    // against the slowest endpoint in the app, and a filtered list nobody could
+    // link to. <Toolbar> gives them the 300ms pause and puts them in the URL.
+    const [searchParams] = useSearchParams();
+    const param = (key: string): string => {
+        const v = searchParams[key];
+        return (Array.isArray(v) ? v[0] : v) ?? "";
+    };
+
     const purlTypesQuery = useComponentPurlTypes();
 
+    // Built once rather than in a memo: <Toolbar> renders one row per entry, so
+    // a fresh array identity would remount the inputs mid-keystroke. The
+    // package types arrive from a query, which is what the thunk is for.
+    const filters: ToolbarField[] = [
+        { kind: "text", key: "name", placeholder: "Filter by name…", label: "Filter by name" },
+        { kind: "text", key: "group", placeholder: "Group…", label: "Filter by group" },
+        {
+            kind: "select",
+            key: "purlType",
+            options: () => purlTypesQuery.data?.types ?? [],
+            allLabel: "All types",
+            label: "Package type",
+        },
+    ];
+
+    const isFiltered = () => filters.some((f) => param(f.key) !== "");
+
     const query = useDistinctComponents(() => ({
-        name: nameFilter(),
-        group: groupFilter(),
+        name: param("name"),
+        group: param("group"),
         type: "library",
-        purl_type: purlTypeFilter(),
+        purl_type: param("purlType"),
         sort: sortBy(),
         sort_dir: sortDir(),
         limit,
         offset: offset(),
     }));
-
-    const handleClear = () => {
-        setNameFilter("");
-        setGroupFilter("");
-        setPurlTypeFilter("");
-        setOffset(0);
-    };
 
     const overviewHref = (c: { name: string; group?: string }) => {
         const params = new URLSearchParams({ name: c.name });
@@ -186,43 +203,9 @@ function ComponentBrowser() {
                 }
             />
 
-            <div class="search-bar mb-4">
-                <input
-                    type="text"
-                    placeholder="Filter by name…"
-                    value={nameFilter()}
-                    onInput={(e) => {
-                        setNameFilter(e.currentTarget.value);
-                        setOffset(0);
-                    }}
-                />
-                <input
-                    type="text"
-                    placeholder="Group…"
-                    value={groupFilter()}
-                    onInput={(e) => {
-                        setGroupFilter(e.currentTarget.value);
-                        setOffset(0);
-                    }}
-                />
-                <select
-                    value={purlTypeFilter()}
-                    onChange={(e) => {
-                        setPurlTypeFilter(e.currentTarget.value);
-                        setOffset(0);
-                    }}
-                >
-                    <option value="">All types</option>
-                    <For each={purlTypesQuery.data?.types}>
-                        {(t) => <option value={t}>{t}</option>}
-                    </For>
-                </select>
-                <Show when={nameFilter() !== "" || groupFilter() !== "" || purlTypeFilter() !== ""}>
-                    <Button type="button" size="sm" onClick={handleClear}>
-                        Clear
-                    </Button>
-                </Show>
-            </div>
+            {/* Any committed filter is a new result set, so page 1 is the only
+                honest place to land. */}
+            <Toolbar class="mb-4" fields={filters} onChange={() => setOffset(0)} />
 
             <DataTable
                 columns={columns}
@@ -232,7 +215,7 @@ function ComponentBrowser() {
                 error={query.error}
                 emptyTitle="No components found"
                 emptyMessage={
-                    nameFilter() !== "" || purlTypeFilter() !== ""
+                    isFiltered()
                         ? "No libraries matching your filters were found."
                         : "No libraries have been ingested yet."
                 }
