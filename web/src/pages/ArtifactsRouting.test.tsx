@@ -32,6 +32,12 @@ function renderAt(path: string) {
     ));
 }
 
+function nameInput(container: HTMLElement): HTMLInputElement {
+    const el = container.querySelector<HTMLInputElement>('input[type="text"]');
+    if (el === null) throw new Error("name filter input not rendered");
+    return el;
+}
+
 function typeSelect(container: HTMLElement): HTMLSelectElement {
     const el = container.querySelector("select");
     if (el === null) throw new Error("type filter select not rendered");
@@ -43,6 +49,7 @@ describe("Artifacts type filter against the real router", () => {
         vi.clearAllMocks();
         mockUseArtifacts.mockReturnValue({
             isLoading: false,
+            isFetching: false,
             isError: false,
             error: null,
             data: { pages: [{ data: [] }] },
@@ -85,5 +92,80 @@ describe("Artifacts type filter against the real router", () => {
             expect(window.location.search).toBe("");
         });
         expect(mockUseArtifacts.mock.calls[0][0]().type).toBe("");
+    });
+});
+
+// Adopting <Toolbar> (ocidex-ag4q.28) moved the name filter and "show all" out
+// of component-local signals and into the query string, alongside the type that
+// was already there. Against the real router these assert the thing the local
+// signals could not do: a filtered list that survives a reload and can be sent
+// to someone else.
+describe("Artifacts name and show-all filters against the real router", () => {
+    const idleQuery = () => ({
+        isLoading: false,
+        isFetching: false,
+        isError: false,
+        error: null,
+        data: { pages: [{ data: [] }] },
+        hasNextPage: false,
+        isFetchingNextPage: false,
+        fetchNextPage: vi.fn(),
+    });
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mockUseArtifacts.mockReturnValue(idleQuery() as never);
+    });
+
+    it("reads the name from the query string, into both the box and the query", () => {
+        const { container } = renderAt("/artifacts?name=postgres");
+
+        expect(nameInput(container).value).toBe("postgres");
+        expect(mockUseArtifacts.mock.calls[0][0]().name).toBe("postgres");
+    });
+
+    it("debounces a keystroke rather than writing the URL per character", async () => {
+        vi.useFakeTimers();
+        try {
+            const { container } = renderAt("/artifacts");
+            const input = nameInput(container);
+
+            input.value = "pg";
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            // The box shows the character immediately; only the URL waits.
+            expect(input.value).toBe("pg");
+            expect(window.location.search).toBe("");
+
+            vi.advanceTimersByTime(300);
+        } finally {
+            vi.useRealTimers();
+        }
+
+        await waitFor(() => {
+            expect(window.location.search).toBe("?name=pg");
+        });
+        expect(mockUseArtifacts.mock.calls[0][0]().name).toBe("pg");
+    });
+
+    // `sufficient` is the inverse of the box: checked means "stop hiding the
+    // artifacts whose SBOMs are too thin to say anything about".
+    it("maps ?all=1 onto sufficient=false, and its absence onto true", () => {
+        renderAt("/artifacts?all=1");
+        expect(mockUseArtifacts.mock.calls[0][0]().sufficient).toBe(false);
+
+        vi.clearAllMocks();
+        mockUseArtifacts.mockReturnValue(idleQuery() as never);
+        renderAt("/artifacts");
+        expect(mockUseArtifacts.mock.calls[0][0]().sufficient).toBe(true);
+    });
+
+    it("clears every filter param at once, not just the one last touched", async () => {
+        const { getByRole } = renderAt("/artifacts?name=postgres&type=library&all=1");
+
+        getByRole("button", { name: "Clear" }).click();
+
+        await waitFor(() => {
+            expect(window.location.search).toBe("");
+        });
     });
 });

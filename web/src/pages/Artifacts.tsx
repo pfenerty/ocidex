@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For } from "solid-js";
+import { createMemo } from "solid-js";
 import { A, useSearchParams } from "@solidjs/router";
 import { useArtifactsInfinite } from "~/api/queries";
 import DataTable from "~/components/DataTable";
@@ -6,7 +6,8 @@ import type { Column } from "~/components/DataTable";
 import { artifactDisplayName, plural } from "~/utils/format";
 import { SigningBadge, TypeBadge } from "~/components/cells";
 import { DEFAULT_PAGE_SIZE, type ArtifactSummary } from "~/api/client";
-import { PageHeader } from "~/components/ui";
+import { PageHeader, Toolbar } from "~/components/ui";
+import type { ToolbarField } from "~/components/ui";
 
 const ARTIFACT_TYPES = [
     "application",
@@ -22,6 +23,18 @@ const ARTIFACT_TYPES = [
     "machine-learning-model",
     "operating-system",
     "platform",
+];
+
+const FILTERS: ToolbarField[] = [
+    { kind: "text", key: "name", placeholder: "Filter by name…", label: "Filter by name" },
+    {
+        kind: "select",
+        key: "type",
+        options: ARTIFACT_TYPES,
+        allLabel: "All types",
+        label: "Artifact type",
+    },
+    { kind: "checkbox", key: "all", label: "Show all" },
 ];
 
 /** How a group of artifacts got its heading, which decides how it renders. */
@@ -81,29 +94,25 @@ const columns: Column<ArtifactSummary>[] = [
 ];
 
 export default function Artifacts() {
-    const [nameFilter, setNameFilter] = createSignal("");
-    const [showAll, setShowAll] = createSignal(false);
-
-    // The type filter lives in the URL so Home's breakdown chips can link
-    // straight into a filtered list, and so a filtered view survives a reload.
-    // Name and "show all" stay local — nothing links to them.
-    const [searchParams, setSearchParams] = useSearchParams();
-    const typeFilter = () => {
-        const t = searchParams.type;
-        return (Array.isArray(t) ? t[0] : t) ?? "";
-    };
-
-    let nameDebounce: ReturnType<typeof setTimeout>;
-    const handleNameInput = (val: string) => {
-        clearTimeout(nameDebounce);
-        nameDebounce = setTimeout(() => setNameFilter(val), 300);
+    // Every filter now lives in the URL, not just the type. Home's breakdown
+    // chips already linked into `?type=`; name and "show all" were local
+    // signals, so the one view a reader would actually want to send someone —
+    // "these artifacts, filtered this way" — was the one that could not be
+    // linked to or survive a reload.
+    const [searchParams] = useSearchParams();
+    const param = (key: string): string => {
+        const v = searchParams[key];
+        return (Array.isArray(v) ? v[0] : v) ?? "";
     };
 
     const query = useArtifactsInfinite(() => ({
-        name: nameFilter(),
-        type: typeFilter(),
+        name: param("name"),
+        type: param("type"),
         limit: DEFAULT_PAGE_SIZE,
-        sufficient: showAll() ? false : true,
+        // "Show all" lifts a constraint rather than adding one: unchecked, the
+        // list is limited to artifacts whose SBOMs are substantial enough to
+        // say anything about.
+        sufficient: param("all") !== "1",
     }));
 
     const rawArtifacts = () => query.data?.pages.flatMap((p) => p.data ?? []) ?? [];
@@ -140,34 +149,7 @@ export default function Artifacts() {
                 subtitle="Software artifacts (container images, libraries, applications) tracked by OCIDex"
             />
 
-            <div class="search-bar mb-4">
-                <input
-                    type="text"
-                    placeholder="Filter by name…"
-                    onInput={(e) => handleNameInput(e.currentTarget.value)}
-                />
-                <select
-                    value={typeFilter()}
-                    onChange={(e) =>
-                        setSearchParams({
-                            type: e.currentTarget.value === "" ? undefined : e.currentTarget.value,
-                        })
-                    }
-                >
-                    <option value="">All types</option>
-                    <For each={ARTIFACT_TYPES}>
-                        {(t) => <option value={t}>{t}</option>}
-                    </For>
-                </select>
-                <label style={{ display: "flex", "align-items": "center", gap: "0.5rem", cursor: "pointer", "white-space": "nowrap" }}>
-                    <input
-                        type="checkbox"
-                        checked={showAll()}
-                        onChange={(e) => setShowAll(e.currentTarget.checked)}
-                    />
-                    Show all
-                </label>
-            </div>
+            <Toolbar class="mb-4" fields={FILTERS} />
 
             <DataTable
                 columns={columns}
