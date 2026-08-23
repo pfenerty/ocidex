@@ -1,11 +1,11 @@
 import "~/components/DetailSection.css";
 import { Show, For, createSignal, createMemo } from "solid-js";
 import { A, useParams, useNavigate } from "@solidjs/router";
-import { Button, ButtonGroup, Card, CardHeader, PageHeader } from "~/components/ui";
+import { Button, ButtonGroup, Card, CardHeader, PageHeader, QueryBoundary } from "~/components/ui";
 import { useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies, useSBOMDriftHistory, useArtifactSBOMs } from "~/api/queries";
 import { useArtifactNames } from "~/api/queries";
 import type { OCIMetadata, Provenance, GitCommitMetadata } from "~/api/client";
-import { ErrorBox, EmptyState } from "~/components/Feedback";
+import { EmptyState } from "~/components/Feedback";
 import { Skeleton, SkeletonHeader, SkeletonTable } from "~/components/Skeleton";
 import CopyDigest from "~/components/CopyDigest";
 import CopyShareLink, { sbomLookupPath } from "~/components/CopyShareLink";
@@ -118,13 +118,19 @@ export default function SBOMDetail() {
                 </span>
             </div>
 
-            <Show when={!sbomQuery.isLoading} fallback={<SkeletonHeader />}>
-                <Show
-                    when={!sbomQuery.isError && sbomQuery.data !== undefined ? sbomQuery.data : undefined}
-                    keyed
-                    fallback={<ErrorBox error={sbomQuery.error} />}
-                >
-                    {(s) => (
+            {/* The old ladder rendered <ErrorBox> whenever the data was absent,
+                so a successful response with no SBOM claimed "an unexpected
+                error occurred". QueryBoundary keeps error and empty apart. */}
+            <QueryBoundary
+                query={sbomQuery}
+                loading={<SkeletonHeader />}
+                empty={<EmptyState title="SBOM not found." message="This SBOM may have been deleted, or the link may be wrong." />}
+            >
+                {(sbom) => {
+                    // Keyed on the resolved value, so reading it once here is
+                    // the same binding the previous `<Show keyed>` gave.
+                    const s = sbom();
+                    return (
                         <>
                             {/* --- Hero --- */}
                             <PageHeader
@@ -213,11 +219,11 @@ export default function SBOMDetail() {
 
                             {/* --- Packages tab --- */}
                             <Show when={tab() === "packages"}>
-                                <Show when={!componentsQuery.isLoading} fallback={<SkeletonTable columns={5} />}>
-                                    <Show
-                                        when={!componentsQuery.isError}
-                                        fallback={<ErrorBox error={componentsQuery.error} />}
-                                    >
+                                <QueryBoundary
+                                    query={componentsQuery}
+                                    loading={<SkeletonTable columns={5} />}
+                                >
+                                    {() => (
                                         <PackagesTab
                                             components={loadedComponents()}
                                             depsGraph={(depsQuery.data?.edges.length ?? 0) > 0 ? depsQuery.data : undefined}
@@ -227,8 +233,8 @@ export default function SBOMDetail() {
                                             totalCount={s.packageCount}
                                             componentCount={s.componentCount}
                                         />
-                                    </Show>
-                                </Show>
+                                    )}
+                                </QueryBoundary>
                             </Show>
 
                             {/* --- Provenance tab --- */}
@@ -325,9 +331,9 @@ export default function SBOMDetail() {
                                 </Card>
                             </Show>
                         </>
-                    )}
-                </Show>
-            </Show>
+                    );
+                }}
+            </QueryBoundary>
         </>
     );
 }

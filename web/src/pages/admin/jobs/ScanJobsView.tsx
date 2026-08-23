@@ -47,7 +47,7 @@ export function ScanJobsView() {
     const qQueued = useListScanJobs(() => ({ state: "queued" as const, limit: 50, offset: 0 }));
     const registries = useListRegistries();
 
-    const isLoading = () => qMain.isLoading || (isActive() && qQueued.isLoading);
+    const isBusy = () => qMain.isFetching || (isActive() && qQueued.isFetching);
     const isError = () => qMain.isError || (isActive() && qQueued.isError);
 
     const displayJobs = () => {
@@ -129,7 +129,7 @@ export function ScanJobsView() {
             <DataTable
                 columns={columns}
                 rows={displayJobs()}
-                loading={isLoading()}
+                loading={isBusy()}
                 isError={isError()}
                 error={qMain.error}
                 emptyTitle="No scan jobs found"

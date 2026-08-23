@@ -1,10 +1,10 @@
 import { For, Show, createSignal } from "solid-js";
 import { A, useParams } from "@solidjs/router";
 import { useArtifact, useArtifactSBOMs } from "~/api/queries";
-import { ErrorBox, EmptyState } from "~/components/Feedback";
+import { EmptyState } from "~/components/Feedback";
 import { SkeletonText } from "~/components/Skeleton";
 import { DiffPairView, ViewToggle } from "~/components/DiffPairView";
-import { PageHeader } from "~/components/ui";
+import { PageHeader, QueryBoundary } from "~/components/ui";
 
 export default function ArtifactVersionHistory() {
     const params = useParams<{ id: string; version: string }>();
@@ -57,61 +57,60 @@ export default function ArtifactVersionHistory() {
                 actions={<ViewToggle mode={viewMode()} onChange={setViewMode} />}
             />
 
-            <Show when={!sbomsQuery.isLoading} fallback={<SkeletonText lines={8} />}>
-                <Show
-                    when={!sbomsQuery.isError}
-                    fallback={<ErrorBox error={sbomsQuery.error} />}
-                >
-                    <Show when={allArchs().length > 1}>
-                        <div class="tab-bar mb-4">
-                            <For each={allArchs()}>
-                                {(arch) => (
-                                    <button
-                                        class={selectedArch() === arch ? "active" : ""}
-                                        onClick={() =>
-                                            setSelectedArch((a) =>
-                                                a === arch ? undefined : arch,
-                                            )
-                                        }
-                                    >
-                                        {arch}
-                                    </button>
-                                )}
-                            </For>
-                        </div>
-                    </Show>
+            <QueryBoundary query={sbomsQuery} loading={<SkeletonText lines={8} />}>
+                {() => (
+                    <>
+                        <Show when={allArchs().length > 1}>
+                            <div class="tab-bar mb-4">
+                                <For each={allArchs()}>
+                                    {(arch) => (
+                                        <button
+                                            class={selectedArch() === arch ? "active" : ""}
+                                            onClick={() =>
+                                                setSelectedArch((a) =>
+                                                    a === arch ? undefined : arch,
+                                                )
+                                            }
+                                        >
+                                            {arch}
+                                        </button>
+                                    )}
+                                </For>
+                            </div>
+                        </Show>
 
-                    <Show
-                        when={builds().length > 0}
-                        fallback={
-                            <EmptyState
-                                title="No builds found"
-                                message="No SBOMs found for this version."
-                            />
-                        }
-                    >
                         <Show
-                            when={pairs().length > 0}
+                            when={builds().length > 0}
                             fallback={
                                 <EmptyState
-                                    title="Only one build"
-                                    message="No previous build to compare against for this version."
+                                    title="No builds found"
+                                    message="No SBOMs found for this version."
                                 />
                             }
                         >
-                            <For each={pairs()}>
-                                {(pair) => (
-                                    <DiffPairView
-                                        fromId={pair.older.id}
-                                        toId={pair.newer.id}
-                                        viewMode={viewMode()}
+                            <Show
+                                when={pairs().length > 0}
+                                fallback={
+                                    <EmptyState
+                                        title="Only one build"
+                                        message="No previous build to compare against for this version."
                                     />
-                                )}
-                            </For>
+                                }
+                            >
+                                <For each={pairs()}>
+                                    {(pair) => (
+                                        <DiffPairView
+                                            fromId={pair.older.id}
+                                            toId={pair.newer.id}
+                                            viewMode={viewMode()}
+                                        />
+                                    )}
+                                </For>
+                            </Show>
                         </Show>
-                    </Show>
-                </Show>
-            </Show>
+                    </>
+                )}
+            </QueryBoundary>
         </>
     );
 }

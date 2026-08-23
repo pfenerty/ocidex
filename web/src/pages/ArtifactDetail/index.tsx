@@ -9,7 +9,7 @@ import {
     useArtifactUsages,
     useArtifactVulnSummary,
 } from "~/api/queries";
-import { ErrorBox, EmptyState } from "~/components/Feedback";
+import { EmptyState } from "~/components/Feedback";
 import { Skeleton, SkeletonHeader, SkeletonText } from "~/components/Skeleton";
 import { ButtonGroup, Button, QueryBoundary, TabBar, type TabDef } from "~/components/ui";
 import { artifactDisplayName } from "~/utils/format";
@@ -99,9 +99,11 @@ export default function ArtifactDetail() {
                 </span>
             </div>
 
-            <Show when={!artifactQuery.isLoading} fallback={<SkeletonHeader />}>
-                <Show when={!artifactQuery.isError} fallback={<ErrorBox error={artifactQuery.error} />}>
-                    <Show when={artifactQuery.data}>
+            <QueryBoundary
+                query={artifactQuery}
+                loading={<SkeletonHeader />}
+                empty={<EmptyState title="Artifact not found." message="This artifact may have been removed, or the link may be wrong." />}
+            >
                         {(a) => (
                             <>
                                 <ArtifactHeader artifact={a()} />
@@ -195,9 +197,7 @@ export default function ArtifactDetail() {
                                 </Show>
                             </>
                         )}
-                    </Show>
-                </Show>
-            </Show>
+            </QueryBoundary>
         </>
     );
 }

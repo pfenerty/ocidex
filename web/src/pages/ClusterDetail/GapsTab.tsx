@@ -251,7 +251,7 @@ export function GapsTab(props: { clusterId: string; coverage: WorkloadCoverage }
                 <DataTable
                     columns={unknownImageColumns((d) => runIngest([d]), pendingDigest)}
                     rows={images.data?.data}
-                    loading={images.isLoading}
+                    loading={images.isFetching}
                     isError={images.isError}
                     error={images.error}
                     pagination={
@@ -281,7 +281,7 @@ export function GapsTab(props: { clusterId: string; coverage: WorkloadCoverage }
                 <DataTable
                     columns={workloadColumns}
                     rows={unresolvable.data?.data}
-                    loading={unresolvable.isLoading}
+                    loading={unresolvable.isFetching}
                     isError={unresolvable.isError}
                     error={unresolvable.error}
                     pagination={

@@ -1,9 +1,9 @@
 import { Show, createMemo, createSignal, createEffect, on } from "solid-js";
 import { A, useSearchParams } from "@solidjs/router";
-import { Button, ButtonGroup, PageHeader } from "~/components/ui";
+import { Button, ButtonGroup, PageHeader, QueryBoundary } from "~/components/ui";
 import { useComponent, useComponentVersions, useComponentVulns } from "~/api/queries";
 import { DEFAULT_PAGE_SIZE } from "~/api/client";
-import { ErrorBox, EmptyState } from "~/components/Feedback";
+import { EmptyState } from "~/components/Feedback";
 import Pagination from "~/components/Pagination";
 import { SkeletonHeader } from "~/components/Skeleton";
 import ComponentMetadata from "~/components/ComponentMetadata";
@@ -114,23 +114,18 @@ export default function ComponentOverview() {
             </Show>
 
             <Show when={params.name !== undefined}>
-                <Show when={!query.isLoading} fallback={<SkeletonHeader />}>
-                    <Show when={!query.isError} fallback={<ErrorBox error={query.error} />}>
-                        <Show
-                            when={
-                                query.data !== undefined && query.data.versions.length > 0
-                                    ? query.data
-                                    : undefined
-                            }
-                            keyed
-                            fallback={
-                                <EmptyState
-                                    title="No versions found"
-                                    message={`No component instances found for "${displayName()}".`}
-                                />
-                            }
-                        >
-                            {(qd) => (
+                <QueryBoundary
+                    query={query}
+                    loading={<SkeletonHeader />}
+                    when={(d) => d.versions.length > 0}
+                    empty={
+                        <EmptyState
+                            title="No versions found"
+                            message={`No component instances found for "${displayName()}".`}
+                        />
+                    }
+                >
+                    {(qd) => (
                                 <>
                                 <PageHeader
                                     title={
@@ -157,7 +152,7 @@ export default function ComponentOverview() {
                                                         fallback={
                                                             <>
                                                                 {plural(grouped().length, "version")} across{" "}
-                                                                {plural(qd.versions.length, "SBOM")}
+                                                                {plural(qd().versions.length, "SBOM")}
                                                             </>
                                                         }
                                                     >
@@ -230,10 +225,8 @@ export default function ComponentOverview() {
                                         )}
                                     </Show>
                                 </>
-                            )}
-                        </Show>
-                    </Show>
-                </Show>
+                    )}
+                </QueryBoundary>
             </Show>
         </>
     );

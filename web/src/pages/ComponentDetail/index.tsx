@@ -1,8 +1,8 @@
 import { Show, createSignal } from "solid-js";
 import { A, useParams } from "@solidjs/router";
-import { Button, ButtonGroup, PageHeader } from "~/components/ui";
+import { Button, ButtonGroup, PageHeader, QueryBoundary } from "~/components/ui";
 import { useComponent, useComponentVersions, useComponentVulns } from "~/api/queries";
-import { ErrorBox } from "~/components/Feedback";
+import { EmptyState } from "~/components/Feedback";
 import { Skeleton, SkeletonHeader } from "~/components/Skeleton";
 import type { ComponentDetail, VulnSummary } from "~/api/client";
 import ComponentMetadata from "~/components/ComponentMetadata";
@@ -90,17 +90,19 @@ export default function ComponentDetail() {
                 </span>
             </div>
 
-            <Show when={!detailQuery.isLoading} fallback={<SkeletonHeader />}>
-                <Show
-                    when={
-                        !detailQuery.isError && detailQuery.data !== undefined
-                            ? detailQuery.data
-                            : undefined
-                    }
-                    keyed
-                    fallback={<ErrorBox error={detailQuery.error} />}
-                >
-                    {(detail) => (
+            {/* An absent component used to fall into the error branch and read
+                as "an unexpected error occurred"; QueryBoundary keeps the two
+                apart. */}
+            <QueryBoundary
+                query={detailQuery}
+                loading={<SkeletonHeader />}
+                empty={<EmptyState title="Component not found." message="This component may have been removed with its SBOM." />}
+            >
+                {(data) => {
+                    // Keyed on the resolved value inside QueryBoundary, so this
+                    // is the same binding the previous `<Show keyed>` gave.
+                    const detail = data();
+                    return (
                         <>
                             {/* --- Hero --- */}
                             <PageHeader
@@ -147,9 +149,9 @@ export default function ComponentDetail() {
                                 onTabChange={setTab}
                             />
                         </>
-                    )}
-                </Show>
-            </Show>
+                    );
+                }}
+            </QueryBoundary>
         </>
     );
 }

@@ -1,12 +1,11 @@
 import { createSignal, Show } from "solid-js";
 import { useDiffTree } from "~/api/queries";
-import { ErrorBox } from "~/components/Feedback";
 import { SkeletonText } from "~/components/Skeleton";
 import DiffEntry from "~/components/DiffEntry";
 import { DiffTreeView } from "~/components/DiffTreeView";
 import type { ChangelogEntryData } from "~/utils/diff";
 import type { DiffTree } from "~/api/client";
-import { Button, ButtonGroup } from "~/components/ui";
+import { Button, ButtonGroup, QueryBoundary } from "~/components/ui";
 
 // Extract the ChangelogEntry-compatible subset from a DiffTree response.
 function asEntry(tree: DiffTree): ChangelogEntryData {
@@ -34,10 +33,12 @@ export function DiffPairView(props: {
 
     return (
         <>
-            <Show when={query.isLoading}><SkeletonText lines={8} /></Show>
-            <Show when={query.isError}><ErrorBox error={query.error} /></Show>
-            <Show when={query.data} keyed>
-                {(tree) => {
+            {/* Three sibling <Show>s used to be able to paint at once: an error
+                arriving over stale data rendered the ErrorBox *and* the tree
+                below it. The boundary makes the states exclusive. */}
+            <QueryBoundary query={query} loading={<SkeletonText lines={8} />}>
+                {(data) => {
+                    const tree = data();
                     const hasTree = () =>
                         (tree.roots?.length ?? 0) > 0 || tree.edges.length > 0;
                     const effectiveMode = () => (hasTree() ? props.viewMode : "list");
@@ -76,7 +77,7 @@ export function DiffPairView(props: {
                     </>
                     );
                 }}
-            </Show>
+            </QueryBoundary>
         </>
     );
 }

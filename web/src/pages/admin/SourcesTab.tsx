@@ -105,7 +105,7 @@ export function SourcesTab() {
                 registries={query.data?.data ?? []}
                 sources={sourcesQuery.data?.data ?? []}
                 namespaces={namespacesQuery.data?.data ?? []}
-                loading={sourcesQuery.isLoading || query.isLoading}
+                loading={sourcesQuery.isFetching || query.isFetching}
                 isError={sourcesQuery.isError || query.isError}
                 error={sourcesQuery.error ?? query.error}
             />

@@ -7,7 +7,7 @@ import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { ComponentNameCell, TypeBadge, VersionCell, PurlLink } from "~/components/cells";
 import { Skeleton, SkeletonHeader } from "~/components/Skeleton";
-import { PageHeader } from "~/components/ui";
+import { PageHeader, QueryBoundary } from "~/components/ui";
 
 type ComponentSummary = components["schemas"]["ComponentSummary"];
 
@@ -87,7 +87,8 @@ export default function LicenseComponents() {
                 <span>Components</span>
             </div>
 
-            <Show when={!licenseQuery.isLoading} fallback={<SkeletonHeader />}>
+            <QueryBoundary query={licenseQuery} loading={<SkeletonHeader />}>
+                {() => (
                 <PageHeader
                     title={licenseName()}
                     subtitle={
@@ -101,7 +102,8 @@ export default function LicenseComponents() {
                         </>
                     }
                 />
-            </Show>
+                )}
+            </QueryBoundary>
 
             <DataTable
                 columns={columns}

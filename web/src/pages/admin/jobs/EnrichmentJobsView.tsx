@@ -132,7 +132,7 @@ export function EnrichmentJobsView() {
             <DataTable
                 columns={columns}
                 rows={displayJobs()}
-                loading={q.isLoading}
+                loading={q.isFetching}
                 isError={q.isError}
                 error={q.error}
                 emptyTitle="No enrichment jobs found"

@@ -1,6 +1,7 @@
 import "./Admin.css";
 import { Show } from "solid-js";
-import { Loading, ErrorBox } from "~/components/Feedback";
+import { Loading } from "~/components/Feedback";
+import { QueryBoundary } from "~/components/ui";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { TimestampCell } from "~/components/cells";
@@ -49,8 +50,8 @@ export function StatusTab() {
         );
 
     return (
-        <Show when={!query.isLoading} fallback={<Loading />}>
-            <Show when={!query.isError} fallback={<ErrorBox error={query.error} />}>
+        <QueryBoundary query={query} loading={<Loading />}>
+            {() => (
                 <div style={{ display: "flex", "flex-direction": "column", gap: "1.5rem" }}>
 
                     <div>
@@ -151,7 +152,7 @@ export function StatusTab() {
                     </Show>
 
                 </div>
-            </Show>
-        </Show>
+            )}
+        </QueryBoundary>
     );
 }
