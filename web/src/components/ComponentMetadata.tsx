@@ -1,5 +1,5 @@
 import "~/components/DetailSection.css";
-import { Show, For } from "solid-js";
+import { Show } from "solid-js";
 import { A } from "@solidjs/router";
 import type { useComponent, useComponentVulns } from "~/api/queries";
 import type { LicenseSummary, HashEntry } from "~/api/client";
@@ -84,6 +84,27 @@ const hashColumns: Column<HashEntry>[] = [
     {
         header: "Value",
         render: (hash) => <span class="font-mono text-sm">{hash.value}</span>,
+    },
+];
+
+type ExternalRefEntry = components["schemas"]["ExternalRefEntry"];
+
+const externalRefColumns: Column<ExternalRefEntry>[] = [
+    {
+        header: "Type",
+        render: (ref) => <span class="badge">{ref.type}</span>,
+    },
+    {
+        header: "URL",
+        render: (ref) => (
+            <a href={ref.url} target="_blank" rel="noopener noreferrer" class="font-mono text-sm">
+                {ref.url}
+            </a>
+        ),
+    },
+    {
+        header: "Comment",
+        render: (ref) => <span class="text-muted">{ref.comment ?? "—"}</span>,
     },
 ];
 
@@ -269,45 +290,20 @@ export default function ComponentMetadata(props: {
 
             {/* External References */}
             <Show when={(props.detailQuery.data?.externalReferences ?? []).length > 0}>
-                <Card class="mb-4">
-                    <CardHeader
-                        title="External References"
-                        count={(props.detailQuery.data?.externalReferences ?? []).length}
-                    />
-                    <div class="table-wrapper">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Type</th>
-                                    <th>URL</th>
-                                    <th>Comment</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <For each={props.detailQuery.data?.externalReferences ?? []}>
-                                    {(ref) => (
-                                        <tr>
-                                            <td>
-                                                <span class="badge">{ref.type}</span>
-                                            </td>
-                                            <td>
-                                                <a
-                                                    href={ref.url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    class="font-mono text-sm"
-                                                >
-                                                    {ref.url}
-                                                </a>
-                                            </td>
-                                            <td class="text-muted">{ref.comment ?? "—"}</td>
-                                        </tr>
-                                    )}
-                                </For>
-                            </tbody>
-                        </table>
-                    </div>
-                </Card>
+                <DataTable
+                    class="mb-4"
+                    caption={
+                        <CardHeader
+                            title="External References"
+                            count={(props.detailQuery.data?.externalReferences ?? []).length}
+                        />
+                    }
+                    columns={externalRefColumns}
+                    rows={props.detailQuery.data?.externalReferences ?? []}
+                    loading={false}
+                    isError={false}
+                    emptyTitle="No external references"
+                />
             </Show>
         </>
     );

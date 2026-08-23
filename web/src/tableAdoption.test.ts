@@ -49,30 +49,13 @@ function sources(dir: string, acc: string[] = []): string[] {
  */
 const ALLOWED = ["components/DataTable.tsx", "components/Skeleton.tsx"];
 
-/**
- * Still hand-rolled, to be emptied by part 2 (.27). Pinned rather than
- * open-ended so a *new* hand-written table fails instead of joining a list.
- */
-const REMAINING = [
-    "components/ComponentMetadata.tsx",
-    "components/DiffEntry.tsx",
-    "components/DiffTreeView.tsx",
-    "components/ProvenanceCard.tsx",
-    "components/metadata/AnnotationsSection.tsx",
-    "pages/Artifacts.tsx",
-    "pages/ComponentOverview/ArtifactUsageTable.tsx",
-    "pages/ComponentOverview/VersionListTable.tsx",
-    "pages/SBOMDetail/DependencyTreeView.tsx",
-    "pages/VulnerabilityDetail.tsx",
-];
-
 describe("table markup", () => {
-    it("is confined to the primitive and the not-yet-migrated list", () => {
+    it("is confined to the primitive and its shimmer", () => {
         const offenders = sources(SRC)
             .filter((f) => code(f).includes("<table"))
             .map((f) => relative(SRC, f))
             .filter((f) => !ALLOWED.includes(f));
-        expect(offenders.sort()).toEqual(REMAINING);
+        expect(offenders.sort()).toEqual([]);
     });
 
     it("never carries a `table` class, which no stylesheet defines", () => {
@@ -86,12 +69,49 @@ describe("table markup", () => {
     it("always sits inside the wrapper that gives it horizontal scroll", () => {
         // `.table-wrapper` is not cosmetic: it is the only element in the chain
         // carrying `overflow`, so a table outside one cannot scroll and cannot
-        // keep its header sticky. ProvenanceCard is the last one without it.
+        // keep its header sticky. Now that DataTable is the only `<table>`, and
+        // emits the wrapper itself, this is a property of one file — which is
+        // exactly the point of the migration.
         const offenders = sources(SRC)
             .filter((f) => code(f).includes("<table"))
             .filter((f) => !code(f).includes("table-wrapper"))
             .map((f) => relative(SRC, f));
-        expect(offenders).toEqual(["components/ProvenanceCard.tsx"]);
+        expect(offenders).toEqual([]);
+    });
+});
+
+describe("row and tree affordances", () => {
+    it("are real rules, not inline styles repeated per row", () => {
+        // Both tree views wrote `cursor`, `opacity`, the indent step and the
+        // whole twisty as inline styles on every visible row — hundreds of
+        // rows' worth of styling no stylesheet and no theme could reach.
+        for (const selector of [
+            /tr\.row-clickable\s*\{[^}]*cursor:\s*pointer/,
+            /tr\.row-clickable:focus-visible\s*\{[^}]*outline:/,
+            /tr\.row-muted\s*\{[^}]*opacity:/,
+            /tr\.row-child\s*\{[^}]*background:/,
+            /td\.row-expander\s*\{[^}]*width:/,
+            /\.tree-name\s*\{[^}]*padding-left:\s*calc\(var\(--depth/,
+            /\.tree-twisty\.open\s*\{[^}]*rotate\(90deg\)/,
+        ]) {
+            expect(css()).toMatch(selector);
+        }
+    });
+
+    it("leave no tree view spelling its own indent or cursor inline", () => {
+        const offenders = sources(SRC)
+            .filter((f) => /"padding-left":\s*`\$\{|cursor:\s*(row|has)/.test(code(f)))
+            .map((f) => relative(SRC, f));
+        expect(offenders).toEqual([]);
+    });
+
+    it("keep the focus ring, because a clickable row is also a tab stop", () => {
+        // DataTable makes a clickable row focusable and Enter/Space-activatable;
+        // the hand-rolled trees were mouse-only. A focusable element with no
+        // visible ring is the same bug in the other direction.
+        const src = code(join(SRC, "components/DataTable.tsx"));
+        expect(src).toMatch(/tabIndex=\{clickable/);
+        expect(src).toMatch(/e\.key === "Enter" \|\| e\.key === " "/);
     });
 });
 

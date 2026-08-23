@@ -54,6 +54,7 @@ interface ArtifactRow {
 
 interface InfiniteQuery {
     isLoading: boolean;
+    isFetching: boolean;
     isError: boolean;
     error: unknown;
     data: { pages: { data: ArtifactRow[] }[] } | undefined;
@@ -63,8 +64,9 @@ interface InfiniteQuery {
 }
 
 function makeQuery(overrides: Partial<InfiniteQuery>): InfiniteQuery {
-    return {
+    const q: InfiniteQuery = {
         isLoading: false,
+        isFetching: false,
         isError: false,
         error: null,
         data: undefined,
@@ -73,6 +75,11 @@ function makeQuery(overrides: Partial<InfiniteQuery>): InfiniteQuery {
         fetchNextPage: vi.fn(),
         ...overrides,
     };
+    // TanStack never reports isLoading without isFetching. DataTable tells
+    // first load from refetch by pairing isFetching with whether rows exist, so
+    // a mock that drops isFetching silently exercises a state the app cannot be
+    // in — and reports "empty" where the real page shows shimmer.
+    return { ...q, isFetching: overrides.isFetching ?? q.isLoading };
 }
 
 function makeArtifact(overrides?: Partial<ArtifactRow>): ArtifactRow {

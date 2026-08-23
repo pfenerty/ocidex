@@ -179,3 +179,93 @@ describe("DataTable caption", () => {
         expect(container.querySelector(".card")).toBeNull();
     });
 });
+
+describe("DataTable rows", () => {
+    const rows: Row[] = [{ name: "a" }, { name: "b" }, { name: "c" }];
+
+    function renderRows(props: Partial<Parameters<typeof DataTable<Row>>[0]> = {}) {
+        return render(() => (
+            <DataTable
+                columns={columns}
+                rows={rows}
+                loading={false}
+                isError={false}
+                emptyTitle="Nothing here"
+                {...props}
+            />
+        ));
+    }
+
+    it("keeps rowClass and row-clickable on the same row", () => {
+        // Solid sets className first and then diffs classList against its own
+        // previous state, so `class` beside `classList` wipes the classList
+        // entry. The row kept its tabindex and lost its pointer cursor — a
+        // clickable row that does not look clickable.
+        const { container } = renderRows({
+            onRowClick: () => undefined,
+            rowClass: (r) => (r.name === "b" ? "row-muted" : undefined),
+        });
+        const trs = [...container.querySelectorAll("tbody tr")];
+        expect(trs.map((tr) => tr.className)).toEqual([
+            "row-clickable",
+            "row-muted row-clickable",
+            "row-clickable",
+        ]);
+        expect(trs[0].getAttribute("tabindex")).toBe("0");
+    });
+
+    it("offers no tab stop on a row rowClickable excludes", () => {
+        const { container } = renderRows({
+            onRowClick: () => undefined,
+            rowClickable: (r) => r.name !== "b",
+        });
+        const trs = [...container.querySelectorAll("tbody tr")];
+        expect(trs[1].className).toBe("");
+        expect(trs[1].getAttribute("tabindex")).toBeNull();
+        expect(trs[0].getAttribute("tabindex")).toBe("0");
+    });
+
+    it("activates a row from the keyboard, not only the mouse", () => {
+        const seen: string[] = [];
+        const { container } = renderRows({ onRowClick: (r) => seen.push(r.name) });
+        const tr = container.querySelector("tbody tr");
+        if (tr === null) throw new Error("no rows rendered");
+        tr.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+        tr.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
+        tr.dispatchEvent(new KeyboardEvent("keydown", { key: "x", bubbles: true }));
+        expect(seen).toEqual(["a", "a"]);
+    });
+
+    it("labels each run of equal keys once", () => {
+        const { container } = renderRows({
+            rows: [{ name: "a" }, { name: "a" }, { name: "b" }],
+            groupBy: { key: (r) => r.name, header: (key, count) => `${key} (${count})` },
+        });
+        const headers = [...container.querySelectorAll("tr.group-header-row td")];
+        expect(headers.map((td) => td.textContent)).toEqual(["a (2)", "b (1)"]);
+        expect(headers[0].getAttribute("colspan")).toBe("2");
+        expect(container.querySelectorAll("tbody tr")).toHaveLength(5);
+    });
+
+    it("applies a column class to its header and to every cell", () => {
+        const { container } = renderRows({
+            columns: [
+                { header: "Name", class: "truncate", render: (r) => <span>{r.name}</span> },
+                { header: "Kind", align: "right", render: () => <span>kind</span> },
+            ],
+        });
+        expect(container.querySelector("thead th")?.className).toContain("truncate");
+        expect(
+            [...container.querySelectorAll("tbody td:first-child")].every((td) =>
+                td.className.includes("truncate"),
+            ),
+        ).toBe(true);
+        expect(container.querySelectorAll("thead th")[1].className).toContain("text-right");
+    });
+
+    it("drops the card in bare mode, for a table already inside one", () => {
+        const { container } = renderRows({ bare: true });
+        expect(container.querySelector(".card")).toBeNull();
+        expect(container.querySelector(".table-wrapper table")).not.toBeNull();
+    });
+});

@@ -5,12 +5,63 @@ import { Button } from "~/components/ui";
 import { relativeDate } from "~/utils/format";
 import { changelogRefLabel } from "~/utils/diff";
 import type { DiffTree } from "~/api/client";
+import DataTable from "~/components/DataTable";
+import type { Column } from "~/components/DataTable";
 import {
     buildTreeModel,
     changeBadgeClass,
     flattenVisibleRows,
     type Row,
+    type TreeModel,
 } from "./diffTreeModel";
+
+/**
+ * The tree's rows and the orphan changes appended below them are different
+ * shapes sharing three columns, so they meet as a discriminated union rather
+ * than as two `<For>`s inside one hand-written `<tbody>`.
+ *
+ * An orphan is a change whose component is in no dependency edge (ADR-021):
+ * it has no depth, no children and no descendant rollup, and dropping it would
+ * under-report the diff.
+ */
+type OrphanChange = TreeModel["orphanChanges"][number];
+type DiffRow = { kind: "node"; row: Row } | { kind: "orphan"; change: OrphanChange };
+
+/** The descendant-change rollup shown on an unchanged ancestor. */
+function DescendantChanges(props: { row: Row }) {
+    const d = () => props.row.node.descendantChanges;
+    return (
+        <span class="badge-row">
+            <Show when={(d()?.upgraded ?? 0) > 0}>
+                <span class="badge badge-primary badge-sm">↑{d()?.upgraded}</span>
+            </Show>
+            <Show when={(d()?.downgraded ?? 0) > 0}>
+                <span class="badge badge-warning badge-sm">↓{d()?.downgraded}</span>
+            </Show>
+            <Show when={(d()?.added ?? 0) > 0}>
+                <span class="badge badge-primary badge-sm">+{d()?.added}</span>
+            </Show>
+            <Show when={(d()?.removed ?? 0) > 0}>
+                <span class="badge badge-warning badge-sm">-{d()?.removed}</span>
+            </Show>
+            <Show when={(d()?.modified ?? 0) > 0}>
+                <span class="badge badge-sm">~{d()?.modified}</span>
+            </Show>
+        </span>
+    );
+}
+
+function VersionChange(props: { previous?: string; current?: string }) {
+    return (
+        <>
+            <Show when={props.previous}>
+                <span class="text-muted">{props.previous}</span>
+                {" → "}
+            </Show>
+            {props.current ?? <span class="text-muted">—</span>}
+        </>
+    );
+}
 
 export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
     const treeData = createMemo(() => buildTreeModel(props.tree));
@@ -84,6 +135,90 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
         { count: removedCount,    cls: "badge-warning",  fmt: (n: number) => `-${n} removed` },
         { count: upgradedCount,   cls: "badge-primary",  fmt: (n: number) => `↑${n} upgraded` },
         { count: downgradedCount, cls: "badge-warning",  fmt: (n: number) => `↓${n} downgraded` },
+    ];
+
+    const rows = (): DiffRow[] => [
+        ...visibleRows().map((row): DiffRow => ({ kind: "node", row })),
+        ...treeData().orphanChanges.map((change): DiffRow => ({ kind: "orphan", change })),
+    ];
+
+    const columns = (): Column<DiffRow>[] => [
+        {
+            header: "Package",
+            render: (r) =>
+                r.kind === "orphan" ? (
+                    // No twisty and no depth, but the same left gutter as a
+                    // root row, so orphans line up with the tree above them.
+                    <span class="tree-name font-mono text-sm">
+                        <span class="tree-twisty" />
+                        {r.change.group !== undefined && r.change.group !== ""
+                            ? `${r.change.group}/`
+                            : ""}
+                        {r.change.name}
+                    </span>
+                ) : (
+                    <span class="tree-name" style={{ "--depth": r.row.depth }}>
+                        <span
+                            class="tree-twisty"
+                            classList={{
+                                open:
+                                    r.row.relevantChildCount > 0 &&
+                                    expandedRefs().has(r.row.node.ref),
+                            }}
+                        >
+                            {r.row.relevantChildCount > 0 ? "▸" : ""}
+                        </span>
+                        <Show
+                            when={r.row.node.id}
+                            keyed
+                            fallback={<span class="font-mono text-sm">{r.row.node.name}</span>}
+                        >
+                            {(id) => (
+                                <A
+                                    href={`/components/${id}`}
+                                    class="font-mono text-sm"
+                                    onClick={(e: MouseEvent) => e.stopPropagation()}
+                                >
+                                    {r.row.node.name}
+                                </A>
+                            )}
+                        </Show>
+                    </span>
+                ),
+        },
+        {
+            header: "Change",
+            render: (r) =>
+                r.kind === "orphan" ? (
+                    <span class={changeBadgeClass(r.change.direction)}>
+                        {r.change.direction !== "" ? r.change.direction : r.change.type}
+                    </span>
+                ) : r.row.node.changeKind !== undefined ? (
+                    <span class={changeBadgeClass(r.row.node.changeKind)}>
+                        {r.row.node.changeKind}
+                    </span>
+                ) : (
+                    <Show when={r.row.node.hasChangedDesc}>
+                        <DescendantChanges row={r.row} />
+                    </Show>
+                ),
+        },
+        {
+            header: "Version",
+            class: "font-mono text-sm",
+            render: (r) =>
+                r.kind === "orphan" ? (
+                    <VersionChange
+                        previous={r.change.previousVersion}
+                        current={r.change.version}
+                    />
+                ) : (
+                    <VersionChange
+                        previous={r.row.node.previousVersion}
+                        current={r.row.node.version}
+                    />
+                ),
+        },
     ];
 
     return (
@@ -162,156 +297,23 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
                     </p>
                 }
             >
-                <div class="table-wrapper">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Package</th>
-                                <th>Change</th>
-                                <th>Version</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <For each={visibleRows()}>
-                                {(row) => {
-                                    const isExpanded = () => expandedRefs().has(row.node.ref);
-                                    const isChanged = () => row.node.changeKind !== undefined;
-                                    const changeCls = () => changeBadgeClass(row.node.changeKind);
-                                    return (
-                                        <tr
-                                            style={{
-                                                cursor: row.relevantChildCount > 0 ? "pointer" : "default",
-                                                opacity: isChanged() ? "1" : "0.55",
-                                            }}
-                                            onClick={() => row.relevantChildCount > 0 && toggleExpanded(row.node.ref)}
-                                        >
-                                            <td>
-                                                <span
-                                                    style={{
-                                                        display: "flex",
-                                                        "align-items": "center",
-                                                        gap: "0.375rem",
-                                                        "padding-left": `${row.depth * 1.25}rem`,
-                                                    }}
-                                                >
-                                                    <span
-                                                        style={{
-                                                            width: "1rem",
-                                                            "text-align": "center",
-                                                            color: "var(--color-text-dim)",
-                                                            "font-size": "0.7rem",
-                                                            "flex-shrink": "0",
-                                                            transition: "transform 0.15s",
-                                                            transform:
-                                                                row.relevantChildCount > 0 && isExpanded()
-                                                                    ? "rotate(90deg)"
-                                                                    : "rotate(0deg)",
-                                                        }}
-                                                    >
-                                                        {row.relevantChildCount > 0 ? "▸" : ""}
-                                                    </span>
-                                                    <Show
-                                                        when={row.node.id}
-                                                        keyed
-                                                        fallback={
-                                                            <span
-                                                                class="font-mono text-sm"
-                                                            >
-                                                                {row.node.name}
-                                                            </span>
-                                                        }
-                                                    >
-                                                        {(id) => (
-                                                            <A
-                                                                href={`/components/${id}`}
-                                                                class="font-mono text-sm"
-                                                                onClick={(e: MouseEvent) =>
-                                                                    e.stopPropagation()
-                                                                }
-                                                            >
-                                                                {row.node.name}
-                                                            </A>
-                                                        )}
-                                                    </Show>
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <Show when={isChanged()}>
-                                                    <span class={changeCls()}>
-                                                        {row.node.changeKind}
-                                                    </span>
-                                                </Show>
-                                                <Show when={!isChanged() && row.node.hasChangedDesc}>
-                                                    <span style={{ display: "flex", gap: "0.25rem", "flex-wrap": "wrap" }}>
-                                                        <Show when={(row.node.descendantChanges?.upgraded ?? 0) > 0}>
-                                                            <span class="badge badge-primary badge-sm">↑{row.node.descendantChanges?.upgraded}</span>
-                                                        </Show>
-                                                        <Show when={(row.node.descendantChanges?.downgraded ?? 0) > 0}>
-                                                            <span class="badge badge-warning badge-sm">↓{row.node.descendantChanges?.downgraded}</span>
-                                                        </Show>
-                                                        <Show when={(row.node.descendantChanges?.added ?? 0) > 0}>
-                                                            <span class="badge badge-primary badge-sm">+{row.node.descendantChanges?.added}</span>
-                                                        </Show>
-                                                        <Show when={(row.node.descendantChanges?.removed ?? 0) > 0}>
-                                                            <span class="badge badge-warning badge-sm">-{row.node.descendantChanges?.removed}</span>
-                                                        </Show>
-                                                        <Show when={(row.node.descendantChanges?.modified ?? 0) > 0}>
-                                                            <span class="badge badge-sm">~{row.node.descendantChanges?.modified}</span>
-                                                        </Show>
-                                                    </span>
-                                                </Show>
-                                            </td>
-                                            <td class="font-mono text-sm">
-                                                <Show when={row.node.previousVersion}>
-                                                    <span class="text-muted">{row.node.previousVersion}</span>
-                                                    {" → "}
-                                                </Show>
-                                                {row.node.version ?? (
-                                                    <span class="text-muted">—</span>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    );
-                                }}
-                            </For>
-                            <Show when={treeData().orphanChanges.length > 0}>
-                                <For each={treeData().orphanChanges}>
-                                    {(c) => (
-                                        <tr>
-                                            <td>
-                                                <span
-                                                    class="font-mono"
-                                                    style={{
-                                                        "font-size": "0.85rem",
-                                                        "padding-left": "1.375rem",
-                                                        display: "block",
-                                                    }}
-                                                >
-                                                    {c.group !== undefined && c.group !== ""
-                                                        ? `${c.group}/`
-                                                        : ""}
-                                                    {c.name}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <span class={changeBadgeClass(c.direction)}>
-                                                    {c.direction !== "" ? c.direction : c.type}
-                                                </span>
-                                            </td>
-                                            <td class="font-mono text-sm">
-                                                <Show when={c.previousVersion}>
-                                                    <span class="text-muted">{c.previousVersion}</span>
-                                                    {" → "}
-                                                </Show>
-                                                {c.version ?? <span class="text-muted">—</span>}
-                                            </td>
-                                        </tr>
-                                    )}
-                                </For>
-                            </Show>
-                        </tbody>
-                    </table>
-                </div>
+                <DataTable
+                    bare
+                    columns={columns()}
+                    rows={rows()}
+                    loading={false}
+                    isError={false}
+                    emptyTitle="No changes"
+                    rowClass={(r) =>
+                        r.kind === "node" && r.row.node.changeKind === undefined
+                            ? "row-muted"
+                            : undefined
+                    }
+                    rowClickable={(r) => r.kind === "node" && r.row.relevantChildCount > 0}
+                    onRowClick={(r) => {
+                        if (r.kind === "node") toggleExpanded(r.row.node.ref);
+                    }}
+                />
             </Show>
         </div>
     );

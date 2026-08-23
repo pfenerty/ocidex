@@ -24,6 +24,13 @@ export interface Column<T> {
     /** Required for client-side sort mode (when onSort is not provided). */
     sortValue?: (row: T) => string | number;
     align?: "left" | "right";
+    /**
+     * Extra classes for this column's `th` and every one of its `td`s. Column
+     * width and per-column typography live here rather than in an inline style
+     * on one hand-written `<th>`, which is where they used to live and where no
+     * stylesheet could reach them.
+     */
+    class?: string;
     render: (row: T) => JSX.Element;
 }
 
@@ -67,6 +74,51 @@ export interface DataTableProps<T> {
     caption?: JSX.Element;
     /** Extra classes for the card the table is rendered in. */
     class?: string;
+    /**
+     * Render without the surrounding `<Card>`, for a table that is already
+     * inside one — ProvenanceCard's collapsible verification history sits in
+     * the card the component itself emits, and a second card there is two
+     * borders and two lots of padding.
+     */
+    bare?: boolean;
+    /**
+     * Row-level behaviour, which per-cell `render` cannot reach. Both tree views
+     * toggle a node by clicking anywhere on its row.
+     *
+     * Setting this also makes the row focusable and Enter/Space-activatable —
+     * the hand-rolled versions were mouse-only, so an expandable tree was
+     * unreachable by keyboard.
+     */
+    onRowClick?: (row: T) => void;
+    /**
+     * Extra classes per row. Use real classes, not inline styles: the two tree
+     * views spelled `cursor` and `opacity` inline on every row, which no
+     * stylesheet and no theme could reach.
+     */
+    rowClass?: (row: T) => string | undefined;
+    /**
+     * Which rows `onRowClick` applies to. Default: all of them.
+     *
+     * Expandable tables emit two row shapes — the parent that toggles and the
+     * children it reveals — and giving the children a pointer cursor and a tab
+     * stop that does nothing is worse than not offering them at all.
+     */
+    rowClickable?: (row: T) => boolean;
+    /**
+     * Emit a spanning header row whenever `key` changes between consecutive
+     * rows. The rows arrive already ordered by their group — this only labels
+     * the runs, it does not reorder them.
+     */
+    groupBy?: {
+        key: (row: T) => string;
+        header: (key: string, count: number) => JSX.Element;
+    };
+}
+
+function cellClass<T>(col: Column<T>): string {
+    return [col.align === "right" ? "text-right" : "", col.class ?? ""]
+        .filter((c) => c !== "")
+        .join(" ");
 }
 
 function defaultDirFor(col: Pick<Column<unknown>, "sortType">): SortDir {
@@ -146,7 +198,7 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
                 <tr>
                     <For each={props.columns}>
                         {(col) => (
-                            <td class={col.align === "right" ? "text-right" : ""}>
+                            <td class={cellClass(col)}>
                                 <Skeleton height="0.85em" />
                             </td>
                         )}
@@ -156,37 +208,81 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
         </For>
     );
 
+    const dataRow = (row: T) => {
+        const clickable = props.onRowClick !== undefined && (props.rowClickable?.(row) ?? true);
+        const activate = () => props.onRowClick?.(row);
+        return (
+            // One `class` string, not `class` + `classList`: Solid sets className
+            // first and then diffs classList against its own previous state, so
+            // a dynamic `class` beside a `classList` silently wipes it. The row
+            // kept its tabindex and lost its pointer cursor — verified in the
+            // browser, invisible to tsc and to a test that only counts rows.
+            <tr
+                class={
+                    [props.rowClass?.(row), clickable ? "row-clickable" : ""]
+                        .filter((c) => c !== undefined && c !== "")
+                        .join(" ") || undefined
+                }
+                tabIndex={clickable ? 0 : undefined}
+                onClick={clickable ? activate : undefined}
+                onKeyDown={(e: KeyboardEvent) => {
+                    if (!clickable) return;
+                    if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        activate();
+                    }
+                }}
+            >
+                <For each={props.columns}>
+                    {(col) => (
+                        <td class={cellClass(col)}>{col.render(row)}</td>
+                    )}
+                </For>
+            </tr>
+        );
+    };
+
+    /**
+     * Rows interleaved with their group headers. Runs are consecutive by
+     * contract — a group whose rows are not adjacent gets two headers, which is
+     * the honest rendering of unsorted input rather than a silent regroup.
+     */
+    const grouped = (rows: T[]): { key: string; items: T[] }[] => {
+        const by = props.groupBy;
+        if (by === undefined) return [{ key: "", items: rows }];
+        const out: { key: string; items: T[] }[] = [];
+        for (const row of rows) {
+            const key = by.key(row);
+            if (out.length > 0 && out[out.length - 1].key === key) {
+                out[out.length - 1].items.push(row);
+            } else {
+                out.push({ key, items: [row] });
+            }
+        }
+        return out;
+    };
+
     const realBody = (rows: T[]) => (
-        <For each={rows}>
-            {(row) => (
-                <tr>
-                    <For each={props.columns}>
-                        {(col) => (
-                            <td class={col.align === "right" ? "text-right" : ""}>
-                                {col.render(row)}
-                            </td>
+        <For each={grouped(rows)}>
+            {(group) => (
+                <>
+                    <Show when={props.groupBy}>
+                        {(by) => (
+                            <tr class="group-header-row">
+                                <td colspan={props.columns.length}>
+                                    {by().header(group.key, group.items.length)}
+                                </td>
+                            </tr>
                         )}
-                    </For>
-                </tr>
+                    </Show>
+                    <For each={group.items}>{(row) => dataRow(row)}</For>
+                </>
             )}
         </For>
     );
 
-    // body is a thunk so the tbody stays reactive: reading rows()/isRefetching()
-    // inside the {body()} expression lets Solid re-render just the tbody on
-    // pagination, sort, and refetch without rebuilding the card/headers.
-    const tableShell = (body: () => JSX.Element) => (
-        // aria-busy rather than a swap to shimmer: a refetch on this table is
-        // almost always a sort, a page, or a keystroke in a debounced filter,
-        // and blanking the rows the reader is mid-sentence in loses their place
-        // to announce something they already know they asked for. The rows stay
-        // put and dim; a screen reader gets the busy state it would otherwise
-        // have to infer from the content vanishing.
-        <Card
-            class={props.class}
-            classList={{ "table-refetching": isRefetching() }}
-            aria-busy={isRefetching()}
-        >
+    const shellContent = (body: () => JSX.Element) => (
+        <>
             {props.caption}
             <div class="table-wrapper">
                 <table>
@@ -197,7 +293,7 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
                                     <th
                                         class={
                                             (col.sortKey !== undefined ? "th-sortable " : "") +
-                                            (col.align === "right" ? "text-right" : "")
+                                            cellClass(col)
                                         }
                                         onClick={() => handleSort(col)}
                                     >
@@ -219,8 +315,37 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
                     <LoadMore hasMore={lm().hasMore} loading={lm().loading} onClick={lm().onClick} />
                 )}
             </Show>
-        </Card>
+        </>
     );
+
+    // body is a thunk so the tbody stays reactive: reading rows()/isRefetching()
+    // inside the {body()} expression lets Solid re-render just the tbody on
+    // pagination, sort, and refetch without rebuilding the card/headers.
+    //
+    // aria-busy rather than a swap to shimmer: a refetch on this table is
+    // almost always a sort, a page, or a keystroke in a debounced filter, and
+    // blanking the rows the reader is mid-sentence in loses their place to
+    // announce something they already know they asked for. The rows stay put
+    // and dim; a screen reader gets the busy state it would otherwise have to
+    // infer from the content vanishing.
+    const tableShell = (body: () => JSX.Element) =>
+        props.bare === true ? (
+            <div
+                class={props.class}
+                classList={{ "table-refetching": isRefetching() }}
+                aria-busy={isRefetching()}
+            >
+                {shellContent(body)}
+            </div>
+        ) : (
+            <Card
+                class={props.class}
+                classList={{ "table-refetching": isRefetching() }}
+                aria-busy={isRefetching()}
+            >
+                {shellContent(body)}
+            </Card>
+        );
 
     // Error and empty states are bare by default — that is how every existing
     // call site renders — but a captioned table has to keep its caption in
@@ -228,6 +353,11 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
     const framed = (body: JSX.Element): JSX.Element =>
         props.caption === undefined ? (
             body
+        ) : props.bare === true ? (
+            <div class={props.class}>
+                {props.caption}
+                {body}
+            </div>
         ) : (
             <Card class={props.class}>
                 {props.caption}

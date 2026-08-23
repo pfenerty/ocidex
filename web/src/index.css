@@ -484,6 +484,77 @@
         font-weight: 600;
     }
 
+    /* Row-level affordances that both tree views spelled inline on every row,
+       where no stylesheet and no theme could reach them.
+
+       `.row-clickable` also carries the focus ring, because DataTable makes a
+       clickable row focusable: a tree you can only expand with a mouse is a
+       tree half the readers cannot open. */
+    tr.row-clickable {
+        cursor: pointer;
+    }
+
+    tr.row-clickable:focus-visible {
+        outline: 2px solid var(--color-secondary);
+        outline-offset: -2px;
+    }
+
+    /* A row present for context rather than for its own sake — an unchanged
+       ancestor in the diff tree, kept so its changed descendants have a path. */
+    tr.row-muted {
+        opacity: 0.55;
+    }
+
+    /* Expandable rows: the disclosure triangle and the child rows it reveals.
+       Both were inline styles on hand-rolled tables, repeated per row. */
+    td.row-expander {
+        width: 24px;
+        font-size: 0.7em;
+        user-select: none;
+        color: var(--color-text-muted);
+    }
+
+    tr.row-child {
+        background: var(--color-surface-hover);
+    }
+
+    /* A child row's first cell is the empty gutter under the triangle, so the
+       indent that marks it as a child belongs to the cell after it. */
+    tr.row-child > td:first-child + td {
+        padding-left: 2rem;
+    }
+
+    /* A run of badges on one line — the diff tree's descendant rollup, where
+       up to five counts share a cell. */
+    .badge-row {
+        display: flex;
+        gap: 0.25rem;
+        flex-wrap: wrap;
+    }
+
+    /* Dependency and diff tree rows. The markup supplies only the depth; the
+       indent step it multiplies, and the twisty's whole appearance, live here.
+       Both tree views used to spell all of this inline on every visible row. */
+    .tree-name {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding-left: calc(var(--depth, 0) * 1.25rem);
+    }
+
+    .tree-twisty {
+        width: 1rem;
+        flex-shrink: 0;
+        text-align: center;
+        font-size: 0.7rem;
+        color: var(--color-text-dim);
+        transition: transform 0.15s;
+    }
+
+    .tree-twisty.open {
+        transform: rotate(90deg);
+    }
+
     tr.group-header-row td {
         position: sticky;
         top: 0;

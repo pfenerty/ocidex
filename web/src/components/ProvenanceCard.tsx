@@ -9,6 +9,22 @@ import { trustStatus, trustBadgeClass, signingStatusLabel, driftReasonLabel } fr
 import { ShieldIcon, GitHubIcon, ExternalLinkIcon } from "./metadata/OciIcons";
 import { LinkedField } from "./metadata/LinkedField";
 import { Card, CardHeader } from "~/components/ui";
+import DataTable from "~/components/DataTable";
+import type { Column } from "~/components/DataTable";
+
+const historyColumns: Column<ProvenanceDriftSummary>[] = [
+    { header: "Detected", class: "text-sm", render: (e) => formatDateTime(e.detectedAt) },
+    {
+        header: "Change",
+        class: "text-sm",
+        render: (e) => (
+            <>
+                {signingStatusLabel(e.previousStatus)} → {signingStatusLabel(e.newStatus)}
+            </>
+        ),
+    },
+    { header: "Reason", class: "text-muted text-sm", render: (e) => driftReasonLabel(e.reason) },
+];
 
 // FactPill renders a present/absent trust fact (e.g. "cosign signature ✓").
 function FactPill(props: { present: boolean; label: string }) {
@@ -197,28 +213,15 @@ export default function ProvenanceCard(props: {
                         <summary class="text-muted text-sm cursor-pointer">
                             History ({history().length})
                         </summary>
-                        <table class="mt-2">
-                            <thead>
-                                <tr>
-                                    <th>Detected</th>
-                                    <th>Change</th>
-                                    <th>Reason</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <For each={history()}>
-                                    {(event) => (
-                                        <tr>
-                                            <td class="text-sm">{formatDateTime(event.detectedAt)}</td>
-                                            <td class="text-sm">
-                                                {signingStatusLabel(event.previousStatus)} → {signingStatusLabel(event.newStatus)}
-                                            </td>
-                                            <td class="text-muted text-sm">{driftReasonLabel(event.reason)}</td>
-                                        </tr>
-                                    )}
-                                </For>
-                            </tbody>
-                        </table>
+                        <DataTable
+                            bare
+                            class="mt-2"
+                            columns={historyColumns}
+                            rows={history()}
+                            loading={false}
+                            isError={false}
+                            emptyTitle="No verification history"
+                        />
                     </details>
                 )}
             </Show>

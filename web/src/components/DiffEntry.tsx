@@ -1,10 +1,67 @@
-import { Show, For } from "solid-js";
+import { Show } from "solid-js";
 import { A } from "@solidjs/router";
 import { relativeDate } from "~/utils/format";
 import { changelogRefLabel } from "~/utils/diff";
 import type { ChangelogEntryData } from "~/utils/diff";
+import type { ComponentDiff } from "~/api/client";
+import DataTable from "~/components/DataTable";
+import type { Column } from "~/components/DataTable";
 import PurlLink from "~/components/PurlLink";
 import { parsePurl } from "~/utils/purl";
+
+const changeColumns: Column<ComponentDiff>[] = [
+    {
+        header: "Change",
+        render: (change) => (
+            <span
+                class={`badge ${
+                    change.direction === "added" || change.direction === "upgraded"
+                        ? "badge-primary"
+                        : "badge-warning"
+                }`}
+            >
+                {change.direction}
+            </span>
+        ),
+    },
+    {
+        header: "Component",
+        render: (change) => {
+            const params = new URLSearchParams({ name: change.name });
+            if (change.group !== undefined) params.set("group", change.group);
+            return (
+                <A href={`/components/overview?${params.toString()}`}>
+                    <Show when={change.group}>
+                        <span class="text-muted">{change.group}/</span>
+                    </Show>
+                    {change.name}
+                </A>
+            );
+        },
+    },
+    {
+        header: "Version",
+        class: "font-mono text-sm",
+        render: (change) => (
+            <>
+                <Show when={change.previousVersion}>
+                    <span class="text-muted">{change.previousVersion}</span>
+                    {" → "}
+                </Show>
+                {change.version ?? "—"}
+            </>
+        ),
+    },
+    {
+        header: "Package",
+        class: "mono truncate text-muted",
+        render: (change) => (
+            <Show when={change.purl} fallback={"—"}>
+                {(purl) => <PurlLink purl={purl()} />}
+            </Show>
+        ),
+    },
+];
 
 interface DiffEntryProps {
     entry: ChangelogEntryData;
@@ -90,60 +147,14 @@ export default function DiffEntry(props: DiffEntryProps) {
                         </div>
                     </div>
                 </Show>
-                <div class="table-wrapper">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Change</th>
-                                    <th>Component</th>
-                                    <th>Version</th>
-                                    <th>Package</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <For each={visibleChanges()}>
-                                    {(change) => (
-                                        <tr>
-                                            <td>
-                                                {(() => {
-                                                    const kind = change.direction;
-                                                    const cls =
-                                                        kind === "added" || kind === "upgraded"
-                                                            ? "badge-primary"
-                                                            : "badge-warning";
-                                                    return <span class={`badge ${cls}`}>{kind}</span>;
-                                                })()}
-                                            </td>
-                                            <td>
-                                                <A href={(() => {
-                                                    const p = new URLSearchParams({ name: change.name });
-                                                    if (change.group !== undefined) p.set("group", change.group);
-                                                    return `/components/overview?${p.toString()}`;
-                                                })()}>
-                                                    <Show when={change.group}>
-                                                        <span class="text-muted">{change.group}/</span>
-                                                    </Show>
-                                                    {change.name}
-                                                </A>
-                                            </td>
-                                            <td class="font-mono text-sm">
-                                                <Show when={change.previousVersion}>
-                                                    <span class="text-muted">{change.previousVersion}</span>
-                                                    {" → "}
-                                                </Show>
-                                                {change.version ?? "—"}
-                                            </td>
-                                            <td class="mono truncate text-muted">
-                                                <Show when={change.purl} fallback={"—"}>
-                                                    {(purl) => <PurlLink purl={purl()} />}
-                                                </Show>
-                                            </td>
-                                        </tr>
-                                    )}
-                                </For>
-                            </tbody>
-                        </table>
-                    </div>
+                <DataTable
+                    bare
+                    columns={changeColumns}
+                    rows={visibleChanges()}
+                    loading={false}
+                    isError={false}
+                    emptyTitle="No changes match this filter"
+                />
             </div>
         </Show>
     );

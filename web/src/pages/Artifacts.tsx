@@ -1,13 +1,12 @@
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For } from "solid-js";
 import { A, useSearchParams } from "@solidjs/router";
 import { useArtifactsInfinite } from "~/api/queries";
-import { ErrorBox, EmptyState } from "~/components/Feedback";
-import { SkeletonTable } from "~/components/Skeleton";
-import LoadMore from "~/components/LoadMore";
+import DataTable from "~/components/DataTable";
+import type { Column } from "~/components/DataTable";
 import { artifactDisplayName, plural } from "~/utils/format";
 import { SigningBadge, TypeBadge } from "~/components/cells";
 import { DEFAULT_PAGE_SIZE, type ArtifactSummary } from "~/api/client";
-import { Card, PageHeader } from "~/components/ui";
+import { PageHeader } from "~/components/ui";
 
 const ARTIFACT_TYPES = [
     "application",
@@ -54,6 +53,33 @@ function groupOf(a: ArtifactSummary): { key: string; kind: GroupKind } {
     return { key: a.type, kind: "type" };
 }
 
+// The grouping key travels through DataTable as a single string, so kind rides
+// along in a prefix rather than in a parallel lookup. `key` may itself contain
+// a colon (a purl group can), so only the first one separates.
+const groupKey = (a: ArtifactSummary): string => {
+    const { key, kind } = groupOf(a);
+    return `${kind}:${key}`;
+};
+
+const columns: Column<ArtifactSummary>[] = [
+    {
+        header: "Artifact",
+        render: (a) => <A href={`/artifacts/${a.id}`}>{artifactDisplayName(a)}</A>,
+    },
+    {
+        header: "Type",
+        render: (a) => <TypeBadge type={a.type} />,
+    },
+    {
+        header: "Signing",
+        render: (a) => <SigningBadge status={a.signingStatus} />,
+    },
+    {
+        header: "SBOMs",
+        render: (a) => plural(a.sbomCount, "SBOM"),
+    },
+];
+
 export default function Artifacts() {
     const [nameFilter, setNameFilter] = createSignal("");
     const [showAll, setShowAll] = createSignal(false);
@@ -80,11 +106,14 @@ export default function Artifacts() {
         sufficient: showAll() ? false : true,
     }));
 
-    const artifacts = () => query.data?.pages.flatMap((p) => p.data ?? []) ?? [];
+    const rawArtifacts = () => query.data?.pages.flatMap((p) => p.data ?? []) ?? [];
+    const artifacts = () => grouped().flatMap((g) => g.items);
 
+    // Still grouped here rather than in DataTable: the table only labels runs of
+    // equal keys, it does not reorder, so the rows have to arrive grouped.
     const grouped = createMemo((): ArtifactGroup[] => {
         const map = new Map<string, ArtifactGroup>();
-        for (const a of artifacts()) {
+        for (const a of rawArtifacts()) {
             const { key, kind } = groupOf(a);
             // Key on kind too: a purl group could legitimately be called
             // "library" and must not silently merge into the type bucket.
@@ -140,86 +169,38 @@ export default function Artifacts() {
                 </label>
             </div>
 
-            <Show
-                when={!query.isLoading}
-                fallback={<SkeletonTable headers={["Artifact", "Type", "Signing", "SBOMs"]} />}
-            >
-                <Show
-                    when={!query.isError}
-                    fallback={<ErrorBox error={query.error} />}
-                >
-                    <Show
-                        when={artifacts().length > 0}
-                        fallback={
-                            <EmptyState
-                                title="No artifacts found"
-                                message="Ingest an SBOM to get started."
-                            />
-                        }
-                    >
-                        <Card>
-                            <div class="table-wrapper">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Artifact</th>
-                                            <th>Type</th>
-                                            <th>Signing</th>
-                                            <th>SBOMs</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <For each={grouped()}>
-                                            {(group) => (
-                                                <>
-                                                    <Show when={showGroupHeadings()}>
-                                                        <tr class="group-header-row">
-                                                            <td colspan={4}>
-                                                                <Show
-                                                                    when={group.kind === "type"}
-                                                                    fallback={group.key}
-                                                                >
-                                                                    <TypeBadge type={group.key} />
-                                                                </Show>{" "}
-                                                                <span class="group-header-count">{group.items.length}</span>
-                                                            </td>
-                                                        </tr>
-                                                    </Show>
-                                                    <For each={group.items}>
-                                                        {(artifact) => (
-                                                            <tr>
-                                                                <td>
-                                                                    <A href={`/artifacts/${artifact.id}`}>
-                                                                        {artifactDisplayName(artifact)}
-                                                                    </A>
-                                                                </td>
-                                                                <td>
-                                                                    <TypeBadge type={artifact.type} />
-                                                                </td>
-                                                                <td>
-                                                                    <SigningBadge status={artifact.signingStatus} />
-                                                                </td>
-                                                                <td>
-                                                                    {plural(artifact.sbomCount, "SBOM")}
-                                                                </td>
-                                                            </tr>
-                                                        )}
-                                                    </For>
-                                                </>
-                                            )}
-                                        </For>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </Card>
-                        <LoadMore
-                            hasMore={query.hasNextPage}
-                            loading={query.isFetchingNextPage}
-                            onClick={() => void query.fetchNextPage()}
-                        />
-                    </Show>
-                </Show>
-            </Show>
+            <DataTable
+                columns={columns}
+                rows={query.data === undefined ? undefined : artifacts()}
+                loading={query.isFetching}
+                isError={query.isError}
+                error={query.error}
+                emptyTitle="No artifacts found"
+                emptyMessage="Ingest an SBOM to get started."
+                groupBy={
+                    showGroupHeadings()
+                        ? {
+                              key: groupKey,
+                              header: (key, count) => {
+                                  const sep = key.indexOf(":");
+                                  const kind = key.slice(0, sep);
+                                  const label = key.slice(sep + 1);
+                                  return (
+                                      <>
+                                          {kind === "type" ? <TypeBadge type={label} /> : label}{" "}
+                                          <span class="group-header-count">{count}</span>
+                                      </>
+                                  );
+                              },
+                          }
+                        : undefined
+                }
+                loadMore={{
+                    hasMore: query.hasNextPage,
+                    loading: query.isFetchingNextPage,
+                    onClick: () => void query.fetchNextPage(),
+                }}
+            />
         </>
     );
 }

@@ -1,6 +1,8 @@
-import { createSignal, createMemo, Show, For } from "solid-js";
+import { createSignal, createMemo, Show } from "solid-js";
 import { A } from "@solidjs/router";
 import { Button } from "~/components/ui";
+import DataTable from "~/components/DataTable";
+import type { Column } from "~/components/DataTable";
 import type { ComponentSummary, DependencyEdge } from "~/api/client";
 import { TypeBadge, VulnCountBadges, VersionCell, PurlLink } from "~/components/cells";
 import { parsePurl } from "~/utils/purl";
@@ -183,121 +185,97 @@ export function DependencyTreeView(props: {
         return result;
     });
 
+    // A row is only expandable when it has children it is not already inside:
+    // a cyclic row's children are its own ancestors, so opening it would loop.
+    const expandable = (row: DepRow) => row.node.children.length > 0 && !row.isCyclic;
+
+    const columns = (): Column<DepRow>[] => [
+        {
+            header: "Name",
+            render: (row) => (
+                <span class="tree-name" style={{ "--depth": row.depth }}>
+                    <span
+                        class="tree-twisty"
+                        classList={{ open: expandable(row) && expandedRefs().has(row.node.ref) }}
+                    >
+                        {expandable(row) ? "▸" : ""}
+                    </span>
+                    <Show
+                        when={row.node.id}
+                        keyed
+                        fallback={<span class="font-mono text-muted text-sm">{row.node.name}</span>}
+                    >
+                        {(_id) => (
+                            <A
+                                href={componentHref(row.node.name, row.node.group, row.node.version)}
+                                class="font-mono text-sm"
+                                onClick={(e: MouseEvent) => e.stopPropagation()}
+                            >
+                                {row.node.name}
+                            </A>
+                        )}
+                    </Show>
+                    <Show when={row.node.children.length > 0}>
+                        <span class="badge badge-sm">{row.node.children.length}</span>
+                    </Show>
+                    <Show when={row.isCyclic}>
+                        <span class="badge badge-warning badge-sm">circular</span>
+                    </Show>
+                </span>
+            ),
+        },
+        {
+            header: "Version",
+            render: (row) => <VersionCell version={row.node.version} />,
+        },
+        {
+            header: "Type",
+            render: (row) => (
+                <Show when={row.node.type} keyed>
+                    {(type) => <TypeBadge type={type} />}
+                </Show>
+            ),
+        },
+        {
+            header: "Package URL",
+            class: "truncate",
+            render: (row) => (
+                <Show when={row.node.purl} keyed fallback={<span class="text-muted">—</span>}>
+                    {(purl) => <PurlLink purl={purl} showBadge />}
+                </Show>
+            ),
+        },
+        {
+            header: "Vulns",
+            render: (row) => (
+                <VulnCountBadges
+                    criticalCount={row.node.criticalCount}
+                    highCount={row.node.highCount}
+                    mediumCount={row.node.mediumCount}
+                    lowCount={row.node.lowCount}
+                    unknownCount={row.node.unknownCount}
+                />
+            ),
+        },
+    ];
+
     return (
         <>
             <div style={{ display: "flex", gap: "0.5rem", padding: "0.5rem 0" }}>
                 <Button size="sm" onClick={expandAll}>Expand all</Button>
                 <Button size="sm" onClick={collapseAll}>Collapse all</Button>
             </div>
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Version</th>
-                            <th>Type</th>
-                            <th>Package URL</th>
-                            <th>Vulns</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <For each={visibleRows()}>
-                            {(row) => {
-                                const isExpanded = () => expandedRefs().has(row.node.ref);
-                                const hasChildren = row.node.children.length > 0;
-                                return (
-                                    <tr
-                                        style={{
-                                            cursor: hasChildren && !row.isCyclic ? "pointer" : "default",
-                                        }}
-                                        onClick={() => hasChildren && !row.isCyclic && toggleExpanded(row.node.ref)}
-                                    >
-                                        <td>
-                                            <span
-                                                style={{
-                                                    display: "flex",
-                                                    "align-items": "center",
-                                                    gap: "0.375rem",
-                                                    "padding-left": `${row.depth * 1.25}rem`,
-                                                }}
-                                            >
-                                                <span
-                                                    style={{
-                                                        width: "1rem",
-                                                        "text-align": "center",
-                                                        color: "var(--color-text-dim)",
-                                                        "font-size": "0.7rem",
-                                                        "flex-shrink": "0",
-                                                        transition: "transform 0.15s",
-                                                        transform: hasChildren && !row.isCyclic && isExpanded()
-                                                            ? "rotate(90deg)"
-                                                            : "rotate(0deg)",
-                                                    }}
-                                                >
-                                                    {hasChildren && !row.isCyclic ? "▸" : ""}
-                                                </span>
-                                                <Show
-                                                    when={row.node.id}
-                                                    keyed
-                                                    fallback={
-                                                        <span
-                                                            class="font-mono text-muted text-sm"
-                                                        >
-                                                            {row.node.name}
-                                                        </span>
-                                                    }
-                                                >
-                                                    {(_id) => (
-                                                        <A
-                                                            href={componentHref(row.node.name, row.node.group, row.node.version)}
-                                                            class="font-mono text-sm"
-                                                            onClick={(e: MouseEvent) => e.stopPropagation()}
-                                                        >
-                                                            {row.node.name}
-                                                        </A>
-                                                    )}
-                                                </Show>
-                                                <Show when={hasChildren}>
-                                                    <span class="badge badge-sm">{row.node.children.length}</span>
-                                                </Show>
-                                                <Show when={row.isCyclic}>
-                                                    <span class="badge badge-warning" style={{ "font-size": "0.65rem" }}>circular</span>
-                                                </Show>
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <VersionCell version={row.node.version} />
-                                        </td>
-                                        <td>
-                                            <Show when={row.node.type} keyed>
-                                                {(type) => <TypeBadge type={type} />}
-                                            </Show>
-                                        </td>
-                                        <td class="truncate">
-                                            <Show
-                                                when={row.node.purl}
-                                                keyed
-                                                fallback={<span class="text-muted">—</span>}
-                                            >
-                                                {(purl) => <PurlLink purl={purl} showBadge />}
-                                            </Show>
-                                        </td>
-                                        <td>
-                                            <VulnCountBadges
-                                                criticalCount={row.node.criticalCount}
-                                                highCount={row.node.highCount}
-                                                mediumCount={row.node.mediumCount}
-                                                lowCount={row.node.lowCount}
-                                                unknownCount={row.node.unknownCount}
-                                            />
-                                        </td>
-                                    </tr>
-                                );
-                            }}
-                        </For>
-                    </tbody>
-                </table>
-            </div>
+            <DataTable
+                bare
+                columns={columns()}
+                rows={visibleRows()}
+                loading={false}
+                isError={false}
+                emptyTitle="No dependencies"
+                emptyMessage="This SBOM records no dependency relationships."
+                rowClickable={expandable}
+                onRowClick={(row) => toggleExpanded(row.node.ref)}
+            />
         </>
     );
 }
