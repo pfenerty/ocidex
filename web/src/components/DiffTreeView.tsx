@@ -299,6 +299,9 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
             >
                 <DataTable
                     bare
+                    // The indentation *is* the containment relation; a card
+                    // stack throws it away and leaves a flat list of names.
+                    mobileLayout="scroll"
                     columns={columns()}
                     rows={rows()}
                     loading={false}

@@ -269,3 +269,118 @@ describe("DataTable rows", () => {
         expect(container.querySelector(".table-wrapper table")).not.toBeNull();
     });
 });
+
+describe("DataTable mobile layout", () => {
+    it("labels each cell from its column header, for the card stack", () => {
+        // Below 768px the header row is hidden and each cell names itself from
+        // `data-label`. happy-dom has no layout engine, so what is asserted here
+        // is the contract the CSS depends on; the rendering itself was checked
+        // in a browser at 500px.
+        const { container } = render(() => (
+            <DataTable
+                columns={columns}
+                rows={[{ name: "alpha" }]}
+                loading={false}
+                isError={false}
+                emptyTitle="Nothing here"
+            />
+        ));
+        const labels = [...container.querySelectorAll("tbody td")].map((td) =>
+            td.getAttribute("data-label"),
+        );
+        expect(labels).toEqual(["Name", "Kind"]);
+    });
+
+    it("labels the skeleton cells too, so first load stacks like the rows will", () => {
+        const { container } = render(() => (
+            <DataTable
+                columns={columns}
+                rows={undefined}
+                loading={true}
+                isError={false}
+                emptyTitle="Nothing here"
+                skeletonRows={1}
+            />
+        ));
+        const labels = [...container.querySelectorAll("tbody td")].map((td) =>
+            td.getAttribute("data-label"),
+        );
+        expect(labels).toEqual(["Name", "Kind"]);
+    });
+
+    it("takes mobileLabel when the header is not a string", () => {
+        // One column in the app renders a coloured `<span>` as its header, and
+        // `attr(data-label)` cannot read a JSX element.
+        const jsx: Column<Row>[] = [
+            { header: <span>Kind</span>, mobileLabel: "Kind", render: () => <span>k</span> },
+            { header: <span>State</span>, render: () => <span>s</span> },
+        ];
+        const { container } = render(() => (
+            <DataTable
+                columns={jsx}
+                rows={[{ name: "alpha" }]}
+                loading={false}
+                isError={false}
+                emptyTitle="Nothing here"
+            />
+        ));
+        const cells = [...container.querySelectorAll("tbody td")];
+        expect(cells[0].getAttribute("data-label")).toBe("Kind");
+        // No label rather than a wrong one: the cell spans the card instead of
+        // sitting beside an empty gutter.
+        expect(cells[1].hasAttribute("data-label")).toBe(false);
+    });
+
+    it("leaves an actions column unlabelled", () => {
+        // `header: ""` is how the app spells "this column is a control, not a
+        // field" — there is nothing to name it.
+        const withActions: Column<Row>[] = [
+            ...columns,
+            { header: "", render: () => <button>Edit</button> },
+        ];
+        const { container } = render(() => (
+            <DataTable
+                columns={withActions}
+                rows={[{ name: "alpha" }]}
+                loading={false}
+                isError={false}
+                emptyTitle="Nothing here"
+            />
+        ));
+        const cells = [...container.querySelectorAll("tbody td")];
+        expect(cells[2].hasAttribute("data-label")).toBe(false);
+    });
+
+    it("stacks into cards by default", () => {
+        const { container } = render(() => (
+            <DataTable
+                columns={columns}
+                rows={[{ name: "alpha" }]}
+                loading={false}
+                isError={false}
+                emptyTitle="Nothing here"
+            />
+        ));
+        const wrapper = container.querySelector(".table-wrapper");
+        expect(wrapper?.classList.contains("table-mobile-cards")).toBe(true);
+        expect(wrapper?.classList.contains("table-mobile-scroll")).toBe(false);
+    });
+
+    it("keeps the grid and scrolls it when the caller opts out", () => {
+        // The two tree views and the enricher health matrix: their meaning is
+        // the grid, and the scroll is the wrapper's, never the page body's.
+        const { container } = render(() => (
+            <DataTable
+                columns={columns}
+                rows={[{ name: "alpha" }]}
+                loading={false}
+                isError={false}
+                emptyTitle="Nothing here"
+                mobileLayout="scroll"
+            />
+        ));
+        const wrapper = container.querySelector(".table-wrapper");
+        expect(wrapper?.classList.contains("table-mobile-scroll")).toBe(true);
+        expect(wrapper?.classList.contains("table-mobile-cards")).toBe(false);
+    });
+});

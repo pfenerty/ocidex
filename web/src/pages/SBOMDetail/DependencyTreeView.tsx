@@ -267,6 +267,9 @@ export function DependencyTreeView(props: {
             </div>
             <DataTable
                 bare
+                // Same reason as the diff tree: stacked rows lose the depth
+                // that says which package pulled in which.
+                mobileLayout="scroll"
                 columns={columns()}
                 rows={visibleRows()}
                 loading={false}

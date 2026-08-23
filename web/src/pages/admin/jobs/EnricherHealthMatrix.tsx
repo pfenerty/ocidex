@@ -69,6 +69,9 @@ export function EnricherHealthMatrix(props: {
     return (
         <DataTable
             class="mb-4"
+            // A state-by-enricher crosstab. One card per enricher listing
+            // four counts is not the comparison this table exists to make.
+            mobileLayout="scroll"
             caption={
                 <p class="text-muted text-sm mb-2">
                     Per-enricher pipeline health — click a cell to filter

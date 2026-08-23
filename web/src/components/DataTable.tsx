@@ -25,6 +25,15 @@ export interface Column<T> {
     sortValue?: (row: T) => string | number;
     align?: "left" | "right";
     /**
+     * The label this column's cells carry in the mobile card stack, where the
+     * header row is gone and each cell has to name itself.
+     *
+     * Only needed when `header` is not a plain string — one column in the app
+     * (the enricher health matrix's coloured state headers) renders JSX, and
+     * `attr()` cannot read a JSX element. A string header is used verbatim.
+     */
+    mobileLabel?: string;
+    /**
      * Extra classes for this column's `th` and every one of its `td`s. Column
      * width and per-column typography live here rather than in an inline style
      * on one hand-written `<th>`, which is where they used to live and where no
@@ -75,6 +84,23 @@ export interface DataTableProps<T> {
     /** Extra classes for the card the table is rendered in. */
     class?: string;
     /**
+     * What this table does below the 768px breakpoint.
+     *
+     * `"cards"` (the default) stacks each row into a labelled block: the header
+     * row is hidden and every cell names itself from its column header. That is
+     * the right answer for a list of records, which is nearly every table here —
+     * at 500px a four-column table gave the artifact name 110px and broke
+     * `github.com/pfenerty/ocidex/enrichment-worker` across five lines.
+     *
+     * `"scroll"` keeps the grid and lets it scroll sideways *inside the table
+     * wrapper*, so the page body still never scrolls horizontally. It is for the
+     * tables whose meaning is the grid itself and survives no stacking: the two
+     * indented tree views (stacking discards the indentation that says what
+     * contains what) and the enricher health matrix (a state-by-enricher
+     * crosstab, unreadable as one card per enricher).
+     */
+    mobileLayout?: "cards" | "scroll";
+    /**
      * Render without the surrounding `<Card>`, for a table that is already
      * inside one — ProvenanceCard's collapsible verification history sits in
      * the card the component itself emits, and a second card there is two
@@ -119,6 +145,17 @@ function cellClass<T>(col: Column<T>): string {
     return [col.align === "right" ? "text-right" : "", col.class ?? ""]
         .filter((c) => c !== "")
         .join(" ");
+}
+
+/**
+ * The plain-text name for a column, for the mobile card stack's `::before`.
+ * Undefined means the cell spans the card with no label — which is what an
+ * actions column (`header: ""`) should do.
+ */
+function mobileLabel<T>(col: Column<T>): string | undefined {
+    const explicit = col.mobileLabel;
+    if (explicit !== undefined) return explicit === "" ? undefined : explicit;
+    return typeof col.header === "string" && col.header !== "" ? col.header : undefined;
 }
 
 function defaultDirFor(col: Pick<Column<unknown>, "sortType">): SortDir {
@@ -198,7 +235,7 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
                 <tr>
                     <For each={props.columns}>
                         {(col) => (
-                            <td class={cellClass(col)}>
+                            <td class={cellClass(col)} data-label={mobileLabel(col)}>
                                 <Skeleton height="0.85em" />
                             </td>
                         )}
@@ -235,7 +272,9 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
             >
                 <For each={props.columns}>
                     {(col) => (
-                        <td class={cellClass(col)}>{col.render(row)}</td>
+                        <td class={cellClass(col)} data-label={mobileLabel(col)}>
+                            {col.render(row)}
+                        </td>
                     )}
                 </For>
             </tr>
@@ -284,7 +323,11 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
     const shellContent = (body: () => JSX.Element) => (
         <>
             {props.caption}
-            <div class="table-wrapper">
+            <div
+                class={`table-wrapper ${
+                    props.mobileLayout === "scroll" ? "table-mobile-scroll" : "table-mobile-cards"
+                }`}
+            >
                 <table>
                     <thead>
                         <tr>
