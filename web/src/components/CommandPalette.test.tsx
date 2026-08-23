@@ -141,7 +141,7 @@ describe("CommandPalette", () => {
         pressShortcut();
         // "cve" appears nowhere in "Vulnerabilities" — only in its keywords.
         fireEvent.input(input(), { target: { value: "cve" } });
-        expect(labels()).toEqual(["Vulnerabilities"]);
+        expect(labels()).toEqual(["Vulnerabilities", 'Resolve artifact "cve"']);
     });
 
     it("does not claim nothing matched while a search is still out", () => {
@@ -181,7 +181,7 @@ describe("CommandPalette", () => {
         const { input, options, labels } = mount(member);
         pressShortcut();
         fireEvent.input(input(), { target: { value: "compare" } });
-        expect(labels()).toEqual(["Compare"]);
+        expect(labels()).toEqual(["Compare", 'Resolve artifact "compare"']);
         fireEvent.mouseDown(options()[0]);
         expect(mockNavigate).toHaveBeenCalledWith("/diff");
     });
@@ -235,7 +235,7 @@ describe("CommandPalette", () => {
         const headings = Array.from(dialog.querySelectorAll(".command-palette-group")).map(
             (h) => h.textContent,
         );
-        expect(headings).toEqual(["Manage"]);
+        expect(headings).toEqual(["Manage", "Look up"]);
     });
 
     it("puts catalog results beside the route entries, not instead of them", () => {
@@ -248,8 +248,8 @@ describe("CommandPalette", () => {
         );
         // The route list keeps no match for "openssl", so only catalog groups
         // remain — and both of the ones that matched are present.
-        expect(headings).toEqual(["Components", "Licenses"]);
-        expect(labels()).toEqual(["openssl", "OpenSSL License"]);
+        expect(headings).toEqual(["Components", "Licenses", "Look up"]);
+        expect(labels()).toEqual(["openssl", "OpenSSL License", 'Resolve artifact "openssl"']);
     });
 
     it("keeps offering the page when a term matches both a route and the catalog", () => {
@@ -260,7 +260,7 @@ describe("CommandPalette", () => {
         const headings = Array.from(dialog.querySelectorAll(".command-palette-group")).map(
             (h) => h.textContent,
         );
-        expect(headings).toEqual(["Explore", "Vulnerabilities"]);
+        expect(headings).toEqual(["Explore", "Vulnerabilities", "Look up"]);
     });
 
     it("navigates to a catalog hit, not only to a route", () => {
@@ -290,10 +290,70 @@ describe("CommandPalette", () => {
         // "boom" stands in for a 401 from one of the four endpoints.
         search(input(), "boom");
 
-        expect(dialog.querySelectorAll(".command-palette-group")).toHaveLength(0);
+        // Only the resolver row is left standing — and it is not a match, so
+        // the palette still says nothing matched.
+        expect(
+            Array.from(dialog.querySelectorAll(".command-palette-group")).map((h) => h.textContent),
+        ).toEqual(["Look up"]);
         expect(getByText("No matching page")).toBeTruthy();
         // The point of the story: a 401 is data. It must not have navigated.
         expect(mockNavigate).not.toHaveBeenCalled();
+    });
+
+    it("offers the ADR-042 artifact resolver, with the name in a query param", () => {
+        const { input, options, labels } = mount(member);
+        pressShortcut();
+        // A name with slashes in it — which is why ADR-042 keys the resolver on
+        // a query param rather than a path segment.
+        search(input(), "ghcr.io/pfenerty/ocidex");
+        const all = labels();
+        expect(all[all.length - 1]).toBe('Resolve artifact "ghcr.io/pfenerty/ocidex"');
+
+        fireEvent.mouseDown(options()[options().length - 1]);
+        expect(mockNavigate).toHaveBeenCalledWith(
+            "/artifacts/lookup?name=ghcr.io%2Fpfenerty%2Focidex",
+        );
+    });
+
+    it("sends a digest to the SBOM resolver, prefix or not", () => {
+        const hex = "a".repeat(64);
+        const { input, options } = mount(member);
+        pressShortcut();
+        search(input(), hex);
+        fireEvent.mouseDown(options()[options().length - 1]);
+        expect(mockNavigate).toHaveBeenCalledWith(
+            `/sboms/lookup?digest=sha256%3A${hex}`,
+        );
+    });
+
+    it("sends a purl to the occurrence list, which ADR-042 excludes from lookup", () => {
+        const { input, options, labels } = mount(member);
+        pressShortcut();
+        search(input(), "pkg:golang/openssl@1.1");
+        const all = labels();
+        expect(all[all.length - 1]).toBe("Every SBOM carrying pkg:golang/openssl@1.1");
+
+        fireEvent.mouseDown(options()[options().length - 1]);
+        expect(mockNavigate).toHaveBeenCalledWith(
+            "/components?purl=pkg%3Agolang%2Fopenssl%401.1",
+        );
+    });
+
+    it("keeps a picked catalog hit on its own id, not back through a resolver", () => {
+        const { input, options } = mount(member);
+        pressShortcut();
+        search(input(), "openssl");
+        // The first row is the component hit. It has already been
+        // disambiguated, so routing it by name would only earn a 409.
+        fireEvent.mouseDown(options()[0]);
+        expect(mockNavigate).toHaveBeenCalledWith("/components/overview?name=openssl");
+    });
+
+    it("offers no resolver row until the term is worth resolving", () => {
+        const { input, labels } = mount(member);
+        pressShortcut();
+        fireEvent.input(input(), { target: { value: "a" } });
+        expect(labels().some((l) => (l ?? "").startsWith("Resolve"))).toBe(false);
     });
 
     it("does not search on a single character", () => {

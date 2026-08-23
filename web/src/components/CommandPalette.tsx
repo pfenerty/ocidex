@@ -11,6 +11,7 @@ import {
 import { useNavigate } from "@solidjs/router";
 import { Search } from "lucide-solid";
 import { useAuth } from "~/context/auth";
+import { artifactLookupPath, sbomLookupPath } from "~/components/CopyShareLink";
 import {
     useArtifactSearch,
     useComponentSearch,
@@ -75,6 +76,11 @@ const ENTRIES: readonly Entry[] = [
 /** How long a keystroke waits before it costs a request. */
 const SEARCH_DEBOUNCE_MS = 300;
 
+const LOOKUP_GROUP = "Look up";
+
+/** sha256:<64 hex>, or the bare hex a registry UI copies without the prefix. */
+const DIGEST_RE = /^(sha256:)?[0-9a-f]{64}$/i;
+
 /** One rendered row, whether it came from the route list or from the catalog. */
 interface Row {
     key: string;
@@ -83,6 +89,46 @@ interface Row {
     sub?: string;
     path: string;
     group: string;
+}
+
+/**
+ * The ADR-042 resolver rows.
+ *
+ * The catalog hits above already carry an id, so they navigate straight to it —
+ * sending a row the user has *already* disambiguated back through a name lookup
+ * would only hand them a 409 for their trouble. What the resolvers are for is
+ * the other case: the user knows the exact name, digest or purl and wants the
+ * canonical, shareable URL. `App.tsx` has routed /artifacts/lookup and
+ * /sboms/lookup since ADR-042 landed and nothing in the UI ever linked to them;
+ * this is the link.
+ *
+ * The key travels in query params, never a path segment — artifact names carry
+ * slashes, so `by-name/{name}` is not viable (ADR-042). A 409 lands on
+ * `pages/Lookup.tsx`, which renders the returned candidates as a list to pick
+ * from rather than an error.
+ *
+ * Components are excluded from the resolvers (they are SBOM-scoped), so a purl
+ * goes to the occurrence list at /components?purl= instead, per the same ADR.
+ */
+function lookupRows(term: string): Row[] {
+    const row = (key: string, label: string, path: string): Row[] => [
+        { key: `lookup:${key}`, label, sub: path, path, group: LOOKUP_GROUP },
+    ];
+    if (term.length < MIN_SEARCH_TERM) return [];
+    if (DIGEST_RE.test(term)) {
+        // Registry UIs copy the hex with and without the algorithm prefix; the
+        // resolver wants the whole digest.
+        const digest = term.startsWith("sha256:") ? term : `sha256:${term}`;
+        const path = sbomLookupPath({ digest });
+        return path === null ? [] : row("sbom", "Resolve SBOM by digest", path);
+    }
+    if (term.startsWith("pkg:")) {
+        const purl = new URLSearchParams({ purl: term }).toString();
+        return row("purl", `Every SBOM carrying ${term}`, `/components?${purl}`);
+    }
+    // The same builders the copy-link control uses, so a palette link and a
+    // copied link are the same URL.
+    return row("artifact", `Resolve artifact "${term}"`, artifactLookupPath({ name: term }));
 }
 
 // Module scope so anything can raise the palette without threading state
@@ -192,17 +238,30 @@ export default function CommandPalette() {
         // the rows do not blink between keystrokes — which also means the last
         // term's hits are still in `data` after the box is cleared. Gate on the
         // live term rather than on the cache.
-        if (!searchable()) return out;
-        for (const s of searches) {
-            // An errored group contributes nothing rather than an error row: the
-            // palette is a way to get somewhere, not a place to report failures.
-            const hits: SearchHit[] | undefined = s.query.isError ? undefined : s.query.data;
-            for (const h of hits ?? []) {
-                out.push({ key: `${s.group}:${h.key}`, label: h.label, sub: h.sub, path: h.path, group: s.group });
+        if (searchable()) {
+            for (const s of searches) {
+                // An errored group contributes nothing rather than an error row:
+                // the palette is a way to get somewhere, not a place to report
+                // failures.
+                const hits: SearchHit[] | undefined = s.query.isError ? undefined : s.query.data;
+                for (const h of hits ?? []) {
+                    out.push({ key: `${s.group}:${h.key}`, label: h.label, sub: h.sub, path: h.path, group: s.group });
+                }
             }
         }
+        // Last, and off the live term rather than the debounced one: no request
+        // stands behind it, so there is nothing to wait for. It is the fallback
+        // when the search groups came back empty, and in that case it is the
+        // only row and therefore already highlighted.
+        out.push(...lookupRows(query().trim()));
         return out;
     });
+
+    // The resolver rows are always on offer, so they are not evidence that
+    // anything matched — a term nothing knows about still gets a "Resolve
+    // artifact" row, and it would read as a hit if the empty line vanished
+    // with it.
+    const nothingMatched = (): boolean => rows().every((r) => r.group === LOOKUP_GROUP);
 
     // Groups are derived from the filtered list rather than filtered per group,
     // so a group that matches nothing disappears instead of leaving a heading
@@ -339,7 +398,7 @@ export default function CommandPalette() {
                     role="listbox"
                     aria-label="Commands"
                 >
-                    <Show when={rows().length === 0}>
+                    <Show when={nothingMatched()}>
                         <li class="command-palette-empty">
                             {/* "Nothing matched" is a claim, and it is false
                                 while a request is still out. */}
@@ -397,8 +456,10 @@ export default function CommandPalette() {
                     <span><kbd>↵</kbd> to open</span>
                     <span><kbd>esc</kbd> to close</span>
                     {/* Says more rows may still arrive. Without it, results
-                        landing 300ms after the list settled read as a glitch. */}
-                    <Show when={searching() && rows().length > 0}>
+                        landing 300ms after the list settled read as a glitch.
+                        Suppressed when nothing has matched yet, because the
+                        empty line is already saying exactly this. */}
+                    <Show when={searching() && !nothingMatched()}>
                         <span class="command-palette-searching">Searching…</span>
                     </Show>
                 </div>
