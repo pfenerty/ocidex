@@ -16,7 +16,13 @@ vi.mock("~/pages/admin/JobsTab", () => ({ JobsTab: () => <div>panel:jobs</div> }
 const mockLocation = { pathname: "/admin" };
 vi.mock("@solidjs/router", () => ({
     useLocation: () => mockLocation,
-    A: (props: { href: string; children?: JSX.Element }) => <a href={props.href}>{props.children}</a>,
+    // `class` is passed through: the strip's active state rides on it now that
+    // the tabs are <TabBar> links rather than inline styles.
+    A: (props: { href: string; class?: string; children?: JSX.Element }) => (
+        <a href={props.href} class={props.class}>
+            {props.children}
+        </a>
+    ),
 }));
 
 interface User {
@@ -93,6 +99,34 @@ describe("Admin", () => {
 
         const { container } = render(() => <Admin />);
         expect(container.textContent).toContain("panel:sources");
+    });
+
+    // The strip used to be a hand-rolled <nav> of per-tab inline styles, so it
+    // looked subtly unlike every other tab strip in the app and a probe for
+    // `.tab-bar button` on /admin came back empty (ocidex-ag4q.39).
+    it("renders the tab strip as a TabBar of links", () => {
+        mockLocation.pathname = "/admin/jobs";
+        mockUserFn = resolved({ id: "u-1", role: "admin" });
+
+        const { container } = render(() => <Admin />);
+
+        const strip = container.querySelector(".tab-bar");
+        expect(strip).not.toBeNull();
+        const links = [...(strip?.querySelectorAll("a") ?? [])];
+        // Links, not buttons: these tabs are routes and must stay
+        // middle-clickable and copyable.
+        expect(links.map((a) => a.getAttribute("href"))).toEqual([
+            "/admin",
+            "/admin/keys",
+            "/admin/namespaces",
+            "/admin/sources",
+            "/admin/status",
+            "/admin/jobs",
+        ]);
+        expect(strip?.querySelector("button")).toBeNull();
+        expect(links.filter((a) => a.classList.contains("active")).map((a) => a.textContent)).toEqual([
+            "Jobs",
+        ]);
     });
 
     // A non-admin gets the one tab they can use rather than an empty page, even

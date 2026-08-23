@@ -64,7 +64,10 @@ describe("navigation and state read blue", () => {
     ])("%s: %s", (file, selector) => {
         const css = read(file);
         const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const m = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(css);
+        // The selector may be one of several in a comma-separated list — the
+        // tab strip styles `button` and `a` together — so anything up to the
+        // opening brace that is still part of the same selector list counts.
+        const m = new RegExp(`${escaped}[^{}]*\\{([^}]*)\\}`).exec(css);
         if (m === null) throw new Error(`no rule for ${selector} in ${file}`);
         expect(m[1]).toContain("--color-secondary");
         expect(m[1]).not.toContain("--color-primary");

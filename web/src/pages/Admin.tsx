@@ -1,5 +1,5 @@
-import { Show, For, type JSX } from "solid-js";
-import { useLocation, A } from "@solidjs/router";
+import { Show, type JSX } from "solid-js";
+import { useLocation } from "@solidjs/router";
 import { useAuth } from "~/context/auth";
 import { SkeletonHeader } from "~/components/Skeleton";
 import { UsersTab } from "./admin/UsersTab";
@@ -8,7 +8,8 @@ import { StatusTab } from "./admin/StatusTab";
 import { SourcesTab } from "./admin/SourcesTab";
 import { NamespacesTab } from "./admin/NamespacesTab";
 import { JobsTab } from "./admin/JobsTab";
-import { PageHeader } from "~/components/ui";
+import { PageHeader, TabBar } from "~/components/ui";
+import type { TabDef } from "~/components/ui";
 
 interface AdminTab {
     label: string;
@@ -65,7 +66,10 @@ export default function Admin() {
     // link) gets the tabs they do have rather than an empty page — the tab strip
     // already tells them which one they are on.
     const active = () => tabs().find((t) => t.paths.includes(location.pathname)) ?? tabs()[0];
-    const isActive = (tab: AdminTab) => tab === active();
+    // The href doubles as the tab id: it is unique per tab and is what the
+    // strip navigates to anyway.
+    const tabDefs = (): TabDef<string>[] =>
+        tabs().map((t) => ({ id: t.href, label: t.label, href: t.href }));
 
     // Held until the session resolves. Rendering early produced a tab strip and
     // a panel computed from different values of `tabs()`: the strip re-derived
@@ -83,24 +87,14 @@ export default function Admin() {
                 }
             />
 
-            <nav style={{ display: "flex", gap: "0", "margin-bottom": "1.5rem", "border-bottom": "1px solid var(--color-border)" }}>
-                <For each={tabs()}>
-                    {(tab) => (
-                        <A
-                            href={tab.href}
-                            style={{
-                                padding: "0.5rem 1rem",
-                                "border-bottom": isActive(tab) ? "2px solid var(--color-secondary)" : "2px solid transparent",
-                                color: isActive(tab) ? "var(--color-secondary)" : "inherit",
-                                "font-weight": isActive(tab) ? "600" : "400",
-                                "margin-bottom": "-1px",
-                            }}
-                        >
-                            {tab.label}
-                        </A>
-                    )}
-                </For>
-            </nav>
+            {/* The strip is <TabBar> rather than a hand-rolled <nav> of inline
+                styles, so /admin looks like every other tab strip in the app.
+                The tabs stay links — they are routes, not local state. */}
+            <TabBar
+                tabs={tabDefs()}
+                active={active().href}
+                class="mb-4"
+            />
 
             {/* `keyed` is load-bearing: without it the children function runs
                 once and the panel is frozen at whichever tab was active on

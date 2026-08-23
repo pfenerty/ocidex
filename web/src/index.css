@@ -772,7 +772,14 @@
         border-bottom: 1px solid var(--color-border);
     }
 
-    .tab-bar button {
+    /*
+     * `a` alongside `button`: a tab strip whose tabs are real routes (Admin)
+     * has to be a link so it stays middle-clickable and copyable. It used to
+     * hand-roll five inline style properties per tab instead, which is why it
+     * looked subtly unlike every other strip in the app (ocidex-ag4q.39).
+     */
+    .tab-bar button,
+    .tab-bar a {
         padding: 0.5rem 1rem;
         font-size: 0.875rem;
         font-weight: 500;
@@ -781,18 +788,21 @@
         border-bottom: 2px solid transparent;
         background: transparent;
         cursor: pointer;
+        text-decoration: none;
         transition:
             color 0.15s,
             border-color 0.15s;
     }
 
-    .tab-bar button:hover {
+    .tab-bar button:hover,
+    .tab-bar a:hover {
         color: var(--color-text);
         border-bottom-color: var(--color-border);
         background: transparent;
     }
 
-    .tab-bar button.active {
+    .tab-bar button.active,
+    .tab-bar a.active {
         color: var(--color-secondary);
         border-bottom-color: var(--color-secondary);
         background: transparent;
