@@ -900,7 +900,32 @@
         flex: 1;
     }
 
+    /*
+     * A tab strip too wide for the phone scrolls sideways; it does not wrap.
+     *
+     * `overflow-x: auto` was here on its own and could never fire. `.tab-bar`
+     * is a flex row, and its items shrink below their content rather than
+     * overflow, so six tabs squeezed to fit and each one broke its own label
+     * instead: /admin read "Users | API⏎Keys | Namespaces | Sources |
+     * System⏎Status | Jobs" at 500px, with Jobs clipped and unreachable.
+     * Nothing overflowed, so there was nothing for the container to scroll
+     * (ocidex-ag4q.59).
+     *
+     * `flex-shrink: 0` plus `white-space: nowrap` is what makes the strip
+     * exceed its container, which is the precondition `overflow-x` was written
+     * for. Scroll-snap is the affordance: a partly-scrolled tab settles on its
+     * own edge rather than sitting half-cut, so the strip reads as a track that
+     * continues rather than as a row that got clipped.
+     */
     .tab-bar {
         overflow-x: auto;
+        scroll-snap-type: x proximity;
+    }
+
+    .tab-bar button,
+    .tab-bar a {
+        flex-shrink: 0;
+        white-space: nowrap;
+        scroll-snap-align: start;
     }
 }

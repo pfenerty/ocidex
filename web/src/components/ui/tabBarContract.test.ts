@@ -86,6 +86,35 @@ describe("tab-bar CSS contract", () => {
         expect(offenders).toEqual([]);
     });
 
+    it("gives the mobile strip something to scroll", () => {
+        // `overflow-x: auto` on a flex row is inert on its own: the items
+        // shrink below their content and wrap their labels instead of
+        // overflowing, so the container never has a scrollable width
+        // (ocidex-ag4q.59). The two declarations that make it real live on the
+        // items, not the container, which is exactly the pairing a later edit
+        // is likely to split up.
+        const css = readFileSync(join(SRC, "index.css"), "utf-8").replace(/\/\*[\s\S]*?\*\//g, "");
+        const start = css.indexOf("@media (max-width: 768px)");
+        expect(start).toBeGreaterThanOrEqual(0);
+
+        let depth = 0;
+        let block = "";
+        for (let i = css.indexOf("{", start); i < css.length; i++) {
+            if (css[i] === "{") depth++;
+            else if (css[i] === "}" && --depth === 0) {
+                block = css.slice(css.indexOf("{", start) + 1, i);
+                break;
+            }
+        }
+        expect(block).not.toBe("");
+
+        const itemRule = /\.tab-bar button,\s*\.tab-bar a\s*\{([^}]*)\}/.exec(block);
+        if (itemRule === null) throw new Error("no mobile rule for the tab-bar items");
+        expect(itemRule[1]).toMatch(/flex-shrink:\s*0/);
+        expect(itemRule[1]).toMatch(/white-space:\s*nowrap/);
+        expect(block).toMatch(/\.tab-bar\s*\{[^}]*overflow-x:\s*auto/);
+    });
+
     it("has no call site emitting the undefined tab-btn / tab-active classes", () => {
         // Comments are stripped first: this file and the call sites that were
         // converted both name the dead classes in prose, and that is not drift.
