@@ -56,3 +56,6 @@ Thumbs.db
 *.sarif
 
 .tokensave/
+
+# Local authenticated dev rig state (scripts/dev-auth.sh)
+.dev/

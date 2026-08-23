@@ -388,16 +388,34 @@ wrong on screen — the app has shipped several dead class names (`tab-btn`,
 whole app but never fetched. Those all pass unit tests, because a stylesheet that
 does nothing is not an assertion failure. **Look at the page.**
 
-There is no local backend here (docker is unavailable, so no Postgres and no
-API on :8080), which makes plain `make frontend-dev` render a frontend whose
-every request fails. Use the prod-proxied server instead:
+There are two rigs. Pick by whether the page needs a signed-in user.
+
+**Auth-gated pages** (`/dashboard`, `/clusters`, `/admin`, anything behind a
+user) — and **anything touching a backend change on your branch**:
+
+```bash
+flox activate -- make dev-auth-up          # postgres + nats + this branch's API on :8080
+flox activate -- make frontend-dev-auth    # :3200, signed in as a local admin
+```
+
+No docker: `postgresql` and `nats-server` are native binaries in the Flox
+environment, and `scripts/dev-auth.sh` runs the whole stack out of `.dev/`.
+Auth is not a bypass — `internal/api/middleware.go` already accepts
+`Authorization: Bearer <api-key>` as equivalent to a session, so the rig mints a
+read-write key and the dev vite config presents it. Writes are safe: the
+database is a throwaway. `make dev-auth-reset` starts it over.
+
+**Public pages, against the real corpus** — prod data, no local backend needed:
 
 ```bash
 flox activate -- make frontend-dev-live   # :3100, local frontend + prod data
 ```
 
-Then drive it with the Firefox DevTools MCP — `navigate_page` to
-`http://localhost:3100/...`, `evaluate_script` for computed styles, and
+The table below applies to the **prod-proxied** rig only; the local auth rig has
+none of these limits, at the cost of an empty database you seed yourself.
+
+Then drive either with the Firefox DevTools MCP — `navigate_page` to the right
+port, `evaluate_script` for computed styles, and
 `screenshot_page` to actually look. Assert on computed values, not on the
 stylesheet source:
 
@@ -412,7 +430,7 @@ check `--font-mono` on a page that actually renders a digest or purl.
 
 | Limit | Why | Consequence |
 |---|---|---|
-| Signed out only | the prod session cookie is scoped to `ocidex.app` and does not travel to `localhost` | `/dashboard`, `/clusters`, `/admin` redirect to login; those surfaces stay unit-test-verified |
+| Signed out only | the prod session cookie is scoped to `ocidex.app` and does not travel to `localhost` | `/dashboard`, `/clusters`, `/admin` redirect to login — use `make frontend-dev-auth` for those, never a copied prod cookie |
 | Read only | requests reach **production** | never point it at a write flow, and never add credentials |
 | Frontend only | prod runs the deployed API, not your branch | a backend change (new field, new pagination) is invisible until the branch deploys — say so in the issue rather than claiming it was verified |
 
