@@ -1,10 +1,56 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent } from "@solidjs/testing-library";
 import CommandPalette, { openCommandPalette } from "./CommandPalette";
 
 const mockNavigate = vi.fn();
 vi.mock("@solidjs/router", () => ({ useNavigate: () => mockNavigate }));
+
+/**
+ * A stand-in corpus for the four catalog searches.
+ *
+ * The hooks are replaced rather than the fetch layer because what this file is
+ * testing is the palette's behaviour around results — where they land, how the
+ * highlight crosses them, what an errored group looks like — not how the four
+ * endpoints are called. Each fake reads `term()` inside a getter, so it is as
+ * reactive as the real query and narrows as the debounced term changes.
+ *
+ * `boom` is the error term: it stands in for a 401 reaching a signed-out
+ * visitor, which since ocidex-ag4q.1 arrives as data rather than a redirect.
+ */
+vi.mock("~/api/queries", () => {
+    const CORPUS: Record<string, { key: string; label: string; sub?: string; path: string }[]> = {
+        artifacts: [
+            { key: "a1", label: "ghcr.io/pfenerty/ocidex", sub: "container", path: "/artifacts/a1" },
+        ],
+        components: [
+            { key: "c1", label: "openssl", sub: "12 versions", path: "/components/overview?name=openssl" },
+        ],
+        vulns: [
+            { key: "v1", label: "CVE-2026-0001", sub: "CRITICAL", path: "/vulnerabilities/CVE-2026-0001" },
+            { key: "v2", label: "CVE-2026-0002", sub: "HIGH", path: "/vulnerabilities/CVE-2026-0002" },
+        ],
+        licenses: [{ key: "l1", label: "OpenSSL License", sub: "OpenSSL", path: "/licenses/l1/components" }],
+    };
+    const make = (group: string) => (term: () => string) => ({
+        get data() {
+            const q = term().toLowerCase();
+            if (q.length < 2 || q === "boom") return undefined;
+            return CORPUS[group].filter((h) => h.label.toLowerCase().includes(q));
+        },
+        get isError() {
+            return term() === "boom";
+        },
+        isFetching: false,
+    });
+    return {
+        MIN_SEARCH_TERM: 2,
+        useArtifactSearch: make("artifacts"),
+        useComponentSearch: make("components"),
+        useVulnerabilitySearch: make("vulns"),
+        useLicenseSearch: make("licenses"),
+    };
+});
 
 interface User { id: string; github_username: string; role: string }
 let mockUserFn: (() => User | undefined) & { loading: boolean };
@@ -39,9 +85,27 @@ function pressShortcut(): void {
     fireEvent.keyDown(document, { key: "k", metaKey: true });
 }
 
+/**
+ * Type, then let the 300ms debounce expire.
+ *
+ * Route entries filter on the keystroke itself; catalog results wait for this.
+ * Tests that only care about the route list can use `fireEvent.input` directly
+ * and never advance the clock — that is the pre-debounce state, and it is a real
+ * one a user sees.
+ */
+function search(input: HTMLInputElement, text: string): void {
+    fireEvent.input(input, { target: { value: text } });
+    vi.advanceTimersByTime(400);
+}
+
 describe("CommandPalette", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
     });
 
     it("stays shut until the shortcut, and shuts again on Escape", () => {
@@ -80,11 +144,15 @@ describe("CommandPalette", () => {
         expect(labels()).toEqual(["Vulnerabilities"]);
     });
 
-    it("says so when nothing matches, instead of showing an empty box", () => {
-        const { input, options, getByText } = mount(member);
+    it("does not claim nothing matched while a search is still out", () => {
+        const { input, getByText } = mount(member);
         pressShortcut();
+        // Typed, but the debounce has not fired: the catalog has not answered,
+        // so "No matching page" would be a claim the palette cannot make yet.
         fireEvent.input(input(), { target: { value: "nothing-matches-this" } });
-        expect(options()).toHaveLength(0);
+        expect(getByText("Searching…")).toBeTruthy();
+
+        vi.advanceTimersByTime(400);
         expect(getByText("No matching page")).toBeTruthy();
     });
 
@@ -168,6 +236,85 @@ describe("CommandPalette", () => {
             (h) => h.textContent,
         );
         expect(headings).toEqual(["Manage"]);
+    });
+
+    it("puts catalog results beside the route entries, not instead of them", () => {
+        const { input, dialog, labels } = mount(member);
+        pressShortcut();
+        search(input(), "openssl");
+
+        const headings = Array.from(dialog.querySelectorAll(".command-palette-group")).map(
+            (h) => h.textContent,
+        );
+        // The route list keeps no match for "openssl", so only catalog groups
+        // remain — and both of the ones that matched are present.
+        expect(headings).toEqual(["Components", "Licenses"]);
+        expect(labels()).toEqual(["openssl", "OpenSSL License"]);
+    });
+
+    it("keeps offering the page when a term matches both a route and the catalog", () => {
+        const { input, dialog } = mount(member);
+        pressShortcut();
+        search(input(), "cve");
+
+        const headings = Array.from(dialog.querySelectorAll(".command-palette-group")).map(
+            (h) => h.textContent,
+        );
+        expect(headings).toEqual(["Explore", "Vulnerabilities"]);
+    });
+
+    it("navigates to a catalog hit, not only to a route", () => {
+        const { input, options } = mount(member);
+        pressShortcut();
+        search(input(), "cve");
+        // Explore/Vulnerabilities is first; the two CVEs follow it.
+        fireEvent.mouseDown(options()[1]);
+        expect(mockNavigate).toHaveBeenCalledWith("/vulnerabilities/CVE-2026-0001");
+    });
+
+    it("walks route entries and catalog hits with one continuous highlight", () => {
+        const { input } = mount(member);
+        pressShortcut();
+        search(input(), "cve");
+        // Down twice from the Vulnerabilities page lands on the second CVE:
+        // the arrow keys do not stop at the boundary between the two kinds.
+        fireEvent.keyDown(input(), { key: "ArrowDown" });
+        fireEvent.keyDown(input(), { key: "ArrowDown" });
+        fireEvent.keyDown(input(), { key: "Enter" });
+        expect(mockNavigate).toHaveBeenCalledWith("/vulnerabilities/CVE-2026-0002");
+    });
+
+    it("renders a group that errored as absent, not as a failure", () => {
+        const { input, dialog, getByText } = mount(undefined);
+        pressShortcut();
+        // "boom" stands in for a 401 from one of the four endpoints.
+        search(input(), "boom");
+
+        expect(dialog.querySelectorAll(".command-palette-group")).toHaveLength(0);
+        expect(getByText("No matching page")).toBeTruthy();
+        // The point of the story: a 401 is data. It must not have navigated.
+        expect(mockNavigate).not.toHaveBeenCalled();
+    });
+
+    it("does not search on a single character", () => {
+        const { input, labels } = mount(member);
+        pressShortcut();
+        search(input(), "o");
+        // Route entries still filter — "o" is in most of them — but nothing
+        // from the catalog joins them.
+        expect(labels()).not.toContain("openssl");
+        expect(labels()).not.toContain("OpenSSL License");
+    });
+
+    it("drops catalog hits when the term is cleared, despite the kept cache", () => {
+        const { input, labels } = mount(member);
+        pressShortcut();
+        search(input(), "openssl");
+        expect(labels()).toContain("openssl");
+
+        search(input(), "");
+        expect(labels()).not.toContain("openssl");
+        expect(labels()).toContain("Home");
     });
 
     it("clears the query when it closes, so it opens fresh", () => {

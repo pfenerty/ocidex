@@ -5,6 +5,8 @@ export { useLicenses, useLicenseComponents } from "./licenses";
 export { useDiff, useDiffTree } from "./diff";
 export { useDashboardStats } from "./stats";
 export { useDiscovery } from "./discovery";
+export { useArtifactSearch, useComponentSearch, useVulnerabilitySearch, useLicenseSearch, MIN_SEARCH_TERM } from "./search";
+export type { SearchHit } from "./search";
 export type { DiscoverArtifact, DiscoverRecent, DiscoverVuln, DiscoverLicense } from "./discovery";
 export { useTopVulnerabilities, useVulnerabilityDetail } from "./vulns";
 export { useListAPIKeys, useCreateAPIKey, useDeleteAPIKey, useListUsers, useUpdateUserRole, useGetSystemStatus } from "./auth";

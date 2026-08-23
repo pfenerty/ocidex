@@ -11,6 +11,14 @@ import {
 import { useNavigate } from "@solidjs/router";
 import { Search } from "lucide-solid";
 import { useAuth } from "~/context/auth";
+import {
+    useArtifactSearch,
+    useComponentSearch,
+    useVulnerabilitySearch,
+    useLicenseSearch,
+    MIN_SEARCH_TERM,
+} from "~/api/queries";
+import type { SearchHit } from "~/api/queries";
 
 interface User {
     role: string;
@@ -64,6 +72,19 @@ const ENTRIES: readonly Entry[] = [
     { path: "/login", label: "Sign in", group: "Account", keywords: "github login auth", visible: (u) => u === undefined },
 ];
 
+/** How long a keystroke waits before it costs a request. */
+const SEARCH_DEBOUNCE_MS = 300;
+
+/** One rendered row, whether it came from the route list or from the catalog. */
+interface Row {
+    key: string;
+    label: string;
+    /** Right-hand qualifier: a route's path, or a hit's type/severity/version count. */
+    sub?: string;
+    path: string;
+    group: string;
+}
+
 // Module scope so anything can raise the palette without threading state
 // through the tree — `Layout.tsx`'s sidebar trigger is the only caller today,
 // but a palette nobody can find is worth nothing, and every future affordance
@@ -86,11 +107,16 @@ export function isAppleShortcut(): boolean {
  * Mounted once, in `Layout.tsx`, and outside the `/login` branch — the shortcut
  * is muscle memory or it is nothing, so it may not blink out on one route.
  *
- * This is the shell: the entries are the static route list above and filtering
- * is synchronous, for the reason `Combobox` already documents — the candidates
- * are in memory, so a debounce would only add lag between a keystroke and the
- * list narrowing. Live search (ocidex-ag4q.46) adds a debounced fan-out
- * *beside* these entries; it does not replace them.
+ * Two kinds of row share one list. The route entries above are filtered
+ * synchronously — they are already in memory, so a debounce there would only add
+ * lag between a keystroke and the list narrowing. Catalog results fan out to
+ * four endpoints and so are debounced by `SEARCH_DEBOUNCE_MS`, and they arrive
+ * *beside* the route entries rather than replacing them: "vulnerabilities" must
+ * still offer the page even once it also offers matching CVEs.
+ *
+ * A group that errors is rendered as absent. For a signed-out visitor a 401 from
+ * any one endpoint is an answer about what they may see, not a failure of the
+ * palette — and since ocidex-ag4q.1 it no longer navigates anywhere.
  */
 export default function CommandPalette() {
     const navigate = useNavigate();
@@ -113,7 +139,7 @@ export default function CommandPalette() {
         ENTRIES.filter((e) => e.visible === undefined || e.visible(user())),
     );
 
-    const matches = createMemo(() => {
+    const routeMatches = createMemo(() => {
         const terms = query().toLowerCase().split(/\s+/).filter((t) => t !== "");
         if (terms.length === 0) return available();
         return available().filter((e) => {
@@ -122,19 +148,75 @@ export default function CommandPalette() {
         });
     });
 
+    // The debounce delays the *request*, never the displayed value: `query`
+    // drives the box and the route filter, `debounced` drives the four fetches.
+    const [debounced, setDebounced] = createSignal("");
+    let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+    createEffect(() => {
+        const q = query().trim();
+        if (debounceTimer !== undefined) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => setDebounced(q), SEARCH_DEBOUNCE_MS);
+    });
+    onCleanup(() => {
+        if (debounceTimer !== undefined) clearTimeout(debounceTimer);
+    });
+
+    const artifacts = useArtifactSearch(debounced);
+    const components = useComponentSearch(debounced);
+    const vulns = useVulnerabilitySearch(debounced);
+    const licenses = useLicenseSearch(debounced);
+
+    const searches = [
+        { group: "Artifacts", query: artifacts },
+        { group: "Components", query: components },
+        { group: "Vulnerabilities", query: vulns },
+        { group: "Licenses", query: licenses },
+    ];
+
+    /** True once a term is long enough to have been sent. */
+    const searchable = (): boolean => debounced().length >= MIN_SEARCH_TERM;
+
+    /** A keystroke is in the debounce window, or a fetch is in flight. */
+    const searching = (): boolean =>
+        query().trim() !== debounced() || (searchable() && searches.some((s) => s.query.isFetching));
+
+    const rows = createMemo<Row[]>(() => {
+        const out: Row[] = routeMatches().map((e) => ({
+            key: e.path,
+            label: e.label,
+            sub: e.path,
+            path: e.path,
+            group: e.group,
+        }));
+        // `keepPreviousData` deliberately outlives the query that fetched it, so
+        // the rows do not blink between keystrokes — which also means the last
+        // term's hits are still in `data` after the box is cleared. Gate on the
+        // live term rather than on the cache.
+        if (!searchable()) return out;
+        for (const s of searches) {
+            // An errored group contributes nothing rather than an error row: the
+            // palette is a way to get somewhere, not a place to report failures.
+            const hits: SearchHit[] | undefined = s.query.isError ? undefined : s.query.data;
+            for (const h of hits ?? []) {
+                out.push({ key: `${s.group}:${h.key}`, label: h.label, sub: h.sub, path: h.path, group: s.group });
+            }
+        }
+        return out;
+    });
+
     // Groups are derived from the filtered list rather than filtered per group,
     // so a group that matches nothing disappears instead of leaving a heading
     // over empty space. The flat index rides along because the highlight is
     // flat — arrow keys cross group boundaries without the user noticing them.
     const groups = createMemo(() => {
-        const out: { name: string; items: { entry: Entry; index: number }[] }[] = [];
-        matches().forEach((entry, index) => {
-            let g = out.find((o) => o.name === entry.group);
+        const out: { name: string; items: { row: Row; index: number }[] }[] = [];
+        rows().forEach((row, index) => {
+            let g = out.find((o) => o.name === row.group);
             if (g === undefined) {
-                g = { name: entry.group, items: [] };
+                g = { name: row.group, items: [] };
                 out.push(g);
             }
-            g.items.push({ entry, index });
+            g.items.push({ row, index });
         });
         return out;
     });
@@ -143,12 +225,13 @@ export default function CommandPalette() {
         setOpen(false);
         dialogEl?.close();
         setQuery("");
+        setDebounced("");
         setHighlight(0);
     }
 
-    function choose(entry: Entry): void {
+    function choose(row: Row): void {
         close();
-        navigate(entry.path);
+        navigate(row.path);
     }
 
     // The dialog is imperative — `showModal()` is what puts it in the top layer
@@ -187,7 +270,7 @@ export default function CommandPalette() {
     onCleanup(() => document.removeEventListener("keydown", onDocumentKeyDown));
 
     function onKeyDown(e: KeyboardEvent): void {
-        const list = matches();
+        const list = rows();
         if (e.key === "ArrowDown" || e.key === "ArrowUp") {
             e.preventDefault();
             if (list.length === 0) return;
@@ -221,6 +304,7 @@ export default function CommandPalette() {
             onClose={() => {
                 setOpen(false);
                 setQuery("");
+                setDebounced("");
                 setHighlight(0);
             }}
         >
@@ -236,7 +320,7 @@ export default function CommandPalette() {
                         aria-controls={listId}
                         aria-autocomplete="list"
                         aria-activedescendant={
-                            matches().length > 0 ? `${listId}-${highlight()}` : undefined
+                            rows().length > 0 ? `${listId}-${highlight()}` : undefined
                         }
                         placeholder="Go to…"
                         autocomplete="off"
@@ -255,8 +339,12 @@ export default function CommandPalette() {
                     role="listbox"
                     aria-label="Commands"
                 >
-                    <Show when={matches().length === 0}>
-                        <li class="command-palette-empty">No matching page</li>
+                    <Show when={rows().length === 0}>
+                        <li class="command-palette-empty">
+                            {/* "Nothing matched" is a claim, and it is false
+                                while a request is still out. */}
+                            {searching() ? "Searching…" : "No matching page"}
+                        </li>
                     </Show>
                     <For each={groups()}>
                         {(group) => (
@@ -267,31 +355,35 @@ export default function CommandPalette() {
                                 <div class="command-palette-group">{group.name}</div>
                                 <ul role="group" aria-label={group.name}>
                                     <For each={group.items}>
-                                        {(row) => (
+                                        {(item) => (
                                             <li
-                                                id={`${listId}-${row.index}`}
+                                                id={`${listId}-${item.index}`}
                                                 role="option"
-                                                aria-selected={row.index === highlight()}
+                                                aria-selected={item.index === highlight()}
                                                 class={
-                                                    row.index === highlight()
+                                                    item.index === highlight()
                                                         ? "command-palette-option is-active"
                                                         : "command-palette-option"
                                                 }
-                                                onMouseEnter={() => setHighlight(row.index)}
+                                                onMouseEnter={() => setHighlight(item.index)}
                                                 // mousedown, not click: the input
                                                 // loses focus first and the row is
                                                 // gone by the time click fires.
                                                 onMouseDown={(e) => {
                                                     e.preventDefault();
-                                                    choose(row.entry);
+                                                    choose(item.row);
                                                 }}
                                             >
                                                 <span class="command-palette-label">
-                                                    {row.entry.label}
+                                                    {item.row.label}
                                                 </span>
-                                                <span class="command-palette-path">
-                                                    {row.entry.path}
-                                                </span>
+                                                <Show when={item.row.sub}>
+                                                    {(sub) => (
+                                                        <span class="command-palette-path">
+                                                            {sub()}
+                                                        </span>
+                                                    )}
+                                                </Show>
                                             </li>
                                         )}
                                     </For>
@@ -304,6 +396,11 @@ export default function CommandPalette() {
                     <span><kbd>↑</kbd><kbd>↓</kbd> to move</span>
                     <span><kbd>↵</kbd> to open</span>
                     <span><kbd>esc</kbd> to close</span>
+                    {/* Says more rows may still arrive. Without it, results
+                        landing 300ms after the list settled read as a glitch. */}
+                    <Show when={searching() && rows().length > 0}>
+                        <span class="command-palette-searching">Searching…</span>
+                    </Show>
                 </div>
             </div>
         </dialog>

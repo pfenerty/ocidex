@@ -145,6 +145,11 @@ dialog.command-palette {
     flex-shrink: 0;
 }
 
+.command-palette-searching {
+    margin-left: auto;
+    color: var(--color-text-muted);
+}
+
 .command-palette-hint kbd {
     display: inline-block;
     min-width: 1.25em;
