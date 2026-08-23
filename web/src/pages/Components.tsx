@@ -12,7 +12,7 @@ import type { components } from "~/types/openapi";
 import DataTable from "~/components/DataTable";
 import type { Column, SortDir } from "~/components/DataTable";
 import { ComponentNameCell } from "~/components/cells";
-import { Button } from "~/components/ui";
+import { Button, PageHeader } from "~/components/ui";
 
 type DistinctComponentSummary = components["schemas"]["DistinctComponentSummary"];
 type ComponentSummary = components["schemas"]["ComponentSummary"];
@@ -59,28 +59,28 @@ function PurlOccurrences(props: { purl: string }) {
 
     return (
         <>
-            <div class="page-header">
-                <div class="page-header-row">
-                    <div>
-                        <h2>Component occurrences</h2>
-                        <p>
-                            <span class="font-mono text-sm">{props.purl}</span>
-                            <Show when={query.data}>
-                                {(d) => (
-                                    <span class="text-muted">
-                                        {" "}
-                                        &mdash; found in{" "}
-                                        {d().pagination.total.toLocaleString()} SBOMs
-                                    </span>
-                                )}
-                            </Show>
-                        </p>
-                    </div>
+            <PageHeader
+                title="Component occurrences"
+                subtitle={
+                    <>
+                        <span class="font-mono text-sm">{props.purl}</span>
+                        <Show when={query.data}>
+                            {(d) => (
+                                <span class="text-muted">
+                                    {" "}
+                                    &mdash; found in{" "}
+                                    {d().pagination.total.toLocaleString()} SBOMs
+                                </span>
+                            )}
+                        </Show>
+                    </>
+                }
+                actions={
                     <Button as={A} href="/components" size="sm">
                         All components
                     </Button>
-                </div>
-            </div>
+                }
+            />
 
             <DataTable
                 columns={columns}
@@ -167,26 +167,24 @@ function ComponentBrowser() {
 
     return (
         <>
-            <div class="page-header">
-                <div class="page-header-row">
-                    <div>
-                        <h2>Components</h2>
-                        <p>
-                            Libraries found across all SBOMs
-                            <Show when={query.data}>
-                                {(d) => (
-                                    <span class="text-muted">
-                                        {" "}
-                                        &mdash;{" "}
-                                        {formatCount(d().pagination.total)}{" "}
-                                        total
-                                    </span>
-                                )}
-                            </Show>
-                        </p>
-                    </div>
-                </div>
-            </div>
+            <PageHeader
+                title="Components"
+                subtitle={
+                    <>
+                        Libraries found across all SBOMs
+                        <Show when={query.data}>
+                            {(d) => (
+                                <span class="text-muted">
+                                    {" "}
+                                    &mdash;{" "}
+                                    {formatCount(d().pagination.total)}{" "}
+                                    total
+                                </span>
+                            )}
+                        </Show>
+                    </>
+                }
+            />
 
             <div class="search-bar mb-4">
                 <input

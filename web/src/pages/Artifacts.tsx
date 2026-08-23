@@ -7,6 +7,7 @@ import LoadMore from "~/components/LoadMore";
 import { artifactDisplayName, plural } from "~/utils/format";
 import { SigningBadge, TypeBadge } from "~/components/cells";
 import { DEFAULT_PAGE_SIZE, type ArtifactSummary } from "~/api/client";
+import { PageHeader } from "~/components/ui";
 
 const ARTIFACT_TYPES = [
     "application",
@@ -105,17 +106,10 @@ export default function Artifacts() {
 
     return (
         <>
-            <div class="page-header">
-                <div class="page-header-row">
-                    <div>
-                        <h2>Artifacts</h2>
-                        <p>
-                            Software artifacts (container images, libraries,
-                            applications) tracked by OCIDex
-                        </p>
-                    </div>
-                </div>
-            </div>
+            <PageHeader
+                title="Artifacts"
+                subtitle="Software artifacts (container images, libraries, applications) tracked by OCIDex"
+            />
 
             <div class="search-bar mb-4">
                 <input

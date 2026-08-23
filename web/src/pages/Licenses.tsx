@@ -6,7 +6,7 @@ import type { components } from "~/types/openapi";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { SpdxBadgeCell, LicenseCategoryCell } from "~/components/cells";
-import { Button, TabBar } from "~/components/ui";
+import { Button, PageHeader, TabBar } from "~/components/ui";
 
 type LicenseCount = components["schemas"]["LicenseCount"];
 
@@ -68,14 +68,7 @@ export default function Licenses() {
 
     return (
         <>
-            <div class="page-header">
-                <div class="page-header-row">
-                    <div>
-                        <h2>Licenses</h2>
-                        <p>All licenses found across ingested SBOMs</p>
-                    </div>
-                </div>
-            </div>
+            <PageHeader title="Licenses" subtitle="All licenses found across ingested SBOMs" />
 
             {/* This strip highlighted correctly on its own, but carried the same
                 stray `tab-btn` class as the two that did not. <TabBar> is the

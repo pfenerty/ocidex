@@ -7,7 +7,7 @@ import type { components } from "~/types/openapi";
 import DataTable from "~/components/DataTable";
 import type { Column, SortDir } from "~/components/DataTable";
 import { SeverityPill, VulnId } from "~/components/cells";
-import { Button, TabBar } from "~/components/ui";
+import { Button, PageHeader, TabBar } from "~/components/ui";
 
 type TopVulnEntry = components["schemas"]["TopVulnEntry"];
 
@@ -111,50 +111,55 @@ export default function Vulnerabilities() {
 
     return (
         <>
-            <div class="page-header">
-                <div class="page-header-row">
-                    <div>
-                        <h2>Vulnerabilities</h2>
-                        <p>
-                            Most-found CVEs across all tracked artifacts
-                            <Show when={query.data}>
-                                {(d) => (
-                                    <span class="text-muted">
-                                        {" "}
-                                        &mdash;{" "}
-                                        {d().pagination.total.toLocaleString()}{" "}
-                                        total
-                                    </span>
-                                )}
-                            </Show>
-                        </p>
-                    </div>
-                </div>
+            <PageHeader
+                title="Vulnerabilities"
+                subtitle={
+                    <>
+                        Most-found CVEs across all tracked artifacts
+                        <Show when={query.data}>
+                            {(d) => (
+                                <span class="text-muted">
+                                    {" "}
+                                    &mdash;{" "}
+                                    {d().pagination.total.toLocaleString()}{" "}
+                                    total
+                                </span>
+                            )}
+                        </Show>
+                    </>
+                }
+            />
 
-                {/* The severity strip is <TabBar>, not hand-rolled markup: the
-                    hand-rolled version emitted `tab-btn`/`tab-active`, neither
-                    of which exists in the stylesheet, so the active severity
-                    was indistinguishable from the other five (ocidex-ag4q.6).
-                    The real contract is `.tab-bar button.active`, and TabBar is
-                    the one place that writes it. */}
-                <TabBar
-                    tabs={SEVERITY_TABS.map((t) => ({ id: t, label: t }))}
-                    active={activeSeverityTab()}
-                    onSelect={handleTabChange}
+            {/* The severity strip is <TabBar>, not hand-rolled markup: the
+                hand-rolled version emitted `tab-btn`/`tab-active`, neither
+                of which exists in the stylesheet, so the active severity
+                was indistinguishable from the other five (ocidex-ag4q.6).
+                The real contract is `.tab-bar button.active`, and TabBar is
+                the one place that writes it.
+
+                The strip and the search form used to sit *inside* the
+                `.page-header` div, which exists only to carry the title
+                block's bottom margin — so they inherited a gap of zero above
+                and 1.5rem below. Lifting them out is what makes this page the
+                same shape as Licenses, which had it right. */}
+            <TabBar
+                tabs={SEVERITY_TABS.map((t) => ({ id: t, label: t }))}
+                active={activeSeverityTab()}
+                onSelect={handleTabChange}
+                class="mb-4"
+            />
+
+            <form class="search-bar mb-4" onSubmit={submitIdSearch}>
+                <input
+                    type="text"
+                    placeholder="Jump to CVE / GHSA / OSV id…"
+                    value={idQuery()}
+                    onInput={(e) => setIdQuery(e.currentTarget.value)}
                 />
-
-                <form class="search-bar mb-4" onSubmit={submitIdSearch}>
-                    <input
-                        type="text"
-                        placeholder="Jump to CVE / GHSA / OSV id…"
-                        value={idQuery()}
-                        onInput={(e) => setIdQuery(e.currentTarget.value)}
-                    />
-                    <Button type="submit" variant="primary">
-                        Go
-                    </Button>
-                </form>
-            </div>
+                <Button type="submit" variant="primary">
+                    Go
+                </Button>
+            </form>
 
             <DataTable
                 columns={columns}

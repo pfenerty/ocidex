@@ -2,7 +2,7 @@ import { For, Show, createSignal } from "solid-js";
 import { A } from "@solidjs/router";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
-import { Button, Card, CardHeader, FormField, StatusPill } from "~/components/ui";
+import { Button, Card, CardHeader, FormField, PageHeader, StatusPill } from "~/components/ui";
 import { useToast } from "~/context/toast";
 import { relativeDate } from "~/utils/format";
 import type { Cluster } from "~/api/client";
@@ -258,17 +258,10 @@ export default function Clusters() {
 
     return (
         <>
-            <div class="page-header">
-                <div class="page-header-row">
-                    <div>
-                        <h2>Clusters</h2>
-                        <p>
-                            Kubernetes clusters reporting what they run. Register a cluster here,
-                            then install the agent chart in it with the cluster ID.
-                        </p>
-                    </div>
-                </div>
-            </div>
+            <PageHeader
+                title="Clusters"
+                subtitle="Kubernetes clusters reporting what they run. Register a cluster here, then install the agent chart in it with the cluster ID."
+            />
 
             <Card class="mb-4">
                 <CardHeader title="Register cluster" />

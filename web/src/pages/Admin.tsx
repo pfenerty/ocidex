@@ -8,6 +8,7 @@ import { StatusTab } from "./admin/StatusTab";
 import { SourcesTab } from "./admin/SourcesTab";
 import { NamespacesTab } from "./admin/NamespacesTab";
 import { JobsTab } from "./admin/JobsTab";
+import { PageHeader } from "~/components/ui";
 
 interface AdminTab {
     label: string;
@@ -73,18 +74,14 @@ export default function Admin() {
     // highlighted Jobs and rendered Sources forever (ocidex-ag4q.5).
     return (
         <Show when={!user.loading} fallback={<SkeletonHeader />}>
-            <div class="page-header">
-                <div class="page-header-row">
-                    <div>
-                        <h2>{user()?.role === "admin" ? "Admin" : "Sources"}</h2>
-                        <p>
-                            {user()?.role === "admin"
-                                ? "User management, API keys, and system configuration"
-                                : "Registries and other ingest channels you own"}
-                        </p>
-                    </div>
-                </div>
-            </div>
+            <PageHeader
+                title={user()?.role === "admin" ? "Admin" : "Sources"}
+                subtitle={
+                    user()?.role === "admin"
+                        ? "User management, API keys, and system configuration"
+                        : "Registries and other ingest channels you own"
+                }
+            />
 
             <nav style={{ display: "flex", gap: "0", "margin-bottom": "1.5rem", "border-bottom": "1px solid var(--color-border)" }}>
                 <For each={tabs()}>
