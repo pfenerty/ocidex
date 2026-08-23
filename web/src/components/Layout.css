@@ -264,47 +264,155 @@
     margin-inline: auto;
 }
 
+/*
+ * The drawer toggle. Hidden above the breakpoint, where the sidebar is already
+ * open and there is nothing to reveal.
+ */
+.sidebar-drawer-toggle {
+    display: none;
+}
+
+/* Both the toggle and its backdrop are inert above the breakpoint, so a drawer
+   left open across a resize to desktop does not strand a black sheet over the
+   page. */
+.sidebar-backdrop {
+    display: none;
+}
+
+/*
+ * Below 768px the sidebar is a 56px icon rail, and `.sidebar-open` is that same
+ * rail expanded over the content as a drawer.
+ *
+ * It used to be a rail that had only *half* collapsed (ocidex-ag4q.49): the nav
+ * labels, the brand tagline and the search text were hidden, but the footer was
+ * not — so a signed-out visitor at 390px got "Sign in with GitHub" wrapped over
+ * three lines inside a 56px column, and a signed-in one got their username
+ * doing the same. Everything that carries a word is now hidden in the rail and
+ * shown in the drawer, which is the one place a label has room.
+ *
+ * The drawer is the sidebar itself, not a second copy of the nav: one set of
+ * links, one footer, one place to add a route. That is why the rules below hide
+ * labels and the `.sidebar-open` rules simply stop hiding them.
+ */
 @media (max-width: 768px) {
     .sidebar {
         width: 56px;
     }
 
-    .sidebar-brand {
+    .sidebar-drawer-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
         padding: 0.75rem;
-        text-align: center;
+        border: none;
+        border-bottom: 1px solid var(--color-border);
+        background: none;
+        color: var(--color-text-muted);
     }
 
-    .sidebar-brand h1 {
-        font-size: 0.75rem;
+    .sidebar-drawer-toggle:hover {
+        color: var(--color-text);
+        background: var(--color-surface-hover);
     }
 
-    .sidebar-brand span,
-    .sidebar-brand p,
+    /* The brand block is a 1.25rem-padded banner; at 56px it reduced to the
+       three letters "OCI", which names nothing the hamburger above it doesn't.
+       It comes back with the drawer. */
+    .sidebar-brand {
+        display: none;
+    }
+
     .sidebar nav a span,
     .sidebar-search span,
-    .sidebar-search kbd {
+    .sidebar-search kbd,
+    .sidebar-sign-in span,
+    .sidebar-user-info span {
         display: none;
     }
 
     /* The rail is 56px wide and the shortcut is not typeable on a phone, so
-       the trigger keeps only its icon. The full rail rework is ocidex-ag4q.49. */
+       the trigger keeps only its icon. */
     .sidebar-search {
         justify-content: center;
         margin: 0 0.5rem 0.5rem;
         width: auto;
     }
 
-    .sidebar nav a {
+    .sidebar nav a,
+    .sidebar-sign-in {
         justify-content: center;
         padding: 0.625rem;
     }
 
+    .sidebar-user {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
     .sidebar-footer {
         padding: 0.5rem;
+        align-items: center;
     }
 
     .main-content {
         padding: 1rem;
+    }
+
+    /* Fixed, not merely wider: widening the rail in flow would shove the
+       article sideways under the drawer. */
+    .sidebar-open {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 60;
+        width: 240px;
+        height: 100%;
+        box-shadow: 0 0 32px rgba(0, 0, 0, 0.45);
+    }
+
+    .sidebar-open .sidebar-brand {
+        display: block;
+    }
+
+    .sidebar-open nav a span,
+    .sidebar-open .sidebar-search span,
+    .sidebar-open .sidebar-search kbd,
+    .sidebar-open .sidebar-sign-in span,
+    .sidebar-open .sidebar-user-info span {
+        display: initial;
+    }
+
+    .sidebar-open .sidebar-search {
+        justify-content: flex-start;
+    }
+
+    .sidebar-open nav a,
+    .sidebar-open .sidebar-sign-in {
+        justify-content: flex-start;
+        padding: 0.5rem 0.75rem;
+    }
+
+    .sidebar-open .sidebar-user {
+        flex-direction: row;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+
+    .sidebar-open .sidebar-footer {
+        align-items: stretch;
+    }
+
+    .sidebar-open .sidebar-drawer-toggle {
+        justify-content: flex-end;
+        padding-right: 1rem;
+    }
+
+    .sidebar-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        background: rgba(0, 0, 0, 0.5);
     }
 }
 

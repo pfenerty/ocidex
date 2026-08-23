@@ -18,8 +18,19 @@ const mockNavigate = vi.fn();
 const mockLocation = { pathname: "/artifacts" };
 
 vi.mock("@solidjs/router", () => ({
-    A: (props: { href: string; children?: JSX.Element; class?: string; end?: boolean }) => (
-        <a href={props.href} class={props.class}>{props.children}</a>
+    // `aria-label` is forwarded on purpose: it is what names a nav link in the
+    // mobile rail, where the <span> label is hidden and so is out of the
+    // accessibility tree.
+    A: (props: {
+        href: string;
+        children?: JSX.Element;
+        class?: string;
+        end?: boolean;
+        "aria-label"?: string;
+    }) => (
+        <a href={props.href} class={props.class} aria-label={props["aria-label"]}>
+            {props.children}
+        </a>
     ),
     useNavigate: () => mockNavigate,
     useLocation: () => mockLocation,
@@ -145,5 +156,71 @@ describe("Layout", () => {
         expect(mockRefetch).toHaveBeenCalled();
 
         vi.unstubAllGlobals();
+    });
+});
+
+/**
+ * Below 768px the sidebar collapses to a 56px icon rail and this button opens
+ * it back up. The CSS half of the contract — which labels the rail hides and
+ * the drawer restores — is asserted in `sidebarRailContract.test.ts`, since
+ * happy-dom has no layout engine and no media queries to evaluate.
+ */
+describe("Layout mobile drawer", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mockLocation.pathname = "/artifacts";
+        mockUserFn = asResource(makeUser());
+    });
+
+    it("starts closed", () => {
+        const { getByLabelText, container } = render(() => <Wrapped>page</Wrapped>);
+        const toggle = getByLabelText("Open navigation");
+        expect(toggle.getAttribute("aria-expanded")).toBe("false");
+        expect(container.querySelector(".sidebar-open")).toBeNull();
+        expect(container.querySelector(".sidebar-backdrop")).toBeNull();
+    });
+
+    it("opens the drawer and its backdrop when the toggle is clicked", () => {
+        const { getByLabelText, container } = render(() => <Wrapped>page</Wrapped>);
+        fireEvent.click(getByLabelText("Open navigation"));
+
+        expect(container.querySelector(".sidebar-open")).not.toBeNull();
+        expect(container.querySelector(".sidebar-backdrop")).not.toBeNull();
+        expect(getByLabelText("Close navigation").getAttribute("aria-expanded")).toBe("true");
+    });
+
+    it("closes when the backdrop is tapped", () => {
+        const { getByLabelText, container } = render(() => <Wrapped>page</Wrapped>);
+        fireEvent.click(getByLabelText("Open navigation"));
+
+        const backdrop = container.querySelector(".sidebar-backdrop");
+        if (backdrop === null) throw new Error("the drawer rendered no backdrop");
+        fireEvent.click(backdrop);
+
+        expect(container.querySelector(".sidebar-open")).toBeNull();
+    });
+
+    it("closes on Escape", () => {
+        const { getByLabelText, container } = render(() => <Wrapped>page</Wrapped>);
+        fireEvent.click(getByLabelText("Open navigation"));
+        expect(container.querySelector(".sidebar-open")).not.toBeNull();
+
+        fireEvent.keyDown(window, { key: "Escape" });
+        expect(container.querySelector(".sidebar-open")).toBeNull();
+    });
+
+    // The rail hides these labels with `display: none`, which takes them out of
+    // the accessibility tree too — so an icon-only link needs its own name.
+    it("names every nav link even with its label hidden", () => {
+        mockUserFn = asResource(makeUser({ role: "admin" }));
+        const { container } = render(() => <Wrapped>page</Wrapped>);
+        // Scoped to the sidebar: the command palette is mounted alongside it
+        // and offers the same route names.
+        const sidebar = container.querySelector("aside.sidebar");
+        if (sidebar === null) throw new Error("no sidebar rendered");
+        for (const name of ["Home", "Workspace", "Artifacts", "Components", "Licenses",
+            "Vulnerabilities", "Compare", "Clusters", "Admin", "Search"]) {
+            expect(sidebar.querySelector(`[aria-label="${name}"]`)).not.toBeNull();
+        }
     });
 });
