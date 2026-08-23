@@ -68,10 +68,10 @@
 }
 
 /* These subs are descriptions, not the one-word status strings the other bands
-   put here, so they wrap rather than clip. TileBand.css sets
-   `overflow:hidden; text-overflow:ellipsis` on a `display:flex` box, where
-   ellipsis never applies — so "images, binaries and libraries" was cut mid-word
-   with no ellipsis to say so. Tracked separately as the shared-rule bug. */
+   put here, so they wrap rather than clip. TileBand.css's ellipsis works now
+   (ocidex-ag4q.58) — that is why this override still has to be here: a working
+   ellipsis would render "images, binaries and libr…", which is not what a
+   sentence wants. */
 .landing-band .tile-sub {
     white-space: normal;
     overflow: visible;

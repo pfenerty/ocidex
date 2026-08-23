@@ -82,10 +82,27 @@
     font-weight: 600;
 }
 
+/*
+ * The sub-line ellipses when it is too long for its tile, so tiles in a row
+ * keep one height (`.tile-value` above wraps instead — a two-word badge has to
+ * stay readable, a caption does not).
+ *
+ * `display: block` is load-bearing. This was `display: flex` with an
+ * `align-items`/`gap` pair, and `text-overflow` only applies to a block
+ * container's own inline content — so on a flex box the whole trio did nothing
+ * and an over-long sub was cut hard mid-word with no ellipsis to say anything
+ * had been cut: Home's "images, binaries and libraries" rendered as "images,
+ * binaries and libi" (ocidex-ag4q.58). The flex was buying nothing anyway. No
+ * sub in the app has more than one child — they are plain strings, or a single
+ * badge, which lays out as an inline box here without help.
+ *
+ * Two bands opt out with `white-space: normal` (Home's landing band, whose subs
+ * are sentences, and the cluster coverage band, where a truncated remedy is not
+ * a remedy). Those overrides predate this fix and are still right: the ellipsis
+ * is the correct default, not the correct answer everywhere.
+ */
 .tile-sub {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
+    display: block;
     font-size: 0.8rem;
     color: var(--color-text-muted);
     max-width: 100%;

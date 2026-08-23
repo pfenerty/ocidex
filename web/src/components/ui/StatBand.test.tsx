@@ -89,6 +89,18 @@ describe("StatBand layout", () => {
         expect(tileRule).toMatch(/min-width:\s*0/);
     });
 
+    it("keeps the sub-line a block, so its ellipsis actually applies", () => {
+        // `text-overflow` only works on a block container's own inline content.
+        // `.tile-sub` was `display: flex`, so the whole
+        // overflow/text-overflow/nowrap trio was inert and an over-long sub was
+        // cut hard mid-word — Home's "images, binaries and libraries" rendered
+        // as "images, binaries and libi" (ocidex-ag4q.58). The two properties
+        // have to be asserted together: either one alone is silently useless.
+        const subRule = /\.tile-sub\s*\{[^}]*\}/.exec(css.replace(/\/\*[\s\S]*?\*\//g, ""))?.[0] ?? "";
+        expect(subRule).toMatch(/text-overflow:\s*ellipsis/);
+        expect(subRule).not.toMatch(/display:\s*(inline-)?flex/);
+    });
+
     it("appends a caller class rather than replacing tile-band", () => {
         const { container } = render(() => <StatBand tiles={TILES} class="mb-4" />);
         expect(container.querySelector(".tile-band")?.className).toBe("tile-band mb-4");
