@@ -221,29 +221,28 @@
         text-decoration: underline;
     }
 
+    /*
+     * A bare <button> gets an affordance here and nothing else.
+     *
+     * It used to get a whole look: fifteen declarations identical, property for
+     * property, to `.btn` below (ocidex-ag4q.54). That made every native button
+     * in the app a secondary button by default, so a control could opt into the
+     * house style by writing no class at all — and the `.btn` family, the
+     * `<Button>` primitive, and the element selector were three ways to say the
+     * same thing that had to be kept in sync by hand. Worse, a button that
+     * wanted to be something *other* than a button — a chip, a linkified cell,
+     * an icon toggle — first had to undo the look, which is why `.cell-button`,
+     * `.link-button`, `.copy-btn` and `.combobox-clear` each open with the same
+     * four lines of reset.
+     *
+     * The look now lives only in `.btn`/`<Button>`. What stays is what Tailwind
+     * v4's preflight deliberately leaves off (it resets font, colour, border and
+     * background on form elements, but not the cursor) and what no unstyled
+     * button should have to restate: this thing is clickable, and when it is
+     * disabled it is not.
+     */
     button {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.375rem;
-        padding: 0.5rem 1rem;
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-md);
-        background: var(--color-surface);
-        color: var(--color-text);
-        font-size: 0.875rem;
-        font-weight: 500;
-        font-family: inherit;
         cursor: pointer;
-        transition:
-            background 0.15s,
-            border-color 0.15s;
-        white-space: nowrap;
-    }
-
-    button:hover {
-        background: var(--color-surface-hover);
-        border-color: var(--color-text-dim);
-        text-decoration: none;
     }
 
     button:disabled {
@@ -666,6 +665,15 @@
         text-decoration: none;
     }
 
+    /* `button:disabled` above sets this too, but it is in @layer base and
+       `.btn` is in @layer components, so `.btn`'s own `cursor: pointer` won and
+       a disabled .btn showed a pointer. The opacity always applied — `.btn`
+       does not set opacity — which is why it never looked wrong enough to
+       notice. */
+    .btn:disabled {
+        cursor: not-allowed;
+    }
+
     .btn-primary {
         background: var(--color-primary);
         border-color: var(--color-primary);
@@ -798,14 +806,12 @@
     .tab-bar a:hover {
         color: var(--color-text);
         border-bottom-color: var(--color-border);
-        background: transparent;
     }
 
     .tab-bar button.active,
     .tab-bar a.active {
         color: var(--color-secondary);
         border-bottom-color: var(--color-secondary);
-        background: transparent;
     }
 
     /*

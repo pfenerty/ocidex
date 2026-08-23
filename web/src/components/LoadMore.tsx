@@ -37,7 +37,7 @@ export default function LoadMore(props: {
             <span>{label()}</span>
             <div class="pagination-controls">
                 <Show when={props.hasMore}>
-                    <Button loading={props.loading} onClick={() => props.onClick()}>
+                    <Button size="sm" loading={props.loading} onClick={() => props.onClick()}>
                         {props.loading ? "Loading…" : "Load more"}
                     </Button>
                 </Show>
