@@ -16,7 +16,7 @@ type SearchService interface {
 	ListSBOMs(ctx context.Context, filter SBOMFilter) (CursorPage[SBOMSummary], error)
 	SearchComponents(ctx context.Context, filter ComponentFilter) (PagedResult[ComponentSummary], error)
 	SearchDistinctComponents(ctx context.Context, filter ComponentFilter) (PagedResult[DistinctComponentSummary], error)
-	GetComponentVersions(ctx context.Context, filter ComponentVersionFilter) (PagedResult[ComponentVersionEntry], error)
+	GetComponentVersions(ctx context.Context, filter ComponentVersionFilter) (ComponentVersionsPage, error)
 	GetComponent(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ComponentDetail, error)
 	ListLicenses(ctx context.Context, filter LicenseFilter) (PagedResult[LicenseCount], error)
 	ListComponentsByLicense(ctx context.Context, licenseID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ComponentSummary], error)
@@ -215,6 +215,20 @@ type ArtifactVersionsPage struct {
 	HasSemver bool
 	// ResolvedMode is the concrete sort mode applied ("semver" or "all").
 	ResolvedMode VersionSortMode
+}
+
+// ComponentVersionsPage is a page of component occurrences plus the two figures
+// that describe the whole result set rather than the window: how many distinct
+// versions exist under this identity, and how many artifacts carry it. Both are
+// what a summary band is asked for, and neither can be derived from a page —
+// which is why the page that has them today declines to state them at all.
+type ComponentVersionsPage struct {
+	PagedResult[ComponentVersionEntry]
+	// VersionCount is the number of distinct versions across every page.
+	VersionCount int64
+	// ArtifactCount is the number of distinct artifacts whose SBOMs contain
+	// this component, across every page.
+	ArtifactCount int64
 }
 
 // CursorPage wraps a keyset-paginated result set. The caller derives the next

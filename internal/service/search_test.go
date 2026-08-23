@@ -335,6 +335,42 @@ func TestGetComponentVersions_PassesWindowAndCountsSeparately(t *testing.T) {
 	is.Equal(result.Offset, int32(40))
 }
 
+// The two corpus-wide figures ride on the count query rather than the page, so
+// they must survive the trip out through the embedded PagedResult. A band that
+// reported len(page) versions would say "20 versions" for every component with
+// more than a page of occurrences, which is the failure this pins.
+func TestGetComponentVersions_ReportsCorpusWideCounts(t *testing.T) {
+	is := is.New(t)
+	db := &fakeDB{
+		queryRowFn: func(_ context.Context, _ string, _ ...any) pgx.Row {
+			return &fakeRow{scanFn: func(dest ...any) error {
+				// total, version_count, artifact_count — deliberately three
+				// different numbers, so a mix-up cannot pass.
+				for i, v := range []int64{4210, 37, 12} {
+					n, ok := dest[i].(*int64)
+					if !ok {
+						return errors.New("unexpected scan target")
+					}
+					*n = v
+				}
+				return nil
+			}}
+		},
+		queryFn: func(_ context.Context, _ string, _ ...any) (pgx.Rows, error) {
+			return emptyRows(), nil
+		},
+	}
+	svc := &searchService{db: db}
+
+	result, err := svc.GetComponentVersions(context.Background(), ComponentVersionFilter{
+		Name: "golang.org/x/crypto",
+	})
+	is.NoErr(err)
+	is.Equal(result.Total, int64(4210))
+	is.Equal(result.VersionCount, int64(37))
+	is.Equal(result.ArtifactCount, int64(12))
+}
+
 func containsArg(args []any, want any) bool {
 	for _, a := range args {
 		if a == want {

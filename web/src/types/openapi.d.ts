@@ -2454,7 +2454,17 @@ export interface components {
              * @example https://example.com/schemas/GetComponentVersionsOutputBody.json
              */
             readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Distinct artifacts whose SBOMs contain this component, across every page
+             */
+            artifactCount: number;
             pagination: components["schemas"]["PaginationMeta"];
+            /**
+             * Format: int64
+             * @description Distinct versions under this identity, across every page
+             */
+            versionCount: number;
             versions: components["schemas"]["ComponentVersionEntry"][] | null;
         };
         GetComponentVulnsOutputBody: {

@@ -110,10 +110,10 @@ func (s *searchService) SearchDistinctComponents(ctx context.Context, filter Com
 	}, nil
 }
 
-func (s *searchService) GetComponentVersions(ctx context.Context, filter ComponentVersionFilter) (PagedResult[ComponentVersionEntry], error) {
+func (s *searchService) GetComponentVersions(ctx context.Context, filter ComponentVersionFilter) (ComponentVersionsPage, error) {
 	q := repository.New(s.db)
 
-	total, err := q.CountComponentVersions(ctx, repository.CountComponentVersionsParams{
+	counts, err := q.CountComponentVersions(ctx, repository.CountComponentVersionsParams{
 		Name:      filter.Name,
 		GroupName: textOrNull(filter.Group),
 		Version:   textOrNull(filter.Version),
@@ -122,7 +122,7 @@ func (s *searchService) GetComponentVersions(ctx context.Context, filter Compone
 		IsAdmin:   visAdminBool(filter.Visibility),
 	})
 	if err != nil {
-		return PagedResult[ComponentVersionEntry]{}, fmt.Errorf("counting component versions: %w", err)
+		return ComponentVersionsPage{}, fmt.Errorf("counting component versions: %w", err)
 	}
 
 	rows, err := q.GetComponentVersions(ctx, repository.GetComponentVersionsParams{
@@ -136,7 +136,7 @@ func (s *searchService) GetComponentVersions(ctx context.Context, filter Compone
 		RowOffset: filter.Offset,
 	})
 	if err != nil {
-		return PagedResult[ComponentVersionEntry]{}, fmt.Errorf("getting component versions: %w", err)
+		return ComponentVersionsPage{}, fmt.Errorf("getting component versions: %w", err)
 	}
 
 	items := make([]ComponentVersionEntry, 0, len(rows))
@@ -169,15 +169,19 @@ func (s *searchService) GetComponentVersions(ctx context.Context, filter Compone
 	// of the call, and pagination is what makes it bounded.
 	if len(purls) > 0 {
 		if err := decorateVersionVulns(ctx, q, purls, items); err != nil {
-			return PagedResult[ComponentVersionEntry]{}, err
+			return ComponentVersionsPage{}, err
 		}
 	}
 
-	return PagedResult[ComponentVersionEntry]{
-		Data:   items,
-		Total:  total,
-		Limit:  filter.Limit,
-		Offset: filter.Offset,
+	return ComponentVersionsPage{
+		PagedResult: PagedResult[ComponentVersionEntry]{
+			Data:   items,
+			Total:  counts.Total,
+			Limit:  filter.Limit,
+			Offset: filter.Offset,
+		},
+		VersionCount:  counts.VersionCount,
+		ArtifactCount: counts.ArtifactCount,
 	}, nil
 }
 

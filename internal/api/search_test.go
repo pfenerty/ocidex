@@ -154,14 +154,18 @@ func (f *fakeSearchService) SearchDistinctComponents(_ context.Context, filter s
 	}, nil
 }
 
-func (f *fakeSearchService) GetComponentVersions(_ context.Context, filter service.ComponentVersionFilter) (service.PagedResult[service.ComponentVersionEntry], error) {
-	return service.PagedResult[service.ComponentVersionEntry]{
-		Data: []service.ComponentVersionEntry{
-			{ID: "comp1", SbomID: "sbom1", Type: "library", Name: filter.Name, SbomCreatedAt: "2025-01-01T00:00:00Z"},
+func (f *fakeSearchService) GetComponentVersions(_ context.Context, filter service.ComponentVersionFilter) (service.ComponentVersionsPage, error) {
+	return service.ComponentVersionsPage{
+		PagedResult: service.PagedResult[service.ComponentVersionEntry]{
+			Data: []service.ComponentVersionEntry{
+				{ID: "comp1", SbomID: "sbom1", Type: "library", Name: filter.Name, SbomCreatedAt: "2025-01-01T00:00:00Z"},
+			},
+			Total:  1,
+			Limit:  filter.Limit,
+			Offset: filter.Offset,
 		},
-		Total:  1,
-		Limit:  filter.Limit,
-		Offset: filter.Offset,
+		VersionCount:  1,
+		ArtifactCount: 1,
 	}, nil
 }
 
@@ -402,13 +406,17 @@ type capturingVersionsService struct {
 	filter service.ComponentVersionFilter
 }
 
-func (f *capturingVersionsService) GetComponentVersions(_ context.Context, filter service.ComponentVersionFilter) (service.PagedResult[service.ComponentVersionEntry], error) {
+func (f *capturingVersionsService) GetComponentVersions(_ context.Context, filter service.ComponentVersionFilter) (service.ComponentVersionsPage, error) {
 	f.filter = filter
-	return service.PagedResult[service.ComponentVersionEntry]{
-		Data:   []service.ComponentVersionEntry{{ID: "comp1", Name: filter.Name}},
-		Total:  4210,
-		Limit:  filter.Limit,
-		Offset: filter.Offset,
+	return service.ComponentVersionsPage{
+		PagedResult: service.PagedResult[service.ComponentVersionEntry]{
+			Data:   []service.ComponentVersionEntry{{ID: "comp1", Name: filter.Name}},
+			Total:  4210,
+			Limit:  filter.Limit,
+			Offset: filter.Offset,
+		},
+		VersionCount:  37,
+		ArtifactCount: 12,
 	}, nil
 }
 
@@ -445,6 +453,32 @@ func TestGetComponentVersionsPaginates(t *testing.T) {
 	is.Equal(body.Pagination.Total, int64(4210))
 	is.Equal(body.Pagination.Limit, int32(20))
 	is.Equal(body.Pagination.Offset, int32(40))
+}
+
+// The summary band asks two questions the page cannot answer — how many
+// versions exist, and how many artifacts carry them — so both have to reach the
+// body as their own fields. Pagination.Total is a third figure (SBOM
+// occurrences) and must not be conflated with either (ocidex-ag4q.35).
+func TestGetComponentVersionsReportsCorpusWideCounts(t *testing.T) {
+	is := is.New(t)
+	router := newTestRouter(&fakeSBOMService{}, &capturingVersionsService{})
+
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/components/versions?name=zlib", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, r)
+	is.Equal(w.Code, http.StatusOK)
+
+	var body struct {
+		VersionCount  int64 `json:"versionCount"`
+		ArtifactCount int64 `json:"artifactCount"`
+		Pagination    struct {
+			Total int64 `json:"total"`
+		} `json:"pagination"`
+	}
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &body))
+	is.Equal(body.VersionCount, int64(37))
+	is.Equal(body.ArtifactCount, int64(12))
+	is.Equal(body.Pagination.Total, int64(4210))
 }
 
 // An unbounded caller must not be able to ask for the whole history again.

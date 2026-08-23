@@ -354,7 +354,16 @@ LIMIT @row_limit OFFSET @row_offset;
 --
 -- Counting needs only the visibility join, so it stays on
 -- idx_component_name_group.
-SELECT COUNT(*)
+--
+-- It also carries the two corpus-wide figures a summary band needs, because
+-- both are answers about the whole result set and the page query only ever sees
+-- one window of it (ocidex-ag4q.35). Deriving them client-side from a page
+-- would report "3 versions" for a component with 300 — worse than saying
+-- nothing. They ride along here rather than in a third query: the scan and the
+-- filters are identical, so the only added cost is the DISTINCT aggregation.
+SELECT COUNT(*) AS total,
+       COUNT(DISTINCT c.version) AS version_count,
+       COUNT(DISTINCT s.artifact_id) AS artifact_count
 FROM component c
 JOIN sbom s ON s.id = c.sbom_id
 WHERE c.name = @name

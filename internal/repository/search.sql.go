@@ -12,7 +12,9 @@ import (
 )
 
 const countComponentVersions = `-- name: CountComponentVersions :one
-SELECT COUNT(*)
+SELECT COUNT(*) AS total,
+       COUNT(DISTINCT c.version) AS version_count,
+       COUNT(DISTINCT s.artifact_id) AS artifact_count
 FROM component c
 JOIN sbom s ON s.id = c.sbom_id
 WHERE c.name = $1
@@ -31,6 +33,12 @@ type CountComponentVersionsParams struct {
 	IsAdmin   pgtype.Bool `json:"is_admin"`
 }
 
+type CountComponentVersionsRow struct {
+	Total         int64 `json:"total"`
+	VersionCount  int64 `json:"version_count"`
+	ArtifactCount int64 `json:"artifact_count"`
+}
+
 // The total for GetComponentVersions, deliberately NOT a COUNT(*) OVER() inside
 // that query. The window function is the convention elsewhere in this file, but
 // it only pays where the page and the count cost the same scan. Here the page
@@ -42,7 +50,14 @@ type CountComponentVersionsParams struct {
 //
 // Counting needs only the visibility join, so it stays on
 // idx_component_name_group.
-func (q *Queries) CountComponentVersions(ctx context.Context, arg CountComponentVersionsParams) (int64, error) {
+//
+// It also carries the two corpus-wide figures a summary band needs, because
+// both are answers about the whole result set and the page query only ever sees
+// one window of it (ocidex-ag4q.35). Deriving them client-side from a page
+// would report "3 versions" for a component with 300 — worse than saying
+// nothing. They ride along here rather than in a third query: the scan and the
+// filters are identical, so the only added cost is the DISTINCT aggregation.
+func (q *Queries) CountComponentVersions(ctx context.Context, arg CountComponentVersionsParams) (CountComponentVersionsRow, error) {
 	row := q.db.QueryRow(ctx, countComponentVersions,
 		arg.Name,
 		arg.GroupName,
@@ -51,9 +66,9 @@ func (q *Queries) CountComponentVersions(ctx context.Context, arg CountComponent
 		arg.UserID,
 		arg.IsAdmin,
 	)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+	var i CountComponentVersionsRow
+	err := row.Scan(&i.Total, &i.VersionCount, &i.ArtifactCount)
+	return i, err
 }
 
 const countSBOMComponents = `-- name: CountSBOMComponents :one

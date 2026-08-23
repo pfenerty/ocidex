@@ -2475,8 +2475,18 @@
             "readOnly": true,
             "type": "string"
           },
+          "artifactCount": {
+            "description": "Distinct artifacts whose SBOMs contain this component, across every page",
+            "format": "int64",
+            "type": "integer"
+          },
           "pagination": {
             "$ref": "#/components/schemas/PaginationMeta"
+          },
+          "versionCount": {
+            "description": "Distinct versions under this identity, across every page",
+            "format": "int64",
+            "type": "integer"
           },
           "versions": {
             "items": {
@@ -2490,7 +2500,9 @@
         },
         "required": [
           "versions",
-          "pagination"
+          "pagination",
+          "versionCount",
+          "artifactCount"
         ],
         "type": "object"
       },

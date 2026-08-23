@@ -52,7 +52,9 @@ func (h *Handler) GetComponentVersions(ctx context.Context, input *GetComponentV
 
 	out := &GetComponentVersionsOutput{}
 	out.Body.Versions = result.Data
-	out.Body.Pagination = paginationMeta(result)
+	out.Body.Pagination = paginationMeta(result.PagedResult)
+	out.Body.VersionCount = result.VersionCount
+	out.Body.ArtifactCount = result.ArtifactCount
 	return out, nil
 }
 

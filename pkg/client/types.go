@@ -1909,9 +1909,15 @@ type GetArtifactVulnSummaryOutputBody struct {
 // GetComponentVersionsOutputBody defines model for GetComponentVersionsOutputBody.
 type GetComponentVersionsOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema     *string                  `json:"$schema,omitempty"`
-	Pagination PaginationMeta           `json:"pagination"`
-	Versions   *[]ComponentVersionEntry `json:"versions"`
+	Schema *string `json:"$schema,omitempty"`
+
+	// ArtifactCount Distinct artifacts whose SBOMs contain this component, across every page
+	ArtifactCount int64          `json:"artifactCount"`
+	Pagination    PaginationMeta `json:"pagination"`
+
+	// VersionCount Distinct versions under this identity, across every page
+	VersionCount int64                    `json:"versionCount"`
+	Versions     *[]ComponentVersionEntry `json:"versions"`
 }
 
 // GetComponentVulnsOutputBody defines model for GetComponentVulnsOutputBody.
