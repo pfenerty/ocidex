@@ -2593,6 +2593,11 @@
           "componentsPagination": {
             "$ref": "#/components/schemas/PaginationMeta"
           },
+          "namespaceCount": {
+            "description": "Namespaces visible to the caller that hold at least one affected SBOM",
+            "format": "int64",
+            "type": "integer"
+          },
           "pagination": {
             "$ref": "#/components/schemas/PaginationMeta"
           },
@@ -2605,7 +2610,8 @@
           "affectedComponents",
           "componentsPagination",
           "affectedArtifacts",
-          "pagination"
+          "pagination",
+          "namespaceCount"
         ],
         "type": "object"
       },

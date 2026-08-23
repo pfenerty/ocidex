@@ -79,6 +79,10 @@ type GetVulnerabilityOutput struct {
 		ComponentsPagination PaginationMeta              `json:"componentsPagination"`
 		AffectedArtifacts    []service.AffectedArtifact  `json:"affectedArtifacts"`
 		Pagination           PaginationMeta              `json:"pagination"`
+		// NamespaceCount describes the whole affected set, not the page.
+		// Pagination.Total counts artifacts, which answers "how much of the
+		// catalog" — a different question from "how many teams".
+		NamespaceCount int64 `json:"namespaceCount" doc:"Namespaces visible to the caller that hold at least one affected SBOM"`
 	}
 }
 

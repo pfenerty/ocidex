@@ -233,8 +233,13 @@ func (f *fakeSearchService) GetArtifactContains(_ context.Context, _ pgtype.UUID
 	return nil, nil
 }
 
-func (f *fakeSearchService) GetVulnerabilityDetail(_ context.Context, _ string, limit, offset int32, _ service.VisibilityFilter) (*service.VulnDetail, service.PagedResult[service.AffectedArtifact], service.PagedResult[service.AffectedComponent], error) {
-	return &service.VulnDetail{ID: "CVE-2021-0001", Severity: "HIGH", Aliases: []string{}}, service.PagedResult[service.AffectedArtifact]{Limit: limit, Offset: offset}, service.PagedResult[service.AffectedComponent]{}, nil
+func (f *fakeSearchService) GetVulnerabilityDetail(_ context.Context, _ string, limit, offset int32, _ service.VisibilityFilter) (service.VulnerabilityDetailResult, error) {
+	return service.VulnerabilityDetailResult{
+		Detail:         &service.VulnDetail{ID: "CVE-2021-0001", Severity: "HIGH", Aliases: []string{}},
+		Artifacts:      service.PagedResult[service.AffectedArtifact]{Total: 9, Limit: limit, Offset: offset},
+		Components:     service.PagedResult[service.AffectedComponent]{},
+		NamespaceCount: 4,
+	}, nil
 }
 
 func (f *fakeSearchService) GetComponentVulns(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) ([]service.ComponentVulnEntry, error) {
@@ -479,6 +484,30 @@ func TestGetComponentVersionsReportsCorpusWideCounts(t *testing.T) {
 	is.Equal(body.VersionCount, int64(37))
 	is.Equal(body.ArtifactCount, int64(12))
 	is.Equal(body.Pagination.Total, int64(4210))
+}
+
+// The advisory page reports two different scopes: how much of the catalog is
+// affected, and how many namespaces it reaches. Deriving the second from a page
+// of artifacts is not possible, so it has to survive the handler as its own
+// field rather than collapsing into pagination.total.
+func TestGetVulnerabilityReportsNamespaceScope(t *testing.T) {
+	is := is.New(t)
+	router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
+
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/vulns/CVE-2021-0001", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, r)
+	is.Equal(w.Code, http.StatusOK)
+
+	var body struct {
+		NamespaceCount int64 `json:"namespaceCount"`
+		Pagination     struct {
+			Total int64 `json:"total"`
+		} `json:"pagination"`
+	}
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &body))
+	is.Equal(body.NamespaceCount, int64(4))
+	is.Equal(body.Pagination.Total, int64(9))
 }
 
 // An unbounded caller must not be able to ask for the whole history again.

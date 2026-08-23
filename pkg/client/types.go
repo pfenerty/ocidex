@@ -1941,8 +1941,11 @@ type GetVulnerabilityOutputBody struct {
 	AffectedArtifacts    *[]AffectedArtifact  `json:"affectedArtifacts"`
 	AffectedComponents   *[]AffectedComponent `json:"affectedComponents"`
 	ComponentsPagination PaginationMeta       `json:"componentsPagination"`
-	Pagination           PaginationMeta       `json:"pagination"`
-	Vulnerability        VulnDetail           `json:"vulnerability"`
+
+	// NamespaceCount Namespaces visible to the caller that hold at least one affected SBOM
+	NamespaceCount int64          `json:"namespaceCount"`
+	Pagination     PaginationMeta `json:"pagination"`
+	Vulnerability  VulnDetail     `json:"vulnerability"`
 }
 
 // HashEntry defines model for HashEntry.

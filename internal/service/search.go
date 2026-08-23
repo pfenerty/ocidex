@@ -41,7 +41,7 @@ type SearchService interface {
 	GetArtifactVulnSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (*VulnSummary, error)
 	GetArtifactUsages(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]ArtifactRelation, error)
 	GetArtifactContains(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]ArtifactRelation, error)
-	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (*VulnDetail, PagedResult[AffectedArtifact], PagedResult[AffectedComponent], error)
+	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (VulnerabilityDetailResult, error)
 	GetComponentVulns(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) ([]ComponentVulnEntry, error)
 	ListSBOMDriftHistory(ctx context.Context, sbomID pgtype.UUID, page DriftPage, vis VisibilityFilter) (CursorPage[ProvenanceDriftSummary], error)
 	ListRecentProvenanceDrift(ctx context.Context, page DriftPage, vis VisibilityFilter) (CursorPage[RecentDriftEntry], error)
@@ -215,6 +215,24 @@ type ArtifactVersionsPage struct {
 	HasSemver bool
 	// ResolvedMode is the concrete sort mode applied ("semver" or "all").
 	ResolvedMode VersionSortMode
+}
+
+// VulnerabilityDetailResult is everything one advisory page needs: the record
+// itself, the two affected-entity pages, and the scope figure that describes
+// the whole affected set rather than a page of it. It replaces a four-value
+// return, where every error path had to spell out three zero values.
+//
+// Detail is nil when no vulnerability carries the requested id — the caller
+// turns that into a 404, which is why it is not an error here.
+type VulnerabilityDetailResult struct {
+	Detail     *VulnDetail
+	Artifacts  PagedResult[AffectedArtifact]
+	Components PagedResult[AffectedComponent]
+	// NamespaceCount is how many namespaces visible to the caller hold at
+	// least one affected SBOM. "How far has this spread" is the question a
+	// reader arrives with, and the artifact page cannot answer it: a page of
+	// 25 artifacts says nothing about the namespaces of the other 4,000.
+	NamespaceCount int64
 }
 
 // ComponentVersionsPage is a page of component occurrences plus the two figures

@@ -99,15 +99,15 @@ func (s *searchService) ListTopVulnerabilities(ctx context.Context, filter TopVu
 func (s *searchService) GetVulnerabilityDetail(
 	ctx context.Context, id string,
 	limit, offset int32, vis VisibilityFilter,
-) (*VulnDetail, PagedResult[AffectedArtifact], PagedResult[AffectedComponent], error) {
+) (VulnerabilityDetailResult, error) {
 	q := repository.New(s.db)
 
 	row, err := q.GetVulnerabilityByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, PagedResult[AffectedArtifact]{}, PagedResult[AffectedComponent]{}, nil
+			return VulnerabilityDetailResult{}, nil
 		}
-		return nil, PagedResult[AffectedArtifact]{}, PagedResult[AffectedComponent]{}, err
+		return VulnerabilityDetailResult{}, err
 	}
 
 	detail := &VulnDetail{
@@ -131,7 +131,7 @@ func (s *searchService) GetVulnerabilityDetail(
 
 	refRows, err := q.ListVulnerabilityRefs(ctx, id)
 	if err != nil {
-		return nil, PagedResult[AffectedArtifact]{}, PagedResult[AffectedComponent]{}, err
+		return VulnerabilityDetailResult{}, err
 	}
 	refs := make([]VulnReference, 0, len(refRows))
 	for _, r := range refRows {
@@ -147,7 +147,7 @@ func (s *searchService) GetVulnerabilityDetail(
 		RowOffset:   pgtype.Int4{Int32: offset, Valid: true},
 	})
 	if err != nil {
-		return nil, PagedResult[AffectedArtifact]{}, PagedResult[AffectedComponent]{}, err
+		return VulnerabilityDetailResult{}, err
 	}
 
 	var total int64
@@ -174,21 +174,35 @@ func (s *searchService) GetVulnerabilityDetail(
 		IsAdmin:     visAdminBool(vis),
 	})
 	if err != nil {
-		return nil, PagedResult[AffectedArtifact]{}, PagedResult[AffectedComponent]{}, err
+		return VulnerabilityDetailResult{}, err
 	}
 	components, componentsTotal := buildAffectedComponents(componentRows)
 
-	return detail, PagedResult[AffectedArtifact]{
+	namespaceCount, err := q.CountAffectedNamespacesByVuln(ctx, repository.CountAffectedNamespacesByVulnParams{
+		CanonicalID: row.CanonicalID,
+		UserID:      vis.UserID,
+		IsAdmin:     visAdminBool(vis),
+	})
+	if err != nil {
+		return VulnerabilityDetailResult{}, err
+	}
+
+	return VulnerabilityDetailResult{
+		Detail: detail,
+		Artifacts: PagedResult[AffectedArtifact]{
 			Data:   items,
 			Total:  total,
 			Limit:  limit,
 			Offset: offset,
-		}, PagedResult[AffectedComponent]{
+		},
+		Components: PagedResult[AffectedComponent]{
 			Data:   components,
 			Total:  componentsTotal,
 			Limit:  affectedComponentsLimit,
 			Offset: 0,
-		}, nil
+		},
+		NamespaceCount: namespaceCount,
+	}, nil
 }
 
 // affectedComponentsLimit mirrors the LIMIT in ListAffectedComponentsByVuln.

@@ -2495,6 +2495,11 @@ export interface components {
             affectedArtifacts: components["schemas"]["AffectedArtifact"][] | null;
             affectedComponents: components["schemas"]["AffectedComponent"][] | null;
             componentsPagination: components["schemas"]["PaginationMeta"];
+            /**
+             * Format: int64
+             * @description Namespaces visible to the caller that hold at least one affected SBOM
+             */
+            namespaceCount: number;
             pagination: components["schemas"]["PaginationMeta"];
             vulnerability: components["schemas"]["VulnDetail"];
         };

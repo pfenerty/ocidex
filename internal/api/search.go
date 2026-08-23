@@ -701,19 +701,20 @@ func (h *Handler) listTopVulnerabilities(ctx context.Context, input *ListTopVuln
 // GetVulnerability handles GET /api/v1/vulns/{id}.
 func (h *Handler) GetVulnerability(ctx context.Context, input *GetVulnerabilityInput) (*GetVulnerabilityOutput, error) {
 	vis := visibilityFilterFromContext(ctx)
-	detail, artifacts, components, err := h.searchService.GetVulnerabilityDetail(ctx, input.ID, input.Limit, input.Offset, vis)
+	result, err := h.searchService.GetVulnerabilityDetail(ctx, input.ID, input.Limit, input.Offset, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	if detail == nil {
+	if result.Detail == nil {
 		return nil, huma.Error404NotFound("vulnerability not found")
 	}
 	out := &GetVulnerabilityOutput{}
-	out.Body.Vulnerability = *detail
-	out.Body.AffectedComponents = components.Data
-	out.Body.ComponentsPagination = paginationMeta(components)
-	out.Body.AffectedArtifacts = artifacts.Data
-	out.Body.Pagination = paginationMeta(artifacts)
+	out.Body.Vulnerability = *result.Detail
+	out.Body.AffectedComponents = result.Components.Data
+	out.Body.ComponentsPagination = paginationMeta(result.Components)
+	out.Body.AffectedArtifacts = result.Artifacts.Data
+	out.Body.Pagination = paginationMeta(result.Artifacts)
+	out.Body.NamespaceCount = result.NamespaceCount
 	return out, nil
 }
 
