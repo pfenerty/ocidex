@@ -680,6 +680,7 @@ func (h *Handler) listTopVulnerabilities(ctx context.Context, input *ListTopVuln
 	filter := service.TopVulnFilter{
 		Limit:      input.Limit,
 		Offset:     input.Offset,
+		IDQuery:    input.Q,
 		Severity:   input.Severity,
 		Sort:       input.Sort,
 		SortDir:    input.SortDir,

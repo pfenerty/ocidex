@@ -6790,6 +6790,8 @@ export interface operations {
                 limit?: number;
                 /** @description Number of results to skip */
                 offset?: number;
+                /** @description Filter by vulnerability id (CVE/GHSA/OSV), substring match against the canonical id and its aliases */
+                q?: string;
                 /** @description Filter by severity */
                 severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
                 /** @description Sort field */
@@ -6994,6 +6996,8 @@ export interface operations {
                 limit?: number;
                 /** @description Number of results to skip */
                 offset?: number;
+                /** @description Filter by vulnerability id (CVE/GHSA/OSV), substring match against the canonical id and its aliases */
+                q?: string;
                 /** @description Filter by severity */
                 severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
                 /** @description Sort field */

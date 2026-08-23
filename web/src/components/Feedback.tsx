@@ -45,7 +45,12 @@ export function ErrorBox(props: { error: unknown }): JSX.Element {
 
 export function EmptyState(props: {
     title: string;
-    message?: string;
+    /**
+     * The explanatory line. JSX rather than a string so an empty state can
+     * offer the way out of itself — a filtered list that found nothing can
+     * link to the thing the reader was looking for.
+     */
+    message?: JSX.Element;
 }): JSX.Element {
     return (
         <div class="empty-state">

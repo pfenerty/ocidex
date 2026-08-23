@@ -50,10 +50,11 @@ export type ToolbarField =
  * local draft drives the box, so typing is never laggy or reordered. Enter
  * flushes the pending write immediately rather than waiting out the timer.
  *
- * Out of scope, deliberately: the Vulnerabilities page's "Jump to CVE id" form
- * is navigation, not filtering — it routes to a detail page instead of narrowing
- * a list — so it does not belong here even though it currently shares the
- * `.search-bar` class.
+ * The Vulnerabilities page's "Jump to CVE id" form was once excluded here on the
+ * grounds that it navigated rather than filtered. That was a description of a
+ * missing backend filter, not a design boundary: /api/v1/vulns now takes `q`,
+ * the box narrows the list like every other one, and the direct jump survives
+ * as a link in the empty state (ocidex-ag4q.30).
  *
  * No new CSS: this emits `.search-bar`, which `index.css` already styles
  * (including the 768px wrap rule).

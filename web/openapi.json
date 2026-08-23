@@ -10898,6 +10898,17 @@
             }
           },
           {
+            "description": "Filter by vulnerability id (CVE/GHSA/OSV), substring match against the canonical id and its aliases",
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "description": "Filter by vulnerability id (CVE/GHSA/OSV), substring match against the canonical id and its aliases",
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          {
             "description": "Filter by severity",
             "explode": false,
             "in": "query",
@@ -11248,6 +11259,17 @@
               "format": "int32",
               "minimum": 0,
               "type": "integer"
+            }
+          },
+          {
+            "description": "Filter by vulnerability id (CVE/GHSA/OSV), substring match against the canonical id and its aliases",
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "description": "Filter by vulnerability id (CVE/GHSA/OSV), substring match against the canonical id and its aliases",
+              "maxLength": 128,
+              "type": "string"
             }
           },
           {

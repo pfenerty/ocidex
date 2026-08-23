@@ -1,13 +1,14 @@
 import { createSignal, Show } from "solid-js";
 import { DEFAULT_PAGE_SIZE } from "~/api/client";
-import { useNavigate } from "@solidjs/router";
+import { A, useSearchParams } from "@solidjs/router";
 import { useTopVulnerabilities } from "~/api/queries";
 import type { TopVulnSort } from "~/api/queries/vulns";
 import type { components } from "~/types/openapi";
 import DataTable from "~/components/DataTable";
 import type { Column, SortDir } from "~/components/DataTable";
 import { SeverityPill, VulnId } from "~/components/cells";
-import { Button, PageHeader, TabBar } from "~/components/ui";
+import { PageHeader, TabBar, Toolbar } from "~/components/ui";
+import type { ToolbarField } from "~/components/ui";
 
 type TopVulnEntry = components["schemas"]["TopVulnEntry"];
 
@@ -15,37 +16,54 @@ const SEVERITY_TABS = ["All", "CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"] as
 type SeverityTab = (typeof SEVERITY_TABS)[number];
 const limit = DEFAULT_PAGE_SIZE;
 
+const FILTERS: ToolbarField[] = [
+    {
+        kind: "text",
+        key: "q",
+        placeholder: "Filter by CVE / GHSA / OSV id…",
+        label: "Filter by vulnerability id",
+    },
+];
+
 export default function Vulnerabilities() {
-    const navigate = useNavigate();
     const [offset, setOffset] = createSignal(0);
-    const [severityFilter, setSeverityFilter] = createSignal("");
-    const [idQuery, setIdQuery] = createSignal("");
     const [sortBy, setSortBy] = createSignal<TopVulnSort>("severity");
     const [sortDir, setSortDir] = createSignal<SortDir>("desc");
+
+    // Both filters live in the URL now. The id box used to be a submit-on-Enter
+    // jump that navigated away from the list entirely, which meant the one
+    // question this page is for — "is this CVE anywhere in our corpus?" — could
+    // only be answered by leaving the page that knows the answer.
+    const [searchParams, setSearchParams] = useSearchParams();
+    const param = (key: string): string => {
+        const v = searchParams[key];
+        return (Array.isArray(v) ? v[0] : v) ?? "";
+    };
+    const idQuery = () => param("q").trim();
 
     // The list is server-paginated, so sorting has to re-query: reordering the
     // 25 visible rows would claim a ranking the other pages don't share.
     const query = useTopVulnerabilities(() => ({
         limit,
         offset: offset(),
-        severity: severityFilter(),
+        q: param("q"),
+        severity: param("severity"),
         sort: sortBy(),
         sort_dir: sortDir(),
     }));
 
     // The query wants "" for no filter; the strip wants a tab id. "All" is the
     // one value where those two representations differ.
-    const activeSeverityTab = (): SeverityTab =>
-        (severityFilter() === "" ? "All" : severityFilter()) as SeverityTab;
-    const handleTabChange = (tab: SeverityTab) => {
-        setSeverityFilter(tab === "All" ? "" : tab);
-        setOffset(0);
+    const activeSeverityTab = (): SeverityTab => {
+        const s = param("severity");
+        return (s === "" ? "All" : s) as SeverityTab;
     };
-
-    const submitIdSearch = (e: Event) => {
-        e.preventDefault();
-        const q = idQuery().trim();
-        if (q) navigate(`/vulnerabilities/${encodeURIComponent(q)}`);
+    const handleTabChange = (tab: SeverityTab) => {
+        // "All" drops the param rather than storing an empty one, so absence is
+        // the single representation of "not filtering" — the same rule <Toolbar>
+        // follows for its own fields.
+        setSearchParams({ severity: tab === "All" ? undefined : tab });
+        setOffset(0);
     };
 
     const formatDate = (iso: string | undefined) =>
@@ -149,17 +167,10 @@ export default function Vulnerabilities() {
                 class="mb-4"
             />
 
-            <form class="search-bar mb-4" onSubmit={submitIdSearch}>
-                <input
-                    type="text"
-                    placeholder="Jump to CVE / GHSA / OSV id…"
-                    value={idQuery()}
-                    onInput={(e) => setIdQuery(e.currentTarget.value)}
-                />
-                <Button type="submit" variant="primary">
-                    Go
-                </Button>
-            </form>
+            {/* Filters as you type, against `q` on /api/v1/vulns, which matches
+                the canonical id and every alias — so a GHSA id copied out of an
+                advisory finds the record the corpus files under its CVE. */}
+            <Toolbar class="mb-4" fields={FILTERS} onChange={() => setOffset(0)} />
 
             <DataTable
                 columns={columns}
@@ -167,7 +178,27 @@ export default function Vulnerabilities() {
                 loading={query.isFetching}
                 isError={query.isError}
                 error={query.error}
-                emptyTitle="No vulnerabilities found."
+                emptyTitle={
+                    idQuery() === ""
+                        ? "No vulnerabilities found."
+                        : `Nothing tracked here matches “${idQuery()}”.`
+                }
+                emptyMessage={
+                    // The old jump box could reach a CVE that affects nothing we
+                    // track; this list, which joins through the rollup, cannot.
+                    // Offering the direct link from the empty state keeps that
+                    // reach without making every reader submit a form for it.
+                    <Show when={idQuery() !== ""}>
+                        <>
+                            It may still be a real advisory with no effect on any
+                            tracked artifact.{" "}
+                            <A href={`/vulnerabilities/${encodeURIComponent(idQuery())}`}>
+                                Open {idQuery()} directly
+                            </A>
+                            .
+                        </>
+                    </Show>
+                }
                 sortBy={sortBy()}
                 sortDir={sortDir()}
                 onSort={(key, dir) => {

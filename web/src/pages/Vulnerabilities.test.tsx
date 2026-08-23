@@ -1,26 +1,29 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent } from "@solidjs/testing-library";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { Router } from "@solidjs/router";
+import { render, fireEvent, waitFor, cleanup } from "@solidjs/testing-library";
 import { useTopVulnerabilities } from "~/api/queries";
 import Vulnerabilities from "~/pages/Vulnerabilities";
-import type { JSX } from "solid-js";
 
 vi.mock("~/api/queries", () => ({
     useTopVulnerabilities: vi.fn(),
 }));
 
-vi.mock("@solidjs/router", () => ({
-    useNavigate: () => vi.fn(),
-    A: (props: { href: string; children?: JSX.Element }) => (
-        <a href={props.href}>{props.children}</a>
-    ),
-}));
+// The router is real here, not stubbed. Both filters on this page are URL state
+// now, so a stub would let a broken read or write pass: the severity strip and
+// the id box are only correct if useSearchParams itself agrees.
+
+// Vitest runs without globals, so the testing library cannot register its own
+// afterEach. Without this, a Toolbar left mounted commits its pending debounce
+// into the next test's URL.
+afterEach(cleanup);
 
 const mockUseTopVulns = vi.mocked(useTopVulnerabilities);
 
 interface QueryParams {
     limit?: number;
     offset?: number;
+    q?: string;
     severity?: string;
     sort?: string;
     sort_dir?: string;
@@ -44,7 +47,7 @@ const rows = [
  * query hook — the observable proof that a sort went to the server rather than
  * being applied to the rows already on screen.
  */
-function renderPage() {
+function renderPage(path = "/vulnerabilities") {
     // Hold the accessor rather than a snapshot: it reads the page's signals, so
     // calling it after an interaction reports what the real hook would query.
     let latest: () => QueryParams = () => ({});
@@ -58,8 +61,22 @@ function renderPage() {
         };
     }) as unknown as typeof useTopVulnerabilities);
 
-    const rendered = render(() => <Vulnerabilities />);
-    return { ...rendered, params: () => latest() };
+    return { ...renderAt(path), params: () => latest() };
+}
+
+function renderAt(path: string) {
+    window.history.replaceState({}, "", path);
+    return render(() => (
+        <Router root={(props) => <>{props.children}</>}>
+            {[{ path: "/vulnerabilities", component: () => <Vulnerabilities /> }]}
+        </Router>
+    ));
+}
+
+function idInput(container: HTMLElement): HTMLInputElement {
+    const el = container.querySelector<HTMLInputElement>('input[type="text"]');
+    if (el === null) throw new Error("id filter input not rendered");
+    return el;
 }
 
 // The severity strip highlighted nothing at all for as long as it existed: its
@@ -79,7 +96,7 @@ describe("Vulnerabilities severity filter", () => {
         expect(active[0].textContent).toBe("All");
     });
 
-    it("moves the highlight to the clicked severity and filters the query", () => {
+    it("moves the highlight to the clicked severity and filters the query", async () => {
         const { container, params } = renderPage();
         expect(params().severity).toBe("");
 
@@ -91,9 +108,14 @@ describe("Vulnerabilities severity filter", () => {
         expect(high).toBeDefined();
         fireEvent.click(high);
 
-        const active = container.querySelectorAll(".tab-bar button.active");
-        expect(active.length).toBe(1);
-        expect(active[0].textContent).toBe("HIGH");
+        // The filter is a URL param now, so the router applies it on the next
+        // tick rather than the click itself — the same shape <Toolbar> already
+        // has for its debounced fields.
+        await waitFor(() => {
+            const active = container.querySelectorAll(".tab-bar button.active");
+            expect(active.length).toBe(1);
+            expect(active[0].textContent).toBe("HIGH");
+        });
         expect(params().severity).toBe("HIGH");
     });
 });
@@ -139,5 +161,95 @@ describe("Vulnerabilities sorting", () => {
         fireEvent.click(getByText("Summary"));
 
         expect(params().sort).toBe("severity");
+    });
+});
+
+// The id box used to be a submit-on-Enter form that navigated to a detail page,
+// so the one question this list answers — "does this CVE touch anything we
+// track?" — required leaving the list to find out, and came back with a page
+// that renders for *every* advisory whether it affects the corpus or not.
+describe("Vulnerabilities id filter", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it("reads the id from the query string, into both the box and the query", () => {
+        const { container, params } = renderPage("/vulnerabilities?q=CVE-2024-0001");
+        expect(idInput(container).value).toBe("CVE-2024-0001");
+        expect(params().q).toBe("CVE-2024-0001");
+    });
+
+    it("filters as you type rather than on submit", async () => {
+        vi.useFakeTimers();
+        try {
+            const { container } = renderPage();
+            const input = idInput(container);
+            for (const v of ["G", "GH", "GHS", "GHSA"]) {
+                fireEvent.input(input, { target: { value: v } });
+            }
+            // Nothing committed yet — the pause is the whole point on a list
+            // this expensive to re-query.
+            expect(window.location.search).toBe("");
+            vi.advanceTimersByTime(300);
+        } finally {
+            vi.useRealTimers();
+        }
+        await waitFor(() => {
+            expect(window.location.search).toBe("?q=GHSA");
+        });
+    });
+
+    it("keeps severity and id independent in the URL", async () => {
+        const { container, params } = renderPage("/vulnerabilities?q=CVE-2024-0001");
+        const [high] = [...container.querySelectorAll(".tab-bar button")].filter(
+            (b) => b.textContent === "HIGH",
+        );
+        fireEvent.click(high);
+        await waitFor(() => {
+            expect(params().severity).toBe("HIGH");
+        });
+        expect(params().q).toBe("CVE-2024-0001");
+        expect(window.location.search).toContain("q=CVE-2024-0001");
+        expect(window.location.search).toContain("severity=HIGH");
+    });
+
+    it("drops the severity param for All instead of storing an empty one", async () => {
+        const { container } = renderPage("/vulnerabilities?severity=HIGH");
+        const [all] = [...container.querySelectorAll(".tab-bar button")].filter(
+            (b) => b.textContent === "All",
+        );
+        fireEvent.click(all);
+        await waitFor(() => {
+            expect(window.location.search).not.toContain("severity");
+        });
+    });
+
+    // A filtered list that finds nothing is not proof the advisory is fictional
+    // — it may simply affect nothing tracked. The empty state has to say so and
+    // still offer the direct link the old jump box provided.
+    it("offers the direct link when the filter matches nothing", () => {
+        mockUseTopVulns.mockImplementation((() => ({
+            data: { data: [], pagination: { total: 0, limit: 25, offset: 0 } },
+            isFetching: false,
+            isError: false,
+            error: null,
+        })) as unknown as typeof useTopVulnerabilities);
+        const { container } = renderAt("/vulnerabilities?q=CVE-9999-0001");
+        const link = container.querySelector<HTMLAnchorElement>(
+            'a[href="/vulnerabilities/CVE-9999-0001"]',
+        );
+        expect(link).not.toBeNull();
+        expect(container.textContent).toContain("CVE-9999-0001");
+    });
+
+    it("offers no such link when nothing is filtered", () => {
+        mockUseTopVulns.mockImplementation((() => ({
+            data: { data: [], pagination: { total: 0, limit: 25, offset: 0 } },
+            isFetching: false,
+            isError: false,
+            error: null,
+        })) as unknown as typeof useTopVulnerabilities);
+        const { container } = renderAt("/vulnerabilities");
+        expect(container.querySelector(".empty-state a")).toBeNull();
     });
 });

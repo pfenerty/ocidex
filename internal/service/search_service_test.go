@@ -264,11 +264,11 @@ func TestListTopVulnerabilities_SortNormalization(t *testing.T) {
 			db := &fakeDB{
 				queryFn: func(_ context.Context, _ string, args ...any) (pgx.Rows, error) {
 					// args positions match ListTopVulnerabilities:
-					// 0=OwnedOnly, 1=UserID, 2=IsAdmin, 3=Severity, 4=SortBy,
-					// 5=SortDir, 6=RowOffset, 7=RowLimit
-					if len(args) >= 6 {
-						gotSortBy, _ = args[4].(string)
-						gotSortDir, _ = args[5].(string)
+					// 0=OwnedOnly, 1=UserID, 2=IsAdmin, 3=Severity,
+					// 4=IDQuery, 5=SortBy, 6=SortDir, 7=RowOffset, 8=RowLimit
+					if len(args) >= 7 {
+						gotSortBy, _ = args[5].(string)
+						gotSortDir, _ = args[6].(string)
 					}
 					return emptyRows(), nil
 				},
@@ -283,6 +283,49 @@ func TestListTopVulnerabilities_SortNormalization(t *testing.T) {
 			is.NoErr(err)
 			is.Equal(gotSortBy, tt.wantSort)
 			is.Equal(gotSortDir, tt.wantSortDir)
+		})
+	}
+}
+
+// TestListTopVulnerabilities_IDQuery verifies that the id filter reaches the
+// query as a nullable text, and that a box holding only whitespace is treated as
+// an empty one. Without the trim, a stray space would match every id through the
+// ILIKE and return the whole list under a filter that looks active.
+func TestListTopVulnerabilities_IDQuery(t *testing.T) {
+	tests := []struct {
+		name      string
+		idQuery   string
+		wantValid bool
+		wantValue string
+	}{
+		{"unset means no filter", "", false, ""},
+		{"whitespace only means no filter", "   ", false, ""},
+		{"an id is passed through", "CVE-2024-0001", true, "CVE-2024-0001"},
+		{"surrounding whitespace is trimmed", "  GHSA-abcd  ", true, "GHSA-abcd"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+
+			var got pgtype.Text
+			db := &fakeDB{
+				queryFn: func(_ context.Context, _ string, args ...any) (pgx.Rows, error) {
+					if len(args) >= 5 {
+						got, _ = args[4].(pgtype.Text)
+					}
+					return emptyRows(), nil
+				},
+			}
+
+			_, err := NewSearchService(db).ListTopVulnerabilities(context.Background(), TopVulnFilter{
+				IDQuery: tt.idQuery,
+				Limit:   25,
+			})
+
+			is.NoErr(err)
+			is.Equal(got.Valid, tt.wantValid)
+			is.Equal(got.String, tt.wantValue)
 		})
 	}
 }

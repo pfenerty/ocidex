@@ -116,8 +116,11 @@ type TopVulnEntry struct {
 
 // TopVulnFilter holds parameters for listing top vulnerabilities.
 type TopVulnFilter struct {
-	Limit      int32
-	Offset     int32
+	Limit  int32
+	Offset int32
+	// IDQuery narrows the list to vulnerabilities whose canonical id or any
+	// alias contains this substring. Empty means no narrowing.
+	IDQuery    string
 	Severity   string
 	Sort       string
 	SortDir    string

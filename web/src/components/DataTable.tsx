@@ -43,7 +43,7 @@ export interface DataTableProps<T> {
     isError: boolean;
     error?: unknown;
     emptyTitle: string;
-    emptyMessage?: string;
+    emptyMessage?: JSX.Element;
     /** Controlled (server-side) sort mode only. */
     sortBy?: string;
     sortDir?: SortDir;

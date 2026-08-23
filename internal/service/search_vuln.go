@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -37,6 +38,14 @@ func (s *searchService) ListTopVulnerabilities(ctx context.Context, filter TopVu
 		severity = pgtype.Text{String: filter.Severity, Valid: true}
 	}
 
+	// Trimmed before the emptiness test: a box holding only whitespace is a box
+	// the reader has effectively cleared, and matching every id against " "
+	// would return the whole list under a filter that looks active.
+	var idQuery pgtype.Text
+	if q := strings.TrimSpace(filter.IDQuery); q != "" {
+		idQuery = pgtype.Text{String: q, Valid: true}
+	}
+
 	sortBy, sortDir := normalizeTopVulnSort(filter.Sort, filter.SortDir)
 
 	params := repository.ListTopVulnerabilitiesParams{
@@ -44,6 +53,7 @@ func (s *searchService) ListTopVulnerabilities(ctx context.Context, filter TopVu
 		IsAdmin:   isAdmin,
 		OwnedOnly: filter.Visibility.ownedFlag(),
 		Severity:  severity,
+		IDQuery:   idQuery,
 		SortBy:    sortBy,
 		SortDir:   sortDir,
 		RowLimit:  pgtype.Int4{Int32: filter.Limit, Valid: true},
