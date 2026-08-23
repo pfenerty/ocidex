@@ -576,6 +576,25 @@
         letter-spacing: normal;
     }
 
+    /*
+     * A namespace label is a name, an owner and a visibility badge — not a
+     * column heading — so it opts out of the uppercase tracking the generic
+     * group row applies.
+     */
+    .ns-group-heading {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.9rem;
+        text-transform: none;
+        letter-spacing: normal;
+        color: var(--color-text);
+    }
+
+    .ns-group-owner {
+        font-weight: 400;
+    }
+
     /* Badges */
     .badge {
         display: inline-flex;
