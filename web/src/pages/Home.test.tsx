@@ -125,6 +125,8 @@ interface StatsQuery {
     data:
         | {
               artifact_count: number;
+              sbom_count: number;
+              version_count: number;
               package_count: number;
               license_count: number;
               vuln_count: number;
@@ -159,6 +161,8 @@ describe("Home for signed-out visitors", () => {
                 isError: false,
                 data: {
                     artifact_count: 38,
+                    sbom_count: 214,
+                    version_count: 57,
                     package_count: 107868,
                     license_count: 545,
                     vuln_count: 12,
@@ -167,7 +171,7 @@ describe("Home for signed-out visitors", () => {
             { isError: false, data: populatedDiscovery() },
         );
 
-        expect(container.textContent).toContain("38 artifacts");
+        expect(container.textContent).toContain("38");
         expect(container.textContent).not.toContain("Catalog stats are unavailable");
         expect(window.location.pathname).toBe(before);
     });
@@ -175,18 +179,26 @@ describe("Home for signed-out visitors", () => {
 
 describe("Home catalog stats", () => {
     it("renders the counts once stats load", () => {
-        const { getByText } = renderHome({
+        const { container } = renderHome({
             isLoading: false,
             isError: false,
             data: {
                 artifact_count: 38,
+                sbom_count: 214,
+                version_count: 57,
                 package_count: 107868,
                 license_count: 545,
                 vuln_count: 12,
             },
         });
-        expect(getByText("38 artifacts")).toBeDefined();
-        expect(getByText("107,868 packages")).toBeDefined();
+        // Head and value are separate spans in a StatBand, so assert on the
+        // tile rather than on a concatenated "38 artifacts" string.
+        const tiles = [...container.querySelectorAll(".tile")].map((t) => t.textContent);
+        expect(tiles).toContain("Artifacts38images, binaries and libraries");
+        expect(tiles).toContain("Packages107,86857 versions indexed");
+        // Every tile that has a list page behind it links to it; SBOMs does not.
+        const hrefs = [...container.querySelectorAll("a.tile")].map((a) => a.getAttribute("href"));
+        expect(hrefs).toEqual(["/artifacts", "/components", "/licenses", "/vulnerabilities"]);
     });
 
     // Regression: the stats query times out against a cold cache, and a bare
@@ -211,6 +223,8 @@ describe("Home catalog stats", () => {
             isError: false,
             data: {
                 artifact_count: 38,
+                sbom_count: 214,
+                version_count: 57,
                 package_count: 0,
                 license_count: 0,
                 vuln_count: 0,
@@ -233,6 +247,39 @@ describe("Home catalog stats", () => {
         expect(chips[0].textContent).toContain("24");
     });
 
+    // A stranger who reads only the top of this page should leave it with a
+    // destination. The band's tiles are figures; these are verbs, and there are
+    // three of them on purpose (ocidex-ag4q.42).
+    it("offers three entry points into the catalog", () => {
+        const { container } = renderHome({
+            isLoading: false,
+            isError: false,
+            data: {
+                artifact_count: 38,
+                sbom_count: 214,
+                version_count: 57,
+                package_count: 107868,
+                license_count: 545,
+                vuln_count: 12,
+            },
+        });
+
+        const ctas = [...(container.querySelector(".landing-ctas")?.children ?? [])];
+        expect(ctas.map((c) => c.textContent)).toEqual([
+            "Browse artifacts",
+            "Search components",
+            "Review vulnerabilities",
+            "GitHub",
+        ]);
+        expect(ctas.slice(0, 3).map((c) => c.getAttribute("href"))).toEqual([
+            "/artifacts",
+            "/components",
+            "/vulnerabilities",
+        ]);
+        // Exactly one red thing per view, per the token split in index.css.
+        expect(container.querySelectorAll(".landing-ctas .btn-primary")).toHaveLength(1);
+    });
+
     // The field is nullable in the generated spec, and an empty catalog has no
     // types at all — the rest of the hero must still render.
     it("omits the chip row when no types come back", () => {
@@ -241,6 +288,8 @@ describe("Home catalog stats", () => {
             isError: false,
             data: {
                 artifact_count: 0,
+                sbom_count: 0,
+                version_count: 0,
                 package_count: 0,
                 license_count: 0,
                 vuln_count: 0,
@@ -249,7 +298,7 @@ describe("Home catalog stats", () => {
         });
 
         expect(container.querySelector(".landing-types")).toBeNull();
-        expect(container.textContent).toContain("0 artifacts");
+        expect(container.querySelector(".tile-value")?.textContent).toBe("0");
     });
 
     // A warming response is a successful 200 whose counts are all zero
@@ -261,6 +310,8 @@ describe("Home catalog stats", () => {
             isError: false,
             data: {
                 artifact_count: 0,
+                sbom_count: 0,
+                version_count: 0,
                 package_count: 0,
                 license_count: 0,
                 vuln_count: 0,
@@ -268,7 +319,7 @@ describe("Home catalog stats", () => {
             },
         });
         expect(container.querySelector(".skeleton")).not.toBeNull();
-        expect(container.textContent).not.toContain("0 artifacts");
+        expect(container.querySelector(".tile")).toBeNull();
     });
 });
 
@@ -277,7 +328,7 @@ describe("Home catalog stats", () => {
 const warmStats: StatsQuery = {
     isLoading: false,
     isError: false,
-    data: { artifact_count: 1, package_count: 1, license_count: 1, vuln_count: 1 },
+    data: { artifact_count: 1, sbom_count: 1, version_count: 1, package_count: 1, license_count: 1, vuln_count: 1 },
 };
 
 describe("Home discovery panels", () => {

@@ -1,12 +1,65 @@
 import { A } from "@solidjs/router";
-import { ExternalLink } from "lucide-solid";
+import { ExternalLink, Boxes, FileStack, Package, Scale, ShieldAlert } from "lucide-solid";
 import { For, Show } from "solid-js";
 import { Skeleton } from "~/components/Skeleton";
-import { Button, TypeBadge } from "~/components/ui";
+import { Button, StatBand, TypeBadge } from "~/components/ui";
+import type { StatTile } from "~/components/ui";
 import { useDashboardStats } from "~/api/queries";
 import { HomeBand } from "~/pages/Dashboard/HomeBand";
 import { HomeDiscovery } from "~/pages/HomeDiscovery";
 import "./Home.css";
+
+type Stats = NonNullable<ReturnType<typeof useDashboardStats>["data"]>;
+
+const ICON = 14;
+
+/**
+ * The corpus in numbers. A tile links only where a list page exists to receive
+ * the click — SBOMs are reachable only through their artifact, so that one is a
+ * figure and nothing more.
+ */
+function statTiles(data: Stats): StatTile[] {
+    return [
+        {
+            href: "/artifacts",
+            icon: <Boxes size={ICON} />,
+            head: "Artifacts",
+            value: data.artifact_count.toLocaleString(),
+            sub: "images, binaries and libraries",
+        },
+        {
+            icon: <FileStack size={ICON} />,
+            head: "SBOMs",
+            value: data.sbom_count.toLocaleString(),
+            sub: "one per image, arch and flavor",
+        },
+        {
+            href: "/components",
+            icon: <Package size={ICON} />,
+            head: "Packages",
+            value: data.package_count.toLocaleString(),
+            // version_count is distinct *package* versions (db/queries/stats.sql
+            // counts component_rollup.versions), not artifact versions — it
+            // belongs here, not on the SBOM tile where it read as though the
+            // catalog held more versions than SBOMs.
+            sub: `${data.version_count.toLocaleString()} versions indexed`,
+        },
+        {
+            href: "/licenses",
+            icon: <Scale size={ICON} />,
+            head: "Licenses",
+            value: data.license_count.toLocaleString(),
+            sub: "seen across the catalog",
+        },
+        {
+            href: "/vulnerabilities",
+            icon: <ShieldAlert size={ICON} />,
+            head: "Vulnerabilities",
+            value: data.vuln_count.toLocaleString(),
+            sub: "matched to indexed packages",
+        },
+    ];
+}
 
 export default function Home() {
     const stats = useDashboardStats();
@@ -44,15 +97,15 @@ export default function Home() {
                 >
                     {(data) => (
                         <>
-                            <div class="landing-stats">
-                                <span>{data().artifact_count.toLocaleString()} artifacts</span>
-                                <span class="landing-stats-sep">·</span>
-                                <span>{data().package_count.toLocaleString()} packages</span>
-                                <span class="landing-stats-sep">·</span>
-                                <span>{data().license_count.toLocaleString()} licenses</span>
-                                <span class="landing-stats-sep">·</span>
-                                <span>{data().vuln_count.toLocaleString()} vulnerabilities</span>
-                            </div>
+                            {/* The corpus in numbers, as the same StatBand every
+                                detail page uses. It was a single mono-spaced run
+                                of "38 artifacts · 107,868 packages · …" — legible
+                                but inert, and it gave a stranger no way to act on
+                                any of the four figures. Each tile that has a list
+                                page behind it is now the link to it; SBOMs has no
+                                list route, so it stays a plain tile rather than
+                                pretending to be clickable (ocidex-ag4q.42). */}
+                            <StatBand class="landing-band" tiles={statTiles(data())} />
                             {/* The breakdown counts the same artifact set as
                                 artifact_count above, so the chips always sum to
                                 it. The field is nullable in the generated spec —
@@ -77,9 +130,19 @@ export default function Home() {
                         </>
                     )}
                 </Show>
+                {/* Three things to do, phrased as verbs. The tiles above say how
+                    much is in the index; these say what you can do with it. A
+                    stranger who reads only the top of this page should leave it
+                    with a destination. */}
                 <div class="landing-ctas">
                     <Button as={A} href="/artifacts" variant="primary">
-                        Browse Artifacts
+                        Browse artifacts
+                    </Button>
+                    <Button as={A} href="/components">
+                        Search components
+                    </Button>
+                    <Button as={A} href="/vulnerabilities">
+                        Review vulnerabilities
                     </Button>
                     <Button
                         as="a"
