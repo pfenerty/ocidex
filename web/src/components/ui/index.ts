@@ -2,6 +2,7 @@ export * from "./Badge";
 export * from "./Button";
 export * from "./ButtonGroup";
 export * from "./Card";
+export * from "./Combobox";
 export * from "./DetailGrid";
 export * from "./FormField";
 export * from "./Modal";
