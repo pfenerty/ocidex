@@ -1,0 +1,24 @@
+/* Styling for the <dialog> that ui/Modal.tsx renders.
+ *
+ * These rules lived in pages/admin/SourcesTab.css until ocidex-ag4q.56 — a
+ * bare-element selector imported by exactly one admin page, which every other
+ * Modal call site then inherited by accident. It worked only because App.tsx
+ * imports all routes statically; the first `lazy()` route would have left
+ * /clusters rendering a browser-default white box with no backdrop. Primitive
+ * styling belongs with the primitive. */
+dialog {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: 0;
+    width: min(90vw, 740px);
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    margin: auto;
+}
+
+dialog::backdrop {
+    background: rgba(0, 0, 0, 0.55);
+}

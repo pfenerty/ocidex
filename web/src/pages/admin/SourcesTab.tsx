@@ -1,4 +1,3 @@
-import "./SourcesTab.css";
 import { createEffect, createMemo, createSignal } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
 import {

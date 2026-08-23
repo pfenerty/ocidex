@@ -1,3 +1,4 @@
+import "~/components/ui/Modal.css";
 import type { JSX } from "solid-js";
 
 /**
