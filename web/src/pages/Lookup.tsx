@@ -10,7 +10,7 @@ import {
 } from "~/api/queries/lookup";
 import { EmptyState, ErrorBox, Loading } from "~/components/Feedback";
 import NotFound from "~/pages/NotFound";
-import { PageHeader } from "~/components/ui";
+import { Card, PageHeader } from "~/components/ui";
 
 /** First value of a search param, since the router types them as string | string[]. */
 function one(v: string | string[] | undefined): string | undefined {
@@ -77,7 +77,7 @@ function ResolverView(props: ResolverViewProps): JSX.Element {
                                     <ul class="flex flex-col gap-2">
                                         <For each={list()}>
                                             {(candidate) => (
-                                                <li class="card">
+                                                <Card as="li">
                                                     <A
                                                         href={props.canonicalPath(candidate.id)}
                                                         class="flex flex-wrap gap-2 items-center"
@@ -87,7 +87,7 @@ function ResolverView(props: ResolverViewProps): JSX.Element {
                                                             fallback={candidate.id}
                                                         />
                                                     </A>
-                                                </li>
+                                                </Card>
                                             )}
                                         </For>
                                     </ul>

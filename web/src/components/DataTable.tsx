@@ -6,6 +6,7 @@ import { Skeleton } from "~/components/Skeleton";
 import Pagination from "~/components/Pagination";
 import LoadMore from "~/components/LoadMore";
 import type { PaginationMeta } from "~/api/client";
+import { Card } from "~/components/ui";
 
 export type SortDir = "asc" | "desc";
 
@@ -161,7 +162,7 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
         // to announce something they already know they asked for. The rows stay
         // put and dim; a screen reader gets the busy state it would otherwise
         // have to infer from the content vanishing.
-        <div class="card" classList={{ "table-refetching": isRefetching() }} aria-busy={isRefetching()}>
+        <Card classList={{ "table-refetching": isRefetching() }} aria-busy={isRefetching()}>
             <div class="table-wrapper">
                 <table>
                     <thead>
@@ -193,7 +194,7 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
                     <LoadMore hasMore={lm().hasMore} loading={lm().loading} onClick={lm().onClick} />
                 )}
             </Show>
-        </div>
+        </Card>
     );
 
     return (

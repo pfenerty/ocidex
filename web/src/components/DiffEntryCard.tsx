@@ -4,6 +4,7 @@ import type { ChangelogEntryData } from "~/utils/diff";
 import { changelogRefLabel } from "~/utils/diff";
 import { relativeDate } from "~/utils/format";
 import { DiffPairView } from "~/components/DiffPairView";
+import { Card } from "~/components/ui";
 
 // DiffEntryCard wraps a single SBOM-pair comparison in a collapsible card.
 // The header (from→to + summary badges) is always rendered cheaply; the body
@@ -26,7 +27,7 @@ export function DiffEntryCard(props: {
     ];
 
     return (
-        <div class="card mb-4" style={{ "padding": "0", overflow: "hidden" }}>
+        <Card class="mb-4" style={{ "padding": "0", overflow: "hidden" }}>
             <div
                 role="button"
                 tabindex="0"
@@ -98,6 +99,6 @@ export function DiffEntryCard(props: {
                     />
                 </div>
             </Show>
-        </div>
+        </Card>
     );
 }

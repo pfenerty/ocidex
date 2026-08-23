@@ -7,7 +7,7 @@ import { useArtifacts, useArtifactSBOMs } from "~/api/queries";
 import { EmptyState } from "~/components/Feedback";
 import { DiffPairView, ViewToggle } from "~/components/DiffPairView";
 import { sbomPickerLabel } from "~/utils/format";
-import { Button, PageHeader } from "~/components/ui";
+import { Button, Card, PageHeader } from "~/components/ui";
 
 export default function Diff() {
     const [searchParams, setSearchParams] = useSearchParams<{
@@ -70,7 +70,7 @@ export default function Diff() {
                 }
             />
 
-            <div class="card mb-6">
+            <Card class="mb-6">
                 <div class="diff-picker">
                     {/* FROM side */}
                     <div class="diff-picker-side">
@@ -163,7 +163,7 @@ export default function Diff() {
                         Compare
                     </Button>
                 </div>
-            </div>
+            </Card>
 
             <Show
                 when={searchParams.from !== undefined && searchParams.to !== undefined}

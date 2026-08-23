@@ -10,6 +10,7 @@ import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { SeverityPill, VulnId, SpdxBadgeCell } from "~/components/cells";
 import { hasText } from "~/utils/format";
+import { Card, CardHeader } from "~/components/ui";
 
 type ComponentVulnEntry = components["schemas"]["ComponentVulnEntry"];
 
@@ -192,12 +193,10 @@ export default function ComponentMetadata(props: {
                         </div>
 
                         <Show when={hasText(detail.description)}>
-                            <div class="card mb-4">
-                                <div class="card-header">
-                                    <h3>Description</h3>
-                                </div>
+                            <Card class="mb-4">
+                                <CardHeader title="Description" />
                                 <p class="text-sm">{detail.description}</p>
-                            </div>
+                            </Card>
                         </Show>
                     </>
                 )}
@@ -270,11 +269,11 @@ export default function ComponentMetadata(props: {
 
             {/* External References */}
             <Show when={(props.detailQuery.data?.externalReferences ?? []).length > 0}>
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h3>External References</h3>
-                        <span class="badge">{(props.detailQuery.data?.externalReferences ?? []).length}</span>
-                    </div>
+                <Card class="mb-4">
+                    <CardHeader
+                        title="External References"
+                        count={(props.detailQuery.data?.externalReferences ?? []).length}
+                    />
                     <div class="table-wrapper">
                         <table>
                             <thead>
@@ -308,7 +307,7 @@ export default function ComponentMetadata(props: {
                             </tbody>
                         </table>
                     </div>
-                </div>
+                </Card>
             </Show>
         </>
     );

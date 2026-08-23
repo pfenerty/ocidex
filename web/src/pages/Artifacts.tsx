@@ -7,7 +7,7 @@ import LoadMore from "~/components/LoadMore";
 import { artifactDisplayName, plural } from "~/utils/format";
 import { SigningBadge, TypeBadge } from "~/components/cells";
 import { DEFAULT_PAGE_SIZE, type ArtifactSummary } from "~/api/client";
-import { PageHeader } from "~/components/ui";
+import { Card, PageHeader } from "~/components/ui";
 
 const ARTIFACT_TYPES = [
     "application",
@@ -157,7 +157,7 @@ export default function Artifacts() {
                             />
                         }
                     >
-                        <div class="card">
+                        <Card>
                             <div class="table-wrapper">
                                 <table>
                                     <thead>
@@ -211,7 +211,7 @@ export default function Artifacts() {
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
+                        </Card>
                         <LoadMore
                             hasMore={query.hasNextPage}
                             loading={query.isFetchingNextPage}

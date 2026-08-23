@@ -2,7 +2,7 @@ import { A } from "@solidjs/router";
 import { Flame, Clock, ShieldAlert, Scale } from "lucide-solid";
 import { For, Show, type JSX } from "solid-js";
 import { Skeleton } from "~/components/Skeleton";
-import { Badge, TypeBadge } from "~/components/ui";
+import { Badge, Card, TypeBadge } from "~/components/ui";
 import { useDiscovery } from "~/api/queries";
 import type { DiscoverVuln } from "~/api/queries";
 import { plural } from "~/utils/format";
@@ -46,7 +46,7 @@ function DiscoverPanel(props: {
     children: JSX.Element;
 }): JSX.Element {
     return (
-        <section class="card entry-card landing-panel">
+        <Card as="section" class="entry-card landing-panel">
             <div class="landing-card-header">
                 <span class="entry-number">{props.number}</span>
                 <A href={props.href} class="landing-panel-all">
@@ -59,7 +59,7 @@ function DiscoverPanel(props: {
             </h3>
             <p class="landing-card-desc">{props.blurb}</p>
             <ul class="landing-list">{props.children}</ul>
-        </section>
+        </Card>
     );
 }
 

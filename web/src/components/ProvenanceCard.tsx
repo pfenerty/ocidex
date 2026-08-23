@@ -8,6 +8,7 @@ import { isGitHubUrl, gitHubCommitUrl } from "~/utils/oci";
 import { trustStatus, trustBadgeClass, signingStatusLabel, driftReasonLabel } from "~/utils/trust";
 import { ShieldIcon, GitHubIcon, ExternalLinkIcon } from "./metadata/OciIcons";
 import { LinkedField } from "./metadata/LinkedField";
+import { Card, CardHeader } from "~/components/ui";
 
 // FactPill renders a present/absent trust fact (e.g. "cosign signature ✓").
 function FactPill(props: { present: boolean; label: string }) {
@@ -45,16 +46,20 @@ export default function ProvenanceCard(props: {
     };
 
     return (
-        <div class="card mb-4">
-            <div class="card-header">
-                <h3 style={{ display: "flex", "align-items": "center", gap: "0.5rem" }}>
-                    <ShieldIcon />
-                    Provenance
-                </h3>
-                <Show when={trust()}>
-                    {(t) => <span class={trustBadgeClass(t().variant)}>{t().label}</span>}
-                </Show>
-            </div>
+        <Card class="mb-4">
+            <CardHeader
+                title={
+                    <span class="title-inline">
+                        <ShieldIcon />
+                        Provenance
+                    </span>
+                }
+                actions={
+                    <Show when={trust()}>
+                        {(t) => <span class={trustBadgeClass(t().variant)}>{t().label}</span>}
+                    </Show>
+                }
+            />
 
             <Show when={props.drift}>
                 {(d) => (
@@ -217,6 +222,6 @@ export default function ProvenanceCard(props: {
                     </details>
                 )}
             </Show>
-        </div>
+        </Card>
     );
 }

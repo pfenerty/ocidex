@@ -25,19 +25,6 @@
     margin-top: 0.25rem;
 }
 
-/* A title that carries a badge or a version beside the name.
-   Two headers wrote this as an inline `style` on the `<h2>` itself; the
-   `<PageHeader>` primitive owns the `<h2>` now, so the rule has to live on a
-   wrapper inside it. Keeping it a span (not the h2) also leaves
-   `.page-header h2::after` — the gradient underline — a block child of a block
-   parent, so it still draws on its own line. */
-.title-inline {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    flex-wrap: wrap;
-}
-
 .page-header-row {
     display: flex;
     align-items: center;

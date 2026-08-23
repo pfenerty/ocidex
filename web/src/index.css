@@ -369,6 +369,24 @@
 
     /* Title and its count travel together on the left; `actions` is the only
        thing space-between should push to the far edge. */
+    /* A heading that carries something beside its text — a leading icon, a
+       version, a trust badge. Five headers wrote this as an inline `style` on
+       their own `h2`/`h3`; the `<PageHeader>` and `<CardHeader>` primitives own
+       those elements now, so the rule lives on a wrapper inside them.
+
+       Keeping it a span rather than moving it onto the heading itself matters
+       twice: `.page-header h2::after` (the gradient underline) stays a block
+       child of a block parent and still draws on its own line, and the ~20
+       single-run headings that do not need flex are left alone. It is also what
+       finally makes `.card-header h3 svg { flex-shrink: 0 }` mean something —
+       shrink on a child of a block parent never did. */
+    .title-inline {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
     .card-header-title {
         display: flex;
         align-items: center;

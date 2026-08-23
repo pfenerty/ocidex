@@ -1,7 +1,7 @@
 import "~/components/DetailSection.css";
 import { Show, For, createSignal, createMemo } from "solid-js";
 import { A, useParams, useNavigate } from "@solidjs/router";
-import { Button, ButtonGroup, PageHeader } from "~/components/ui";
+import { Button, ButtonGroup, Card, CardHeader, PageHeader } from "~/components/ui";
 import { useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies, useSBOMDriftHistory, useArtifactSBOMs } from "~/api/queries";
 import { useArtifactNames } from "~/api/queries";
 import type { OCIMetadata, Provenance, GitCommitMetadata } from "~/api/client";
@@ -274,8 +274,8 @@ export default function SBOMDetail() {
 
                             {/* --- Raw tab (identity + CycloneDX internals) --- */}
                             <Show when={tab() === "raw"}>
-                                <div class="card mb-4">
-                                    <div class="card-header"><h3>SBOM details</h3></div>
+                                <Card class="mb-4">
+                                    <CardHeader title="SBOM details" />
                                     <div class="detail-grid">
                                         <Show when={s.artifactId}>
                                             <div class="detail-field">
@@ -322,7 +322,7 @@ export default function SBOMDetail() {
                                             )}
                                         </Show>
                                     </div>
-                                </div>
+                                </Card>
                             </Show>
                         </>
                     )}

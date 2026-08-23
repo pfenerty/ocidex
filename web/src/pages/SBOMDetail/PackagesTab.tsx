@@ -12,7 +12,7 @@ import {
 } from "~/components/cells";
 import { plural } from "~/utils/format";
 import { parsePurl } from "~/utils/purl";
-import { Button, ButtonGroup, Tooltip } from "~/components/ui";
+import { Button, ButtonGroup, Card, Tooltip } from "~/components/ui";
 import { componentHref } from "./componentHref";
 import { DependencyTreeView } from "./DependencyTreeView";
 
@@ -225,9 +225,9 @@ export function PackagesTab(props: {
                     }
                 >
                     {(graph) => (
-                        <div class="card">
+                        <Card>
                             <DependencyTreeView graph={graph} />
-                        </div>
+                        </Card>
                     )}
                 </Show>
             </>

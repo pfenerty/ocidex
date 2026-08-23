@@ -16,6 +16,7 @@ import {
 } from "./metadata/OciIcons";
 import { LinkedField } from "./metadata/LinkedField";
 import { AnnotationsSection } from "./metadata/AnnotationsSection";
+import { Card, CardHeader } from "~/components/ui";
 
 export default function ImageMetadataCard(props: {
     metadata: OCIMetadata;
@@ -51,26 +52,24 @@ export default function ImageMetadataCard(props: {
         m.baseName !== undefined ? containerRegistryUrl(m.baseName) : null;
 
     return (
-        <div class="card mb-4">
-            <div class="card-header">
-                <h3
-                    style={{
-                        display: "flex",
-                        "align-items": "center",
-                        gap: "0.5rem",
-                    }}
-                >
-                    <OciIcon />
-                    <Show when={m.title} fallback="Image Metadata">
-                        {m.title}
-                    </Show>
-                </h3>
-                <span class="text-muted text-sm">
-                    <Show when={m.title} fallback="from OCI registry">
-                        Image Metadata
-                    </Show>
-                </span>
-            </div>
+        <Card class="mb-4">
+            <CardHeader
+                title={
+                    <span class="title-inline">
+                        <OciIcon />
+                        <Show when={m.title} fallback="Image Metadata">
+                            {m.title}
+                        </Show>
+                    </span>
+                }
+                actions={
+                    <span class="text-muted text-sm">
+                        <Show when={m.title} fallback="from OCI registry">
+                            Image Metadata
+                        </Show>
+                    </span>
+                }
+            />
 
             <div class="detail-grid">
                 {/* Platform */}
@@ -249,6 +248,6 @@ export default function ImageMetadataCard(props: {
                     />
                 )}
             </Show>
-        </div>
+        </Card>
     );
 }
