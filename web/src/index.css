@@ -461,6 +461,29 @@
     }
 
     /* Group header rows (sticky namespace labels inside a flat table) */
+    /* A cell whose content is a control, not a label — the enricher health
+       matrix's counts, each of which sets a filter. Three call sites wrote this
+       as an inline `background: none; border: none; padding: 0`, which is the
+       shape of a rule that should exist: the bare `button` element rule gives
+       every button a border and padding, so a button inside a table cell has to
+       undo all of it before it can read as text.
+
+       `.active` is blue, not red, per the split documented above: this marks
+       which enricher you are filtered to, which is state, not consequence. */
+    .cell-button {
+        background: none;
+        border: none;
+        padding: 0;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+    }
+
+    .cell-button.active {
+        color: var(--color-secondary);
+        font-weight: 600;
+    }
+
     tr.group-header-row td {
         position: sticky;
         top: 0;

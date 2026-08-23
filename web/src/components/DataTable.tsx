@@ -11,7 +11,13 @@ import { Card } from "~/components/ui";
 export type SortDir = "asc" | "desc";
 
 export interface Column<T> {
-    header: string;
+    /**
+     * JSX rather than string so a column can colour or decorate its own label.
+     * The enricher health matrix needs it: its four state columns are the same
+     * four colours as the state badges in the table below, and a header that
+     * cannot carry that is a header that has to be hand-rolled.
+     */
+    header: JSX.Element;
     sortKey?: string;
     /** Default sort direction when this column becomes active. Default "text". */
     sortType?: "text" | "numeric";
@@ -47,6 +53,20 @@ export interface DataTableProps<T> {
     };
     /** Number of shimmer rows to show on first load. Default 8. */
     skeletonRows?: number;
+    /**
+     * Content rendered inside the card above the table — a `<CardHeader>`, a
+     * line of explanation, or both.
+     *
+     * Without this, a table that needs a title has to be hand-rolled inside its
+     * own `<Card>`, because DataTable emits one of its own and nesting two is
+     * two borders and two lots of padding. It is deliberately rendered in the
+     * error and empty branches too: the drift feed's caption is the sentence
+     * saying the feed is regression-only, and an empty feed is exactly when the
+     * reader most needs to be told that.
+     */
+    caption?: JSX.Element;
+    /** Extra classes for the card the table is rendered in. */
+    class?: string;
 }
 
 function defaultDirFor(col: Pick<Column<unknown>, "sortType">): SortDir {
@@ -162,7 +182,12 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
         // to announce something they already know they asked for. The rows stay
         // put and dim; a screen reader gets the busy state it would otherwise
         // have to infer from the content vanishing.
-        <Card classList={{ "table-refetching": isRefetching() }} aria-busy={isRefetching()}>
+        <Card
+            class={props.class}
+            classList={{ "table-refetching": isRefetching() }}
+            aria-busy={isRefetching()}
+        >
+            {props.caption}
             <div class="table-wrapper">
                 <table>
                     <thead>
@@ -197,15 +222,30 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
         </Card>
     );
 
+    // Error and empty states are bare by default — that is how every existing
+    // call site renders — but a captioned table has to keep its caption in
+    // those branches or the section loses its title exactly when it is emptiest.
+    const framed = (body: JSX.Element): JSX.Element =>
+        props.caption === undefined ? (
+            body
+        ) : (
+            <Card class={props.class}>
+                {props.caption}
+                {body}
+            </Card>
+        );
+
     return (
-        <Show when={!props.isError} fallback={<ErrorBox error={props.error} />}>
+        <Show when={!props.isError} fallback={framed(<ErrorBox error={props.error} />)}>
             <Show
                 when={!isFirstLoad()}
                 fallback={tableShell(() => skeletonBody(props.skeletonRows ?? 8))}
             >
                 <Show
                     when={visibleRows()}
-                    fallback={<EmptyState title={props.emptyTitle} message={props.emptyMessage} />}
+                    fallback={framed(
+                        <EmptyState title={props.emptyTitle} message={props.emptyMessage} />,
+                    )}
                 >
                     {(rows) =>
                         // The thunk's reads are realized inside the tracked {body()}

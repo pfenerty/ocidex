@@ -85,8 +85,11 @@ describe("migrated pages use the Card primitive", () => {
         expect(offenders).toEqual([]);
     });
 
-    it("imports it from the barrel", () => {
-        const missing = MIGRATED.filter((f) => !/\bCard\b/.test(code(join(SRC, f))));
+    it("reaches for a primitive that emits one", () => {
+        // `DataTable` counts: it renders its own `<Card>`, so a page that moved
+        // its table onto the table primitive (ocidex-ag4q.26) has stopped
+        // naming `Card` directly and is more migrated, not less.
+        const missing = MIGRATED.filter((f) => !/\b(Card|DataTable)\b/.test(code(join(SRC, f))));
         expect(missing).toEqual([]);
     });
 });

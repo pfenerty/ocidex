@@ -197,7 +197,7 @@ export default function ProvenanceCard(props: {
                         <summary class="text-muted text-sm cursor-pointer">
                             History ({history().length})
                         </summary>
-                        <table class="table mt-2">
+                        <table class="mt-2">
                             <thead>
                                 <tr>
                                     <th>Detected</th>

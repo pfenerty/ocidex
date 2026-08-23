@@ -126,3 +126,56 @@ describe("DataTable reactivity", () => {
         expect(container.querySelectorAll("tbody .skeleton").length).toBeGreaterThan(0);
     });
 });
+
+describe("DataTable caption", () => {
+    const withCaption = (rows: Row[] | undefined, isError: boolean) =>
+        render(() => (
+            <DataTable
+                columns={columns}
+                rows={rows}
+                loading={false}
+                isError={isError}
+                error={isError ? new Error("boom") : undefined}
+                emptyTitle="Nothing here"
+                caption={<h3>Recent drift</h3>}
+                class="mt-6"
+            />
+        ));
+
+    it("renders above the table, inside the same card", () => {
+        const { container } = withCaption([{ name: "a" }], false);
+        const card = container.querySelector(".card");
+        expect(card).not.toBeNull();
+        expect(card?.classList.contains("mt-6")).toBe(true);
+        // The caption is the card's first child, ahead of the table wrapper.
+        expect(card?.firstElementChild?.tagName).toBe("H3");
+        expect(card?.querySelector(".table-wrapper")).not.toBeNull();
+    });
+
+    it("survives the empty state, which is when it matters most", () => {
+        // A feed that says "nothing recorded" without the sentence explaining
+        // what it records is a blank the reader has to guess at.
+        const { container, getByText } = withCaption([], false);
+        expect(getByText("Nothing here")).toBeDefined();
+        expect(container.querySelector(".card > h3")).not.toBeNull();
+        expect(container.querySelector("table")).toBeNull();
+    });
+
+    it("survives the error state", () => {
+        const { container } = withCaption(undefined, true);
+        expect(container.querySelector(".card > h3")).not.toBeNull();
+    });
+
+    it("is absent by default, leaving the bare states every caller already has", () => {
+        const { container } = render(() => (
+            <DataTable
+                columns={columns}
+                rows={[]}
+                loading={false}
+                isError={false}
+                emptyTitle="Nothing here"
+            />
+        ));
+        expect(container.querySelector(".card")).toBeNull();
+    });
+});
