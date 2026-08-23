@@ -1,7 +1,7 @@
 import "~/components/DetailSection.css";
-import { Show, For, createSignal, createMemo } from "solid-js";
+import { Show, createSignal, createMemo } from "solid-js";
 import { A, useParams, useNavigate } from "@solidjs/router";
-import { Button, ButtonGroup, Card, CardHeader, PageHeader, QueryBoundary } from "~/components/ui";
+import { Button, ButtonGroup, Card, CardHeader, PageHeader, QueryBoundary, TabBar } from "~/components/ui";
 import { useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies, useSBOMDriftHistory, useArtifactSBOMs } from "~/api/queries";
 import { useArtifactNames } from "~/api/queries";
 import type { OCIMetadata, Provenance, GitCommitMetadata } from "~/api/client";
@@ -174,18 +174,17 @@ export default function SBOMDetail() {
 
                             {/* --- Arch switcher --- */}
                             <Show when={archSiblings().length > 1}>
-                                <div class="tab-bar mb-sm">
-                                    <For each={archSiblings()}>
-                                        {(sibling) => (
-                                            <button
-                                                class={sibling.id === params.id ? "active" : ""}
-                                                onClick={() => navigate(`/sboms/${sibling.id}`)}
-                                            >
-                                                {sibling.architecture}
-                                            </button>
-                                        )}
-                                    </For>
-                                </div>
+                                {/* A `nav` strip, not a filter: each sibling is
+                                    a different SBOM at a different URL. */}
+                                <TabBar
+                                    tabs={archSiblings().map((sib) => ({
+                                        id: sib.id,
+                                        label: sib.architecture ?? sib.id,
+                                    }))}
+                                    active={params.id}
+                                    onSelect={(id) => navigate(`/sboms/${id}`)}
+                                    class="mb-sm"
+                                />
                             </Show>
 
                             {/* --- Summary band --- */}
@@ -207,15 +206,17 @@ export default function SBOMDetail() {
                             <VulnSummaryBar summary={s.vulnSummary} />
 
                             {/* --- Tabs --- */}
-                            <div class="tab-bar">
-                                <button class={tab() === "packages" ? "active" : ""} onClick={() => setTab("packages")}>
-                                    Packages ({s.packageCount})
-                                </button>
-                                <button class={tab() === "provenance" ? "active" : ""} onClick={() => setTab("provenance")}>Provenance</button>
-                                <button class={tab() === "image" ? "active" : ""} onClick={() => setTab("image")}>Image</button>
-                                <button class={tab() === "git" ? "active" : ""} onClick={() => setTab("git")}>Git</button>
-                                <button class={tab() === "raw" ? "active" : ""} onClick={() => setTab("raw")}>Raw</button>
-                            </div>
+                            <TabBar
+                                tabs={[
+                                    { id: "packages", label: `Packages (${s.packageCount})` },
+                                    { id: "provenance", label: "Provenance" },
+                                    { id: "image", label: "Image" },
+                                    { id: "git", label: "Git" },
+                                    { id: "raw", label: "Raw" },
+                                ]}
+                                active={tab()}
+                                onSelect={setTab}
+                            />
 
                             {/* --- Packages tab --- */}
                             <Show when={tab() === "packages"}>

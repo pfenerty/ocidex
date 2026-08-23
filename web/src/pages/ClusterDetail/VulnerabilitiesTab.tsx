@@ -127,6 +127,8 @@ export function VulnerabilitiesTab(props: {
             {/* See Vulnerabilities.tsx: the hand-rolled strip emitted
                 `tab-btn`/`tab-active`, which the stylesheet does not define. */}
             <TabBar
+                variant="filter"
+                label="Severity"
                 tabs={SEVERITY_TABS.map((t) => ({ id: t, label: t }))}
                 active={props.severity ?? "All"}
                 onSelect={(tab) => props.onSeverityChange(tab === "All" ? undefined : tab)}

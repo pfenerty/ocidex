@@ -4,7 +4,7 @@ import { useArtifact, useArtifactSBOMs } from "~/api/queries";
 import { EmptyState } from "~/components/Feedback";
 import { SkeletonText } from "~/components/Skeleton";
 import { DiffPairView, ViewToggle } from "~/components/DiffPairView";
-import { PageHeader, QueryBoundary } from "~/components/ui";
+import { PageHeader, QueryBoundary, TabBar } from "~/components/ui";
 
 export default function ArtifactVersionHistory() {
     const params = useParams<{ id: string; version: string }>();
@@ -61,22 +61,16 @@ export default function ArtifactVersionHistory() {
                 {() => (
                     <>
                         <Show when={allArchs().length > 1}>
-                            <div class="tab-bar mb-4">
-                                <For each={allArchs()}>
-                                    {(arch) => (
-                                        <button
-                                            class={selectedArch() === arch ? "active" : ""}
-                                            onClick={() =>
-                                                setSelectedArch((a) =>
-                                                    a === arch ? undefined : arch,
-                                                )
-                                            }
-                                        >
-                                            {arch}
-                                        </button>
-                                    )}
-                                </For>
-                            </div>
+                            <TabBar
+                                variant="filter"
+                                label="Architecture"
+                                tabs={allArchs().map((a) => ({ id: a, label: a }))}
+                                active={selectedArch() ?? ""}
+                                onSelect={(arch) =>
+                                    setSelectedArch((a) => (a === arch ? undefined : arch))
+                                }
+                                class="mb-4"
+                            />
                         </Show>
 
                         <Show

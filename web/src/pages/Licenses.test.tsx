@@ -63,7 +63,7 @@ describe("Licenses filters live in the URL", () => {
     it("seeds all three filters from the query string", () => {
         const { container, params } = renderAt("/licenses?name=Apache&spdx=MIT&category=copyleft");
         expect(textInputs(container).map((i) => i.value)).toEqual(["Apache", "MIT"]);
-        const active = container.querySelectorAll(".tab-bar button.active");
+        const active = container.querySelectorAll(".filter-chips button.active");
         expect(active.length).toBe(1);
         expect(active[0].textContent).toBe("Copyleft");
         expect(params().name).toBe("Apache");
@@ -93,7 +93,7 @@ describe("Licenses filters live in the URL", () => {
 
     it("composes the category strip with the text filters", async () => {
         const { container, params } = renderAt("/licenses?name=Apache");
-        const [permissive] = [...container.querySelectorAll(".tab-bar button")].filter(
+        const [permissive] = [...container.querySelectorAll(".filter-chips button")].filter(
             (b) => b.textContent === "Permissive",
         );
         fireEvent.click(permissive);
@@ -108,7 +108,7 @@ describe("Licenses filters live in the URL", () => {
 
     it("drops the category param for All rather than storing an empty one", async () => {
         const { container } = renderAt("/licenses?category=copyleft");
-        const [all] = [...container.querySelectorAll(".tab-bar button")].filter(
+        const [all] = [...container.querySelectorAll(".filter-chips button")].filter(
             (b) => b.textContent === "All",
         );
         fireEvent.click(all);

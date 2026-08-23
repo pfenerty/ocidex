@@ -161,8 +161,13 @@ export default function Vulnerabilities() {
                 `.page-header` div, which exists only to carry the title
                 block's bottom margin — so they inherited a gap of zero above
                 and 1.5rem below. Lifting them out is what makes this page the
-                same shape as Licenses, which had it right. */}
+                same shape as Licenses, which had it right.
+
+                It is a `filter` strip, not a `nav` one: it narrows the table
+                below rather than changing the page (ocidex-ag4q.44). */}
             <TabBar
+                variant="filter"
+                label="Severity"
                 tabs={SEVERITY_TABS.map((t) => ({ id: t, label: t }))}
                 active={activeSeverityTab()}
                 onSelect={handleTabChange}

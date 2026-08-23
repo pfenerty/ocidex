@@ -28,6 +28,64 @@ describe("tab-bar CSS contract", () => {
         expect(css).toContain(".tab-bar button.active");
     });
 
+    it("defines .filter-chips as a visually distinct control, not an alias", () => {
+        // A filter strip and a nav strip look identical unless the chip rules
+        // actually differ from the tab rules (ocidex-ag4q.44). Asserting the
+        // class exists is not enough — `.filter-chips { }` would pass that and
+        // render as an unstyled row of bare buttons.
+        const css = readFileSync(join(SRC, "index.css"), "utf-8");
+        expect(css).toContain(".filter-chips button.active");
+
+        // Comments are stripped so prose naming a selector cannot stand in for
+        // a rule, and the selector is anchored to the start of its line so
+        // `.tab-bar` cannot match the `.tab-bar button` rule below it.
+        const body = css.replace(/\/\*[\s\S]*?\*\//g, "");
+        const rule = (selector: string): string => {
+            const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const match = new RegExp(`^\\s*${escaped}[^{}]*\\{([^}]*)\\}`, "m").exec(body);
+            if (match === null) throw new Error(`no rule for ${selector}`);
+            return match[1];
+        };
+
+        // The whole point is shape: pills are separately outlined and rounded,
+        // where tabs share one baseline rule.
+        expect(rule(".filter-chips button,")).toMatch(/border-radius:\s*999px/);
+        expect(rule(".filter-chips button,")).toMatch(/border:\s*1px solid/);
+        expect(rule(".tab-bar")).toMatch(/border-bottom:/);
+        expect(rule(".filter-chips")).not.toMatch(/border-bottom:/);
+
+        // Active is blue on both. The difference is shape, not hue, per the
+        // token split documented at the top of index.css.
+        expect(rule(".filter-chips button.active,")).toMatch(/--color-secondary/);
+        expect(rule(".filter-chips button.active,")).not.toMatch(/--color-primary/);
+    });
+
+    it("routes every filter strip through the filter variant", () => {
+        // These four narrow the list already on screen. If one loses
+        // `variant="filter"` it silently renders as navigation again.
+        const filters = [
+            "pages/Vulnerabilities.tsx",
+            "pages/Licenses.tsx",
+            "pages/ClusterDetail/VulnerabilitiesTab.tsx",
+            "pages/ArtifactVersionHistory.tsx",
+            "pages/ArtifactDetail/ChangelogTab.tsx",
+        ];
+        const missing = filters.filter(
+            (rel) => !readFileSync(join(SRC, rel), "utf-8").includes('variant="filter"'),
+        );
+        expect(missing).toEqual([]);
+    });
+
+    it("leaves no page hand-rolling the tab-bar markup", () => {
+        // TabBar is the single writer of both strips, so a variant added later
+        // reaches every call site rather than the ones someone remembered.
+        const offenders = tsxFiles(SRC)
+            .filter((path) => path !== __filename)
+            .filter((path) => /class="(tab-bar|filter-chips)\b/.test(readFileSync(path, "utf-8")))
+            .map((p) => p.slice(SRC.length + 1));
+        expect(offenders).toEqual([]);
+    });
+
     it("has no call site emitting the undefined tab-btn / tab-active classes", () => {
         // Comments are stripped first: this file and the call sites that were
         // converted both name the dead classes in prose, and that is not drift.

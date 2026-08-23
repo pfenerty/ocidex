@@ -82,7 +82,7 @@ function idInput(container: HTMLElement): HTMLInputElement {
 // The severity strip highlighted nothing at all for as long as it existed: its
 // markup emitted class names the stylesheet never defined, so all six tabs
 // computed identically and the current filter was unreadable (ocidex-ag4q.6).
-// The contract is `.tab-bar button.active`, and these assert the rendered DOM
+// The contract is `.filter-chips button.active`, and these assert the rendered DOM
 // against it rather than against the strip's internal state.
 describe("Vulnerabilities severity filter", () => {
     beforeEach(() => {
@@ -91,7 +91,7 @@ describe("Vulnerabilities severity filter", () => {
 
     it("marks All active before a severity is chosen", () => {
         const { container } = renderPage();
-        const active = container.querySelectorAll(".tab-bar button.active");
+        const active = container.querySelectorAll(".filter-chips button.active");
         expect(active.length).toBe(1);
         expect(active[0].textContent).toBe("All");
     });
@@ -102,7 +102,7 @@ describe("Vulnerabilities severity filter", () => {
 
         // Scoped to the strip: "HIGH" also appears as a severity pill in the
         // rows below.
-        const [high] = [...container.querySelectorAll(".tab-bar button")].filter(
+        const [high] = [...container.querySelectorAll(".filter-chips button")].filter(
             (b) => b.textContent === "HIGH",
         );
         expect(high).toBeDefined();
@@ -112,7 +112,7 @@ describe("Vulnerabilities severity filter", () => {
         // tick rather than the click itself — the same shape <Toolbar> already
         // has for its debounced fields.
         await waitFor(() => {
-            const active = container.querySelectorAll(".tab-bar button.active");
+            const active = container.querySelectorAll(".filter-chips button.active");
             expect(active.length).toBe(1);
             expect(active[0].textContent).toBe("HIGH");
         });
@@ -201,7 +201,7 @@ describe("Vulnerabilities id filter", () => {
 
     it("keeps severity and id independent in the URL", async () => {
         const { container, params } = renderPage("/vulnerabilities?q=CVE-2024-0001");
-        const [high] = [...container.querySelectorAll(".tab-bar button")].filter(
+        const [high] = [...container.querySelectorAll(".filter-chips button")].filter(
             (b) => b.textContent === "HIGH",
         );
         fireEvent.click(high);
@@ -215,7 +215,7 @@ describe("Vulnerabilities id filter", () => {
 
     it("drops the severity param for All instead of storing an empty one", async () => {
         const { container } = renderPage("/vulnerabilities?severity=HIGH");
-        const [all] = [...container.querySelectorAll(".tab-bar button")].filter(
+        const [all] = [...container.querySelectorAll(".filter-chips button")].filter(
             (b) => b.textContent === "All",
         );
         fireEvent.click(all);

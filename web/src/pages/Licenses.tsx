@@ -82,6 +82,8 @@ export default function Licenses() {
                 stray `tab-btn` class as the two that did not. <TabBar> is the
                 only writer of the `.tab-bar button.active` contract. */}
             <TabBar
+                variant="filter"
+                label="License category"
                 tabs={categoryTabs.map((t) => ({ id: t.value, label: t.label }))}
                 active={param("category")}
                 onSelect={(value) => {

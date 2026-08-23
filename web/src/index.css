@@ -808,6 +808,59 @@
         background: transparent;
     }
 
+    /*
+     * `.filter-chips` is the same control with the opposite meaning
+     * (ocidex-ag4q.44). A `.tab-bar` changes *what you are looking at* — some
+     * of its tabs are real routes — while a filter strip narrows the list you
+     * are already looking at. They were visually identical, so which one a
+     * strip was could only be discovered by clicking it.
+     *
+     * Chips are pills rather than an underlined strip: no shared baseline, no
+     * bottom rule, and each one is separately outlined, which is what reads as
+     * "toggle" instead of "section". Active is blue on both, per the token
+     * split documented at the top of this file — the difference between them is
+     * shape, not hue.
+     */
+    .filter-chips {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.375rem;
+        margin-bottom: 1rem;
+    }
+
+    .filter-chips button,
+    .filter-chips a {
+        padding: 0.25rem 0.75rem;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--color-text-muted);
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 999px;
+        cursor: pointer;
+        text-decoration: none;
+        white-space: nowrap;
+        transition:
+            color 0.15s,
+            border-color 0.15s,
+            background 0.15s;
+    }
+
+    .filter-chips button:hover,
+    .filter-chips a:hover {
+        color: var(--color-text);
+        border-color: var(--color-text-dim);
+        background: var(--color-surface);
+    }
+
+    .filter-chips button.active,
+    .filter-chips a.active {
+        color: var(--color-secondary);
+        border-color: var(--color-secondary);
+        background: var(--color-info-bg);
+    }
+
     .alert {
         padding: 0.75rem 1rem;
         border-radius: 6px;
