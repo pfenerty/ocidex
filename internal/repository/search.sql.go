@@ -688,8 +688,8 @@ FROM license l
 LEFT JOIN license_rollup lr ON lr.license_id = l.id
   AND (lr.namespace_id IN (
         SELECT visible_namespace_ids($1::uuid, $2::boolean)))
-WHERE ($3::text IS NULL OR l.spdx_id = $3)
-  AND ($4::text IS NULL OR l.name ILIKE $4)
+WHERE ($3::text IS NULL OR l.spdx_id ILIKE '%' || $3::text || '%')
+  AND ($4::text IS NULL OR l.name ILIKE '%' || $4::text || '%')
   AND ($5::text IS NULL OR license_category(l.spdx_id) = $5::text)
 GROUP BY l.id, l.spdx_id, l.name, l.url
 ORDER BY component_count DESC, l.name
@@ -728,6 +728,11 @@ type ListLicensesRow struct {
 // over a non-matching LEFT JOIN row yielded the composite (NULL,”,”,NULL),
 // which is not the NULL row, so COUNT counted it. Every license with no
 // visible components reported exactly one. 14 licenses in dev were affected.
+// Substring matches, both of them. These were an exact `=` on spdx_id and a
+// wildcard-free ILIKE on name, so "Filter by name…" only ever matched a reader
+// who typed the whole license name — every prefix on the way to "Apache-2.0"
+// reported that no such license exists. Tolerable behind a submit button;
+// actively misleading now that the box filters as you type (ocidex-ag4q.31).
 func (q *Queries) ListLicenses(ctx context.Context, arg ListLicensesParams) ([]ListLicensesRow, error) {
 	rows, err := q.db.Query(ctx, listLicenses,
 		arg.UserID,

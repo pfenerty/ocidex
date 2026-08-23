@@ -1,12 +1,13 @@
 import { createSignal } from "solid-js";
 import { DEFAULT_PAGE_SIZE } from "~/api/client";
-import { A } from "@solidjs/router";
+import { A, useSearchParams } from "@solidjs/router";
 import { useLicenses } from "~/api/queries";
 import type { components } from "~/types/openapi";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { SpdxBadgeCell, LicenseCategoryCell } from "~/components/cells";
-import { Button, PageHeader, TabBar } from "~/components/ui";
+import { Button, PageHeader, TabBar, Toolbar } from "~/components/ui";
+import type { ToolbarField } from "~/components/ui";
 
 type LicenseCount = components["schemas"]["LicenseCount"];
 
@@ -18,25 +19,32 @@ const categoryTabs = [
     { value: "uncategorized", label: "Uncategorized" },
 ] as const;
 
+const FILTERS: ToolbarField[] = [
+    { kind: "text", key: "name", placeholder: "Filter by name…", label: "Filter by name" },
+    { kind: "text", key: "spdx", placeholder: "Filter by SPDX ID…", label: "Filter by SPDX ID" },
+];
+
 export default function Licenses() {
     const [offset, setOffset] = createSignal(0);
-    const [nameFilter, setNameFilter] = createSignal("");
-    const [spdxFilter, setSpdxFilter] = createSignal("");
-    const [categoryFilter, setCategoryFilter] = createSignal("");
     const limit = DEFAULT_PAGE_SIZE;
 
+    // All three filters live in the URL now. The two text boxes already
+    // re-queried on every keystroke — the "Search" button only ever reset the
+    // offset — so this adds the 300ms pause the requests were missing and makes
+    // a filtered list something you can link to or reload back into.
+    const [searchParams, setSearchParams] = useSearchParams();
+    const param = (key: string): string => {
+        const v = searchParams[key];
+        return (Array.isArray(v) ? v[0] : v) ?? "";
+    };
+
     const query = useLicenses(() => ({
-        name: nameFilter() !== "" ? nameFilter() : undefined,
-        spdx_id: spdxFilter() !== "" ? spdxFilter() : undefined,
-        category: categoryFilter() !== "" ? categoryFilter() : undefined,
+        name: param("name") !== "" ? param("name") : undefined,
+        spdx_id: param("spdx") !== "" ? param("spdx") : undefined,
+        category: param("category") !== "" ? param("category") : undefined,
         limit,
         offset: offset(),
     }));
-
-    const handleSearch = (e: Event) => {
-        e.preventDefault();
-        setOffset(0);
-    };
 
     const columns: Column<LicenseCount>[] = [
         {
@@ -75,31 +83,23 @@ export default function Licenses() {
                 only writer of the `.tab-bar button.active` contract. */}
             <TabBar
                 tabs={categoryTabs.map((t) => ({ id: t.value, label: t.label }))}
-                active={categoryFilter()}
+                active={param("category")}
                 onSelect={(value) => {
-                    setCategoryFilter(value);
+                    // "All" is the empty tab id. Passed as undefined rather
+                    // than "" so the removal is stated in the router's own
+                    // vocabulary instead of relying on it to coerce an empty
+                    // string — either way the param must be absent, since
+                    // absence is the single representation of "not filtering"
+                    // that <Toolbar> already follows for its own fields.
+                    setSearchParams({ category: value === "" ? undefined : value });
                     setOffset(0);
                 }}
                 class="mb-4"
             />
 
-            <form class="search-bar mb-4" onSubmit={handleSearch}>
-                <input
-                    type="text"
-                    placeholder="Filter by name…"
-                    value={nameFilter()}
-                    onInput={(e) => setNameFilter(e.currentTarget.value)}
-                />
-                <input
-                    type="text"
-                    placeholder="Filter by SPDX ID…"
-                    value={spdxFilter()}
-                    onInput={(e) => setSpdxFilter(e.currentTarget.value)}
-                />
-                <Button type="submit" variant="primary">
-                    Search
-                </Button>
-            </form>
+            {/* Any committed filter is a new result set, so page 1 is the only
+                honest place to land. */}
+            <Toolbar class="mb-4" fields={FILTERS} onChange={() => setOffset(0)} />
 
             <DataTable
                 columns={columns}

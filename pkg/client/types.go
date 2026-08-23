@@ -3613,6 +3613,9 @@ type ListMyVulnerabilitiesParams struct {
 	// Offset Number of results to skip
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 
+	// Q Filter by vulnerability id (CVE/GHSA/OSV), substring match against the canonical id and its aliases
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
 	// Severity Filter by severity
 	Severity *ListMyVulnerabilitiesParamsSeverity `form:"severity,omitempty" json:"severity,omitempty"`
 
@@ -3657,6 +3660,9 @@ type ListTopVulnerabilitiesParams struct {
 
 	// Offset Number of results to skip
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Q Filter by vulnerability id (CVE/GHSA/OSV), substring match against the canonical id and its aliases
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
 
 	// Severity Filter by severity
 	Severity *ListTopVulnerabilitiesParamsSeverity `form:"severity,omitempty" json:"severity,omitempty"`

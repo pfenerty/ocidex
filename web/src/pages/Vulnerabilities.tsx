@@ -59,8 +59,10 @@ export default function Vulnerabilities() {
         return (s === "" ? "All" : s) as SeverityTab;
     };
     const handleTabChange = (tab: SeverityTab) => {
-        // "All" drops the param rather than storing an empty one, so absence is
-        // the single representation of "not filtering" — the same rule <Toolbar>
+        // "All" leaves no severity param at all. Passed as undefined rather
+        // than "" so the removal is stated in the router's own vocabulary
+        // rather than relying on it to coerce an empty string; absence is the
+        // single representation of "not filtering" that <Toolbar> already
         // follows for its own fields.
         setSearchParams({ severity: tab === "All" ? undefined : tab });
         setOffset(0);

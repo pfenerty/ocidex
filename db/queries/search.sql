@@ -161,8 +161,13 @@ FROM license l
 LEFT JOIN license_rollup lr ON lr.license_id = l.id
   AND (lr.namespace_id IN (
         SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
-WHERE (sqlc.narg('spdx_id')::text IS NULL OR l.spdx_id = sqlc.narg('spdx_id'))
-  AND (sqlc.narg('name')::text IS NULL OR l.name ILIKE sqlc.narg('name'))
+-- Substring matches, both of them. These were an exact `=` on spdx_id and a
+-- wildcard-free ILIKE on name, so "Filter by name…" only ever matched a reader
+-- who typed the whole license name — every prefix on the way to "Apache-2.0"
+-- reported that no such license exists. Tolerable behind a submit button;
+-- actively misleading now that the box filters as you type (ocidex-ag4q.31).
+WHERE (sqlc.narg('spdx_id')::text IS NULL OR l.spdx_id ILIKE '%' || sqlc.narg('spdx_id')::text || '%')
+  AND (sqlc.narg('name')::text IS NULL OR l.name ILIKE '%' || sqlc.narg('name')::text || '%')
   AND (sqlc.narg('category')::text IS NULL OR license_category(l.spdx_id) = sqlc.narg('category')::text)
 GROUP BY l.id, l.spdx_id, l.name, l.url
 ORDER BY component_count DESC, l.name
