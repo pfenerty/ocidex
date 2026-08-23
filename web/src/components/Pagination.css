@@ -1,7 +1,14 @@
+/* Shared by <Pagination> and <LoadMore>, which are two settings of one footer
+   rather than two components. min-height holds the row steady when the controls
+   on the right are absent — at the end of a keyset list — so the table above
+   does not shift as you reach the bottom of it. It is set to the height this row
+   has *with* a button in it (measured 49.33px against a 14px root), so the two
+   footers are the same height whether or not they currently have controls. */
 .pagination {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    min-height: 3.5rem;
     padding: 0.75rem 0;
     margin-top: 0.5rem;
     font-size: 0.8rem;

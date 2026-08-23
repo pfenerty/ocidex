@@ -312,7 +312,15 @@ export default function DataTable<T>(props: DataTableProps<T>): JSX.Element {
             </Show>
             <Show when={!props.pagination && props.loadMore}>
                 {(lm) => (
-                    <LoadMore hasMore={lm().hasMore} loading={lm().loading} onClick={lm().onClick} />
+                    <LoadMore
+                        hasMore={lm().hasMore}
+                        loading={lm().loading}
+                        onClick={lm().onClick}
+                        // The count comes from the rows the table is showing
+                        // rather than from the caller: a keyset response has no
+                        // total to pass, and the table already knows.
+                        loaded={props.rows?.length}
+                    />
                 )}
             </Show>
         </>
