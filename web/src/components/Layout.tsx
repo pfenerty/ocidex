@@ -1,8 +1,9 @@
 import "./Layout.css";
 import { A, useNavigate, useLocation } from "@solidjs/router";
 import { createEffect, Show, type ParentProps } from "solid-js";
-import { Home, LayoutDashboard, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Server, Database, Settings, LogOut } from "lucide-solid";
+import { Home, LayoutDashboard, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Server, Database, Settings, LogOut, Search } from "lucide-solid";
 import ThemeToggle from "~/components/ThemeToggle";
+import CommandPalette, { openCommandPalette, isAppleShortcut } from "~/components/CommandPalette";
 import { GitHubMark } from "./icons/GitHubMark";
 import { useAuth } from "~/context/auth";
 import { API_BASE_URL } from "~/api/client";
@@ -33,6 +34,10 @@ export default function Layout(props: ParentProps) {
     }
 
     return (
+        <>
+        {/* Outside the /login branch on purpose: the shortcut is muscle memory
+            or it is nothing, so it may not blink out on one route. */}
+        <CommandPalette />
         <Show when={location.pathname !== "/login"} fallback={<>{props.children}</>}>
         <div class="layout">
             <aside class="sidebar">
@@ -45,6 +50,13 @@ export default function Layout(props: ParentProps) {
                     </div>
                     <p>SBOM Explorer</p>
                 </div>
+                {/* The palette's own door. A shortcut nobody is told about is a
+                    shortcut nobody uses. */}
+                <button type="button" class="sidebar-search" onClick={openCommandPalette}>
+                    <Search size={14} />
+                    <span>Search</span>
+                    <kbd>{isAppleShortcut() ? "\u2318K" : "Ctrl K"}</kbd>
+                </button>
                 <nav>
                     <A href="/" end>
                         <Home size={16} />
@@ -130,5 +142,6 @@ export default function Layout(props: ParentProps) {
             <main class="main-content">{props.children}</main>
         </div>
         </Show>
+        </>
     );
 }
