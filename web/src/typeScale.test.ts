@@ -60,6 +60,19 @@ describe("type scale", () => {
     it("separates page titles from card titles by a real step", () => {
         expect(token("3xl") / token("lg")).toBeGreaterThan(1.5);
     });
+
+    // The bug this pins down: `.text-sm { font-size: 0.8rem }` sat in
+    // @layer utilities, in the same layer as the utility Tailwind generates
+    // from --text-sm and later in the file, so it won on source order and
+    // every `text-sm` in the app shipped 11.2px while the token above said
+    // 12.25px. Nothing failed — a token that describes nothing is not an
+    // assertion error — so it stood until someone measured a computed style.
+    it.each(STEPS)("no hand-written .text-%s shadows its token", (step) => {
+        // The escape is for `2xl`/`3xl`, whose class names are valid CSS only
+        // as `.text-2xl` — matching the plain text is enough to catch a rule.
+        const shadow = new RegExp(`\\.text-${step}\\s*\\{`).exec(index);
+        expect(shadow).toBeNull();
+    });
 });
 
 describe("headings are sized from the scale, not from literals", () => {

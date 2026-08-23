@@ -83,9 +83,13 @@
        a 21px page title and 14px card titles, which is why every page read flat.
 
        These also back Tailwind's text-* utilities (v4 generates them from this
-       namespace), so --text-xs/sm/base keep their default values: 70 `text-sm`
-       call sites would otherwise all move. The heading end of the scale is where
-       the widening happens. px values are at the 14px root. */
+       namespace), so --text-xs/sm/base keep their default values. That was only
+       half true until ocidex-ag4q.53: a hand-written `.text-sm { font-size:
+       0.8rem }` sat in @layer utilities, later in the file and at the same
+       specificity as the generated one, so every `text-sm` shipped 11.2px while
+       this token said 12.25px. The rule is gone; the token is the only source of
+       a text-* size now, and typeScale.test.ts fails if another one appears.
+       px values are at the 14px root. */
     --text-xs: 0.75rem;      /* 10.5px */
     --text-sm: 0.875rem;     /* 12.25px */
     --text-base: 1rem;       /* 14px */
@@ -300,10 +304,6 @@
 
     .text-dim {
         color: var(--color-text-dim);
-    }
-
-    .text-sm {
-        font-size: 0.8rem;
     }
 }
 
