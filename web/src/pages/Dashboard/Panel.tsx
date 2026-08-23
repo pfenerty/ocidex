@@ -16,10 +16,33 @@ export function Panel(props: {
     href: string;
     linkLabel?: string;
     count?: number;
+    /**
+     * Only alarm panels pass this, and they pass what their own query currently
+     * says: "raised" when there is something wrong, "clear" when there is not,
+     * "pending" while the query is still in flight.
+     *
+     * The dashboard used to give every panel identical weight, so a provenance
+     * regression read exactly like a list of namespaces. This is what tells the
+     * two apart — and "pending" is a distinct value rather than folded into
+     * "clear" so a panel that is about to raise does not sink to the bottom of
+     * the grid and jump back up a moment later (ocidex-ag4q.40).
+     */
+    alert?: "raised" | "clear" | "pending";
     children: JSX.Element;
 }): JSX.Element {
+    const alertClass = (): string | undefined => {
+        switch (props.alert) {
+            case "raised":
+                return "dash-panel-alert";
+            case "pending":
+                return "dash-panel-pending";
+            default:
+                return undefined;
+        }
+    };
+
     return (
-        <Card>
+        <Card class={alertClass()}>
             <CardHeader
                 title={
                     <>
