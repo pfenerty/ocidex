@@ -1,5 +1,5 @@
 import { For, Show, createSignal } from "solid-js";
-import { Button, CheckboxField, FormField, Modal } from "~/components/ui";
+import { Button, Card, CheckboxField, FormField, Modal } from "~/components/ui";
 import { useToast } from "~/context/toast";
 import type { Registry } from "~/api/client";
 import {
@@ -164,16 +164,16 @@ export function RegistryFormDialog(props: {
             onClose={reset}
         >
             <Show when={editingManaged()}>
-                <div
-                    class="card"
+                <Card
+                    tone="warning"
                     data-testid="managed-notice"
-                    style={{ "border-color": "var(--color-warning, #d69e2e)", "margin-bottom": "0.75rem", "font-size": "0.85rem" }}
+                    style={{ "margin-bottom": "0.75rem", "font-size": "0.85rem" }}
                 >
                     This registry is configured by Kubernetes
                     (<code>{editManagedRef()}</code>). Its settings are reconciled from
                     the <code>OCIRegistry</code> resource, so changes saved here would be
                     overwritten. Edit the resource instead.
-                </div>
+                </Card>
             </Show>
             <form onSubmit={handleSubmit}>
                 <fieldset disabled={editingManaged()} style={{ border: "none", padding: "0", margin: "0" }}>

@@ -3,6 +3,7 @@ import { A } from "@solidjs/router";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import type { Namespace, Registry, Source } from "~/api/client";
+import { Card } from "~/components/ui";
 
 /** One namespace's ingest channels, split by what there is to configure. */
 export interface NamespaceGroup {
@@ -156,7 +157,7 @@ export function NamespaceGroups(props: {
                                 would be a row of em-dashes claiming those settings exist
                                 but are unset, so they get their own short list instead. */}
                             <Show when={group.uploads.length > 0}>
-                                <div class="card" style={{ "margin-top": group.registries.length > 0 ? "0.75rem" : "0" }}>
+                                <Card style={{ "margin-top": group.registries.length > 0 ? "0.75rem" : "0" }}>
                                     <For each={group.uploads}>
                                         {(src) => (
                                             <div
@@ -171,7 +172,7 @@ export function NamespaceGroups(props: {
                                             </div>
                                         )}
                                     </For>
-                                </div>
+                                </Card>
                             </Show>
                         </div>
                         );

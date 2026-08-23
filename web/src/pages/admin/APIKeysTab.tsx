@@ -5,7 +5,7 @@ import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import type { APIKey } from "~/api/client";
 import { useListAPIKeys, useCreateAPIKey, useDeleteAPIKey } from "~/api/queries";
-import { Button } from "~/components/ui";
+import { Button, Card, CardHeader } from "~/components/ui";
 
 export function APIKeysTab() {
     const query = useListAPIKeys();
@@ -68,7 +68,7 @@ export function APIKeysTab() {
     return (
         <>
             <Show when={revealedKey()}>
-                <div class="card" style={{ "border-color": "var(--color-success)", "margin-bottom": "1rem" }}>
+                <Card tone="success" class="mb-4">
                     <p style={{ "margin-bottom": "0.5rem" }}>
                         <strong>API key created.</strong> Copy it now — it will not be shown again.
                     </p>
@@ -87,13 +87,11 @@ export function APIKeysTab() {
                             Dismiss
                         </Button>
                     </div>
-                </div>
+                </Card>
             </Show>
 
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h3>Create Bot Token</h3>
-                </div>
+            <Card class="mb-4">
+                <CardHeader title="Create Bot Token" />
                 <form onSubmit={handleCreate} style={{ display: "flex", gap: "0.5rem", "align-items": "center", "flex-wrap": "wrap" }}>
                     <input
                         type="text"
@@ -113,7 +111,7 @@ export function APIKeysTab() {
                         Create
                     </Button>
                 </form>
-            </div>
+            </Card>
 
             <DataTable
                 columns={columns}

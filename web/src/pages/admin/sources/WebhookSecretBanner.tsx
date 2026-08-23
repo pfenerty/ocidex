@@ -1,7 +1,7 @@
 import { Show } from "solid-js";
 import { copyText } from "~/utils/clipboard";
 import { useToast } from "~/context/toast";
-import { Button } from "~/components/ui";
+import { Button, Card } from "~/components/ui";
 
 /**
  * WebhookSecretBanner shows a newly minted webhook secret. The server never
@@ -12,7 +12,7 @@ export function WebhookSecretBanner(props: { secret: string | null; onDismiss: (
     const toast = useToast();
     return (
         <Show when={props.secret}>
-            <div class="card" style={{ "border-color": "var(--color-success)", "margin-bottom": "1rem" }}>
+            <Card tone="success" class="mb-4">
                 <p style={{ "margin-bottom": "0.5rem" }}>
                     <strong>Webhook secret.</strong> Copy it now — it will not be shown again.
                 </p>
@@ -31,7 +31,7 @@ export function WebhookSecretBanner(props: { secret: string | null; onDismiss: (
                         Dismiss
                     </Button>
                 </div>
-            </div>
+            </Card>
         </Show>
     );
 }

@@ -346,6 +346,20 @@
         padding: 1.25rem;
     }
 
+    /* A card that is announcing something rather than just containing it: a
+       one-time secret, a warning that edits here will be overwritten. Three
+       call sites wrote this as an inline `border-color` style, and one of them
+       carried a `#d69e2e` fallback for `--color-warning` — a token that has
+       existed in both themes all along, so the fallback could only ever have
+       masked a rename. */
+    .card-success {
+        border-color: var(--color-success);
+    }
+
+    .card-warning {
+        border-color: var(--color-warning);
+    }
+
     .card-header {
         display: flex;
         align-items: center;

@@ -3,6 +3,7 @@ import { For, Show } from "solid-js";
 import { Loading, ErrorBox } from "~/components/Feedback";
 import { formatDateTime } from "~/utils/format";
 import { useGetSystemStatus, useListRegistries } from "~/api/queries";
+import { Card } from "~/components/ui";
 
 export function StatusTab() {
     const query = useGetSystemStatus();
@@ -103,7 +104,7 @@ export function StatusTab() {
                     <Show when={polledRegistries().length > 0}>
                         <div>
                             <div class="section-title mb-3">Registry Polling</div>
-                            <div class="card">
+                            <Card>
                                 <div class="table-wrapper">
                                     <table>
                                         <thead>
@@ -128,7 +129,7 @@ export function StatusTab() {
                                         </tbody>
                                     </table>
                                 </div>
-                            </div>
+                            </Card>
                         </div>
                     </Show>
 

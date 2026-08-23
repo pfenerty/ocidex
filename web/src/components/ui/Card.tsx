@@ -9,10 +9,22 @@ import { Show } from "solid-js";
 export function Card(props: {
     class?: string;
     style?: JSX.CSSProperties;
+    /**
+     * A card that announces rather than contains — a one-time secret, a notice
+     * that edits here will be overwritten. Emits `.card-success` /
+     * `.card-warning`, which set only the border colour.
+     */
+    tone?: "success" | "warning";
+    /** Passed through for tests that address a specific card. */
+    "data-testid"?: string;
     children: JSX.Element;
 }): JSX.Element {
+    const cls = (): string =>
+        ["card", props.tone !== undefined ? `card-${props.tone}` : "", props.class ?? ""]
+            .filter((c) => c !== "")
+            .join(" ");
     return (
-        <div class={props.class !== undefined ? `card ${props.class}` : "card"} style={props.style}>
+        <div class={cls()} style={props.style} data-testid={props["data-testid"]}>
             {props.children}
         </div>
     );
