@@ -22,3 +22,20 @@ dialog {
 dialog::backdrop {
     background: rgba(0, 0, 0, 0.55);
 }
+
+/* A form of three short fields does not want the 740px width sized for the
+ * registry dialog's two-column grid: it renders as a narrow ragged column of
+ * controls against ~550px of dead space (ocidex-ag4q.57). `size="sm"` asks for
+ * a width the content can actually fill.
+ *
+ * The control rule is scoped to this variant rather than to `dialog`, so the
+ * registry dialog's deliberate per-field sizing is left alone. */
+dialog.modal-sm {
+    width: min(90vw, 26rem);
+}
+
+dialog.modal-sm input[type="text"],
+dialog.modal-sm input[type="password"],
+dialog.modal-sm select {
+    width: 100%;
+}

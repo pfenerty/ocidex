@@ -295,14 +295,18 @@ export default function Clusters() {
                 dialog renders in the top layer when open, so its position
                 here costs nothing, and the data stays first for anything
                 that reads the page linearly. */}
-            <Modal ref={(el) => (dialogRef = el)} title="Register cluster" onClose={resetForm}>
+            <Modal
+                ref={(el) => (dialogRef = el)}
+                title="Register cluster"
+                size="sm"
+                onClose={resetForm}
+            >
                 <form onSubmit={handleCreate}>
                     <div
                         style={{
                             display: "grid",
                             gap: "0.75rem",
                             "margin-bottom": "0.75rem",
-                            "min-width": "22rem",
                         }}
                     >
                         <FormField label="Name">
