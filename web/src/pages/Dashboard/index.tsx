@@ -9,6 +9,7 @@ import {
     WatchFeedPanel,
 } from "./panels";
 import "./Dashboard.css";
+import { PageHeader } from "~/components/ui";
 
 interface Section {
     /** Stable key; also what a future per-section preference would be keyed by. */
@@ -49,18 +50,14 @@ export default function Dashboard(): JSX.Element {
 
     return (
         <>
-            <div class="page-header">
-                <div class="page-header-row">
-                    <div>
-                        <h2>Workspace</h2>
-                        <p>
-                            <Show when={user()} fallback="Your namespaces, ingests and alerts">
-                                {(u) => `Signed in as ${u().github_username}`}
-                            </Show>
-                        </p>
-                    </div>
-                </div>
-            </div>
+            <PageHeader
+                title="Workspace"
+                subtitle={
+                    <Show when={user()} fallback="Your namespaces, ingests and alerts">
+                        {(u) => `Signed in as ${u().github_username}`}
+                    </Show>
+                }
+            />
 
             <div class="dash-grid">
                 <For each={SECTIONS}>

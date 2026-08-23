@@ -1,6 +1,6 @@
 import { Show } from "solid-js";
 import { A, useParams } from "@solidjs/router";
-import { Button, ButtonGroup } from "~/components/ui";
+import { Button, ButtonGroup, PageHeader } from "~/components/ui";
 import { useComponent, useComponentVulns } from "~/api/queries";
 import { ErrorBox } from "~/components/Feedback";
 import { Skeleton, SkeletonHeader } from "~/components/Skeleton";
@@ -48,33 +48,28 @@ export default function ComponentDetail() {
                     {(detail) => (
                         <>
                             {/* --- Hero --- */}
-                            <div class="page-header">
-                                <div class="page-header-row">
-                                    <div>
-                                        <h2
-                                            style={{
-                                                display: "flex",
-                                                "align-items": "center",
-                                                gap: "0.6rem",
-                                                "flex-wrap": "wrap",
-                                            }}
-                                        >
-                                            {detail.name}
-                                            <Show when={hasText(detail.version)}>
-                                                <span class="font-mono">{detail.version}</span>
-                                            </Show>
-                                        </h2>
-                                        <p class="text-muted">
-                                            <span class="badge">{detail.type}</span>{" "}
-                                            <VulnCountBadges
-                                                criticalCount={detail.criticalCount}
-                                                highCount={detail.highCount}
-                                                mediumCount={detail.mediumCount}
-                                                lowCount={detail.lowCount}
-                                                unknownCount={detail.unknownCount}
-                                            />
-                                        </p>
-                                    </div>
+                            <PageHeader
+                                title={
+                                    <span class="title-inline">
+                                        {detail.name}
+                                        <Show when={hasText(detail.version)}>
+                                            <span class="font-mono">{detail.version}</span>
+                                        </Show>
+                                    </span>
+                                }
+                                subtitle={
+                                    <>
+                                        <span class="badge">{detail.type}</span>{" "}
+                                        <VulnCountBadges
+                                            criticalCount={detail.criticalCount}
+                                            highCount={detail.highCount}
+                                            mediumCount={detail.mediumCount}
+                                            lowCount={detail.lowCount}
+                                            unknownCount={detail.unknownCount}
+                                        />
+                                    </>
+                                }
+                                actions={
                                     <ButtonGroup>
                                         <Button
                                             as={A}
@@ -85,8 +80,8 @@ export default function ComponentDetail() {
                                             View SBOM
                                         </Button>
                                     </ButtonGroup>
-                                </div>
-                            </div>
+                                }
+                            />
 
                             <ComponentMetadata
                                 detailQuery={detailQuery}

@@ -1,13 +1,7 @@
 import "./ClusterDetail.css";
 import { Show, createSignal } from "solid-js";
 import { useParams, useSearchParams } from "@solidjs/router";
-import {
-    DetailGrid,
-    DetailField,
-    QueryBoundary,
-    TabBar,
-    type TabDef,
-} from "~/components/ui";
+import { DetailField, DetailGrid, PageHeader, QueryBoundary, TabBar, type TabDef } from "~/components/ui";
 import { SkeletonHeader } from "~/components/Skeleton";
 import { StalenessPill } from "../Clusters";
 import {
@@ -80,25 +74,23 @@ export default function ClusterDetail() {
         <>
             <QueryBoundary query={clusterQuery} loading={<SkeletonHeader />}>
                 {(cluster) => (
-                    <div class="page-header">
-                        <div class="page-header-row">
-                            <div>
-                                <h2>{cluster().name}</h2>
-                                <p>{cluster().description ?? "Kubernetes cluster inventory"}</p>
-                            </div>
-                        </div>
-                        <DetailGrid>
-                            <DetailField label="Namespace" when={cluster().namespace_name}>
-                                {cluster().namespace_name}
-                            </DetailField>
-                            <DetailField label="Last reported">
-                                <StalenessPill lastSeenAt={cluster().last_seen_at} />
-                            </DetailField>
-                            <DetailField label="Cluster ID" valueClass="font-mono text-sm">
-                                {cluster().id}
-                            </DetailField>
-                        </DetailGrid>
-                    </div>
+                    <PageHeader
+                        title={cluster().name}
+                        subtitle={cluster().description ?? "Kubernetes cluster inventory"}
+                        footer={
+                            <DetailGrid>
+                                <DetailField label="Namespace" when={cluster().namespace_name}>
+                                    {cluster().namespace_name}
+                                </DetailField>
+                                <DetailField label="Last reported">
+                                    <StalenessPill lastSeenAt={cluster().last_seen_at} />
+                                </DetailField>
+                                <DetailField label="Cluster ID" valueClass="font-mono text-sm">
+                                    {cluster().id}
+                                </DetailField>
+                            </DetailGrid>
+                        }
+                    />
                 )}
             </QueryBoundary>
 

@@ -4,7 +4,7 @@ import type { ArtifactDetail } from "~/api/client";
 import PurlLink from "~/components/PurlLink";
 import CopyShareLink, { artifactLookupPath } from "~/components/CopyShareLink";
 import WatchStar from "~/components/WatchStar";
-import { Button, ButtonGroup, Card, DetailGrid, DetailField, TypeBadge } from "~/components/ui";
+import { Button, ButtonGroup, Card, DetailField, DetailGrid, PageHeader, TypeBadge } from "~/components/ui";
 import { purlToRegistryUrl, purlTypeLabel } from "~/utils/purl";
 import { artifactDisplayName, formatDateTime } from "~/utils/format";
 import { containerRegistryUrl, detectRegistry } from "~/utils/oci";
@@ -18,26 +18,22 @@ export function ArtifactHeader(props: { artifact: ArtifactDetail }) {
     };
 
     return (
-        <div class="page-header">
-            <div class="page-header-row">
-                <div>
-                    <h2>
-                        <Show
-                            when={a().type === "container" && detectRegistry(a().name) !== "redhat"}
-                            fallback={artifactDisplayName(a())}
-                        >
-                            <a href={containerRegistryUrl(a().name)} target="_blank" rel="noopener noreferrer">
-                                {artifactDisplayName(a())}
-                            </a>
-                        </Show>
-                    </h2>
-                    {/* Type only. The SBOM count and the first-tracked date
-                        are tiles in ArtifactBand now, and repeating them here
-                        was half of what made the old About card redundant. */}
-                    <p>
-                        <TypeBadge type={a().type} />
-                    </p>
-                </div>
+        <PageHeader
+            title={
+                <Show
+                    when={a().type === "container" && detectRegistry(a().name) !== "redhat"}
+                    fallback={artifactDisplayName(a())}
+                >
+                    <a href={containerRegistryUrl(a().name)} target="_blank" rel="noopener noreferrer">
+                        {artifactDisplayName(a())}
+                    </a>
+                </Show>
+            }
+            /* Type only. The SBOM count and the first-tracked date are tiles in
+               ArtifactBand now, and repeating them here was half of what made
+               the old About card redundant. */
+            subtitle={<TypeBadge type={a().type} />}
+            actions={
                 <ButtonGroup>
                     <WatchStar artifactId={a().id} watched={a().watched} />
                     <Show when={registryPurl()}>
@@ -59,8 +55,8 @@ export function ArtifactHeader(props: { artifact: ArtifactDetail }) {
                     </Button>
                     <CopyShareLink path={artifactLookupPath(a())} />
                 </ButtonGroup>
-            </div>
-        </div>
+            }
+        />
     );
 }
 

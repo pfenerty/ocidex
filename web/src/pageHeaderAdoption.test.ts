@@ -12,17 +12,29 @@ import { join, relative } from "node:path";
  * opposite ends of the row — a layout bug with no failing assertion anywhere,
  * because every class involved is real and spelled correctly.
  *
- * MIGRATED grows as the sweep lands: ocidex-ag4q.22 covers the list pages,
- * .23 the detail pages.
+ * The sweep is complete — ocidex-ag4q.22 took the list pages, .23 the detail
+ * pages — so the scope below is the whole of src and ALLOWED is exhaustive.
+ * MIGRATED is kept as a named list so the second test can assert each of those
+ * files actually reaches for the primitive, rather than merely not naming the
+ * class.
  */
 const MIGRATED = [
     "pages/Admin.tsx",
+    "pages/ArtifactDetail/ArtifactHeader.tsx",
     "pages/Artifacts.tsx",
+    "pages/ArtifactVersionHistory.tsx",
+    "pages/ClusterDetail/index.tsx",
     "pages/Clusters.tsx",
+    "pages/ComponentDetail/index.tsx",
+    "pages/ComponentOverview/index.tsx",
     "pages/Components.tsx",
+    "pages/Dashboard/index.tsx",
     "pages/Diff.tsx",
     "pages/LicenseComponents.tsx",
     "pages/Licenses.tsx",
+    "pages/Lookup.tsx",
+    "pages/SBOMDetail/index.tsx",
+    "pages/VulnerabilityDetail.tsx",
     "pages/Vulnerabilities.tsx",
 ];
 
@@ -34,6 +46,13 @@ const MIGRATED = [
 const ALLOWED = ["components/ui/PageHeader.tsx", "components/Skeleton.tsx"];
 
 const SRC = __dirname;
+
+/**
+ * The two structural classes, and only those. A prefix match would also catch
+ * `page-header-badges`, a different class entirely — and one that no stylesheet
+ * ever defined, which is why .23 deleted it rather than exempting it here.
+ */
+const STRUCTURE = /class="(page-header|page-header-row)"/;
 
 /** Source with comments stripped, so prose naming a class stops matching it. */
 function code(file: string): string {
@@ -53,7 +72,7 @@ function sources(dir: string, acc: string[] = []): string[] {
 
 describe("migrated pages use the PageHeader primitive", () => {
     it("hand-writes no .page-header markup", () => {
-        const offenders = MIGRATED.filter((f) => code(join(SRC, f)).includes('class="page-header'));
+        const offenders = MIGRATED.filter((f) => STRUCTURE.test(code(join(SRC, f))));
         expect(offenders).toEqual([]);
     });
 
@@ -68,28 +87,19 @@ describe("the .page-header-row wrapper", () => {
         // Two children of a space-between row are pushed apart. The primitive's
         // whole job is that this stays one child; assert it, because a refactor
         // that flattens the div looks tidier and renders wrong.
+        // Anchored at the row's opening tag rather than delimited by its close:
+        // `footer` renders after the row inside the same `.page-header`, so any
+        // regex that tries to find the row's own `</div>` by counting tags is
+        // guessing.
         const src = code(join(SRC, "components/ui/PageHeader.tsx"));
-        const row = /<div class="page-header-row">([\s\S]*?)<\/div>\s*<\/div>/.exec(src)?.[1] ?? "";
-        expect(row).toMatch(/<div>\s*<h2>/);
+        expect(src).toMatch(/<div class="page-header-row">\s*<div>\s*<h2>/);
     });
 
     it("is emitted from nowhere else", () => {
         const offenders = sources(SRC)
-            .filter((f) => code(f).includes('class="page-header'))
+            .filter((f) => STRUCTURE.test(code(f)))
             .map((f) => relative(SRC, f))
             .filter((f) => !ALLOWED.includes(f));
-        // Part 2 (.23) empties this. Until then it is the exact remaining list,
-        // so a *new* hand-written header still fails.
-        expect(offenders).toEqual([
-            "pages/ArtifactDetail/ArtifactHeader.tsx",
-            "pages/ArtifactVersionHistory.tsx",
-            "pages/ClusterDetail/index.tsx",
-            "pages/ComponentDetail/index.tsx",
-            "pages/ComponentOverview/index.tsx",
-            "pages/Dashboard/index.tsx",
-            "pages/Lookup.tsx",
-            "pages/SBOMDetail/index.tsx",
-            "pages/VulnerabilityDetail.tsx",
-        ]);
+        expect(offenders).toEqual([]);
     });
 });

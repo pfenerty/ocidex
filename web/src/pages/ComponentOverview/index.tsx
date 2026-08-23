@@ -1,6 +1,6 @@
 import { Show, createMemo, createSignal, createEffect, on } from "solid-js";
 import { A, useSearchParams } from "@solidjs/router";
-import { Button, ButtonGroup } from "~/components/ui";
+import { Button, ButtonGroup, PageHeader } from "~/components/ui";
 import { useComponent, useComponentVersions, useComponentVulns } from "~/api/queries";
 import { DEFAULT_PAGE_SIZE } from "~/api/client";
 import { ErrorBox, EmptyState } from "~/components/Feedback";
@@ -132,82 +132,82 @@ export default function ComponentOverview() {
                         >
                             {(qd) => (
                                 <>
-                                    <div class="page-header">
-                                        <div class="page-header-row">
-                                            <div>
-                                                <h2>
-                                                    <Show when={hasVersion()} fallback={displayName()}>
-                                                        {displayName()}{" "}
-                                                        <span class="font-mono">{params.version}</span>
-                                                    </Show>
-                                                </h2>
-                                                <p class="text-muted">
-                                                    <span class="badge">{componentType()}</span>{" "}
-                                                    {/* These count the rows on screen, and the
-                                                        list is paginated, so they are qualified
-                                                        the moment there is more than one page.
-                                                        The total is SBOM occurrences, which is
-                                                        what the endpoint counts; distinct
-                                                        versions across all pages is not a figure
-                                                        the API reports, so it is never claimed. */}
+                                <PageHeader
+                                    title={
+                                        <Show when={hasVersion()} fallback={displayName()}>
+                                            {displayName()}{" "}
+                                            <span class="font-mono">{params.version}</span>
+                                        </Show>
+                                    }
+                                    subtitle={
+                                        <>
+                                            <span class="badge">{componentType()}</span>{" "}
+                                            {/* These count the rows on screen, and the
+                                                list is paginated, so they are qualified
+                                                the moment there is more than one page.
+                                                The total is SBOM occurrences, which is
+                                                what the endpoint counts; distinct
+                                                versions across all pages is not a figure
+                                                the API reports, so it is never claimed. */}
+                                            <Show
+                                                when={hasVersion()}
+                                                fallback={
                                                     <Show
-                                                        when={hasVersion()}
+                                                        when={isPaged()}
                                                         fallback={
-                                                            <Show
-                                                                when={isPaged()}
-                                                                fallback={
-                                                                    <>
-                                                                        {plural(grouped().length, "version")} across{" "}
-                                                                        {plural(qd.versions.length, "SBOM")}
-                                                                    </>
-                                                                }
-                                                            >
-                                                                {plural(grouped().length, "version")} on this page
-                                                                {" · "}
-                                                                {plural(totalRows(), "SBOM")} in total
-                                                            </Show>
+                                                            <>
+                                                                {plural(grouped().length, "version")} across{" "}
+                                                                {plural(qd.versions.length, "SBOM")}
+                                                            </>
                                                         }
                                                     >
-                                                        <Show
-                                                            when={isPaged()}
-                                                            fallback={plural(artifactGroups().length, "artifact")}
-                                                        >
-                                                            {plural(artifactGroups().length, "artifact")} on this page
-                                                            {" · "}
-                                                            {plural(totalRows(), "SBOM")} in total
-                                                        </Show>
+                                                        {plural(grouped().length, "version")} on this page
+                                                        {" · "}
+                                                        {plural(totalRows(), "SBOM")} in total
                                                     </Show>
-                                                </p>
-                                            </div>
-                                            <ButtonGroup>
-                                                <Show when={hasVersion()}>
-                                                    <Button as={A} href={allVersionsHref()} size="sm">
-                                                        ← All versions
-                                                    </Button>
-                                                </Show>
+                                                }
+                                            >
                                                 <Show
-                                                    when={
-                                                        firstPurl() !== undefined
-                                                            ? (purlToRegistryUrl(firstPurl() ?? "") ?? undefined)
-                                                            : undefined
-                                                    }
+                                                    when={isPaged()}
+                                                    fallback={plural(artifactGroups().length, "artifact")}
                                                 >
-                                                    {(registryUrl) => (
-                                                        <Button
-                                                            as="a"
-                                                            href={registryUrl()}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            size="sm"
-                                                            variant="primary"
-                                                        >
-                                                            View on {purlTypeLabel(firstPurl() ?? "") ?? "Registry"}
-                                                        </Button>
-                                                    )}
+                                                    {plural(artifactGroups().length, "artifact")} on this page
+                                                    {" · "}
+                                                    {plural(totalRows(), "SBOM")} in total
                                                 </Show>
-                                            </ButtonGroup>
-                                        </div>
-                                    </div>
+                                            </Show>
+                                        </>
+                                    }
+                                    actions={
+                                        <ButtonGroup>
+                                            <Show when={hasVersion()}>
+                                                <Button as={A} href={allVersionsHref()} size="sm">
+                                                    ← All versions
+                                                </Button>
+                                            </Show>
+                                            <Show
+                                                when={
+                                                    firstPurl() !== undefined
+                                                        ? (purlToRegistryUrl(firstPurl() ?? "") ?? undefined)
+                                                        : undefined
+                                                }
+                                            >
+                                                {(registryUrl) => (
+                                                    <Button
+                                                        as="a"
+                                                        href={registryUrl()}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        size="sm"
+                                                        variant="primary"
+                                                    >
+                                                        View on {purlTypeLabel(firstPurl() ?? "") ?? "Registry"}
+                                                    </Button>
+                                                )}
+                                            </Show>
+                                        </ButtonGroup>
+                                    }
+                                />
 
                                     {/* ── Drill-down: specific version selected ── */}
                                     <Show when={hasVersion()}>

@@ -25,6 +25,22 @@ export function PageHeader(props: {
      * Phase 4 breadcrumb story.
      */
     breadcrumb?: JSX.Element;
+    /**
+     * Extra content in the left column, below the subtitle — SBOMDetail's
+     * copyable digest, VulnerabilityDetail's alias line.
+     *
+     * It exists because `subtitle` is wrapped in a `<p>`, and `.page-header p`
+     * is what carries the muted colour and the 0.25rem top margin. A block
+     * element passed as `subtitle` would be auto-closed out of that paragraph
+     * by the parser and lose both. A caller with block content puts it here and
+     * leaves `subtitle` unset.
+     */
+    meta?: JSX.Element;
+    /**
+     * Full-width content below the row, still inside `.page-header` so it sits
+     * above the header's bottom margin — ClusterDetail's `<DetailGrid>`.
+     */
+    footer?: JSX.Element;
 }): JSX.Element {
     return (
         <div class="page-header">
@@ -37,9 +53,11 @@ export function PageHeader(props: {
                     <Show when={props.subtitle !== undefined}>
                         <p>{props.subtitle}</p>
                     </Show>
+                    {props.meta}
                 </div>
                 <Show when={props.actions !== undefined}>{props.actions}</Show>
             </div>
+            {props.footer}
         </div>
     );
 }

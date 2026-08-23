@@ -4,6 +4,7 @@ import { useArtifact, useArtifactSBOMs } from "~/api/queries";
 import { ErrorBox, EmptyState } from "~/components/Feedback";
 import { SkeletonText } from "~/components/Skeleton";
 import { DiffPairView, ViewToggle } from "~/components/DiffPairView";
+import { PageHeader } from "~/components/ui";
 
 export default function ArtifactVersionHistory() {
     const params = useParams<{ id: string; version: string }>();
@@ -50,15 +51,11 @@ export default function ArtifactVersionHistory() {
                 <span>{version()}</span>
             </div>
 
-            <div class="page-header">
-                <div class="page-header-row">
-                    <div>
-                        <h2>{version()}</h2>
-                        <p class="text-muted">Build changelog</p>
-                    </div>
-                    <ViewToggle mode={viewMode()} onChange={setViewMode} />
-                </div>
-            </div>
+            <PageHeader
+                title={version()}
+                subtitle="Build changelog"
+                actions={<ViewToggle mode={viewMode()} onChange={setViewMode} />}
+            />
 
             <Show when={!sbomsQuery.isLoading} fallback={<SkeletonText lines={8} />}>
                 <Show

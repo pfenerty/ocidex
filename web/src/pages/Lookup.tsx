@@ -10,6 +10,7 @@ import {
 } from "~/api/queries/lookup";
 import { EmptyState, ErrorBox, Loading } from "~/components/Feedback";
 import NotFound from "~/pages/NotFound";
+import { PageHeader } from "~/components/ui";
 
 /** First value of a search param, since the router types them as string | string[]. */
 function one(v: string | string[] | undefined): string | undefined {
@@ -63,14 +64,16 @@ function ResolverView(props: ResolverViewProps): JSX.Element {
                         >
                             {(list) => (
                                 <>
-                                    <div class="page-header">
-                                        <h2>Multiple matches</h2>
-                                        <p class="text-muted">
-                                            {list().length} {props.resource}s match this
-                                            link. Pick one, or add another qualifier to
-                                            the URL to make it resolve on its own.
-                                        </p>
-                                    </div>
+                                    <PageHeader
+                                        title="Multiple matches"
+                                        subtitle={
+                                            <>
+                                                {list().length} {props.resource}s match this
+                                                link. Pick one, or add another qualifier to
+                                                the URL to make it resolve on its own.
+                                            </>
+                                        }
+                                    />
                                     <ul class="flex flex-col gap-2">
                                         <For each={list()}>
                                             {(candidate) => (

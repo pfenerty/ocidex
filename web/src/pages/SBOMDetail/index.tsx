@@ -1,7 +1,7 @@
 import "~/components/DetailSection.css";
 import { Show, For, createSignal, createMemo } from "solid-js";
 import { A, useParams, useNavigate } from "@solidjs/router";
-import { Button, ButtonGroup } from "~/components/ui";
+import { Button, ButtonGroup, PageHeader } from "~/components/ui";
 import { useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies, useSBOMDriftHistory, useArtifactSBOMs } from "~/api/queries";
 import { useArtifactNames } from "~/api/queries";
 import type { OCIMetadata, Provenance, GitCommitMetadata } from "~/api/client";
@@ -127,26 +127,28 @@ export default function SBOMDetail() {
                     {(s) => (
                         <>
                             {/* --- Hero --- */}
-                            <div class="page-header">
-                                <div class="page-header-row">
-                                    <div>
-                                        <h2 style={{ display: "flex", "align-items": "center", gap: "0.6rem", "flex-wrap": "wrap" }}>
-                                            {title()}
-                                            <Show when={trustStatus(s.signingStatus)}>
-                                                {(t) => <span class={trustBadgeClass(t().variant)}>{t().label}</span>}
-                                            </Show>
-                                        </h2>
-                                        <p class="text-muted">{subtitle()}</p>
-                                        <Show when={s.digest} keyed>
-                                            {(digest) => (
-                                                <CopyDigest
-                                                    digest={digest}
-                                                    artifactName={artifactLookup(s.artifactId)?.name}
-                                                    class="text-sm"
-                                                />
-                                            )}
+                            <PageHeader
+                                title={
+                                    <span class="title-inline">
+                                        {title()}
+                                        <Show when={trustStatus(s.signingStatus)}>
+                                            {(t) => <span class={trustBadgeClass(t().variant)}>{t().label}</span>}
                                         </Show>
-                                    </div>
+                                    </span>
+                                }
+                                subtitle={subtitle()}
+                                meta={
+                                    <Show when={s.digest} keyed>
+                                        {(digest) => (
+                                            <CopyDigest
+                                                digest={digest}
+                                                artifactName={artifactLookup(s.artifactId)?.name}
+                                                class="text-sm"
+                                            />
+                                        )}
+                                    </Show>
+                                }
+                                actions={
                                     <ButtonGroup>
                                         <Show when={s.artifactId}>
                                             <Button as={A} href={`/artifacts/${s.artifactId}`} size="sm">View Artifact</Button>
@@ -161,8 +163,8 @@ export default function SBOMDetail() {
                                             {(path) => <CopyShareLink path={path()} />}
                                         </Show>
                                     </ButtonGroup>
-                                </div>
-                            </div>
+                                }
+                            />
 
                             {/* --- Arch switcher --- */}
                             <Show when={archSiblings().length > 1}>
