@@ -6,6 +6,7 @@ import DiffEntry from "~/components/DiffEntry";
 import { DiffTreeView } from "~/components/DiffTreeView";
 import type { ChangelogEntryData } from "~/utils/diff";
 import type { DiffTree } from "~/api/client";
+import { Button, ButtonGroup } from "~/components/ui";
 
 // Extract the ChangelogEntry-compatible subset from a DiffTree response.
 function asEntry(tree: DiffTree): ChangelogEntryData {
@@ -86,19 +87,13 @@ export function ViewToggle(props: {
     onChange: (mode: "tree" | "list") => void;
 }) {
     return (
-        <div class="btn-group">
-            <button
-                class={`btn btn-sm${props.mode === "tree" ? " active" : ""}`}
-                onClick={() => props.onChange("tree")}
-            >
+        <ButtonGroup>
+            <Button size="sm" active={props.mode === "tree"} onClick={() => props.onChange("tree")}>
                 Tree
-            </button>
-            <button
-                class={`btn btn-sm${props.mode === "list" ? " active" : ""}`}
-                onClick={() => props.onChange("list")}
-            >
+            </Button>
+            <Button size="sm" active={props.mode === "list"} onClick={() => props.onChange("list")}>
                 List
-            </button>
-        </div>
+            </Button>
+        </ButtonGroup>
     );
 }

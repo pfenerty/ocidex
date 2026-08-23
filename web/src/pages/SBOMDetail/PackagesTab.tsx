@@ -12,7 +12,7 @@ import {
 } from "~/components/cells";
 import { plural } from "~/utils/format";
 import { parsePurl } from "~/utils/purl";
-import { Tooltip } from "~/components/ui";
+import { Button, ButtonGroup, Tooltip } from "~/components/ui";
 import { componentHref } from "./componentHref";
 import { DependencyTreeView } from "./DependencyTreeView";
 
@@ -186,20 +186,22 @@ export function PackagesTab(props: {
                         <Tooltip content={countExplanation()}>{countLabel()}</Tooltip>
                     </span>
                     <Show when={hasTree()}>
-                        <div class="btn-group ml-auto">
-                            <button
-                                class={`btn btn-sm${effectiveMode() === "tree" ? " active" : ""}`}
+                        <ButtonGroup class="ml-auto">
+                            <Button
+                                size="sm"
+                                active={effectiveMode() === "tree"}
                                 onClick={() => setViewMode("tree")}
                             >
                                 Tree
-                            </button>
-                            <button
-                                class={`btn btn-sm${effectiveMode() === "list" ? " active" : ""}`}
+                            </Button>
+                            <Button
+                                size="sm"
+                                active={effectiveMode() === "list"}
                                 onClick={() => setViewMode("list")}
                             >
                                 List
-                            </button>
-                        </div>
+                            </Button>
+                        </ButtonGroup>
                     </Show>
                 </div>
 

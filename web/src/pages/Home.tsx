@@ -2,7 +2,7 @@ import { A } from "@solidjs/router";
 import { ExternalLink } from "lucide-solid";
 import { For, Show } from "solid-js";
 import { Skeleton } from "~/components/Skeleton";
-import { TypeBadge } from "~/components/ui";
+import { Button, TypeBadge } from "~/components/ui";
 import { useDashboardStats } from "~/api/queries";
 import { HomeBand } from "~/pages/Dashboard/HomeBand";
 import { HomeDiscovery } from "~/pages/HomeDiscovery";
@@ -78,18 +78,18 @@ export default function Home() {
                     )}
                 </Show>
                 <div class="landing-ctas">
-                    <A href="/artifacts" class="btn btn-primary">
+                    <Button as={A} href="/artifacts" variant="primary">
                         Browse Artifacts
-                    </A>
-                    <a
+                    </Button>
+                    <Button
+                        as="a"
                         href="https://github.com/pfenerty/ocidex"
-                        class="btn"
                         target="_blank"
                         rel="noreferrer noopener"
                     >
                         <ExternalLink size={14} />
                         GitHub
-                    </a>
+                    </Button>
                 </div>
             </section>
 

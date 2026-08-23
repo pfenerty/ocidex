@@ -1,5 +1,6 @@
 import { Show } from "solid-js";
 import "./Pagination.css";
+import { Button } from "~/components/ui";
 
 /** Load-more button for keyset (cursor) paginated lists. Renders nothing when
  *  there are no further pages. */
@@ -11,9 +12,9 @@ export default function LoadMore(props: {
     return (
         <Show when={props.hasMore}>
             <div class="pagination" style={{ "justify-content": "center" }}>
-                <button class="btn" disabled={props.loading} onClick={() => props.onClick()}>
+                <Button loading={props.loading} onClick={() => props.onClick()}>
                     {props.loading ? "Loading…" : "Load more"}
-                </button>
+                </Button>
             </div>
         </Show>
     );

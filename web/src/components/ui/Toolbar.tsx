@@ -1,6 +1,7 @@
 import type { JSX } from "solid-js";
 import { For, Show, createEffect, createSignal, onCleanup, untrack } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
+import { Button } from "./Button";
 
 /** A `<select>` choice. A bare string is shorthand for `{value: s, label: s}`. */
 export type ToolbarOption = string | { value: string; label: string };
@@ -185,9 +186,9 @@ export function Toolbar(props: {
         >
             <For each={props.fields}>{(f) => renderField(f)}</For>
             <Show when={isActive()}>
-                <button type="button" class="btn btn-sm" onClick={clear}>
+                <Button type="button" size="sm" onClick={clear}>
                     Clear
-                </button>
+                </Button>
             </Show>
         </form>
     );

@@ -1,4 +1,5 @@
 import { A } from "@solidjs/router";
+import { Button } from "~/components/ui";
 
 export default function NotFound() {
   return (
@@ -8,9 +9,9 @@ export default function NotFound() {
       </h2>
       <strong>Page not found</strong>
       <p>The page you're looking for doesn't exist or has been moved.</p>
-      <A href="/" class="btn btn-primary" style={{ "margin-top": "1.5rem" }}>
+      <Button as={A} href="/" variant="primary" class="mt-6">
         Back to Dashboard
-      </A>
+      </Button>
     </div>
   );
 }

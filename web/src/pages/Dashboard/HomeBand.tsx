@@ -1,5 +1,6 @@
 import { Show, type JSX } from "solid-js";
 import { A } from "@solidjs/router";
+import { Button } from "~/components/ui";
 import { LayoutDashboard } from "lucide-solid";
 import { useAuth } from "~/context/auth";
 import { useMyNamespaces, useMyDriftFeed, useWatches } from "~/api/queries";
@@ -62,10 +63,10 @@ export function HomeBand(): JSX.Element {
                             </span>
                         </Show>
                     </span>
-                    <A href="/dashboard" class="btn btn-sm home-band-cta">
+                    <Button as={A} href="/dashboard" size="sm" class="home-band-cta">
                         <LayoutDashboard size={14} />
                         Open workspace
-                    </A>
+                    </Button>
                 </section>
             )}
         </Show>

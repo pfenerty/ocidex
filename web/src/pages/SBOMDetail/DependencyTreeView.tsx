@@ -1,5 +1,6 @@
 import { createSignal, createMemo, Show, For } from "solid-js";
 import { A } from "@solidjs/router";
+import { Button } from "~/components/ui";
 import type { ComponentSummary, DependencyEdge } from "~/api/client";
 import { TypeBadge, VulnCountBadges, VersionCell, PurlLink } from "~/components/cells";
 import { parsePurl } from "~/utils/purl";
@@ -185,8 +186,8 @@ export function DependencyTreeView(props: {
     return (
         <>
             <div style={{ display: "flex", gap: "0.5rem", padding: "0.5rem 0" }}>
-                <button class="btn btn-sm" onClick={expandAll}>Expand all</button>
-                <button class="btn btn-sm" onClick={collapseAll}>Collapse all</button>
+                <Button size="sm" onClick={expandAll}>Expand all</Button>
+                <Button size="sm" onClick={collapseAll}>Collapse all</Button>
             </div>
             <div class="table-wrapper">
                 <table>

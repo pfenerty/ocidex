@@ -1,5 +1,6 @@
 import { Show, createMemo, createSignal, createEffect, on } from "solid-js";
 import { A, useSearchParams } from "@solidjs/router";
+import { Button, ButtonGroup } from "~/components/ui";
 import { useComponent, useComponentVersions, useComponentVulns } from "~/api/queries";
 import { DEFAULT_PAGE_SIZE } from "~/api/client";
 import { ErrorBox, EmptyState } from "~/components/Feedback";
@@ -178,11 +179,11 @@ export default function ComponentOverview() {
                                                     </Show>
                                                 </p>
                                             </div>
-                                            <div class="btn-group">
+                                            <ButtonGroup>
                                                 <Show when={hasVersion()}>
-                                                    <A href={allVersionsHref()} class="btn btn-sm">
+                                                    <Button as={A} href={allVersionsHref()} size="sm">
                                                         ← All versions
-                                                    </A>
+                                                    </Button>
                                                 </Show>
                                                 <Show
                                                     when={
@@ -192,17 +193,19 @@ export default function ComponentOverview() {
                                                     }
                                                 >
                                                     {(registryUrl) => (
-                                                        <a
+                                                        <Button
+                                                            as="a"
                                                             href={registryUrl()}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
-                                                            class="btn btn-sm btn-primary"
+                                                            size="sm"
+                                                            variant="primary"
                                                         >
                                                             View on {purlTypeLabel(firstPurl() ?? "") ?? "Registry"}
-                                                        </a>
+                                                        </Button>
                                                     )}
                                                 </Show>
-                                            </div>
+                                            </ButtonGroup>
                                         </div>
                                     </div>
 

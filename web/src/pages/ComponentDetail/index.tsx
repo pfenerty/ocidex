@@ -1,5 +1,6 @@
 import { Show } from "solid-js";
 import { A, useParams } from "@solidjs/router";
+import { Button, ButtonGroup } from "~/components/ui";
 import { useComponent, useComponentVulns } from "~/api/queries";
 import { ErrorBox } from "~/components/Feedback";
 import { Skeleton, SkeletonHeader } from "~/components/Skeleton";
@@ -74,14 +75,16 @@ export default function ComponentDetail() {
                                             />
                                         </p>
                                     </div>
-                                    <div class="btn-group">
-                                        <A
+                                    <ButtonGroup>
+                                        <Button
+                                            as={A}
                                             href={`/sboms/${detail.sbomId}`}
-                                            class="btn btn-sm btn-primary"
+                                            size="sm"
+                                            variant="primary"
                                         >
                                             View SBOM
-                                        </A>
-                                    </div>
+                                        </Button>
+                                    </ButtonGroup>
                                 </div>
                             </div>
 

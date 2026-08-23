@@ -1,6 +1,7 @@
 import "~/components/DetailSection.css";
 import { Show, For, createSignal, createMemo } from "solid-js";
 import { A, useParams, useNavigate } from "@solidjs/router";
+import { Button, ButtonGroup } from "~/components/ui";
 import { useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies, useSBOMDriftHistory, useArtifactSBOMs } from "~/api/queries";
 import { useArtifactNames } from "~/api/queries";
 import type { OCIMetadata, Provenance, GitCommitMetadata } from "~/api/client";
@@ -146,20 +147,20 @@ export default function SBOMDetail() {
                                             )}
                                         </Show>
                                     </div>
-                                    <div class="btn-group">
+                                    <ButtonGroup>
                                         <Show when={s.artifactId}>
-                                            <A href={`/artifacts/${s.artifactId}`} class="btn btn-sm">View Artifact</A>
+                                            <Button as={A} href={`/artifacts/${s.artifactId}`} size="sm">View Artifact</Button>
                                         </Show>
                                         <Show when={s.artifactId !== undefined && s.subjectVersion !== undefined}>
-                                            <A href={`/artifacts/${s.artifactId}/versions/${encodeURIComponent(s.subjectVersion ?? "")}`} class="btn btn-sm">
+                                            <Button as={A} href={`/artifacts/${s.artifactId}/versions/${encodeURIComponent(s.subjectVersion ?? "")}`} size="sm">
                                                 View build history
-                                            </A>
+                                            </Button>
                                         </Show>
-                                        <A href={`/diff?from=${s.id}&to=${s.id}`} class="btn btn-sm">Compare</A>
+                                        <Button as={A} href={`/diff?from=${s.id}&to=${s.id}`} size="sm">Compare</Button>
                                         <Show when={sbomLookupPath(s)}>
                                             {(path) => <CopyShareLink path={path()} />}
                                         </Show>
-                                    </div>
+                                    </ButtonGroup>
                                 </div>
                             </div>
 

@@ -4,7 +4,7 @@ import type { ArtifactDetail } from "~/api/client";
 import PurlLink from "~/components/PurlLink";
 import CopyShareLink, { artifactLookupPath } from "~/components/CopyShareLink";
 import WatchStar from "~/components/WatchStar";
-import { Card, DetailGrid, DetailField, TypeBadge } from "~/components/ui";
+import { Button, ButtonGroup, Card, DetailGrid, DetailField, TypeBadge } from "~/components/ui";
 import { purlToRegistryUrl, purlTypeLabel } from "~/utils/purl";
 import { artifactDisplayName, formatDateTime } from "~/utils/format";
 import { containerRegistryUrl, detectRegistry } from "~/utils/oci";
@@ -38,25 +38,27 @@ export function ArtifactHeader(props: { artifact: ArtifactDetail }) {
                         <TypeBadge type={a().type} />
                     </p>
                 </div>
-                <div class="btn-group">
+                <ButtonGroup>
                     <WatchStar artifactId={a().id} watched={a().watched} />
                     <Show when={registryPurl()}>
                         {(purl) => (
-                            <a
+                            <Button
+                                as="a"
                                 href={purlToRegistryUrl(purl()) ?? ""}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                class="btn btn-sm btn-primary"
+                                size="sm"
+                                variant="primary"
                             >
                                 View on {purlTypeLabel(purl()) ?? "Registry"}
-                            </a>
+                            </Button>
                         )}
                     </Show>
-                    <A href={`/diff`} class="btn btn-sm">
+                    <Button as={A} href={`/diff`} size="sm">
                         Compare SBOMs
-                    </A>
+                    </Button>
                     <CopyShareLink path={artifactLookupPath(a())} />
-                </div>
+                </ButtonGroup>
             </div>
         </div>
     );

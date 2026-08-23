@@ -1,6 +1,6 @@
 import { Show, createSignal } from "solid-js";
 import { A } from "@solidjs/router";
-import { Card, CardHeader, StatusPill } from "~/components/ui";
+import { Button, Card, CardHeader, StatusPill } from "~/components/ui";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { plural, shortDigest } from "~/utils/format";
@@ -45,13 +45,13 @@ function IngestTargetCell(props: {
         <div class="ingest-target">
             <StatusPill variant={reason().variant}>{reason().label}</StatusPill>
             <Show when={props.image.reason === "ready"}>
-                <button
-                    class="btn btn-sm"
+                <Button
+                    size="sm"
                     disabled={props.pending}
                     onClick={() => props.onIngest(props.image.image_digest)}
                 >
                     {props.pending ? "Queueing…" : "Ingest"}
-                </button>
+                </Button>
             </Show>
             {/* Registries are managed on the Sources tab. These used to point at
                 a top-level /registries route that has never existed, so both
@@ -220,15 +220,16 @@ export function GapsTab(props: { clusterId: string; coverage: WorkloadCoverage }
                     count={props.coverage.unknown}
                     actions={
                         <Show when={readyCount() > 0}>
-                            <button
-                                class="btn btn-sm btn-primary"
+                            <Button
+                                size="sm"
+                                variant="primary"
                                 disabled={ingest.isPending}
                                 onClick={() => runIngest(undefined)}
                             >
                                 {ingest.isPending
                                     ? "Queueing…"
                                     : `Ingest ${plural(readyCount(), "image")}`}
-                            </button>
+                            </Button>
                         </Show>
                     }
                 />

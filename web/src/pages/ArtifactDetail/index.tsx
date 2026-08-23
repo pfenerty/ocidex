@@ -11,7 +11,7 @@ import {
 } from "~/api/queries";
 import { ErrorBox, EmptyState } from "~/components/Feedback";
 import { Skeleton, SkeletonHeader, SkeletonText } from "~/components/Skeleton";
-import { QueryBoundary, TabBar, type TabDef } from "~/components/ui";
+import { ButtonGroup, Button, QueryBoundary, TabBar, type TabDef } from "~/components/ui";
 import { artifactDisplayName } from "~/utils/format";
 import { ArtifactHeader, ArtifactIdentity } from "./ArtifactHeader";
 import { ArtifactBand, type ArtifactTab } from "./ArtifactBand";
@@ -120,20 +120,21 @@ export default function ArtifactDetail() {
                                 <TabBar tabs={tabs(a().versionCount)} active={tab()} onSelect={setTab} />
 
                                 <Show when={hasSemver() && (tab() === "versions" || tab() === "changelog")}>
-                                    <div class="btn-group mb-4">
+                                    <ButtonGroup class="mb-4">
                                         <For each={MODES}>
                                             {(m) => (
-                                                <button
-                                                    class={`btn btn-sm${effectiveMode() === m.id ? " active" : ""}`}
+                                                <Button
+                                                    size="sm"
+                                                    active={effectiveMode() === m.id}
                                                     title={m.title}
                                                     aria-pressed={effectiveMode() === m.id}
                                                     onClick={() => selectMode(m.id)}
                                                 >
                                                     {m.label}
-                                                </button>
+                                                </Button>
                                             )}
                                         </For>
-                                    </div>
+                                    </ButtonGroup>
                                 </Show>
 
                                 <Show when={tab() === "versions"}>

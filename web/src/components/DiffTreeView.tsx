@@ -1,6 +1,7 @@
 import { createEffect, createMemo, createSignal, Show, For } from "solid-js";
 import { createLocalStorageSignal } from "~/utils/prefs";
 import { A } from "@solidjs/router";
+import { Button } from "~/components/ui";
 import { relativeDate } from "~/utils/format";
 import { changelogRefLabel } from "~/utils/diff";
 import type { DiffTree } from "~/api/client";
@@ -114,13 +115,13 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
                 </div>
             </Show>
             <div style={{ display: "flex", gap: "0.75rem", "align-items": "center", padding: "0.5rem 0", "flex-wrap": "wrap" }}>
-                <button
-                    class="btn btn-sm"
+                <Button
+                    size="sm"
                     title="Expand every branch that contains a changed package"
                     onClick={expandAllChanged}
                 >
                     Expand all changed
-                </button>
+                </Button>
                 <label
                     title="Include unchanged ancestors of changed packages so you can see where each change lives in the tree. Off by default — only changed packages and their changed descendants are shown."
                     style={{ display: "flex", gap: "0.35rem", "align-items": "center", "font-size": "0.85rem", cursor: "pointer" }}
@@ -148,9 +149,9 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
                 <p class="text-muted text-sm" style={{ padding: "0 0 0.5rem" }}>
                     Showing {shownChangeCount()} of {changes().length} changes —{" "}
                     {hiddenChangeCount()} hidden under indirect dependencies.{" "}
-                    <button class="btn btn-sm" onClick={revealHidden}>
+                    <Button size="sm" onClick={revealHidden}>
                         Show hidden changes
-                    </button>
+                    </Button>
                 </p>
             </Show>
             <Show
