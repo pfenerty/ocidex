@@ -1,4 +1,3 @@
-import "./SourcesTab.css";
 import { createEffect, createMemo, createSignal } from "solid-js";
 import { useSearchParams } from "@solidjs/router";
 import {
@@ -14,6 +13,7 @@ import { prefillForHost } from "./sources/registryTypes";
 import { NamespaceGroups } from "./sources/NamespaceGroups";
 import { DriftFeedCard } from "./sources/DriftFeedCard";
 import { WebhookSecretBanner } from "./sources/WebhookSecretBanner";
+import { Button } from "~/components/ui";
 
 /**
  * SourcesTab lists every ingest channel grouped by namespace, and owns the
@@ -94,8 +94,8 @@ export function SourcesTab() {
         <>
             <WebhookSecretBanner secret={revealedSecret()} onDismiss={() => setRevealedSecret(null)} />
 
-            <div style={{ "margin-bottom": "1rem" }}>
-                <button class="btn btn-primary" onClick={() => dialog?.openAdd()}>Add Registry</button>
+            <div class="mb-4">
+                <Button variant="primary" onClick={() => dialog?.openAdd()}>Add Registry</Button>
             </div>
 
             <RegistryFormDialog ref={(h) => (dialog = h)} onSecretRevealed={setRevealedSecret} />
@@ -105,7 +105,7 @@ export function SourcesTab() {
                 registries={query.data?.data ?? []}
                 sources={sourcesQuery.data?.data ?? []}
                 namespaces={namespacesQuery.data?.data ?? []}
-                loading={sourcesQuery.isLoading || query.isLoading}
+                loading={sourcesQuery.isFetching || query.isFetching}
                 isError={sourcesQuery.isError || query.isError}
                 error={sourcesQuery.error ?? query.error}
             />

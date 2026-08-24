@@ -1,7 +1,7 @@
 import { Show, For } from "solid-js";
 import { A } from "@solidjs/router";
 import type { ArtifactRelation } from "~/api/client";
-import { TypeBadge } from "~/components/ui";
+import { Card, TypeBadge } from "~/components/ui";
 import { ErrorBox, EmptyState } from "~/components/Feedback";
 import { SkeletonText } from "~/components/Skeleton";
 import { relativeDate } from "~/utils/format";
@@ -29,8 +29,8 @@ function RelationCard(props: { relation: ArtifactRelation }) {
     const drift = () => driftOf(rel());
 
     return (
-        <div
-            class="card mb-4"
+        <Card
+            class="mb-4"
             style={{
                 padding: "0.75rem 1rem",
                 display: "flex",
@@ -115,7 +115,7 @@ function RelationCard(props: { relation: ArtifactRelation }) {
                     </span>
                 </Show>
             </div>
-        </div>
+        </Card>
     );
 }
 
@@ -156,7 +156,7 @@ export function RelationshipsTab(props: {
                         />
                     }
                 >
-                    <p class="text-muted" style={{ "margin-bottom": "1rem" }}>
+                    <p class="text-muted mb-4">
                         <strong>{props.artifactName}</strong>
                         <Show when={currentVersion()}>
                             {(v) => <> {v()}</>}

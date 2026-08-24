@@ -35,3 +35,144 @@ th.th-sortable .sort-arrow {
         transition: none;
     }
 }
+
+/*
+ * Mobile card stack.
+ *
+ * Below the app's 768px breakpoint a table of records stops being a table.
+ * Measured at a 500px viewport before this existed: /artifacts gave its name
+ * column 110px, so `github.com/pfenerty/ocidex/enrichment-worker` broke across
+ * five lines and a 32px row became 117px. Nothing overflowed — `table` is
+ * `width: 100%`, so the columns just squeezed — which is why this reads as
+ * "cramped" rather than as a layout bug, and why it survived this long.
+ *
+ * Each row becomes a bordered block and each cell names itself from
+ * `data-label`, which DataTable fills from the column header. The header row
+ * goes away: it has nothing left to align to.
+ *
+ * A table that must stay a grid opts out with `mobileLayout="scroll"` and
+ * scrolls sideways inside `.table-wrapper`, which already has `overflow-x:
+ * auto` — the scroll is the table's, never the page body's.
+ */
+@media (max-width: 768px) {
+    .table-mobile-cards {
+        /* No nested scroll box on a phone: the cards are the page. */
+        max-height: none;
+    }
+
+    .table-mobile-cards thead {
+        display: none;
+    }
+
+    .table-mobile-cards table,
+    .table-mobile-cards tbody,
+    .table-mobile-cards tr,
+    .table-mobile-cards td {
+        display: block;
+        width: 100%;
+    }
+
+    .table-mobile-cards tbody tr {
+        margin-bottom: 0.625rem;
+        padding: 0.375rem 0.75rem;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+    }
+
+    .table-mobile-cards tbody tr:last-child {
+        margin-bottom: 0;
+    }
+
+    /*
+     * Label in a fixed left gutter, value taking the rest. Flex rather than two
+     * stacked lines because a phone screen is short: a labelled line per cell
+     * already turns eight rows into a long scroll, and stacking the label above
+     * its value would double it again.
+     */
+    .table-mobile-cards tbody td {
+        display: flex;
+        column-gap: 0.75rem;
+        row-gap: 0.25rem;
+        flex-wrap: wrap;
+        align-items: baseline;
+        padding: 0.3rem 0;
+        border-bottom: none;
+        /* A purl or a digest has no spaces to break at, and the point of this
+           layout is that nothing has to break mid-word unless it truly cannot
+           fit. */
+        overflow-wrap: anywhere;
+    }
+
+    .table-mobile-cards tbody td[data-label]::before {
+        content: attr(data-label);
+        /* 7.5rem, not 6.5: "VULNERABILITIES" measures 98px at this size and
+           letter-spacing, and a 91px gutter broke it as "VULNERABILITIE / S".
+           `overflow-wrap` is inherited, so the `anywhere` above -- which exists
+           for purls and digests, in the *value* -- reached the label too and
+           made that break legal. A column header is a short known string; it
+           gets room and it never breaks mid-word. */
+        flex: 0 0 7.5rem;
+        overflow-wrap: normal;
+        font-size: var(--text-xs);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--color-text-muted);
+    }
+
+    /* An actions column has no header, so its control gets the whole width
+       rather than an empty gutter to sit beside. */
+    .table-mobile-cards tbody td:not([data-label]) {
+        padding-top: 0.5rem;
+    }
+
+    /* `.truncate` caps a cell at 300px so a wide table stays readable. In a
+       card there is no other column to protect, and an ellipsis on the one
+       thing identifying the row is the wrong trade. */
+    .table-mobile-cards tbody td.truncate {
+        max-width: none;
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
+    }
+
+    /* `text-right` aligns a number against the column beside it. There is no
+       column beside it here. */
+    .table-mobile-cards tbody td.text-right {
+        text-align: left;
+    }
+
+    /* A group header is a section label between cards, not a card. */
+    .table-mobile-cards tbody tr.group-header-row {
+        margin: 0.75rem 0 0.375rem;
+        padding: 0;
+        border: none;
+        border-radius: 0;
+    }
+
+    .table-mobile-cards tbody tr.group-header-row td {
+        display: block;
+        padding: 0;
+    }
+
+    .table-mobile-cards tbody tr.group-header-row td::before {
+        content: none;
+    }
+
+    /* Rows are blocks now, so the hover fill would paint the whole card. Keep
+       it — it is the only feedback a clickable card has — but let the border
+       do the work of saying where one row ends. */
+    .table-mobile-cards tbody tr:hover {
+        background: var(--color-surface-hover);
+    }
+
+    /*
+     * Opt-out: keep the grid, scroll it. `table { width: 100% }` means a table
+     * can never exceed its wrapper on its own, so scrolling has to be asked for
+     * with a min-width — without one the columns squeeze to nothing and there
+     * is nothing to scroll.
+     */
+    .table-mobile-scroll table {
+        min-width: 44rem;
+    }
+}

@@ -23,6 +23,19 @@ type WatchEvent = components["schemas"]["WatchEvent"];
 
 const ICON = 15;
 
+/**
+ * alertState reads a panel's own query rather than a separate count endpoint:
+ * an alarm that could disagree with the rows underneath it is worse than no
+ * alarm. Anything still in flight is "pending" — see Panel's `alert` prop.
+ */
+function alertState(query: {
+    isLoading: boolean;
+    data: { data: unknown[] } | undefined;
+}): "raised" | "clear" | "pending" {
+    if (query.isLoading || query.data === undefined) return "pending";
+    return query.data.data.length > 0 ? "raised" : "clear";
+}
+
 /** NamespacesPanel — what the caller owns, which is the root of everything else
  *  on this page: sources, artifacts and visibility all hang off a namespace
  *  (ADR-039), so an empty namespace list explains an empty dashboard. */
@@ -54,6 +67,42 @@ export function NamespacesPanel(): JSX.Element {
     );
 }
 
+/** One artifact's most recent ingest, plus how many older ones it hid. */
+export interface IngestRow {
+    entry: ActivityEntry;
+    repeats: number;
+}
+
+/**
+ * dedupeByArtifact collapses the activity feed to one row per artifact.
+ *
+ * A repository that pushes on every commit fills the whole panel with itself —
+ * observed live with all five visible slots taken by one repo, so the feed
+ * carried one fact five times and said nothing about the rest of the estate.
+ * The entries arrive newest-first, so the first occurrence of an artifact is
+ * the one to keep; the rest are counted rather than dropped, because "pushed 6
+ * times today" is itself the interesting part.
+ */
+export function dedupeByArtifact(rows: ActivityEntry[]): IngestRow[] {
+    const out: IngestRow[] = [];
+    const byKey = new Map<string, IngestRow>();
+    for (const entry of rows) {
+        // artifactId is absent for an SBOM with no artifact subject; the name
+        // and finally the SBOM id keep those rows distinct rather than
+        // collapsing every one of them into a single line.
+        const key = entry.artifactId ?? entry.artifactName ?? `sbom:${entry.sbomId}`;
+        const seen = byKey.get(key);
+        if (seen === undefined) {
+            const row: IngestRow = { entry, repeats: 1 };
+            byKey.set(key, row);
+            out.push(row);
+        } else {
+            seen.repeats += 1;
+        }
+    }
+    return out;
+}
+
 /** IngestPanel — recent SBOM ingests into owned namespaces. "Ingest health" is
  *  read off the stream itself rather than a separate status figure: the
  *  question this answers is "is anything still arriving, and from where". */
@@ -68,15 +117,20 @@ export function IngestPanel(): JSX.Element {
         >
             <PanelBody query={query} empty="Nothing has been ingested into your namespaces yet.">
                 {(rows: ActivityEntry[]) => (
-                    <For each={rows}>
-                        {(a) => (
+                    <For each={dedupeByArtifact(rows)}>
+                        {(row) => (
                             <PanelRow
-                                href={`/sboms/${a.sbomId}`}
-                                title={a.artifactName ?? a.namespaceName}
-                                sub={[a.namespaceName, a.sourceName, a.subjectVersion]
+                                href={`/sboms/${row.entry.sbomId}`}
+                                title={row.entry.artifactName ?? row.entry.namespaceName}
+                                sub={[
+                                    row.entry.namespaceName,
+                                    row.entry.sourceName,
+                                    row.entry.subjectVersion,
+                                    row.repeats > 1 ? `${row.repeats} ingests` : undefined,
+                                ]
                                     .filter((s) => s !== undefined && s !== "")
                                     .join(" · ")}
-                                meta={relativeDate(a.createdAt)}
+                                meta={relativeDate(row.entry.createdAt)}
                             />
                         )}
                     </For>
@@ -96,6 +150,8 @@ export function DriftPanel(): JSX.Element {
             icon={<GitCompareArrows size={ICON} />}
             href="/admin/status"
             linkLabel="System status"
+            count={query.data?.data.length}
+            alert={alertState(query)}
         >
             <PanelBody query={query} empty="No provenance drift on your artifacts.">
                 {(rows: DriftEntry[]) => (
@@ -124,6 +180,8 @@ export function ExposurePanel(): JSX.Element {
             title="Vulnerability exposure"
             icon={<ShieldAlert size={ICON} />}
             href="/vulnerabilities"
+            count={query.data?.data.length}
+            alert={alertState(query)}
         >
             <PanelBody query={query} empty="No known vulnerabilities in what you own.">
                 {(rows: TopVulnEntry[]) => (

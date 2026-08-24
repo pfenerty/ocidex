@@ -1,6 +1,6 @@
 import { Show, For } from "solid-js";
 import { A } from "@solidjs/router";
-import { Card, CardHeader } from "~/components/ui";
+import { Card, CardHeader, QueryBoundary } from "~/components/ui";
 import { SeverityPill } from "~/components/VulnBadge";
 import { VulnId } from "~/components/cells";
 import { plural } from "~/utils/format";
@@ -49,7 +49,7 @@ export function OverviewTab(props: {
             when={reported()}
             fallback={<AgentSetup clusterId={props.clusterId} clusterName={props.clusterName} />}
         >
-            <Card style={{ "margin-bottom": "1rem" }}>
+            <Card class="mb-4">
                 <CardHeader
                     // "Top 5 of 487", not a 487 badge beside five rows: the
                     // badge read as the length of the list under it.
@@ -71,28 +71,24 @@ export function OverviewTab(props: {
                         </A>
                     }
                 />
-                <Show
-                    when={!topVulns.isLoading}
-                    fallback={<p class="text-muted">Loading vulnerability counts…</p>}
+                <QueryBoundary
+                    query={topVulns}
+                    loading={<p class="text-muted">Loading vulnerability counts…</p>}
+                    when={(d) => d.data.length > 0}
+                    error={
+                        <p class="text-muted">
+                            Vulnerability counts could not be loaded for this cluster.
+                        </p>
+                    }
+                    empty={
+                        <p>
+                            No known vulnerability affects the{" "}
+                            {plural(props.coverage.matched, "matched container")} running here.
+                        </p>
+                    }
                 >
-                    <Show
-                        when={!topVulns.isError}
-                        fallback={
-                            <p class="text-muted">
-                                Vulnerability counts could not be loaded for this cluster.
-                            </p>
-                        }
-                    >
-                        <Show
-                            when={(topVulns.data?.data.length ?? 0) > 0}
-                            fallback={
-                                <p>
-                                    No known vulnerability affects the{" "}
-                                    {plural(props.coverage.matched, "matched container")} running
-                                    here.
-                                </p>
-                            }
-                        >
+                    {() => (
+                        <>
                             {/*
                               * One grid rather than five independent flex rows.
                               * Severity pills are different widths, so the old
@@ -125,9 +121,9 @@ export function OverviewTab(props: {
                                     )}
                                 </For>
                             </ul>
-                        </Show>
-                    </Show>
-                </Show>
+                        </>
+                    )}
+                </QueryBoundary>
                 <Show when={notAssessed() > 0}>
                     <span class="coverage-caveat">
                         {plural(notAssessed(), "running container")} are excluded from these counts:{" "}

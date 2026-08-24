@@ -18,7 +18,7 @@ export function VulnId(props: VulnIdProps) {
             </A>
             <Show when={showNative()}>
                 <br />
-                <span class="text-muted" style={{ "font-size": "0.75rem" }}>
+                <span class="text-muted text-xs">
                     {props.nativeId}
                 </span>
             </Show>
@@ -42,7 +42,7 @@ export function VulnIdExternal(props: VulnIdProps) {
             </a>
             <Show when={showNative()}>
                 <br />
-                <span class="text-muted" style={{ "font-size": "0.75rem" }}>
+                <span class="text-muted text-xs">
                     {props.nativeId}
                 </span>
             </Show>

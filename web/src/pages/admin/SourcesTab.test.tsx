@@ -214,6 +214,22 @@ describe("SourcesTab namespace grouping", () => {
         expect(headings(container).sort()).toEqual(["acme", "widgets"]);
     });
 
+    it("renders the column header once, not once per namespace", () => {
+        // Every namespace used to get its own table, so the nine-column header
+        // repeated down the page for groups that were mostly one row each.
+        const { container } = renderTab([baseRegistry, managedRegistry], [
+            sourceFor(baseRegistry, "acme"),
+            sourceFor(managedRegistry, "widgets"),
+        ]);
+
+        expect(container.querySelectorAll("thead").length).toBe(1);
+        expect(container.querySelectorAll("table").length).toBe(1);
+        // Group membership is still on screen — as a spanning row inside the
+        // one table rather than as a heading above a table of its own.
+        expect(headings(container).sort()).toEqual(["acme", "widgets"]);
+        expect(container.querySelectorAll("tr.group-header-row").length).toBe(2);
+    });
+
     it("lists an upload source without any OCI configuration", () => {
         const { container } = renderTab([], [
             {

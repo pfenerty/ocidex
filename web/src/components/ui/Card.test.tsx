@@ -44,6 +44,29 @@ describe("Card", () => {
         const { container } = render(() => <Card class="mb-4">body</Card>);
         expect(container.querySelector(".card")?.className).toBe("card mb-4");
     });
+
+    // Three call sites set the announcing border as an inline `border-color`,
+    // one of them behind a `#d69e2e` fallback for a token that has existed in
+    // both themes all along. A named tone is what a theme can restyle.
+    it.each([
+        ["success", "card card-success"],
+        ["warning", "card card-warning"],
+    ] as const)("emits card-%s for tone=%s", (tone, expected) => {
+        const { container } = render(() => <Card tone={tone}>body</Card>);
+        expect(container.querySelector(".card")?.className).toBe(expected);
+    });
+
+    it("keeps the tone class ahead of caller classes and omits it by default", () => {
+        const { container } = render(() => <Card tone="success" class="mb-4">body</Card>);
+        expect(container.querySelector(".card")?.className).toBe("card card-success mb-4");
+        const plain = render(() => <Card>body</Card>);
+        expect(plain.container.querySelector(".card")?.className).toBe("card");
+    });
+
+    it("passes data-testid through so a test can address one card", () => {
+        const { container } = render(() => <Card data-testid="managed-notice">body</Card>);
+        expect(container.querySelector('[data-testid="managed-notice"]')?.className).toBe("card");
+    });
 });
 
 describe("DetailField", () => {

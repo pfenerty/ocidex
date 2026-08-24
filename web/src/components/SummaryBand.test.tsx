@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
-import { describe, it, expect } from "vitest";
-import { render } from "@solidjs/testing-library";
+import { describe, it, expect, afterEach } from "vitest";
+import { render, cleanup } from "@solidjs/testing-library";
 import SummaryBand from "./SummaryBand";
-import type { Provenance } from "~/api/client";
+
+afterEach(cleanup);
+import type { Provenance, VulnSummary } from "~/api/client";
 
 function renderBand(provenance: Provenance | undefined, signingStatus: string | undefined) {
     const { container } = render(() => (
@@ -13,6 +15,7 @@ function renderBand(provenance: Provenance | undefined, signingStatus: string | 
             git={undefined}
             packageCount={0}
             ecosystems={[]}
+            vulns={undefined}
             specVersion="1.6"
             ingestedAt="2026-07-31T00:00:00Z"
             active="provenance"
@@ -66,5 +69,59 @@ describe("SummaryBand provenance sub-line", () => {
 
     it("renders an em dash when there is no provenance at all", () => {
         expect(renderBand(undefined, undefined).sub).toBe("—");
+    });
+});
+
+// ── Vulnerability tile (ocidex-ag4q.15) ──────────────────────────────────────
+
+function renderVulnTile(vulns: VulnSummary | undefined) {
+    const { container } = render(() => (
+        <SummaryBand
+            provenance={undefined}
+            signingStatus={undefined}
+            metadata={undefined}
+            git={undefined}
+            packageCount={0}
+            ecosystems={[]}
+            vulns={vulns}
+            specVersion="1.6"
+            ingestedAt="2026-07-31T00:00:00Z"
+            active="provenance"
+            onSelect={() => undefined}
+        />
+    ));
+    const tile = [...container.querySelectorAll(".tile")].find((t) =>
+        t.textContent.includes("Vulnerabilities"),
+    );
+    if (tile === undefined) throw new Error("no vulnerability tile in the band");
+    return { tile, container };
+}
+
+const summary = (over: Partial<VulnSummary>): VulnSummary => ({
+    critical: 0, high: 0, medium: 0, low: 0, unknown: 0, total: 0, ...over,
+});
+
+describe("SummaryBand vulnerability tile", () => {
+    it("distinguishes never-scanned from clean", () => {
+        // An SBOM with no scan must not read as having no vulnerabilities —
+        // the same distinction ADR-044 insists on for unmatched workloads.
+        expect(renderVulnTile(undefined).tile.textContent).toContain("not scanned");
+        expect(renderVulnTile(undefined).tile.textContent).not.toContain("no known");
+    });
+
+    it("says so explicitly when a scan found nothing", () => {
+        expect(renderVulnTile(summary({})).tile.textContent).toContain("no known vulnerabilities");
+    });
+
+    it("leads with the worst severity present, not the total alone", () => {
+        // "1 critical" and "40 low" must not render as the same shape.
+        const { tile } = renderVulnTile(summary({ critical: 1, low: 39, total: 40 }));
+        expect(tile.textContent).toContain("40");
+        expect(tile.textContent).toContain("1 critical");
+        expect(tile.querySelector(".sev-critical")).not.toBeNull();
+    });
+
+    it("is not a button, because the page has no vulnerabilities tab yet", () => {
+        expect(renderVulnTile(summary({ high: 2, total: 2 })).tile.tagName).toBe("DIV");
     });
 });

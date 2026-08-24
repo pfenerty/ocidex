@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from "vitest";
 import { render } from "@solidjs/testing-library";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { Skeleton, SkeletonText, SkeletonTable, SkeletonCard, SkeletonHeader } from "./Skeleton";
 
 describe("Skeleton", () => {
@@ -14,6 +16,33 @@ describe("Skeleton", () => {
     it("adds the circle modifier when circle is set", () => {
         const { container } = render(() => <Skeleton circle />);
         expect(container.querySelector(".skeleton.skeleton-circle")).not.toBeNull();
+    });
+
+    it("adds the inline modifier when inline is set", () => {
+        const { container } = render(() => <Skeleton inline />);
+        expect(container.querySelector(".skeleton.skeleton-inline")).not.toBeNull();
+    });
+});
+
+describe("Skeleton inline flow", () => {
+    // A page title's placeholder stands in for one word inside a heading, so it
+    // has to flow with the text. The obvious spelling — a Tailwind
+    // `inline-block` on the call site — is inert here, because `.skeleton`
+    // below is unlayered and unlayered CSS outranks `@layer utilities`
+    // regardless of source order. Five call sites shipped exactly that dead
+    // class during ocidex-ag4q.18. This asserts the modifier has a counterpart
+    // in the stylesheet, the way fontContract and typeScale do.
+    const css = readFileSync(resolve(__dirname, "./Skeleton.css"), "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "");
+
+    it("defines .skeleton-inline as inline-block", () => {
+        expect(/\.skeleton-inline\s*\{[^}]*display:\s*inline-block/.test(css)).toBe(true);
+    });
+
+    it("keeps .skeleton out of a cascade layer so the modifier can win", () => {
+        // If `.skeleton` ever moves into a layer, `.skeleton-inline` must move
+        // with it — otherwise this pairing silently inverts.
+        expect(css).not.toMatch(/@layer/);
     });
 });
 

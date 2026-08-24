@@ -1,5 +1,6 @@
 import { createQuery } from "@tanstack/solid-query";
 import { client, unwrap } from "~/api/client";
+import { selfScopedEnabled, type SelfScopedOptions } from "./selfScoped";
 
 // ---------------------------------------------------------------------------
 // Self-scoped collections (ocidex-998g.2 / .5)
@@ -15,9 +16,10 @@ import { client, unwrap } from "~/api/client";
 // ---------------------------------------------------------------------------
 
 /** useMyNamespaces — namespaces the caller owns. */
-export function useMyNamespaces() {
+export function useMyNamespaces(opts?: SelfScopedOptions) {
     return createQuery(() => ({
         queryKey: ["me", "namespaces"] as const,
+        enabled: selfScopedEnabled(opts),
         queryFn: () => unwrap(client.GET("/api/v1/users/me/namespaces")),
         select: (resp) => ({ ...resp, data: resp.data ?? [] }),
     }));
@@ -30,18 +32,20 @@ export function useMyNamespaces() {
  * the recent ingest stream, so the panel reads the same rows the activity feed
  * would show rather than a separate summary that could disagree with it.
  */
-export function useMyActivity() {
+export function useMyActivity(opts?: SelfScopedOptions) {
     return createQuery(() => ({
         queryKey: ["me", "activity"] as const,
+        enabled: selfScopedEnabled(opts),
         queryFn: () => unwrap(client.GET("/api/v1/users/me/activity")),
         select: (resp) => ({ ...resp, data: resp.data ?? [] }),
     }));
 }
 
 /** useMyDriftFeed — provenance drift on artifacts in namespaces the caller owns. */
-export function useMyDriftFeed() {
+export function useMyDriftFeed(opts?: SelfScopedOptions) {
     return createQuery(() => ({
         queryKey: ["me", "drift-feed"] as const,
+        enabled: selfScopedEnabled(opts),
         queryFn: () => unwrap(client.GET("/api/v1/users/me/drift-feed")),
         select: (resp) => ({ ...resp, data: resp.data ?? [] }),
     }));
@@ -55,9 +59,10 @@ export function useMyDriftFeed() {
  * caller's own fleet, and a stale cluster someone else owns is not their
  * problem to act on.
  */
-export function useMyClusters() {
+export function useMyClusters(opts?: SelfScopedOptions) {
     return createQuery(() => ({
         queryKey: ["me", "clusters"] as const,
+        enabled: selfScopedEnabled(opts),
         queryFn: () => unwrap(client.GET("/api/v1/users/me/clusters")),
         select: (resp) => ({ ...resp, data: resp.data ?? [] }),
     }));
@@ -69,9 +74,10 @@ export function useMyClusters() {
  * dashboard figure is meant to be the caller's own backlog, and other people's
  * public artifacts would inflate it with work nobody expects them to do.
  */
-export function useMyVulnerabilities(limit = 5) {
+export function useMyVulnerabilities(limit = 5, opts?: SelfScopedOptions) {
     return createQuery(() => ({
         queryKey: ["me", "vulns", limit] as const,
+        enabled: selfScopedEnabled(opts),
         queryFn: () =>
             unwrap(client.GET("/api/v1/users/me/vulns", { params: { query: { limit } } })),
         select: (resp) => ({ ...resp, data: resp.data ?? [] }),

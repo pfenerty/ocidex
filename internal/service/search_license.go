@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/github/go-spdx/v2/spdxexp"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -14,8 +15,10 @@ func (s *searchService) ListLicenses(ctx context.Context, filter LicenseFilter) 
 	q := repository.New(s.db)
 
 	rows, err := q.ListLicenses(ctx, repository.ListLicensesParams{
-		SpdxID:    textOrNull(filter.SpdxID),
-		Name:      textOrNull(filter.Name),
+		// Trimmed: the match is a substring one now, so a box holding only
+		// whitespace would match every license under a filter that looks active.
+		SpdxID:    textOrNull(strings.TrimSpace(filter.SpdxID)),
+		Name:      textOrNull(strings.TrimSpace(filter.Name)),
 		Category:  textOrNull(filter.Category),
 		UserID:    filter.Visibility.UserID,
 		IsAdmin:   visAdminBool(filter.Visibility),

@@ -25,7 +25,7 @@
 }
 
 .theme-icon.active {
-    color: var(--color-primary);
+    color: var(--color-secondary);
     background: var(--color-surface-hover);
 }
 

@@ -1,20 +1,39 @@
 import type { JSX } from "solid-js";
-import { Show } from "solid-js";
+import { Show, splitProps } from "solid-js";
+import { Dynamic } from "solid-js/web";
 
 /**
  * Card is the field-guide surface from ADR-023. It exists so the `card` class
  * name and the `card > card-header > h3` nesting are written once instead of in
  * every page that happens to remember the shape.
  */
-export function Card(props: {
-    class?: string;
-    style?: JSX.CSSProperties;
+export type CardProps = {
+    /**
+     * The element to render. Two call sites need something other than a div for
+     * real reasons: HomeDiscovery's landing panels are `<section>`s, and
+     * Lookup's candidates are `<li>`s inside a list. Neither should have to stay
+     * hand-written just to keep its tag.
+     */
+    as?: "div" | "section" | "li";
+    /**
+     * A card that announces rather than contains — a one-time secret, a notice
+     * that edits here will be overwritten. Emits `.card-success` /
+     * `.card-warning`, which set only the border colour.
+     */
+    tone?: "success" | "warning";
     children: JSX.Element;
-}): JSX.Element {
+} & JSX.HTMLAttributes<HTMLElement>;
+
+export function Card(props: CardProps): JSX.Element {
+    const [own, rest] = splitProps(props, ["as", "tone", "class", "children"]);
+    const cls = (): string =>
+        ["card", own.tone !== undefined ? `card-${own.tone}` : "", own.class ?? ""]
+            .filter((c) => c !== "")
+            .join(" ");
     return (
-        <div class={props.class !== undefined ? `card ${props.class}` : "card"} style={props.style}>
-            {props.children}
-        </div>
+        <Dynamic component={own.as ?? "div"} class={cls()} {...rest}>
+            {own.children}
+        </Dynamic>
     );
 }
 

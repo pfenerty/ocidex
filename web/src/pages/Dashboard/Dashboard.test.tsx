@@ -181,6 +181,87 @@ describe("Dashboard", () => {
         );
     });
 
+    // Every panel used to render with identical weight, so a provenance
+    // regression read exactly like a list of namespaces (ocidex-ag4q.40).
+    describe("panel severity", () => {
+        it("marks an alarm panel raised only when it has something to report", () => {
+            mocks.drift.mockReturnValue(
+                loaded([
+                    {
+                        sbomId: "s2",
+                        artifactName: "alpine",
+                        previousStatus: "verified",
+                        newStatus: "unsigned",
+                        reason: "reverification_failed",
+                        detectedAt: new Date().toISOString(),
+                    },
+                ]) as unknown as ReturnType<typeof useMyDriftFeed>,
+            );
+
+            const { container } = render(() => <Dashboard />);
+            const drift = container.querySelector('[data-section="drift"]');
+            const exposure = container.querySelector('[data-section="exposure"]');
+            expect(drift?.querySelector(".dash-panel-alert")).not.toBeNull();
+            // Exposure came back empty, so it stays quiet.
+            expect(exposure?.querySelector(".dash-panel-alert")).toBeNull();
+            // Inventory panels never carry alert weight, full or empty.
+            expect(container.querySelector('[data-section="namespaces"] .dash-panel-alert')).toBeNull();
+        });
+
+        it("holds an in-flight alarm panel in the pending state", () => {
+            setAll(loading);
+            const { container } = render(() => <Dashboard />);
+            const drift = container.querySelector('[data-section="drift"]');
+            // Not "clear": a panel that is about to raise must not sink to the
+            // bottom of the grid and jump back up when its rows arrive.
+            expect(drift?.querySelector(".dash-panel-pending")).not.toBeNull();
+            expect(drift?.querySelector(".dash-panel-alert")).toBeNull();
+        });
+
+        it("orders the alarm sections ahead of the inventory", () => {
+            const { container } = render(() => <Dashboard />);
+            const ids = [...container.querySelectorAll("[data-section]")].map((el) =>
+                el.getAttribute("data-section"),
+            );
+            expect(ids.slice(0, 2)).toEqual(["drift", "exposure"]);
+            // The tone is on the wrapper, which is what Dashboard.css uses to
+            // sink an alarm section that has come back clear.
+            expect(ids.length).toBe(6);
+            expect(
+                container.querySelector('[data-section="drift"]')?.classList.contains("dash-section-alert"),
+            ).toBe(true);
+            expect(
+                container
+                    .querySelector('[data-section="namespaces"]')
+                    ?.classList.contains("dash-section-inventory"),
+            ).toBe(true);
+        });
+    });
+
+    // A repository that pushes on every commit filled all five visible slots
+    // with itself, so the feed carried one fact five times.
+    it("collapses the ingest feed to one row per artifact", () => {
+        const at = (mins: number) => new Date(Date.now() - mins * 60_000).toISOString();
+        mocks.activity.mockReturnValue(
+            loaded([
+                { sbomId: "s1", artifactId: "a1", artifactName: "ocidex", namespaceId: "n1", namespaceName: "prod", createdAt: at(1) },
+                { sbomId: "s2", artifactId: "a1", artifactName: "ocidex", namespaceId: "n1", namespaceName: "prod", createdAt: at(5) },
+                { sbomId: "s3", artifactId: "a1", artifactName: "ocidex", namespaceId: "n1", namespaceName: "prod", createdAt: at(9) },
+                { sbomId: "s4", artifactId: "a2", artifactName: "tektonic", namespaceId: "n1", namespaceName: "prod", createdAt: at(20) },
+            ]) as unknown as ReturnType<typeof useMyActivity>,
+        );
+
+        const { container, getByText } = render(() => <Dashboard />);
+        const rows = [
+            ...(container.querySelector('[data-section="ingest"]')?.querySelectorAll(".dash-row") ?? []),
+        ];
+        expect(rows.length).toBe(2);
+        // The newest of the collapsed run is the one kept...
+        expect(getByText("ocidex").closest("a")?.getAttribute("href")).toBe("/sboms/s1");
+        // ...and the ones it hid are counted, not silently dropped.
+        expect(getByText(/3 ingests/)).toBeDefined();
+    });
+
     it("routes each watch-event kind to the page that explains it", () => {
         mocks.watchFeed.mockReturnValue(
             loaded([

@@ -38,18 +38,37 @@ export class APIClientError extends Error {
 /**
  * Unwrap an openapi-fetch result: return data on success, throw on error.
  * Designed for use inside solid-query `queryFn` callbacks.
+ *
+ * It deliberately does not redirect on 401. It used to send the browser to
+ * /login on any 401, which meant a single auth-scoped widget could destroy an
+ * otherwise-public page: /vulnerabilities/{id} bounced signed-out visitors even
+ * though the CVE endpoint itself answered 200, because one sibling request for
+ * cluster workloads was authenticated.
+ *
+ * Redirecting is a routing decision and lives in one place: Layout's
+ * `authedPaths` effect, which navigates when the auth resource resolves to no
+ * user on a path whose every request is authenticated. Anywhere else, a 401 is
+ * data — the caller decides whether to hide a section, show an error, or fall
+ * back to an empty result. Use `isUnauthorized` to detect it.
  */
 export async function unwrap<T>(
     promise: Promise<{ data?: T; error?: unknown; response: Response }>,
 ): Promise<T> {
     const { data, error, response } = await promise;
     if (error !== undefined && error !== null) {
-        if (response.status === 401) {
-            window.location.href = "/login";
-        }
         throw new APIClientError(response.status, error);
     }
     return data as T;
+}
+
+/**
+ * isUnauthorized reports whether a thrown value is a 401 from the API.
+ *
+ * Callers that render an auth-scoped section inside an otherwise-public page
+ * use this to degrade that section rather than fail the page.
+ */
+export function isUnauthorized(err: unknown): boolean {
+    return err instanceof APIClientError && err.status === 401;
 }
 
 // Re-export generated component schemas for convenience so pages can import

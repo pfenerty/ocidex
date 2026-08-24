@@ -1909,8 +1909,15 @@ type GetArtifactVulnSummaryOutputBody struct {
 // GetComponentVersionsOutputBody defines model for GetComponentVersionsOutputBody.
 type GetComponentVersionsOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema   *string                  `json:"$schema,omitempty"`
-	Versions *[]ComponentVersionEntry `json:"versions"`
+	Schema *string `json:"$schema,omitempty"`
+
+	// ArtifactCount Distinct artifacts whose SBOMs contain this component, across every page
+	ArtifactCount int64          `json:"artifactCount"`
+	Pagination    PaginationMeta `json:"pagination"`
+
+	// VersionCount Distinct versions under this identity, across every page
+	VersionCount int64                    `json:"versionCount"`
+	Versions     *[]ComponentVersionEntry `json:"versions"`
 }
 
 // GetComponentVulnsOutputBody defines model for GetComponentVulnsOutputBody.
@@ -1934,8 +1941,11 @@ type GetVulnerabilityOutputBody struct {
 	AffectedArtifacts    *[]AffectedArtifact  `json:"affectedArtifacts"`
 	AffectedComponents   *[]AffectedComponent `json:"affectedComponents"`
 	ComponentsPagination PaginationMeta       `json:"componentsPagination"`
-	Pagination           PaginationMeta       `json:"pagination"`
-	Vulnerability        VulnDetail           `json:"vulnerability"`
+
+	// NamespaceCount Namespaces visible to the caller that hold at least one affected SBOM
+	NamespaceCount int64          `json:"namespaceCount"`
+	Pagination     PaginationMeta `json:"pagination"`
+	Vulnerability  VulnDetail     `json:"vulnerability"`
 }
 
 // HashEntry defines model for HashEntry.
@@ -3328,6 +3338,12 @@ type SearchDistinctComponentsParams struct {
 
 // GetComponentVersionsParams defines parameters for GetComponentVersions.
 type GetComponentVersionsParams struct {
+	// Limit Maximum number of results per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+
 	// Name Component name
 	Name string `form:"name" json:"name"`
 
@@ -3606,6 +3622,9 @@ type ListMyVulnerabilitiesParams struct {
 	// Offset Number of results to skip
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 
+	// Q Filter by vulnerability id (CVE/GHSA/OSV), substring match against the canonical id and its aliases
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
 	// Severity Filter by severity
 	Severity *ListMyVulnerabilitiesParamsSeverity `form:"severity,omitempty" json:"severity,omitempty"`
 
@@ -3650,6 +3669,9 @@ type ListTopVulnerabilitiesParams struct {
 
 	// Offset Number of results to skip
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Q Filter by vulnerability id (CVE/GHSA/OSV), substring match against the canonical id and its aliases
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
 
 	// Severity Filter by severity
 	Severity *ListTopVulnerabilitiesParamsSeverity `form:"severity,omitempty" json:"severity,omitempty"`

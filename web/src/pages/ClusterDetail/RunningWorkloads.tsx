@@ -2,6 +2,7 @@ import { Show, For } from "solid-js";
 import { A } from "@solidjs/router";
 import { useVulnWorkloads } from "~/api/queries";
 import { imageRefName } from "~/utils/oci";
+import { QueryBoundary } from "~/components/ui";
 import "./RunningWorkloads.css";
 
 /**
@@ -28,19 +29,27 @@ export function RunningWorkloadsList(props: {
 
     return (
         <Show when={props.when}>
-            <Show
-                when={!query.isLoading}
-                fallback={<p class="text-muted text-sm">Loading workloads…</p>}
+            {/* The old ladder had no error branch at all, so a failed workloads
+                request rendered "No running workload matched" — a claim about
+                the cluster, made from a request that never answered. */}
+            <QueryBoundary
+                query={query}
+                loading={<p class="text-muted text-sm">Loading workloads…</p>}
+                when={(d) => d.data.length > 0}
+                error={
+                    <p class="text-muted text-sm">
+                        Running workloads could not be loaded, so exposure here is unknown —
+                        not zero.
+                    </p>
+                }
+                empty={
+                    <p class="text-muted text-sm">
+                        No running workload matched. This advisory reaches you through images
+                        OCIDex has, not images it has seen running.
+                    </p>
+                }
             >
-                <Show
-                    when={(query.data?.data.length ?? 0) > 0}
-                    fallback={
-                        <p class="text-muted text-sm">
-                            No running workload matched. This advisory reaches you through images
-                            OCIDex has, not images it has seen running.
-                        </p>
-                    }
-                >
+                {() => (
                     <ul class="running-workloads">
                         <For each={query.data?.data}>
                             {(w) => (
@@ -68,8 +77,8 @@ export function RunningWorkloadsList(props: {
                             )}
                         </For>
                     </ul>
-                </Show>
-            </Show>
+                )}
+            </QueryBoundary>
         </Show>
     );
 }

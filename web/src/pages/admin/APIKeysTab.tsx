@@ -5,6 +5,7 @@ import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import type { APIKey } from "~/api/client";
 import { useListAPIKeys, useCreateAPIKey, useDeleteAPIKey } from "~/api/queries";
+import { Button, Card, CardHeader } from "~/components/ui";
 
 export function APIKeysTab() {
     const query = useListAPIKeys();
@@ -46,13 +47,12 @@ export function APIKeysTab() {
             render: (k) =>
                 k.last_used_at !== undefined
                     ? <>{new Date(k.last_used_at).toLocaleDateString()}</>
-                    : <span style={{ color: "var(--color-text-muted)" }}>Never</span>,
+                    : <span class="text-muted">Never</span>,
         },
         {
             header: "",
             render: (k) => (
-                <button
-                    class="btn"
+                <Button
                     onClick={() => deleteKey.mutate(k.id, {
                         onSuccess: () => toast("API key deleted", "success"),
                         onError: () => toast("Failed to delete API key", "error"),
@@ -60,7 +60,7 @@ export function APIKeysTab() {
                     disabled={deleteKey.isPending}
                 >
                     Delete
-                </button>
+                </Button>
             ),
         },
     ];
@@ -68,32 +68,30 @@ export function APIKeysTab() {
     return (
         <>
             <Show when={revealedKey()}>
-                <div class="card" style={{ "border-color": "var(--color-success)", "margin-bottom": "1rem" }}>
+                <Card tone="success" class="mb-4">
                     <p style={{ "margin-bottom": "0.5rem" }}>
                         <strong>API key created.</strong> Copy it now — it will not be shown again.
                     </p>
                     <code style={{ "word-break": "break-all", display: "block", "margin-bottom": "0.5rem" }}>
                         {revealedKey()}
                     </code>
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
-                        <button class="btn btn-primary" onClick={() => {
+                    <div class="flex gap-2">
+                        <Button variant="primary" onClick={() => {
                             void copyText(revealedKey() ?? "").then(() => {
                                 toast("Copied to clipboard", "success");
                             });
                         }}>
                             Copy
-                        </button>
-                        <button class="btn" onClick={() => setRevealedKey(null)}>
+                        </Button>
+                        <Button onClick={() => setRevealedKey(null)}>
                             Dismiss
-                        </button>
+                        </Button>
                     </div>
-                </div>
+                </Card>
             </Show>
 
-            <div class="card" style={{ "margin-bottom": "1rem" }}>
-                <div class="card-header">
-                    <h3>Create Bot Token</h3>
-                </div>
+            <Card class="mb-4">
+                <CardHeader title="Create Bot Token" />
                 <form onSubmit={handleCreate} style={{ display: "flex", gap: "0.5rem", "align-items": "center", "flex-wrap": "wrap" }}>
                     <input
                         type="text"
@@ -109,16 +107,16 @@ export function APIKeysTab() {
                         <option value="read-write">Read-write</option>
                         <option value="read">Read-only</option>
                     </select>
-                    <button class="btn btn-primary" type="submit" disabled={createKey.isPending || !newKeyName().trim()}>
+                    <Button variant="primary" type="submit" disabled={createKey.isPending || !newKeyName().trim()}>
                         Create
-                    </button>
+                    </Button>
                 </form>
-            </div>
+            </Card>
 
             <DataTable
                 columns={columns}
                 rows={query.data?.keys ?? undefined}
-                loading={query.isLoading}
+                loading={query.isFetching}
                 isError={query.isError}
                 error={query.error}
                 emptyTitle="No API keys found"

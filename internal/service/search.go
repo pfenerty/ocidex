@@ -16,7 +16,7 @@ type SearchService interface {
 	ListSBOMs(ctx context.Context, filter SBOMFilter) (CursorPage[SBOMSummary], error)
 	SearchComponents(ctx context.Context, filter ComponentFilter) (PagedResult[ComponentSummary], error)
 	SearchDistinctComponents(ctx context.Context, filter ComponentFilter) (PagedResult[DistinctComponentSummary], error)
-	GetComponentVersions(ctx context.Context, name, group, version, compType string, vis VisibilityFilter) ([]ComponentVersionEntry, error)
+	GetComponentVersions(ctx context.Context, filter ComponentVersionFilter) (ComponentVersionsPage, error)
 	GetComponent(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ComponentDetail, error)
 	ListLicenses(ctx context.Context, filter LicenseFilter) (PagedResult[LicenseCount], error)
 	ListComponentsByLicense(ctx context.Context, licenseID pgtype.UUID, limit, offset int32, vis VisibilityFilter) (PagedResult[ComponentSummary], error)
@@ -41,7 +41,7 @@ type SearchService interface {
 	GetArtifactVulnSummary(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) (*VulnSummary, error)
 	GetArtifactUsages(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]ArtifactRelation, error)
 	GetArtifactContains(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]ArtifactRelation, error)
-	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (*VulnDetail, PagedResult[AffectedArtifact], PagedResult[AffectedComponent], error)
+	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (VulnerabilityDetailResult, error)
 	GetComponentVulns(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) ([]ComponentVulnEntry, error)
 	ListSBOMDriftHistory(ctx context.Context, sbomID pgtype.UUID, page DriftPage, vis VisibilityFilter) (CursorPage[ProvenanceDriftSummary], error)
 	ListRecentProvenanceDrift(ctx context.Context, page DriftPage, vis VisibilityFilter) (CursorPage[RecentDriftEntry], error)
@@ -116,8 +116,11 @@ type TopVulnEntry struct {
 
 // TopVulnFilter holds parameters for listing top vulnerabilities.
 type TopVulnFilter struct {
-	Limit      int32
-	Offset     int32
+	Limit  int32
+	Offset int32
+	// IDQuery narrows the list to vulnerabilities whose canonical id or any
+	// alias contains this substring. Empty means no narrowing.
+	IDQuery    string
 	Severity   string
 	Sort       string
 	SortDir    string
@@ -214,6 +217,38 @@ type ArtifactVersionsPage struct {
 	ResolvedMode VersionSortMode
 }
 
+// VulnerabilityDetailResult is everything one advisory page needs: the record
+// itself, the two affected-entity pages, and the scope figure that describes
+// the whole affected set rather than a page of it. It replaces a four-value
+// return, where every error path had to spell out three zero values.
+//
+// Detail is nil when no vulnerability carries the requested id — the caller
+// turns that into a 404, which is why it is not an error here.
+type VulnerabilityDetailResult struct {
+	Detail     *VulnDetail
+	Artifacts  PagedResult[AffectedArtifact]
+	Components PagedResult[AffectedComponent]
+	// NamespaceCount is how many namespaces visible to the caller hold at
+	// least one affected SBOM. "How far has this spread" is the question a
+	// reader arrives with, and the artifact page cannot answer it: a page of
+	// 25 artifacts says nothing about the namespaces of the other 4,000.
+	NamespaceCount int64
+}
+
+// ComponentVersionsPage is a page of component occurrences plus the two figures
+// that describe the whole result set rather than the window: how many distinct
+// versions exist under this identity, and how many artifacts carry it. Both are
+// what a summary band is asked for, and neither can be derived from a page —
+// which is why the page that has them today declines to state them at all.
+type ComponentVersionsPage struct {
+	PagedResult[ComponentVersionEntry]
+	// VersionCount is the number of distinct versions across every page.
+	VersionCount int64
+	// ArtifactCount is the number of distinct artifacts whose SBOMs contain
+	// this component, across every page.
+	ArtifactCount int64
+}
+
 // CursorPage wraps a keyset-paginated result set. The caller derives the next
 // cursor from the last item; HasMore reports whether further rows exist.
 type CursorPage[T any] struct {
@@ -247,6 +282,21 @@ type ComponentFilter struct {
 	PurlType   string
 	Sort       string
 	SortDir    string
+	Limit      int32
+	Offset     int32
+	Visibility VisibilityFilter
+}
+
+// ComponentVersionFilter holds parameters for GetComponentVersions.
+//
+// Paginated per ADR-043: the ordering is a stable version sort over immutable
+// rows, but the UI shows numbered pages with a total, so offset is the derived
+// style rather than a keyset cursor.
+type ComponentVersionFilter struct {
+	Name       string
+	Group      string
+	Version    string
+	Type       string
 	Limit      int32
 	Offset     int32
 	Visibility VisibilityFilter

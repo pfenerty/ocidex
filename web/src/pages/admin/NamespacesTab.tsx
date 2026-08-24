@@ -1,7 +1,7 @@
 import { Show, createSignal, createMemo } from "solid-js";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
-import { Card, CardHeader, FormField } from "~/components/ui";
+import { Button, Card, CardHeader, FormField } from "~/components/ui";
 import { useToast } from "~/context/toast";
 import { relativeDate } from "~/utils/format";
 import type { Namespace, Source } from "~/api/client";
@@ -145,7 +145,7 @@ export function NamespacesTab() {
             render: (ns) => (
                 <Show
                     when={ns.owner_username ?? ns.owner_id}
-                    fallback={<span style={{ color: "var(--color-text-muted)" }}>unowned</span>}
+                    fallback={<span class="text-muted">unowned</span>}
                 >
                     {(owner) => <span>{owner()}</span>}
                 </Show>
@@ -173,31 +173,32 @@ export function NamespacesTab() {
                 <Show
                     when={editingID() === ns.id}
                     fallback={
-                        <div style={{ display: "flex", gap: "0.5rem" }}>
-                            <button class="btn btn-sm" onClick={() => startEdit(ns)}>
+                        <div class="flex gap-2">
+                            <Button size="sm" onClick={() => startEdit(ns)}>
                                 Edit
-                            </button>
-                            <button
-                                class="btn btn-sm"
+                            </Button>
+                            <Button
+                                size="sm"
                                 onClick={() => handleDelete(ns)}
                                 disabled={deleteNamespace.isPending}
                             >
                                 Delete
-                            </button>
+                            </Button>
                         </div>
                     }
                 >
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
-                        <button
-                            class="btn btn-sm btn-primary"
+                    <div class="flex gap-2">
+                        <Button
+                            variant="primary"
+                            size="sm"
                             onClick={() => saveEdit(ns.id)}
                             disabled={updateNamespace.isPending || editName().trim() === ""}
                         >
                             Save
-                        </button>
-                        <button class="btn btn-sm" onClick={() => setEditingID(null)}>
+                        </Button>
+                        <Button size="sm" onClick={() => setEditingID(null)}>
                             Cancel
-                        </button>
+                        </Button>
                     </div>
                 </Show>
             ),
@@ -206,7 +207,7 @@ export function NamespacesTab() {
 
     return (
         <>
-            <Card style={{ "margin-bottom": "1rem" }}>
+            <Card class="mb-4">
                 <CardHeader title="Create Namespace" />
                 <form
                     onSubmit={handleCreate}
@@ -218,7 +219,7 @@ export function NamespacesTab() {
                             placeholder="team-name"
                             value={newName()}
                             onInput={(e) => setNewName(e.currentTarget.value)}
-                            style={{ "min-width": "14rem" }}
+                            class="min-w-56"
                         />
                     </FormField>
                     <FormField label="Visibility" hint="private is only visible to you and admins">
@@ -230,20 +231,20 @@ export function NamespacesTab() {
                             <option value="public">public</option>
                         </select>
                     </FormField>
-                    <button
-                        class="btn btn-primary"
+                    <Button
+                        variant="primary"
                         type="submit"
                         disabled={createNamespace.isPending || newName().trim() === ""}
                     >
                         Create
-                    </button>
+                    </Button>
                 </form>
             </Card>
 
             <DataTable
                 columns={columns}
                 rows={query.data?.data}
-                loading={query.isLoading}
+                loading={query.isFetching}
                 isError={query.isError}
                 error={query.error}
                 emptyTitle="No namespaces found"

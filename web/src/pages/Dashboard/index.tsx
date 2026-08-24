@@ -9,12 +9,24 @@ import {
     WatchFeedPanel,
 } from "./panels";
 import "./Dashboard.css";
+import { PageHeader } from "~/components/ui";
 
 interface Section {
     /** Stable key; also what a future per-section preference would be keyed by. */
     id: string;
     /** True for sections whose rows carry enough text to want the full width. */
     wide?: boolean;
+    /**
+     * What kind of thing this panel is. "alert" panels report something wrong
+     * and are ordered first; "inventory" panels describe what exists and stay
+     * quiet. Without the distinction a provenance-drift regression rendered
+     * with exactly the weight of a list of namespaces (ocidex-ag4q.40).
+     *
+     * The ordering is not purely static: an alert panel that has nothing to
+     * report sinks below the inventory (see Dashboard.css), so the page leads
+     * with whatever is actually wrong rather than with the alarm's own header.
+     */
+    tone: "alert" | "inventory";
     render: () => JSX.Element;
 }
 
@@ -26,12 +38,12 @@ interface Section {
  * (ocidex-zeta.6) was added exactly that way.
  */
 const SECTIONS: Section[] = [
-    { id: "namespaces", render: () => <NamespacesPanel /> },
-    { id: "ingest", render: () => <IngestPanel /> },
-    { id: "drift", render: () => <DriftPanel /> },
-    { id: "exposure", render: () => <ExposurePanel /> },
-    { id: "clusters", render: () => <ClustersPanel /> },
-    { id: "watch-feed", wide: true, render: () => <WatchFeedPanel /> },
+    { id: "drift", tone: "alert", render: () => <DriftPanel /> },
+    { id: "exposure", tone: "alert", render: () => <ExposurePanel /> },
+    { id: "namespaces", tone: "inventory", render: () => <NamespacesPanel /> },
+    { id: "ingest", tone: "inventory", render: () => <IngestPanel /> },
+    { id: "clusters", tone: "inventory", render: () => <ClustersPanel /> },
+    { id: "watch-feed", tone: "inventory", wide: true, render: () => <WatchFeedPanel /> },
 ];
 
 /**
@@ -49,23 +61,28 @@ export default function Dashboard(): JSX.Element {
 
     return (
         <>
-            <div class="page-header">
-                <div class="page-header-row">
-                    <div>
-                        <h2>Workspace</h2>
-                        <p>
-                            <Show when={user()} fallback="Your namespaces, ingests and alerts">
-                                {(u) => `Signed in as ${u().github_username}`}
-                            </Show>
-                        </p>
-                    </div>
-                </div>
-            </div>
+            <PageHeader
+                title="Workspace"
+                subtitle={
+                    <Show when={user()} fallback="Your namespaces, ingests and alerts">
+                        {(u) => `Signed in as ${u().github_username}`}
+                    </Show>
+                }
+            />
 
             <div class="dash-grid">
                 <For each={SECTIONS}>
                     {(section) => (
-                        <div class={section.wide === true ? "dash-section-wide" : undefined}>
+                        <div
+                            data-section={section.id}
+                            class={[
+                                "dash-section",
+                                `dash-section-${section.tone}`,
+                                section.wide === true ? "dash-section-wide" : "",
+                            ]
+                                .filter((c) => c !== "")
+                                .join(" ")}
+                        >
                             {section.render()}
                         </div>
                     )}

@@ -35,7 +35,7 @@ const minSweepInterval = time.Minute
 // provenance enrichments due for periodic re-verification.
 type RecheckStore interface {
 	ListSBOMsDueForProvenanceRecheck(ctx context.Context, arg repository.ListSBOMsDueForProvenanceRecheckParams) ([]pgtype.UUID, error)
-	RequeueSucceededEnrichmentJob(ctx context.Context, arg repository.RequeueSucceededEnrichmentJobParams) (int64, error)
+	RequeueEnrichmentJobForRecheck(ctx context.Context, arg repository.RequeueEnrichmentJobForRecheckParams) (int64, error)
 }
 
 // Reverifier periodically requeues the provenance enrichment job for SBOMs
@@ -119,7 +119,7 @@ func (r *Reverifier) tick(ctx context.Context) {
 	}
 	requeued := 0
 	for _, sbomID := range due {
-		n, err := r.store.RequeueSucceededEnrichmentJob(ctx, repository.RequeueSucceededEnrichmentJobParams{
+		n, err := r.store.RequeueEnrichmentJobForRecheck(ctx, repository.RequeueEnrichmentJobForRecheckParams{
 			SbomID:       sbomID,
 			EnricherName: names.Provenance,
 		})

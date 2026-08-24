@@ -2454,6 +2454,17 @@ export interface components {
              * @example https://example.com/schemas/GetComponentVersionsOutputBody.json
              */
             readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Distinct artifacts whose SBOMs contain this component, across every page
+             */
+            artifactCount: number;
+            pagination: components["schemas"]["PaginationMeta"];
+            /**
+             * Format: int64
+             * @description Distinct versions under this identity, across every page
+             */
+            versionCount: number;
             versions: components["schemas"]["ComponentVersionEntry"][] | null;
         };
         GetComponentVulnsOutputBody: {
@@ -2484,6 +2495,11 @@ export interface components {
             affectedArtifacts: components["schemas"]["AffectedArtifact"][] | null;
             affectedComponents: components["schemas"]["AffectedComponent"][] | null;
             componentsPagination: components["schemas"]["PaginationMeta"];
+            /**
+             * Format: int64
+             * @description Namespaces visible to the caller that hold at least one affected SBOM
+             */
+            namespaceCount: number;
             pagination: components["schemas"]["PaginationMeta"];
             vulnerability: components["schemas"]["VulnDetail"];
         };
@@ -4967,6 +4983,10 @@ export interface operations {
     "get-component-versions": {
         parameters: {
             query: {
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Number of results to skip */
+                offset?: number;
                 /** @description Component name */
                 name: string;
                 /** @description Filter by component group */
@@ -6785,6 +6805,8 @@ export interface operations {
                 limit?: number;
                 /** @description Number of results to skip */
                 offset?: number;
+                /** @description Filter by vulnerability id (CVE/GHSA/OSV), substring match against the canonical id and its aliases */
+                q?: string;
                 /** @description Filter by severity */
                 severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
                 /** @description Sort field */
@@ -6989,6 +7011,8 @@ export interface operations {
                 limit?: number;
                 /** @description Number of results to skip */
                 offset?: number;
+                /** @description Filter by vulnerability id (CVE/GHSA/OSV), substring match against the canonical id and its aliases */
+                q?: string;
                 /** @description Filter by severity */
                 severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
                 /** @description Sort field */

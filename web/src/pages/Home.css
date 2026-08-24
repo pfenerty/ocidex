@@ -10,7 +10,11 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    max-width: 680px;
+    /* Was 680px, which is the right measure for the pitch paragraph and far too
+       narrow for a five-tile band — auto-fit gave it four ~150px columns and
+       wrapped the fifth alone. The prose keeps its own max-width below; the
+       hero column is now sized for the widest thing in it (ocidex-ag4q.42). */
+    max-width: 62rem;
 }
 
 .landing-title {
@@ -21,9 +25,11 @@
     line-height: 1.1;
 }
 
+/* The wordmark. Brand red, per the split documented in index.css. */
 .landing-title span { color: var(--color-primary); }
 
 .landing-tagline {
+    max-width: 580px;
     font-size: 1.125rem;
     color: var(--color-text-muted);
     margin: 0;
@@ -37,6 +43,9 @@
     margin: 0;
 }
 
+/* The loading / unavailable placeholder that stands in for the StatBand. The
+   band itself is styled by components/TileBand.css; this box only has to hold
+   its place without collapsing the hero. */
 .landing-stats {
     display: flex;
     align-items: center;
@@ -49,6 +58,24 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     width: fit-content;
+}
+
+/* The band supplies its own grid; it only needs to fill the hero column and
+   drop TileBand.css's trailing margin, since the hero already gaps its rows. */
+.landing-band {
+    width: 100%;
+    margin-bottom: 0;
+}
+
+/* These subs are descriptions, not the one-word status strings the other bands
+   put here, so they wrap rather than clip. TileBand.css's ellipsis works now
+   (ocidex-ag4q.58) — that is why this override still has to be here: a working
+   ellipsis would render "images, binaries and libr…", which is not what a
+   sentence wants. */
+.landing-band .tile-sub {
+    white-space: normal;
+    overflow: visible;
+    line-height: 1.35;
 }
 
 .landing-stats-sep { color: var(--color-text-dim); }
@@ -129,7 +156,7 @@
     text-decoration: none;
 }
 
-.landing-panel-all:hover { color: var(--color-primary); }
+.landing-panel-all:hover { color: var(--color-secondary); }
 
 .landing-panel-icon {
     color: var(--color-text-muted);
@@ -186,7 +213,7 @@
     font-family: var(--font-mono);
 }
 
-.landing-list-name:hover { color: var(--color-primary); }
+.landing-list-name:hover { color: var(--color-secondary); }
 
 .landing-list-meta {
     font-family: var(--font-mono);
@@ -196,7 +223,7 @@
 }
 
 .landing-list-time { text-decoration: none; }
-.landing-list-time:hover { color: var(--color-primary); }
+.landing-list-time:hover { color: var(--color-secondary); }
 
 .landing-list-empty {
     padding: 0.375rem 0;

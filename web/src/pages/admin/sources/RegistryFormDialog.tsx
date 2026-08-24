@@ -1,5 +1,5 @@
 import { For, Show, createSignal } from "solid-js";
-import { CheckboxField, FormField, Modal } from "~/components/ui";
+import { Button, Card, CheckboxField, FormField, Modal } from "~/components/ui";
 import { useToast } from "~/context/toast";
 import type { Registry } from "~/api/client";
 import {
@@ -164,16 +164,16 @@ export function RegistryFormDialog(props: {
             onClose={reset}
         >
             <Show when={editingManaged()}>
-                <div
-                    class="card"
+                <Card
+                    tone="warning"
                     data-testid="managed-notice"
-                    style={{ "border-color": "var(--color-warning, #d69e2e)", "margin-bottom": "0.75rem", "font-size": "0.85rem" }}
+                    style={{ "margin-bottom": "0.75rem", "font-size": "0.85rem" }}
                 >
                     This registry is configured by Kubernetes
                     (<code>{editManagedRef()}</code>). Its settings are reconciled from
                     the <code>OCIRegistry</code> resource, so changes saved here would be
                     overwritten. Edit the resource instead.
-                </div>
+                </Card>
             </Show>
             <form onSubmit={handleSubmit}>
                 <fieldset disabled={editingManaged()} style={{ border: "none", padding: "0", margin: "0" }}>
@@ -184,7 +184,7 @@ export function RegistryFormDialog(props: {
                                 value={form().name}
                                 onInput={(e) => setForm(f => ({ ...f, name: e.currentTarget.value }))}
                                 placeholder="my-registry"
-                                style={{ width: "100%" }}
+                                class="w-full"
                                 required
                             />
                         </FormField>
@@ -202,7 +202,7 @@ export function RegistryFormDialog(props: {
                                         includeUntagged: caps.untagged ? f.includeUntagged : false,
                                     }));
                                 }}
-                                style={{ width: "100%" }}
+                                class="w-full"
                             >
                                 <For each={Object.entries(TYPE_CAPS) as [RegType, typeof TYPE_CAPS[RegType]][]}>{([type, caps]) => (
                                     <option value={type}>{caps.label}</option>
@@ -216,13 +216,12 @@ export function RegistryFormDialog(props: {
                                     value={form().url}
                                     onInput={(e) => { setForm(f => ({ ...f, url: e.currentTarget.value })); setTestResult(null); }}
                                     placeholder="registry:5000"
-                                    style={{ flex: "1", ...(TYPE_CAPS[form().type].fixedUrl !== null ? { background: "var(--color-surface-2, #f0f0f0)", cursor: "not-allowed" } : {}) }}
+                                    style={{ flex: "1", ...(TYPE_CAPS[form().type].fixedUrl !== null ? { background: "var(--color-surface-hover)", cursor: "not-allowed" } : {}) }}
                                     readOnly={TYPE_CAPS[form().type].fixedUrl !== null}
                                     required
                                 />
-                                <button
+                                <Button
                                     type="button"
-                                    class="btn"
                                     disabled={testConn.isPending || !form().url.trim()}
                                     onClick={() => {
                                         setTestResult(null);
@@ -233,13 +232,13 @@ export function RegistryFormDialog(props: {
                                     }}
                                 >
                                     {testConn.isPending ? "Testing…" : "Test"}
-                                </button>
+                                </Button>
                             </div>
                             <Show when={testResult()}>
                                 <div style={{
                                     "margin-top": "0.3rem",
                                     "font-size": "0.8rem",
-                                    color: testResult()?.reachable === true ? "var(--color-success)" : "var(--color-error, #e53e3e)",
+                                    color: testResult()?.reachable === true ? "var(--color-success)" : "var(--color-danger)",
                                 }}>
                                     {testResult()?.reachable === true ? "✓" : "✗"} {testResult()?.message}
                                 </div>
@@ -251,7 +250,7 @@ export function RegistryFormDialog(props: {
                                 value={form().authUsername}
                                 onInput={(e) => setForm(f => ({ ...f, authUsername: e.currentTarget.value }))}
                                 placeholder={editingID() !== null ? "Leave blank to keep existing" : "Leave blank for anonymous"}
-                                style={{ width: "100%" }}
+                                class="w-full"
                             />
                         </FormField>
                         <FormField label="Auth Token" hint="(PAT or password; for registries requiring credentials)">
@@ -260,7 +259,7 @@ export function RegistryFormDialog(props: {
                                 value={form().authToken}
                                 onInput={(e) => setForm(f => ({ ...f, authToken: e.currentTarget.value }))}
                                 placeholder={editingID() !== null ? "Leave blank to keep existing" : "Leave blank for anonymous"}
-                                style={{ width: "100%" }}
+                                class="w-full"
                             />
                         </FormField>
                         <FormField
@@ -300,7 +299,7 @@ export function RegistryFormDialog(props: {
                             <select
                                 value={form().scanMode}
                                 onChange={(e) => setForm(f => ({ ...f, scanMode: e.currentTarget.value as ScanMode }))}
-                                style={{ width: "100%" }}
+                                class="w-full"
                                 disabled={!TYPE_CAPS[form().type].webhook}
                             >
                                 <Show when={TYPE_CAPS[form().type].webhook}>
@@ -312,7 +311,7 @@ export function RegistryFormDialog(props: {
                                 </Show>
                             </select>
                             <Show when={!TYPE_CAPS[form().type].webhook && !showPollOptions()}>
-                                <div style={{ "margin-top": "0.3rem", "font-size": "0.8rem", color: "var(--color-error, #e53e3e)" }}>
+                                <div style={{ "margin-top": "0.3rem", "font-size": "0.8rem", color: "var(--color-danger)" }}>
                                     Requires REGISTRY_POLLER_ENABLED=true — this registry type only supports polling.
                                 </div>
                             </Show>
@@ -321,7 +320,7 @@ export function RegistryFormDialog(props: {
                             <select
                                 value={form().visibility}
                                 onChange={(e) => setForm(f => ({ ...f, visibility: e.currentTarget.value as Visibility }))}
-                                style={{ width: "100%" }}
+                                class="w-full"
                             >
                                 <option value="public">Public</option>
                                 <option value="private">Private</option>
@@ -334,7 +333,7 @@ export function RegistryFormDialog(props: {
                                     min={1}
                                     value={form().pollIntervalMinutes}
                                     onInput={(e) => setForm(f => ({ ...f, pollIntervalMinutes: parseInt(e.currentTarget.value, 10) || 60 }))}
-                                    style={{ width: "100%" }}
+                                    class="w-full"
                                 />
                             </FormField>
                         </Show>
@@ -348,7 +347,7 @@ export function RegistryFormDialog(props: {
                                     trustIdentity: e.currentTarget.value !== "keyless" ? "" : f.trustIdentity,
                                     trustIssuer: e.currentTarget.value !== "keyless" ? "" : f.trustIssuer,
                                 }))}
-                                style={{ width: "100%" }}
+                                class="w-full"
                             >
                                 <option value="none">None</option>
                                 <option value="public_key">Public Key</option>
@@ -404,13 +403,13 @@ export function RegistryFormDialog(props: {
                         </Show>
                     </div>
                 </fieldset>
-                <div style={{ display: "flex", gap: "0.5rem" }}>
-                    <button class="btn btn-primary" type="submit" disabled={createReg.isPending || updateReg.isPending || editingManaged()}>
+                <div class="flex gap-2">
+                    <Button variant="primary" type="submit" disabled={createReg.isPending || updateReg.isPending || editingManaged()}>
                         {editingID() !== null ? "Save" : "Create"}
-                    </button>
-                    <button class="btn" type="button" onClick={() => dialogRef?.close()}>
+                    </Button>
+                    <Button type="button" onClick={() => dialogRef?.close()}>
                         Cancel
-                    </button>
+                    </Button>
                 </div>
             </form>
         </Modal>

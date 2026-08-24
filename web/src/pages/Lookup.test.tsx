@@ -110,6 +110,38 @@ describe("ArtifactLookup", () => {
         expect(getByText("type: container")).toBeTruthy();
     });
 
+    it("disambiguates a bare name from the palette instead of failing", () => {
+        // The command palette offers "Resolve artifact <term>" with nothing but
+        // the name — the ladder's first rung — so ambiguity is the expected
+        // outcome, not an edge case. It has to land somewhere useful.
+        mockArtifactLookup.mockReturnValue(
+            queryState({
+                isError: true,
+                error: new APIClientError(409, {
+                    status: 409,
+                    title: "Ambiguous lookup",
+                    detail: "3 visible artifact candidates match",
+                    candidates: [
+                        { id: "art-1", qualifiers: { group: "pfenerty" } },
+                        { id: "art-2", qualifiers: { group: "acme" } },
+                        { id: "art-3", qualifiers: { group: "example" } },
+                    ],
+                }),
+            }),
+        );
+
+        const { getByText, container } = renderAt(
+            artifactLookupPath({ name: "ghcr.io/pfenerty/ocidex" }),
+        );
+
+        // The name survived the slashes, and the page offers the three rather
+        // than reporting a failure.
+        expect(mockArtifactLookup.mock.calls[0][0]().name).toBe("ghcr.io/pfenerty/ocidex");
+        expect(getByText("Multiple matches")).toBeTruthy();
+        expect(container.querySelectorAll("a")).toHaveLength(3);
+        expect(getByText("group: acme")).toBeTruthy();
+    });
+
     it("renders NotFound on 404", () => {
         mockArtifactLookup.mockReturnValue(
             queryState({ isError: true, error: new APIClientError(404, { status: 404, detail: "artifact not found" }) }),

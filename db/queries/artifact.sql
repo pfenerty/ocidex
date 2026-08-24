@@ -130,6 +130,17 @@ FROM sbom s
 WHERE s.artifact_id = $1
   AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
 
+-- name: CountSufficientSBOMsByArtifact :one
+-- Counts visible SBOMs for an artifact whose enrichment is sufficient. Kept
+-- separate from CountSBOMsByArtifact rather than added to it as a second
+-- column: that query's callers all want the plain total, and widening its
+-- return type to a row struct would churn every one of them.
+SELECT COUNT(*)
+FROM sbom s
+WHERE s.artifact_id = $1
+  AND s.enrichment_sufficient
+  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
+
 -- name: GetArtifactOwnerID :one
 SELECT n.owner_id
 FROM artifact_namespace an

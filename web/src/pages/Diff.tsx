@@ -1,5 +1,5 @@
 import "~/components/DetailSection.css";
-import { createSignal, createMemo, Show, For } from "solid-js";
+import { createSignal, createMemo, Show } from "solid-js";
 import { createLocalStorageSignal } from "~/utils/prefs";
 import "./Diff.css";
 import { useSearchParams } from "@solidjs/router";
@@ -7,6 +7,22 @@ import { useArtifacts, useArtifactSBOMs } from "~/api/queries";
 import { EmptyState } from "~/components/Feedback";
 import { DiffPairView, ViewToggle } from "~/components/DiffPairView";
 import { sbomPickerLabel } from "~/utils/format";
+import type { ArtifactSummary, SBOMSummary } from "~/api/client";
+import { Button, Card, Combobox, PageHeader } from "~/components/ui";
+
+/** "group/name" — the identity a reader types to find an artifact. */
+function artifactLabel(a: ArtifactSummary): string {
+    return a.group !== undefined ? `${a.group}/${a.name}` : a.name;
+}
+
+/**
+ * The searchable second line of an SBOM option. Arch and flavor are already in
+ * `sbomPickerLabel`, but the digest is not — and a digest prefix is exactly
+ * what someone arrives with when they were sent a specific build to compare.
+ */
+function sbomSub(s: SBOMSummary): string | undefined {
+    return s.digest;
+}
 
 export default function Diff() {
     const [searchParams, setSearchParams] = useSearchParams<{
@@ -59,86 +75,78 @@ export default function Diff() {
 
     return (
         <>
-            <div class="page-header">
-                <div class="page-header-row">
-                    <div>
-                        <h2>Compare SBOMs</h2>
-                        <p>Select two SBOMs to see what changed between them.</p>
-                    </div>
+            <PageHeader
+                title="Compare SBOMs"
+                subtitle="Select two SBOMs to see what changed between them."
+                actions={
                     <Show when={searchParams.from !== undefined && searchParams.to !== undefined}>
                         <ViewToggle mode={viewMode()} onChange={setViewMode} />
                     </Show>
-                </div>
-            </div>
+                }
+            />
 
-            <div class="card mb-6">
+            <Card class="mb-6">
                 <div class="diff-picker">
                     {/* FROM side */}
                     <div class="diff-picker-side">
                         <label class="detail-label">From</label>
-                        <select
+                        <Combobox
+                            label="From artifact"
+                            placeholder="Search artifacts..."
+                            items={artifactsQuery.data?.data ?? []}
                             value={fromArtifactId()}
-                            onChange={(e) => {
-                                setFromArtifactId(e.target.value);
+                            onSelect={(id) => {
+                                setFromArtifactId(id);
                                 setFromSbomId("");
                             }}
-                        >
-                            <option value="">Select artifact...</option>
-                            <For each={artifactsQuery.data?.data}>
-                                {(a) => (
-                                    <option value={a.id}>
-                                        {a.group !== undefined ? `${a.group}/` : ""}
-                                        {a.name} ({a.type})
-                                    </option>
-                                )}
-                            </For>
-                        </select>
-                        <select
+                            itemId={(a) => a.id}
+                            itemLabel={artifactLabel}
+                            itemSub={(a) => a.type}
+                            emptyMessage="No artifacts match"
+                        />
+                        <Combobox
+                            label="From SBOM"
+                            placeholder="Search SBOMs..."
+                            items={fromSbomsQuery.data?.data ?? []}
                             value={fromSbomId()}
-                            onChange={(e) => setFromSbomId(e.target.value)}
+                            onSelect={setFromSbomId}
+                            itemId={(s) => s.id}
+                            itemLabel={sbomPickerLabel}
+                            itemSub={sbomSub}
                             disabled={fromArtifactId() === ""}
-                        >
-                            <option value="">Select SBOM...</option>
-                            <For each={fromSbomsQuery.data?.data}>
-                                {(s) => (
-                                    <option value={s.id}>{sbomPickerLabel(s)}</option>
-                                )}
-                            </For>
-                        </select>
+                            emptyMessage="No SBOMs match"
+                        />
                     </div>
 
                     {/* TO side */}
                     <div class="diff-picker-side">
                         <label class="detail-label">To</label>
-                        <select
+                        <Combobox
+                            label="To artifact"
+                            placeholder="Search artifacts..."
+                            items={artifactsQuery.data?.data ?? []}
                             value={toArtifactId()}
-                            onChange={(e) => {
-                                setToArtifactId(e.target.value);
+                            onSelect={(id) => {
+                                setToArtifactId(id);
                                 setToSbomId("");
                             }}
-                        >
-                            <option value="">Select artifact...</option>
-                            <For each={artifactsQuery.data?.data}>
-                                {(a) => (
-                                    <option value={a.id}>
-                                        {a.group !== undefined ? `${a.group}/` : ""}
-                                        {a.name} ({a.type})
-                                    </option>
-                                )}
-                            </For>
-                        </select>
-                        <select
+                            itemId={(a) => a.id}
+                            itemLabel={artifactLabel}
+                            itemSub={(a) => a.type}
+                            emptyMessage="No artifacts match"
+                        />
+                        <Combobox
+                            label="To SBOM"
+                            placeholder="Search SBOMs..."
+                            items={toSbomOptions()}
                             value={toSbomId()}
-                            onChange={(e) => setToSbomId(e.target.value)}
+                            onSelect={setToSbomId}
+                            itemId={(s) => s.id}
+                            itemLabel={sbomPickerLabel}
+                            itemSub={sbomSub}
                             disabled={toArtifactId() === ""}
-                        >
-                            <option value="">Select SBOM...</option>
-                            <For each={toSbomOptions()}>
-                                {(s) => (
-                                    <option value={s.id}>{sbomPickerLabel(s)}</option>
-                                )}
-                            </For>
-                        </select>
+                            emptyMessage="No SBOMs match"
+                        />
                     </div>
                 </div>
 
@@ -156,15 +164,15 @@ export default function Diff() {
                 </Show>
 
                 <div class="mt-4">
-                    <button
-                        class="btn-primary"
+                    <Button
+                        variant="primary"
                         disabled={fromSbomId() === "" || toSbomId() === ""}
                         onClick={handleCompare}
                     >
                         Compare
-                    </button>
+                    </Button>
                 </div>
-            </div>
+            </Card>
 
             <Show
                 when={searchParams.from !== undefined && searchParams.to !== undefined}

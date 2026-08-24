@@ -1,5 +1,6 @@
 import "./Pagination.css";
 import type { PaginationMeta } from "~/api/client";
+import { Button } from "~/components/ui";
 
 interface PaginationProps {
     pagination: PaginationMeta;
@@ -31,30 +32,36 @@ export default function Pagination(props: PaginationProps) {
                     : `Showing ${props.pagination.offset + 1}–${Math.min(props.pagination.offset + props.pagination.limit, props.pagination.total)} of ${props.pagination.total}`}
             </span>
             <div class="pagination-controls">
-                <button disabled={!hasPrev()} onClick={() => goTo(1)}>
+                <Button size="sm" aria-label="First page" disabled={!hasPrev()} onClick={() => goTo(1)}>
                     ««
-                </button>
-                <button
+                </Button>
+                <Button
+                    size="sm"
+                    aria-label="Previous page"
                     disabled={!hasPrev()}
                     onClick={() => goTo(currentPage() - 1)}
                 >
                     «
-                </button>
+                </Button>
                 <span>
                     {currentPage()} / {totalPages()}
                 </span>
-                <button
+                <Button
+                    size="sm"
+                    aria-label="Next page"
                     disabled={!hasNext()}
                     onClick={() => goTo(currentPage() + 1)}
                 >
                     »
-                </button>
-                <button
+                </Button>
+                <Button
+                    size="sm"
+                    aria-label="Last page"
                     disabled={!hasNext()}
                     onClick={() => goTo(totalPages())}
                 >
                     »»
-                </button>
+                </Button>
             </div>
         </div>
     );

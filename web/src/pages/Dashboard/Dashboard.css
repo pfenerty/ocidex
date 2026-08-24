@@ -16,6 +16,35 @@
     grid-column: 1 / -1;
 }
 
+/* Alarm panels (drift, exposure) lead the grid — they are first in SECTIONS —
+ * but only while they have something to report. One that comes back clear
+ * sinks below the inventory rather than leading the page with its own "no
+ * provenance drift" heading, which is how the alarm became indistinguishable
+ * from the inventory in the first place (ocidex-ag4q.40).
+ *
+ * `pending` is excluded so a panel whose query is still in flight holds its
+ * place instead of sinking and jumping back up when the rows arrive. */
+.dash-grid > .dash-section-alert:not(:has(.dash-panel-alert)):not(:has(.dash-panel-pending)) {
+    order: 1;
+}
+
+/* Alert weight: the same danger colour the .alert styles use, as a spine down
+ * the left edge rather than a filled block — the panel still has to be
+ * readable as a list. */
+.dash-panel-alert {
+    border-color: color-mix(in srgb, var(--color-danger) 35%, transparent);
+    box-shadow: inset 3px 0 0 var(--color-danger);
+}
+
+.dash-panel-alert .card-header h3 {
+    color: var(--color-danger);
+}
+
+.dash-panel-alert .card-header .badge {
+    background: var(--color-danger-bg);
+    color: var(--color-danger);
+}
+
 /* Panel bodies are capped and scroll internally: these are previews of feeds
  * that have their own full pages, and a long one must not push the panels
  * below it off the screen. */
@@ -44,7 +73,7 @@
 }
 
 .dash-row:hover .dash-row-title {
-    color: var(--color-primary);
+    color: var(--color-secondary);
 }
 
 .dash-row-main {
@@ -89,7 +118,7 @@
 }
 
 .dash-link:hover {
-    color: var(--color-primary);
+    color: var(--color-secondary);
 }
 
 /* Signed-in band on the public landing page. It sits above the discovery

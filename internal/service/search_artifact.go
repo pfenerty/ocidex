@@ -47,6 +47,19 @@ func (s *searchService) GetArtifact(ctx context.Context, id pgtype.UUID, vis Vis
 		return ArtifactDetail{}, fmt.Errorf("counting sboms: %w", err)
 	}
 
+	// The detail response inherits SufficientSbomCount from ArtifactSummary, and
+	// until ocidex-ag4q.33 nothing populated it here — the field was serialized
+	// as a permanent 0 while the list endpoint reported the real figure for the
+	// same artifact. The band now shows enrichment coverage, so it is counted.
+	sufficientCount, err := q.CountSufficientSBOMsByArtifact(ctx, repository.CountSufficientSBOMsByArtifactParams{
+		ArtifactID: id,
+		UserID:     vis.UserID,
+		IsAdmin:    visAdminBool(vis),
+	})
+	if err != nil {
+		return ArtifactDetail{}, fmt.Errorf("counting sufficiently enriched sboms: %w", err)
+	}
+
 	versionCount, err := q.CountArtifactVersions(ctx, repository.CountArtifactVersionsParams{
 		ArtifactID: id,
 		UserID:     vis.UserID,
@@ -71,12 +84,13 @@ func (s *searchService) GetArtifact(ctx context.Context, id pgtype.UUID, vis Vis
 
 	return ArtifactDetail{
 		ArtifactSummary: ArtifactSummary{
-			ID:            uuidToString(row.ID),
-			Type:          row.Type,
-			Name:          row.Name,
-			Group:         textToPtr(row.GroupName),
-			SbomCount:     sbomCount,
-			SigningStatus: row.SigningStatus,
+			ID:                  uuidToString(row.ID),
+			Type:                row.Type,
+			Name:                row.Name,
+			Group:               textToPtr(row.GroupName),
+			SbomCount:           sbomCount,
+			SufficientSbomCount: sufficientCount,
+			SigningStatus:       row.SigningStatus,
 		},
 		Purl:         textToPtr(row.Purl),
 		Cpe:          textToPtr(row.Cpe),

@@ -45,6 +45,9 @@ type fakeStore struct {
 	versionUpdates     []repository.UpdateSBOMSubjectVersionParams
 	sufficiencyUpdates []repository.UpdateSBOMEnrichmentSufficientParams
 	driftInserts       []repository.InsertProvenanceDriftParams
+	// pending is a real in-memory provenance_drift_pending, keyed by SBOM id,
+	// so tests can drive the two-observation confirmation across cycles.
+	pending map[pgtype.UUID]repository.ProvenanceDriftPending
 	// priorEnrichment, if set, is returned by GetEnrichment for any call;
 	// priorEnrichmentErr overrides it with an error (e.g. pgx.ErrNoRows).
 	priorEnrichment    repository.Enrichment
@@ -87,6 +90,46 @@ func (s *fakeStore) InsertProvenanceDrift(_ context.Context, arg repository.Inse
 	defer s.mu.Unlock()
 	s.driftInserts = append(s.driftInserts, arg)
 	return nil
+}
+
+func (s *fakeStore) UpsertProvenanceDriftPending(_ context.Context, arg repository.UpsertProvenanceDriftPendingParams) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.pending == nil {
+		s.pending = map[pgtype.UUID]repository.ProvenanceDriftPending{}
+	}
+	s.pending[arg.SbomID] = repository.ProvenanceDriftPending{
+		SbomID:         arg.SbomID,
+		PreviousStatus: arg.PreviousStatus,
+		NewStatus:      arg.NewStatus,
+		Reason:         arg.Reason,
+		PreviousData:   arg.PreviousData,
+		NewData:        arg.NewData,
+	}
+	return nil
+}
+
+func (s *fakeStore) GetProvenanceDriftPending(_ context.Context, sbomID pgtype.UUID) (repository.ProvenanceDriftPending, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p, ok := s.pending[sbomID]
+	if !ok {
+		return repository.ProvenanceDriftPending{}, pgx.ErrNoRows
+	}
+	return p, nil
+}
+
+func (s *fakeStore) DeleteProvenanceDriftPending(_ context.Context, sbomID pgtype.UUID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.pending, sbomID)
+	return nil
+}
+
+func (s *fakeStore) pendingCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.pending)
 }
 
 func (s *fakeStore) driftResults() []repository.InsertProvenanceDriftParams {
@@ -576,11 +619,29 @@ func TestDispatcher_ProvenanceDrift_ArtifactMissing(t *testing.T) {
 	}
 }
 
-func TestDispatcher_ProvenanceDrift_ReverificationFailedWhenSignerDiffers(t *testing.T) {
-	oldData := provenanceJSON(t, map[string]any{"verified": true, "signerIdentity": "https://github.com/example/repo/.*", "signerIssuer": "https://token.actions.githubusercontent.com"})
-	newData := provenanceJSON(t, map[string]any{"signaturePresent": false, "attestationPresent": false})
+// verifiedKeyless is a provenance blob for an image verified via a keyless
+// identity; unsignedProvenance is what discovery returns when nothing is found.
+func verifiedKeyless(t *testing.T) []byte {
+	t.Helper()
+	return provenanceJSON(t, map[string]any{
+		"verified":       true,
+		"signerIdentity": "https://github.com/example/repo/.*",
+		"signerIssuer":   "https://token.actions.githubusercontent.com",
+	})
+}
+
+func unsignedProvenance(t *testing.T) []byte {
+	t.Helper()
+	return provenanceJSON(t, map[string]any{"signaturePresent": false, "attestationPresent": false})
+}
+
+// A single verified -> unsigned observation is held back, not recorded. It is
+// the one verdict a silent discovery failure can fabricate, so it needs a
+// second opinion before it becomes an event.
+func TestDispatcher_ProvenanceDrift_UnsignedHeldBackOnFirstObservation(t *testing.T) {
+	newData := unsignedProvenance(t)
 	enricher := &fakeEnricher{name: "provenance", canRun: true, output: newData}
-	store := &fakeStore{priorEnrichment: repository.Enrichment{Status: "success", Data: oldData}}
+	store := &fakeStore{priorEnrichment: repository.Enrichment{Status: "success", Data: verifiedKeyless(t)}}
 
 	reg := NewCatalog()
 	reg.Register(enricher)
@@ -591,12 +652,93 @@ func TestDispatcher_ProvenanceDrift_ReverificationFailedWhenSignerDiffers(t *tes
 		t.Fatalf("ProcessOne: %v", err)
 	}
 
+	if drifts := store.driftResults(); len(drifts) != 0 {
+		t.Fatalf("expected no drift event on first observation, got %d", len(drifts))
+	}
+	pending, err := store.GetProvenanceDriftPending(t.Context(), sbomID)
+	if err != nil {
+		t.Fatalf("expected a pending observation: %v", err)
+	}
+	if pending.PreviousStatus != "verified" || pending.NewStatus != "unsigned" {
+		t.Errorf("expected pending verified->unsigned, got %s->%s", pending.PreviousStatus, pending.NewStatus)
+	}
+	if pending.Reason != "reverification_failed" {
+		t.Errorf("expected reason reverification_failed (signature disappeared, no comparable signer), got %s", pending.Reason)
+	}
+}
+
+// A second consecutive unsigned observation promotes the pending row to a real
+// event, carrying the status and data from the original verified state rather
+// than from the intervening unsigned one.
+func TestDispatcher_ProvenanceDrift_UnsignedConfirmedOnSecondObservation(t *testing.T) {
+	oldData := verifiedKeyless(t)
+	newData := unsignedProvenance(t)
+	enricher := &fakeEnricher{name: "provenance", canRun: true, output: newData}
+	store := &fakeStore{priorEnrichment: repository.Enrichment{Status: "success", Data: oldData}}
+
+	reg := NewCatalog()
+	reg.Register(enricher)
+	d := NewDispatcher(store, reg)
+
+	sbomID := pgtype.UUID{Bytes: [16]byte{10}, Valid: true}
+	ref := SubjectRef{SBOMId: sbomID, ArtifactType: "container", ArtifactName: "docker.io/myapp"}
+	if err := d.ProcessOne(t.Context(), ref); err != nil {
+		t.Fatalf("first ProcessOne: %v", err)
+	}
+
+	// The real UpsertEnrichment would now have stored the unsigned result, so
+	// the next cycle reads it back as the prior enrichment.
+	store.priorEnrichment = repository.Enrichment{Status: "success", Data: newData}
+	if err := d.ProcessOne(t.Context(), ref); err != nil {
+		t.Fatalf("second ProcessOne: %v", err)
+	}
+
 	drifts := store.driftResults()
 	if len(drifts) != 1 {
-		t.Fatalf("expected 1 drift event, got %d", len(drifts))
+		t.Fatalf("expected 1 drift event after confirmation, got %d", len(drifts))
+	}
+	if drifts[0].PreviousStatus != "verified" || drifts[0].NewStatus != "unsigned" {
+		t.Errorf("expected verified->unsigned, got %s->%s", drifts[0].PreviousStatus, drifts[0].NewStatus)
 	}
 	if drifts[0].Reason != "reverification_failed" {
-		t.Errorf("expected reason reverification_failed (signature disappeared, no comparable signer), got %s", drifts[0].Reason)
+		t.Errorf("expected reason reverification_failed, got %s", drifts[0].Reason)
+	}
+	if string(drifts[0].PreviousData) != string(oldData) {
+		t.Errorf("expected the event to carry the original verified data, got %s", drifts[0].PreviousData)
+	}
+	if store.pendingCount() != 0 {
+		t.Errorf("expected the pending row to be cleared after promotion, got %d", store.pendingCount())
+	}
+}
+
+// The transient case this whole mechanism exists for: one bad lookup reports
+// unsigned, the next recheck finds the signature again. No event, no residue.
+func TestDispatcher_ProvenanceDrift_PendingUnsignedClearedWhenSignatureReturns(t *testing.T) {
+	oldData := verifiedKeyless(t)
+	enricher := &fakeEnricher{name: "provenance", canRun: true, output: unsignedProvenance(t)}
+	store := &fakeStore{priorEnrichment: repository.Enrichment{Status: "success", Data: oldData}}
+
+	reg := NewCatalog()
+	reg.Register(enricher)
+	d := NewDispatcher(store, reg)
+
+	sbomID := pgtype.UUID{Bytes: [16]byte{10}, Valid: true}
+	ref := SubjectRef{SBOMId: sbomID, ArtifactType: "container", ArtifactName: "docker.io/myapp"}
+	if err := d.ProcessOne(t.Context(), ref); err != nil {
+		t.Fatalf("first ProcessOne: %v", err)
+	}
+
+	store.priorEnrichment = repository.Enrichment{Status: "success", Data: unsignedProvenance(t)}
+	enricher.output = oldData
+	if err := d.ProcessOne(t.Context(), ref); err != nil {
+		t.Fatalf("second ProcessOne: %v", err)
+	}
+
+	if drifts := store.driftResults(); len(drifts) != 0 {
+		t.Fatalf("expected no drift event when the signature returns, got %d", len(drifts))
+	}
+	if store.pendingCount() != 0 {
+		t.Errorf("expected the pending row to be cleared, got %d", store.pendingCount())
 	}
 }
 

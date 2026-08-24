@@ -1,5 +1,5 @@
 import { createQuery } from "@tanstack/solid-query";
-import { client, unwrap } from "~/api/client";
+import { client, unwrap, DEFAULT_PAGE_SIZE } from "~/api/client";
 import type { Accessor } from "solid-js";
 
 /** Parameters for searching distinct components. */
@@ -20,6 +20,9 @@ export interface ComponentVersionParams {
     group?: string;
     version?: string;
     type?: string;
+    /** Offset pagination per ADR-043. Defaults to the first DEFAULT_PAGE_SIZE rows. */
+    limit?: number;
+    offset?: number;
 }
 
 /** Search distinct components (deduplicated by name+group). */
@@ -154,6 +157,8 @@ export function useComponentVersions(
                 p?.group,
                 p?.version,
                 p?.type,
+                p?.limit,
+                p?.offset,
             ] as const,
             queryFn: () =>
                 unwrap(
@@ -164,11 +169,16 @@ export function useComponentVersions(
                                 group: p?.group !== "" ? p?.group : undefined,
                                 version: p?.version !== "" ? p?.version : undefined,
                                 type: p?.type !== "" ? p?.type : undefined,
+                                limit: p?.limit ?? DEFAULT_PAGE_SIZE,
+                                offset: p?.offset ?? 0,
                             },
                         },
                     }),
                 ),
             enabled: options?.enabled?.() ?? p?.name !== undefined,
+            // Paging dims the table rather than blanking it, matching the other
+            // paginated hooks in this file.
+            keepPreviousData: true,
             select: (resp) => ({ ...resp, versions: resp.versions ?? [] }),
         };
     });

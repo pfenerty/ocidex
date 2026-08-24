@@ -6,6 +6,8 @@ package enrichment
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/pfenerty/ocidex/internal/enrichment/subject"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
@@ -34,4 +36,7 @@ type Store interface {
 	UpdateSBOMSubjectVersion(ctx context.Context, arg repository.UpdateSBOMSubjectVersionParams) error
 	UpdateSBOMEnrichmentSufficient(ctx context.Context, arg repository.UpdateSBOMEnrichmentSufficientParams) error
 	InsertProvenanceDrift(ctx context.Context, arg repository.InsertProvenanceDriftParams) error
+	UpsertProvenanceDriftPending(ctx context.Context, arg repository.UpsertProvenanceDriftPendingParams) error
+	GetProvenanceDriftPending(ctx context.Context, sbomID pgtype.UUID) (repository.ProvenanceDriftPending, error)
+	DeleteProvenanceDriftPending(ctx context.Context, sbomID pgtype.UUID) error
 }

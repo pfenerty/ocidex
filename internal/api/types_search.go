@@ -63,6 +63,7 @@ type ListComponentPurlTypesOutput struct {
 
 // GetComponentVersionsInput is the request for GET /api/v1/components/versions.
 type GetComponentVersionsInput struct {
+	PaginationParams
 	Name    string `query:"name" required:"true" doc:"Component name"`
 	Group   string `query:"group" doc:"Filter by component group"`
 	Version string `query:"version" doc:"Filter by component version"`
@@ -72,7 +73,14 @@ type GetComponentVersionsInput struct {
 // GetComponentVersionsOutput is the response for GET /api/v1/components/versions.
 type GetComponentVersionsOutput struct {
 	Body struct {
-		Versions []service.ComponentVersionEntry `json:"versions"`
+		Versions   []service.ComponentVersionEntry `json:"versions"`
+		Pagination PaginationMeta                  `json:"pagination"`
+		// VersionCount and ArtifactCount describe the whole result set, not
+		// the page. Pagination.Total counts SBOM occurrences, which is a
+		// different question from "how many versions are there" and answers
+		// neither of the two a reader arrives with.
+		VersionCount  int64 `json:"versionCount" doc:"Distinct versions under this identity, across every page"`
+		ArtifactCount int64 `json:"artifactCount" doc:"Distinct artifacts whose SBOMs contain this component, across every page"`
 	}
 }
 

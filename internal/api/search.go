@@ -37,13 +37,24 @@ func (h *Handler) SearchDistinctComponents(ctx context.Context, input *SearchDis
 // GetComponentVersions handles GET /api/v1/components/versions.
 func (h *Handler) GetComponentVersions(ctx context.Context, input *GetComponentVersionsInput) (*GetComponentVersionsOutput, error) {
 	vis := visibilityFilterFromContext(ctx)
-	versions, err := h.searchService.GetComponentVersions(ctx, input.Name, input.Group, input.Version, input.Type, vis)
+	result, err := h.searchService.GetComponentVersions(ctx, service.ComponentVersionFilter{
+		Name:       input.Name,
+		Group:      input.Group,
+		Version:    input.Version,
+		Type:       input.Type,
+		Limit:      input.Limit,
+		Offset:     input.Offset,
+		Visibility: vis,
+	})
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
 
 	out := &GetComponentVersionsOutput{}
-	out.Body.Versions = versions
+	out.Body.Versions = result.Data
+	out.Body.Pagination = paginationMeta(result.PagedResult)
+	out.Body.VersionCount = result.VersionCount
+	out.Body.ArtifactCount = result.ArtifactCount
 	return out, nil
 }
 
@@ -671,6 +682,7 @@ func (h *Handler) listTopVulnerabilities(ctx context.Context, input *ListTopVuln
 	filter := service.TopVulnFilter{
 		Limit:      input.Limit,
 		Offset:     input.Offset,
+		IDQuery:    input.Q,
 		Severity:   input.Severity,
 		Sort:       input.Sort,
 		SortDir:    input.SortDir,
@@ -689,19 +701,20 @@ func (h *Handler) listTopVulnerabilities(ctx context.Context, input *ListTopVuln
 // GetVulnerability handles GET /api/v1/vulns/{id}.
 func (h *Handler) GetVulnerability(ctx context.Context, input *GetVulnerabilityInput) (*GetVulnerabilityOutput, error) {
 	vis := visibilityFilterFromContext(ctx)
-	detail, artifacts, components, err := h.searchService.GetVulnerabilityDetail(ctx, input.ID, input.Limit, input.Offset, vis)
+	result, err := h.searchService.GetVulnerabilityDetail(ctx, input.ID, input.Limit, input.Offset, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	if detail == nil {
+	if result.Detail == nil {
 		return nil, huma.Error404NotFound("vulnerability not found")
 	}
 	out := &GetVulnerabilityOutput{}
-	out.Body.Vulnerability = *detail
-	out.Body.AffectedComponents = components.Data
-	out.Body.ComponentsPagination = paginationMeta(components)
-	out.Body.AffectedArtifacts = artifacts.Data
-	out.Body.Pagination = paginationMeta(artifacts)
+	out.Body.Vulnerability = *result.Detail
+	out.Body.AffectedComponents = result.Components.Data
+	out.Body.ComponentsPagination = paginationMeta(result.Components)
+	out.Body.AffectedArtifacts = result.Artifacts.Data
+	out.Body.Pagination = paginationMeta(result.Artifacts)
+	out.Body.NamespaceCount = result.NamespaceCount
 	return out, nil
 }
 

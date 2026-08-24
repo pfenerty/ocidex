@@ -44,6 +44,7 @@ type VulnSeverityEntry struct {
 // ListTopVulnerabilitiesInput is the request for GET /api/v1/vulns.
 type ListTopVulnerabilitiesInput struct {
 	PaginationParams
+	Q        string `query:"q" maxLength:"128" doc:"Filter by vulnerability id (CVE/GHSA/OSV), substring match against the canonical id and its aliases"`
 	Severity string `query:"severity" enum:"CRITICAL,HIGH,MEDIUM,LOW" doc:"Filter by severity"`
 	Sort     string `query:"sort" enum:"severity,cvss_score,affected_sbom_count,affected_purl_count,published_at,canonical_id" doc:"Sort field"`
 	SortDir  string `query:"sort_dir" enum:"asc,desc" doc:"Sort direction (asc or desc)"`
@@ -78,6 +79,10 @@ type GetVulnerabilityOutput struct {
 		ComponentsPagination PaginationMeta              `json:"componentsPagination"`
 		AffectedArtifacts    []service.AffectedArtifact  `json:"affectedArtifacts"`
 		Pagination           PaginationMeta              `json:"pagination"`
+		// NamespaceCount describes the whole affected set, not the page.
+		// Pagination.Total counts artifacts, which answers "how much of the
+		// catalog" — a different question from "how many teams".
+		NamespaceCount int64 `json:"namespaceCount" doc:"Namespaces visible to the caller that hold at least one affected SBOM"`
 	}
 }
 

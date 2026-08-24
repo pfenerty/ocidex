@@ -59,6 +59,31 @@ func (q *Queries) CountSBOMsByArtifact(ctx context.Context, arg CountSBOMsByArti
 	return count, err
 }
 
+const countSufficientSBOMsByArtifact = `-- name: CountSufficientSBOMsByArtifact :one
+SELECT COUNT(*)
+FROM sbom s
+WHERE s.artifact_id = $1
+  AND s.enrichment_sufficient
+  AND sbom_visible(s.namespace_id, $2::uuid, $3::boolean)
+`
+
+type CountSufficientSBOMsByArtifactParams struct {
+	ArtifactID pgtype.UUID `json:"artifact_id"`
+	UserID     pgtype.UUID `json:"user_id"`
+	IsAdmin    pgtype.Bool `json:"is_admin"`
+}
+
+// Counts visible SBOMs for an artifact whose enrichment is sufficient. Kept
+// separate from CountSBOMsByArtifact rather than added to it as a second
+// column: that query's callers all want the plain total, and widening its
+// return type to a row struct would churn every one of them.
+func (q *Queries) CountSufficientSBOMsByArtifact(ctx context.Context, arg CountSufficientSBOMsByArtifactParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countSufficientSBOMsByArtifact, arg.ArtifactID, arg.UserID, arg.IsAdmin)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteArtifact = `-- name: DeleteArtifact :execrows
 DELETE FROM artifact WHERE id = $1
 `

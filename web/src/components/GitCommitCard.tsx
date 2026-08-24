@@ -5,6 +5,7 @@ import { formatDateTime } from "~/utils/format";
 import { GitCommitCell } from "~/components/cells";
 import { GitHubIcon } from "./metadata/OciIcons";
 import { LinkedField } from "./metadata/LinkedField";
+import { Card, CardHeader } from "~/components/ui";
 
 export default function GitCommitCard(props: { commit: GitCommitMetadata }) {
     // eslint-disable-next-line solid/reactivity
@@ -19,13 +20,15 @@ export default function GitCommitCard(props: { commit: GitCommitMetadata }) {
         c.committerName !== undefined && c.committerName !== c.authorName;
 
     return (
-        <div class="card mb-4">
-            <div class="card-header">
-                <h3 style={{ display: "flex", "align-items": "center", gap: "0.5rem" }}>
-                    <GitHubIcon />
-                    Source Commit
-                </h3>
-            </div>
+        <Card class="mb-4">
+            <CardHeader
+                title={
+                    <span class="title-inline">
+                        <GitHubIcon />
+                        Source Commit
+                    </span>
+                }
+            />
 
             <div class="detail-grid">
                 {/* Repository */}
@@ -89,6 +92,6 @@ export default function GitCommitCard(props: { commit: GitCommitMetadata }) {
                     )}
                 </Show>
             </div>
-        </div>
+        </Card>
     );
 }

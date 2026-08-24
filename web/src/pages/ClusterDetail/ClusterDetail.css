@@ -96,7 +96,7 @@
     border: none;
     padding: 0;
     font: inherit;
-    color: var(--color-primary);
+    color: var(--color-secondary);
     cursor: pointer;
 }
 
@@ -126,6 +126,16 @@
 
 .inventory-cell-right {
     align-items: flex-end;
+}
+
+/* In a card there is no column to align against, and the card-stack's generic
+   `.text-right` undo is `text-align: left` -- which cannot reach `align-items`
+   on a flex column. Without this the Workloads value sits hard against the
+   right edge with its label at the left and a gap between them. */
+@media (max-width: 768px) {
+    .table-mobile-cards .inventory-cell-right {
+        align-items: flex-start;
+    }
 }
 
 .inventory-cell-sub {

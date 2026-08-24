@@ -45,6 +45,36 @@ function makeSBOM(id: string, arch: string, version: string): SBOMSummary {
     };
 }
 
+/**
+ * The picker is four comboboxes now, not four `<select>`s (ocidex-ag4q.41), so
+ * "what are my options" is "open the list and read it" rather than reading
+ * `select.options`. These helpers keep the assertions about *choices offered*
+ * rather than about the markup that offers them.
+ */
+function box(container: HTMLElement, label: string): HTMLInputElement {
+    const el = container.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`);
+    if (el === null) throw new Error(`no combobox labelled ${label}`);
+    return el;
+}
+
+/** Open `label`'s list and return the option labels it offers. */
+function optionsOf(container: HTMLElement, label: string): string[] {
+    fireEvent.focus(box(container, label));
+    return Array.from(container.querySelectorAll('[role="option"]')).map(
+        (li) => li.textContent,
+    );
+}
+
+/** Type enough to isolate one option, then pick it. */
+function pick(container: HTMLElement, label: string, query: string): void {
+    const input = box(container, label);
+    fireEvent.focus(input);
+    fireEvent.input(input, { target: { value: query } });
+    const first = container.querySelector('[role="option"]');
+    if (first === null) throw new Error(`no option matching ${query} under ${label}`);
+    fireEvent.mouseDown(first);
+}
+
 describe("Diff page picker — arch coupling", () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -66,48 +96,34 @@ describe("Diff page picker — arch coupling", () => {
 
     it("filters 'To' SBOMs to match 'From' arch by default once From is selected", () => {
         const { container } = render(() => <Diff />);
-        const selects = container.querySelectorAll("select");
-        // Order in markup: from-artifact, from-sbom, to-artifact, to-sbom
-        const fromArtifact = selects[0];
-        const fromSbom = selects[1];
-        const toArtifact = selects[2];
-        const toSbom = selects[3];
 
-        // Pick the same artifact on both sides so the SBOM dropdowns populate.
-        fireEvent.change(fromArtifact, { target: { value: "art-multi" } });
-        fireEvent.change(toArtifact, { target: { value: "art-multi" } });
+        // Pick the same artifact on both sides so the SBOM pickers populate.
+        pick(container, "From artifact", "svc");
+        pick(container, "To artifact", "svc");
 
         // Pick an aarch64 SBOM on the from side.
-        fireEvent.change(fromSbom, { target: { value: "sbom-aarch64-a" } });
+        pick(container, "From SBOM", "1.0 aarch64");
 
-        // To-side options: placeholder + aarch64-a + aarch64-b. s390x and amd64 hidden.
-        const toValues = Array.from(toSbom.options).map((o) => o.value);
-        expect(toValues).toContain("sbom-aarch64-a");
-        expect(toValues).toContain("sbom-aarch64-b");
-        expect(toValues).not.toContain("sbom-s390x");
-        expect(toValues).not.toContain("sbom-amd64");
+        const toOptions = optionsOf(container, "To SBOM").join("|");
+        expect(toOptions).toContain("aarch64");
+        expect(toOptions).not.toContain("s390x");
+        expect(toOptions).not.toContain("amd64");
     });
 
     it("shows all archs after 'show all architectures' toggle is enabled", () => {
         const { container, getByLabelText } = render(() => <Diff />);
-        const selects = container.querySelectorAll("select");
-        const fromArtifact = selects[0];
-        const fromSbom = selects[1];
-        const toArtifact = selects[2];
-        const toSbom = selects[3];
 
-        fireEvent.change(fromArtifact, { target: { value: "art-multi" } });
-        fireEvent.change(toArtifact, { target: { value: "art-multi" } });
-        fireEvent.change(fromSbom, { target: { value: "sbom-aarch64-a" } });
+        pick(container, "From artifact", "svc");
+        pick(container, "To artifact", "svc");
+        pick(container, "From SBOM", "1.0 aarch64");
 
         // Toggle is now visible because from has an arch. Click it.
-        const toggle = getByLabelText(/show all architectures/i);
-        fireEvent.click(toggle);
+        fireEvent.click(getByLabelText(/show all architectures/i));
 
-        const toValues = Array.from(toSbom.options).map((o) => o.value);
-        expect(toValues).toContain("sbom-aarch64-a");
-        expect(toValues).toContain("sbom-s390x");
-        expect(toValues).toContain("sbom-amd64");
+        const toOptions = optionsOf(container, "To SBOM").join("|");
+        expect(toOptions).toContain("aarch64");
+        expect(toOptions).toContain("s390x");
+        expect(toOptions).toContain("amd64");
     });
 
     it("does not filter when From has no architecture", () => {
@@ -117,26 +133,39 @@ describe("Diff page picker — arch coupling", () => {
             isError: false,
             data: {
                 data: [
-                    { id: "sbom-noarch", createdAt: "2026-05-01T00:00:00Z", subjectVersion: "1.0", artifactId: "art-multi", specVersion: "1.6", sufficient: true, version: 1 },
+                    { id: "sbom-noarch", createdAt: "2026-05-01T00:00:00Z", subjectVersion: "9.9", artifactId: "art-multi", specVersion: "1.6", sufficient: true, version: 1 },
                     makeSBOM("sbom-s390x", "s390x", "1.0"),
                     makeSBOM("sbom-amd64", "amd64", "1.0"),
                 ],
             },
         }));
         const { container } = render(() => <Diff />);
-        const selects = container.querySelectorAll("select");
-        const fromArtifact = selects[0];
-        const fromSbom = selects[1];
-        const toArtifact = selects[2];
-        const toSbom = selects[3];
 
-        fireEvent.change(fromArtifact, { target: { value: "art-multi" } });
-        fireEvent.change(toArtifact, { target: { value: "art-multi" } });
-        fireEvent.change(fromSbom, { target: { value: "sbom-noarch" } });
+        pick(container, "From artifact", "svc");
+        pick(container, "To artifact", "svc");
+        pick(container, "From SBOM", "9.9");
 
-        const toValues = Array.from(toSbom.options).map((o) => o.value);
+        const toOptions = optionsOf(container, "To SBOM").join("|");
         // All SBOMs visible because from has no arch to couple on.
-        expect(toValues).toContain("sbom-s390x");
-        expect(toValues).toContain("sbom-amd64");
+        expect(toOptions).toContain("s390x");
+        expect(toOptions).toContain("amd64");
+    });
+
+    it("narrows the SBOM list as you type instead of making you scroll it", () => {
+        const { container } = render(() => <Diff />);
+        pick(container, "From artifact", "svc");
+
+        expect(optionsOf(container, "From SBOM")).toHaveLength(4);
+
+        const input = box(container, "From SBOM");
+        fireEvent.input(input, { target: { value: "s390x" } });
+        expect(container.querySelectorAll('[role="option"]')).toHaveLength(1);
+    });
+
+    it("keeps the SBOM picker disabled until an artifact is chosen", () => {
+        const { container } = render(() => <Diff />);
+        expect(box(container, "From SBOM").disabled).toBe(true);
+        pick(container, "From artifact", "svc");
+        expect(box(container, "From SBOM").disabled).toBe(false);
     });
 });

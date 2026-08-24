@@ -11,6 +11,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deleteProvenanceDriftPending = `-- name: DeleteProvenanceDriftPending :exec
+DELETE FROM provenance_drift_pending WHERE sbom_id = $1
+`
+
+func (q *Queries) DeleteProvenanceDriftPending(ctx context.Context, sbomID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteProvenanceDriftPending, sbomID)
+	return err
+}
+
 const getLatestProvenanceDrift = `-- name: GetLatestProvenanceDrift :one
 SELECT id, sbom_id, previous_status, new_status, reason, previous_data, new_data, detected_at
 FROM provenance_drift_events
@@ -31,6 +40,27 @@ func (q *Queries) GetLatestProvenanceDrift(ctx context.Context, sbomID pgtype.UU
 		&i.PreviousData,
 		&i.NewData,
 		&i.DetectedAt,
+	)
+	return i, err
+}
+
+const getProvenanceDriftPending = `-- name: GetProvenanceDriftPending :one
+SELECT sbom_id, previous_status, new_status, reason, previous_data, new_data, first_seen_at
+FROM provenance_drift_pending
+WHERE sbom_id = $1
+`
+
+func (q *Queries) GetProvenanceDriftPending(ctx context.Context, sbomID pgtype.UUID) (ProvenanceDriftPending, error) {
+	row := q.db.QueryRow(ctx, getProvenanceDriftPending, sbomID)
+	var i ProvenanceDriftPending
+	err := row.Scan(
+		&i.SbomID,
+		&i.PreviousStatus,
+		&i.NewStatus,
+		&i.Reason,
+		&i.PreviousData,
+		&i.NewData,
+		&i.FirstSeenAt,
 	)
 	return i, err
 }
@@ -224,4 +254,42 @@ func (q *Queries) ListRecentProvenanceDrift(ctx context.Context, arg ListRecentP
 		return nil, err
 	}
 	return items, nil
+}
+
+const upsertProvenanceDriftPending = `-- name: UpsertProvenanceDriftPending :exec
+INSERT INTO provenance_drift_pending (sbom_id, previous_status, new_status, reason, previous_data, new_data)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (sbom_id)
+DO UPDATE SET
+    previous_status = EXCLUDED.previous_status,
+    new_status      = EXCLUDED.new_status,
+    reason          = EXCLUDED.reason,
+    previous_data   = EXCLUDED.previous_data,
+    new_data        = EXCLUDED.new_data,
+    first_seen_at   = now()
+`
+
+type UpsertProvenanceDriftPendingParams struct {
+	SbomID         pgtype.UUID `json:"sbom_id"`
+	PreviousStatus string      `json:"previous_status"`
+	NewStatus      string      `json:"new_status"`
+	Reason         string      `json:"reason"`
+	PreviousData   []byte      `json:"previous_data"`
+	NewData        []byte      `json:"new_data"`
+}
+
+// UpsertProvenanceDriftPending records an unconfirmed signing-status
+// transition, replacing any prior pending observation for the same SBOM.
+// See db/migrations/00062_provenance_drift_pending.sql for why "unsigned"
+// needs a second observation before it becomes an event.
+func (q *Queries) UpsertProvenanceDriftPending(ctx context.Context, arg UpsertProvenanceDriftPendingParams) error {
+	_, err := q.db.Exec(ctx, upsertProvenanceDriftPending,
+		arg.SbomID,
+		arg.PreviousStatus,
+		arg.NewStatus,
+		arg.Reason,
+		arg.PreviousData,
+		arg.NewData,
+	)
+	return err
 }

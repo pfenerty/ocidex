@@ -1,5 +1,5 @@
 import "~/components/DetailSection.css";
-import { Show, For } from "solid-js";
+import { Show, createSignal } from "solid-js";
 import { A } from "@solidjs/router";
 import type { useComponent, useComponentVulns } from "~/api/queries";
 import type { LicenseSummary, HashEntry } from "~/api/client";
@@ -10,6 +10,8 @@ import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { SeverityPill, VulnId, SpdxBadgeCell } from "~/components/cells";
 import { hasText } from "~/utils/format";
+import { Card, CardHeader, TabBar } from "~/components/ui";
+import type { TabDef } from "~/components/ui";
 
 type ComponentVulnEntry = components["schemas"]["ComponentVulnEntry"];
 
@@ -20,7 +22,7 @@ const vulnColumns: Column<ComponentVulnEntry>[] = [
             <>
                 <VulnId canonicalId={v.canonicalId} nativeId={v.id} />
                 <Show when={v.matchedViaSource}>
-                    <span style={{ "margin-left": "8px" }}>
+                    <span class="ml-2">
                         <StatusPill
                             variant="default"
                             title="Matched via the component's source package, not its own purl"
@@ -86,25 +88,89 @@ const hashColumns: Column<HashEntry>[] = [
     },
 ];
 
+type ExternalRefEntry = components["schemas"]["ExternalRefEntry"];
+
+const externalRefColumns: Column<ExternalRefEntry>[] = [
+    {
+        header: "Type",
+        render: (ref) => <span class="badge">{ref.type}</span>,
+    },
+    {
+        header: "URL",
+        render: (ref) => (
+            <a href={ref.url} target="_blank" rel="noopener noreferrer" class="font-mono text-sm">
+                {ref.url}
+            </a>
+        ),
+    },
+    {
+        header: "Comment",
+        render: (ref) => <span class="text-muted">{ref.comment ?? "—"}</span>,
+    },
+];
+
+/** The sections of a component's metadata, one per tab. */
+export type ComponentTab = "details" | "vulns" | "licenses";
+
 /**
  * Renders the full metadata for a single component instance: the identity
  * detail-grid, description, and the vulnerabilities / licenses / hashes /
  * external-references tables. Shared by ComponentOverview (drill-down view)
  * and the ComponentDetail page (/components/:id).
  *
+ * The four tables used to be stacked, so the two a reader actually arrives with
+ * a question about — vulnerabilities and licences — sat below a detail grid and
+ * a description of unbounded length, with hashes they never asked for wedged
+ * between them. They are tabs now; hashes and external references fold into
+ * Details rather than earning a tab of their own (ocidex-ag4q.35).
+ *
+ * `tab`/`onTabChange` are optional: supplied, the caller drives the selection
+ * (so a summary tile can open a tab); omitted, the component keeps its own.
+ *
  * Callers pass their already-created queries so no double-fetching occurs.
- * `showVulns` gates the vulnerabilities table (typically on whether the
+ * `showVulns` gates the vulnerabilities tab (typically on whether the
  * component has a purl, since vuln matching is purl-based).
  */
 export default function ComponentMetadata(props: {
     detailQuery: ReturnType<typeof useComponent>;
     vulnsQuery: ReturnType<typeof useComponentVulns>;
     showVulns: boolean;
+    tab?: ComponentTab;
+    onTabChange?: (tab: ComponentTab) => void;
 }) {
+    const [ownTab, setOwnTab] = createSignal<ComponentTab>("details");
+    const tab = (): ComponentTab => props.tab ?? ownTab();
+    const selectTab = (t: ComponentTab): void => {
+        setOwnTab(t);
+        props.onTabChange?.(t);
+    };
+
+    const licenseCount = (): number => (props.detailQuery.data?.licenses ?? []).length;
+    const vulnCount = (): number => props.vulnsQuery.data?.data.length ?? 0;
+
+    const tabs = (): TabDef<ComponentTab>[] => {
+        const t: TabDef<ComponentTab>[] = [{ id: "details", label: "Details" }];
+        // Counts ride in the label so a reader can tell an empty tab from a
+        // full one without opening it — which is what a tab strip owes them in
+        // exchange for hiding the content.
+        if (props.showVulns) {
+            t.push({ id: "vulns", label: `Vulnerabilities (${vulnCount()})` });
+        }
+        t.push({ id: "licenses", label: `Licenses (${licenseCount()})` });
+        return t;
+    };
+
+    // A vulnerabilities tab that stops existing (a component whose purl is
+    // still loading) must not leave the reader on a blank panel.
+    const activeTab = (): ComponentTab =>
+        tab() === "vulns" && !props.showVulns ? "details" : tab();
+
     return (
         <>
-            {/* Component metadata */}
-            <Show when={props.detailQuery.data} keyed>
+            <TabBar tabs={tabs()} active={activeTab()} onSelect={selectTab} class="mb-4" />
+
+            {/* ── Details ── */}
+            <Show when={activeTab() === "details" ? props.detailQuery.data : undefined} keyed>
                 {(detail) => (
                     <>
                         <div class="detail-grid">
@@ -156,7 +222,7 @@ export default function ComponentMetadata(props: {
                                     <span class="detail-value">
                                         {detail.foundBy}
                                         <Show when={hasText(detail.confidence)}>
-                                            <span style={{ "margin-left": "8px" }}>
+                                            <span class="ml-2">
                                                 <StatusPill variant="warning">
                                                     {detail.confidence} confidence
                                                 </StatusPill>
@@ -177,7 +243,7 @@ export default function ComponentMetadata(props: {
                                     <span class="detail-value">
                                         {detail.layer}
                                         <Show when={detail.fromBaseImage}>
-                                            <span style={{ "margin-left": "8px" }}>
+                                            <span class="ml-2">
                                                 <StatusPill
                                                     variant="primary"
                                                     title="Introduced by the image's base layer"
@@ -192,28 +258,18 @@ export default function ComponentMetadata(props: {
                         </div>
 
                         <Show when={hasText(detail.description)}>
-                            <div class="card mb-4">
-                                <div class="card-header">
-                                    <h3>Description</h3>
-                                </div>
+                            <Card class="mb-4">
+                                <CardHeader title="Description" />
                                 <p class="text-sm">{detail.description}</p>
-                            </div>
+                            </Card>
                         </Show>
                     </>
                 )}
             </Show>
 
-            {/* Vulnerabilities */}
-            <Show when={props.showVulns}>
+            {/* ── Vulnerabilities ── */}
+            <Show when={activeTab() === "vulns" && props.showVulns}>
                 <div class="mb-4">
-                    <h3>
-                        Vulnerabilities{" "}
-                        <Show when={props.vulnsQuery.data} keyed>
-                            {(d) => (
-                                <span class="badge">{d.data.length}</span>
-                            )}
-                        </Show>
-                    </h3>
                     <DataTable
                         columns={vulnColumns}
                         rows={props.vulnsQuery.data?.data}
@@ -226,89 +282,59 @@ export default function ComponentMetadata(props: {
                 </div>
             </Show>
 
-            {/* Licenses */}
-            <div class="mb-4">
-                <h3>
-                    Licenses{" "}
-                    <Show when={props.detailQuery.data} keyed>
-                        {(d) => (
-                            <span class="badge">{(d.licenses ?? []).length}</span>
-                        )}
-                    </Show>
-                </h3>
-                <DataTable
-                    columns={licenseColumns}
-                    rows={props.detailQuery.data?.licenses ?? undefined}
-                    loading={props.detailQuery.isFetching}
-                    isError={props.detailQuery.isError}
-                    error={props.detailQuery.error}
-                    emptyTitle="No licenses"
-                    emptyMessage="No license information found for this component."
-                />
-            </div>
+            {/* ── Licenses ── */}
+            <Show when={activeTab() === "licenses"}>
+                <div class="mb-4">
+                    <DataTable
+                        columns={licenseColumns}
+                        rows={props.detailQuery.data?.licenses ?? undefined}
+                        loading={props.detailQuery.isFetching}
+                        isError={props.detailQuery.isError}
+                        error={props.detailQuery.error}
+                        emptyTitle="No licenses"
+                        emptyMessage="No license information found for this component."
+                    />
+                </div>
+            </Show>
 
-            {/* Hashes */}
-            <div class="mb-4">
-                <h3>
-                    Hashes{" "}
-                    <Show when={props.detailQuery.data} keyed>
-                        {(d) => (
-                            <span class="badge">{(d.hashes ?? []).length}</span>
-                        )}
-                    </Show>
-                </h3>
-                <DataTable
-                    columns={hashColumns}
-                    rows={props.detailQuery.data?.hashes ?? undefined}
-                    loading={props.detailQuery.isFetching}
-                    isError={props.detailQuery.isError}
-                    error={props.detailQuery.error}
-                    emptyTitle="No hashes"
-                    emptyMessage="No hash information found for this component."
-                />
-            </div>
+            {/* Hashes and external references are Details' own content: nobody
+                arrives asking for them, but they belong beside the identity
+                fields rather than behind a tab of their own. */}
+            <Show when={activeTab() === "details"}>
+                <div class="mb-4">
+                    <DataTable
+                        columns={hashColumns}
+                        rows={props.detailQuery.data?.hashes ?? undefined}
+                        loading={props.detailQuery.isFetching}
+                        isError={props.detailQuery.isError}
+                        error={props.detailQuery.error}
+                        emptyTitle="No hashes"
+                        emptyMessage="No hash information found for this component."
+                    />
+                </div>
+            </Show>
 
             {/* External References */}
-            <Show when={(props.detailQuery.data?.externalReferences ?? []).length > 0}>
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h3>External References</h3>
-                        <span class="badge">{(props.detailQuery.data?.externalReferences ?? []).length}</span>
-                    </div>
-                    <div class="table-wrapper">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Type</th>
-                                    <th>URL</th>
-                                    <th>Comment</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <For each={props.detailQuery.data?.externalReferences ?? []}>
-                                    {(ref) => (
-                                        <tr>
-                                            <td>
-                                                <span class="badge">{ref.type}</span>
-                                            </td>
-                                            <td>
-                                                <a
-                                                    href={ref.url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    class="font-mono text-sm"
-                                                >
-                                                    {ref.url}
-                                                </a>
-                                            </td>
-                                            <td class="text-muted">{ref.comment ?? "—"}</td>
-                                        </tr>
-                                    )}
-                                </For>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+            <Show
+                when={
+                    activeTab() === "details" &&
+                    (props.detailQuery.data?.externalReferences ?? []).length > 0
+                }
+            >
+                <DataTable
+                    class="mb-4"
+                    caption={
+                        <CardHeader
+                            title="External References"
+                            count={(props.detailQuery.data?.externalReferences ?? []).length}
+                        />
+                    }
+                    columns={externalRefColumns}
+                    rows={props.detailQuery.data?.externalReferences ?? []}
+                    loading={false}
+                    isError={false}
+                    emptyTitle="No external references"
+                />
             </Show>
         </>
     );

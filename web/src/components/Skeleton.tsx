@@ -19,6 +19,8 @@ export function Skeleton(props: {
     height?: string;
     radius?: string;
     circle?: boolean;
+    /** Flow with surrounding text rather than breaking onto its own line. */
+    inline?: boolean;
     class?: string;
     style?: JSX.CSSProperties;
 }): JSX.Element {
@@ -30,7 +32,7 @@ export function Skeleton(props: {
     });
     return (
         <span
-            class={cx("skeleton", props.circle === true && "skeleton-circle", props.class)}
+            class={cx("skeleton", props.circle === true && "skeleton-circle", props.inline === true && "skeleton-inline", props.class)}
             style={style()}
             aria-hidden="true"
         />
@@ -163,7 +165,7 @@ export function SkeletonHeader(props: { subtitleLines?: number; class?: string }
             <div class="page-header-row">
                 <div>
                     <Skeleton width="16rem" height="1.5rem" />
-                    <div style={{ "margin-top": "0.5rem" }}>
+                    <div class="mt-2">
                         <SkeletonText
                             lines={props.subtitleLines ?? 1}
                             width="24rem"

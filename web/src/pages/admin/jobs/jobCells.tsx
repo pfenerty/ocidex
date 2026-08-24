@@ -2,12 +2,13 @@ import { Show, type JSX } from "solid-js";
 import { A } from "@solidjs/router";
 import type { Column } from "~/components/DataTable";
 import { TimestampCell } from "~/components/cells";
+import { Button } from "~/components/ui";
 
 export const JOB_STATE_COLORS: Record<string, string> = {
     queued: "var(--color-text-muted)",
-    running: "var(--color-primary)",
+    running: "var(--color-info)",
     succeeded: "var(--color-success)",
-    failed: "var(--color-error, #e53e3e)",
+    failed: "var(--color-danger)",
 };
 
 /**
@@ -75,7 +76,7 @@ export function lastErrorColumn<T extends JobRow>(expanded: {
         render: (job) => (
             <Show when={job.last_error}>
                 <button
-                    style={{ cursor: "pointer", "font-size": "0.85rem", background: "none", border: "none", padding: 0, color: "var(--color-primary)" }}
+                    style={{ cursor: "pointer", "font-size": "0.85rem", background: "none", border: "none", padding: 0, color: "var(--color-secondary)" }}
                     onClick={() => expanded.toggle(job.id)}
                 >
                     {expanded.has(job.id) ? "Hide error" : "View error"}
@@ -95,7 +96,7 @@ export function sbomColumn<T extends JobRow>(): Column<T> {
         header: "SBOM",
         render: (job) => (
             <Show when={job.sbom_id}>
-                <A href={`/sboms/${job.sbom_id}`} style={{ "font-size": "0.85rem" }}>
+                <A href={`/sboms/${job.sbom_id}`} class="text-sm">
                     View SBOM
                 </A>
             </Show>
@@ -112,14 +113,13 @@ export function retryColumn<T extends JobRow>(retry: {
         header: "Actions",
         render: (job) => (
             <Show when={job.state === "failed"}>
-                <button
-                    class="btn"
-                    style={{ "font-size": "0.8rem", padding: "0.25rem 0.5rem" }}
+                <Button
+                    size="sm"
                     disabled={retry.isPending}
                     onClick={() => retry.mutate(job.id)}
                 >
                     Retry
-                </button>
+                </Button>
             </Show>
         ),
     };

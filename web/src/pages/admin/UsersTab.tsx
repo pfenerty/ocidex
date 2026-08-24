@@ -53,7 +53,7 @@ export function UsersTab() {
         <DataTable
             columns={columns}
             rows={query.data?.users ?? undefined}
-            loading={query.isLoading}
+            loading={query.isFetching}
             isError={query.isError}
             error={query.error}
             emptyTitle="No users found"

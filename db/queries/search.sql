@@ -161,8 +161,13 @@ FROM license l
 LEFT JOIN license_rollup lr ON lr.license_id = l.id
   AND (lr.namespace_id IN (
         SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)))
-WHERE (sqlc.narg('spdx_id')::text IS NULL OR l.spdx_id = sqlc.narg('spdx_id'))
-  AND (sqlc.narg('name')::text IS NULL OR l.name ILIKE sqlc.narg('name'))
+-- Substring matches, both of them. These were an exact `=` on spdx_id and a
+-- wildcard-free ILIKE on name, so "Filter by name…" only ever matched a reader
+-- who typed the whole license name — every prefix on the way to "Apache-2.0"
+-- reported that no such license exists. Tolerable behind a submit button;
+-- actively misleading now that the box filters as you type (ocidex-ag4q.31).
+WHERE (sqlc.narg('spdx_id')::text IS NULL OR l.spdx_id ILIKE '%' || sqlc.narg('spdx_id')::text || '%')
+  AND (sqlc.narg('name')::text IS NULL OR l.name ILIKE '%' || sqlc.narg('name')::text || '%')
   AND (sqlc.narg('category')::text IS NULL OR license_category(l.spdx_id) = sqlc.narg('category')::text)
 GROUP BY l.id, l.spdx_id, l.name, l.url
 ORDER BY component_count DESC, l.name
@@ -335,5 +340,34 @@ ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST,
          s.created_at DESC
--- Safety cap: bound a component's version history to the most recent rows.
-LIMIT 5000;
+LIMIT @row_limit OFFSET @row_offset;
+
+-- name: CountComponentVersions :one
+-- The total for GetComponentVersions, deliberately NOT a COUNT(*) OVER() inside
+-- that query. The window function is the convention elsewhere in this file, but
+-- it only pays where the page and the count cost the same scan. Here the page
+-- query carries three LEFT JOINs (artifact plus two enrichment lookups) and a
+-- four-key sort purely to shape the rows it returns; a window count would drag
+-- every matching row through all of that just to discard it. The most-used
+-- component names have thousands of rows, which is what made the unpaginated
+-- version time out at 30s (ocidex-ag4q.7).
+--
+-- Counting needs only the visibility join, so it stays on
+-- idx_component_name_group.
+--
+-- It also carries the two corpus-wide figures a summary band needs, because
+-- both are answers about the whole result set and the page query only ever sees
+-- one window of it (ocidex-ag4q.35). Deriving them client-side from a page
+-- would report "3 versions" for a component with 300 — worse than saying
+-- nothing. They ride along here rather than in a third query: the scan and the
+-- filters are identical, so the only added cost is the DISTINCT aggregation.
+SELECT COUNT(*) AS total,
+       COUNT(DISTINCT c.version) AS version_count,
+       COUNT(DISTINCT s.artifact_id) AS artifact_count
+FROM component c
+JOIN sbom s ON s.id = c.sbom_id
+WHERE c.name = @name
+  AND (sqlc.narg('group_name')::text IS NULL OR c.group_name = sqlc.narg('group_name'))
+  AND (sqlc.narg('version')::text IS NULL OR c.version = sqlc.narg('version'))
+  AND (sqlc.narg('type')::text IS NULL OR c.type = sqlc.narg('type'))
+  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);

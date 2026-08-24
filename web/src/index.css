@@ -1,4 +1,9 @@
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap");
+/* Every family named first in a --font-* token below must be requested here,
+   or the token silently falls through to its OS fallback: Inter and JetBrains
+   Mono were declared but never fetched, so body text rendered in the system
+   font and every digest/purl in generic monospace (ocidex-ag4q.9).
+   fontContract.test.ts enforces the pairing. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap");
 @import "tailwindcss";
 
 /* ============================================
@@ -6,14 +11,53 @@
    ============================================ */
 
 @theme {
-    /* --- Pokedex Brand --- */
+    /* --- Pokedex Brand ---
+
+       Red and blue divide by *what the colour is telling you*, not by rank.
+       Before ocidex-ag4q.11 they were interchangeable — the sidebar slab, the
+       active tab underline and the primary CTA were all the same red, so red
+       carried no information at all.
+
+         red  (--color-primary)   — identity and consequence. OCIDex's own
+                                    chrome (sidebar slab, wordmark,
+                                    --color-entry-edge) and the one action a
+                                    view is built around (.btn-primary,
+                                    .btn-danger). Loud on purpose: at most one
+                                    red thing competes for attention per view.
+
+         blue (--color-secondary) — navigation and state. Links, hovers on
+                                    link-like affordances, active tabs, active
+                                    tiles, selected filters, focus rings.
+                                    Answers "where am I / where can I go",
+                                    never "do this".
+
+       Two things follow. A status vocabulary must not borrow either token:
+       --color-severity-critical exists so that restyling the brand cannot
+       silently restyle the top of the severity scale. And --color-info is an
+       alias of --color-secondary rather than a second copy of the hex, since
+       "informational" and "interactive" are the same blue by construction.
+
+       colorSemantics.test.ts enforces the split. */
     --color-primary: #DC3545;
     --color-primary-hover: #E8525F;
     --color-primary-fg: #FFFFFF;
 
     --color-secondary: #5B8DEF;
     --color-secondary-hover: #7BA4F4;
-    --color-secondary-fg: #FFFFFF;
+    /* Ink, not white — this token names "the readable foreground *on*
+       --color-secondary", and the dark theme's secondary is a light blue.
+       #FFFFFF on #5B8DEF is 3.23:1, which is what the selected segment of a
+       .btn-group (the Semver/Date toggle on ArtifactDetail, among others) was
+       rendering. The page background reads 5.99 on it and 7.4 on the hover
+       step. The light theme keeps white, where secondary is blue-700. */
+    --color-secondary-fg: #0C0E14;
+
+    /* The keyboard ring. An alias, not a fourth blue: "you are here with the
+       keyboard" is the same question --color-secondary already answers, and
+       defining it once means the light palette needs no second declaration —
+       the var resolves at the use site, so .light's own --color-secondary wins
+       automatically. Every :focus-visible rule in the app reads this. */
+    --color-focus: var(--color-secondary);
 
     /* --- Neutral Surfaces (dark default) --- */
     --color-bg: #0C0E14;
@@ -26,7 +70,16 @@
     /* --- Text --- */
     --color-text: #E4E7F0;
     --color-text-muted: #8B90A5;
-    --color-text-dim: #5C6070;
+    /* Not #5C6070, which is the light theme's *muted* grey reused here one rung
+       too low: it measured 3.09:1 on --color-bg and 2.90 on a card, so the
+       sidebar search trigger, its ⌘K hint and every dim timestamp missed AA in
+       the dark theme as well. #82879D reads 5.42 on --color-bg and 4.94 on a
+       card, and is still a visible step below --color-text-muted (6.09 / 5.55).
+       It does not reach 4.5 on --color-elevated (4.10) or --color-surface-hover
+       (4.45); closing those would mean moving it onto --color-text-muted and
+       collapsing the two greys into one, which is a worse trade than the
+       residual — and --color-text-muted itself is only 4.61 on elevated. */
+    --color-text-dim: #82879D;
 
     /* --- Semantic --- */
     --color-success: #34D399;
@@ -36,13 +89,36 @@
     --color-danger: #F06565;
     --color-danger-bg: rgba(240, 101, 101, 0.10);
     --color-danger-hover: #F28888;
-    --color-info: #5B8DEF;
+    --color-info: var(--color-secondary);
     --color-info-bg: rgba(91, 141, 239, 0.12);
+    /* The top of VulnBadge's de-escalating redscale. Deliberately its own
+       value rather than var(--color-primary): severity is not brand. */
+    --color-severity-critical: #DC3545;
 
     /* --- Typography --- */
     --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
         sans-serif;
     --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+
+    /* Type scale. The root stays 14px — the density is deliberate — so these are
+       the ratios that have to do the work: the old spread was body 14px against
+       a 21px page title and 14px card titles, which is why every page read flat.
+
+       These also back Tailwind's text-* utilities (v4 generates them from this
+       namespace), so --text-xs/sm/base keep their default values. That was only
+       half true until ocidex-ag4q.53: a hand-written `.text-sm { font-size:
+       0.8rem }` sat in @layer utilities, later in the file and at the same
+       specificity as the generated one, so every `text-sm` shipped 11.2px while
+       this token said 12.25px. The rule is gone; the token is the only source of
+       a text-* size now, and typeScale.test.ts fails if another one appears.
+       px values are at the 14px root. */
+    --text-xs: 0.75rem;      /* 10.5px */
+    --text-sm: 0.875rem;     /* 12.25px */
+    --text-base: 1rem;       /* 14px */
+    --text-lg: 1.143rem;     /* 16px */
+    --text-xl: 1.286rem;     /* 18px */
+    --text-2xl: 1.571rem;    /* 22px */
+    --text-3xl: 2rem;        /* 28px */
 
     /* --- Radius --- */
     --radius-sm: 0.25rem;
@@ -66,32 +142,73 @@
     --color-primary-hover: #B31020;
     --color-primary-fg: #FFFFFF;
 
-    --color-secondary: #2563EB;
-    --color-secondary-hover: #1D4ED8;
+    /* blue-700, not blue-600. This is the link and interactive colour (ADR of
+       1.3: blue = interactive), and #2563EB reads 4.42:1 on --color-elevated —
+       so any link inside a raised card missed AA. #1D4ED8 is 5.71 there and
+       6.20 on the page background; the hover step moves to blue-800. */
+    --color-secondary: #1D4ED8;
+    --color-secondary-hover: #1E40AF;
     --color-secondary-fg: #FFFFFF;
 
     --color-bg: #F8F6F1;
     --color-surface: #FFFFFF;
     --color-surface-hover: #F3F1EC;
-    --color-elevated: #F0EDE7;
+    /* Lighter than the page, not darker — the third instance of the same
+       dark-ladder-by-position bug as --color-text-dim below. #F0EDE7 sat a
+       step *below* --color-bg, which is what "elevated" means going up from
+       #0C0E14 and the opposite of what it means coming down from white. It
+       also made this the darkest surface in the theme, so the semantic
+       foreground tokens measured their worst against the one surface that
+       floats above everything: success and warning both landed at 4.3:1 on
+       it. Toasts, the command palette, the combobox popover and the login
+       button are the users; separation from a white card now comes from the
+       border and shadow they already carry, and every token clears 4.9 here. */
+    --color-elevated: #FDFCFA;
     --color-border: #E0DDD5;
     --color-border-hover: #C8C4BA;
 
     --color-text: #1A1D27;
     --color-text-muted: #5C6070;
-    --color-text-dim: #8B90A5;
+    /* Not #8B90A5. The light palette was built by swapping the dark ladder's
+       two greys, which works going *up* from #0C0E14 and does not work coming
+       *down* from white: #8B90A5 measures 3.17:1 on a card and 2.93:1 on the
+       page background, so every timestamp, hint and unit label on every route
+       failed AA at once — by far the largest single finding of the light-mode
+       audit. #666B7A reads 5.13 on a card, 4.75 on the page background and
+       4.71 on --color-surface-hover — the last of those is why it is not the
+       slightly lighter #6B7080 tried first, which fell to 4.37 exactly when a
+       table row is hovered and being read. It still sits a clear step lighter
+       than --color-text-muted (6.25). */
+    --color-text-dim: #666B7A;
 
-    --color-success: #16A34A;
-    --color-success-bg: rgba(22, 163, 74, 0.08);
-    --color-warning: #D97706;
-    --color-warning-bg: rgba(217, 119, 6, 0.08);
-    --color-danger: #DC2626;
-    --color-danger-bg: rgba(220, 38, 38, 0.08);
-    --color-danger-hover: #B91C1C;
-    --color-info: #2563EB;
-    --color-info-bg: rgba(37, 99, 235, 0.08);
+    /* Both were the -600 step of their ramp, which is the step that reads well
+       *on* a dark background and not the step that reads *against* white:
+       #16A34A measures 3.30:1 on a card and 2.82:1 on --color-elevated, and
+       #D97706 is worse at 3.19 / 2.73. Every badge, alert and status label
+       carrying success or warning failed AA on every light route at once. The
+       -700 step clears it (5.01 and 5.02 on a card) and is still unmistakably
+       green and amber. The dark theme keeps the brighter values above, where
+       the polarity is reversed and they measure fine. */
+    --color-success: #15803D;
+    --color-success-bg: rgba(21, 128, 61, 0.10);
+    --color-warning: #B45309;
+    --color-warning-bg: rgba(180, 83, 9, 0.10);
+    /* The same one-step correction, for the same reason, one shade less
+       obviously: #DC2626 measured 4.47:1 on --color-bg and 4.13 on
+       --color-elevated — passing on a white card and failing on the two
+       surfaces most of the app actually paints. The Licenses tab's "STRONG"
+       copyleft label was the visible case. #B91C1C clears 5.5 on every
+       surface, so the hover step moves down to red-800 to stay distinct. */
+    --color-danger: #B91C1C;
+    --color-danger-bg: rgba(185, 28, 28, 0.08);
+    --color-danger-hover: #991B1B;
+    --color-info: var(--color-secondary);
+    --color-info-bg: rgba(29, 78, 216, 0.08);
+    --color-severity-critical: #CC1429;
 
-    --color-accent-amber: #D97706;
+    /* Same -700 correction: this token's only text use is DataTable's sort
+       arrow, a 0.65rem glyph that was 2.95:1 on the page background. */
+    --color-accent-amber: #B45309;
     --color-chrome-deep: #1A1D27;
 }
 
@@ -112,6 +229,35 @@
         font-size: 14px;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Tailwind preflight resets headings to `font-size: inherit; font-weight:
+       inherit`, so without these every <h1>-<h4> in the app rendered at body
+       size and body weight. Anything with its own rule (.sidebar-brand h1,
+       .page-header h2, .card-header h3) still wins on specificity. */
+    h1,
+    h2,
+    h3,
+    h4 {
+        font-weight: 600;
+        letter-spacing: -0.015em;
+        line-height: 1.25;
+    }
+
+    h1 {
+        font-size: var(--text-3xl);
+    }
+
+    h2 {
+        font-size: var(--text-2xl);
+    }
+
+    h3 {
+        font-size: var(--text-xl);
+    }
+
+    h4 {
+        font-size: var(--text-lg);
     }
 
     body {
@@ -137,29 +283,28 @@
         text-decoration: underline;
     }
 
+    /*
+     * A bare <button> gets an affordance here and nothing else.
+     *
+     * It used to get a whole look: fifteen declarations identical, property for
+     * property, to `.btn` below (ocidex-ag4q.54). That made every native button
+     * in the app a secondary button by default, so a control could opt into the
+     * house style by writing no class at all — and the `.btn` family, the
+     * `<Button>` primitive, and the element selector were three ways to say the
+     * same thing that had to be kept in sync by hand. Worse, a button that
+     * wanted to be something *other* than a button — a chip, a linkified cell,
+     * an icon toggle — first had to undo the look, which is why `.cell-button`,
+     * `.link-button`, `.copy-btn` and `.combobox-clear` each open with the same
+     * four lines of reset.
+     *
+     * The look now lives only in `.btn`/`<Button>`. What stays is what Tailwind
+     * v4's preflight deliberately leaves off (it resets font, colour, border and
+     * background on form elements, but not the cursor) and what no unstyled
+     * button should have to restate: this thing is clickable, and when it is
+     * disabled it is not.
+     */
     button {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.375rem;
-        padding: 0.5rem 1rem;
-        border: 1px solid var(--color-border);
-        border-radius: var(--radius-md);
-        background: var(--color-surface);
-        color: var(--color-text);
-        font-size: 0.875rem;
-        font-weight: 500;
-        font-family: inherit;
         cursor: pointer;
-        transition:
-            background 0.15s,
-            border-color 0.15s;
-        white-space: nowrap;
-    }
-
-    button:hover {
-        background: var(--color-surface-hover);
-        border-color: var(--color-text-dim);
-        text-decoration: none;
     }
 
     button:disabled {
@@ -181,7 +326,6 @@
         font-size: 0.875rem;
         font-family: inherit;
         line-height: 1.6;
-        outline: none;
         transition: border-color 0.15s;
     }
 
@@ -194,14 +338,57 @@
         cursor: pointer;
     }
 
+    /*
+     * One keyboard ring for the whole app.
+     *
+     * `:focus-visible`, not `:focus`: the browser already knows the difference
+     * between a click and a Tab, and ringing a clicked button is the noise that
+     * gets focus styling deleted in the first place.
+     *
+     * Written bare rather than as a list of controls on purpose. A list is a
+     * thing to forget: every primitive added after this one — and every
+     * `tabindex` on a div, of which this app has several (the tooltip trigger,
+     * the clickable table row) — would need remembering. Anything the browser
+     * considers focusable gets the ring by default, and the two places that opt
+     * out (`.tooltip-trigger`, the palette's single input) say why in their own
+     * stylesheet and supply a replacement.
+     *
+     * `outline`, not `box-shadow`: an outline follows `border-radius`, is not
+     * clipped by an ancestor's `overflow: hidden` — which matters inside
+     * `.table-wrapper` and the sidebar — and survives forced-colors mode.
+     */
+    :focus-visible {
+        outline: 2px solid var(--color-focus);
+        outline-offset: 2px;
+    }
+
+    /* No `select` here. A select is a control you open, not a field you type
+       into, so "which one has the caret" is not a question it has — it takes
+       the global ring alone and skips the halo, which would otherwise draw a
+       second concentric ring around it. */
     input[type="text"]:focus,
     input[type="password"]:focus,
     input[type="search"]:focus,
     input[type="number"]:focus,
-    select:focus,
     textarea:focus {
         border-color: var(--color-secondary);
-        box-shadow: 0 0 0 2px rgba(91, 141, 239, 0.15);
+        /* color-mix, not a hardcoded rgba(): the literal here used to be the
+           dark palette's blue, so a focused field in light mode was haloed in
+           the wrong blue. */
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-focus) 15%, transparent);
+    }
+
+    /* A text field's focused state is its border and halo, and it is the only
+       affordance that reads on `:focus` as well as `:focus-visible` — a click
+       into a field should show which field has the caret. Adding the outline on
+       top gives it two concentric rings, so it opts out of the global one and
+       keeps the ring it already had. */
+    input[type="text"]:focus-visible,
+    input[type="password"]:focus-visible,
+    input[type="search"]:focus-visible,
+    input[type="number"]:focus-visible,
+    textarea:focus-visible {
+        outline: none;
     }
 
     input::placeholder {
@@ -220,10 +407,6 @@
 
     .text-dim {
         color: var(--color-text-dim);
-    }
-
-    .text-sm {
-        font-size: 0.8rem;
     }
 }
 
@@ -266,6 +449,20 @@
         padding: 1.25rem;
     }
 
+    /* A card that is announcing something rather than just containing it: a
+       one-time secret, a warning that edits here will be overwritten. Three
+       call sites wrote this as an inline `border-color` style, and one of them
+       carried a `#d69e2e` fallback for `--color-warning` — a token that has
+       existed in both themes all along, so the fallback could only ever have
+       masked a rename. */
+    .card-success {
+        border-color: var(--color-success);
+    }
+
+    .card-warning {
+        border-color: var(--color-warning);
+    }
+
     .card-header {
         display: flex;
         align-items: center;
@@ -275,6 +472,24 @@
 
     /* Title and its count travel together on the left; `actions` is the only
        thing space-between should push to the far edge. */
+    /* A heading that carries something beside its text — a leading icon, a
+       version, a trust badge. Five headers wrote this as an inline `style` on
+       their own `h2`/`h3`; the `<PageHeader>` and `<CardHeader>` primitives own
+       those elements now, so the rule lives on a wrapper inside them.
+
+       Keeping it a span rather than moving it onto the heading itself matters
+       twice: `.page-header h2::after` (the gradient underline) stays a block
+       child of a block parent and still draws on its own line, and the ~20
+       single-run headings that do not need flex are left alone. It is also what
+       finally makes `.card-header h3 svg { flex-shrink: 0 }` mean something —
+       shrink on a child of a block parent never did. */
+    .title-inline {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
     .card-header-title {
         display: flex;
         align-items: center;
@@ -283,7 +498,7 @@
     }
 
     .card-header h3 {
-        font-size: 1rem;
+        font-size: var(--text-lg);
         font-weight: 600;
     }
 
@@ -349,6 +564,102 @@
     }
 
     /* Group header rows (sticky namespace labels inside a flat table) */
+    /* A cell whose content is a control, not a label — the enricher health
+       matrix's counts, each of which sets a filter. Three call sites wrote this
+       as an inline `background: none; border: none; padding: 0`, which is the
+       shape of a rule that should exist: the bare `button` element rule gives
+       every button a border and padding, so a button inside a table cell has to
+       undo all of it before it can read as text.
+
+       `.active` is blue, not red, per the split documented above: this marks
+       which enricher you are filtered to, which is state, not consequence. */
+    .cell-button {
+        background: none;
+        border: none;
+        padding: 0;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+    }
+
+    .cell-button.active {
+        color: var(--color-secondary);
+        font-weight: 600;
+    }
+
+    /* Row-level affordances that both tree views spelled inline on every row,
+       where no stylesheet and no theme could reach them.
+
+       `.row-clickable` also carries the focus ring, because DataTable makes a
+       clickable row focusable: a tree you can only expand with a mouse is a
+       tree half the readers cannot open. */
+    tr.row-clickable {
+        cursor: pointer;
+    }
+
+    /* Inset rather than the global +2px offset: a row is flush against its
+       neighbours, and an outward ring would be drawn over them. */
+    tr.row-clickable:focus-visible {
+        outline: 2px solid var(--color-focus);
+        outline-offset: -2px;
+    }
+
+    /* A row present for context rather than for its own sake — an unchanged
+       ancestor in the diff tree, kept so its changed descendants have a path. */
+    tr.row-muted {
+        opacity: 0.55;
+    }
+
+    /* Expandable rows: the disclosure triangle and the child rows it reveals.
+       Both were inline styles on hand-rolled tables, repeated per row. */
+    td.row-expander {
+        width: 24px;
+        font-size: 0.7em;
+        user-select: none;
+        color: var(--color-text-muted);
+    }
+
+    tr.row-child {
+        background: var(--color-surface-hover);
+    }
+
+    /* A child row's first cell is the empty gutter under the triangle, so the
+       indent that marks it as a child belongs to the cell after it. */
+    tr.row-child > td:first-child + td {
+        padding-left: 2rem;
+    }
+
+    /* A run of badges on one line — the diff tree's descendant rollup, where
+       up to five counts share a cell. */
+    .badge-row {
+        display: flex;
+        gap: 0.25rem;
+        flex-wrap: wrap;
+    }
+
+    /* Dependency and diff tree rows. The markup supplies only the depth; the
+       indent step it multiplies, and the twisty's whole appearance, live here.
+       Both tree views used to spell all of this inline on every visible row. */
+    .tree-name {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding-left: calc(var(--depth, 0) * 1.25rem);
+    }
+
+    .tree-twisty {
+        width: 1rem;
+        flex-shrink: 0;
+        text-align: center;
+        font-size: 0.7rem;
+        color: var(--color-text-dim);
+        transition: transform 0.15s;
+    }
+
+    .tree-twisty.open {
+        transform: rotate(90deg);
+    }
+
     tr.group-header-row td {
         position: sticky;
         top: 0;
@@ -368,6 +679,25 @@
         font-weight: 400;
         text-transform: none;
         letter-spacing: normal;
+    }
+
+    /*
+     * A namespace label is a name, an owner and a visibility badge — not a
+     * column heading — so it opts out of the uppercase tracking the generic
+     * group row applies.
+     */
+    .ns-group-heading {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.9rem;
+        text-transform: none;
+        letter-spacing: normal;
+        color: var(--color-text);
+    }
+
+    .ns-group-owner {
+        font-weight: 400;
     }
 
     /* Badges */
@@ -441,6 +771,15 @@
         text-decoration: none;
     }
 
+    /* `button:disabled` above sets this too, but it is in @layer base and
+       `.btn` is in @layer components, so `.btn`'s own `cursor: pointer` won and
+       a disabled .btn showed a pointer. The opacity always applied — `.btn`
+       does not set opacity — which is why it never looked wrong enough to
+       notice. */
+    .btn:disabled {
+        cursor: not-allowed;
+    }
+
     .btn-primary {
         background: var(--color-primary);
         border-color: var(--color-primary);
@@ -454,7 +793,10 @@
 
     .btn-danger {
         color: var(--color-danger);
-        border-color: rgba(240, 101, 101, 0.3);
+        /* Mixed from the token, not a literal: the literal was the dark
+           palette's #F06565, so this border stayed dark-salmon in light mode
+           while the text beside it correctly went to #DC2626. */
+        border-color: color-mix(in srgb, var(--color-danger) 30%, transparent);
     }
 
     .btn-danger:hover {
@@ -462,9 +804,43 @@
         border-color: var(--color-danger);
     }
 
+    /* The only rule added for the Button primitive, because the app already had
+       ghost buttons — it just spelled them as inline styles on bare <button>s.
+       No new tokens or colours: this is .btn with its chrome removed, and it
+       gains that chrome back on hover from .btn:hover. */
+    .btn-ghost {
+        background: transparent;
+        border-color: transparent;
+        color: var(--color-text-muted);
+    }
+
+    .btn-ghost:hover {
+        color: var(--color-text);
+    }
+
     .btn-sm {
         padding: 0.3rem 0.625rem;
         font-size: 0.8rem;
+    }
+
+    /* Sized from the text so it scales with .btn-sm, and inherits currentColor
+       so it is legible on .btn-primary's filled background as well as on the
+       surface variants. */
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .btn-spinner {
+        display: inline-block;
+        width: 0.85em;
+        height: 0.85em;
+        border: 2px solid currentColor;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+        flex-shrink: 0;
     }
 
     .btn-group {
@@ -494,6 +870,17 @@
         min-width: 260px;
     }
 
+    /* The inline `style={{}}` that Artifacts' "Show all" checkbox carries today.
+       A checkbox label must not wrap between the box and its text, or the row
+       reflows mid-word at the 768px breakpoint. */
+    .toolbar-check {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
     /* Tab bar */
     .tab-bar {
         display: flex;
@@ -502,7 +889,14 @@
         border-bottom: 1px solid var(--color-border);
     }
 
-    .tab-bar button {
+    /*
+     * `a` alongside `button`: a tab strip whose tabs are real routes (Admin)
+     * has to be a link so it stays middle-clickable and copyable. It used to
+     * hand-roll five inline style properties per tab instead, which is why it
+     * looked subtly unlike every other strip in the app (ocidex-ag4q.39).
+     */
+    .tab-bar button,
+    .tab-bar a {
         padding: 0.5rem 1rem;
         font-size: 0.875rem;
         font-weight: 500;
@@ -511,21 +905,75 @@
         border-bottom: 2px solid transparent;
         background: transparent;
         cursor: pointer;
+        text-decoration: none;
         transition:
             color 0.15s,
             border-color 0.15s;
     }
 
-    .tab-bar button:hover {
+    .tab-bar button:hover,
+    .tab-bar a:hover {
         color: var(--color-text);
         border-bottom-color: var(--color-border);
-        background: transparent;
     }
 
-    .tab-bar button.active {
-        color: var(--color-primary);
-        border-bottom-color: var(--color-primary);
-        background: transparent;
+    .tab-bar button.active,
+    .tab-bar a.active {
+        color: var(--color-secondary);
+        border-bottom-color: var(--color-secondary);
+    }
+
+    /*
+     * `.filter-chips` is the same control with the opposite meaning
+     * (ocidex-ag4q.44). A `.tab-bar` changes *what you are looking at* — some
+     * of its tabs are real routes — while a filter strip narrows the list you
+     * are already looking at. They were visually identical, so which one a
+     * strip was could only be discovered by clicking it.
+     *
+     * Chips are pills rather than an underlined strip: no shared baseline, no
+     * bottom rule, and each one is separately outlined, which is what reads as
+     * "toggle" instead of "section". Active is blue on both, per the token
+     * split documented at the top of this file — the difference between them is
+     * shape, not hue.
+     */
+    .filter-chips {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.375rem;
+        margin-bottom: 1rem;
+    }
+
+    .filter-chips button,
+    .filter-chips a {
+        padding: 0.25rem 0.75rem;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--color-text-muted);
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 999px;
+        cursor: pointer;
+        text-decoration: none;
+        white-space: nowrap;
+        transition:
+            color 0.15s,
+            border-color 0.15s,
+            background 0.15s;
+    }
+
+    .filter-chips button:hover,
+    .filter-chips a:hover {
+        color: var(--color-text);
+        border-color: var(--color-text-dim);
+        background: var(--color-surface);
+    }
+
+    .filter-chips button.active,
+    .filter-chips a.active {
+        color: var(--color-secondary);
+        border-color: var(--color-secondary);
+        background: var(--color-info-bg);
     }
 
     .alert {
@@ -536,14 +984,14 @@
 
     .alert-danger {
         background: var(--color-danger-bg);
-        border: 1px solid rgba(240, 101, 101, 0.3);
+        border: 1px solid color-mix(in srgb, var(--color-danger) 30%, transparent);
         color: var(--color-danger);
     }
 
     .alert-warning {
-        background: var(--color-warning-bg, rgba(212, 158, 70, 0.12));
-        border: 1px solid rgba(212, 158, 70, 0.3);
-        color: var(--color-warning, var(--color-text));
+        background: var(--color-warning-bg);
+        border: 1px solid color-mix(in srgb, var(--color-warning) 30%, transparent);
+        color: var(--color-warning);
     }
 }
 
@@ -561,7 +1009,32 @@
         flex: 1;
     }
 
+    /*
+     * A tab strip too wide for the phone scrolls sideways; it does not wrap.
+     *
+     * `overflow-x: auto` was here on its own and could never fire. `.tab-bar`
+     * is a flex row, and its items shrink below their content rather than
+     * overflow, so six tabs squeezed to fit and each one broke its own label
+     * instead: /admin read "Users | API⏎Keys | Namespaces | Sources |
+     * System⏎Status | Jobs" at 500px, with Jobs clipped and unreachable.
+     * Nothing overflowed, so there was nothing for the container to scroll
+     * (ocidex-ag4q.59).
+     *
+     * `flex-shrink: 0` plus `white-space: nowrap` is what makes the strip
+     * exceed its container, which is the precondition `overflow-x` was written
+     * for. Scroll-snap is the affordance: a partly-scrolled tab settles on its
+     * own edge rather than sitting half-cut, so the strip reads as a track that
+     * continues rather than as a row that got clipped.
+     */
     .tab-bar {
         overflow-x: auto;
+        scroll-snap-type: x proximity;
+    }
+
+    .tab-bar button,
+    .tab-bar a {
+        flex-shrink: 0;
+        white-space: nowrap;
+        scroll-snap-align: start;
     }
 }

@@ -154,9 +154,18 @@ func (f *fakeSearchService) SearchDistinctComponents(_ context.Context, filter s
 	}, nil
 }
 
-func (f *fakeSearchService) GetComponentVersions(_ context.Context, name, _, _, _ string, _ service.VisibilityFilter) ([]service.ComponentVersionEntry, error) {
-	return []service.ComponentVersionEntry{
-		{ID: "comp1", SbomID: "sbom1", Type: "library", Name: name, SbomCreatedAt: "2025-01-01T00:00:00Z"},
+func (f *fakeSearchService) GetComponentVersions(_ context.Context, filter service.ComponentVersionFilter) (service.ComponentVersionsPage, error) {
+	return service.ComponentVersionsPage{
+		PagedResult: service.PagedResult[service.ComponentVersionEntry]{
+			Data: []service.ComponentVersionEntry{
+				{ID: "comp1", SbomID: "sbom1", Type: "library", Name: filter.Name, SbomCreatedAt: "2025-01-01T00:00:00Z"},
+			},
+			Total:  1,
+			Limit:  filter.Limit,
+			Offset: filter.Offset,
+		},
+		VersionCount:  1,
+		ArtifactCount: 1,
 	}, nil
 }
 
@@ -224,8 +233,13 @@ func (f *fakeSearchService) GetArtifactContains(_ context.Context, _ pgtype.UUID
 	return nil, nil
 }
 
-func (f *fakeSearchService) GetVulnerabilityDetail(_ context.Context, _ string, limit, offset int32, _ service.VisibilityFilter) (*service.VulnDetail, service.PagedResult[service.AffectedArtifact], service.PagedResult[service.AffectedComponent], error) {
-	return &service.VulnDetail{ID: "CVE-2021-0001", Severity: "HIGH", Aliases: []string{}}, service.PagedResult[service.AffectedArtifact]{Limit: limit, Offset: offset}, service.PagedResult[service.AffectedComponent]{}, nil
+func (f *fakeSearchService) GetVulnerabilityDetail(_ context.Context, _ string, limit, offset int32, _ service.VisibilityFilter) (service.VulnerabilityDetailResult, error) {
+	return service.VulnerabilityDetailResult{
+		Detail:         &service.VulnDetail{ID: "CVE-2021-0001", Severity: "HIGH", Aliases: []string{}},
+		Artifacts:      service.PagedResult[service.AffectedArtifact]{Total: 9, Limit: limit, Offset: offset},
+		Components:     service.PagedResult[service.AffectedComponent]{},
+		NamespaceCount: 4,
+	}, nil
 }
 
 func (f *fakeSearchService) GetComponentVulns(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) ([]service.ComponentVulnEntry, error) {
@@ -390,6 +404,129 @@ func TestSearchComponentsPassesPurlThrough(t *testing.T) {
 	is.Equal(w.Code, http.StatusOK)
 	is.Equal(search.filter.Purl, "pkg:npm/@scope/lodash@4.17.21")
 	is.Equal(search.filter.Name, "")
+}
+
+type capturingVersionsService struct {
+	fakeSearchService
+	filter service.ComponentVersionFilter
+}
+
+func (f *capturingVersionsService) GetComponentVersions(_ context.Context, filter service.ComponentVersionFilter) (service.ComponentVersionsPage, error) {
+	f.filter = filter
+	return service.ComponentVersionsPage{
+		PagedResult: service.PagedResult[service.ComponentVersionEntry]{
+			Data:   []service.ComponentVersionEntry{{ID: "comp1", Name: filter.Name}},
+			Total:  4210,
+			Limit:  filter.Limit,
+			Offset: filter.Offset,
+		},
+		VersionCount:  37,
+		ArtifactCount: 12,
+	}, nil
+}
+
+// The endpoint was unpaginated and returned a component's whole version
+// history, which timed out at 30s for the very names /components links most
+// (ocidex-ag4q.7). Paginating it is only useful if the window reaches the
+// service and the total comes back out — a page with no total leaves the UI
+// unable to say there is a second one.
+func TestGetComponentVersionsPaginates(t *testing.T) {
+	is := is.New(t)
+	search := &capturingVersionsService{}
+	router := newTestRouter(&fakeSBOMService{}, search)
+
+	r := httptest.NewRequest(http.MethodGet,
+		"/api/v1/components/versions?name="+url.QueryEscape("golang.org/x/crypto")+"&limit=20&offset=40", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, r)
+
+	is.Equal(w.Code, http.StatusOK)
+	is.Equal(search.filter.Name, "golang.org/x/crypto")
+	is.Equal(search.filter.Limit, int32(20))
+	is.Equal(search.filter.Offset, int32(40))
+
+	var body struct {
+		Versions   []service.ComponentVersionEntry `json:"versions"`
+		Pagination struct {
+			Total  int64 `json:"total"`
+			Limit  int32 `json:"limit"`
+			Offset int32 `json:"offset"`
+		} `json:"pagination"`
+	}
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &body))
+	is.Equal(len(body.Versions), 1)
+	is.Equal(body.Pagination.Total, int64(4210))
+	is.Equal(body.Pagination.Limit, int32(20))
+	is.Equal(body.Pagination.Offset, int32(40))
+}
+
+// The summary band asks two questions the page cannot answer — how many
+// versions exist, and how many artifacts carry them — so both have to reach the
+// body as their own fields. Pagination.Total is a third figure (SBOM
+// occurrences) and must not be conflated with either (ocidex-ag4q.35).
+func TestGetComponentVersionsReportsCorpusWideCounts(t *testing.T) {
+	is := is.New(t)
+	router := newTestRouter(&fakeSBOMService{}, &capturingVersionsService{})
+
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/components/versions?name=zlib", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, r)
+	is.Equal(w.Code, http.StatusOK)
+
+	var body struct {
+		VersionCount  int64 `json:"versionCount"`
+		ArtifactCount int64 `json:"artifactCount"`
+		Pagination    struct {
+			Total int64 `json:"total"`
+		} `json:"pagination"`
+	}
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &body))
+	is.Equal(body.VersionCount, int64(37))
+	is.Equal(body.ArtifactCount, int64(12))
+	is.Equal(body.Pagination.Total, int64(4210))
+}
+
+// The advisory page reports two different scopes: how much of the catalog is
+// affected, and how many namespaces it reaches. Deriving the second from a page
+// of artifacts is not possible, so it has to survive the handler as its own
+// field rather than collapsing into pagination.total.
+func TestGetVulnerabilityReportsNamespaceScope(t *testing.T) {
+	is := is.New(t)
+	router := newTestRouter(&fakeSBOMService{}, &fakeSearchService{})
+
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/vulns/CVE-2021-0001", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, r)
+	is.Equal(w.Code, http.StatusOK)
+
+	var body struct {
+		NamespaceCount int64 `json:"namespaceCount"`
+		Pagination     struct {
+			Total int64 `json:"total"`
+		} `json:"pagination"`
+	}
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &body))
+	is.Equal(body.NamespaceCount, int64(4))
+	is.Equal(body.Pagination.Total, int64(9))
+}
+
+// An unbounded caller must not be able to ask for the whole history again.
+func TestGetComponentVersionsDefaultsAndCapsTheWindow(t *testing.T) {
+	is := is.New(t)
+	search := &capturingVersionsService{}
+	router := newTestRouter(&fakeSBOMService{}, search)
+
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/components/versions?name=zlib", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, r)
+	is.Equal(w.Code, http.StatusOK)
+	is.Equal(search.filter.Limit, int32(20))
+	is.Equal(search.filter.Offset, int32(0))
+
+	r = httptest.NewRequest(http.MethodGet, "/api/v1/components/versions?name=zlib&limit=5000", nil)
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, r)
+	is.Equal(w.Code, http.StatusUnprocessableEntity)
 }
 
 func TestGetComponent(t *testing.T) {

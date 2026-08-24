@@ -824,7 +824,7 @@ describe("ClusterDetail", () => {
         expect(container.textContent).toContain("CVE-2026-1000");
         expect(container.textContent).toContain("Remote code execution");
 
-        const severityTabs = [...container.querySelectorAll(".tab-bar .tab-btn")].map(
+        const severityTabs = [...container.querySelectorAll(".filter-chips button")].map(
             (b) => b.textContent,
         );
         expect(severityTabs).toContain("CRITICAL");

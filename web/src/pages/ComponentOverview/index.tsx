@@ -1,7 +1,10 @@
-import { Show, createMemo } from "solid-js";
+import { Show, createMemo, createSignal, createEffect, on } from "solid-js";
 import { A, useSearchParams } from "@solidjs/router";
+import { Breadcrumb, Button, ButtonGroup, PageHeader, QueryBoundary, type Crumb } from "~/components/ui";
 import { useComponent, useComponentVersions, useComponentVulns } from "~/api/queries";
-import { ErrorBox, EmptyState } from "~/components/Feedback";
+import { DEFAULT_PAGE_SIZE } from "~/api/client";
+import { EmptyState } from "~/components/Feedback";
+import Pagination from "~/components/Pagination";
 import { SkeletonHeader } from "~/components/Skeleton";
 import ComponentMetadata from "~/components/ComponentMetadata";
 import { purlToRegistryUrl, purlTypeLabel } from "~/utils/purl";
@@ -12,6 +15,7 @@ import { VersionListTable } from "./VersionListTable";
 
 export default function ComponentOverview() {
     const [params] = useSearchParams<{ name: string; group?: string; version?: string }>();
+    const [offset, setOffset] = createSignal(0);
 
     const hasVersion = () => params.version !== undefined && params.version !== "";
 
@@ -22,10 +26,24 @@ export default function ComponentOverview() {
                       name: params.name,
                       group: params.group !== "" ? params.group : undefined,
                       version: params.version !== "" ? params.version : undefined,
+                      limit: DEFAULT_PAGE_SIZE,
+                      offset: offset(),
                   }
                 : undefined,
         { enabled: () => params.name !== undefined },
     );
+
+    // A different component (or a drill-down into one version) is a different
+    // result set, so the window has to go back to the top.
+    createEffect(
+        on(
+            () => [params.name, params.group, params.version],
+            () => setOffset(0),
+            { defer: true },
+        ),
+    );
+
+    const pagination = () => query.data?.pagination;
 
     const firstVersionId = () => query.data?.versions[0]?.id ?? "";
     const firstVersionPurl = () =>
@@ -58,6 +76,10 @@ export default function ComponentOverview() {
 
     const componentType = () => query.data?.versions[0]?.type ?? "library";
 
+    const totalRows = () => pagination()?.total ?? query.data?.versions.length ?? 0;
+    // One page of results needs no controls and no "on this page" hedging.
+    const isPaged = () => totalRows() > DEFAULT_PAGE_SIZE;
+
     const firstPurl = () => query.data?.versions.find((v) => v.purl !== undefined)?.purl;
 
     const allVersionsHref = () => {
@@ -72,18 +94,22 @@ export default function ComponentOverview() {
     const versionHref = (version: string) =>
         `${allVersionsHref()}&version=${encodeURIComponent(version)}`;
 
+    /* With a version pinned the name becomes a link back to all of its
+       versions; without one the name *is* this page. */
+    const crumbs = (): Crumb[] =>
+        hasVersion()
+            ? [
+                { label: "Components", href: "/components" },
+                { label: displayName(), href: allVersionsHref() },
+                { label: params.version, mono: true },
+            ]
+            : [
+                { label: "Components", href: "/components" },
+                { label: displayName() },
+            ];
+
     return (
         <>
-            <div class="breadcrumb">
-                <A href="/components">Components</A>
-                <span class="separator">/</span>
-                <Show when={hasVersion()} fallback={<span>{displayName()}</span>}>
-                    <A href={allVersionsHref()}>{displayName()}</A>
-                    <span class="separator">/</span>
-                    <span class="font-mono">{params.version}</span>
-                </Show>
-            </div>
-
             <Show when={params.name === undefined}>
                 <EmptyState
                     title="No component specified"
@@ -92,75 +118,97 @@ export default function ComponentOverview() {
             </Show>
 
             <Show when={params.name !== undefined}>
-                <Show when={!query.isLoading} fallback={<SkeletonHeader />}>
-                    <Show when={!query.isError} fallback={<ErrorBox error={query.error} />}>
-                        <Show
-                            when={
-                                query.data !== undefined && query.data.versions.length > 0
-                                    ? query.data
-                                    : undefined
-                            }
-                            keyed
-                            fallback={
-                                <EmptyState
-                                    title="No versions found"
-                                    message={`No component instances found for "${displayName()}".`}
-                                />
-                            }
-                        >
-                            {(qd) => (
+                <QueryBoundary
+                    query={query}
+                    breadcrumb={<Breadcrumb items={crumbs()} />}
+                    loading={<SkeletonHeader />}
+                    when={(d) => d.versions.length > 0}
+                    empty={
+                        <EmptyState
+                            title="No versions found"
+                            message={`No component instances found for "${displayName()}".`}
+                        />
+                    }
+                >
+                    {(qd) => (
                                 <>
-                                    <div class="page-header">
-                                        <div class="page-header-row">
-                                            <div>
-                                                <h2>
-                                                    <Show when={hasVersion()} fallback={displayName()}>
-                                                        {displayName()}{" "}
-                                                        <span class="font-mono">{params.version}</span>
-                                                    </Show>
-                                                </h2>
-                                                <p class="text-muted">
-                                                    <span class="badge">{componentType()}</span>{" "}
+                                <PageHeader
+                                    breadcrumb={<Breadcrumb items={crumbs()} />}
+                                    title={
+                                        <Show when={hasVersion()} fallback={displayName()}>
+                                            {displayName()}{" "}
+                                            <span class="font-mono">{params.version}</span>
+                                        </Show>
+                                    }
+                                    subtitle={
+                                        <>
+                                            <span class="badge">{componentType()}</span>{" "}
+                                            {/* These count the rows on screen, and the
+                                                list is paginated, so they are qualified
+                                                the moment there is more than one page.
+                                                The total is SBOM occurrences, which is
+                                                what the endpoint counts; distinct
+                                                versions across all pages is not a figure
+                                                the API reports, so it is never claimed. */}
+                                            <Show
+                                                when={hasVersion()}
+                                                fallback={
                                                     <Show
-                                                        when={hasVersion()}
+                                                        when={isPaged()}
                                                         fallback={
                                                             <>
                                                                 {plural(grouped().length, "version")} across{" "}
-                                                                {plural(qd.versions.length, "SBOM")}
+                                                                {plural(qd().versions.length, "SBOM")}
                                                             </>
                                                         }
                                                     >
-                                                        {plural(artifactGroups().length, "artifact")}
+                                                        {plural(grouped().length, "version")} on this page
+                                                        {" · "}
+                                                        {plural(totalRows(), "SBOM")} in total
                                                     </Show>
-                                                </p>
-                                            </div>
-                                            <div class="btn-group">
-                                                <Show when={hasVersion()}>
-                                                    <A href={allVersionsHref()} class="btn btn-sm btn-secondary">
-                                                        ← All versions
-                                                    </A>
-                                                </Show>
+                                                }
+                                            >
                                                 <Show
-                                                    when={
-                                                        firstPurl() !== undefined
-                                                            ? (purlToRegistryUrl(firstPurl() ?? "") ?? undefined)
-                                                            : undefined
-                                                    }
+                                                    when={isPaged()}
+                                                    fallback={plural(artifactGroups().length, "artifact")}
                                                 >
-                                                    {(registryUrl) => (
-                                                        <a
-                                                            href={registryUrl()}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            class="btn btn-sm btn-primary"
-                                                        >
-                                                            View on {purlTypeLabel(firstPurl() ?? "") ?? "Registry"}
-                                                        </a>
-                                                    )}
+                                                    {plural(artifactGroups().length, "artifact")} on this page
+                                                    {" · "}
+                                                    {plural(totalRows(), "SBOM")} in total
                                                 </Show>
-                                            </div>
-                                        </div>
-                                    </div>
+                                            </Show>
+                                        </>
+                                    }
+                                    actions={
+                                        <ButtonGroup>
+                                            <Show when={hasVersion()}>
+                                                <Button as={A} href={allVersionsHref()} size="sm">
+                                                    ← All versions
+                                                </Button>
+                                            </Show>
+                                            <Show
+                                                when={
+                                                    firstPurl() !== undefined
+                                                        ? (purlToRegistryUrl(firstPurl() ?? "") ?? undefined)
+                                                        : undefined
+                                                }
+                                            >
+                                                {(registryUrl) => (
+                                                    <Button
+                                                        as="a"
+                                                        href={registryUrl()}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        size="sm"
+                                                        variant="primary"
+                                                    >
+                                                        View on {purlTypeLabel(firstPurl() ?? "") ?? "Registry"}
+                                                    </Button>
+                                                )}
+                                            </Show>
+                                        </ButtonGroup>
+                                    }
+                                />
 
                                     {/* ── Drill-down: specific version selected ── */}
                                     <Show when={hasVersion()}>
@@ -176,11 +224,15 @@ export default function ComponentOverview() {
                                     <Show when={!hasVersion()}>
                                         <VersionListTable groups={grouped()} versionHref={versionHref} />
                                     </Show>
+
+                                    <Show when={isPaged() ? pagination() : undefined}>
+                                        {(p) => (
+                                            <Pagination pagination={p()} onPageChange={setOffset} />
+                                        )}
+                                    </Show>
                                 </>
-                            )}
-                        </Show>
-                    </Show>
-                </Show>
+                    )}
+                </QueryBoundary>
             </Show>
         </>
     );

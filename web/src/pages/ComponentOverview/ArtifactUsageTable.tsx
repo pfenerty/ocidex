@@ -1,9 +1,20 @@
-import { For, Show } from "solid-js";
+import { Show } from "solid-js";
 import { A } from "@solidjs/router";
 import CopyDigest from "~/components/CopyDigest";
-import { Card, CardHeader, createExpandedSet } from "~/components/ui";
+import { CardHeader, createExpandedSet } from "~/components/ui";
+import DataTable from "~/components/DataTable";
+import type { Column } from "~/components/DataTable";
 import { relativeDate, formatDateTime, plural } from "~/utils/format";
 import type { ArtifactGroup } from "./grouping";
+
+type SbomEntry = ArtifactGroup["entries"][number];
+
+/**
+ * One flat row list rather than a nested render, because DataTable emits rows
+ * and not a tree. The discriminant is what lets the two shapes — the artifact
+ * that toggles and the SBOMs it reveals — share three columns.
+ */
+type Row = { kind: "artifact"; ag: ArtifactGroup } | { kind: "sbom"; entry: SbomEntry };
 
 /**
  * ArtifactUsageTable lists the artifacts containing the selected version, each
@@ -12,87 +23,85 @@ import type { ArtifactGroup } from "./grouping";
 export function ArtifactUsageTable(props: { groups: ArtifactGroup[] }) {
     const expanded = createExpandedSet();
 
-    return (
-        <Card>
-            <CardHeader title="Artifacts" count={props.groups.length} />
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th style={{ width: "24px" }} />
-                            <th>Artifact</th>
-                            <th>SBOMs</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <For each={props.groups}>
-                            {(ag) => (
-                                <>
-                                    <tr style={{ cursor: "pointer" }} onClick={() => expanded.toggle(ag.key)}>
-                                        <td class="text-muted" style={{ "font-size": "0.7em", "user-select": "none" }}>
-                                            {expanded.has(ag.key) ? "▼" : "▶"}
-                                        </td>
-                                        <td>
-                                            <Show
-                                                when={ag.artifactId}
-                                                fallback={<span>{ag.artifactName ?? ag.key.slice(0, 8)}</span>}
-                                                keyed
-                                            >
-                                                {(artifactId) => (
-                                                    <A
-                                                        href={`/artifacts/${artifactId}`}
-                                                        onClick={(e) => e.stopPropagation()}
-                                                    >
-                                                        {ag.artifactName ?? artifactId.slice(0, 8)}
-                                                    </A>
-                                                )}
-                                            </Show>
-                                        </td>
-                                        <td class="text-muted">{plural(ag.entries.length, "SBOM")}</td>
-                                    </tr>
-                                    <Show when={expanded.has(ag.key)}>
-                                        <For each={ag.entries}>
-                                            {(e) => (
-                                                <tr style={{ background: "var(--color-surface-hover)" }}>
-                                                    <td />
-                                                    <td style={{ "padding-left": "2rem" }}>
-                                                        <A href={`/sboms/${e.sbomId}`}>
-                                                            {e.subjectVersion ?? formatDateTime(e.sbomCreatedAt)}
-                                                        </A>
-                                                        <Show when={e.architecture} keyed>
-                                                            {(arch) => (
-                                                                <span class="badge badge-primary" style={{ "margin-left": "8px" }}>
-                                                                    {arch}
-                                                                </span>
-                                                            )}
-                                                        </Show>
-                                                        <Show when={e.sbomDigest} keyed>
-                                                            {(digest) => (
-                                                                <span style={{ "margin-left": "12px" }}>
-                                                                    <CopyDigest
-                                                                        digest={digest}
-                                                                        artifactName={e.artifactName ?? undefined}
-                                                                    />
-                                                                </span>
-                                                            )}
-                                                        </Show>
-                                                    </td>
-                                                    <td
-                                                        class="whitespace-nowrap text-muted"
-                                                        title={new Date(e.sbomCreatedAt).toLocaleString()}
-                                                    >
-                                                        {relativeDate(e.sbomCreatedAt)}
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </For>
-                                    </Show>
-                                </>
+    const rows = (): Row[] =>
+        props.groups.flatMap((ag): Row[] => [
+            { kind: "artifact", ag },
+            ...(expanded.has(ag.key)
+                ? ag.entries.map((entry): Row => ({ kind: "sbom", entry }))
+                : []),
+        ]);
+
+    const columns: Column<Row>[] = [
+        {
+            header: "",
+            class: "row-expander",
+            render: (row) =>
+                row.kind === "artifact" ? (expanded.has(row.ag.key) ? "▼" : "▶") : null,
+        },
+        {
+            header: "Artifact",
+            render: (row) =>
+                row.kind === "artifact" ? (
+                    <Show
+                        when={row.ag.artifactId}
+                        fallback={<span>{row.ag.artifactName ?? row.ag.key.slice(0, 8)}</span>}
+                        keyed
+                    >
+                        {(artifactId) => (
+                            <A href={`/artifacts/${artifactId}`} onClick={(e) => e.stopPropagation()}>
+                                {row.ag.artifactName ?? artifactId.slice(0, 8)}
+                            </A>
+                        )}
+                    </Show>
+                ) : (
+                    <>
+                        <A href={`/sboms/${row.entry.sbomId}`}>
+                            {row.entry.subjectVersion ?? formatDateTime(row.entry.sbomCreatedAt)}
+                        </A>
+                        <Show when={row.entry.architecture} keyed>
+                            {(arch) => <span class="badge badge-primary ml-2">{arch}</span>}
+                        </Show>
+                        <Show when={row.entry.sbomDigest} keyed>
+                            {(digest) => (
+                                <span class="ml-3">
+                                    <CopyDigest
+                                        digest={digest}
+                                        artifactName={row.entry.artifactName ?? undefined}
+                                    />
+                                </span>
                             )}
-                        </For>
-                    </tbody>
-                </table>
-            </div>
-        </Card>
+                        </Show>
+                    </>
+                ),
+        },
+        {
+            header: "SBOMs",
+            class: "text-muted whitespace-nowrap",
+            render: (row) =>
+                row.kind === "artifact" ? (
+                    plural(row.ag.entries.length, "SBOM")
+                ) : (
+                    <span title={new Date(row.entry.sbomCreatedAt).toLocaleString()}>
+                        {relativeDate(row.entry.sbomCreatedAt)}
+                    </span>
+                ),
+        },
+    ];
+
+    return (
+        <DataTable
+            caption={<CardHeader title="Artifacts" count={props.groups.length} />}
+            columns={columns}
+            rows={rows()}
+            loading={false}
+            isError={false}
+            emptyTitle="No artifacts"
+            emptyMessage="This version was not seen in any artifact."
+            rowClass={(row) => (row.kind === "sbom" ? "row-child" : undefined)}
+            rowClickable={(row) => row.kind === "artifact"}
+            onRowClick={(row) => {
+                if (row.kind === "artifact") expanded.toggle(row.ag.key);
+            }}
+        />
     );
 }

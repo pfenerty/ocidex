@@ -8,6 +8,23 @@ import { isGitHubUrl, gitHubCommitUrl } from "~/utils/oci";
 import { trustStatus, trustBadgeClass, signingStatusLabel, driftReasonLabel } from "~/utils/trust";
 import { ShieldIcon, GitHubIcon, ExternalLinkIcon } from "./metadata/OciIcons";
 import { LinkedField } from "./metadata/LinkedField";
+import { Card, CardHeader } from "~/components/ui";
+import DataTable from "~/components/DataTable";
+import type { Column } from "~/components/DataTable";
+
+const historyColumns: Column<ProvenanceDriftSummary>[] = [
+    { header: "Detected", class: "text-sm", render: (e) => formatDateTime(e.detectedAt) },
+    {
+        header: "Change",
+        class: "text-sm",
+        render: (e) => (
+            <>
+                {signingStatusLabel(e.previousStatus)} → {signingStatusLabel(e.newStatus)}
+            </>
+        ),
+    },
+    { header: "Reason", class: "text-muted text-sm", render: (e) => driftReasonLabel(e.reason) },
+];
 
 // FactPill renders a present/absent trust fact (e.g. "cosign signature ✓").
 function FactPill(props: { present: boolean; label: string }) {
@@ -45,16 +62,20 @@ export default function ProvenanceCard(props: {
     };
 
     return (
-        <div class="card mb-4">
-            <div class="card-header">
-                <h3 style={{ display: "flex", "align-items": "center", gap: "0.5rem" }}>
-                    <ShieldIcon />
-                    Provenance
-                </h3>
-                <Show when={trust()}>
-                    {(t) => <span class={trustBadgeClass(t().variant)}>{t().label}</span>}
-                </Show>
-            </div>
+        <Card class="mb-4">
+            <CardHeader
+                title={
+                    <span class="title-inline">
+                        <ShieldIcon />
+                        Provenance
+                    </span>
+                }
+                actions={
+                    <Show when={trust()}>
+                        {(t) => <span class={trustBadgeClass(t().variant)}>{t().label}</span>}
+                    </Show>
+                }
+            />
 
             <Show when={props.drift}>
                 {(d) => (
@@ -173,7 +194,7 @@ export default function ProvenanceCard(props: {
             <Show when={p.subjects !== undefined && p.subjects.length > 0 ? p.subjects : undefined}>
                 {(subjects) => (
                     <details class="mt-4">
-                        <summary class="text-muted text-sm" style={{ cursor: "pointer" }}>
+                        <summary class="text-muted text-sm cursor-pointer">
                             Subjects ({subjects().length})
                         </summary>
                         <ul class="subjects-list">
@@ -189,34 +210,21 @@ export default function ProvenanceCard(props: {
             <Show when={(props.driftHistory?.length ?? 0) > 1 ? props.driftHistory : undefined}>
                 {(history) => (
                     <details class="mt-4">
-                        <summary class="text-muted text-sm" style={{ cursor: "pointer" }}>
+                        <summary class="text-muted text-sm cursor-pointer">
                             History ({history().length})
                         </summary>
-                        <table class="table" style={{ "margin-top": "0.5rem" }}>
-                            <thead>
-                                <tr>
-                                    <th>Detected</th>
-                                    <th>Change</th>
-                                    <th>Reason</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <For each={history()}>
-                                    {(event) => (
-                                        <tr>
-                                            <td class="text-sm">{formatDateTime(event.detectedAt)}</td>
-                                            <td class="text-sm">
-                                                {signingStatusLabel(event.previousStatus)} → {signingStatusLabel(event.newStatus)}
-                                            </td>
-                                            <td class="text-muted text-sm">{driftReasonLabel(event.reason)}</td>
-                                        </tr>
-                                    )}
-                                </For>
-                            </tbody>
-                        </table>
+                        <DataTable
+                            bare
+                            class="mt-2"
+                            columns={historyColumns}
+                            rows={history()}
+                            loading={false}
+                            isError={false}
+                            emptyTitle="No verification history"
+                        />
                     </details>
                 )}
             </Show>
-        </div>
+        </Card>
     );
 }

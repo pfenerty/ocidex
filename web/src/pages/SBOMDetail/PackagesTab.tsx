@@ -12,6 +12,7 @@ import {
 } from "~/components/cells";
 import { plural } from "~/utils/format";
 import { parsePurl } from "~/utils/purl";
+import { Button, ButtonGroup, Card, Tooltip } from "~/components/ui";
 import { componentHref } from "./componentHref";
 import { DependencyTreeView } from "./DependencyTreeView";
 
@@ -28,6 +29,14 @@ export function PackagesTab(props: {
     hasMore?: boolean;
     loadingMore?: boolean;
     onLoadMore?: () => void;
+    /**
+     * The server's package count for the whole SBOM, and its count of every
+     * component including files. `components` is only the window loaded so far,
+     * so its length is not the figure to show — the page used to render it as
+     * "200 packages" directly beneath a tile and a tab that both said 958.
+     */
+    totalCount?: number;
+    componentCount?: number;
 }) {
     const [filter, setFilter] = createSignal("");
     const [typeFilter, setTypeFilter] = createSignal("all");
@@ -66,6 +75,37 @@ export function PackagesTab(props: {
 
     const updateFilter = (v: string) => setFilter(v);
     const updateType = (v: string) => setTypeFilter(v);
+
+    // The authoritative figure is the server's count for the whole SBOM, not the
+    // length of the window this tab has loaded. Fall back to the loaded length
+    // only when the caller passes no total.
+    const total = () => props.totalCount ?? packages().length;
+    const allLoaded = () => packages().length >= total();
+
+    const loadedLabel = () =>
+        allLoaded()
+            ? plural(total(), "package")
+            : `${packages().length} of ${total()} packages loaded`;
+
+    // Filtering is client-side over the loaded rows, so a filtered count is
+    // quoted against those rows and says so, rather than against the total.
+    const countLabel = () =>
+        effectiveMode() === "list" && filtered().length !== packages().length
+            ? `${filtered().length} of ${packages().length} loaded packages`
+            : loadedLabel();
+
+    const countExplanation = () => {
+        const all = props.componentCount ?? 0;
+        const files = all - total();
+        const parts = ["Packages are this SBOM's components excluding file entries."];
+        if (files > 0) {
+            parts.push(`${all} components in total, ${files} of them files.`);
+        }
+        if (!allLoaded()) {
+            parts.push("Filtering and type counts apply to the loaded rows only.");
+        }
+        return parts.join(" ");
+    };
 
     const hasTree = () => (props.depsGraph?.edges.length ?? 0) > 0;
     const effectiveMode = () => (hasTree() ? viewMode() : "list");
@@ -136,36 +176,32 @@ export function PackagesTab(props: {
                             value={typeFilter()}
                             onChange={(e) => updateType(e.currentTarget.value)}
                         >
-                            <option value="all">
-                                All types ({packages().length})
-                            </option>
+                            <option value="all">All types</option>
                             <For each={types()}>
                                 {(t) => <option value={t}>{t}</option>}
                             </For>
                         </select>
                     </Show>
                     <span class="text-muted text-sm">
-                        {effectiveMode() === "list"
-                            ? filtered().length === packages().length
-                                ? plural(filtered().length, "package")
-                                : `${filtered().length} of ${packages().length} packages`
-                            : plural(packages().length, "package")}
+                        <Tooltip content={countExplanation()}>{countLabel()}</Tooltip>
                     </span>
                     <Show when={hasTree()}>
-                        <div class="btn-group" style={{ "margin-left": "auto" }}>
-                            <button
-                                class={`btn btn-sm${effectiveMode() === "tree" ? " active" : ""}`}
+                        <ButtonGroup class="ml-auto">
+                            <Button
+                                size="sm"
+                                active={effectiveMode() === "tree"}
                                 onClick={() => setViewMode("tree")}
                             >
                                 Tree
-                            </button>
-                            <button
-                                class={`btn btn-sm${effectiveMode() === "list" ? " active" : ""}`}
+                            </Button>
+                            <Button
+                                size="sm"
+                                active={effectiveMode() === "list"}
                                 onClick={() => setViewMode("list")}
                             >
                                 List
-                            </button>
-                        </div>
+                            </Button>
+                        </ButtonGroup>
                     </Show>
                 </div>
 
@@ -189,9 +225,9 @@ export function PackagesTab(props: {
                     }
                 >
                     {(graph) => (
-                        <div class="card">
+                        <Card>
                             <DependencyTreeView graph={graph} />
-                        </div>
+                        </Card>
                     )}
                 </Show>
             </>

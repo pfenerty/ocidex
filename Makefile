@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
+.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-dev-live frontend-dev-auth dev-auth-up dev-auth-down dev-auth-fixtures dev-auth-status dev-auth-reset frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
 
 all: check build ## Run all checks and build
 
@@ -122,6 +122,32 @@ frontend: frontend-init ## Build the SolidJS frontend
 
 frontend-dev: ## Start the frontend dev server (with API proxy to :8080)
 	cd web && npm run dev --host
+
+# Read-only: requests reach production. See web/vite.config.live.ts for why this
+# exists and what it cannot verify.
+frontend-dev-live: ## Start the frontend dev server on :3100 with the API proxied to prod
+	cd web && npx vite --config vite.config.live.ts
+
+# Local and authenticated: this branch's API, a throwaway Postgres, safe writes.
+# The counterpart to frontend-dev-live, which is prod-backed and therefore
+# signed out. See scripts/dev-auth.sh.
+dev-auth-up: ## Start the local authenticated rig (postgres + nats + api on :8080)
+	./scripts/dev-auth.sh up
+
+dev-auth-down: ## Stop the local authenticated rig
+	./scripts/dev-auth.sh down
+
+dev-auth-fixtures: ## Re-seed the rig's corpus (artifacts, vulns, cluster workloads)
+	./scripts/dev-auth.sh fixtures
+
+dev-auth-status: ## Show which rig services are up
+	./scripts/dev-auth.sh status
+
+dev-auth-reset: ## Destroy the rig's database and credentials
+	./scripts/dev-auth.sh reset
+
+frontend-dev-auth: ## Start the frontend on :3200 signed in against the local rig
+	cd web && npx vite --config vite.config.auth.ts
 
 frontend-lint: ## Run ESLint on the frontend
 	cd web && npm run lint

@@ -1,0 +1,41 @@
+/* Styling for the <dialog> that ui/Modal.tsx renders.
+ *
+ * These rules lived in pages/admin/SourcesTab.css until ocidex-ag4q.56 — a
+ * bare-element selector imported by exactly one admin page, which every other
+ * Modal call site then inherited by accident. It worked only because App.tsx
+ * imports all routes statically; the first `lazy()` route would have left
+ * /clusters rendering a browser-default white box with no backdrop. Primitive
+ * styling belongs with the primitive. */
+dialog {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: 0;
+    width: min(90vw, 740px);
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    margin: auto;
+}
+
+dialog::backdrop {
+    background: rgba(0, 0, 0, 0.55);
+}
+
+/* A form of three short fields does not want the 740px width sized for the
+ * registry dialog's two-column grid: it renders as a narrow ragged column of
+ * controls against ~550px of dead space (ocidex-ag4q.57). `size="sm"` asks for
+ * a width the content can actually fill.
+ *
+ * The control rule is scoped to this variant rather than to `dialog`, so the
+ * registry dialog's deliberate per-field sizing is left alone. */
+dialog.modal-sm {
+    width: min(90vw, 26rem);
+}
+
+dialog.modal-sm input[type="text"],
+dialog.modal-sm input[type="password"],
+dialog.modal-sm select {
+    width: 100%;
+}

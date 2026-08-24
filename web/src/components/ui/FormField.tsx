@@ -32,7 +32,7 @@ export function FormField(props: {
                     <span
                         style={
                             props.hintEmphasis === true
-                                ? { color: "var(--color-error, #e53e3e)", "font-weight": "bold" }
+                                ? { color: "var(--color-danger)", "font-weight": "bold" }
                                 : { color: "var(--color-text-muted)" }
                         }
                     >

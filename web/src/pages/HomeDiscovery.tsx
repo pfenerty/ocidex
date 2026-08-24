@@ -2,7 +2,7 @@ import { A } from "@solidjs/router";
 import { Flame, Clock, ShieldAlert, Scale } from "lucide-solid";
 import { For, Show, type JSX } from "solid-js";
 import { Skeleton } from "~/components/Skeleton";
-import { Badge, TypeBadge } from "~/components/ui";
+import { Badge, Card, QueryBoundary, TypeBadge } from "~/components/ui";
 import { useDiscovery } from "~/api/queries";
 import type { DiscoverVuln } from "~/api/queries";
 import { plural } from "~/utils/format";
@@ -46,7 +46,7 @@ function DiscoverPanel(props: {
     children: JSX.Element;
 }): JSX.Element {
     return (
-        <section class="card entry-card landing-panel">
+        <Card as="section" class="entry-card landing-panel">
             <div class="landing-card-header">
                 <span class="entry-number">{props.number}</span>
                 <A href={props.href} class="landing-panel-all">
@@ -59,7 +59,7 @@ function DiscoverPanel(props: {
             </h3>
             <p class="landing-card-desc">{props.blurb}</p>
             <ul class="landing-list">{props.children}</ul>
-        </section>
+        </Card>
     );
 }
 
@@ -81,27 +81,28 @@ function blastRadius(v: DiscoverVuln): string {
  */
 export function HomeDiscovery(): JSX.Element {
     const discovery = useDiscovery();
-    const ready = () =>
-        discovery.data && !discovery.data.warming ? discovery.data : undefined;
+
+    // `warming` is a 200 with nothing measured yet, so it takes the loading
+    // treatment rather than the empty one — hence the same block in both slots.
+    const warmingOrLoading = (
+        <div class="landing-discover-loading">
+            <Skeleton width="100%" height="8rem" />
+        </div>
+    );
 
     return (
         <section class="landing-features">
-            <Show
-                when={!discovery.isError}
-                fallback={
+            <QueryBoundary
+                query={discovery}
+                loading={warmingOrLoading}
+                when={(d) => !d.warming}
+                empty={warmingOrLoading}
+                error={
                     <p class="text-muted landing-discover-error">
                         Catalog highlights are unavailable.
                     </p>
                 }
             >
-                <Show
-                    when={ready()}
-                    fallback={
-                        <div class="landing-discover-loading">
-                            <Skeleton width="100%" height="8rem" />
-                        </div>
-                    }
-                >
                     {(data) => (
                         <div class="landing-features-grid">
                             <DiscoverPanel
@@ -257,8 +258,7 @@ export function HomeDiscovery(): JSX.Element {
                             </DiscoverPanel>
                         </div>
                     )}
-                </Show>
-            </Show>
+            </QueryBoundary>
         </section>
     );
 }

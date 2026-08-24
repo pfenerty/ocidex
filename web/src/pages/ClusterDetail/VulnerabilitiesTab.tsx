@@ -1,10 +1,10 @@
-import { Show, For } from "solid-js";
+import { Show } from "solid-js";
 import { A } from "@solidjs/router";
 import DataTable from "~/components/DataTable";
 import type { Column, SortDir } from "~/components/DataTable";
 import { SeverityPill } from "~/components/VulnBadge";
 import { VulnId } from "~/components/cells";
-import { createExpandedSet } from "~/components/ui";
+import { createExpandedSet, TabBar } from "~/components/ui";
 import { plural } from "~/utils/format";
 import type { RunningVuln, WorkloadCoverage } from "~/api/client";
 import { useClusterVulns } from "~/api/queries";
@@ -124,21 +124,15 @@ export function VulnerabilitiesTab(props: {
                 </p>
             </Show>
 
-            <div class="tab-bar">
-                <For each={SEVERITY_TABS}>
-                    {(tab) => (
-                        <button
-                            type="button"
-                            class={`tab-btn${(tab === "All" ? undefined : tab) === props.severity ? " tab-active" : ""}`}
-                            onClick={() =>
-                                props.onSeverityChange(tab === "All" ? undefined : tab)
-                            }
-                        >
-                            {tab}
-                        </button>
-                    )}
-                </For>
-            </div>
+            {/* See Vulnerabilities.tsx: the hand-rolled strip emitted
+                `tab-btn`/`tab-active`, which the stylesheet does not define. */}
+            <TabBar
+                variant="filter"
+                label="Severity"
+                tabs={SEVERITY_TABS.map((t) => ({ id: t, label: t }))}
+                active={props.severity ?? "All"}
+                onSelect={(tab) => props.onSeverityChange(tab === "All" ? undefined : tab)}
+            />
 
             <DataTable
                 columns={columns}
@@ -157,7 +151,7 @@ export function VulnerabilitiesTab(props: {
                 emptyTitle="Nothing known running here"
                 emptyMessage="No vulnerability is known for the images this cluster runs that OCIDex could match. Check the coverage figures above before reading that as clean."
             />
-            <p class="text-muted" style={{ "margin-top": "0.5rem" }}>
+            <p class="text-muted mt-2">
                 <A href="/vulnerabilities">
                     Catalog-wide vulnerabilities
                 </A>

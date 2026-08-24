@@ -1,3 +1,4 @@
+import "~/components/ui/Modal.css";
 import type { JSX } from "solid-js";
 
 /**
@@ -13,10 +14,21 @@ export function Modal(props: {
     ref: (el: HTMLDialogElement) => void;
     title: JSX.Element;
     onClose?: () => void;
+    /**
+     * `"sm"` narrows the dialog to something a short form can fill, and
+     * stretches its controls to the full width. The default is sized for the
+     * registry dialog's two-column grid, which is far too wide for three
+     * fields.
+     */
+    size?: "sm";
     children: JSX.Element;
 }): JSX.Element {
     return (
-        <dialog ref={props.ref} onClose={() => props.onClose?.()}>
+        <dialog
+            ref={props.ref}
+            class={props.size === "sm" ? "modal-sm" : undefined}
+            onClose={() => props.onClose?.()}
+        >
             <div style={{ padding: "1.5rem" }}>
                 <div class="card-header">
                     <h3>{props.title}</h3>

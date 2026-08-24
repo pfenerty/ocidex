@@ -4,6 +4,7 @@ import type { ArtifactVersionSummary, PaginationMeta } from "~/api/client";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { SigningBadge, TimestampCell } from "~/components/cells";
+import { Button } from "~/components/ui";
 
 export function VersionsTab(props: {
     artifactId: string;
@@ -94,21 +95,22 @@ export function VersionsTab(props: {
                 <Show
                     when={version.sbomCount > 1}
                     fallback={
-                        <button
-                            class="btn btn-sm"
+                        <Button
+                            size="sm"
                             disabled
                             title="Only one build — need at least two to show history"
                         >
                             Build History
-                        </button>
+                        </Button>
                     }
                 >
-                    <A
+                    <Button
+                        as={A}
                         href={`/artifacts/${props.artifactId}/versions/${encodeURIComponent(version.versionKey)}`}
-                        class="btn btn-sm"
+                        size="sm"
                     >
                         Build History
-                    </A>
+                    </Button>
                 </Show>
             ),
         },

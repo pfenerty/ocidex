@@ -1,0 +1,164 @@
+/*
+ * The palette overlay.
+ *
+ * It renders a bare <dialog> rather than ui/Modal because Modal's contract is a
+ * titled panel — it emits a `.card-header h3` around whatever it is given — and
+ * a palette's first row must be the input. What actually matters about Modal is
+ * shared anyway: the bare `dialog` rules in ui/Modal.css supply the surface,
+ * border, shadow and backdrop, and the browser supplies the top layer and the
+ * focus trap. Only the geometry is overridden here.
+ */
+
+/* Scoped to [open]. The UA hides a closed dialog with `display: none`, and an
+   author `display: flex` on the bare selector outranks it — an unscoped rule
+   here would leave the palette permanently on screen. */
+dialog.command-palette[open] {
+    display: flex;
+    flex-direction: column;
+}
+
+dialog.command-palette {
+    width: min(92vw, 34rem);
+    max-height: min(70vh, 30rem);
+    /* Top-anchored, not centred: the palette appears where the eye already is
+       when you reach for it, and stays in the same place on every page
+       regardless of how tall that page happens to be. */
+    margin: 12vh auto auto;
+    /* The list scrolls, not the dialog — the search box and the key hints stay
+       pinned while the results move under them. */
+    overflow: hidden;
+    background: var(--color-elevated);
+}
+
+.command-palette-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.command-palette-search {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+}
+
+.command-palette-search input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: var(--text-lg);
+    padding: 0;
+}
+
+.command-palette-search input:focus {
+    outline: none;
+    /* index.css rings any focused input, to say which of several fields has the
+       keyboard. The palette has exactly one, and it holds focus for as long as
+       the palette is on screen — so the ring marks nothing, and only draws a
+       box the eye reads as a control nested inside the panel. */
+    box-shadow: none;
+}
+
+.command-palette-search input::placeholder {
+    color: var(--color-text-dim);
+}
+
+.command-palette-list {
+    list-style: none;
+    margin: 0;
+    padding: 0.375rem 0;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.command-palette-list ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.command-palette-group {
+    padding: 0.5rem 1rem 0.25rem;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-dim);
+}
+
+.command-palette-option {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.4375rem 1rem;
+    cursor: pointer;
+    color: var(--color-text);
+    /* A 2px inset marker rather than a border, so the highlight moving down the
+       list never shifts the text sideways. */
+    box-shadow: inset 2px 0 0 transparent;
+}
+
+.command-palette-option.is-active {
+    background: var(--color-info-bg);
+    color: var(--color-secondary);
+    box-shadow: inset 2px 0 0 var(--color-secondary);
+}
+
+.command-palette-label {
+    font-size: var(--text-sm);
+    font-weight: 500;
+}
+
+.command-palette-path {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--color-text-dim);
+    white-space: nowrap;
+}
+
+.command-palette-option.is-active .command-palette-path {
+    color: var(--color-secondary);
+}
+
+.command-palette-empty {
+    padding: 1.25rem 1rem;
+    text-align: center;
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+}
+
+.command-palette-hint {
+    display: flex;
+    gap: 1rem;
+    padding: 0.5rem 1rem;
+    border-top: 1px solid var(--color-border);
+    font-size: var(--text-xs);
+    color: var(--color-text-dim);
+    flex-shrink: 0;
+}
+
+.command-palette-searching {
+    margin-left: auto;
+    color: var(--color-text-muted);
+}
+
+.command-palette-hint kbd {
+    display: inline-block;
+    min-width: 1.25em;
+    margin-right: 0.25rem;
+    padding: 0.0625rem 0.25rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    text-align: center;
+}

@@ -1,6 +1,6 @@
 import "~/components/DetailSection.css";
-import { createSignal, Show } from "solid-js";
-import { A, useParams } from "@solidjs/router";
+import { createSignal, For, Show } from "solid-js";
+import { useParams } from "@solidjs/router";
 import {
     useArtifact,
     useArtifactVersions,
@@ -9,23 +9,21 @@ import {
     useArtifactUsages,
     useArtifactVulnSummary,
 } from "~/api/queries";
-import { ErrorBox, EmptyState } from "~/components/Feedback";
+import { EmptyState } from "~/components/Feedback";
 import { Skeleton, SkeletonHeader, SkeletonText } from "~/components/Skeleton";
-import { VulnSummaryBar } from "~/components/VulnBadge";
-import { QueryBoundary, TabBar, type TabDef } from "~/components/ui";
+import { Breadcrumb, ButtonGroup, Button, QueryBoundary, TabBar, type Crumb, type TabDef } from "~/components/ui";
 import { artifactDisplayName } from "~/utils/format";
-import { ArtifactHeader, ArtifactAboutCard } from "./ArtifactHeader";
+import { ArtifactHeader, ArtifactIdentity } from "./ArtifactHeader";
+import { ArtifactBand, type ArtifactTab } from "./ArtifactBand";
 import { VersionsTab } from "./VersionsTab";
 import { LicensesTab } from "./LicensesTab";
 import { ChangelogTab } from "./ChangelogTab";
 import { RelationshipsTab } from "./RelationshipsTab";
 
-type Tab = "versions" | "changelog" | "licenses" | "relationships";
-
 export default function ArtifactDetail() {
     const params = useParams<{ id: string }>();
     const [versionOffset, setVersionOffset] = createSignal(0);
-    const [tab, setTab] = createSignal<Tab>("versions");
+    const [tab, setTab] = createSignal<ArtifactTab>("versions");
     const [selectedArch, setSelectedArch] = createSignal<string | undefined>("amd64");
     const [selectedFlavor, setSelectedFlavor] = createSignal<string | undefined>(undefined);
     // undefined = auto (let the backend pick semver when available, else all).
@@ -75,47 +73,68 @@ export default function ArtifactDetail() {
 
     const vulnSummaryQuery = useArtifactVulnSummary(() => params.id);
 
-    const tabs = (versionCount: number): TabDef<Tab>[] => [
+    const tabs = (versionCount: number): TabDef<ArtifactTab>[] => [
         { id: "versions", label: `Versions (${versionCount})` },
         { id: "changelog", label: "Changelog" },
         { id: "licenses", label: "Licenses" },
         { id: "relationships", label: "Relationships" },
     ];
 
-    const modeTabs: TabDef<"semver" | "all">[] = [
+    // Semver-vs-all is an ordering of the versions list, not a second place to
+    // navigate to, so it renders as a segmented control (the idiom PackagesTab
+    // already uses for tree/list) rather than as a second tab strip. Two tab
+    // strips stacked on one page was the page's worst instance of depth.
+    const MODES: { id: "semver" | "all"; label: string; title: string }[] = [
         { id: "semver", label: "Semver", title: "Only semver versions, ordered by semantic version" },
         { id: "all", label: "All", title: "All versions, ordered by build time" },
     ];
 
+    const crumbs = (): Crumb[] => [
+        { label: "Artifacts", href: "/artifacts" },
+        { label: artifactQuery.isLoading ? <Skeleton width="6rem" inline /> : artifactQuery.data?.name },
+    ];
+
     return (
         <>
-            <div class="breadcrumb">
-                <A href="/artifacts">Artifacts</A>
-                <span class="separator">/</span>
-                <span>
-                    {artifactQuery.data?.name ?? <Skeleton width="6rem" style={{ display: "inline-block" }} />}
-                </span>
-            </div>
-
-            <Show when={!artifactQuery.isLoading} fallback={<SkeletonHeader />}>
-                <Show when={!artifactQuery.isError} fallback={<ErrorBox error={artifactQuery.error} />}>
-                    <Show when={artifactQuery.data}>
+            <QueryBoundary
+                query={artifactQuery}
+                breadcrumb={<Breadcrumb items={crumbs()} />}
+                loading={<SkeletonHeader />}
+                empty={<EmptyState title="Artifact not found." message="This artifact may have been removed, or the link may be wrong." />}
+            >
                         {(a) => (
                             <>
-                                <ArtifactHeader artifact={a()} />
-                                <ArtifactAboutCard artifact={a()} isContainer={isContainer()} />
+                                <ArtifactHeader artifact={a()} breadcrumb={<Breadcrumb items={crumbs()} />} />
 
-                                <VulnSummaryBar summary={vulnSummaryQuery.data?.summary ?? undefined} />
+                                <ArtifactBand
+                                    artifact={a()}
+                                    isContainer={isContainer()}
+                                    vulns={vulnSummaryQuery.data?.summary ?? undefined}
+                                    ordering={effectiveMode()}
+                                    active={tab()}
+                                    onSelect={setTab}
+                                />
+
+                                <ArtifactIdentity artifact={a()} />
 
                                 <TabBar tabs={tabs(a().versionCount)} active={tab()} onSelect={setTab} />
 
                                 <Show when={hasSemver() && (tab() === "versions" || tab() === "changelog")}>
-                                    <TabBar
-                                        tabs={modeTabs}
-                                        active={effectiveMode()}
-                                        onSelect={selectMode}
-                                        style={{ "margin-bottom": "0.75rem" }}
-                                    />
+                                    <ButtonGroup class="mb-4">
+                                        <For each={MODES}>
+                                            {(m) => (
+                                                <Button
+                                                    size="sm"
+                                                    active={effectiveMode() === m.id}
+                                                    title={m.title}
+                                                    aria-pressed={effectiveMode() === m.id}
+                                                    onClick={() => selectMode(m.id)}
+                                                >
+                                                    {m.label}
+                                                </Button>
+                                            )}
+                                        </For>
+                                    </ButtonGroup>
                                 </Show>
 
                                 <Show when={tab() === "versions"}>
@@ -176,9 +195,7 @@ export default function ArtifactDetail() {
                                 </Show>
                             </>
                         )}
-                    </Show>
-                </Show>
-            </Show>
+            </QueryBoundary>
         </>
     );
 }

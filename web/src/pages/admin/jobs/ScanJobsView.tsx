@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createSignal } from "solid-js";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
-import { FilterBar, createExpandedSet } from "~/components/ui";
+import { Button, FilterBar, createExpandedSet } from "~/components/ui";
 import { DEFAULT_PAGE_SIZE, type ScanJob } from "~/api/client";
 import {
     useListRegistries,
@@ -47,7 +47,7 @@ export function ScanJobsView() {
     const qQueued = useListScanJobs(() => ({ state: "queued" as const, limit: 50, offset: 0 }));
     const registries = useListRegistries();
 
-    const isLoading = () => qMain.isLoading || (isActive() && qQueued.isLoading);
+    const isBusy = () => qMain.isFetching || (isActive() && qQueued.isFetching);
     const isError = () => qMain.isError || (isActive() && qQueued.isError);
 
     const displayJobs = () => {
@@ -117,20 +117,19 @@ export function ScanJobsView() {
                     </For>
                 </select>
                 <Show when={stateFilter() === "failed"}>
-                    <button
-                        class="btn"
+                    <Button
+                        class="ml-auto"
                         disabled={retryAll.isPending}
                         onClick={() => { void confirmRetryAll("", "scan", () => retryAll.mutateAsync()); }}
-                        style={{ "margin-left": "auto" }}
                     >
                         {retryAll.isPending ? "Re-queuing…" : "Retry all failed"}
-                    </button>
+                    </Button>
                 </Show>
             </FilterBar>
             <DataTable
                 columns={columns}
                 rows={displayJobs()}
-                loading={isLoading()}
+                loading={isBusy()}
                 isError={isError()}
                 error={qMain.error}
                 emptyTitle="No scan jobs found"

@@ -4,6 +4,7 @@ import type { ChangelogEntryData } from "~/utils/diff";
 import { ViewToggle } from "~/components/DiffPairView";
 import { DiffEntryCard } from "~/components/DiffEntryCard";
 import { EmptyState } from "~/components/Feedback";
+import { TabBar } from "~/components/ui";
 
 export function ChangelogTab(props: {
     entries: ChangelogEntryData[];
@@ -32,32 +33,22 @@ export function ChangelogTab(props: {
             >
                 <div style={{ flex: "1", display: "flex", "flex-direction": "column", gap: "0.5rem", "min-width": "0" }}>
                     <Show when={props.availableArchitectures.length > 1}>
-                        <div class="tab-bar">
-                            <For each={props.availableArchitectures}>
-                                {(arch) => (
-                                    <button
-                                        class={effectiveArch() === arch ? "active" : ""}
-                                        onClick={() => props.onArchChange(arch)}
-                                    >
-                                        {arch}
-                                    </button>
-                                )}
-                            </For>
-                        </div>
+                        <TabBar
+                            variant="filter"
+                            label="Architecture"
+                            tabs={props.availableArchitectures.map((a) => ({ id: a, label: a }))}
+                            active={effectiveArch()}
+                            onSelect={props.onArchChange}
+                        />
                     </Show>
                     <Show when={props.availableFlavors.length > 1}>
-                        <div class="tab-bar">
-                            <For each={props.availableFlavors}>
-                                {(flavor) => (
-                                    <button
-                                        class={effectiveFlavor() === flavor ? "active" : ""}
-                                        onClick={() => props.onFlavorChange(flavor)}
-                                    >
-                                        {flavor}
-                                    </button>
-                                )}
-                            </For>
-                        </div>
+                        <TabBar
+                            variant="filter"
+                            label="Flavor"
+                            tabs={props.availableFlavors.map((f) => ({ id: f, label: f }))}
+                            active={effectiveFlavor()}
+                            onSelect={props.onFlavorChange}
+                        />
                     </Show>
                 </div>
                 <ViewToggle mode={viewMode()} onChange={setViewMode} />

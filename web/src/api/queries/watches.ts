@@ -1,15 +1,17 @@
 import { createQuery, createMutation, useQueryClient } from "@tanstack/solid-query";
 import { client, unwrap } from "~/api/client";
 import type { ArtifactDetail } from "~/api/client";
+import { selfScopedEnabled, type SelfScopedOptions } from "./selfScoped";
 
 // ---------------------------------------------------------------------------
 // Artifact watchlist (ocidex-998g.3)
 // ---------------------------------------------------------------------------
 
 /** useWatches — GET /api/v1/users/me/watches (first keyset page). */
-export function useWatches() {
+export function useWatches(opts?: SelfScopedOptions) {
     return createQuery(() => ({
         queryKey: ["watches"] as const,
+        enabled: selfScopedEnabled(opts),
         queryFn: () => unwrap(client.GET("/api/v1/users/me/watches")),
         select: (resp) => ({ ...resp, data: resp.data ?? [] }),
     }));
@@ -23,9 +25,10 @@ export function useWatches() {
  * feed changes on its own. They invalidate on different events, so they are
  * different cache entries.
  */
-export function useWatchFeed() {
+export function useWatchFeed(opts?: SelfScopedOptions) {
     return createQuery(() => ({
         queryKey: ["watch-feed"] as const,
+        enabled: selfScopedEnabled(opts),
         queryFn: () => unwrap(client.GET("/api/v1/users/me/watches/feed")),
         select: (resp) => ({ ...resp, data: resp.data ?? [] }),
     }));

@@ -20,7 +20,7 @@ func discardLogger() *slog.Logger {
 }
 
 // fakeRecheckStore records ListSBOMsDueForProvenanceRecheck and
-// RequeueSucceededEnrichmentJob calls.
+// RequeueEnrichmentJobForRecheck calls.
 type fakeRecheckStore struct {
 	due           []pgtype.UUID
 	listErr       error
@@ -43,7 +43,7 @@ func (s *fakeRecheckStore) ListSBOMsDueForProvenanceRecheck(_ context.Context, a
 	return s.due, nil
 }
 
-func (s *fakeRecheckStore) RequeueSucceededEnrichmentJob(_ context.Context, arg repository.RequeueSucceededEnrichmentJobParams) (int64, error) {
+func (s *fakeRecheckStore) RequeueEnrichmentJobForRecheck(_ context.Context, arg repository.RequeueEnrichmentJobForRecheckParams) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.requeueErr != nil {
@@ -163,7 +163,7 @@ func (s *drainingRecheckStore) ListSBOMsDueForProvenanceRecheck(_ context.Contex
 	return out, nil
 }
 
-func (s *drainingRecheckStore) RequeueSucceededEnrichmentJob(_ context.Context, _ repository.RequeueSucceededEnrichmentJobParams) (int64, error) {
+func (s *drainingRecheckStore) RequeueEnrichmentJobForRecheck(_ context.Context, _ repository.RequeueEnrichmentJobForRecheckParams) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.requeued++

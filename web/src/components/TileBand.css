@@ -9,7 +9,15 @@
 
 .tile-band {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    /* auto-fit, not a fixed column count: the band is shared by a four-tile
+       cluster band and a six-tile SBOM band, and a literal `repeat(4, ...)`
+       wrapped the SBOM band's fifth and sixth tiles onto a row of their own.
+       Driving the count from the tile count instead just moved the failure —
+       six forced columns are ~100px wide, which is narrower than the
+       "Verification failed" badge, so every tile overflowed its own box.
+       auto-fit fits as many >=11rem tracks as the row can hold and collapses
+       the rest, so both bands fill the width evenly and neither clips. */
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
     gap: 0.75rem;
     margin-bottom: 1rem;
 }
@@ -29,6 +37,7 @@
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: 8px;
+    min-width: 0;
     color: inherit;
     text-align: left;
     text-decoration: none;
@@ -41,9 +50,10 @@
     border-color: var(--color-border-hover);
 }
 
-/* Selection, not severity: this is the tile whose rows are on screen. */
+/* Selection, not severity: this is the tile whose rows are on screen, so it
+   takes the navigation blue rather than the brand red (ocidex-ag4q.11). */
 .tile.active {
-    border-color: var(--color-primary);
+    border-color: var(--color-secondary);
 }
 
 .tile-head {
@@ -60,6 +70,10 @@
     font-size: 1.05rem;
     font-weight: 600;
     line-height: 1.2;
+    /* A value can be a two-word badge in a tile only wide enough for one.
+       Wrapping keeps it readable; the sub-line below ellipses instead. */
+    max-width: 100%;
+    overflow-wrap: anywhere;
 }
 
 /* When the value is a badge, don't inflate it to heading size. */
@@ -68,10 +82,27 @@
     font-weight: 600;
 }
 
+/*
+ * The sub-line ellipses when it is too long for its tile, so tiles in a row
+ * keep one height (`.tile-value` above wraps instead — a two-word badge has to
+ * stay readable, a caption does not).
+ *
+ * `display: block` is load-bearing. This was `display: flex` with an
+ * `align-items`/`gap` pair, and `text-overflow` only applies to a block
+ * container's own inline content — so on a flex box the whole trio did nothing
+ * and an over-long sub was cut hard mid-word with no ellipsis to say anything
+ * had been cut: Home's "images, binaries and libraries" rendered as "images,
+ * binaries and libi" (ocidex-ag4q.58). The flex was buying nothing anyway. No
+ * sub in the app has more than one child — they are plain strings, or a single
+ * badge, which lays out as an inline box here without help.
+ *
+ * Two bands opt out with `white-space: normal` (Home's landing band, whose subs
+ * are sentences, and the cluster coverage band, where a truncated remedy is not
+ * a remedy). Those overrides predate this fix and are still right: the ellipsis
+ * is the correct default, not the correct answer everywhere.
+ */
 .tile-sub {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
+    display: block;
     font-size: 0.8rem;
     color: var(--color-text-muted);
     max-width: 100%;

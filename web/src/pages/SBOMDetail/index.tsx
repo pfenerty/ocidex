@@ -1,10 +1,11 @@
 import "~/components/DetailSection.css";
-import { Show, For, createSignal, createMemo } from "solid-js";
+import { Show, createSignal, createMemo } from "solid-js";
 import { A, useParams, useNavigate } from "@solidjs/router";
+import { Breadcrumb, Button, ButtonGroup, Card, CardHeader, PageHeader, QueryBoundary, TabBar, type Crumb } from "~/components/ui";
 import { useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies, useSBOMDriftHistory, useArtifactSBOMs } from "~/api/queries";
 import { useArtifactNames } from "~/api/queries";
 import type { OCIMetadata, Provenance, GitCommitMetadata } from "~/api/client";
-import { ErrorBox, EmptyState } from "~/components/Feedback";
+import { EmptyState } from "~/components/Feedback";
 import { Skeleton, SkeletonHeader, SkeletonTable } from "~/components/Skeleton";
 import CopyDigest from "~/components/CopyDigest";
 import CopyShareLink, { sbomLookupPath } from "~/components/CopyShareLink";
@@ -15,7 +16,7 @@ import SummaryBand, { type SbomTab } from "~/components/SummaryBand";
 import { VulnSummaryBar } from "~/components/VulnBadge";
 import { trustStatus, trustBadgeClass } from "~/utils/trust";
 import { parsePurl } from "~/utils/purl";
-import { artifactDisplayName, formatDateTime, plural } from "~/utils/format";
+import { artifactDisplayName, formatDateTime } from "~/utils/format";
 import { PackagesTab } from "./PackagesTab";
 
 export default function SBOMDetail() {
@@ -84,95 +85,107 @@ export default function SBOMDetail() {
     const subtitle = () => {
         const s = sbomQuery.data;
         if (!s) return "";
+        // No component count here. It counted every component including file
+        // entries (4,193 on a typical image), so it sat directly above a tile
+        // and a tab both reading the package count (958) with nothing to say
+        // which was authoritative. The band owns the package figure now, and
+        // the packages tab explains what it excludes.
         const parts: string[] = [`CycloneDX ${s.specVersion}`];
-        if (s.componentCount !== undefined) parts.push(plural(s.componentCount, "component"));
         parts.push(`Ingested ${formatDateTime(s.createdAt)}`);
         return parts.join(" · ");
     };
 
+    /* The root crumb used to be `/sboms`, a route App.tsx does not declare — it
+       rendered the 404 page. An SBOM's parent is the artifact it describes, so
+       the trail walks that chain instead, which is also what makes the artifact
+       reachable from here in one click. */
+    const crumbs = (): Crumb[] => {
+        const artifactId = sbomQuery.data?.artifactId;
+        const leaf =
+            sbomQuery.isLoading
+                ? <Skeleton width="6rem" inline />
+                : (sbomQuery.data?.subjectVersion ??
+                    formatDateTime(sbomQuery.data?.createdAt ?? "")) || params.id;
+        return [
+            { label: "Artifacts", href: "/artifacts" },
+            ...(artifactId !== undefined
+                ? [{ label: artifactLabel(artifactId) ?? "Artifact", href: `/artifacts/${artifactId}` }]
+                : []),
+            { label: leaf },
+        ];
+    };
+
     return (
         <>
-            <div class="breadcrumb">
-                <A href="/sboms">SBOMs</A>
-                <span class="separator">/</span>
-                <Show when={sbomQuery.data?.artifactId} keyed>
-                    {(artifactId) => (
-                        <>
-                            <A href={`/artifacts/${artifactId}`}>{artifactLabel(artifactId) ?? "Artifact"}</A>
-                            <span class="separator">/</span>
-                        </>
-                    )}
-                </Show>
-                <span>
-                    {sbomQuery.isLoading ? (
-                        <Skeleton width="6rem" style={{ display: "inline-block" }} />
-                    ) : (
-                        (sbomQuery.data?.subjectVersion ??
-                            formatDateTime(sbomQuery.data?.createdAt ?? "")) || params.id
-                    )}
-                </span>
-            </div>
-
-            <Show when={!sbomQuery.isLoading} fallback={<SkeletonHeader />}>
-                <Show
-                    when={!sbomQuery.isError && sbomQuery.data !== undefined ? sbomQuery.data : undefined}
-                    keyed
-                    fallback={<ErrorBox error={sbomQuery.error} />}
-                >
-                    {(s) => (
+            {/* The old ladder rendered <ErrorBox> whenever the data was absent,
+                so a successful response with no SBOM claimed "an unexpected
+                error occurred". QueryBoundary keeps error and empty apart. */}
+            <QueryBoundary
+                query={sbomQuery}
+                breadcrumb={<Breadcrumb items={crumbs()} />}
+                loading={<SkeletonHeader />}
+                empty={<EmptyState title="SBOM not found." message="This SBOM may have been deleted, or the link may be wrong." />}
+            >
+                {(sbom) => {
+                    // Keyed on the resolved value, so reading it once here is
+                    // the same binding the previous `<Show keyed>` gave.
+                    const s = sbom();
+                    return (
                         <>
                             {/* --- Hero --- */}
-                            <div class="page-header">
-                                <div class="page-header-row">
-                                    <div>
-                                        <h2 style={{ display: "flex", "align-items": "center", gap: "0.6rem", "flex-wrap": "wrap" }}>
-                                            {title()}
-                                            <Show when={trustStatus(s.signingStatus)}>
-                                                {(t) => <span class={trustBadgeClass(t().variant)}>{t().label}</span>}
-                                            </Show>
-                                        </h2>
-                                        <p class="text-muted">{subtitle()}</p>
-                                        <Show when={s.digest} keyed>
-                                            {(digest) => (
-                                                <CopyDigest
-                                                    digest={digest}
-                                                    artifactName={artifactLookup(s.artifactId)?.name}
-                                                    class="text-sm"
-                                                />
-                                            )}
+                            <PageHeader
+                                breadcrumb={<Breadcrumb items={crumbs()} />}
+                                title={
+                                    <span class="title-inline">
+                                        {title()}
+                                        <Show when={trustStatus(s.signingStatus)}>
+                                            {(t) => <span class={trustBadgeClass(t().variant)}>{t().label}</span>}
                                         </Show>
-                                    </div>
-                                    <div class="btn-group">
+                                    </span>
+                                }
+                                subtitle={subtitle()}
+                                meta={
+                                    <Show when={s.digest} keyed>
+                                        {(digest) => (
+                                            <CopyDigest
+                                                digest={digest}
+                                                artifactName={artifactLookup(s.artifactId)?.name}
+                                                class="text-sm"
+                                            />
+                                        )}
+                                    </Show>
+                                }
+                                actions={
+                                    <ButtonGroup>
                                         <Show when={s.artifactId}>
-                                            <A href={`/artifacts/${s.artifactId}`} class="btn btn-sm">View Artifact</A>
+                                            <Button as={A} href={`/artifacts/${s.artifactId}`} size="sm">View Artifact</Button>
                                         </Show>
                                         <Show when={s.artifactId !== undefined && s.subjectVersion !== undefined}>
-                                            <A href={`/artifacts/${s.artifactId}/versions/${encodeURIComponent(s.subjectVersion ?? "")}`} class="btn btn-sm">
+                                            <Button as={A} href={`/artifacts/${s.artifactId}/versions/${encodeURIComponent(s.subjectVersion ?? "")}`} size="sm">
                                                 View build history
-                                            </A>
+                                            </Button>
                                         </Show>
-                                        <A href={`/diff?from=${s.id}&to=${s.id}`} class="btn btn-sm">Compare</A>
+                                        <Button as={A} href={`/diff?from=${s.id}&to=${s.id}`} size="sm">Compare</Button>
                                         <Show when={sbomLookupPath(s)}>
                                             {(path) => <CopyShareLink path={path()} />}
                                         </Show>
-                                    </div>
-                                </div>
-                            </div>
+                                    </ButtonGroup>
+                                }
+                            />
 
                             {/* --- Arch switcher --- */}
                             <Show when={archSiblings().length > 1}>
-                                <div class="tab-bar mb-sm">
-                                    <For each={archSiblings()}>
-                                        {(sibling) => (
-                                            <button
-                                                class={sibling.id === params.id ? "active" : ""}
-                                                onClick={() => navigate(`/sboms/${sibling.id}`)}
-                                            >
-                                                {sibling.architecture}
-                                            </button>
-                                        )}
-                                    </For>
-                                </div>
+                                {/* A `nav` strip, not a filter: each sibling is
+                                    a different SBOM at a different URL. */}
+                                <TabBar
+                                    tabs={archSiblings().map((sib) => ({
+                                        id: sib.id,
+                                        label: sib.architecture ?? sib.id,
+                                    }))}
+                                    active={params.id}
+                                    onSelect={(id) => navigate(`/sboms/${id}`)}
+                                    class="mb-sm"
+                                />
                             </Show>
 
                             {/* --- Summary band --- */}
@@ -183,6 +196,7 @@ export default function SBOMDetail() {
                                 git={gitCommit()}
                                 packageCount={s.packageCount}
                                 ecosystems={ecosystems()}
+                                vulns={s.vulnSummary}
                                 specVersion={s.specVersion}
                                 ingestedAt={s.createdAt}
                                 active={tab()}
@@ -193,32 +207,36 @@ export default function SBOMDetail() {
                             <VulnSummaryBar summary={s.vulnSummary} />
 
                             {/* --- Tabs --- */}
-                            <div class="tab-bar">
-                                <button class={tab() === "packages" ? "active" : ""} onClick={() => setTab("packages")}>
-                                    Packages ({s.packageCount})
-                                </button>
-                                <button class={tab() === "provenance" ? "active" : ""} onClick={() => setTab("provenance")}>Provenance</button>
-                                <button class={tab() === "image" ? "active" : ""} onClick={() => setTab("image")}>Image</button>
-                                <button class={tab() === "git" ? "active" : ""} onClick={() => setTab("git")}>Git</button>
-                                <button class={tab() === "raw" ? "active" : ""} onClick={() => setTab("raw")}>Raw</button>
-                            </div>
+                            <TabBar
+                                tabs={[
+                                    { id: "packages", label: `Packages (${s.packageCount})` },
+                                    { id: "provenance", label: "Provenance" },
+                                    { id: "image", label: "Image" },
+                                    { id: "git", label: "Git" },
+                                    { id: "raw", label: "Raw" },
+                                ]}
+                                active={tab()}
+                                onSelect={setTab}
+                            />
 
                             {/* --- Packages tab --- */}
                             <Show when={tab() === "packages"}>
-                                <Show when={!componentsQuery.isLoading} fallback={<SkeletonTable columns={5} />}>
-                                    <Show
-                                        when={!componentsQuery.isError}
-                                        fallback={<ErrorBox error={componentsQuery.error} />}
-                                    >
+                                <QueryBoundary
+                                    query={componentsQuery}
+                                    loading={<SkeletonTable columns={5} />}
+                                >
+                                    {() => (
                                         <PackagesTab
                                             components={loadedComponents()}
                                             depsGraph={(depsQuery.data?.edges.length ?? 0) > 0 ? depsQuery.data : undefined}
                                             hasMore={componentsQuery.hasNextPage}
                                             loadingMore={componentsQuery.isFetchingNextPage}
                                             onLoadMore={() => void componentsQuery.fetchNextPage()}
+                                            totalCount={s.packageCount}
+                                            componentCount={s.componentCount}
                                         />
-                                    </Show>
-                                </Show>
+                                    )}
+                                </QueryBoundary>
                             </Show>
 
                             {/* --- Provenance tab --- */}
@@ -264,8 +282,8 @@ export default function SBOMDetail() {
 
                             {/* --- Raw tab (identity + CycloneDX internals) --- */}
                             <Show when={tab() === "raw"}>
-                                <div class="card mb-4">
-                                    <div class="card-header"><h3>SBOM details</h3></div>
+                                <Card class="mb-4">
+                                    <CardHeader title="SBOM details" />
                                     <div class="detail-grid">
                                         <Show when={s.artifactId}>
                                             <div class="detail-field">
@@ -312,12 +330,12 @@ export default function SBOMDetail() {
                                             )}
                                         </Show>
                                     </div>
-                                </div>
+                                </Card>
                             </Show>
                         </>
-                    )}
-                </Show>
-            </Show>
+                    );
+                }}
+            </QueryBoundary>
         </>
     );
 }

@@ -1,8 +1,10 @@
 import "./Layout.css";
 import { A, useNavigate, useLocation } from "@solidjs/router";
-import { createEffect, Show, type ParentProps } from "solid-js";
-import { Home, LayoutDashboard, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Server, Database, Settings, LogOut } from "lucide-solid";
+import { createEffect, createSignal, onCleanup, onMount, Show, type ParentProps } from "solid-js";
+import { Home, LayoutDashboard, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Server, Database, Settings, LogOut, Search, Menu, X } from "lucide-solid";
 import ThemeToggle from "~/components/ThemeToggle";
+import CommandPalette, { openCommandPalette, isAppleShortcut } from "~/components/CommandPalette";
+import { GitHubMark } from "./icons/GitHubMark";
 import { useAuth } from "~/context/auth";
 import { API_BASE_URL } from "~/api/client";
 
@@ -26,15 +28,59 @@ export default function Layout(props: ParentProps) {
         }
     });
 
+    // Below 768px the sidebar is a 56px icon rail, and this opens it back up
+    // into a full-width drawer over the content. It is deliberately the *same*
+    // sidebar rather than a second copy of the nav: one set of links, one
+    // footer, one place for a route to be added. The rail hides the labels with
+    // `display: none`, so the open drawer is the element in its natural state.
+    const [drawerOpen, setDrawerOpen] = createSignal(false);
+    const closeDrawer = () => setDrawerOpen(false);
+
+    // Any navigation closes it. Watching the path rather than putting an
+    // onClick on each link also covers the browser Back button and the command
+    // palette, both of which can move the page out from under an open drawer.
+    createEffect(() => {
+        void location.pathname;
+        closeDrawer();
+    });
+
+    onMount(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") closeDrawer();
+        };
+        window.addEventListener("keydown", onKeyDown);
+        onCleanup(() => window.removeEventListener("keydown", onKeyDown));
+    });
+
     async function handleLogout() {
         await fetch(`${API_BASE_URL}/auth/logout`, { method: "POST", credentials: "include" });
         void refetch();
     }
 
     return (
+        <>
+        {/* Outside the /login branch on purpose: the shortcut is muscle memory
+            or it is nothing, so it may not blink out on one route. */}
+        <CommandPalette />
         <Show when={location.pathname !== "/login"} fallback={<>{props.children}</>}>
         <div class="layout">
-            <aside class="sidebar">
+            {/* Only ever visible under the drawer — see `.sidebar-backdrop`. It
+                catches the tap that closes the drawer and, more importantly,
+                stops that tap from also activating whatever it landed on. */}
+            <Show when={drawerOpen()}>
+                <div class="sidebar-backdrop" onClick={closeDrawer} />
+            </Show>
+            <aside class="sidebar" classList={{ "sidebar-open": drawerOpen() }}>
+                {/* Hidden above the breakpoint, where nothing is collapsed. */}
+                <button
+                    type="button"
+                    class="sidebar-drawer-toggle"
+                    aria-label={drawerOpen() ? "Close navigation" : "Open navigation"}
+                    aria-expanded={drawerOpen()}
+                    onClick={() => setDrawerOpen((o) => !o)}
+                >
+                    {drawerOpen() ? <X size={18} /> : <Menu size={18} />}
+                </button>
                 <div class="sidebar-brand">
                     <div class="sidebar-brand-title">
                         <span class="brand-led" aria-hidden="true" />
@@ -44,39 +90,46 @@ export default function Layout(props: ParentProps) {
                     </div>
                     <p>SBOM Explorer</p>
                 </div>
+                {/* The palette's own door. A shortcut nobody is told about is a
+                    shortcut nobody uses. */}
+                <button type="button" class="sidebar-search" aria-label="Search" onClick={openCommandPalette}>
+                    <Search size={14} />
+                    <span>Search</span>
+                    <kbd>{isAppleShortcut() ? "\u2318K" : "Ctrl K"}</kbd>
+                </button>
                 <nav>
-                    <A href="/" end>
+                    <A href="/" end aria-label="Home">
                         <Home size={16} />
                         <span>Home</span>
                     </A>
                     <Show when={user()}>
-                        <A href="/dashboard">
+                        <A href="/dashboard" aria-label="Workspace">
                             <LayoutDashboard size={16} />
                             <span>Workspace</span>
                         </A>
                     </Show>
-                    <A href="/artifacts">
+                    <A href="/artifacts" aria-label="Artifacts">
                         <Package size={16} />
                         <span>Artifacts</span>
                     </A>
-                    <A href="/components">
+                    <A href="/components" aria-label="Components">
                         <Layers size={16} />
                         <span>Components</span>
                     </A>
-                    <A href="/licenses">
+                    <A href="/licenses" aria-label="Licenses">
                         <ShieldCheck size={16} />
                         <span>Licenses</span>
                     </A>
-                    <A href="/vulnerabilities">
+                    <A href="/vulnerabilities" aria-label="Vulnerabilities">
                         <ShieldAlert size={16} />
                         <span>Vulnerabilities</span>
                     </A>
-                    <A href="/diff">
+                    <A href="/diff" aria-label="Compare">
                         <ArrowUpDown size={16} />
                         <span>Compare</span>
                     </A>
                     <Show when={user()}>
-                        <A href="/clusters">
+                        <A href="/clusters" aria-label="Clusters">
                             <Server size={16} />
                             <span>Clusters</span>
                         </A>
@@ -88,13 +141,13 @@ export default function Layout(props: ParentProps) {
                         simply had no route to the page. Admins keep reaching it
                         through Admin, where the rest of the tabs are. */}
                     <Show when={user() !== undefined && user()?.role !== "admin"}>
-                        <A href="/admin/sources">
+                        <A href="/admin/sources" aria-label="Sources">
                             <Database size={16} />
                             <span>Sources</span>
                         </A>
                     </Show>
                     <Show when={user()?.role === "admin"}>
-                        <A href="/admin">
+                        <A href="/admin" aria-label="Admin">
                             <Settings size={16} />
                             <span>Admin</span>
                         </A>
@@ -103,25 +156,27 @@ export default function Layout(props: ParentProps) {
                 <div class="sidebar-footer">
                     <ThemeToggle />
                     <Show when={user()} fallback={
-                        <A href="/login" class="sidebar-sign-in">
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z" />
-                            </svg>
+                        <A href="/login" class="sidebar-sign-in" aria-label="Sign in with GitHub">
+                            <GitHubMark />
                             <span>Sign in with GitHub</span>
                         </A>
                     }>
                         {(u) => (
                         <div class="sidebar-user">
                             <div class="sidebar-user-info">
-                                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" class="sidebar-github-icon">
-                                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z" />
-                                </svg>
+                                <GitHubMark size={14} class="sidebar-github-icon" />
                                 <span class="truncate">{u().github_username}</span>
                             </div>
                             <button
                                 onClick={() => void handleLogout()}
                                 class="sidebar-logout-btn"
                                 title="Sign out"
+                                // `title` alone is a weak accessible name and a
+                                // hover-only one. Every other icon-only control
+                                // in the rail carries an aria-label for exactly
+                                // this reason (ocidex-ag4q.49); this one was
+                                // missed because its tooltip made it look named.
+                                aria-label="Sign out"
                             >
                                 <LogOut size={14} />
                             </button>
@@ -133,5 +188,6 @@ export default function Layout(props: ParentProps) {
             <main class="main-content">{props.children}</main>
         </div>
         </Show>
+        </>
     );
 }

@@ -8,11 +8,8 @@
     margin-right: 0.5rem;
 }
 
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
+/* `spin` is defined in index.css alongside .btn-spinner — keyframes are global,
+   and index.css is the one stylesheet always loaded. */
 
 .loading {
     display: flex;
@@ -39,7 +36,7 @@
 
 .error-box {
     background: var(--color-danger-bg);
-    border: 1px solid rgba(240, 101, 101, 0.25);
+    border: 1px solid color-mix(in srgb, var(--color-danger) 25%, transparent);
     border-radius: var(--radius-md);
     padding: 1rem;
     color: var(--color-danger);

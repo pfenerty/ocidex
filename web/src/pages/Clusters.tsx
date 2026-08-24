@@ -2,7 +2,7 @@ import { For, Show, createSignal } from "solid-js";
 import { A } from "@solidjs/router";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
-import { Card, CardHeader, FormField, StatusPill } from "~/components/ui";
+import { Button, FormField, Modal, PageHeader, StatusPill } from "~/components/ui";
 import { useToast } from "~/context/toast";
 import { relativeDate } from "~/utils/format";
 import type { Cluster } from "~/api/client";
@@ -84,6 +84,17 @@ export default function Clusters() {
     const [newNamespace, setNewNamespace] = createSignal("");
     const [newDescription, setNewDescription] = createSignal("");
 
+    // Registration is a once-per-cluster act; the table is what a reader comes
+    // back to. The form used to sit permanently expanded above it, outweighing
+    // the data it introduced, so it lives in a dialog now (ocidex-ag4q.37).
+    let dialogRef: HTMLDialogElement | undefined;
+
+    function resetForm() {
+        setNewName("");
+        setNewNamespace("");
+        setNewDescription("");
+    }
+
     const [editingID, setEditingID] = createSignal<string | null>(null);
     const [editName, setEditName] = createSignal("");
     const [editDescription, setEditDescription] = createSignal("");
@@ -99,8 +110,10 @@ export default function Clusters() {
             { namespace_id: namespaceID, name, ...(description === "" ? {} : { description }) },
             {
                 onSuccess: () => {
-                    setNewName("");
-                    setNewDescription("");
+                    // `close()` fires the dialog's own `close` event, which is
+                    // wired to resetForm — so Escape and a successful submit
+                    // leave exactly the same state behind.
+                    dialogRef?.close();
                     toast("Cluster registered — install the agent with its cluster ID", "success");
                 },
                 onError: () => toast("Failed to register cluster", "error"),
@@ -224,31 +237,32 @@ export default function Clusters() {
                 <Show
                     when={editingID() === c.id}
                     fallback={
-                        <div style={{ display: "flex", gap: "0.5rem" }}>
-                            <button class="btn btn-sm" onClick={() => startEdit(c)}>
+                        <div class="flex gap-2">
+                            <Button size="sm" onClick={() => startEdit(c)}>
                                 Edit
-                            </button>
-                            <button
-                                class="btn btn-sm"
+                            </Button>
+                            <Button
+                                size="sm"
                                 onClick={() => handleDelete(c)}
                                 disabled={deleteCluster.isPending}
                             >
                                 Delete
-                            </button>
+                            </Button>
                         </div>
                     }
                 >
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
-                        <button
-                            class="btn btn-sm btn-primary"
+                    <div class="flex gap-2">
+                        <Button
+                            variant="primary"
+                            size="sm"
                             onClick={() => saveEdit(c.id)}
                             disabled={updateCluster.isPending || editName().trim() === ""}
                         >
                             Save
-                        </button>
-                        <button class="btn btn-sm" onClick={() => setEditingID(null)}>
+                        </Button>
+                        <Button size="sm" onClick={() => setEditingID(null)}>
                             Cancel
-                        </button>
+                        </Button>
                     </div>
                 </Show>
             ),
@@ -257,74 +271,93 @@ export default function Clusters() {
 
     return (
         <>
-            <div class="page-header">
-                <div class="page-header-row">
-                    <div>
-                        <h2>Clusters</h2>
-                        <p>
-                            Kubernetes clusters reporting what they run. Register a cluster here,
-                            then install the agent chart in it with the cluster ID.
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            <Card style={{ "margin-bottom": "1rem" }}>
-                <CardHeader title="Register cluster" />
-                <form
-                    onSubmit={handleCreate}
-                    style={{ display: "flex", gap: "0.75rem", "align-items": "flex-end", "flex-wrap": "wrap" }}
-                >
-                    <FormField label="Name">
-                        <input
-                            type="text"
-                            placeholder="prod-eu-west"
-                            value={newName()}
-                            onInput={(e) => setNewName(e.currentTarget.value)}
-                            style={{ "min-width": "14rem" }}
-                        />
-                    </FormField>
-                    <FormField label="Namespace" hint="who owns the cluster and can see its inventory">
-                        <select
-                            value={newNamespace()}
-                            onChange={(e) => setNewNamespace(e.currentTarget.value)}
-                        >
-                            <option value="">select…</option>
-                            <For each={namespacesQuery.data?.data ?? []}>
-                                {(ns) => <option value={ns.id}>{ns.name}</option>}
-                            </For>
-                        </select>
-                    </FormField>
-                    <FormField label="Description">
-                        <input
-                            type="text"
-                            placeholder="optional"
-                            value={newDescription()}
-                            onInput={(e) => setNewDescription(e.currentTarget.value)}
-                            style={{ "min-width": "14rem" }}
-                        />
-                    </FormField>
-                    <button
-                        class="btn btn-primary"
-                        type="submit"
-                        disabled={
-                            createCluster.isPending || newName().trim() === "" || newNamespace() === ""
-                        }
-                    >
-                        Register
-                    </button>
-                </form>
-            </Card>
+            <PageHeader
+                title="Clusters"
+                subtitle="Kubernetes clusters reporting what they run. Register a cluster here, then install the agent chart in it with the cluster ID."
+                actions={
+                    <Button variant="primary" onClick={() => dialogRef?.showModal()}>
+                        Register cluster
+                    </Button>
+                }
+            />
 
             <DataTable
                 columns={columns}
                 rows={query.data?.data}
-                loading={query.isLoading}
+                loading={query.isFetching}
                 isError={query.isError}
                 error={query.error}
                 emptyTitle="No clusters registered"
                 emptyMessage="Register a cluster, then install charts/ocidex-k8s-agent in it to start reporting the images it runs."
             />
+
+            {/* After the table in document order as well as visually: a
+                dialog renders in the top layer when open, so its position
+                here costs nothing, and the data stays first for anything
+                that reads the page linearly. */}
+            <Modal
+                ref={(el) => (dialogRef = el)}
+                title="Register cluster"
+                size="sm"
+                onClose={resetForm}
+            >
+                <form onSubmit={handleCreate}>
+                    <div
+                        style={{
+                            display: "grid",
+                            gap: "0.75rem",
+                            "margin-bottom": "0.75rem",
+                        }}
+                    >
+                        <FormField label="Name">
+                            <input
+                                type="text"
+                                placeholder="prod-eu-west"
+                                value={newName()}
+                                onInput={(e) => setNewName(e.currentTarget.value)}
+                            />
+                        </FormField>
+                        <FormField
+                            label="Namespace"
+                            hint="who owns the cluster and can see its inventory"
+                        >
+                            <select
+                                value={newNamespace()}
+                                onChange={(e) => setNewNamespace(e.currentTarget.value)}
+                            >
+                                <option value="">select…</option>
+                                <For each={namespacesQuery.data?.data ?? []}>
+                                    {(ns) => <option value={ns.id}>{ns.name}</option>}
+                                </For>
+                            </select>
+                        </FormField>
+                        <FormField label="Description">
+                            <input
+                                type="text"
+                                placeholder="optional"
+                                value={newDescription()}
+                                onInput={(e) => setNewDescription(e.currentTarget.value)}
+                            />
+                        </FormField>
+                    </div>
+                    <div class="flex gap-2">
+                        <Button
+                            variant="primary"
+                            type="submit"
+                            disabled={
+                                createCluster.isPending ||
+                                newName().trim() === "" ||
+                                newNamespace() === ""
+                            }
+                        >
+                            Register
+                        </Button>
+                        <Button type="button" onClick={() => dialogRef?.close()}>
+                            Cancel
+                        </Button>
+                    </div>
+                </form>
+            </Modal>
         </>
     );
 }

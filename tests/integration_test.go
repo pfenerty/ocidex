@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -16,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/matryer/is"
@@ -1087,4 +1089,100 @@ func TestProvenanceDriftFullCycle(t *testing.T) {
 	is.Equal(event["previousStatus"], "verified")
 	is.Equal(event["newStatus"], "verification_failed")
 	is.Equal(event["reason"], "trust_config_changed")
+}
+
+// TestProvenanceDriftUnsignedNeedsConfirmation drives the same real
+// Dispatcher/Store path for a verified -> unsigned transition, which is held
+// back one cycle. A single observation must leave the drift history empty and
+// a provenance_drift_pending row behind; the second observation promotes it.
+//
+// This is the regression that matters most: before the confirmation gate, one
+// rate-limited registry lookup was enough to report a signed image as
+// unsigned, and a sweep of 500 rechecks produced them in bulk (ocidex-zvkx).
+func TestProvenanceDriftUnsignedNeedsConfirmation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+
+	is := is.New(t)
+	ctx := t.Context()
+
+	memberID := seedUser(t, pool, 3101, "test-drift-confirm", "member")
+	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "test", "read-write")
+	is.NoErr(err)
+
+	sbomJSON := fmt.Sprintf(signingStatusSBOMTemplate, 97, 97, 97)
+	sbomIDStr := mustIngest(t, srv.URL, ingestPath(t, pool, memberID), sbomJSON, memberKey)
+	var sbomID pgtype.UUID
+	is.NoErr(sbomID.Scan(sbomIDStr))
+
+	queries := repository.New(pool)
+
+	verifiedData := []byte(`{"verified": true, "signaturePresent": true, "signerFingerprint": "abc123"}`)
+	is.NoErr(queries.UpsertEnrichment(ctx, repository.UpsertEnrichmentParams{
+		SbomID:       sbomID,
+		EnricherName: "provenance",
+		Status:       "success",
+		Data:         verifiedData,
+	}))
+
+	unsignedData := []byte(`{"signaturePresent": false, "attestationPresent": false}`)
+	catalog := enrichment.NewCatalog()
+	catalog.Register(&fakeProvenanceEnricher{data: unsignedData})
+	dispatcher := enrichment.NewDispatcher(queries, catalog)
+	ref := enrichment.SubjectRef{
+		SBOMId:       sbomID,
+		ArtifactType: "container",
+		ArtifactName: "docker.io/signing-status-fixture",
+	}
+
+	// First observation: held back.
+	is.NoErr(dispatcher.ProcessOne(ctx, ref))
+	is.Equal(driftEventCount(t, pool, sbomID), 0)
+
+	pending, err := queries.GetProvenanceDriftPending(ctx, sbomID)
+	is.NoErr(err)
+	is.Equal(pending.PreviousStatus, "verified")
+	is.Equal(pending.NewStatus, "unsigned")
+	is.Equal(pending.Reason, "reverification_failed")
+
+	// Second observation agrees: promoted to a real event, and the pending
+	// row is gone.
+	is.NoErr(dispatcher.ProcessOne(ctx, ref))
+	is.Equal(driftEventCount(t, pool, sbomID), 1)
+
+	_, err = queries.GetProvenanceDriftPending(ctx, sbomID)
+	is.True(errors.Is(err, pgx.ErrNoRows))
+
+	resp, err := doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s/drift", srv.URL, sbomIDStr))
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var driftResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&driftResp))
+	resp.Body.Close()
+
+	data, ok := driftResp["data"].([]any)
+	is.True(ok)
+	is.Equal(len(data), 1)
+	event := data[0].(map[string]any)
+	is.Equal(event["previousStatus"], "verified")
+	is.Equal(event["newStatus"], "unsigned")
+	is.Equal(event["reason"], "reverification_failed")
+}
+
+// driftEventCount returns how many drift events exist for an SBOM.
+func driftEventCount(t *testing.T, pool *pgxpool.Pool, sbomID pgtype.UUID) int {
+	t.Helper()
+	var n int
+	if err := pool.QueryRow(t.Context(),
+		`SELECT count(*) FROM provenance_drift_events WHERE sbom_id = $1`, sbomID).Scan(&n); err != nil {
+		t.Fatalf("counting drift events: %v", err)
+	}
+	return n
 }

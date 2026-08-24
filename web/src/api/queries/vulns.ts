@@ -39,6 +39,7 @@ export function useTopVulnerabilities(
     params: Accessor<{
         limit?: number;
         offset?: number;
+        q?: string;
         severity?: string;
         sort?: TopVulnSort;
         sort_dir?: "asc" | "desc";
@@ -47,7 +48,16 @@ export function useTopVulnerabilities(
     return createQuery(() => {
         const p = params();
         return {
-            queryKey: ["vulns", "top", p.severity, p.sort, p.sort_dir, p.limit, p.offset] as const,
+            queryKey: [
+                "vulns",
+                "top",
+                p.q,
+                p.severity,
+                p.sort,
+                p.sort_dir,
+                p.limit,
+                p.offset,
+            ] as const,
             queryFn: () =>
                 unwrap(
                     client.GET("/api/v1/vulns", {
@@ -55,6 +65,7 @@ export function useTopVulnerabilities(
                             query: {
                                 limit: p.limit,
                                 offset: p.offset,
+                                q: p.q !== "" ? p.q : undefined,
                                 sort: p.sort,
                                 sort_dir: p.sort_dir,
                                 severity: (p.severity !== "" ? p.severity : undefined) as

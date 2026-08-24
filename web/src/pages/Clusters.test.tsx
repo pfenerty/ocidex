@@ -219,4 +219,34 @@ describe("Clusters", () => {
         fireEvent.click(button(container, "Delete"));
         expect(deleteMutate).toHaveBeenCalledWith("c-prod", expect.anything());
     });
+
+    // The form used to sit permanently expanded above the table, outweighing
+    // the data it introduced (ocidex-ag4q.37). These two assertions are what
+    // keep it from drifting back: the table leads, and the form is behind a
+    // dialog rather than merely restyled.
+    it("leads with the table, not the registration form", () => {
+        const { container } = renderPage();
+        const table = must(container.querySelector("table"), "cluster table");
+        const form = must(container.querySelector("form"), "register form");
+        // Node.DOCUMENT_POSITION_FOLLOWING: the form comes after the table.
+        expect(table.compareDocumentPosition(form) & 4).toBeTruthy();
+        expect(must(form.closest("dialog"), "form's dialog")).toBeTruthy();
+    });
+
+    it("opens the register dialog from the header button", () => {
+        const showModal = vi.fn();
+        vi.stubGlobal("HTMLDialogElement", globalThis.HTMLDialogElement);
+        const dialogProto = globalThis.HTMLDialogElement.prototype as {
+            showModal: () => void;
+        };
+        const original = dialogProto.showModal;
+        dialogProto.showModal = showModal;
+        try {
+            const { container } = renderPage();
+            fireEvent.click(button(container, "Register cluster"));
+            expect(showModal).toHaveBeenCalledTimes(1);
+        } finally {
+            dialogProto.showModal = original;
+        }
+    });
 });

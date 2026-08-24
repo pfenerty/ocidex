@@ -1,8 +1,45 @@
 import "./Admin.css";
-import { For, Show } from "solid-js";
-import { Loading, ErrorBox } from "~/components/Feedback";
-import { formatDateTime } from "~/utils/format";
+import { Show } from "solid-js";
+import { Loading } from "~/components/Feedback";
+import { QueryBoundary } from "~/components/ui";
+import DataTable from "~/components/DataTable";
+import type { Column } from "~/components/DataTable";
+import { TimestampCell } from "~/components/cells";
 import { useGetSystemStatus, useListRegistries } from "~/api/queries";
+import type { Registry } from "~/api/client";
+
+/**
+ * `sortValue` on every column, which the hand-rolled table had no way to offer.
+ * "Never" sorts first ascending rather than last: a registry configured to poll
+ * that has never been polled is the row this table exists to surface, and the
+ * empty string puts it at the top.
+ */
+const pollColumns: Column<Registry>[] = [
+    {
+        header: "Registry",
+        sortKey: "name",
+        sortValue: (r) => r.name,
+        render: (r) => r.name,
+    },
+    {
+        header: "Scan Mode",
+        sortKey: "scan_mode",
+        sortValue: (r) => r.scan_mode,
+        render: (r) => <span class="badge">{r.scan_mode}</span>,
+    },
+    {
+        header: "Last Polled",
+        sortKey: "last_polled_at",
+        sortType: "numeric",
+        sortValue: (r) => r.last_polled_at ?? "",
+        render: (r) =>
+            r.last_polled_at !== undefined ? (
+                <TimestampCell iso={r.last_polled_at} />
+            ) : (
+                <span class="text-muted">Never</span>
+            ),
+    },
+];
 
 export function StatusTab() {
     const query = useGetSystemStatus();
@@ -13,12 +50,12 @@ export function StatusTab() {
         );
 
     return (
-        <Show when={!query.isLoading} fallback={<Loading />}>
-            <Show when={!query.isError} fallback={<ErrorBox error={query.error} />}>
+        <QueryBoundary query={query} loading={<Loading />}>
+            {() => (
                 <div style={{ display: "flex", "flex-direction": "column", gap: "1.5rem" }}>
 
                     <div>
-                        <div class="section-title" style={{ "margin-bottom": "0.75rem" }}>Services</div>
+                        <div class="section-title mb-3">Services</div>
                         <div class="stats-grid">
                             <div class="stat-card">
                                 <div class="stat-label">Enrichment</div>
@@ -26,7 +63,7 @@ export function StatusTab() {
                                     {query.data?.enrichment.enabled === true ? "Enabled" : "Disabled"}
                                 </div>
                                 <Show when={query.data?.enrichment.enabled === true}>
-                                    <div style={{ "font-size": "0.8rem", "margin-top": "0.25rem", color: "var(--color-text-muted)" }}>
+                                    <div class="text-muted text-sm mt-1">
                                         {query.data?.enrichment.workers} workers · queue {query.data?.enrichment.queue_size}
                                     </div>
                                 </Show>
@@ -49,7 +86,7 @@ export function StatusTab() {
                                     {query.data?.nats.enabled === true ? "Enabled" : "Disabled"}
                                 </div>
                                 <Show when={query.data?.nats.enabled === true}>
-                                    <div style={{ "font-size": "0.8rem", "margin-top": "0.25rem", color: "var(--color-text-muted)" }}>
+                                    <div class="text-muted text-sm mt-1">
                                         {query.data?.nats.url}
                                     </div>
                                 </Show>
@@ -58,7 +95,7 @@ export function StatusTab() {
                     </div>
 
                     <div>
-                        <div class="section-title" style={{ "margin-bottom": "0.75rem" }}>Scan Pipeline</div>
+                        <div class="section-title mb-3">Scan Pipeline</div>
                         <div class="stats-grid">
                             <div class="stat-card">
                                 <div class="stat-label">Queued</div>
@@ -78,7 +115,7 @@ export function StatusTab() {
                             </div>
                             <div class="stat-card">
                                 <div class="stat-label">Failed (24 h)</div>
-                                <div class="stat-value" style={{ color: (query.data?.scan_jobs.failed_24h ?? 0) > 0 ? "var(--color-error)" : "inherit" }}>
+                                <div class="stat-value" style={{ color: (query.data?.scan_jobs.failed_24h ?? 0) > 0 ? "var(--color-danger)" : "inherit" }}>
                                     {query.data?.scan_jobs.failed_24h ?? 0}
                                 </div>
                             </div>
@@ -86,14 +123,14 @@ export function StatusTab() {
                     </div>
 
                     <div>
-                        <div class="section-title" style={{ "margin-bottom": "0.75rem" }}>Infrastructure</div>
+                        <div class="section-title mb-3">Infrastructure</div>
                         <div class="stats-grid">
                             <div class="stat-card">
                                 <div class="stat-label">Database</div>
-                                <div class="stat-value" style={{ color: query.data?.db.ok === true ? "var(--color-success)" : "var(--color-error)" }}>
+                                <div class="stat-value" style={{ color: query.data?.db.ok === true ? "var(--color-success)" : "var(--color-danger)" }}>
                                     {query.data?.db.ok === true ? "OK" : "Error"}
                                 </div>
-                                <div style={{ "font-size": "0.8rem", "margin-top": "0.25rem", color: "var(--color-text-muted)" }}>
+                                <div class="text-muted text-sm mt-1">
                                     {query.data?.db.latency_ms} ms
                                 </div>
                             </div>
@@ -102,38 +139,20 @@ export function StatusTab() {
 
                     <Show when={polledRegistries().length > 0}>
                         <div>
-                            <div class="section-title" style={{ "margin-bottom": "0.75rem" }}>Registry Polling</div>
-                            <div class="card">
-                                <div class="table-wrapper">
-                                    <table>
-                                        <thead>
-                                            <tr>
-                                                <th>Registry</th>
-                                                <th>Scan Mode</th>
-                                                <th>Last Polled</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <For each={polledRegistries()}>
-                                                {(reg) => (
-                                                    <tr>
-                                                        <td>{reg.name}</td>
-                                                        <td><span class="badge">{reg.scan_mode}</span></td>
-                                                        <td style={{ color: reg.last_polled_at !== undefined ? "inherit" : "var(--color-text-muted)" }}>
-                                                            {reg.last_polled_at !== undefined ? formatDateTime(reg.last_polled_at) : "Never"}
-                                                        </td>
-                                                    </tr>
-                                                )}
-                                            </For>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
+                            <div class="section-title mb-3">Registry Polling</div>
+                            <DataTable
+                                columns={pollColumns}
+                                rows={polledRegistries()}
+                                loading={registries.isFetching}
+                                isError={registries.isError}
+                                error={registries.error}
+                                emptyTitle="No polled registries"
+                            />
                         </div>
                     </Show>
 
                 </div>
-            </Show>
-        </Show>
+            )}
+        </QueryBoundary>
     );
 }

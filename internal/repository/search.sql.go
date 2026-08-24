@@ -11,6 +11,66 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countComponentVersions = `-- name: CountComponentVersions :one
+SELECT COUNT(*) AS total,
+       COUNT(DISTINCT c.version) AS version_count,
+       COUNT(DISTINCT s.artifact_id) AS artifact_count
+FROM component c
+JOIN sbom s ON s.id = c.sbom_id
+WHERE c.name = $1
+  AND ($2::text IS NULL OR c.group_name = $2)
+  AND ($3::text IS NULL OR c.version = $3)
+  AND ($4::text IS NULL OR c.type = $4)
+  AND sbom_visible(s.namespace_id, $5::uuid, $6::boolean)
+`
+
+type CountComponentVersionsParams struct {
+	Name      string      `json:"name"`
+	GroupName pgtype.Text `json:"group_name"`
+	Version   pgtype.Text `json:"version"`
+	Type      pgtype.Text `json:"type"`
+	UserID    pgtype.UUID `json:"user_id"`
+	IsAdmin   pgtype.Bool `json:"is_admin"`
+}
+
+type CountComponentVersionsRow struct {
+	Total         int64 `json:"total"`
+	VersionCount  int64 `json:"version_count"`
+	ArtifactCount int64 `json:"artifact_count"`
+}
+
+// The total for GetComponentVersions, deliberately NOT a COUNT(*) OVER() inside
+// that query. The window function is the convention elsewhere in this file, but
+// it only pays where the page and the count cost the same scan. Here the page
+// query carries three LEFT JOINs (artifact plus two enrichment lookups) and a
+// four-key sort purely to shape the rows it returns; a window count would drag
+// every matching row through all of that just to discard it. The most-used
+// component names have thousands of rows, which is what made the unpaginated
+// version time out at 30s (ocidex-ag4q.7).
+//
+// Counting needs only the visibility join, so it stays on
+// idx_component_name_group.
+//
+// It also carries the two corpus-wide figures a summary band needs, because
+// both are answers about the whole result set and the page query only ever sees
+// one window of it (ocidex-ag4q.35). Deriving them client-side from a page
+// would report "3 versions" for a component with 300 — worse than saying
+// nothing. They ride along here rather than in a third query: the scan and the
+// filters are identical, so the only added cost is the DISTINCT aggregation.
+func (q *Queries) CountComponentVersions(ctx context.Context, arg CountComponentVersionsParams) (CountComponentVersionsRow, error) {
+	row := q.db.QueryRow(ctx, countComponentVersions,
+		arg.Name,
+		arg.GroupName,
+		arg.Version,
+		arg.Type,
+		arg.UserID,
+		arg.IsAdmin,
+	)
+	var i CountComponentVersionsRow
+	err := row.Scan(&i.Total, &i.VersionCount, &i.ArtifactCount)
+	return i, err
+}
+
 const countSBOMComponents = `-- name: CountSBOMComponents :one
 SELECT COUNT(*) FROM component WHERE sbom_id = $1
 `
@@ -110,7 +170,7 @@ ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST,
          s.created_at DESC
-LIMIT 5000
+LIMIT $8 OFFSET $7
 `
 
 type GetComponentVersionsParams struct {
@@ -120,6 +180,8 @@ type GetComponentVersionsParams struct {
 	Type      pgtype.Text `json:"type"`
 	UserID    pgtype.UUID `json:"user_id"`
 	IsAdmin   pgtype.Bool `json:"is_admin"`
+	RowOffset int32       `json:"row_offset"`
+	RowLimit  int32       `json:"row_limit"`
 }
 
 type GetComponentVersionsRow struct {
@@ -138,7 +200,6 @@ type GetComponentVersionsRow struct {
 	Architecture   interface{}        `json:"architecture"`
 }
 
-// Safety cap: bound a component's version history to the most recent rows.
 func (q *Queries) GetComponentVersions(ctx context.Context, arg GetComponentVersionsParams) ([]GetComponentVersionsRow, error) {
 	rows, err := q.db.Query(ctx, getComponentVersions,
 		arg.Name,
@@ -147,6 +208,8 @@ func (q *Queries) GetComponentVersions(ctx context.Context, arg GetComponentVers
 		arg.Type,
 		arg.UserID,
 		arg.IsAdmin,
+		arg.RowOffset,
+		arg.RowLimit,
 	)
 	if err != nil {
 		return nil, err
@@ -640,8 +703,8 @@ FROM license l
 LEFT JOIN license_rollup lr ON lr.license_id = l.id
   AND (lr.namespace_id IN (
         SELECT visible_namespace_ids($1::uuid, $2::boolean)))
-WHERE ($3::text IS NULL OR l.spdx_id = $3)
-  AND ($4::text IS NULL OR l.name ILIKE $4)
+WHERE ($3::text IS NULL OR l.spdx_id ILIKE '%' || $3::text || '%')
+  AND ($4::text IS NULL OR l.name ILIKE '%' || $4::text || '%')
   AND ($5::text IS NULL OR license_category(l.spdx_id) = $5::text)
 GROUP BY l.id, l.spdx_id, l.name, l.url
 ORDER BY component_count DESC, l.name
@@ -680,6 +743,11 @@ type ListLicensesRow struct {
 // over a non-matching LEFT JOIN row yielded the composite (NULL,”,”,NULL),
 // which is not the NULL row, so COUNT counted it. Every license with no
 // visible components reported exactly one. 14 licenses in dev were affected.
+// Substring matches, both of them. These were an exact `=` on spdx_id and a
+// wildcard-free ILIKE on name, so "Filter by name…" only ever matched a reader
+// who typed the whole license name — every prefix on the way to "Apache-2.0"
+// reported that no such license exists. Tolerable behind a submit button;
+// actively misleading now that the box filters as you type (ocidex-ag4q.31).
 func (q *Queries) ListLicenses(ctx context.Context, arg ListLicensesParams) ([]ListLicensesRow, error) {
 	rows, err := q.db.Query(ctx, listLicenses,
 		arg.UserID,
