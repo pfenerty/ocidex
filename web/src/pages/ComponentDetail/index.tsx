@@ -1,6 +1,6 @@
 import { Show, createSignal } from "solid-js";
 import { A, useParams } from "@solidjs/router";
-import { Button, ButtonGroup, PageHeader, QueryBoundary } from "~/components/ui";
+import { Breadcrumb, Button, ButtonGroup, PageHeader, QueryBoundary, type Crumb } from "~/components/ui";
 import { useComponent, useComponentVersions, useComponentVulns } from "~/api/queries";
 import { EmptyState } from "~/components/Feedback";
 import { Skeleton, SkeletonHeader } from "~/components/Skeleton";
@@ -78,23 +78,19 @@ export default function ComponentDetail() {
 
     const [tab, setTab] = createSignal<ComponentTab>("details");
 
+    const crumbs = (): Crumb[] => [
+        { label: "Components", href: "/components" },
+        { label: detailQuery.isLoading ? <Skeleton width="6rem" inline /> : detailQuery.data?.name },
+    ];
+
     return (
         <>
-            <div class="breadcrumb">
-                <A href="/components">Components</A>
-                <span class="separator">/</span>
-                <span>
-                    {detailQuery.data?.name ?? (
-                        <Skeleton width="6rem" inline />
-                    )}
-                </span>
-            </div>
-
             {/* An absent component used to fall into the error branch and read
                 as "an unexpected error occurred"; QueryBoundary keeps the two
                 apart. */}
             <QueryBoundary
                 query={detailQuery}
+                breadcrumb={<Breadcrumb items={crumbs()} />}
                 loading={<SkeletonHeader />}
                 empty={<EmptyState title="Component not found." message="This component may have been removed with its SBOM." />}
             >
@@ -106,6 +102,7 @@ export default function ComponentDetail() {
                         <>
                             {/* --- Hero --- */}
                             <PageHeader
+                                breadcrumb={<Breadcrumb items={crumbs()} />}
                                 title={
                                     <span class="title-inline">
                                         {detail.name}

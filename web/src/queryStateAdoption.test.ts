@@ -94,9 +94,11 @@ describe("query state adoption", () => {
         const src = code(join(SRC, "components/ui/QueryBoundary.tsx"));
         // The error fallback must be reachable without data, and the empty
         // fallback must be reachable without an error — the two bugs this
-        // component exists to prevent.
+        // component exists to prevent. Both now travel through `withTrail`,
+        // which prepends the breadcrumb and changes nothing about which branch
+        // renders.
         expect(src).toMatch(/props\.error \?\? <ErrorBox/);
-        expect(src).toMatch(/fallback=\{props\.empty\}/);
+        expect(src).toMatch(/fallback=\{withTrail\(props\.empty\)\}/);
     });
 
     it("uses QueryBoundary on every detail page", () => {

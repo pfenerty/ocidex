@@ -1,10 +1,10 @@
 import { For, Show, createSignal } from "solid-js";
-import { A, useParams } from "@solidjs/router";
+import { useParams } from "@solidjs/router";
 import { useArtifact, useArtifactSBOMs } from "~/api/queries";
 import { EmptyState } from "~/components/Feedback";
 import { SkeletonText } from "~/components/Skeleton";
 import { DiffPairView, ViewToggle } from "~/components/DiffPairView";
-import { PageHeader, QueryBoundary, TabBar } from "~/components/ui";
+import { Breadcrumb, PageHeader, QueryBoundary, TabBar } from "~/components/ui";
 
 export default function ArtifactVersionHistory() {
     const params = useParams<{ id: string; version: string }>();
@@ -41,17 +41,19 @@ export default function ArtifactVersionHistory() {
 
     return (
         <>
-            <div class="breadcrumb">
-                <A href="/artifacts">Artifacts</A>
-                <span class="separator">/</span>
-                <A href={`/artifacts/${params.id}`}>
-                    {artifactQuery.data?.name ?? params.id}
-                </A>
-                <span class="separator">/</span>
-                <span>{version()}</span>
-            </div>
-
             <PageHeader
+                breadcrumb={
+                    <Breadcrumb
+                        items={[
+                            { label: "Artifacts", href: "/artifacts" },
+                            {
+                                label: artifactQuery.data?.name ?? params.id,
+                                href: `/artifacts/${params.id}`,
+                            },
+                            { label: version(), mono: true },
+                        ]}
+                    />
+                }
                 title={version()}
                 subtitle="Build changelog"
                 actions={<ViewToggle mode={viewMode()} onChange={setViewMode} />}

@@ -7,7 +7,7 @@ import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { ComponentNameCell, TypeBadge, VersionCell, PurlLink } from "~/components/cells";
 import { Skeleton, SkeletonHeader } from "~/components/Skeleton";
-import { PageHeader, QueryBoundary } from "~/components/ui";
+import { Breadcrumb, PageHeader, QueryBoundary, type Crumb } from "~/components/ui";
 
 type ComponentSummary = components["schemas"]["ComponentSummary"];
 
@@ -71,25 +71,24 @@ export default function LicenseComponents() {
         },
     ];
 
+    /* Two crumbs, not three. There is no `/licenses/:id` route for the licence
+       name to link to, and this page *is* its component list — the old third
+       crumb, "Components", named the page you were already on. */
+    const crumbs = (): Crumb[] => [
+        { label: "Licenses", href: "/licenses" },
+        { label: licenseQuery.isLoading ? <Skeleton width="6rem" inline /> : licenseName() },
+    ];
+
     return (
         <>
-            <div class="breadcrumb">
-                <A href="/licenses">Licenses</A>
-                <span class="separator">/</span>
-                <span>
-                    {licenseQuery.isLoading ? (
-                        <Skeleton width="6rem" inline />
-                    ) : (
-                        licenseName()
-                    )}
-                </span>
-                <span class="separator">/</span>
-                <span>Components</span>
-            </div>
-
-            <QueryBoundary query={licenseQuery} loading={<SkeletonHeader />}>
+            <QueryBoundary
+                query={licenseQuery}
+                breadcrumb={<Breadcrumb items={crumbs()} />}
+                loading={<SkeletonHeader />}
+            >
                 {() => (
                 <PageHeader
+                    breadcrumb={<Breadcrumb items={crumbs()} />}
                     title={licenseName()}
                     subtitle={
                         <>

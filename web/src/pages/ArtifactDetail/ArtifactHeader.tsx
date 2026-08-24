@@ -1,3 +1,4 @@
+import type { JSX } from "solid-js";
 import { Show } from "solid-js";
 import { A } from "@solidjs/router";
 import type { ArtifactDetail } from "~/api/client";
@@ -10,7 +11,7 @@ import { artifactDisplayName, formatDateTime } from "~/utils/format";
 import { containerRegistryUrl, detectRegistry } from "~/utils/oci";
 
 /** ArtifactHeader is the title row: name (linked to its registry), counts, actions. */
-export function ArtifactHeader(props: { artifact: ArtifactDetail }) {
+export function ArtifactHeader(props: { artifact: ArtifactDetail; breadcrumb?: JSX.Element }) {
     const a = () => props.artifact;
     const registryPurl = () => {
         const purl = a().purl;
@@ -19,6 +20,7 @@ export function ArtifactHeader(props: { artifact: ArtifactDetail }) {
 
     return (
         <PageHeader
+            breadcrumb={props.breadcrumb}
             title={
                 <Show
                     when={a().type === "container" && detectRegistry(a().name) !== "redhat"}

@@ -1,7 +1,7 @@
 import "./ClusterDetail.css";
 import { Show, createSignal } from "solid-js";
 import { useParams, useSearchParams } from "@solidjs/router";
-import { DetailField, DetailGrid, PageHeader, QueryBoundary, TabBar, type TabDef } from "~/components/ui";
+import { Breadcrumb, DetailField, DetailGrid, PageHeader, QueryBoundary, TabBar, type TabDef } from "~/components/ui";
 import { SkeletonHeader } from "~/components/Skeleton";
 import { StalenessPill } from "../Clusters";
 import {
@@ -72,9 +72,21 @@ export default function ClusterDetail() {
 
     return (
         <>
-            <QueryBoundary query={clusterQuery} loading={<SkeletonHeader />}>
+            <QueryBoundary
+                query={clusterQuery}
+                breadcrumb={<Breadcrumb items={[{ label: "Clusters", href: "/clusters" }]} />}
+                loading={<SkeletonHeader />}
+            >
                 {(cluster) => (
                     <PageHeader
+                        breadcrumb={
+                            <Breadcrumb
+                                items={[
+                                    { label: "Clusters", href: "/clusters" },
+                                    { label: cluster().name },
+                                ]}
+                            />
+                        }
                         title={cluster().name}
                         subtitle={cluster().description ?? "Kubernetes cluster inventory"}
                         footer={

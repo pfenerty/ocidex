@@ -1,6 +1,6 @@
 import "~/components/DetailSection.css";
 import { createSignal, For, Show } from "solid-js";
-import { A, useParams } from "@solidjs/router";
+import { useParams } from "@solidjs/router";
 import {
     useArtifact,
     useArtifactVersions,
@@ -11,7 +11,7 @@ import {
 } from "~/api/queries";
 import { EmptyState } from "~/components/Feedback";
 import { Skeleton, SkeletonHeader, SkeletonText } from "~/components/Skeleton";
-import { ButtonGroup, Button, QueryBoundary, TabBar, type TabDef } from "~/components/ui";
+import { Breadcrumb, ButtonGroup, Button, QueryBoundary, TabBar, type Crumb, type TabDef } from "~/components/ui";
 import { artifactDisplayName } from "~/utils/format";
 import { ArtifactHeader, ArtifactIdentity } from "./ArtifactHeader";
 import { ArtifactBand, type ArtifactTab } from "./ArtifactBand";
@@ -89,24 +89,22 @@ export default function ArtifactDetail() {
         { id: "all", label: "All", title: "All versions, ordered by build time" },
     ];
 
+    const crumbs = (): Crumb[] => [
+        { label: "Artifacts", href: "/artifacts" },
+        { label: artifactQuery.isLoading ? <Skeleton width="6rem" inline /> : artifactQuery.data?.name },
+    ];
+
     return (
         <>
-            <div class="breadcrumb">
-                <A href="/artifacts">Artifacts</A>
-                <span class="separator">/</span>
-                <span>
-                    {artifactQuery.data?.name ?? <Skeleton width="6rem" inline />}
-                </span>
-            </div>
-
             <QueryBoundary
                 query={artifactQuery}
+                breadcrumb={<Breadcrumb items={crumbs()} />}
                 loading={<SkeletonHeader />}
                 empty={<EmptyState title="Artifact not found." message="This artifact may have been removed, or the link may be wrong." />}
             >
                         {(a) => (
                             <>
-                                <ArtifactHeader artifact={a()} />
+                                <ArtifactHeader artifact={a()} breadcrumb={<Breadcrumb items={crumbs()} />} />
 
                                 <ArtifactBand
                                     artifact={a()}

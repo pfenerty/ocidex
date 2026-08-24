@@ -1,7 +1,7 @@
 import "~/components/DetailSection.css";
 import { Show, createSignal, createMemo } from "solid-js";
 import { A, useParams, useNavigate } from "@solidjs/router";
-import { Button, ButtonGroup, Card, CardHeader, PageHeader, QueryBoundary, TabBar } from "~/components/ui";
+import { Breadcrumb, Button, ButtonGroup, Card, CardHeader, PageHeader, QueryBoundary, TabBar, type Crumb } from "~/components/ui";
 import { useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies, useSBOMDriftHistory, useArtifactSBOMs } from "~/api/queries";
 import { useArtifactNames } from "~/api/queries";
 import type { OCIMetadata, Provenance, GitCommitMetadata } from "~/api/client";
@@ -95,34 +95,34 @@ export default function SBOMDetail() {
         return parts.join(" · ");
     };
 
+    /* The root crumb used to be `/sboms`, a route App.tsx does not declare — it
+       rendered the 404 page. An SBOM's parent is the artifact it describes, so
+       the trail walks that chain instead, which is also what makes the artifact
+       reachable from here in one click. */
+    const crumbs = (): Crumb[] => {
+        const artifactId = sbomQuery.data?.artifactId;
+        const leaf =
+            sbomQuery.isLoading
+                ? <Skeleton width="6rem" inline />
+                : (sbomQuery.data?.subjectVersion ??
+                    formatDateTime(sbomQuery.data?.createdAt ?? "")) || params.id;
+        return [
+            { label: "Artifacts", href: "/artifacts" },
+            ...(artifactId !== undefined
+                ? [{ label: artifactLabel(artifactId) ?? "Artifact", href: `/artifacts/${artifactId}` }]
+                : []),
+            { label: leaf },
+        ];
+    };
+
     return (
         <>
-            <div class="breadcrumb">
-                <A href="/sboms">SBOMs</A>
-                <span class="separator">/</span>
-                <Show when={sbomQuery.data?.artifactId} keyed>
-                    {(artifactId) => (
-                        <>
-                            <A href={`/artifacts/${artifactId}`}>{artifactLabel(artifactId) ?? "Artifact"}</A>
-                            <span class="separator">/</span>
-                        </>
-                    )}
-                </Show>
-                <span>
-                    {sbomQuery.isLoading ? (
-                        <Skeleton width="6rem" inline />
-                    ) : (
-                        (sbomQuery.data?.subjectVersion ??
-                            formatDateTime(sbomQuery.data?.createdAt ?? "")) || params.id
-                    )}
-                </span>
-            </div>
-
             {/* The old ladder rendered <ErrorBox> whenever the data was absent,
                 so a successful response with no SBOM claimed "an unexpected
                 error occurred". QueryBoundary keeps error and empty apart. */}
             <QueryBoundary
                 query={sbomQuery}
+                breadcrumb={<Breadcrumb items={crumbs()} />}
                 loading={<SkeletonHeader />}
                 empty={<EmptyState title="SBOM not found." message="This SBOM may have been deleted, or the link may be wrong." />}
             >
@@ -134,6 +134,7 @@ export default function SBOMDetail() {
                         <>
                             {/* --- Hero --- */}
                             <PageHeader
+                                breadcrumb={<Breadcrumb items={crumbs()} />}
                                 title={
                                     <span class="title-inline">
                                         {title()}

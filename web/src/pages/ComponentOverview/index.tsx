@@ -1,6 +1,6 @@
 import { Show, createMemo, createSignal, createEffect, on } from "solid-js";
 import { A, useSearchParams } from "@solidjs/router";
-import { Button, ButtonGroup, PageHeader, QueryBoundary } from "~/components/ui";
+import { Breadcrumb, Button, ButtonGroup, PageHeader, QueryBoundary, type Crumb } from "~/components/ui";
 import { useComponent, useComponentVersions, useComponentVulns } from "~/api/queries";
 import { DEFAULT_PAGE_SIZE } from "~/api/client";
 import { EmptyState } from "~/components/Feedback";
@@ -94,18 +94,22 @@ export default function ComponentOverview() {
     const versionHref = (version: string) =>
         `${allVersionsHref()}&version=${encodeURIComponent(version)}`;
 
+    /* With a version pinned the name becomes a link back to all of its
+       versions; without one the name *is* this page. */
+    const crumbs = (): Crumb[] =>
+        hasVersion()
+            ? [
+                { label: "Components", href: "/components" },
+                { label: displayName(), href: allVersionsHref() },
+                { label: params.version, mono: true },
+            ]
+            : [
+                { label: "Components", href: "/components" },
+                { label: displayName() },
+            ];
+
     return (
         <>
-            <div class="breadcrumb">
-                <A href="/components">Components</A>
-                <span class="separator">/</span>
-                <Show when={hasVersion()} fallback={<span>{displayName()}</span>}>
-                    <A href={allVersionsHref()}>{displayName()}</A>
-                    <span class="separator">/</span>
-                    <span class="font-mono">{params.version}</span>
-                </Show>
-            </div>
-
             <Show when={params.name === undefined}>
                 <EmptyState
                     title="No component specified"
@@ -116,6 +120,7 @@ export default function ComponentOverview() {
             <Show when={params.name !== undefined}>
                 <QueryBoundary
                     query={query}
+                    breadcrumb={<Breadcrumb items={crumbs()} />}
                     loading={<SkeletonHeader />}
                     when={(d) => d.versions.length > 0}
                     empty={
@@ -128,6 +133,7 @@ export default function ComponentOverview() {
                     {(qd) => (
                                 <>
                                 <PageHeader
+                                    breadcrumb={<Breadcrumb items={crumbs()} />}
                                     title={
                                         <Show when={hasVersion()} fallback={displayName()}>
                                             {displayName()}{" "}
