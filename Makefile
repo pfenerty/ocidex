@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-dev-live frontend-dev-auth dev-auth-up dev-auth-down dev-auth-status dev-auth-reset frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
+.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-dev-live frontend-dev-auth dev-auth-up dev-auth-down dev-auth-fixtures dev-auth-status dev-auth-reset frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
 
 all: check build ## Run all checks and build
 
@@ -136,6 +136,9 @@ dev-auth-up: ## Start the local authenticated rig (postgres + nats + api on :808
 
 dev-auth-down: ## Stop the local authenticated rig
 	./scripts/dev-auth.sh down
+
+dev-auth-fixtures: ## Re-seed the rig's corpus (artifacts, vulns, cluster workloads)
+	./scripts/dev-auth.sh fixtures
 
 dev-auth-status: ## Show which rig services are up
 	./scripts/dev-auth.sh status

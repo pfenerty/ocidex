@@ -150,6 +150,13 @@ start_api() {
     die "api did not become ready"
 }
 
+# The fixtures are a separate script and a separate step on purpose: `up` has to
+# stay runnable against an already-seeded rig, and a corpus is the part most
+# likely to need re-running on its own while iterating on a page.
+seed_fixtures() {
+    (cd "$ROOT" && python3 scripts/dev-fixtures.py)
+}
+
 stop_all() {
     for svc in api nats; do
         if [ -f "$DEV/$svc.pid" ]; then
@@ -174,10 +181,12 @@ case "${1:-up}" in
         migrate
         seed_auth
         start_api
+        seed_fixtures
         printf '\n\033[32m✓\033[0m rig up — api :%s, postgres :%s, nats :%s\n' \
             "$API_PORT" "$PGPORT" "$NATS_PORT"
         printf '  next: \033[1mmake frontend-dev-auth\033[0m  (:3200, signed in as devadmin/admin)\n'
         ;;
+    fixtures) seed_fixtures ;;
     down)   stop_all ;;
     status)
         pg_running && echo "postgres: up" || echo "postgres: down"
@@ -192,5 +201,5 @@ case "${1:-up}" in
         rm -rf "$DEV"
         log "removed $DEV — next 'up' starts from an empty database"
         ;;
-    *) die "usage: dev-auth.sh [up|down|status|key|reset]" ;;
+    *) die "usage: dev-auth.sh [up|down|status|key|fixtures|reset]" ;;
 esac

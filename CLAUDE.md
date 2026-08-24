@@ -405,6 +405,20 @@ Auth is not a bypass — `internal/api/middleware.go` already accepts
 read-write key and the dev vite config presents it. Writes are safe: the
 database is a throwaway. `make dev-auth-reset` starts it over.
 
+`up` finishes by seeding a corpus (`scripts/dev-fixtures.py`, also reachable on
+its own as `make dev-auth-fixtures`) — 10 SBOMs over 5 artifacts in two
+namespaces, all five ADR-037 signing statuses including a drift *within* one
+artifact, two flavors plus one deliberate `unknown`, 6 CVEs wired to purls the
+corpus really contains, and a cluster whose 9 workloads cover all three ADR-044
+match states. Without it the rig renders nothing: every page it exists to
+unblock showed its empty state, so `/clusters/:id` — the surface most in need of
+a browser — was unverifiable. Two traps it encodes, both of which read as
+database bugs: `/api/v1/artifacts` defaults to `sufficient=true`, so an
+un-enriched SBOM is invisible; and `/vulnerabilities` INNER JOINs `vuln_rollup`,
+so a vulnerability with no rollup row does not appear at all. The seeder writes
+both. It is idempotent — every digest derives from the artifact's identity, so a
+re-run is a no-op under the `sbom.digest` UNIQUE constraint.
+
 **Public pages, against the real corpus** — prod data, no local backend needed:
 
 ```bash

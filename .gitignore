@@ -59,3 +59,4 @@ Thumbs.db
 
 # Local authenticated dev rig state (scripts/dev-auth.sh)
 .dev/
+__pycache__/
