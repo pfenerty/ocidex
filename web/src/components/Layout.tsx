@@ -171,6 +171,12 @@ export default function Layout(props: ParentProps) {
                                 onClick={() => void handleLogout()}
                                 class="sidebar-logout-btn"
                                 title="Sign out"
+                                // `title` alone is a weak accessible name and a
+                                // hover-only one. Every other icon-only control
+                                // in the rail carries an aria-label for exactly
+                                // this reason (ocidex-ag4q.49); this one was
+                                // missed because its tooltip made it look named.
+                                aria-label="Sign out"
                             >
                                 <LogOut size={14} />
                             </button>

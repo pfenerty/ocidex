@@ -46,6 +46,13 @@
     --color-secondary-hover: #7BA4F4;
     --color-secondary-fg: #FFFFFF;
 
+    /* The keyboard ring. An alias, not a fourth blue: "you are here with the
+       keyboard" is the same question --color-secondary already answers, and
+       defining it once means the light palette needs no second declaration —
+       the var resolves at the use site, so .light's own --color-secondary wins
+       automatically. Every :focus-visible rule in the app reads this. */
+    --color-focus: var(--color-secondary);
+
     /* --- Neutral Surfaces (dark default) --- */
     --color-bg: #0C0E14;
     --color-surface: #161921;
@@ -264,7 +271,6 @@
         font-size: 0.875rem;
         font-family: inherit;
         line-height: 1.6;
-        outline: none;
         transition: border-color 0.15s;
     }
 
@@ -277,14 +283,57 @@
         cursor: pointer;
     }
 
+    /*
+     * One keyboard ring for the whole app.
+     *
+     * `:focus-visible`, not `:focus`: the browser already knows the difference
+     * between a click and a Tab, and ringing a clicked button is the noise that
+     * gets focus styling deleted in the first place.
+     *
+     * Written bare rather than as a list of controls on purpose. A list is a
+     * thing to forget: every primitive added after this one — and every
+     * `tabindex` on a div, of which this app has several (the tooltip trigger,
+     * the clickable table row) — would need remembering. Anything the browser
+     * considers focusable gets the ring by default, and the two places that opt
+     * out (`.tooltip-trigger`, the palette's single input) say why in their own
+     * stylesheet and supply a replacement.
+     *
+     * `outline`, not `box-shadow`: an outline follows `border-radius`, is not
+     * clipped by an ancestor's `overflow: hidden` — which matters inside
+     * `.table-wrapper` and the sidebar — and survives forced-colors mode.
+     */
+    :focus-visible {
+        outline: 2px solid var(--color-focus);
+        outline-offset: 2px;
+    }
+
+    /* No `select` here. A select is a control you open, not a field you type
+       into, so "which one has the caret" is not a question it has — it takes
+       the global ring alone and skips the halo, which would otherwise draw a
+       second concentric ring around it. */
     input[type="text"]:focus,
     input[type="password"]:focus,
     input[type="search"]:focus,
     input[type="number"]:focus,
-    select:focus,
     textarea:focus {
         border-color: var(--color-secondary);
-        box-shadow: 0 0 0 2px rgba(91, 141, 239, 0.15);
+        /* color-mix, not a hardcoded rgba(): the literal here used to be the
+           dark palette's blue, so a focused field in light mode was haloed in
+           the wrong blue. */
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-focus) 15%, transparent);
+    }
+
+    /* A text field's focused state is its border and halo, and it is the only
+       affordance that reads on `:focus` as well as `:focus-visible` — a click
+       into a field should show which field has the caret. Adding the outline on
+       top gives it two concentric rings, so it opts out of the global one and
+       keeps the ring it already had. */
+    input[type="text"]:focus-visible,
+    input[type="password"]:focus-visible,
+    input[type="search"]:focus-visible,
+    input[type="number"]:focus-visible,
+    textarea:focus-visible {
+        outline: none;
     }
 
     input::placeholder {
@@ -493,8 +542,10 @@
         cursor: pointer;
     }
 
+    /* Inset rather than the global +2px offset: a row is flush against its
+       neighbours, and an outward ring would be drawn over them. */
     tr.row-clickable:focus-visible {
-        outline: 2px solid var(--color-secondary);
+        outline: 2px solid var(--color-focus);
         outline-offset: -2px;
     }
 

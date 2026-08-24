@@ -422,8 +422,14 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    width: 100%;
-    margin-bottom: 0.75rem;
+    /* Inset by the same 0.5rem `.sidebar nav` uses, rather than `width: 100%`
+       flush to both edges. Two reasons, and either alone would justify it: it
+       lines the trigger up with the nav links directly beneath it, and the
+       sidebar is `overflow-y: auto` — which computes `overflow-x` to `auto`
+       too — so a full-bleed child's focus ring was clipped on both sides at
+       `outline-offset: 2px`. */
+    width: auto;
+    margin: 0 0.5rem 0.75rem;
     padding: 0.375rem 0.625rem;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);

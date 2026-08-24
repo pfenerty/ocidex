@@ -219,7 +219,7 @@ describe("Layout mobile drawer", () => {
         const sidebar = container.querySelector("aside.sidebar");
         if (sidebar === null) throw new Error("no sidebar rendered");
         for (const name of ["Home", "Workspace", "Artifacts", "Components", "Licenses",
-            "Vulnerabilities", "Compare", "Clusters", "Admin", "Search"]) {
+            "Vulnerabilities", "Compare", "Clusters", "Admin", "Search", "Sign out"]) {
             expect(sidebar.querySelector(`[aria-label="${name}"]`)).not.toBeNull();
         }
     });
