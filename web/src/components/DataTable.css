@@ -105,7 +105,14 @@ th.th-sortable .sort-arrow {
 
     .table-mobile-cards tbody td[data-label]::before {
         content: attr(data-label);
-        flex: 0 0 6.5rem;
+        /* 7.5rem, not 6.5: "VULNERABILITIES" measures 98px at this size and
+           letter-spacing, and a 91px gutter broke it as "VULNERABILITIE / S".
+           `overflow-wrap` is inherited, so the `anywhere` above -- which exists
+           for purls and digests, in the *value* -- reached the label too and
+           made that break legal. A column header is a short known string; it
+           gets room and it never breaks mid-word. */
+        flex: 0 0 7.5rem;
+        overflow-wrap: normal;
         font-size: var(--text-xs);
         font-weight: 600;
         text-transform: uppercase;

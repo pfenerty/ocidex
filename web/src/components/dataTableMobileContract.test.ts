@@ -52,6 +52,21 @@ describe("mobile table styles", () => {
         expect(/\.table-mobile-scroll table\s*\{[^}]*min-width:/.test(block)).toBe(true);
     });
 
+    // The value gutter breaks anywhere so a purl or a digest can wrap;
+    // `overflow-wrap` is inherited, so without an explicit reset the label
+    // pseudo inherited that too and "VULNERABILITIES" rendered as
+    // "VULNERABILITIE / S" in a 6.5rem gutter (ocidex-ag4q.61). Both halves
+    // matter: a wider gutter alone still permits the break on the next long
+    // label, and the reset alone leaves the longest one overflowing.
+    it("keeps the label out of the value's break-anywhere rule", () => {
+        const label = /td\[data-label\]::before\s*\{([^}]*)\}/.exec(block);
+        if (label === null) throw new Error("no label pseudo rule");
+        expect(label[1]).toMatch(/overflow-wrap:\s*normal/);
+        const basis = /flex:\s*0\s+0\s+([\d.]+)rem/.exec(label[1]);
+        if (basis === null) throw new Error("label gutter has no rem flex-basis");
+        expect(Number(basis[1])).toBeGreaterThanOrEqual(7.5);
+    });
+
     it("only styles classes DataTable actually emits", () => {
         const emitted = ["table-mobile-cards", "table-mobile-scroll"];
         const used = [...block.matchAll(/\.table-mobile-[a-z]+/g)].map((m) => m[0].slice(1));
