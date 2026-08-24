@@ -32,7 +32,7 @@
  * the left edge rather than a filled block — the panel still has to be
  * readable as a list. */
 .dash-panel-alert {
-    border-color: rgba(240, 101, 101, 0.35);
+    border-color: color-mix(in srgb, var(--color-danger) 35%, transparent);
     box-shadow: inset 3px 0 0 var(--color-danger);
 }
 

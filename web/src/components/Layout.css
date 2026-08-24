@@ -88,7 +88,12 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--color-accent-amber);
+    /* The literal, not --color-accent-amber. This dot sits on the brand red in
+       both themes, so it does not want the token's light-mode value: the -700
+       amber that the sort arrow needs against white measures 1.11:1 on #DC3545
+       and simply disappears. Decorative and aria-hidden, so this is a
+       visibility call rather than a contrast requirement. */
+    background: #ffb020;
     flex-shrink: 0;
     animation: brand-pulse 1.2s ease-out 1;
 }
@@ -132,13 +137,22 @@
     color: #ffffff;
 }
 
+/* Solid white, not a tint. The wordmark sits on --color-primary, and white at
+   80% alpha measures 4.01:1 on the light red and 3.38:1 on the dark one — the
+   product's own name failed AA in both themes. There is no alpha that clears
+   4.5 against #DC3545 (solid white is itself only 4.53), so the two-tone split
+   is carried by weight instead, which costs nothing legible. */
 .sidebar-brand span {
-    color: rgba(255, 255, 255, 0.8);
+    color: #ffffff;
+    font-weight: 400;
 }
 
 .sidebar-brand p {
     font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.6);
+    /* 60% white was 2.76:1 light / 2.47:1 dark. Same reasoning as the wordmark
+       above: on this red only solid white passes, and the tagline is already
+       set apart by being 0.75rem against a 1.25rem bold title. */
+    color: #ffffff;
     margin-top: 0.125rem;
 }
 

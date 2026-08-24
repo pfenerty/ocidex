@@ -115,7 +115,7 @@ export function StatusTab() {
                             </div>
                             <div class="stat-card">
                                 <div class="stat-label">Failed (24 h)</div>
-                                <div class="stat-value" style={{ color: (query.data?.scan_jobs.failed_24h ?? 0) > 0 ? "var(--color-error)" : "inherit" }}>
+                                <div class="stat-value" style={{ color: (query.data?.scan_jobs.failed_24h ?? 0) > 0 ? "var(--color-danger)" : "inherit" }}>
                                     {query.data?.scan_jobs.failed_24h ?? 0}
                                 </div>
                             </div>
@@ -127,7 +127,7 @@ export function StatusTab() {
                         <div class="stats-grid">
                             <div class="stat-card">
                                 <div class="stat-label">Database</div>
-                                <div class="stat-value" style={{ color: query.data?.db.ok === true ? "var(--color-success)" : "var(--color-error)" }}>
+                                <div class="stat-value" style={{ color: query.data?.db.ok === true ? "var(--color-success)" : "var(--color-danger)" }}>
                                     {query.data?.db.ok === true ? "OK" : "Error"}
                                 </div>
                                 <div class="text-muted text-sm mt-1">

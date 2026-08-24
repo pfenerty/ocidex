@@ -44,7 +44,13 @@
 
     --color-secondary: #5B8DEF;
     --color-secondary-hover: #7BA4F4;
-    --color-secondary-fg: #FFFFFF;
+    /* Ink, not white — this token names "the readable foreground *on*
+       --color-secondary", and the dark theme's secondary is a light blue.
+       #FFFFFF on #5B8DEF is 3.23:1, which is what the selected segment of a
+       .btn-group (the Semver/Date toggle on ArtifactDetail, among others) was
+       rendering. The page background reads 5.99 on it and 7.4 on the hover
+       step. The light theme keeps white, where secondary is blue-700. */
+    --color-secondary-fg: #0C0E14;
 
     /* The keyboard ring. An alias, not a fourth blue: "you are here with the
        keyboard" is the same question --color-secondary already answers, and
@@ -64,7 +70,16 @@
     /* --- Text --- */
     --color-text: #E4E7F0;
     --color-text-muted: #8B90A5;
-    --color-text-dim: #5C6070;
+    /* Not #5C6070, which is the light theme's *muted* grey reused here one rung
+       too low: it measured 3.09:1 on --color-bg and 2.90 on a card, so the
+       sidebar search trigger, its ⌘K hint and every dim timestamp missed AA in
+       the dark theme as well. #82879D reads 5.42 on --color-bg and 4.94 on a
+       card, and is still a visible step below --color-text-muted (6.09 / 5.55).
+       It does not reach 4.5 on --color-elevated (4.10) or --color-surface-hover
+       (4.45); closing those would mean moving it onto --color-text-muted and
+       collapsing the two greys into one, which is a worse trade than the
+       residual — and --color-text-muted itself is only 4.61 on elevated. */
+    --color-text-dim: #82879D;
 
     /* --- Semantic --- */
     --color-success: #34D399;
@@ -127,33 +142,73 @@
     --color-primary-hover: #B31020;
     --color-primary-fg: #FFFFFF;
 
-    --color-secondary: #2563EB;
-    --color-secondary-hover: #1D4ED8;
+    /* blue-700, not blue-600. This is the link and interactive colour (ADR of
+       1.3: blue = interactive), and #2563EB reads 4.42:1 on --color-elevated —
+       so any link inside a raised card missed AA. #1D4ED8 is 5.71 there and
+       6.20 on the page background; the hover step moves to blue-800. */
+    --color-secondary: #1D4ED8;
+    --color-secondary-hover: #1E40AF;
     --color-secondary-fg: #FFFFFF;
 
     --color-bg: #F8F6F1;
     --color-surface: #FFFFFF;
     --color-surface-hover: #F3F1EC;
-    --color-elevated: #F0EDE7;
+    /* Lighter than the page, not darker — the third instance of the same
+       dark-ladder-by-position bug as --color-text-dim below. #F0EDE7 sat a
+       step *below* --color-bg, which is what "elevated" means going up from
+       #0C0E14 and the opposite of what it means coming down from white. It
+       also made this the darkest surface in the theme, so the semantic
+       foreground tokens measured their worst against the one surface that
+       floats above everything: success and warning both landed at 4.3:1 on
+       it. Toasts, the command palette, the combobox popover and the login
+       button are the users; separation from a white card now comes from the
+       border and shadow they already carry, and every token clears 4.9 here. */
+    --color-elevated: #FDFCFA;
     --color-border: #E0DDD5;
     --color-border-hover: #C8C4BA;
 
     --color-text: #1A1D27;
     --color-text-muted: #5C6070;
-    --color-text-dim: #8B90A5;
+    /* Not #8B90A5. The light palette was built by swapping the dark ladder's
+       two greys, which works going *up* from #0C0E14 and does not work coming
+       *down* from white: #8B90A5 measures 3.17:1 on a card and 2.93:1 on the
+       page background, so every timestamp, hint and unit label on every route
+       failed AA at once — by far the largest single finding of the light-mode
+       audit. #666B7A reads 5.13 on a card, 4.75 on the page background and
+       4.71 on --color-surface-hover — the last of those is why it is not the
+       slightly lighter #6B7080 tried first, which fell to 4.37 exactly when a
+       table row is hovered and being read. It still sits a clear step lighter
+       than --color-text-muted (6.25). */
+    --color-text-dim: #666B7A;
 
-    --color-success: #16A34A;
-    --color-success-bg: rgba(22, 163, 74, 0.08);
-    --color-warning: #D97706;
-    --color-warning-bg: rgba(217, 119, 6, 0.08);
-    --color-danger: #DC2626;
-    --color-danger-bg: rgba(220, 38, 38, 0.08);
-    --color-danger-hover: #B91C1C;
+    /* Both were the -600 step of their ramp, which is the step that reads well
+       *on* a dark background and not the step that reads *against* white:
+       #16A34A measures 3.30:1 on a card and 2.82:1 on --color-elevated, and
+       #D97706 is worse at 3.19 / 2.73. Every badge, alert and status label
+       carrying success or warning failed AA on every light route at once. The
+       -700 step clears it (5.01 and 5.02 on a card) and is still unmistakably
+       green and amber. The dark theme keeps the brighter values above, where
+       the polarity is reversed and they measure fine. */
+    --color-success: #15803D;
+    --color-success-bg: rgba(21, 128, 61, 0.10);
+    --color-warning: #B45309;
+    --color-warning-bg: rgba(180, 83, 9, 0.10);
+    /* The same one-step correction, for the same reason, one shade less
+       obviously: #DC2626 measured 4.47:1 on --color-bg and 4.13 on
+       --color-elevated — passing on a white card and failing on the two
+       surfaces most of the app actually paints. The Licenses tab's "STRONG"
+       copyleft label was the visible case. #B91C1C clears 5.5 on every
+       surface, so the hover step moves down to red-800 to stay distinct. */
+    --color-danger: #B91C1C;
+    --color-danger-bg: rgba(185, 28, 28, 0.08);
+    --color-danger-hover: #991B1B;
     --color-info: var(--color-secondary);
-    --color-info-bg: rgba(37, 99, 235, 0.08);
+    --color-info-bg: rgba(29, 78, 216, 0.08);
     --color-severity-critical: #CC1429;
 
-    --color-accent-amber: #D97706;
+    /* Same -700 correction: this token's only text use is DataTable's sort
+       arrow, a 0.65rem glyph that was 2.95:1 on the page background. */
+    --color-accent-amber: #B45309;
     --color-chrome-deep: #1A1D27;
 }
 
@@ -738,7 +793,10 @@
 
     .btn-danger {
         color: var(--color-danger);
-        border-color: rgba(240, 101, 101, 0.3);
+        /* Mixed from the token, not a literal: the literal was the dark
+           palette's #F06565, so this border stayed dark-salmon in light mode
+           while the text beside it correctly went to #DC2626. */
+        border-color: color-mix(in srgb, var(--color-danger) 30%, transparent);
     }
 
     .btn-danger:hover {
@@ -926,14 +984,14 @@
 
     .alert-danger {
         background: var(--color-danger-bg);
-        border: 1px solid rgba(240, 101, 101, 0.3);
+        border: 1px solid color-mix(in srgb, var(--color-danger) 30%, transparent);
         color: var(--color-danger);
     }
 
     .alert-warning {
-        background: var(--color-warning-bg, rgba(212, 158, 70, 0.12));
-        border: 1px solid rgba(212, 158, 70, 0.3);
-        color: var(--color-warning, var(--color-text));
+        background: var(--color-warning-bg);
+        border: 1px solid color-mix(in srgb, var(--color-warning) 30%, transparent);
+        color: var(--color-warning);
     }
 }
 

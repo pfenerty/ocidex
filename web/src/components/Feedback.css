@@ -36,7 +36,7 @@
 
 .error-box {
     background: var(--color-danger-bg);
-    border: 1px solid rgba(240, 101, 101, 0.25);
+    border: 1px solid color-mix(in srgb, var(--color-danger) 25%, transparent);
     border-radius: var(--radius-md);
     padding: 1rem;
     color: var(--color-danger);

@@ -216,7 +216,7 @@ export function RegistryFormDialog(props: {
                                     value={form().url}
                                     onInput={(e) => { setForm(f => ({ ...f, url: e.currentTarget.value })); setTestResult(null); }}
                                     placeholder="registry:5000"
-                                    style={{ flex: "1", ...(TYPE_CAPS[form().type].fixedUrl !== null ? { background: "var(--color-surface-2, #f0f0f0)", cursor: "not-allowed" } : {}) }}
+                                    style={{ flex: "1", ...(TYPE_CAPS[form().type].fixedUrl !== null ? { background: "var(--color-surface-hover)", cursor: "not-allowed" } : {}) }}
                                     readOnly={TYPE_CAPS[form().type].fixedUrl !== null}
                                     required
                                 />
@@ -238,7 +238,7 @@ export function RegistryFormDialog(props: {
                                 <div style={{
                                     "margin-top": "0.3rem",
                                     "font-size": "0.8rem",
-                                    color: testResult()?.reachable === true ? "var(--color-success)" : "var(--color-error, #e53e3e)",
+                                    color: testResult()?.reachable === true ? "var(--color-success)" : "var(--color-danger)",
                                 }}>
                                     {testResult()?.reachable === true ? "✓" : "✗"} {testResult()?.message}
                                 </div>
@@ -311,7 +311,7 @@ export function RegistryFormDialog(props: {
                                 </Show>
                             </select>
                             <Show when={!TYPE_CAPS[form().type].webhook && !showPollOptions()}>
-                                <div style={{ "margin-top": "0.3rem", "font-size": "0.8rem", color: "var(--color-error, #e53e3e)" }}>
+                                <div style={{ "margin-top": "0.3rem", "font-size": "0.8rem", color: "var(--color-danger)" }}>
                                     Requires REGISTRY_POLLER_ENABLED=true — this registry type only supports polling.
                                 </div>
                             </Show>
