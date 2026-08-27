@@ -41,8 +41,10 @@ type RunConfig struct {
 
 // EnricherFactory is called with the live DB pool so resolver-dependent
 // enrichers (oci, provenance) can be constructed without the caller needing
-// to set up the pool before invoking Run.
-type EnricherFactory func(pool *pgxpool.Pool) []enrichment.Enricher
+// to set up the pool before invoking Run. The loaded config comes with it so an
+// enricher can be tuned from the environment (e.g. the provenance layer cap)
+// without each worker binary re-reading it.
+type EnricherFactory func(pool *pgxpool.Pool, appCfg *config.Config) []enrichment.Enricher
 
 // Run is the shared daemon entry point for all per-enricher workers.
 // It handles config load, logging, DB pool, NATS, jobqueue.Worker,
@@ -86,7 +88,7 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 	slog.Info("database connected")
 
 	if *once {
-		return RunOnce(ctx, pool, factory)
+		return RunOnce(ctx, pool, factory, appCfg)
 	}
 
 	natsClient, err := natspkg.Connect(natspkg.Config{
@@ -107,7 +109,7 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 
 	enrichStore := repository.New(pool)
 	enrichReg := enrichment.NewCatalog()
-	for _, e := range factory(pool) {
+	for _, e := range factory(pool, appCfg) {
 		enrichReg.Register(e)
 	}
 	dispatcher := enrichment.NewDispatcher(enrichStore, enrichReg)
@@ -187,7 +189,7 @@ func Run(factory EnricherFactory, cfg RunConfig) error {
 
 // RunOnce enriches a single SBOM (from ENRICH_SBOM_ID env var) and exits.
 // Called from Run when --once is set; also exported for testing.
-func RunOnce(ctx context.Context, pool *pgxpool.Pool, factory EnricherFactory) error {
+func RunOnce(ctx context.Context, pool *pgxpool.Pool, factory EnricherFactory, appCfg *config.Config) error {
 	sbomIDStr := os.Getenv("ENRICH_SBOM_ID")
 	if sbomIDStr == "" {
 		return fmt.Errorf("ENRICH_SBOM_ID is required in --once mode")
@@ -227,7 +229,7 @@ func RunOnce(ctx context.Context, pool *pgxpool.Pool, factory EnricherFactory) e
 	}
 
 	enrichReg := enrichment.NewCatalog()
-	for _, e := range factory(pool) {
+	for _, e := range factory(pool, appCfg) {
 		enrichReg.Register(e)
 	}
 	dispatcher := enrichment.NewDispatcher(store, enrichReg)

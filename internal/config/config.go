@@ -89,6 +89,14 @@ type Config struct {
 	// check must be before it's requeued for re-verification (drift detection:
 	// trust config changes, registry deletions).
 	ProvenanceRecheckInterval time.Duration `env:"PROVENANCE_RECHECK_INTERVAL" envDefault:"24h"`
+	// ProvenanceMaxLayerBytes caps a single signature or attestation layer the
+	// provenance enricher will read. The layer is registry-controlled and read
+	// whole into memory: a bare cosign signature is a few KB, an attestation
+	// carrying a full SBOM is megabytes, and reading one unbounded is what
+	// OOMKilled the worker (ocidex-wvnp). Exceeding it fails that job, not the
+	// pod. Raising it means raising the worker's memory limit too.
+	ProvenanceMaxLayerBytes int64 `env:"PROVENANCE_MAX_LAYER_BYTES" envDefault:"16777216"` // 16MiB
+
 	// ProvenanceReverifierEnabled gates the provenance recheck sweep. Defaults
 	// to true since it already runs unconditionally today; set to false to
 	// disable (e.g. in a test/staging environment without registry access).

@@ -33,7 +33,21 @@ const (
 	attArtifactType    = "application/vnd.dsse.envelope.v1+json"
 	inTotoArtifactType = "application/vnd.in-toto+json"
 	bundleArtifactType = "application/vnd.dev.sigstore.bundle.v0.3+json"
+
+	// defaultMaxLayerBytes caps a single signature or attestation layer read.
+	// The layer is registry-controlled and read whole into memory: a bare cosign
+	// signature is a few KB, but an attestation carrying a full SBOM is
+	// megabytes, and reading one unbounded is what OOMKilled this worker
+	// (ocidex-wvnp). 16MiB is far above any legitimate compressed attestation
+	// while staying small enough that several concurrent reads fit the pod's
+	// memory limit. Raising it means raising that limit too.
+	defaultMaxLayerBytes = 16 << 20
 )
+
+// ErrLayerTooLarge is returned when a signature or attestation layer exceeds the
+// configured cap. It fails that one enrichment job — which lands in
+// enrichment_jobs with a diagnosable reason — rather than exhausting the pod.
+var ErrLayerTooLarge = errors.New("layer exceeds maximum size")
 
 // RawArtifacts is the result stored in the enrichment JSONB column for B2.
 // B3 replaces Enrich() to return a parsed Provenance struct built from these fields.
@@ -61,6 +75,7 @@ type Enricher struct {
 	insecureResolver   func(ctx context.Context, host string) bool
 	credentialResolver func(ctx context.Context, host string) (username, token string)
 	trustResolver      TrustResolver
+	maxLayerBytes      int64
 }
 
 // Option configures the provenance Enricher.
@@ -92,6 +107,17 @@ func WithCredentialResolver(fn func(ctx context.Context, host string) (username,
 	return func(e *Enricher) { e.credentialResolver = fn }
 }
 
+// WithMaxLayerBytes caps how many bytes a single signature or attestation layer
+// may contribute. A layer larger than this fails that enrichment with
+// ErrLayerTooLarge instead of being read into memory. Values <= 0 are ignored.
+func WithMaxLayerBytes(n int64) Option {
+	return func(e *Enricher) {
+		if n > 0 {
+			e.maxLayerBytes = n
+		}
+	}
+}
+
 // WithTrustResolver sets the per-host trust configuration resolver used for ECDSA verification.
 func WithTrustResolver(fn TrustResolver) Option {
 	return func(e *Enricher) { e.trustResolver = fn }
@@ -99,7 +125,7 @@ func WithTrustResolver(fn TrustResolver) Option {
 
 // NewEnricher creates a provenance enricher.
 func NewEnricher(opts ...Option) *Enricher {
-	e := &Enricher{timeout: 30 * time.Second}
+	e := &Enricher{timeout: 30 * time.Second, maxLayerBytes: defaultMaxLayerBytes}
 	for _, o := range opts {
 		o(e)
 	}
@@ -297,7 +323,7 @@ func (e *Enricher) extractFromReferrers(idx v1.ImageIndex, repo name.Repository,
 			if result.SigPresent {
 				continue // take first sig only
 			}
-			annotations, layerBytes, err := fetchReferrerLayer(repo, desc, opts)
+			annotations, layerBytes, err := fetchReferrerLayer(repo, desc, opts, e.maxLayerBytes)
 			if isNotFound(err) {
 				continue // dangling index entry; the tag scheme gets the final say
 			}
@@ -312,7 +338,7 @@ func (e *Enricher) extractFromReferrers(idx v1.ImageIndex, repo name.Repository,
 			if result.AttPresent {
 				continue // take first att only; prefer earlier-listed match if multiple present
 			}
-			annotations, layerBytes, err := fetchReferrerLayer(repo, desc, opts)
+			annotations, layerBytes, err := fetchReferrerLayer(repo, desc, opts, e.maxLayerBytes)
 			if isNotFound(err) {
 				continue // dangling index entry; the tag scheme gets the final say
 			}
@@ -341,13 +367,13 @@ func (e *Enricher) extractFromReferrers(idx v1.ImageIndex, repo name.Repository,
 // manifest store is a dangling entry, not a transient fault, and erroring on it
 // would wedge that SBOM's enrichment for as long as the registry stayed
 // inconsistent. That case falls back to the tag scheme instead.
-func fetchReferrerLayer(repo name.Repository, desc v1.Descriptor, opts []remote.Option) (annotations map[string]string, layerBytes []byte, err error) {
+func fetchReferrerLayer(repo name.Repository, desc v1.Descriptor, opts []remote.Option, maxLayerBytes int64) (annotations map[string]string, layerBytes []byte, err error) {
 	childRef := repo.Digest(desc.Digest.String())
 	img, err := remote.Image(childRef, opts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("fetching referrer %s: %w", desc.Digest.String(), err)
 	}
-	layerBytes, err = readFirstLayer(img)
+	layerBytes, err = readFirstLayer(img, maxLayerBytes)
 	if err != nil {
 		return nil, nil, fmt.Errorf("reading referrer %s layer: %w", desc.Digest.String(), err)
 	}
@@ -370,7 +396,7 @@ func (e *Enricher) discoverViaTagScheme(repo name.Repository, rawDigest string, 
 	img, err := remote.Image(sigRef, opts...)
 	switch {
 	case err == nil:
-		result.SigLayerBytes, err = readFirstLayer(img)
+		result.SigLayerBytes, err = readFirstLayer(img, e.maxLayerBytes)
 		if err != nil {
 			return RawArtifacts{}, fmt.Errorf("reading %s layer: %w", sigRef, err)
 		}
@@ -384,7 +410,7 @@ func (e *Enricher) discoverViaTagScheme(repo name.Repository, rawDigest string, 
 	img, err = remote.Image(attRef, opts...)
 	switch {
 	case err == nil:
-		result.AttLayerBytes, err = readFirstLayer(img)
+		result.AttLayerBytes, err = readFirstLayer(img, e.maxLayerBytes)
 		if err != nil {
 			return RawArtifacts{}, fmt.Errorf("reading %s layer: %w", attRef, err)
 		}
@@ -420,16 +446,32 @@ func manifestAnnotations(img v1.Image) map[string]string {
 	return merged
 }
 
-// readFirstLayer reads and returns the raw bytes of the first layer in an image.
-func readFirstLayer(img v1.Image) ([]byte, error) {
+// readFirstLayer reads and returns the raw bytes of the first layer in an image,
+// refusing to buffer more than maxBytes of it.
+//
+// The layer is registry-controlled content, so its size is not ours to trust.
+// The descriptor is checked first, which skips the transfer entirely for a layer
+// that admits to being oversized; a descriptor that understates the real size is
+// still caught by the LimitReader, which never holds more than maxBytes+1.
+func readFirstLayer(img v1.Image, maxBytes int64) ([]byte, error) {
 	layers, err := img.Layers()
 	if err != nil || len(layers) == 0 {
 		return nil, err
+	}
+	if size, sizeErr := layers[0].Size(); sizeErr == nil && size > maxBytes {
+		return nil, fmt.Errorf("%w: %d bytes declared, limit is %d", ErrLayerTooLarge, size, maxBytes)
 	}
 	rc, err := layers[0].Compressed()
 	if err != nil {
 		return nil, err
 	}
 	defer rc.Close()
-	return io.ReadAll(rc)
+	data, err := io.ReadAll(io.LimitReader(rc, maxBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > maxBytes {
+		return nil, fmt.Errorf("%w: over %d bytes, limit is %d", ErrLayerTooLarge, maxBytes, maxBytes)
+	}
+	return data, nil
 }

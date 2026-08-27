@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/enrichment"
 	"github.com/pfenerty/ocidex/internal/enrichment/names"
 	"github.com/pfenerty/ocidex/internal/enrichment/user"
@@ -22,7 +23,7 @@ func main() {
 	}
 }
 
-func buildEnrichers(_ *pgxpool.Pool) []enrichment.Enricher {
+func buildEnrichers(_ *pgxpool.Pool, _ *config.Config) []enrichment.Enricher {
 	return []enrichment.Enricher{
 		user.NewEnricher(),
 	}

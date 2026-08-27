@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/enrichment"
 	"github.com/pfenerty/ocidex/internal/enrichment/names"
 	"github.com/pfenerty/ocidex/internal/enrichment/provenance"
@@ -23,7 +24,7 @@ func main() {
 	}
 }
 
-func buildEnrichers(pool *pgxpool.Pool) []enrichment.Enricher {
+func buildEnrichers(pool *pgxpool.Pool, appCfg *config.Config) []enrichment.Enricher {
 	registrySvc := service.NewRegistryService(pool)
 	insecureResolver := service.BuildInsecureHostLookup(registrySvc)
 	trustResolver := service.BuildTrustLookup(registrySvc)
@@ -33,6 +34,7 @@ func buildEnrichers(pool *pgxpool.Pool) []enrichment.Enricher {
 			provenance.WithInsecureResolver(insecureResolver),
 			provenance.WithTrustResolver(trustResolver),
 			provenance.WithCredentialResolver(credResolver),
+			provenance.WithMaxLayerBytes(appCfg.ProvenanceMaxLayerBytes),
 		),
 	}
 }

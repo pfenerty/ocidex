@@ -99,6 +99,7 @@ the artifact) is detected without a new push. Runs on the API process via leader
 |----------|---------|-------------|
 | `PROVENANCE_REVERIFIER_ENABLED` | `true` | Enable the background provenance recheck sweep. Uses leader election so multiple API replicas are safe. |
 | `PROVENANCE_RECHECK_INTERVAL` | `24h` | How old a SBOM's last successful provenance check must be before it's requeued. Also controls the sweep's tick rate. |
+| `PROVENANCE_MAX_LAYER_BYTES` | `16777216` (16MiB) | Largest signature or attestation layer the provenance enricher will read. The layer is registry-controlled and read whole into memory — a bare cosign signature is a few KB, an attestation carrying a full SBOM is megabytes — and reading one unbounded is what OOMKilled the worker. Exceeding it fails that job with a diagnosable error, not the pod. Raise the worker's memory limit alongside this. |
 
 ### NATS JetStream
 

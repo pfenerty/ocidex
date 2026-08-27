@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/enrichment"
 	"github.com/pfenerty/ocidex/internal/enrichment/git"
 	"github.com/pfenerty/ocidex/internal/enrichment/names"
@@ -29,7 +30,7 @@ func main() {
 	}
 }
 
-func buildEnrichers(pool *pgxpool.Pool) []enrichment.Enricher {
+func buildEnrichers(pool *pgxpool.Pool, _ *config.Config) []enrichment.Enricher {
 	store := repository.New(pool)
 	ociReader := func(ctx context.Context, sbomID pgtype.UUID) (string, string, error) {
 		e, err := store.GetEnrichment(ctx, repository.GetEnrichmentParams{

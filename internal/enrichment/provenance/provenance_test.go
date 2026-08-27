@@ -1,9 +1,11 @@
 package provenance
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +15,11 @@ import (
 	"testing"
 	"time"
 
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/empty"
+	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/google/go-containerregistry/pkg/v1/static"
 	"github.com/matryer/is"
 
 	"github.com/pfenerty/ocidex/internal/enrichment/subject"
@@ -1208,4 +1214,131 @@ func TestFetchRekorUUID(t *testing.T) {
 		is.Equal(p.RekorLogIndex, int64(9999))
 		is.Equal(p.RekorUUID, "") // not set by buildProvenance
 	})
+}
+
+// ----- layer size cap --------------------------------------------------------
+
+// lyingLayer reports a Size() smaller than the bytes it actually serves, which
+// is what a hostile or broken registry looks like. It exists to prove the cap
+// does not rest on the descriptor alone.
+type lyingLayer struct {
+	v1.Layer
+	claimed int64
+}
+
+func (l lyingLayer) Size() (int64, error) { return l.claimed, nil }
+
+// singleLayerImage builds an in-memory image whose first layer is the given one.
+func singleLayerImage(t *testing.T, layer v1.Layer) v1.Image {
+	t.Helper()
+	img, err := mutate.AppendLayers(empty.Image, layer)
+	if err != nil {
+		t.Fatalf("building test image: %v", err)
+	}
+	return img
+}
+
+// TestReadFirstLayer_Cap covers the boundary of the layer size cap: a layer
+// under it and a layer exactly at it are read whole, a layer over it fails with
+// ErrLayerTooLarge instead of being buffered.
+func TestReadFirstLayer_Cap(t *testing.T) {
+	const maxBytes = 64
+
+	cases := []struct {
+		name    string
+		size    int
+		wantErr bool
+	}{
+		{name: "under_cap", size: maxBytes - 1},
+		{name: "at_cap", size: maxBytes},
+		{name: "over_cap", size: maxBytes + 1, wantErr: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			is := is.New(t)
+
+			payload := bytes.Repeat([]byte("a"), tc.size)
+			img := singleLayerImage(t, static.NewLayer(payload, "application/vnd.dev.cosign.simplesigning.v1+json"))
+
+			got, err := readFirstLayer(img, maxBytes)
+			if tc.wantErr {
+				is.True(errors.Is(err, ErrLayerTooLarge)) // oversized layer must report ErrLayerTooLarge
+				is.Equal(len(got), 0)                     // and must not return partial bytes
+				return
+			}
+			is.NoErr(err)
+			is.Equal(len(got), tc.size)
+		})
+	}
+
+	// A descriptor that understates the layer must not get past the cap: the
+	// declared-size check passes, so only the LimitReader can catch it.
+	t.Run("descriptor_understates_size", func(t *testing.T) {
+		is := is.New(t)
+
+		payload := bytes.Repeat([]byte("a"), maxBytes*4)
+		layer := lyingLayer{
+			Layer:   static.NewLayer(payload, "application/vnd.dev.cosign.simplesigning.v1+json"),
+			claimed: 1,
+		}
+
+		got, err := readFirstLayer(singleLayerImage(t, layer), maxBytes)
+		is.True(errors.Is(err, ErrLayerTooLarge))
+		is.Equal(len(got), 0)
+	})
+}
+
+// TestEnrich_LayerOverCapFailsTheJob verifies that an oversized attestation
+// fails that one enrichment — the outbox records a diagnosable reason — rather
+// than being read into memory or silently degrading to "unsigned".
+func TestEnrich_LayerOverCapFailsTheJob(t *testing.T) {
+	is := is.New(t)
+
+	// Comfortably over the 512-byte cap set on the enricher below.
+	bigAtt := append([]byte(`{"payload":"`), bytes.Repeat([]byte("A"), 4096)...)
+	bigAtt = append(bigAtt, []byte(`","payloadType":"application/vnd.in-toto+json","signatures":[]}`)...)
+
+	attLayerDigest := digestOf(bigAtt)
+	configDigest := digestOf(fakeConfig)
+
+	attManifestBytes, _ := buildManifest(
+		"application/vnd.dsse.envelope.v1+json",
+		attLayerDigest, len(bigAtt), configDigest,
+		nil,
+	)
+
+	hexDigest := strings.TrimPrefix(testImageDigest, "sha256:")
+	tagBase := "sha256-" + hexDigest
+	repo := "/repo"
+
+	routes := map[string]route{
+		repo + "/referrers/sha256:" + hexDigest: {statusCode: http.StatusNotFound},
+		repo + "/manifests/sha256-" + hexDigest: {statusCode: http.StatusNotFound},
+		repo + "/manifests/" + tagBase + ".sig": {statusCode: http.StatusNotFound},
+		repo + "/manifests/" + tagBase + ".att": {contentType: "application/vnd.oci.image.manifest.v1+json", body: attManifestBytes},
+		repo + "/blobs/" + attLayerDigest:       {body: bigAtt},
+		repo + "/blobs/" + configDigest:         {body: fakeConfig},
+	}
+
+	srv := newTestServer(t, routes)
+	defer srv.Close()
+
+	e := newTestEnricher(srv)
+	WithMaxLayerBytes(512)(e)
+
+	_, err := e.Enrich(t.Context(), testRef(strings.TrimPrefix(srv.URL, "http://")))
+	is.True(errors.Is(err, ErrLayerTooLarge)) // must surface, not be swallowed as unsigned
+}
+
+// TestWithMaxLayerBytes_IgnoresNonPositive keeps the default in place when the
+// env var is unset or nonsense, so a misconfiguration cannot reinstate the
+// unbounded read.
+func TestWithMaxLayerBytes_IgnoresNonPositive(t *testing.T) {
+	is := is.New(t)
+
+	for _, n := range []int64{0, -1} {
+		e := NewEnricher(WithMaxLayerBytes(n))
+		is.Equal(e.maxLayerBytes, int64(defaultMaxLayerBytes))
+	}
 }
