@@ -2,6 +2,7 @@ package provenance
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -1341,4 +1342,84 @@ func TestWithMaxLayerBytes_IgnoresNonPositive(t *testing.T) {
 		e := NewEnricher(WithMaxLayerBytes(n))
 		is.Equal(e.maxLayerBytes, int64(defaultMaxLayerBytes))
 	}
+}
+
+// ----- timeout scoping tests (ocidex-5gbm) -----------------------------------
+
+// TestEnrich_RekorLookupIsScopedOutOfTheSharedBudget pins the deadline Enrich
+// hands the Rekor lookup. The lookup is fail-open, so letting it draw on the
+// shared budget meant a slow public Rekor could starve cosign verification and
+// turn a free best-effort call into a failed job.
+func TestEnrich_RekorLookupIsScopedOutOfTheSharedBudget(t *testing.T) {
+	is := is.New(t)
+
+	sigLayerDigest := digestOf(fakeSigPayload)
+	configDigest := digestOf(fakeConfig)
+	sigManifestBytes, _ := buildManifest(
+		sigArtifactType,
+		sigLayerDigest, len(fakeSigPayload), configDigest,
+		map[string]string{
+			"chains.tekton.dev/transparency": "https://rekor.sigstore.dev/api/v1/log/entries?logIndex=4242",
+		},
+	)
+
+	hexDigest := strings.TrimPrefix(testImageDigest, "sha256:")
+	tagBase := "sha256-" + hexDigest
+	repo := "/repo"
+
+	routes := map[string]route{
+		repo + "/referrers/sha256:" + hexDigest: {statusCode: http.StatusNotFound},
+		repo + "/manifests/sha256-" + hexDigest: {statusCode: http.StatusNotFound},
+		repo + "/manifests/" + tagBase + ".sig": {contentType: "application/vnd.oci.image.manifest.v1+json", body: sigManifestBytes},
+		repo + "/manifests/" + tagBase + ".att": {statusCode: http.StatusNotFound},
+		repo + "/blobs/" + sigLayerDigest:       {body: fakeSigPayload},
+		repo + "/blobs/" + configDigest:         {body: fakeConfig},
+	}
+
+	srv := newTestServer(t, routes)
+	defer srv.Close()
+
+	var gotBudget time.Duration
+	var gotParentAlive bool
+	orig := fetchRekorUUIDFn
+	fetchRekorUUIDFn = func(ctx context.Context, logIndex int64) string {
+		if dl, ok := ctx.Deadline(); ok {
+			gotBudget = time.Until(dl)
+		}
+		gotParentAlive = ctx.Err() == nil
+		return "" // Rekor unreachable: the fail-open path
+	}
+	t.Cleanup(func() { fetchRekorUUIDFn = orig })
+
+	e := newTestEnricher(srv)
+	// A budget far larger than rekorLookupTimeout, so a Rekor call that drew on
+	// the shared budget would show a deadline well past the sub-budget.
+	WithTimeout(10 * time.Minute)(e)
+
+	data, err := e.Enrich(t.Context(), testRef(strings.TrimPrefix(srv.URL, "http://")))
+	is.NoErr(err)
+	is.True(gotParentAlive)                  // the lookup ran with time left
+	is.True(gotBudget > 0)                   // a deadline was set at all
+	is.True(gotBudget <= rekorLookupTimeout) // and it is the sub-budget, not the parent's
+
+	// Fail-open: a Rekor miss leaves the UUID empty and still succeeds.
+	var p Provenance
+	is.NoErr(json.Unmarshal(data, &p))
+	is.Equal(p.RekorLogIndex, int64(4242))
+	is.Equal(p.RekorUUID, "")
+}
+
+// TestWithTimeout_IgnoresNonPositive keeps the default in place when
+// PROVENANCE_TIMEOUT is unset or nonsense. Without the guard a zero value would
+// hand every job an already-expired context and fail the whole enricher.
+func TestWithTimeout_IgnoresNonPositive(t *testing.T) {
+	is := is.New(t)
+
+	for _, d := range []time.Duration{0, -time.Second} {
+		e := NewEnricher(WithTimeout(d))
+		is.Equal(e.timeout, defaultTimeout)
+	}
+
+	e := NewEnricher(WithTimeout(2 * time.Minute))
+	is.Equal(e.timeout, 2*time.Minute)
 }

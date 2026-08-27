@@ -34,6 +34,22 @@ const (
 	inTotoArtifactType = "application/vnd.in-toto+json"
 	bundleArtifactType = "application/vnd.dev.sigstore.bundle.v0.3+json"
 
+	// defaultTimeout bounds one Enrich call end to end. The chain is an
+	// existence HEAD, referrers discovery plus its child layer fetches, a Rekor
+	// lookup and cosign verification — and cosign may refresh the Sigstore
+	// trusted root, which is itself allowed trustedRootFetchTimeout. The
+	// previous 30s left that sub-fetch able to consume the entire budget.
+	// Overridable via PROVENANCE_TIMEOUT (ocidex-5gbm).
+	defaultTimeout = 90 * time.Second
+
+	// rekorLookupTimeout scopes the Rekor transparency-log lookup out of the
+	// shared budget. The lookup is fail-open — fetchRekorUUID returns "" on any
+	// error — so its only cost should be a missing UUID. Sharing the budget
+	// meant a slow public Rekor instance could burn the deadline and leave
+	// nothing for cosign verification, turning a free best-effort call into a
+	// failed job and a retry.
+	rekorLookupTimeout = 10 * time.Second
+
 	// defaultMaxLayerBytes caps a single signature or attestation layer read.
 	// The layer is registry-controlled and read whole into memory: a bare cosign
 	// signature is a few KB, but an attestation carrying a full SBOM is
@@ -81,9 +97,15 @@ type Enricher struct {
 // Option configures the provenance Enricher.
 type Option func(*Enricher)
 
-// WithTimeout sets the per-enrichment timeout.
+// WithTimeout sets the per-enrichment timeout. Non-positive values are ignored
+// so a missing or zero-valued config leaves the default in place rather than
+// giving every job an already-expired context.
 func WithTimeout(d time.Duration) Option {
-	return func(e *Enricher) { e.timeout = d }
+	return func(e *Enricher) {
+		if d > 0 {
+			e.timeout = d
+		}
+	}
 }
 
 // WithRemoteOptions appends additional go-containerregistry remote options.
@@ -125,7 +147,7 @@ func WithTrustResolver(fn TrustResolver) Option {
 
 // NewEnricher creates a provenance enricher.
 func NewEnricher(opts ...Option) *Enricher {
-	e := &Enricher{timeout: 30 * time.Second, maxLayerBytes: defaultMaxLayerBytes}
+	e := &Enricher{timeout: defaultTimeout, maxLayerBytes: defaultMaxLayerBytes}
 	for _, o := range opts {
 		o(e)
 	}
@@ -217,7 +239,9 @@ func (e *Enricher) Enrich(ctx context.Context, ref subject.Ref) ([]byte, error) 
 	}
 	p := buildProvenance(raw)
 	if p.RekorLogIndex > 0 {
-		p.RekorUUID = fetchRekorUUID(ctx, p.RekorLogIndex)
+		rekorCtx, cancelRekor := context.WithTimeout(ctx, rekorLookupTimeout)
+		p.RekorUUID = fetchRekorUUIDFn(rekorCtx, p.RekorLogIndex)
+		cancelRekor()
 	}
 	if e.trustResolver != nil {
 		e.applyTrust(ctx, &p, raw, ref.RegistryID, host, lookupDigest)

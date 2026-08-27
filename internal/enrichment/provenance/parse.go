@@ -109,6 +109,10 @@ func extractFromSig(p *Provenance, annotations map[string]string) {
 
 const rekorBaseURL = "https://rekor.sigstore.dev"
 
+// fetchRekorUUIDFn is the seam tests substitute to observe the deadline Enrich
+// hands the Rekor lookup, mirroring fetchTrustedRootFn in keyless.go.
+var fetchRekorUUIDFn = fetchRekorUUID
+
 // fetchRekorUUID fetches the Rekor transparency log UUID for the given log index.
 // Returns "" on any error — Rekor is external and non-critical (fail-open).
 func fetchRekorUUID(ctx context.Context, logIndex int64) string {

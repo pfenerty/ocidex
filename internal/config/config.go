@@ -89,6 +89,17 @@ type Config struct {
 	// check must be before it's requeued for re-verification (drift detection:
 	// trust config changes, registry deletions).
 	ProvenanceRecheckInterval time.Duration `env:"PROVENANCE_RECHECK_INTERVAL" envDefault:"24h"`
+
+	// ProvenanceTimeout bounds one provenance enrichment end to end: the
+	// existence HEAD, referrers discovery and its child layer fetches, the
+	// Rekor lookup, and cosign verification (which may itself refresh the
+	// Sigstore trusted root). The phases share one budget deliberately — giving
+	// each its own would leave total wall clock unbounded across a variable
+	// number of child fetches. 30s was too tight for that whole chain against a
+	// slow registry, and a mid-chain expiry costs a retry (ocidex-zvkx), so the
+	// default is the lever to raise when provenance error rates climb.
+	ProvenanceTimeout time.Duration `env:"PROVENANCE_TIMEOUT" envDefault:"90s"`
+
 	// ProvenanceMaxLayerBytes caps a single signature or attestation layer the
 	// provenance enricher will read. The layer is registry-controlled and read
 	// whole into memory: a bare cosign signature is a few KB, an attestation
