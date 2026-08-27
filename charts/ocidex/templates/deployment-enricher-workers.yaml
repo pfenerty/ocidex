@@ -3,7 +3,8 @@ Per-enricher worker Deployments (ADR-033). One Deployment per entry in
 .Values.enricherWorkers, each running a single enricher (cmd/<name>) and claiming
 its own enricher_name partition from enrichment_jobs. They replaced the legacy
 monolithic enrichment-worker, removed in ocidex-kg5. Shared sizing/env comes from
-.Values.enricherWorkerDefaults.
+.Values.enricherWorkerDefaults; an entry may override `resources` to opt out of the
+shared sizing without raising it for every other enricher.
 */ -}}
 {{- range .Values.enricherWorkers }}
 ---
@@ -45,7 +46,7 @@ spec:
             - name: health
               containerPort: 9090
           resources:
-            {{- toYaml $.Values.enricherWorkerDefaults.resources | nindent 12 }}
+            {{- toYaml (.resources | default $.Values.enricherWorkerDefaults.resources) | nindent 12 }}
           envFrom:
             - secretRef:
                 name: {{ $.Values.existingSecret }}

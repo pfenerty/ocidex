@@ -77,7 +77,8 @@ scannerWorker:
 # becomes a Deployment (+ PodMonitor + KEDA ScaledObject) running a single
 # enricher and claiming its own enricher_name partition. `consumer` is the
 # JetStream durable (HintDurable in cmd/<name>/main.go) KEDA scales on.
-# `enricherWorkerDefaults` holds the sizing/env shared by all of them.
+# `enricherWorkerDefaults` holds the sizing/env shared by all of them; an entry may
+# set its own `resources` to override that default for just that worker.
 enricherWorkers:
   - name: oci-metadata-worker
     consumer: enrich-hint-oci-metadata
@@ -87,6 +88,18 @@ enricherWorkers:
     consumer: enrich-hint-user
   - name: provenance-worker
     consumer: enrich-hint-provenance
+    # The only enricher linking cosign + sigstore-go (ADR-037) and pulling
+    # signature/attestation layers from the registry. It OOMKilled at the shared
+    # 128Mi limit (ocidex-wvnp) while the other three measure 9-16Mi in the
+    # homelab cluster, so it is sized on its own rather than raising the default
+    # and making them pay for it.
+    resources:
+      requests:
+        cpu: "20m"
+        memory: "128Mi"
+      limits:
+        cpu: "250m"
+        memory: "512Mi"
 
 enricherWorkerDefaults:
   replicas: 2

@@ -133,7 +133,13 @@ owns the replica count and the Deployment renders without one.
 
 One Deployment per entry in `enricherWorkers` (ADR-033): `oci-metadata-worker`,
 `git-worker`, `user-enricher-worker`, `provenance-worker`. They share the sizing
-and env under `enricherWorkerDefaults`.
+and env under `enricherWorkerDefaults`, and an `enricherWorkers` entry may carry its
+own `resources` to override the shared sizing for that worker alone.
+
+`provenance-worker` does exactly that (128Mi request / 512Mi limit): it is the only
+enricher linking cosign + sigstore-go (ADR-037) and pulling signature/attestation
+layers from the registry, and it OOMKilled at the shared 128Mi limit while the other
+three measure 9-16Mi.
 
 | Variable | Source | Deployed value |
 |---|---|---|
