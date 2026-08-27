@@ -88,6 +88,12 @@ enricherWorkers:
     consumer: enrich-hint-user
   - name: provenance-worker
     consumer: enrich-hint-provenance
+    env:
+      # Registry I/O plus a cosign verification per job, so each in-flight job
+      # costs far more than the other three enrichers'. Pinned low deliberately:
+      # the default fan-out of 10 is what turned a large attestation into an
+      # OOMKill (ocidex-wvnp).
+      maxConcurrency: "2"
     # The only enricher linking cosign + sigstore-go (ADR-037) and pulling
     # signature/attestation layers from the registry. It OOMKilled at the shared
     # 128Mi limit (ocidex-wvnp) while the other three measure 9-16Mi in the
@@ -104,6 +110,10 @@ enricherWorkers:
 enricherWorkerDefaults:
   replicas: 2
   env:
+    # Jobs a worker claims and runs at once (ENRICHMENT_MAX_CONCURRENCY). Fine at
+    # 10 for the cheap enrichers; per-entry `env.maxConcurrency` overrides it for
+    # one that is not cheap.
+    maxConcurrency: "10"
     natsStreamReplicas: "1"
     databaseMaxConnections: "3"
     logLevel: info

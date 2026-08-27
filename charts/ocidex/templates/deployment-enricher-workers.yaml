@@ -3,10 +3,11 @@ Per-enricher worker Deployments (ADR-033). One Deployment per entry in
 .Values.enricherWorkers, each running a single enricher (cmd/<name>) and claiming
 its own enricher_name partition from enrichment_jobs. They replaced the legacy
 monolithic enrichment-worker, removed in ocidex-kg5. Shared sizing/env comes from
-.Values.enricherWorkerDefaults; an entry may override `resources` to opt out of the
-shared sizing without raising it for every other enricher.
+.Values.enricherWorkerDefaults; an entry may override `resources` or any key under
+`env` to opt out of the shared sizing without raising it for every other enricher.
 */ -}}
 {{- range .Values.enricherWorkers }}
+{{- $defaults := $.Values.enricherWorkerDefaults }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -18,7 +19,7 @@ metadata:
     app.kubernetes.io/component: {{ .name }}
 spec:
   {{- if not $.Values.keda.enabled }}
-  replicas: {{ $.Values.enricherWorkerDefaults.replicas }}
+  replicas: {{ $defaults.replicas }}
   {{- end }}
   selector:
     matchLabels:
@@ -46,7 +47,7 @@ spec:
             - name: health
               containerPort: 9090
           resources:
-            {{- toYaml (.resources | default $.Values.enricherWorkerDefaults.resources) | nindent 12 }}
+            {{- toYaml (.resources | default $defaults.resources) | nindent 12 }}
           envFrom:
             - secretRef:
                 name: {{ $.Values.existingSecret }}
@@ -54,13 +55,17 @@ spec:
             - name: NATS_URL
               value: "nats://{{ include "ocidex.fullname" $ }}-nats:4222"
             - name: NATS_STREAM_REPLICAS
-              value: {{ $.Values.enricherWorkerDefaults.env.natsStreamReplicas | quote }}
+              value: {{ dig "env" "natsStreamReplicas" $defaults.env.natsStreamReplicas . | quote }}
             - name: DATABASE_MAX_CONNECTIONS
-              value: {{ $.Values.enricherWorkerDefaults.env.databaseMaxConnections | quote }}
+              value: {{ dig "env" "databaseMaxConnections" $defaults.env.databaseMaxConnections . | quote }}
+            {{- /* Jobs claimed at once. Multiplies per-job memory, so a heavy enricher
+                   (provenance: cosign + attestation layers) pins it low. */}}
+            - name: ENRICHMENT_MAX_CONCURRENCY
+              value: {{ dig "env" "maxConcurrency" $defaults.env.maxConcurrency . | quote }}
             - name: ENVIRONMENT
-              value: {{ $.Values.enricherWorkerDefaults.env.environment | quote }}
+              value: {{ dig "env" "environment" $defaults.env.environment . | quote }}
             - name: LOG_LEVEL
-              value: {{ $.Values.enricherWorkerDefaults.env.logLevel | quote }}
+              value: {{ dig "env" "logLevel" $defaults.env.logLevel . | quote }}
           livenessProbe:
             httpGet:
               path: /healthz

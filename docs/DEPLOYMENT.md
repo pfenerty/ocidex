@@ -134,7 +134,8 @@ owns the replica count and the Deployment renders without one.
 One Deployment per entry in `enricherWorkers` (ADR-033): `oci-metadata-worker`,
 `git-worker`, `user-enricher-worker`, `provenance-worker`. They share the sizing
 and env under `enricherWorkerDefaults`, and an `enricherWorkers` entry may carry its
-own `resources` to override the shared sizing for that worker alone.
+own `resources`, or its own keys under `env`, to override the shared values for that
+worker alone.
 
 `provenance-worker` does exactly that (128Mi request / 512Mi limit): it is the only
 enricher linking cosign + sigstore-go (ADR-037) and pulling signature/attestation
@@ -147,6 +148,7 @@ three measure 9-16Mi.
 | `NATS_URL` | chart (fixed) | `nats://ocidex-dev-nats:4222` |
 | `NATS_STREAM_REPLICAS` | `enricherWorkerDefaults.env.natsStreamReplicas` | `1` |
 | `DATABASE_MAX_CONNECTIONS` | `enricherWorkerDefaults.env.databaseMaxConnections` | `3` |
+| `ENRICHMENT_MAX_CONCURRENCY` | `enricherWorkerDefaults.env.maxConcurrency` | `10` (`provenance-worker`: `2`) |
 | `ENVIRONMENT` | `enricherWorkerDefaults.env.environment` | `development` |
 | `LOG_LEVEL` | `enricherWorkerDefaults.env.logLevel` | `info` |
 | `ENRICHMENT_WORKERS` | Default | `2` |
