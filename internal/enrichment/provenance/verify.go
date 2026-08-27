@@ -30,7 +30,7 @@ func applyVerification(ctx context.Context, p *Provenance, raw RawArtifacts, mod
 	if mode != trust.ModePublicKey || pemKey == "" {
 		return
 	}
-	if !raw.SigPresent && !raw.AttPresent {
+	if !raw.SigPresent() && !raw.AttPresent() {
 		return
 	}
 	pubkey, err := cryptoutils.UnmarshalPEMToPublicKey([]byte(pemKey))
@@ -54,15 +54,19 @@ func applyVerification(ctx context.Context, p *Provenance, raw RawArtifacts, mod
 
 	checked := false
 	verified := true
-	if raw.SigPresent {
+	if raw.SigPresent() {
 		checked = true
-		verified = verified && verifyOCISignature(ctx, raw, h, co)
+		if idx := verifyOCISignatures(ctx, raw.Sigs, h, co); idx >= 0 {
+			restampFromSig(p, raw.Sigs[idx].Annotations)
+		} else {
+			verified = false
+		}
 	}
-	if raw.AttPresent && raw.AttArtifactType != inTotoArtifactType {
+	if atts := raw.verifiableAtts(); len(atts) > 0 {
 		// Raw in-toto atts (buildkit-native) carry no envelope signature and are
 		// excluded from cryptographic verification, matching applyKeylessVerification.
 		checked = true
-		verified = verified && verifyOCIAttestation(ctx, raw, h, co)
+		verified = verified && verifyOCIAttestations(ctx, atts, h, co) >= 0
 	}
 	if !checked {
 		// Only raw in-toto attestations are present (no cosign signature, no

@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -125,7 +126,7 @@ func TestApplyKeylessVerification_ValidSignatureVerifies(t *testing.T) {
 	useFixtureTrustedRoot(t, virtualCA)
 
 	p := &Provenance{}
-	raw := RawArtifacts{SigPresent: true, SigAnnotations: annotations, SigLayerBytes: fakeSigPayload}
+	raw := RawArtifacts{Sigs: []signedLayer{{Annotations: annotations, Bytes: fakeSigPayload}}}
 	cfg := trust.Config{Mode: "keyless", Identity: "^" + testKeylessIdentity + "$", Issuer: testKeylessIssuer}
 
 	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest, true)
@@ -145,7 +146,7 @@ func TestApplyKeylessVerification_WrongIdentityFails(t *testing.T) {
 	useFixtureTrustedRoot(t, virtualCA)
 
 	p := &Provenance{}
-	raw := RawArtifacts{SigPresent: true, SigAnnotations: annotations, SigLayerBytes: fakeSigPayload}
+	raw := RawArtifacts{Sigs: []signedLayer{{Annotations: annotations, Bytes: fakeSigPayload}}}
 	// Configured to require a *different* identity than the one actually signed.
 	cfg := trust.Config{Mode: "keyless", Identity: "^https://github.com/someone-else/other-repo/.*$", Issuer: testKeylessIssuer}
 
@@ -170,7 +171,7 @@ func TestApplyKeylessVerification_TransplantedSignatureFails(t *testing.T) {
 	useFixtureTrustedRoot(t, virtualCA)
 
 	p := &Provenance{}
-	raw := RawArtifacts{SigPresent: true, SigAnnotations: annotations, SigLayerBytes: otherDigestPayload}
+	raw := RawArtifacts{Sigs: []signedLayer{{Annotations: annotations, Bytes: otherDigestPayload}}}
 	cfg := trust.Config{Mode: "keyless", Identity: "^" + testKeylessIdentity + "$", Issuer: testKeylessIssuer}
 
 	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest, true)
@@ -179,12 +180,117 @@ func TestApplyKeylessVerification_TransplantedSignatureFails(t *testing.T) {
 	is.True(!*p.Verified)
 }
 
+// ----- applyKeylessVerification: multiply signed images ------------------------
+//
+// registry.k8s.io signs an image at build time as krel-staging and re-signs it
+// on promotion as krel-trust. Both signatures live as separate layers of the
+// same .sig manifest, staging first, and a consumer configures the promotion
+// identity. Verifying only the first signature marked 602 of 889 verifiable
+// registry.k8s.io SBOMs as verification_failed while `cosign verify` accepted
+// every one of them (ocidex-r27f).
+
+const testUntrustedIdentity = "https://github.com/example/repo/.github/workflows/staging.yml@refs/heads/main"
+
+// signedLayerFor produces the layer discovery would build for one signature over
+// fakeSigPayload by identity.
+func signedLayerFor(t *testing.T, virtualCA *ca.VirtualSigstore, identity string) signedLayer {
+	t.Helper()
+	is := is.New(t)
+	entity, err := virtualCA.Sign(identity, testKeylessIssuer, fakeSigPayload)
+	is.NoErr(err)
+	return signedLayer{Annotations: annotationsFromEntity(t, virtualCA, entity), Bytes: fakeSigPayload}
+}
+
+// withLogIndex rewrites the Rekor log index in a layer's cosign bundle
+// annotation. VirtualSigstore stamps every entry with the same index, so a
+// distinct one is the only way to tell which signature the reported metadata
+// came from. It invalidates that bundle's SET, which is why it is only ever
+// applied to a signature the test expects to lose.
+func withLogIndex(layer signedLayer, logIndex int) signedLayer {
+	annotations := make(map[string]string, len(layer.Annotations))
+	for k, v := range layer.Annotations {
+		annotations[k] = v
+	}
+	annotations["dev.sigstore.cosign/bundle"] = strings.Replace(
+		annotations["dev.sigstore.cosign/bundle"], `"logIndex":1000`, fmt.Sprintf(`"logIndex":%d`, logIndex), 1)
+	return signedLayer{Annotations: annotations, Bytes: layer.Bytes}
+}
+
+func TestApplyKeylessVerification_TrustedSignatureIsNotFirst(t *testing.T) {
+	is := is.New(t)
+	virtualCA := newVirtualSigstore(t)
+	useFixtureTrustedRoot(t, virtualCA)
+
+	// Layer order as registry.k8s.io publishes it: the identity nobody trusts
+	// first, the configured one second.
+	untrusted := withLogIndex(signedLayerFor(t, virtualCA, testUntrustedIdentity), 4242)
+	trusted := signedLayerFor(t, virtualCA, testKeylessIdentity)
+
+	p := &Provenance{}
+	raw := RawArtifacts{Sigs: []signedLayer{untrusted, trusted}}
+	cfg := trust.Config{Mode: "keyless", Identity: "^" + testKeylessIdentity + "$", Issuer: testKeylessIssuer}
+
+	// Seed the pre-verification defaults the way Enrich does, so the re-stamp
+	// has something wrong to correct.
+	*p = buildProvenance(raw)
+	is.Equal(p.RekorLogIndex, int64(4242)) // buildProvenance reports the first signature...
+
+	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest, true)
+
+	is.True(p.Verified != nil)
+	is.True(*p.Verified)                   // one signature satisfies the configured identity: the image is verified
+	is.Equal(p.RekorLogIndex, int64(1000)) // ...and verification re-stamps it from the one that matched
+	is.Equal(p.SignerIdentity, cfg.Identity)
+}
+
+func TestApplyKeylessVerification_TrustedSignatureIsFirst(t *testing.T) {
+	is := is.New(t)
+	virtualCA := newVirtualSigstore(t)
+	useFixtureTrustedRoot(t, virtualCA)
+
+	// Same two signatures, reversed. Guards against a fix that merely moved the
+	// off-by-one rather than removing it.
+	trusted := signedLayerFor(t, virtualCA, testKeylessIdentity)
+	untrusted := withLogIndex(signedLayerFor(t, virtualCA, testUntrustedIdentity), 4242)
+
+	p := &Provenance{}
+	raw := RawArtifacts{Sigs: []signedLayer{trusted, untrusted}}
+	cfg := trust.Config{Mode: "keyless", Identity: "^" + testKeylessIdentity + "$", Issuer: testKeylessIssuer}
+
+	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest, true)
+
+	is.True(p.Verified != nil)
+	is.True(*p.Verified)
+	is.Equal(p.RekorLogIndex, int64(1000))
+}
+
+func TestApplyKeylessVerification_NoSignatureMatchesFails(t *testing.T) {
+	is := is.New(t)
+	virtualCA := newVirtualSigstore(t)
+	useFixtureTrustedRoot(t, virtualCA)
+
+	// Several signatures, none of them the configured identity. Accepting "any
+	// signature" must not decay into accepting any signature at all.
+	first := signedLayerFor(t, virtualCA, testUntrustedIdentity)
+	second := signedLayerFor(t, virtualCA, "https://github.com/someone-else/other-repo/.github/workflows/x.yml@refs/heads/main")
+
+	p := &Provenance{}
+	raw := RawArtifacts{Sigs: []signedLayer{first, second}}
+	cfg := trust.Config{Mode: "keyless", Identity: "^" + testKeylessIdentity + "$", Issuer: testKeylessIssuer}
+
+	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest, true)
+
+	is.True(p.Verified != nil)
+	is.True(!*p.Verified)
+	is.Equal(p.SignerIdentity, "") // and no signer is named on a failure
+}
+
 // ----- applyKeylessVerification: guard clauses ---------------------------------
 
 func TestApplyKeylessVerification_NoOpWithoutIdentityOrIssuer(t *testing.T) {
 	is := is.New(t)
 	p := &Provenance{}
-	raw := RawArtifacts{SigPresent: true}
+	raw := RawArtifacts{Sigs: []signedLayer{{}}}
 
 	applyKeylessVerification(context.Background(), p, raw, trust.Config{Mode: "keyless"}, testImageDigest, false)
 
@@ -197,7 +303,7 @@ func TestApplyKeylessVerification_RawInTotoOnlyNoSignature(t *testing.T) {
 	// whose certificate was never checked.
 	is := is.New(t)
 	p := &Provenance{}
-	raw := RawArtifacts{SigPresent: false, AttPresent: true, AttArtifactType: inTotoArtifactType}
+	raw := RawArtifacts{Atts: []signedLayer{{ArtifactType: inTotoArtifactType}}}
 	cfg := trust.Config{Mode: "keyless", Identity: "^foo$", Issuer: "https://issuer.example"}
 
 	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest, false)
@@ -210,7 +316,7 @@ func TestApplyKeylessVerification_RawInTotoOnlyNoSignature(t *testing.T) {
 func TestApplyKeylessVerification_NoOpWithoutSignatureOrAttestation(t *testing.T) {
 	is := is.New(t)
 	p := &Provenance{}
-	raw := RawArtifacts{} // SigPresent=false, AttPresent=false
+	raw := RawArtifacts{} // no signature, no attestation
 	cfg := trust.Config{Mode: "keyless", Identity: "^foo$", Issuer: "https://issuer.example"}
 
 	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest, false)
@@ -227,7 +333,7 @@ func TestApplyKeylessVerification_FailsClosedOnTrustedRootError(t *testing.T) {
 	defer func() { trustedMaterialProvider = orig }()
 
 	p := &Provenance{}
-	raw := RawArtifacts{SigPresent: true}
+	raw := RawArtifacts{Sigs: []signedLayer{{}}}
 	cfg := trust.Config{Mode: "keyless", Identity: "^foo$", Issuer: "https://issuer.example"}
 
 	applyKeylessVerification(context.Background(), p, raw, cfg, testImageDigest, false)

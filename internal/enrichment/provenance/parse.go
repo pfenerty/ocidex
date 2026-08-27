@@ -60,23 +60,29 @@ type sigstoreBundle struct {
 // --- entry point -------------------------------------------------------------
 
 // buildProvenance converts raw discovered bytes into a parsed Provenance.
+//
+// Where several signatures or attestations are attached, the first is the
+// reported one. That is a pre-verification default, so an image that never gets
+// verified still describes itself: once verification runs, applyTrust re-stamps
+// the Rekor fields from the signature that actually matched (ocidex-r27f).
 func buildProvenance(raw RawArtifacts) Provenance {
 	p := Provenance{
-		SignaturePresent:   raw.SigPresent,
-		AttestationPresent: raw.AttPresent,
+		SignaturePresent:   raw.SigPresent(),
+		AttestationPresent: raw.AttPresent(),
 		ArtifactMissing:    raw.ArtifactMissing,
 	}
-	if raw.SigPresent {
-		extractFromSig(&p, raw.SigAnnotations)
+	if raw.SigPresent() {
+		extractFromSig(&p, raw.Sigs[0].Annotations)
 	}
-	if raw.AttPresent {
-		switch raw.AttArtifactType {
+	if raw.AttPresent() {
+		att := raw.Atts[0]
+		switch att.ArtifactType {
 		case inTotoArtifactType:
-			extractFromRawInToto(&p, raw.AttLayerBytes)
+			extractFromRawInToto(&p, att.Bytes)
 		case bundleArtifactType:
-			extractFromSigstoreBundle(&p, raw.AttLayerBytes)
+			extractFromSigstoreBundle(&p, att.Bytes)
 		default:
-			extractFromAtt(&p, raw.AttLayerBytes)
+			extractFromAtt(&p, att.Bytes)
 		}
 	}
 	return p
@@ -105,6 +111,17 @@ func extractFromSig(p *Provenance, annotations map[string]string) {
 			p.RekorLogIndex = b.Payload.LogIndex
 		}
 	}
+}
+
+// restampFromSig re-derives the Rekor fields from the signature that actually
+// verified. buildProvenance seeded them from Sigs[0], which on a multiply signed
+// image is usually the wrong one — registry.k8s.io lists its krel-staging
+// signature first and its krel-trust signature second. The existing value is
+// cleared first so a winning signature carrying no Rekor bundle does not inherit
+// the losing signature's log index.
+func restampFromSig(p *Provenance, annotations map[string]string) {
+	p.RekorLogIndex = 0
+	extractFromSig(p, annotations)
 }
 
 const rekorBaseURL = "https://rekor.sigstore.dev"

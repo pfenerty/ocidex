@@ -152,7 +152,7 @@ func applyKeylessVerification(ctx context.Context, p *Provenance, raw RawArtifac
 	if cfg.Identity == "" || cfg.Issuer == "" {
 		return
 	}
-	if !raw.SigPresent && !raw.AttPresent {
+	if !raw.SigPresent() && !raw.AttPresent() {
 		return
 	}
 
@@ -176,15 +176,19 @@ func applyKeylessVerification(ctx context.Context, p *Provenance, raw RawArtifac
 
 	checked := false
 	verified := true
-	if raw.SigPresent {
+	if raw.SigPresent() {
 		checked = true
-		verified = verified && verifyOCISignature(ctx, raw, h, baseOpts)
+		if idx := verifyOCISignatures(ctx, raw.Sigs, h, baseOpts); idx >= 0 {
+			restampFromSig(p, raw.Sigs[idx].Annotations)
+		} else {
+			verified = false
+		}
 	}
-	if raw.AttPresent && raw.AttArtifactType != inTotoArtifactType {
+	if atts := raw.verifiableAtts(); len(atts) > 0 {
 		// Raw in-toto atts (buildkit-native) carry no envelope signature and are
 		// excluded from cryptographic verification, matching applyVerification.
 		checked = true
-		verified = verified && verifyOCIAttestation(ctx, raw, h, baseOpts)
+		verified = verified && verifyOCIAttestations(ctx, atts, h, baseOpts) >= 0
 	}
 	if !checked {
 		// Only raw in-toto attestations are present — nothing was actually
@@ -199,38 +203,72 @@ func applyKeylessVerification(ctx context.Context, p *Provenance, raw RawArtifac
 	}
 }
 
-// verifyOCISignature verifies the cosign simplesigning signature (the
-// OCI-attached image signature) against co, using SimpleClaimVerifier to bind
-// the payload to h (rejecting a valid signature transplanted from a different
-// image). Shared by both the keyless (Fulcio+Rekor via co.TrustedMaterial)
-// and public-key (co.SigVerifier) verification paths — co determines which
-// trust source is actually checked.
-func verifyOCISignature(ctx context.Context, raw RawArtifacts, h v1.Hash, co cosign.CheckOpts) bool {
-	sig, err := buildOCISignature(raw.SigLayerBytes, raw.SigAnnotations)
-	if err != nil {
-		return false
-	}
+// verifyOCISignatures reports the index of the first signature layer that
+// verifies against co, or -1 when none do.
+//
+// An image may carry a signature per signer, and only one of them needs to
+// satisfy the configured identity — cosign's own VerifyImageSignatures accepts
+// an image when any attached signature does. Checking only the first is what
+// made every promoted registry.k8s.io image read as "verification failed":
+// Kubernetes signs at build as krel-staging and re-signs on promotion as
+// krel-trust, the staging signature is listed first, and consumers configure the
+// promotion identity (ocidex-r27f).
+//
+// Shared by the keyless (co.TrustedMaterial) and public-key (co.SigVerifier)
+// paths — co determines which trust source is actually checked.
+func verifyOCISignatures(ctx context.Context, sigs []signedLayer, h v1.Hash, co cosign.CheckOpts) int {
 	co.ClaimVerifier = cosign.SimpleClaimVerifier
-	_, err = cosign.VerifyImageSignature(ctx, sig, h, &co)
-	return err == nil
+	for i, layer := range sigs {
+		sig, err := buildOCISignature(layer.Bytes, layer.Annotations)
+		if err != nil {
+			logRejection(ctx, "signature", i, len(sigs), err)
+			continue
+		}
+		if _, err := cosign.VerifyImageSignature(ctx, sig, h, &co); err != nil {
+			logRejection(ctx, "signature", i, len(sigs), err)
+			continue
+		}
+		return i
+	}
+	return -1
 }
 
-// verifyOCIAttestation verifies a DSSE-enveloped SLSA attestation against co,
-// using IntotoSubjectClaimVerifier to require the envelope's in-toto subject
-// to bind to h. Shared by both the keyless and public-key verification paths
-// (see verifyOCISignature).
-func verifyOCIAttestation(ctx context.Context, raw RawArtifacts, h v1.Hash, co cosign.CheckOpts) bool {
-	att, err := static.NewAttestation(raw.AttLayerBytes, buildStaticOptions(raw.AttAnnotations)...)
-	if err != nil {
-		return false
-	}
-	atts, err := mutate.AppendSignatures(empty.Signatures(), false, att)
-	if err != nil {
-		return false
-	}
+// verifyOCIAttestations reports the index of the first DSSE-enveloped SLSA
+// attestation that verifies against co, or -1 when none do. It uses
+// IntotoSubjectClaimVerifier to require the envelope's in-toto subject to bind
+// to h. Callers pass only the attestations worth verifying (see
+// RawArtifacts.verifiableAtts). Plural for the same reason
+// verifyOCISignatures is.
+func verifyOCIAttestations(ctx context.Context, atts []signedLayer, h v1.Hash, co cosign.CheckOpts) int {
 	co.ClaimVerifier = cosign.IntotoSubjectClaimVerifier
-	_, _, err = cosign.VerifyImageAttestation(ctx, atts, h, &co)
-	return err == nil
+	for i, layer := range atts {
+		att, err := static.NewAttestation(layer.Bytes, buildStaticOptions(layer.Annotations)...)
+		if err != nil {
+			logRejection(ctx, "attestation", i, len(atts), err)
+			continue
+		}
+		wrapped, err := mutate.AppendSignatures(empty.Signatures(), false, att)
+		if err != nil {
+			logRejection(ctx, "attestation", i, len(atts), err)
+			continue
+		}
+		if _, _, err := cosign.VerifyImageAttestation(ctx, wrapped, h, &co); err != nil {
+			logRejection(ctx, "attestation", i, len(atts), err)
+			continue
+		}
+		return i
+	}
+	return -1
+}
+
+// logRejection records why one layer failed to verify. cosign's error used to be
+// discarded, which left "Verification failed" in the UI with no route to a cause
+// short of pulling the manifest and decoding certificates by hand. Warn rather
+// than error: on a multiply signed image the losing signatures are expected to
+// fail, and only the caller knows whether any of them succeeded.
+func logRejection(ctx context.Context, kind string, i, total int, err error) {
+	slog.WarnContext(ctx, "provenance verification: "+kind+" rejected",
+		"layer", i, "of", total, "err", err)
 }
 
 // buildOCISignature wraps an already-fetched simplesigning payload and its

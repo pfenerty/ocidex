@@ -100,12 +100,18 @@ type Config struct {
 	// default is the lever to raise when provenance error rates climb.
 	ProvenanceTimeout time.Duration `env:"PROVENANCE_TIMEOUT" envDefault:"90s"`
 
-	// ProvenanceMaxLayerBytes caps a single signature or attestation layer the
-	// provenance enricher will read. The layer is registry-controlled and read
-	// whole into memory: a bare cosign signature is a few KB, an attestation
-	// carrying a full SBOM is megabytes, and reading one unbounded is what
-	// OOMKilled the worker (ocidex-wvnp). Exceeding it fails that job, not the
-	// pod. Raising it means raising the worker's memory limit too.
+	// ProvenanceMaxLayerBytes caps the signature layers of one manifest, and
+	// separately the attestation layers of one manifest, that the provenance
+	// enricher will read. The layers are registry-controlled and read whole into
+	// memory: a bare cosign signature is a few KB, an attestation carrying a full
+	// SBOM is megabytes, and reading one unbounded is what OOMKilled the worker
+	// (ocidex-wvnp). Exceeding it fails that job, not the pod. Raising it means
+	// raising the worker's memory limit too.
+	//
+	// It is a budget shared across a manifest's layers rather than a per-layer
+	// cap: a .sig manifest holds one layer per signature and all of them are read
+	// (ocidex-r27f), so a per-layer cap would multiply the ceiling by the layer
+	// count.
 	ProvenanceMaxLayerBytes int64 `env:"PROVENANCE_MAX_LAYER_BYTES" envDefault:"16777216"` // 16MiB
 
 	// GitMaxResponseBytes caps the GitHub API response body the git enricher

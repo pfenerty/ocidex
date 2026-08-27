@@ -50,33 +50,82 @@ const (
 	// failed job and a retry.
 	rekorLookupTimeout = 10 * time.Second
 
-	// defaultMaxLayerBytes caps a single signature or attestation layer read.
-	// The layer is registry-controlled and read whole into memory: a bare cosign
-	// signature is a few KB, but an attestation carrying a full SBOM is
-	// megabytes, and reading one unbounded is what OOMKilled this worker
-	// (ocidex-wvnp). 16MiB is far above any legitimate compressed attestation
-	// while staying small enough that several concurrent reads fit the pod's
-	// memory limit. Raising it means raising that limit too.
+	// defaultMaxLayerBytes caps the signature layers of one manifest, and
+	// separately the attestation layers of one manifest. The layers are
+	// registry-controlled and read whole into memory: a bare cosign signature is
+	// a few KB, but an attestation carrying a full SBOM is megabytes, and reading
+	// one unbounded is what OOMKilled this worker (ocidex-wvnp). 16MiB is far
+	// above any legitimate compressed attestation while staying small enough that
+	// several concurrent reads fit the pod's memory limit. Raising it means
+	// raising that limit too.
+	//
+	// It is a budget shared across a manifest's layers rather than a per-layer
+	// cap: a .sig manifest holds one layer per signature and all of them are now
+	// read (ocidex-r27f), so a per-layer cap would multiply the ceiling by the
+	// layer count and reopen the OOM this closed.
 	defaultMaxLayerBytes = 16 << 20
+
+	// maxLayersPerManifest bounds how many layers one signature or attestation
+	// manifest may contribute. Real manifests hold one layer per signer — two for
+	// registry.k8s.io, the most we have seen. This only stops a registry that
+	// answers with a very large number of individually tiny layers, which the
+	// byte budget alone would let through.
+	maxLayersPerManifest = 32
 )
 
-// ErrLayerTooLarge is returned when a signature or attestation layer exceeds the
-// configured cap. It fails that one enrichment job — which lands in
-// enrichment_jobs with a diagnosable reason — rather than exhausting the pod.
+// ErrLayerTooLarge is returned when a manifest's signature or attestation layers
+// exhaust the configured byte budget. It fails that one enrichment job — which
+// lands in enrichment_jobs with a diagnosable reason — rather than exhausting
+// the pod.
 var ErrLayerTooLarge = errors.New("layer exceeds maximum size")
 
-// RawArtifacts is the result stored in the enrichment JSONB column for B2.
-// B3 replaces Enrich() to return a parsed Provenance struct built from these fields.
+// ErrTooManyLayers is returned when a signature or attestation manifest lists
+// more layers than maxLayersPerManifest, which the byte budget alone would not
+// catch for layers that are individually small.
+var ErrTooManyLayers = errors.New("manifest exceeds maximum layer count")
+
+// signedLayer is one signature or attestation: the annotations carrying its
+// certificate chain and Rekor bundle, plus its payload bytes.
+//
+// A cosign .sig manifest holds one layer per signature, so an image signed by
+// two parties has two — registry.k8s.io signs at build as krel-staging and again
+// on promotion as krel-trust, and only the second matches the identity a
+// consumer configures. Each layer's certificate lives in its own layer
+// descriptor annotations, so the annotations travel with the layer rather than
+// being read once from the manifest.
+type signedLayer struct {
+	Annotations  map[string]string `json:"annotations,omitempty"`
+	Bytes        []byte            `json:"bytes,omitempty"`        // simplesigning payload, DSSE envelope, or raw in-toto statement
+	ArtifactType string            `json:"artifactType,omitempty"` // attestations only; empty means DSSE
+}
+
+// RawArtifacts is everything discovery found attached to one image digest. It is
+// an intermediate — Enrich marshals the parsed Provenance, never this.
 type RawArtifacts struct {
-	SigPresent      bool              `json:"sigPresent"`
-	SigAnnotations  map[string]string `json:"sigAnnotations,omitempty"`
-	SigLayerBytes   []byte            `json:"sigLayerBytes,omitempty"` // simplesigning JSON payload
-	AttPresent      bool              `json:"attPresent"`
-	AttAnnotations  map[string]string `json:"attAnnotations,omitempty"`
-	AttLayerBytes   []byte            `json:"attLayerBytes,omitempty"`   // raw DSSE envelope or raw in-toto statement
-	AttArtifactType string            `json:"attArtifactType,omitempty"` // attArtifactType | inTotoArtifactType; empty means DSSE
-	DiscoveryMethod string            `json:"discoveryMethod"`           // "referrers" | "tag-scheme"
-	ArtifactMissing bool              `json:"artifactMissing,omitempty"` // true when the registry no longer has this digest
+	Sigs            []signedLayer `json:"sigs,omitempty"`
+	Atts            []signedLayer `json:"atts,omitempty"`
+	DiscoveryMethod string        `json:"discoveryMethod"`           // "referrers" | "tag-scheme"
+	ArtifactMissing bool          `json:"artifactMissing,omitempty"` // true when the registry no longer has this digest
+}
+
+// SigPresent reports whether any cosign signature was discovered.
+func (r RawArtifacts) SigPresent() bool { return len(r.Sigs) > 0 }
+
+// AttPresent reports whether any attestation was discovered.
+func (r RawArtifacts) AttPresent() bool { return len(r.Atts) > 0 }
+
+// verifiableAtts returns the attestations that carry an envelope signature. Raw
+// in-toto attestations (buildkit-native) are bare statements with nothing to
+// verify, so they are excluded here rather than counted as verification
+// failures.
+func (r RawArtifacts) verifiableAtts() []signedLayer {
+	out := make([]signedLayer, 0, len(r.Atts))
+	for _, a := range r.Atts {
+		if a.ArtifactType != inTotoArtifactType {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 // TrustResolver returns the verification configuration for the given registry.
@@ -238,13 +287,19 @@ func (e *Enricher) Enrich(ctx context.Context, ref subject.Ref) ([]byte, error) 
 		return nil, fmt.Errorf("discovering provenance for %q: %w", imageRef, err)
 	}
 	p := buildProvenance(raw)
+	// Verification runs before the Rekor lookup because it decides which log
+	// index the lookup should resolve. buildProvenance seeds the Rekor fields
+	// from the first signature, but on a multiply signed image that is usually
+	// not the signature the configured identity matched, and applyTrust
+	// re-stamps them from the one that did (ocidex-r27f). Looking up the UUID
+	// first would resolve the losing signature's entry.
+	if e.trustResolver != nil {
+		e.applyTrust(ctx, &p, raw, ref.RegistryID, host, lookupDigest)
+	}
 	if p.RekorLogIndex > 0 {
 		rekorCtx, cancelRekor := context.WithTimeout(ctx, rekorLookupTimeout)
 		p.RekorUUID = fetchRekorUUIDFn(rekorCtx, p.RekorLogIndex)
 		cancelRekor()
-	}
-	if e.trustResolver != nil {
-		e.applyTrust(ctx, &p, raw, ref.RegistryID, host, lookupDigest)
 	}
 
 	data, err := json.Marshal(p)
@@ -332,6 +387,12 @@ func (e *Enricher) discover(digestRef name.Digest, repo name.Repository, rawDige
 // extractFromReferrers iterates a referrers index and extracts sig/att artifacts.
 // go-containerregistry's remoteIndex.Image() panics when called on a referrers index
 // (the ref field is unset), so child images are fetched directly via remote.Image().
+//
+// Every matching referrer contributes, not just the first: an image may be
+// signed by more than one party, and the one a consumer trusts is not
+// necessarily listed first (ocidex-r27f). Signatures and attestations draw on
+// separate budgets, so a referrers index naming many artifacts still costs at
+// most what a single .sig plus a single .att manifest could.
 func (e *Enricher) extractFromReferrers(idx v1.ImageIndex, repo name.Repository, opts []remote.Option) (RawArtifacts, bool, error) {
 	idxManifest, err := idx.IndexManifest()
 	if err != nil {
@@ -341,48 +402,46 @@ func (e *Enricher) extractFromReferrers(idx v1.ImageIndex, repo name.Repository,
 	var result RawArtifacts
 	result.DiscoveryMethod = "referrers"
 
+	sigBudget := newByteBudget(e.maxLayerBytes)
+	attBudget := newByteBudget(e.maxLayerBytes)
+
 	for _, desc := range idxManifest.Manifests {
+		var budget *byteBudget
 		switch desc.ArtifactType {
 		case sigArtifactType:
-			if result.SigPresent {
-				continue // take first sig only
-			}
-			annotations, layerBytes, err := fetchReferrerLayer(repo, desc, opts, e.maxLayerBytes)
-			if isNotFound(err) {
-				continue // dangling index entry; the tag scheme gets the final say
-			}
-			if err != nil {
-				return RawArtifacts{}, false, err
-			}
-			result.SigAnnotations = annotations
-			result.SigLayerBytes = layerBytes
-			result.SigPresent = true
-
+			budget = sigBudget
 		case attArtifactType, inTotoArtifactType, bundleArtifactType:
-			if result.AttPresent {
-				continue // take first att only; prefer earlier-listed match if multiple present
-			}
-			annotations, layerBytes, err := fetchReferrerLayer(repo, desc, opts, e.maxLayerBytes)
-			if isNotFound(err) {
-				continue // dangling index entry; the tag scheme gets the final say
-			}
-			if err != nil {
-				return RawArtifacts{}, false, err
-			}
-			result.AttAnnotations = annotations
-			result.AttLayerBytes = layerBytes
-			result.AttPresent = true
-			result.AttArtifactType = desc.ArtifactType
+			budget = attBudget
+		default:
+			continue
 		}
+
+		layers, err := fetchReferrerLayers(repo, desc, opts, budget)
+		if isNotFound(err) {
+			continue // dangling index entry; the tag scheme gets the final say
+		}
+		if err != nil {
+			return RawArtifacts{}, false, err
+		}
+
+		if desc.ArtifactType == sigArtifactType {
+			result.Sigs = append(result.Sigs, layers...)
+			continue
+		}
+		for i := range layers {
+			layers[i].ArtifactType = desc.ArtifactType
+		}
+		result.Atts = append(result.Atts, layers...)
 	}
 
-	return result, result.SigPresent || result.AttPresent, nil
+	return result, result.SigPresent() || result.AttPresent(), nil
 }
 
-// fetchReferrerLayer fetches a referrer's child image and returns its merged
-// manifest annotations and first-layer bytes. go-containerregistry's
-// remoteIndex.Image() panics when called on a referrers index (the ref field
-// is unset), so child images are fetched directly via remote.Image().
+// fetchReferrerLayers fetches a referrer's child image and returns one
+// signedLayer per layer it carries, each with its own annotations merged over
+// the manifest's. go-containerregistry's remoteIndex.Image() panics when called
+// on a referrers index (the ref field is unset), so child images are fetched
+// directly via remote.Image().
 //
 // Failures here do not mean "unsigned": the referrers index has already told us
 // this artifact exists, so being unable to fetch it is never evidence of
@@ -391,17 +450,17 @@ func (e *Enricher) extractFromReferrers(idx v1.ImageIndex, repo name.Repository,
 // manifest store is a dangling entry, not a transient fault, and erroring on it
 // would wedge that SBOM's enrichment for as long as the registry stayed
 // inconsistent. That case falls back to the tag scheme instead.
-func fetchReferrerLayer(repo name.Repository, desc v1.Descriptor, opts []remote.Option, maxLayerBytes int64) (annotations map[string]string, layerBytes []byte, err error) {
+func fetchReferrerLayers(repo name.Repository, desc v1.Descriptor, opts []remote.Option, budget *byteBudget) ([]signedLayer, error) {
 	childRef := repo.Digest(desc.Digest.String())
 	img, err := remote.Image(childRef, opts...)
 	if err != nil {
-		return nil, nil, fmt.Errorf("fetching referrer %s: %w", desc.Digest.String(), err)
+		return nil, fmt.Errorf("fetching referrer %s: %w", desc.Digest.String(), err)
 	}
-	layerBytes, err = readFirstLayer(img, maxLayerBytes)
+	layers, err := readSignedLayers(img, budget)
 	if err != nil {
-		return nil, nil, fmt.Errorf("reading referrer %s layer: %w", desc.Digest.String(), err)
+		return nil, fmt.Errorf("reading referrer %s layers: %w", desc.Digest.String(), err)
 	}
-	return manifestAnnotations(img), layerBytes, nil
+	return layers, nil
 }
 
 // discoverViaTagScheme fetches sha256-<hex>.sig and sha256-<hex>.att tags from the same repo.
@@ -420,12 +479,10 @@ func (e *Enricher) discoverViaTagScheme(repo name.Repository, rawDigest string, 
 	img, err := remote.Image(sigRef, opts...)
 	switch {
 	case err == nil:
-		result.SigLayerBytes, err = readFirstLayer(img, e.maxLayerBytes)
+		result.Sigs, err = readSignedLayers(img, newByteBudget(e.maxLayerBytes))
 		if err != nil {
-			return RawArtifacts{}, fmt.Errorf("reading %s layer: %w", sigRef, err)
+			return RawArtifacts{}, fmt.Errorf("reading %s layers: %w", sigRef, err)
 		}
-		result.SigAnnotations = manifestAnnotations(img)
-		result.SigPresent = true
 	case !isNotFound(err):
 		return RawArtifacts{}, fmt.Errorf("fetching %s: %w", sigRef, err)
 	}
@@ -434,12 +491,10 @@ func (e *Enricher) discoverViaTagScheme(repo name.Repository, rawDigest string, 
 	img, err = remote.Image(attRef, opts...)
 	switch {
 	case err == nil:
-		result.AttLayerBytes, err = readFirstLayer(img, e.maxLayerBytes)
+		result.Atts, err = readSignedLayers(img, newByteBudget(e.maxLayerBytes))
 		if err != nil {
-			return RawArtifacts{}, fmt.Errorf("reading %s layer: %w", attRef, err)
+			return RawArtifacts{}, fmt.Errorf("reading %s layers: %w", attRef, err)
 		}
-		result.AttAnnotations = manifestAnnotations(img)
-		result.AttPresent = true
 	case !isNotFound(err):
 		return RawArtifacts{}, fmt.Errorf("fetching %s: %w", attRef, err)
 	}
@@ -447,55 +502,114 @@ func (e *Enricher) discoverViaTagScheme(repo name.Repository, rawDigest string, 
 	return result, nil
 }
 
-// manifestAnnotations returns merged manifest + layer[0] annotations.
-// Cosign stores dev.cosignproject.cosign/signature in the layer descriptor annotations,
-// not at the manifest level, so both must be combined.
-func manifestAnnotations(img v1.Image) map[string]string {
-	m, err := img.Manifest()
-	if err != nil || m == nil {
-		return nil
-	}
-	merged := make(map[string]string, len(m.Annotations))
-	for k, v := range m.Annotations {
-		merged[k] = v
-	}
-	if len(m.Layers) > 0 {
-		for k, v := range m.Layers[0].Annotations {
-			merged[k] = v
-		}
-	}
-	if len(merged) == 0 {
-		return nil
-	}
-	return merged
+// byteBudget is a read allowance shared across every layer of one manifest.
+// Spending is cumulative, so N layers cannot each cost the full cap.
+type byteBudget struct {
+	total     int64
+	remaining int64
 }
 
-// readFirstLayer reads and returns the raw bytes of the first layer in an image,
-// refusing to buffer more than maxBytes of it.
+func newByteBudget(total int64) *byteBudget {
+	return &byteBudget{total: total, remaining: total}
+}
+
+// spend deducts n, reporting whether the budget had room for it.
+func (b *byteBudget) spend(n int64) bool {
+	if n > b.remaining {
+		return false
+	}
+	b.remaining -= n
+	return true
+}
+
+// readSignedLayers reads every layer of a signature or attestation manifest,
+// pairing each with the annotations that describe it.
 //
-// The layer is registry-controlled content, so its size is not ours to trust.
-// The descriptor is checked first, which skips the transfer entirely for a layer
-// that admits to being oversized; a descriptor that understates the real size is
-// still caught by the LimitReader, which never holds more than maxBytes+1.
-func readFirstLayer(img v1.Image, maxBytes int64) ([]byte, error) {
+// Annotations are merged per layer rather than read once from layers[0]: cosign
+// stores dev.cosignproject.cosign/signature and the signer's certificate on the
+// layer descriptor, so a manifest with two signatures has two distinct
+// certificates, one per layer.
+//
+// The layers are registry-controlled content, so their size is not ours to
+// trust. Each descriptor is checked first, which skips the transfer entirely for
+// a layer that admits to being oversized; a descriptor that understates the real
+// size is still caught by the LimitReader, which never holds more than the
+// remaining budget plus one byte.
+func readSignedLayers(img v1.Image, budget *byteBudget) ([]signedLayer, error) {
 	layers, err := img.Layers()
 	if err != nil || len(layers) == 0 {
 		return nil, err
 	}
-	if size, sizeErr := layers[0].Size(); sizeErr == nil && size > maxBytes {
-		return nil, fmt.Errorf("%w: %d bytes declared, limit is %d", ErrLayerTooLarge, size, maxBytes)
+	if len(layers) > maxLayersPerManifest {
+		return nil, fmt.Errorf("%w: %d layers, limit is %d", ErrTooManyLayers, len(layers), maxLayersPerManifest)
 	}
-	rc, err := layers[0].Compressed()
+
+	manifestAnns, layerAnns := annotationSources(img)
+
+	out := make([]signedLayer, 0, len(layers))
+	for i, layer := range layers {
+		data, err := readLayerBytes(layer, budget)
+		if err != nil {
+			return nil, err
+		}
+		var perLayer map[string]string
+		if i < len(layerAnns) {
+			perLayer = layerAnns[i]
+		}
+		out = append(out, signedLayer{
+			Annotations: mergeAnnotations(manifestAnns, perLayer),
+			Bytes:       data,
+		})
+	}
+	return out, nil
+}
+
+// readLayerBytes reads one layer, refusing to buffer more than the budget has left.
+func readLayerBytes(layer v1.Layer, budget *byteBudget) ([]byte, error) {
+	if size, err := layer.Size(); err == nil && size > budget.remaining {
+		return nil, fmt.Errorf("%w: %d bytes declared, %d of %d remaining", ErrLayerTooLarge, size, budget.remaining, budget.total)
+	}
+	rc, err := layer.Compressed()
 	if err != nil {
 		return nil, err
 	}
 	defer rc.Close()
-	data, err := io.ReadAll(io.LimitReader(rc, maxBytes+1))
+	data, err := io.ReadAll(io.LimitReader(rc, budget.remaining+1))
 	if err != nil {
 		return nil, err
 	}
-	if int64(len(data)) > maxBytes {
-		return nil, fmt.Errorf("%w: over %d bytes, limit is %d", ErrLayerTooLarge, maxBytes, maxBytes)
+	if !budget.spend(int64(len(data))) {
+		return nil, fmt.Errorf("%w: over the %d bytes remaining of the %d byte budget", ErrLayerTooLarge, budget.remaining, budget.total)
 	}
 	return data, nil
+}
+
+// annotationSources returns an image's manifest-level annotations and the
+// per-layer descriptor annotations, index-parallel with img.Layers().
+func annotationSources(img v1.Image) (manifest map[string]string, perLayer []map[string]string) {
+	m, err := img.Manifest()
+	if err != nil || m == nil {
+		return nil, nil
+	}
+	perLayer = make([]map[string]string, len(m.Layers))
+	for i := range m.Layers {
+		perLayer[i] = m.Layers[i].Annotations
+	}
+	return m.Annotations, perLayer
+}
+
+// mergeAnnotations combines manifest-level and layer-descriptor annotations,
+// the layer winning on conflict.
+func mergeAnnotations(manifest, layer map[string]string) map[string]string {
+	if len(manifest) == 0 && len(layer) == 0 {
+		return nil
+	}
+	merged := make(map[string]string, len(manifest)+len(layer))
+	for k, v := range manifest {
+		merged[k] = v
+	}
+	for k, v := range layer {
+		merged[k] = v
+	}
+	return merged
 }

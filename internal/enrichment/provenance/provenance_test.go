@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
@@ -63,6 +64,25 @@ func buildManifest(layerMediaType, layerDigest string, layerSize int, configDige
 		annoJSON,
 	)
 	return []byte(manifest), digestOf([]byte(manifest))
+}
+
+// buildTwoSignatureManifest returns OCI manifest JSON for a .sig manifest
+// carrying two signature layers, each with its own descriptor annotations.
+//
+// This is the real registry.k8s.io shape: Kubernetes signs an image at build
+// time as krel-staging and re-signs it on promotion as krel-trust, and both
+// signatures live as separate layers of the same sha256-<hex>.sig manifest, each
+// with its own certificate and Rekor bundle (ocidex-r27f).
+func buildTwoSignatureManifest(layerDigest string, layerSize int, configDigest string, firstSig, secondSig string) []byte {
+	const mt = "application/vnd.dev.cosign.simplesigning.v1+json"
+	return []byte(fmt.Sprintf(
+		`{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.dev.cosign.config.v1+json","size":%d,"digest":"%s"},"layers":[`+
+			`{"mediaType":%q,"size":%d,"digest":"%s","annotations":{"dev.cosignproject.cosign/signature":%q}},`+
+			`{"mediaType":%q,"size":%d,"digest":"%s","annotations":{"dev.cosignproject.cosign/signature":%q}}]}`,
+		len(fakeConfig), configDigest,
+		mt, layerSize, layerDigest, firstSig,
+		mt, layerSize, layerDigest, secondSig,
+	))
 }
 
 // buildReferrersIndex returns OCI index JSON for a referrers index with both sig and att entries.
@@ -358,6 +378,56 @@ func TestDiscoverViaTagScheme(t *testing.T) {
 
 	is.True(result.SignaturePresent)
 	is.True(result.AttestationPresent)
+}
+
+// TestDiscover_TwoSignatureLayers proves discovery keeps every signature a .sig
+// manifest carries, with each layer's own annotations attached to it.
+//
+// Taking only layers[0] is what marked 602 of 889 verifiable registry.k8s.io
+// SBOMs as verification_failed: the build-time krel-staging signature is listed
+// first, the promotion krel-trust signature second, and consumers configure the
+// latter (ocidex-r27f).
+func TestDiscover_TwoSignatureLayers(t *testing.T) {
+	is := is.New(t)
+
+	sigLayerDigest := digestOf(fakeSigPayload)
+	configDigest := digestOf(fakeConfig)
+
+	sigManifestBytes := buildTwoSignatureManifest(
+		sigLayerDigest, len(fakeSigPayload), configDigest,
+		"c3RhZ2luZw==", // "staging"
+		"dHJ1c3Q=",     // "trust"
+	)
+
+	hexDigest := strings.TrimPrefix(testImageDigest, "sha256:")
+	tagBase := "sha256-" + hexDigest
+	repo := "/repo"
+
+	routes := map[string]route{
+		repo + "/referrers/sha256:" + hexDigest: {statusCode: http.StatusNotFound},
+		repo + "/manifests/sha256-" + hexDigest: {statusCode: http.StatusNotFound},
+		repo + "/manifests/" + tagBase + ".att": {statusCode: http.StatusNotFound},
+		repo + "/manifests/" + tagBase + ".sig": {
+			contentType: "application/vnd.oci.image.manifest.v1+json",
+			body:        sigManifestBytes,
+		},
+		repo + "/blobs/" + sigLayerDigest: {body: fakeSigPayload},
+		repo + "/blobs/" + configDigest:   {body: fakeConfig},
+	}
+
+	srv := newTestServer(t, routes)
+	defer srv.Close()
+
+	e := newTestEnricher(srv)
+	repoRef, err := name.NewRepository(strings.TrimPrefix(srv.URL, "http://")+"/repo", name.Insecure)
+	is.NoErr(err)
+
+	raw, err := e.discoverViaTagScheme(repoRef, testImageDigest, []remote.Option{remote.WithTransport(srv.Client().Transport)})
+	is.NoErr(err)
+
+	is.Equal(len(raw.Sigs), 2) // both signature layers must survive discovery
+	is.Equal(raw.Sigs[0].Annotations["dev.cosignproject.cosign/signature"], "c3RhZ2luZw==")
+	is.Equal(raw.Sigs[1].Annotations["dev.cosignproject.cosign/signature"], "dHJ1c3Q=") // the one a consumer trusts
 }
 
 // TestDiscover_SigOnly verifies that a referrers index containing only a sig entry
@@ -869,11 +939,8 @@ func TestBuildProvenance(t *testing.T) {
 		{
 			name: "valid",
 			raw: RawArtifacts{
-				SigPresent:     true,
-				SigLayerBytes:  sigLayer,
-				SigAnnotations: annotations,
-				AttPresent:     true,
-				AttLayerBytes:  attLayer,
+				Sigs: []signedLayer{{Bytes: sigLayer, Annotations: annotations}},
+				Atts: []signedLayer{{Bytes: attLayer}},
 			},
 			check: func(t *testing.T, p Provenance) {
 				is := is.New(t)
@@ -890,10 +957,7 @@ func TestBuildProvenance(t *testing.T) {
 		{
 			name: "sig_only",
 			raw: RawArtifacts{
-				SigPresent:     true,
-				SigLayerBytes:  sigLayer,
-				SigAnnotations: annotations,
-				AttPresent:     false,
+				Sigs: []signedLayer{{Bytes: sigLayer, Annotations: annotations}},
 			},
 			check: func(t *testing.T, p Provenance) {
 				is := is.New(t)
@@ -908,9 +972,7 @@ func TestBuildProvenance(t *testing.T) {
 		{
 			name: "att_only",
 			raw: RawArtifacts{
-				SigPresent:    false,
-				AttPresent:    true,
-				AttLayerBytes: attLayer,
+				Atts: []signedLayer{{Bytes: attLayer}},
 			},
 			check: func(t *testing.T, p Provenance) {
 				is := is.New(t)
@@ -942,8 +1004,7 @@ func TestBuildProvenance(t *testing.T) {
 		{
 			name: "malformed_att",
 			raw: RawArtifacts{
-				AttPresent:    true,
-				AttLayerBytes: []byte("not valid json"),
+				Atts: []signedLayer{{Bytes: []byte("not valid json")}},
 			},
 			check: func(t *testing.T, p Provenance) {
 				is := is.New(t)
@@ -957,9 +1018,7 @@ func TestBuildProvenance(t *testing.T) {
 		{
 			name: "raw_intoto",
 			raw: RawArtifacts{
-				AttPresent:      true,
-				AttLayerBytes:   fakeRawInTotoPayload,
-				AttArtifactType: inTotoArtifactType,
+				Atts: []signedLayer{{Bytes: fakeRawInTotoPayload, ArtifactType: inTotoArtifactType}},
 			},
 			check: func(t *testing.T, p Provenance) {
 				is := is.New(t)
@@ -975,9 +1034,7 @@ func TestBuildProvenance(t *testing.T) {
 		{
 			name: "sigstore_bundle",
 			raw: RawArtifacts{
-				AttPresent:      true,
-				AttLayerBytes:   fakeSigstoreBundlePayload,
-				AttArtifactType: bundleArtifactType,
+				Atts: []signedLayer{{Bytes: fakeSigstoreBundlePayload, ArtifactType: bundleArtifactType}},
 			},
 			check: func(t *testing.T, p Provenance) {
 				is := is.New(t)
@@ -1027,11 +1084,8 @@ func TestVerification(t *testing.T) {
 	}
 
 	baseRaw := RawArtifacts{
-		SigPresent:     true,
-		SigLayerBytes:  sigLayer,
-		SigAnnotations: annotations,
-		AttPresent:     true,
-		AttLayerBytes:  attLayer,
+		Sigs: []signedLayer{{Bytes: sigLayer, Annotations: annotations}},
+		Atts: []signedLayer{{Bytes: attLayer}},
 	}
 
 	boolPtr := func(v bool) *bool { return &v }
@@ -1065,12 +1119,13 @@ func TestVerification(t *testing.T) {
 			mode:   "public_key",
 			pemKey: string(pubKeyPEM),
 			rawOverride: func(r RawArtifacts) RawArtifacts {
-				tampered := make(map[string]string, len(r.SigAnnotations))
-				for k, v := range r.SigAnnotations {
+				tampered := make(map[string]string, len(r.Sigs[0].Annotations))
+				for k, v := range r.Sigs[0].Annotations {
 					tampered[k] = v
 				}
 				tampered["dev.cosignproject.cosign/signature"] = "aGVsbG8=" // "hello" — invalid sig
-				r.SigAnnotations = tampered
+				// New slice, not an in-place write: the cases share baseRaw's backing array.
+				r.Sigs = []signedLayer{{Bytes: r.Sigs[0].Bytes, Annotations: tampered}}
 				return r
 			},
 			wantVerified: boolPtr(false),
@@ -1098,7 +1153,7 @@ func TestVerification(t *testing.T) {
 			mode:   "public_key",
 			pemKey: string(pubKeyPEM),
 			rawOverride: func(r RawArtifacts) RawArtifacts {
-				r.AttLayerBytes = []byte("not json")
+				r.Atts = []signedLayer{{Bytes: []byte("not json")}}
 				return r
 			},
 			wantVerified: boolPtr(false),
@@ -1111,10 +1166,8 @@ func TestVerification(t *testing.T) {
 			mode:   "public_key",
 			pemKey: string(pubKeyPEM),
 			rawOverride: func(r RawArtifacts) RawArtifacts {
-				r.SigPresent = false
-				r.SigLayerBytes = nil
-				r.SigAnnotations = nil
-				r.AttArtifactType = inTotoArtifactType
+				r.Sigs = nil
+				r.Atts = []signedLayer{{Bytes: r.Atts[0].Bytes, ArtifactType: inTotoArtifactType}}
 				return r
 			},
 			wantVerified: nil,
@@ -1206,10 +1259,9 @@ func TestFetchRekorUUID(t *testing.T) {
 	t.Run("buildProvenance_does_not_fetch", func(t *testing.T) {
 		is := is.New(t)
 		raw := RawArtifacts{
-			SigPresent: true,
-			SigAnnotations: map[string]string{
+			Sigs: []signedLayer{{Annotations: map[string]string{
 				"chains.tekton.dev/transparency": "https://rekor.sigstore.dev/api/v1/log/entries?logIndex=9999",
-			},
+			}}},
 		}
 		p := buildProvenance(raw)
 		is.Equal(p.RekorLogIndex, int64(9999))
@@ -1232,17 +1284,33 @@ func (l lyingLayer) Size() (int64, error) { return l.claimed, nil }
 // singleLayerImage builds an in-memory image whose first layer is the given one.
 func singleLayerImage(t *testing.T, layer v1.Layer) v1.Image {
 	t.Helper()
-	img, err := mutate.AppendLayers(empty.Image, layer)
+	return multiLayerImage(t, layer)
+}
+
+// multiLayerImage builds an in-memory image carrying the given layers in order,
+// the shape a .sig manifest takes when an image is signed more than once.
+func multiLayerImage(t *testing.T, layers ...v1.Layer) v1.Image {
+	t.Helper()
+	img, err := mutate.AppendLayers(empty.Image, layers...)
 	if err != nil {
 		t.Fatalf("building test image: %v", err)
 	}
 	return img
 }
 
-// TestReadFirstLayer_Cap covers the boundary of the layer size cap: a layer
-// under it and a layer exactly at it are read whole, a layer over it fails with
-// ErrLayerTooLarge instead of being buffered.
-func TestReadFirstLayer_Cap(t *testing.T) {
+// payloadLayer returns a simplesigning layer of exactly n bytes.
+func payloadLayer(n int) v1.Layer {
+	return static.NewLayer(bytes.Repeat([]byte("a"), n), "application/vnd.dev.cosign.simplesigning.v1+json")
+}
+
+// TestReadSignedLayers_Budget covers the boundary of the layer read budget: a
+// layer under it and a layer exactly at it are read whole, a layer over it fails
+// with ErrLayerTooLarge instead of being buffered.
+//
+// The budget is shared across a manifest's layers rather than applied per layer,
+// which is what keeps reading every signature (ocidex-r27f) inside the memory
+// envelope the single-layer cap established (ocidex-wvnp).
+func TestReadSignedLayers_Budget(t *testing.T) {
 	const maxBytes = 64
 
 	cases := []struct {
@@ -1259,17 +1327,17 @@ func TestReadFirstLayer_Cap(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			is := is.New(t)
 
-			payload := bytes.Repeat([]byte("a"), tc.size)
-			img := singleLayerImage(t, static.NewLayer(payload, "application/vnd.dev.cosign.simplesigning.v1+json"))
+			img := singleLayerImage(t, payloadLayer(tc.size))
 
-			got, err := readFirstLayer(img, maxBytes)
+			got, err := readSignedLayers(img, newByteBudget(maxBytes))
 			if tc.wantErr {
 				is.True(errors.Is(err, ErrLayerTooLarge)) // oversized layer must report ErrLayerTooLarge
 				is.Equal(len(got), 0)                     // and must not return partial bytes
 				return
 			}
 			is.NoErr(err)
-			is.Equal(len(got), tc.size)
+			is.Equal(len(got), 1)
+			is.Equal(len(got[0].Bytes), tc.size)
 		})
 	}
 
@@ -1284,10 +1352,81 @@ func TestReadFirstLayer_Cap(t *testing.T) {
 			claimed: 1,
 		}
 
-		got, err := readFirstLayer(singleLayerImage(t, layer), maxBytes)
+		got, err := readSignedLayers(singleLayerImage(t, layer), newByteBudget(maxBytes))
 		is.True(errors.Is(err, ErrLayerTooLarge))
 		is.Equal(len(got), 0)
 	})
+
+	// Two layers that each fit but together do not: the budget is cumulative, so
+	// a manifest cannot spend the full cap once per layer.
+	t.Run("layers_sum_over_budget", func(t *testing.T) {
+		is := is.New(t)
+
+		img := multiLayerImage(t, payloadLayer(maxBytes/2+1), payloadLayer(maxBytes/2+1))
+
+		got, err := readSignedLayers(img, newByteBudget(maxBytes))
+		is.True(errors.Is(err, ErrLayerTooLarge))
+		is.Equal(len(got), 0)
+	})
+
+	// Two layers that together fit are both returned — the case that matters for
+	// a doubly signed image.
+	t.Run("layers_sum_within_budget", func(t *testing.T) {
+		is := is.New(t)
+
+		img := multiLayerImage(t, payloadLayer(maxBytes/4), payloadLayer(maxBytes/4))
+
+		got, err := readSignedLayers(img, newByteBudget(maxBytes))
+		is.NoErr(err)
+		is.Equal(len(got), 2)
+		is.Equal(len(got[0].Bytes), maxBytes/4)
+		is.Equal(len(got[1].Bytes), maxBytes/4)
+	})
+
+	// Individually tiny layers slip under the byte budget, so the count is capped
+	// separately.
+	t.Run("layer_count_cap", func(t *testing.T) {
+		is := is.New(t)
+
+		layers := make([]v1.Layer, maxLayersPerManifest+1)
+		for i := range layers {
+			layers[i] = payloadLayer(1)
+		}
+
+		got, err := readSignedLayers(multiLayerImage(t, layers...), newByteBudget(maxBytes))
+		is.True(errors.Is(err, ErrTooManyLayers))
+		is.Equal(len(got), 0)
+	})
+}
+
+// TestReadSignedLayers_AnnotationsArePerLayer proves each layer carries its own
+// descriptor annotations merged over the manifest's, not layers[0]'s for
+// everyone. On a multiply signed image every layer has a different certificate,
+// so reading annotations once would attribute the wrong cert to every signature
+// after the first.
+func TestReadSignedLayers_AnnotationsArePerLayer(t *testing.T) {
+	is := is.New(t)
+
+	img, err := mutate.Append(empty.Image,
+		mutate.Addendum{
+			Layer:       payloadLayer(8),
+			Annotations: map[string]string{"dev.sigstore.cosign/certificate": "first"},
+		},
+		mutate.Addendum{
+			Layer:       payloadLayer(8),
+			Annotations: map[string]string{"dev.sigstore.cosign/certificate": "second", "shared": "layer"},
+		},
+	)
+	is.NoErr(err)
+	img = mutate.Annotations(img, map[string]string{"shared": "manifest"}).(v1.Image)
+
+	got, err := readSignedLayers(img, newByteBudget(1024))
+	is.NoErr(err)
+	is.Equal(len(got), 2)
+	is.Equal(got[0].Annotations["dev.sigstore.cosign/certificate"], "first")
+	is.Equal(got[1].Annotations["dev.sigstore.cosign/certificate"], "second")
+	is.Equal(got[0].Annotations["shared"], "manifest") // manifest-level annotation reaches every layer
+	is.Equal(got[1].Annotations["shared"], "layer")    // and the layer's own value wins
 }
 
 // TestEnrich_LayerOverCapFailsTheJob verifies that an oversized attestation
