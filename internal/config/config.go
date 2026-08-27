@@ -97,6 +97,12 @@ type Config struct {
 	// pod. Raising it means raising the worker's memory limit too.
 	ProvenanceMaxLayerBytes int64 `env:"PROVENANCE_MAX_LAYER_BYTES" envDefault:"16777216"` // 16MiB
 
+	// GitMaxResponseBytes caps the GitHub API response body the git enricher
+	// will read. Same reasoning as ProvenanceMaxLayerBytes: a remote-controlled
+	// body read whole into memory is the worker's memory limit in someone
+	// else's hands. Exceeding it fails that job, not the pod.
+	GitMaxResponseBytes int64 `env:"GIT_MAX_RESPONSE_BYTES" envDefault:"4194304"` // 4MiB
+
 	// ProvenanceReverifierEnabled gates the provenance recheck sweep. Defaults
 	// to true since it already runs unconditionally today; set to false to
 	// disable (e.g. in a test/staging environment without registry access).

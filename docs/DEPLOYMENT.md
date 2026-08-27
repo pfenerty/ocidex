@@ -153,6 +153,7 @@ three measure 9-16Mi.
 | `LOG_LEVEL` | `enricherWorkerDefaults.env.logLevel` | `info` |
 | `ENRICHMENT_WORKERS` | Default | `2` |
 | `PROVENANCE_MAX_LAYER_BYTES` | Default | `16777216` (16MiB; `provenance-worker` only) |
+| `GIT_MAX_RESPONSE_BYTES` | Default | `4194304` (4MiB; `git-worker` only) |
 
 Workers do **not** need the OAuth or session vars and do not start the HTTP API;
 they receive them anyway because `envFrom` pulls the whole Secret, which is

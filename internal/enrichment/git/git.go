@@ -6,6 +6,7 @@ package git
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -23,7 +24,18 @@ const (
 	defaultBaseURL = "https://api.github.com"
 	defaultTimeout = 15 * time.Second
 	githubHost     = "github.com"
+
+	// defaultMaxResponseBytes caps the GitHub API response body read into
+	// memory. A commit JSON is a few KB; 4MiB leaves room for a pathological
+	// commit message while keeping a misbehaving or proxied API host from
+	// costing the worker its memory limit. Mirrors the provenance enricher's
+	// layer cap (ocidex-wvnp.3).
+	defaultMaxResponseBytes = 4 << 20
 )
+
+// ErrResponseTooLarge is returned when a successful GitHub API response exceeds
+// the configured cap. It fails that one enrichment job rather than the pod.
+var ErrResponseTooLarge = errors.New("response body exceeds maximum size")
 
 // OCIDataReader reads the oci-metadata enricher's stored sourceUrl/revision
 // for a given SBOM. Injected so the git enricher doesn't depend directly on
@@ -37,6 +49,7 @@ type Enricher struct {
 	httpClient    *http.Client
 	tokenResolver TokenResolver
 	baseURL       string
+	maxRespBytes  int64
 }
 
 // TokenResolver resolves a per-host auth token used for the GitHub API
@@ -62,6 +75,17 @@ func WithHTTPClient(h *http.Client) Option {
 	}
 }
 
+// WithMaxResponseBytes caps how many bytes of a GitHub API response the
+// enricher will buffer. A larger successful response fails that enrichment with
+// ErrResponseTooLarge instead of being read into memory. Values <= 0 are ignored.
+func WithMaxResponseBytes(n int64) Option {
+	return func(e *Enricher) {
+		if n > 0 {
+			e.maxRespBytes = n
+		}
+	}
+}
+
 // WithOCIDataReader sets the seam used to read oci-metadata's output.
 func WithOCIDataReader(r OCIDataReader) Option {
 	return func(e *Enricher) { e.ociReader = r }
@@ -70,8 +94,9 @@ func WithOCIDataReader(r OCIDataReader) Option {
 // NewEnricher creates a git enricher.
 func NewEnricher(opts ...Option) *Enricher {
 	e := &Enricher{
-		httpClient: &http.Client{Timeout: defaultTimeout},
-		baseURL:    defaultBaseURL,
+		httpClient:   &http.Client{Timeout: defaultTimeout},
+		baseURL:      defaultBaseURL,
+		maxRespBytes: defaultMaxResponseBytes,
 	}
 	for _, o := range opts {
 		o(e)
@@ -209,13 +234,35 @@ func (e *Enricher) fetchCommit(ctx context.Context, host, owner, repo, revision 
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(resp.Body)
+	// The body is remote-controlled, so its size is not ours to trust.
+	// Content-Length is checked first, which skips the transfer entirely for a
+	// response that admits to being oversized; a missing (-1, chunked) or
+	// understated length is still caught by the LimitReader below, which never
+	// holds more than maxRespBytes+1.
+	if resp.ContentLength > e.maxRespBytes && resp.StatusCode == http.StatusOK {
+		return nil, fmt.Errorf("git: response %s/%s@%s: %w: %d bytes declared, limit is %d",
+			owner, repo, revision, ErrResponseTooLarge, resp.ContentLength, e.maxRespBytes)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, e.maxRespBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("git: read response %s/%s@%s: %w", owner, repo, revision, err)
 	}
+	oversized := int64(len(body)) > e.maxRespBytes
 	if resp.StatusCode != http.StatusOK {
+		// The status code is the diagnostic here, not the body, so an oversized
+		// error page is truncated into the message rather than replacing it
+		// with ErrResponseTooLarge and losing the status.
+		msg := strings.TrimSpace(string(body[:min(int64(len(body)), e.maxRespBytes)]))
+		if oversized {
+			msg += " (truncated)"
+		}
 		return nil, fmt.Errorf("git: github commit lookup %s/%s@%s: status %d: %s",
-			owner, repo, revision, resp.StatusCode, strings.TrimSpace(string(body)))
+			owner, repo, revision, resp.StatusCode, msg)
+	}
+	if oversized {
+		return nil, fmt.Errorf("git: response %s/%s@%s: %w: over %d bytes",
+			owner, repo, revision, ErrResponseTooLarge, e.maxRespBytes)
 	}
 
 	var commit githubCommit

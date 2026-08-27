@@ -100,6 +100,7 @@ the artifact) is detected without a new push. Runs on the API process via leader
 | `PROVENANCE_REVERIFIER_ENABLED` | `true` | Enable the background provenance recheck sweep. Uses leader election so multiple API replicas are safe. |
 | `PROVENANCE_RECHECK_INTERVAL` | `24h` | How old a SBOM's last successful provenance check must be before it's requeued. Also controls the sweep's tick rate. |
 | `PROVENANCE_MAX_LAYER_BYTES` | `16777216` (16MiB) | Largest signature or attestation layer the provenance enricher will read. The layer is registry-controlled and read whole into memory — a bare cosign signature is a few KB, an attestation carrying a full SBOM is megabytes — and reading one unbounded is what OOMKilled the worker. Exceeding it fails that job with a diagnosable error, not the pod. Raise the worker's memory limit alongside this. |
+| `GIT_MAX_RESPONSE_BYTES` | `4194304` (4MiB) | Largest GitHub API response body the git enricher will read. Same reasoning as `PROVENANCE_MAX_LAYER_BYTES`: a remote-controlled body read whole into memory puts the worker's memory limit in someone else's hands. A successful response over the cap fails that job; an oversized *error* body is truncated into the message so the status code is not lost. |
 
 ### NATS JetStream
 

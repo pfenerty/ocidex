@@ -3,10 +3,13 @@ package git
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -321,3 +324,149 @@ func TestEnricher_Enrich_OCIReaderError(t *testing.T) {
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// ----- response size cap -----------------------------------------------------
+
+// padCommitJSON grows testCommitJSON to exactly n bytes by padding the commit
+// message, so the body stays valid JSON at any size the cap is tested against.
+func padCommitJSON(t *testing.T, n int) string {
+	t.Helper()
+
+	var commit map[string]any
+	if err := json.Unmarshal([]byte(testCommitJSON), &commit); err != nil {
+		t.Fatalf("unmarshal fixture: %v", err)
+	}
+	msg, _ := commit["commit"].(map[string]any)
+
+	// Binary search would be overkill: one byte of padding adds one byte of
+	// output, so measure once and pad by the difference.
+	msg["message"] = ""
+	base, err := json.Marshal(commit)
+	if err != nil {
+		t.Fatalf("marshal fixture: %v", err)
+	}
+	if len(base) > n {
+		t.Fatalf("fixture is %d bytes, cannot shrink to %d", len(base), n)
+	}
+	msg["message"] = strings.Repeat("x", n-len(base))
+	out, err := json.Marshal(commit)
+	if err != nil {
+		t.Fatalf("marshal padded fixture: %v", err)
+	}
+	if len(out) != n {
+		t.Fatalf("padded fixture is %d bytes, want %d", len(out), n)
+	}
+	return string(out)
+}
+
+// TestFetchCommit_ResponseCap covers the boundary of the response size cap: a
+// body under it and a body exactly at it decode normally, a body over it fails
+// with ErrResponseTooLarge instead of being buffered.
+func TestFetchCommit_ResponseCap(t *testing.T) {
+	const maxBytes = 2048
+
+	cases := []struct {
+		name    string
+		size    int
+		chunked bool
+		wantErr bool
+		// wantErrText distinguishes which guard fired: the Content-Length fast
+		// path names the declared size, the LimitReader fallback cannot.
+		wantErrText string
+	}{
+		{name: "under_cap", size: maxBytes - 1},
+		{name: "at_cap", size: maxBytes},
+		{name: "over_cap_declared", size: maxBytes + 1, wantErr: true, wantErrText: "bytes declared"},
+		{name: "over_cap_chunked", size: maxBytes + 1, chunked: true, wantErr: true, wantErrText: "over 2048 bytes"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body := padCommitJSON(t, tc.size)
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if tc.chunked {
+					// Flushing before the body commits the response without a
+					// Content-Length, so the declared-size check cannot fire
+					// and the LimitReader is the only guard left.
+					w.(http.Flusher).Flush()
+				} else {
+					// Set explicitly: net/http only infers Content-Length for
+					// bodies that fit its ~2KB sniff buffer, and these do not.
+					w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+				}
+				_, _ = w.Write([]byte(body))
+			}))
+			defer srv.Close()
+
+			e := NewEnricher(WithHTTPClient(srv.Client()), WithMaxResponseBytes(maxBytes))
+			e.baseURL = srv.URL
+
+			commit, err := e.fetchCommit(context.Background(), githubHost, "owner", "repo", "deadbeef")
+			if tc.wantErr {
+				if !errors.Is(err, ErrResponseTooLarge) {
+					t.Fatalf("fetchCommit() error = %v, want ErrResponseTooLarge", err)
+				}
+				if commit != nil {
+					t.Errorf("fetchCommit() returned a commit alongside the error")
+				}
+				if !strings.Contains(err.Error(), tc.wantErrText) {
+					t.Errorf("error = %q, want it to contain %q", err, tc.wantErrText)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("fetchCommit() error = %v", err)
+			}
+			if commit.SHA != "abc123def456" {
+				t.Errorf("SHA = %q, want %q", commit.SHA, "abc123def456")
+			}
+		})
+	}
+}
+
+// TestFetchCommit_OversizedErrorBodyKeepsStatus verifies that a huge non-2xx
+// body is truncated into the error message rather than replacing it with
+// ErrResponseTooLarge — the status code is the diagnostic, and losing it to a
+// size error would make a 403 rate-limit indistinguishable from a 404.
+func TestFetchCommit_OversizedErrorBodyKeepsStatus(t *testing.T) {
+	const maxBytes = 512
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(strings.Repeat("y", maxBytes*4)))
+	}))
+	defer srv.Close()
+
+	e := NewEnricher(WithHTTPClient(srv.Client()), WithMaxResponseBytes(maxBytes))
+	e.baseURL = srv.URL
+
+	_, err := e.fetchCommit(context.Background(), githubHost, "owner", "repo", "deadbeef")
+	if err == nil {
+		t.Fatal("fetchCommit() error = nil, want a status error")
+	}
+	if errors.Is(err, ErrResponseTooLarge) {
+		t.Errorf("oversized error body masked the status: %v", err)
+	}
+	if !strings.Contains(err.Error(), "status 403") {
+		t.Errorf("error = %q, want it to name status 403", err)
+	}
+	if !strings.Contains(err.Error(), "(truncated)") {
+		t.Errorf("error = %q, want it to flag truncation", err)
+	}
+	if len(err.Error()) > maxBytes*2 {
+		t.Errorf("error message is %d bytes; the body was not truncated", len(err.Error()))
+	}
+}
+
+// TestWithMaxResponseBytes_IgnoresNonPositive keeps the default in place when
+// the env var is unset or nonsense, so a misconfiguration cannot reinstate the
+// unbounded read.
+func TestWithMaxResponseBytes_IgnoresNonPositive(t *testing.T) {
+	for _, n := range []int64{0, -1} {
+		if got := NewEnricher(WithMaxResponseBytes(n)).maxRespBytes; got != defaultMaxResponseBytes {
+			t.Errorf("WithMaxResponseBytes(%d) set cap to %d, want the default %d", n, got, defaultMaxResponseBytes)
+		}
+	}
+}

@@ -30,7 +30,7 @@ func main() {
 	}
 }
 
-func buildEnrichers(pool *pgxpool.Pool, _ *config.Config) []enrichment.Enricher {
+func buildEnrichers(pool *pgxpool.Pool, appCfg *config.Config) []enrichment.Enricher {
 	store := repository.New(pool)
 	ociReader := func(ctx context.Context, sbomID pgtype.UUID) (string, string, error) {
 		e, err := store.GetEnrichment(ctx, repository.GetEnrichmentParams{
@@ -53,6 +53,9 @@ func buildEnrichers(pool *pgxpool.Pool, _ *config.Config) []enrichment.Enricher 
 	// TODO: wire a per-host GitHub token resolver once token storage exists;
 	// unauthenticated GitHub API access is acceptable for the foundation.
 	return []enrichment.Enricher{
-		git.NewEnricher(git.WithOCIDataReader(ociReader)),
+		git.NewEnricher(
+			git.WithOCIDataReader(ociReader),
+			git.WithMaxResponseBytes(appCfg.GitMaxResponseBytes),
+		),
 	}
 }
