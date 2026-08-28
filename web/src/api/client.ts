@@ -172,6 +172,12 @@ export interface Provenance {
     signerIdentity?: string;
     signerIssuer?: string;
     artifactMissing?: boolean;
+    /**
+     * Why verification did not succeed — the cosign rejection reasons when
+     * `verified` is false, or why verification could not run at all when
+     * `verified` is undefined. Advisory: it does not affect signingStatus.
+     */
+    verificationError?: string;
 }
 
 /**

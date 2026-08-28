@@ -369,7 +369,10 @@ PROVENANCE = {
                                                 "signerIdentity": "https://github.com/pfenerty/ocidex/.github/workflows/release.yml@refs/heads/main",
                                                 "signerIssuer": "https://token.actions.githubusercontent.com"},
     ("ghcr.io/pfenerty/ocidex-api", "v1.5.0"): {"signaturePresent": True},
-    ("ghcr.io/pfenerty/ocidex-api", "v1.4.0"): {"signaturePresent": True, "verified": False},
+    # Carries a verificationError so the ProvenanceCard "Reason" field (ocidex-j9qa)
+    # has something to render; without it the failure is a bare verdict again.
+    ("ghcr.io/pfenerty/ocidex-api", "v1.4.0"): {"signaturePresent": True, "verified": False,
+                                                "verificationError": "signature: none of the expected identities matched what was in the certificate, got subjects [https://github.com/pfenerty/ocidex/.github/workflows/staging.yml@refs/heads/main] with issuer https://token.actions.githubusercontent.com"},
     ("docker.io/library/postgres", "16.4"): {"artifactMissing": True},
     ("docker.io/library/postgres", "17.2"): {"attestationPresent": True},
     ("ghcr.io/acme/internal-billing", "v2.1.0"): {"signaturePresent": True, "verified": True,

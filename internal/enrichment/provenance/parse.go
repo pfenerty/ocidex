@@ -35,6 +35,12 @@ type Provenance struct {
 	SignerIdentity     string     `json:"signerIdentity,omitempty"`  // keyless only: matched trust_identity pattern
 	SignerIssuer       string     `json:"signerIssuer,omitempty"`    // keyless only: matched trust_issuer
 	ArtifactMissing    bool       `json:"artifactMissing,omitempty"` // true when the registry no longer has this digest
+	// VerificationError records why verification did not succeed: either the
+	// cosign rejection reasons (Verified == false) or why verification could not
+	// run at all (Verified nil, e.g. an unparseable trust key). Empty when
+	// verification succeeded or was never configured. Advisory only —
+	// SigningStatus does not read it.
+	VerificationError string `json:"verificationError,omitempty"`
 }
 
 // --- internal parsing types --------------------------------------------------

@@ -154,6 +154,7 @@ func TestApplyKeylessVerification_WrongIdentityFails(t *testing.T) {
 
 	is.True(p.Verified != nil)
 	is.True(!*p.Verified)
+	is.True(strings.Contains(p.VerificationError, "signature: ")) // ocidex-j9qa: and says why
 }
 
 func TestApplyKeylessVerification_TransplantedSignatureFails(t *testing.T) {
@@ -178,6 +179,7 @@ func TestApplyKeylessVerification_TransplantedSignatureFails(t *testing.T) {
 
 	is.True(p.Verified != nil)
 	is.True(!*p.Verified)
+	is.True(strings.Contains(p.VerificationError, "signature: ")) // ocidex-j9qa: and says why
 }
 
 // ----- applyKeylessVerification: multiply signed images ------------------------
@@ -283,6 +285,12 @@ func TestApplyKeylessVerification_NoSignatureMatchesFails(t *testing.T) {
 	is.True(p.Verified != nil)
 	is.True(!*p.Verified)
 	is.Equal(p.SignerIdentity, "") // and no signer is named on a failure
+	// ocidex-j9qa: the stored reason names *every* rejected layer, not just the
+	// first — the same multi-signer case ocidex-r27f was about, so reporting one
+	// reason would point at the layer the operator does not care about.
+	is.True(strings.HasPrefix(p.VerificationError, "signature: "))
+	is.True(strings.Contains(p.VerificationError, testUntrustedIdentity))
+	is.True(strings.Contains(p.VerificationError, "someone-else/other-repo"))
 }
 
 // ----- applyKeylessVerification: guard clauses ---------------------------------
@@ -342,6 +350,10 @@ func TestApplyKeylessVerification_FailsClosedOnTrustedRootError(t *testing.T) {
 	// rather than reporting a false verification failure, matching the
 	// public-key path's contract when a required input is unavailable.
 	is.True(p.Verified == nil)
+	// ocidex-j9qa: but the reason is still recorded, so an unreachable trusted
+	// root is visible in the UI rather than only in the worker's logs.
+	is.True(strings.Contains(p.VerificationError, "sigstore trusted root: "))
+	is.True(strings.Contains(p.VerificationError, "simulated TUF fetch failure"))
 }
 
 // ----- getTrustedRoot: caching, singleflight, staleness ceiling ------------

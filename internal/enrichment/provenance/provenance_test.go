@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -1101,6 +1102,7 @@ func TestVerification(t *testing.T) {
 		imageDigest  string                          // "" defaults to fixtureDigest
 		rawOverride  func(RawArtifacts) RawArtifacts // nil = use baseRaw as-is
 		wantVerified *bool                           // nil means expect p.Verified == nil
+		wantErr      string                          // substring expected in p.VerificationError; "" means it must be empty
 	}{
 		{
 			name:         "valid_key",
@@ -1129,6 +1131,7 @@ func TestVerification(t *testing.T) {
 				return r
 			},
 			wantVerified: boolPtr(false),
+			wantErr:      "signature: ",
 		},
 		{
 			// invalid PEM: parsePEMPublicKey returns error → applyVerification exits early → Verified stays nil
@@ -1136,6 +1139,7 @@ func TestVerification(t *testing.T) {
 			mode:         "public_key",
 			pemKey:       "notapemblock",
 			wantVerified: nil,
+			wantErr:      "trust public key: ",
 		},
 		{
 			// F1: signature is valid against the key but is bound to a different
@@ -1145,6 +1149,7 @@ func TestVerification(t *testing.T) {
 			pemKey:       string(pubKeyPEM),
 			imageDigest:  "sha256:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
 			wantVerified: boolPtr(false),
+			wantErr:      "signature: ",
 		},
 		{
 			// F2: an asserted attestation that cannot be parsed must downgrade,
@@ -1157,6 +1162,7 @@ func TestVerification(t *testing.T) {
 				return r
 			},
 			wantVerified: boolPtr(false),
+			wantErr:      "attestation: ",
 		},
 		{
 			// goh.1: a raw in-toto attestation (buildkit-native) with no cosign
@@ -1193,8 +1199,55 @@ func TestVerification(t *testing.T) {
 				is.True(p.Verified != nil)
 				is.Equal(*p.Verified, *tc.wantVerified)
 			}
+			// ocidex-j9qa: a failure must say why, and a success must not
+			// leave a stale reason behind.
+			if tc.wantErr == "" {
+				is.Equal(p.VerificationError, "")
+			} else {
+				is.True(strings.Contains(p.VerificationError, tc.wantErr))
+			}
 		})
 	}
+}
+
+// TestSetVerificationError covers the normalisation the stored reason gets:
+// errors.Join separates with newlines and individual cosign errors are sometimes
+// multi-line themselves, but VerificationError is rendered in a single UI field
+// and lives in registry-influenced JSONB, so it is flattened and capped.
+func TestSetVerificationError(t *testing.T) {
+	t.Run("flattens newlines and drops blank segments", func(t *testing.T) {
+		is := is.New(t)
+		p := &Provenance{}
+		setVerificationError(p, "first reason\n\nsecond reason\n")
+		is.Equal(p.VerificationError, "first reason; second reason")
+	})
+
+	t.Run("empty reason leaves the field unset", func(t *testing.T) {
+		is := is.New(t)
+		p := &Provenance{}
+		setVerificationError(p, "\n  \n")
+		is.Equal(p.VerificationError, "")
+	})
+
+	t.Run("truncates past the cap", func(t *testing.T) {
+		is := is.New(t)
+		p := &Provenance{}
+		setVerificationError(p, strings.Repeat("a", maxVerificationErrorLen+50))
+		is.Equal(p.VerificationError, strings.Repeat("a", maxVerificationErrorLen)+"\u2026")
+	})
+
+	t.Run("truncates on a rune boundary", func(t *testing.T) {
+		// A signer identity can be non-ASCII. Cutting mid-sequence would leave a
+		// replacement character in the stored JSON, so the cut backs up to the
+		// start of the rune it landed inside.
+		is := is.New(t)
+		p := &Provenance{}
+		// "é" is two bytes; 499 ASCII bytes puts byte 500 inside the pair.
+		setVerificationError(p, strings.Repeat("a", maxVerificationErrorLen-1)+strings.Repeat("\u00e9", 10))
+		is.True(utf8.ValidString(p.VerificationError))
+		is.True(!strings.ContainsRune(p.VerificationError, utf8.RuneError))
+		is.True(strings.HasSuffix(p.VerificationError, "\u2026"))
+	})
 }
 
 // ----- Rekor UUID fetch tests ------------------------------------------------

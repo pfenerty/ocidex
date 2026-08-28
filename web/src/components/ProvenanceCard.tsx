@@ -96,8 +96,10 @@ export default function ProvenanceCard(props: {
             </div>
 
             <div class="detail-grid">
-                {/* Verification basis */}
-                <Show when={p.verified !== undefined}>
+                {/* Verification basis. A reason with no verdict means verification
+                    could not run at all (unreachable trusted root, unparseable
+                    trust key) — distinct from having run and rejected. */}
+                <Show when={p.verified !== undefined || p.verificationError}>
                     <div class="detail-field">
                         <span class="detail-label">Verification</span>
                         <span class="detail-value">
@@ -105,9 +107,21 @@ export default function ProvenanceCard(props: {
                                 ? (p.signerIssuer !== undefined && p.signerIssuer !== ""
                                     ? `Verified — keyless (issuer: ${p.signerIssuer}, identity: ${p.signerIdentity})`
                                     : "Verified against trusted key")
-                                : "Verification failed"}
+                                : p.verified === false
+                                    ? "Verification failed"
+                                    : "Could not verify"}
                         </span>
                     </div>
+                </Show>
+
+                {/* Why it failed, so diagnosis doesn't need the worker's logs */}
+                <Show when={p.verificationError}>
+                    {(reason) => (
+                        <div class="detail-field">
+                            <span class="detail-label">Reason</span>
+                            <span class="detail-value text-muted text-sm">{reason()}</span>
+                        </div>
+                    )}
                 </Show>
 
                 {/* Signer key fingerprint */}

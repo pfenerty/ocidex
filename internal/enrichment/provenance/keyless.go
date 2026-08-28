@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -159,14 +160,20 @@ func applyKeylessVerification(ctx context.Context, p *Provenance, raw RawArtifac
 		return
 	}
 
+	// A failure below means verification could not run at all, as opposed to
+	// running and rejecting. p.Verified stays nil (SigningStatus keeps reading
+	// "signed"), but the reason is recorded so an unreachable trusted root is
+	// visible in the UI instead of only in this worker's logs (ocidex-j9qa).
 	trustedMaterial, err := trustedMaterialProvider(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "keyless verification: fetching trusted root", "err", err)
+		setVerificationError(p, "sigstore trusted root: "+err.Error())
 		return
 	}
 	h, err := v1.NewHash(imageDigest)
 	if err != nil {
 		slog.ErrorContext(ctx, "keyless verification: parsing image digest", "err", err)
+		setVerificationError(p, "image digest: "+err.Error())
 		return
 	}
 
@@ -177,37 +184,20 @@ func applyKeylessVerification(ctx context.Context, p *Provenance, raw RawArtifac
 		IgnoreSCT:       ignoreSCT,
 	}
 
-	checked := false
-	verified := true
-	if raw.SigPresent() {
-		checked = true
-		if idx := verifyOCISignatures(ctx, raw.Sigs, h, baseOpts); idx >= 0 {
-			restampFromSig(p, raw.Sigs[idx])
-		} else {
-			verified = false
-		}
-	}
-	if atts := raw.verifiableAtts(); len(atts) > 0 {
-		// Raw in-toto atts (buildkit-native) carry no envelope signature and are
-		// excluded from cryptographic verification, matching applyVerification.
-		checked = true
-		verified = verified && verifyOCIAttestations(ctx, atts, h, baseOpts) >= 0
-	}
-	if !checked {
-		// Only raw in-toto attestations are present — nothing was actually
-		// verified. Leave p.Verified nil (falls through to "signed") and do
-		// not name a signer whose certificate was never checked.
+	// Only raw in-toto attestations present means nothing was actually verified:
+	// verifyAgainst leaves p.Verified nil (falls through to "signed") and we do
+	// not name a signer whose certificate was never checked.
+	if !verifyAgainst(ctx, p, raw, h, baseOpts) {
 		return
 	}
-	p.Verified = &verified
-	if verified {
+	if *p.Verified {
 		p.SignerIdentity = cfg.Identity
 		p.SignerIssuer = cfg.Issuer
 	}
 }
 
 // verifyOCISignatures reports the index of the first signature layer that
-// verifies against co, or -1 when none do.
+// verifies against co, or -1 plus the joined reasons every layer was rejected.
 //
 // An image may carry a signature per signer, and only one of them needs to
 // satisfy the configured identity — cosign's own VerifyImageSignatures accepts
@@ -219,63 +209,74 @@ func applyKeylessVerification(ctx context.Context, p *Provenance, raw RawArtifac
 //
 // Shared by the keyless (co.TrustedMaterial) and public-key (co.SigVerifier)
 // paths — co determines which trust source is actually checked.
-func verifyOCISignatures(ctx context.Context, sigs []signedLayer, h v1.Hash, co cosign.CheckOpts) int {
+func verifyOCISignatures(ctx context.Context, sigs []signedLayer, h v1.Hash, co cosign.CheckOpts) (int, error) {
 	co.ClaimVerifier = cosign.SimpleClaimVerifier
+	var errs []error
+	reject := func(i int, err error) {
+		logRejection(ctx, "signature", i, len(sigs), err)
+		errs = append(errs, err)
+	}
 	for i, layer := range sigs {
 		if layer.ArtifactType == bundleArtifactType {
 			if err := verifyBundleLayer(ctx, layer.Bytes, h, co); err != nil {
-				logRejection(ctx, "signature", i, len(sigs), err)
+				reject(i, err)
 				continue
 			}
-			return i
+			return i, nil
 		}
 		sig, err := buildOCISignature(layer.Bytes, layer.Annotations)
 		if err != nil {
-			logRejection(ctx, "signature", i, len(sigs), err)
+			reject(i, err)
 			continue
 		}
 		if _, err := cosign.VerifyImageSignature(ctx, sig, h, &co); err != nil {
-			logRejection(ctx, "signature", i, len(sigs), err)
+			reject(i, err)
 			continue
 		}
-		return i
+		return i, nil
 	}
-	return -1
+	return -1, errors.Join(errs...)
 }
 
 // verifyOCIAttestations reports the index of the first DSSE-enveloped SLSA
-// attestation that verifies against co, or -1 when none do. It uses
+// attestation that verifies against co, or -1 plus the joined reasons every
+// layer was rejected. It uses
 // IntotoSubjectClaimVerifier to require the envelope's in-toto subject to bind
 // to h. Callers pass only the attestations worth verifying (see
 // RawArtifacts.verifiableAtts). Plural for the same reason
 // verifyOCISignatures is.
-func verifyOCIAttestations(ctx context.Context, atts []signedLayer, h v1.Hash, co cosign.CheckOpts) int {
+func verifyOCIAttestations(ctx context.Context, atts []signedLayer, h v1.Hash, co cosign.CheckOpts) (int, error) {
 	co.ClaimVerifier = cosign.IntotoSubjectClaimVerifier
+	var errs []error
+	reject := func(i int, err error) {
+		logRejection(ctx, "attestation", i, len(atts), err)
+		errs = append(errs, err)
+	}
 	for i, layer := range atts {
 		if layer.ArtifactType == bundleArtifactType {
 			if err := verifyBundleLayer(ctx, layer.Bytes, h, co); err != nil {
-				logRejection(ctx, "attestation", i, len(atts), err)
+				reject(i, err)
 				continue
 			}
-			return i
+			return i, nil
 		}
 		att, err := static.NewAttestation(layer.Bytes, buildStaticOptions(layer.Annotations)...)
 		if err != nil {
-			logRejection(ctx, "attestation", i, len(atts), err)
+			reject(i, err)
 			continue
 		}
 		wrapped, err := mutate.AppendSignatures(empty.Signatures(), false, att)
 		if err != nil {
-			logRejection(ctx, "attestation", i, len(atts), err)
+			reject(i, err)
 			continue
 		}
 		if _, _, err := cosign.VerifyImageAttestation(ctx, wrapped, h, &co); err != nil {
-			logRejection(ctx, "attestation", i, len(atts), err)
+			reject(i, err)
 			continue
 		}
-		return i
+		return i, nil
 	}
-	return -1
+	return -1, errors.Join(errs...)
 }
 
 // verifyBundleLayer verifies one new-format Sigstore bundle
