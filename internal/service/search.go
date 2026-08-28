@@ -43,6 +43,7 @@ type SearchService interface {
 	GetArtifactContains(ctx context.Context, artifactID pgtype.UUID, vis VisibilityFilter) ([]ArtifactRelation, error)
 	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (VulnerabilityDetailResult, error)
 	GetComponentVulns(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) ([]ComponentVulnEntry, error)
+	ListSBOMVulns(ctx context.Context, sbomID pgtype.UUID, params SBOMVulnParams, vis VisibilityFilter) (PagedResult[SBOMVulnEntry], error)
 	ListSBOMDriftHistory(ctx context.Context, sbomID pgtype.UUID, page DriftPage, vis VisibilityFilter) (CursorPage[ProvenanceDriftSummary], error)
 	ListRecentProvenanceDrift(ctx context.Context, page DriftPage, vis VisibilityFilter) (CursorPage[RecentDriftEntry], error)
 	ListOwnedActivity(ctx context.Context, ownerID pgtype.UUID, page FeedPage) (CursorPage[ActivityEntry], error)
@@ -176,6 +177,55 @@ type ComponentVulnEntry struct {
 	// MatchedViaSource is true when this finding matched the component's
 	// source package purl rather than the component's own purl.
 	MatchedViaSource bool `json:"matchedViaSource"`
+}
+
+// SBOMVulnEntry is one row of an SBOM's vulnerability list. Rows are keyed by
+// CanonicalID, not by the native OSV id, so an alias group (GO-… / GHSA-… /
+// CVE-…) is one finding — the same dedupe GetSBOMVulnSummary applies, so the
+// tile and the tab agree about what one row is.
+type SBOMVulnEntry struct {
+	ID          string   `json:"id"`
+	CanonicalID string   `json:"canonicalId"`
+	Severity    string   `json:"severity"`
+	CvssScore   *float32 `json:"cvssScore,omitempty"`
+	Summary     *string  `json:"summary,omitempty"`
+	// AffectedPackageCount counts distinct component purls across the whole
+	// alias group — a number to act on, not a count of finding rows.
+	AffectedPackageCount int64 `json:"affectedPackageCount"`
+	// AffectedPackages are the components this finding lands on, carried inline
+	// so the tab's expandable rows need no second request.
+	AffectedPackages []SBOMVulnPackage `json:"affectedPackages"`
+}
+
+// SBOMVulnPackage is one component a vulnerability affects inside an SBOM.
+type SBOMVulnPackage struct {
+	Purl         string  `json:"purl"`
+	Name         string  `json:"name"`
+	Group        *string `json:"group,omitempty"`
+	Version      *string `json:"version,omitempty"`
+	FixedVersion *string `json:"fixedVersion,omitempty"`
+	// MatchedViaSource is true when the finding matched the component's source
+	// package purl rather than its own — an inherited match, not a direct one.
+	MatchedViaSource bool `json:"matchedViaSource"`
+}
+
+// SBOMVulnParams filters, sorts and pages ListSBOMVulns.
+type SBOMVulnParams struct {
+	Severity string // empty means every severity
+	SortBy   string // one of SBOMVulnSortKeys; empty means the default
+	SortDir  string // "asc" or "desc"; empty means "asc"
+	Limit    int32
+	Offset   int32
+}
+
+// SBOMVulnSortKeys are the columns ListSBOMVulns will order by. Anything else
+// is dropped before it reaches the query's CASE, where an unmatched key would
+// produce an arbitrary order that looks like a working sort.
+var SBOMVulnSortKeys = map[string]bool{
+	sortBySeverity:           true,
+	sortByCVSS:               true,
+	"affected_package_count": true,
+	sortByCanonicalID:        true,
 }
 
 // PackageSummary is a distinct package with version and SBOM counts.

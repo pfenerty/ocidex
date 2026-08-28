@@ -137,6 +137,7 @@ var authRules = map[string]AuthRule{
 	"get-sbom":                     {Class: ClassPublic, Notes: noteVisFilter},
 	"get-sbom-dependencies":        {Class: ClassPublic, Notes: noteVisFilter},
 	"list-sbom-components":         {Class: ClassPublic, Notes: noteVisFilter},
+	"list-sbom-vulns":              {Class: ClassPublic, Notes: noteVisFilter},
 	"list-sbom-drift-history":      {Class: ClassPublic, Notes: noteVisFilter},
 	"diff-sboms":                   {Class: ClassPublic, Notes: "VisibilityFilter on both sides."},
 	"diff-tree":                    {Class: ClassPublic, Notes: "VisibilityFilter on both sides."},

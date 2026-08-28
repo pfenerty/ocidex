@@ -117,6 +117,27 @@ type ListSBOMComponentsOutput struct {
 	}
 }
 
+// ListSBOMVulnsInput is the request for GET /api/v1/sboms/{id}/vulns.
+//
+// Offset pagination, not a keyset cursor: the tab renders numbered pages, which
+// is ADR-043 rule 3. The sort keys are computed aggregates over an alias group,
+// so there is no stable immutable tuple to key a cursor on either.
+type ListSBOMVulnsInput struct {
+	ID       string `path:"id" doc:"SBOM UUID" format:"uuid"`
+	Severity string `query:"severity" enum:"CRITICAL,HIGH,MEDIUM,LOW,UNKNOWN" doc:"Filter by severity"`
+	Sort     string `query:"sort" enum:"severity,cvss_score,affected_package_count,canonical_id" doc:"Column to sort by. Unset means worst first: severity, then CVSS."`
+	Dir      string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it."`
+	PaginationParams
+}
+
+// ListSBOMVulnsOutput is the response for GET /api/v1/sboms/{id}/vulns.
+type ListSBOMVulnsOutput struct {
+	Body struct {
+		Data       []service.SBOMVulnEntry `json:"data"`
+		Pagination PaginationMeta          `json:"pagination"`
+	}
+}
+
 // ---------------------------------------------------------------------------
 // SBOM — Delete
 // ---------------------------------------------------------------------------

@@ -17,7 +17,7 @@ import (
 // value, so this is about honest defaults rather than injection.
 func normalizeTopVulnSort(sort, dir string) (string, string) {
 	switch sort {
-	case sortBySeverity, "cvss_score", "affected_sbom_count", "affected_purl_count", "published_at", "canonical_id":
+	case sortBySeverity, sortByCVSS, "affected_sbom_count", "affected_purl_count", "published_at", sortByCanonicalID:
 	default:
 		sort = sortBySeverity
 	}

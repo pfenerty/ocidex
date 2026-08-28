@@ -101,6 +101,31 @@ func (h *Handler) ListSBOMComponents(ctx context.Context, input *ListSBOMCompone
 	return out, nil
 }
 
+// ListSBOMVulns handles GET /api/v1/sboms/{id}/vulns: the vulnerability list
+// the SBOM page's tile finally has somewhere to send a reader to.
+func (h *Handler) ListSBOMVulns(ctx context.Context, in *ListSBOMVulnsInput) (*ListSBOMVulnsOutput, error) {
+	id, err := parseUUID(in.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := h.searchService.ListSBOMVulns(ctx, id, service.SBOMVulnParams{
+		Severity: in.Severity,
+		SortBy:   in.Sort,
+		SortDir:  in.Dir,
+		Limit:    in.Limit,
+		Offset:   in.Offset,
+	}, visibilityFilterFromContext(ctx))
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	out := &ListSBOMVulnsOutput{}
+	out.Body.Data = result.Data
+	out.Body.Pagination = paginationMeta(result)
+	return out, nil
+}
+
 // ListSBOMs handles GET /api/v1/sbom.
 func (h *Handler) ListSBOMs(ctx context.Context, input *ListSBOMsInput) (*ListSBOMsOutput, error) {
 	cur, hasCursor, err := decodeTimeIDCursor(input.Cursor)

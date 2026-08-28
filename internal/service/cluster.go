@@ -251,10 +251,10 @@ type RunningVulnParams struct {
 // CASE, where an unmatched key would produce an arbitrary order that looks
 // like a working sort.
 var RunningVulnSortKeys = map[string]bool{
-	sortBySeverity:   true,
-	"cvss_score":     true,
-	"workload_count": true,
-	"canonical_id":   true,
+	sortBySeverity:    true,
+	sortByCVSS:        true,
+	"workload_count":  true,
+	sortByCanonicalID: true,
 }
 
 // RunningWorkload is a workload that carries a given vulnerability, together

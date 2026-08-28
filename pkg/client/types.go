@@ -935,6 +935,75 @@ func (e ListScanJobsParamsState) Valid() bool {
 	}
 }
 
+// Defines values for ListSbomVulnsParamsSeverity.
+const (
+	ListSbomVulnsParamsSeverityCRITICAL ListSbomVulnsParamsSeverity = "CRITICAL"
+	ListSbomVulnsParamsSeverityHIGH     ListSbomVulnsParamsSeverity = "HIGH"
+	ListSbomVulnsParamsSeverityLOW      ListSbomVulnsParamsSeverity = "LOW"
+	ListSbomVulnsParamsSeverityMEDIUM   ListSbomVulnsParamsSeverity = "MEDIUM"
+	ListSbomVulnsParamsSeverityUNKNOWN  ListSbomVulnsParamsSeverity = "UNKNOWN"
+)
+
+// Valid indicates whether the value is a known member of the ListSbomVulnsParamsSeverity enum.
+func (e ListSbomVulnsParamsSeverity) Valid() bool {
+	switch e {
+	case ListSbomVulnsParamsSeverityCRITICAL:
+		return true
+	case ListSbomVulnsParamsSeverityHIGH:
+		return true
+	case ListSbomVulnsParamsSeverityLOW:
+		return true
+	case ListSbomVulnsParamsSeverityMEDIUM:
+		return true
+	case ListSbomVulnsParamsSeverityUNKNOWN:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListSbomVulnsParamsSort.
+const (
+	ListSbomVulnsParamsSortAffectedPackageCount ListSbomVulnsParamsSort = "affected_package_count"
+	ListSbomVulnsParamsSortCanonicalId          ListSbomVulnsParamsSort = "canonical_id"
+	ListSbomVulnsParamsSortCvssScore            ListSbomVulnsParamsSort = "cvss_score"
+	ListSbomVulnsParamsSortSeverity             ListSbomVulnsParamsSort = "severity"
+)
+
+// Valid indicates whether the value is a known member of the ListSbomVulnsParamsSort enum.
+func (e ListSbomVulnsParamsSort) Valid() bool {
+	switch e {
+	case ListSbomVulnsParamsSortAffectedPackageCount:
+		return true
+	case ListSbomVulnsParamsSortCanonicalId:
+		return true
+	case ListSbomVulnsParamsSortCvssScore:
+		return true
+	case ListSbomVulnsParamsSortSeverity:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListSbomVulnsParamsDir.
+const (
+	ListSbomVulnsParamsDirAsc  ListSbomVulnsParamsDir = "asc"
+	ListSbomVulnsParamsDirDesc ListSbomVulnsParamsDir = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ListSbomVulnsParamsDir enum.
+func (e ListSbomVulnsParamsDir) Valid() bool {
+	switch e {
+	case ListSbomVulnsParamsDirAsc:
+		return true
+	case ListSbomVulnsParamsDirDesc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListMyVulnerabilitiesParamsSeverity.
 const (
 	ListMyVulnerabilitiesParamsSeverityCRITICAL ListMyVulnerabilitiesParamsSeverity = "CRITICAL"
@@ -1009,22 +1078,22 @@ func (e ListMyVulnerabilitiesParamsSortDir) Valid() bool {
 
 // Defines values for ListTopVulnerabilitiesParamsSeverity.
 const (
-	CRITICAL ListTopVulnerabilitiesParamsSeverity = "CRITICAL"
-	HIGH     ListTopVulnerabilitiesParamsSeverity = "HIGH"
-	LOW      ListTopVulnerabilitiesParamsSeverity = "LOW"
-	MEDIUM   ListTopVulnerabilitiesParamsSeverity = "MEDIUM"
+	ListTopVulnerabilitiesParamsSeverityCRITICAL ListTopVulnerabilitiesParamsSeverity = "CRITICAL"
+	ListTopVulnerabilitiesParamsSeverityHIGH     ListTopVulnerabilitiesParamsSeverity = "HIGH"
+	ListTopVulnerabilitiesParamsSeverityLOW      ListTopVulnerabilitiesParamsSeverity = "LOW"
+	ListTopVulnerabilitiesParamsSeverityMEDIUM   ListTopVulnerabilitiesParamsSeverity = "MEDIUM"
 )
 
 // Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSeverity enum.
 func (e ListTopVulnerabilitiesParamsSeverity) Valid() bool {
 	switch e {
-	case CRITICAL:
+	case ListTopVulnerabilitiesParamsSeverityCRITICAL:
 		return true
-	case HIGH:
+	case ListTopVulnerabilitiesParamsSeverityHIGH:
 		return true
-	case LOW:
+	case ListTopVulnerabilitiesParamsSeverityLOW:
 		return true
-	case MEDIUM:
+	case ListTopVulnerabilitiesParamsSeverityMEDIUM:
 		return true
 	default:
 		return false
@@ -1033,28 +1102,28 @@ func (e ListTopVulnerabilitiesParamsSeverity) Valid() bool {
 
 // Defines values for ListTopVulnerabilitiesParamsSort.
 const (
-	ListTopVulnerabilitiesParamsSortAffectedPurlCount ListTopVulnerabilitiesParamsSort = "affected_purl_count"
-	ListTopVulnerabilitiesParamsSortAffectedSbomCount ListTopVulnerabilitiesParamsSort = "affected_sbom_count"
-	ListTopVulnerabilitiesParamsSortCanonicalId       ListTopVulnerabilitiesParamsSort = "canonical_id"
-	ListTopVulnerabilitiesParamsSortCvssScore         ListTopVulnerabilitiesParamsSort = "cvss_score"
-	ListTopVulnerabilitiesParamsSortPublishedAt       ListTopVulnerabilitiesParamsSort = "published_at"
-	ListTopVulnerabilitiesParamsSortSeverity          ListTopVulnerabilitiesParamsSort = "severity"
+	AffectedPurlCount ListTopVulnerabilitiesParamsSort = "affected_purl_count"
+	AffectedSbomCount ListTopVulnerabilitiesParamsSort = "affected_sbom_count"
+	CanonicalId       ListTopVulnerabilitiesParamsSort = "canonical_id"
+	CvssScore         ListTopVulnerabilitiesParamsSort = "cvss_score"
+	PublishedAt       ListTopVulnerabilitiesParamsSort = "published_at"
+	Severity          ListTopVulnerabilitiesParamsSort = "severity"
 )
 
 // Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSort enum.
 func (e ListTopVulnerabilitiesParamsSort) Valid() bool {
 	switch e {
-	case ListTopVulnerabilitiesParamsSortAffectedPurlCount:
+	case AffectedPurlCount:
 		return true
-	case ListTopVulnerabilitiesParamsSortAffectedSbomCount:
+	case AffectedSbomCount:
 		return true
-	case ListTopVulnerabilitiesParamsSortCanonicalId:
+	case CanonicalId:
 		return true
-	case ListTopVulnerabilitiesParamsSortCvssScore:
+	case CvssScore:
 		return true
-	case ListTopVulnerabilitiesParamsSortPublishedAt:
+	case PublishedAt:
 		return true
-	case ListTopVulnerabilitiesParamsSortSeverity:
+	case Severity:
 		return true
 	default:
 		return false
@@ -1063,16 +1132,16 @@ func (e ListTopVulnerabilitiesParamsSort) Valid() bool {
 
 // Defines values for ListTopVulnerabilitiesParamsSortDir.
 const (
-	Asc  ListTopVulnerabilitiesParamsSortDir = "asc"
-	Desc ListTopVulnerabilitiesParamsSortDir = "desc"
+	ListTopVulnerabilitiesParamsSortDirAsc  ListTopVulnerabilitiesParamsSortDir = "asc"
+	ListTopVulnerabilitiesParamsSortDirDesc ListTopVulnerabilitiesParamsSortDir = "desc"
 )
 
 // Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSortDir enum.
 func (e ListTopVulnerabilitiesParamsSortDir) Valid() bool {
 	switch e {
-	case Asc:
+	case ListTopVulnerabilitiesParamsSortDirAsc:
 		return true
-	case Desc:
+	case ListTopVulnerabilitiesParamsSortDirDesc:
 		return true
 	default:
 		return false
@@ -2264,6 +2333,14 @@ type ListSBOMDriftHistoryOutputBody struct {
 	Pagination CursorMeta                `json:"pagination"`
 }
 
+// ListSBOMVulnsOutputBody defines model for ListSBOMVulnsOutputBody.
+type ListSBOMVulnsOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema     *string          `json:"$schema,omitempty"`
+	Data       *[]SBOMVulnEntry `json:"data"`
+	Pagination PaginationMeta   `json:"pagination"`
+}
+
 // ListSBOMsOutputBody defines model for ListSBOMsOutputBody.
 type ListSBOMsOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -2674,6 +2751,27 @@ type SBOMSummary struct {
 	SubjectVersion *string    `json:"subjectVersion,omitempty"`
 	Sufficient     bool       `json:"sufficient"`
 	Version        int32      `json:"version"`
+}
+
+// SBOMVulnEntry defines model for SBOMVulnEntry.
+type SBOMVulnEntry struct {
+	AffectedPackageCount int64              `json:"affectedPackageCount"`
+	AffectedPackages     *[]SBOMVulnPackage `json:"affectedPackages"`
+	CanonicalId          string             `json:"canonicalId"`
+	CvssScore            *float32           `json:"cvssScore,omitempty"`
+	Id                   string             `json:"id"`
+	Severity             string             `json:"severity"`
+	Summary              *string            `json:"summary,omitempty"`
+}
+
+// SBOMVulnPackage defines model for SBOMVulnPackage.
+type SBOMVulnPackage struct {
+	FixedVersion     *string `json:"fixedVersion,omitempty"`
+	Group            *string `json:"group,omitempty"`
+	MatchedViaSource bool    `json:"matchedViaSource"`
+	Name             string  `json:"name"`
+	Purl             string  `json:"purl"`
+	Version          *string `json:"version,omitempty"`
 }
 
 // ScanJobResponse defines model for ScanJobResponse.
@@ -3562,6 +3660,33 @@ type ListSbomDriftHistoryParams struct {
 	// Cursor Opaque cursor from a previous response's nextCursor; omit for the first page
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
+
+// ListSbomVulnsParams defines parameters for ListSbomVulns.
+type ListSbomVulnsParams struct {
+	// Severity Filter by severity
+	Severity *ListSbomVulnsParamsSeverity `form:"severity,omitempty" json:"severity,omitempty"`
+
+	// Sort Column to sort by. Unset means worst first: severity, then CVSS.
+	Sort *ListSbomVulnsParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// Dir Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it.
+	Dir *ListSbomVulnsParamsDir `form:"dir,omitempty" json:"dir,omitempty"`
+
+	// Limit Maximum number of results per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of results to skip
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListSbomVulnsParamsSeverity defines parameters for ListSbomVulns.
+type ListSbomVulnsParamsSeverity string
+
+// ListSbomVulnsParamsSort defines parameters for ListSbomVulns.
+type ListSbomVulnsParamsSort string
+
+// ListSbomVulnsParamsDir defines parameters for ListSbomVulns.
+type ListSbomVulnsParamsDir string
 
 // ListSourcesParams defines parameters for ListSources.
 type ListSourcesParams struct {

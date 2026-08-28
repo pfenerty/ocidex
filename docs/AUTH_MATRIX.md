@@ -183,6 +183,7 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 | GET | `/api/v1/sboms/{id}/components` | `list-sbom-components` | `public` |  | VisibilityFilter. |
 | GET | `/api/v1/sboms/{id}/dependencies` | `get-sbom-dependencies` | `public` |  | VisibilityFilter. |
 | GET | `/api/v1/sboms/{id}/drift` | `list-sbom-drift-history` | `public` |  | VisibilityFilter. |
+| GET | `/api/v1/sboms/{id}/vulns` | `list-sbom-vulns` | `public` |  | VisibilityFilter. |
 
 ### Sources
 

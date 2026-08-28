@@ -238,6 +238,15 @@ func registerSBOMOps(api huma.API, h *Handler) {
 	}, h.ListSBOMComponents)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "list-sbom-vulns",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/sboms/{id}/vulns",
+		Summary:     "List vulnerabilities in an SBOM",
+		Description: "Findings keyed by canonical id, so an alias group (GO-… / GHSA-… / CVE-…) is one row, with the components each affects.",
+		Tags:        []string{tagSBOMs},
+	}, h.ListSBOMVulns)
+
+	huma.Register(api, huma.Operation{
 		OperationID:   "delete-sbom",
 		Method:        http.MethodDelete,
 		Path:          "/api/v1/sboms/{id}",

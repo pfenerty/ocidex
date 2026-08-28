@@ -246,6 +246,24 @@ func (f *fakeSearchService) GetComponentVulns(_ context.Context, _ pgtype.UUID, 
 	return []service.ComponentVulnEntry{}, nil
 }
 
+func (f *fakeSearchService) ListSBOMVulns(_ context.Context, _ pgtype.UUID, _ service.SBOMVulnParams, _ service.VisibilityFilter) (service.PagedResult[service.SBOMVulnEntry], error) {
+	return service.PagedResult[service.SBOMVulnEntry]{
+		Data: []service.SBOMVulnEntry{{
+			ID:                   "GHSA-xxxx",
+			CanonicalID:          "CVE-2024-0001",
+			Severity:             "HIGH",
+			AffectedPackageCount: 2,
+			AffectedPackages: []service.SBOMVulnPackage{
+				{Purl: "pkg:deb/debian/zlib1g@1.0", Name: "zlib1g"},
+				{Purl: "pkg:deb/debian/libc6@2.0", Name: "libc6", MatchedViaSource: true},
+			},
+		}},
+		Total:  1,
+		Limit:  20,
+		Offset: 0,
+	}, nil
+}
+
 func (f *fakeSearchService) ListSBOMDriftHistory(_ context.Context, _ pgtype.UUID, _ service.DriftPage, _ service.VisibilityFilter) (service.CursorPage[service.ProvenanceDriftSummary], error) {
 	return service.CursorPage[service.ProvenanceDriftSummary]{}, nil
 }
@@ -297,6 +315,10 @@ func (f *notFoundSearchService) GetArtifact(_ context.Context, _ pgtype.UUID, _ 
 
 func (f *notFoundSearchService) GetComponentVulns(_ context.Context, _ pgtype.UUID, _ service.VisibilityFilter) ([]service.ComponentVulnEntry, error) {
 	return nil, service.ErrNotFound
+}
+
+func (f *notFoundSearchService) ListSBOMVulns(_ context.Context, _ pgtype.UUID, _ service.SBOMVulnParams, _ service.VisibilityFilter) (service.PagedResult[service.SBOMVulnEntry], error) {
+	return service.PagedResult[service.SBOMVulnEntry]{}, service.ErrNotFound
 }
 
 // cursorBody is a helper for decoding keyset-paginated JSON responses.

@@ -909,3 +909,141 @@ func countOccurrences(s []string, target string) int {
 	}
 	return n
 }
+
+// TestSBOMVulnsList exercises GET /api/v1/sboms/{id}/vulns end to end: alias
+// dedup by canonical_id, source-purl matching carried through to the inline
+// affected-package rows, severity filtering, sorting and offset pagination.
+// The list is the destination the SBOM vuln tiles link to, so it has to agree
+// with GetSBOMVulnSummary on the same corpus (ocidex-unn8.4).
+func TestSBOMVulnsList(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+	is := is.New(t)
+	store := vuln.NewPGStore(pool)
+
+	memberID := seedUser(t, pool, 8010, "sbom-vulns-list-member", "member")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "sbom-vulns-list-test", "read-write")
+	is.NoErr(err)
+
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), minimalSBOM, memberKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	var ingestResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingestResp))
+	resp.Body.Close()
+	sbomID := ingestResp["id"].(string)
+
+	var sbomUUID pgtype.UUID
+	is.NoErr(sbomUUID.Scan(sbomID))
+	const addUserSourcePurl = "pkg:deb/ubuntu/adduser@3.118ubuntu2?arch=src&distro=ubuntu-24.04"
+	_, err = pool.Exec(t.Context(),
+		"UPDATE component SET source_purl = $1 WHERE sbom_id = $2 AND purl = $3",
+		addUserSourcePurl, sbomUUID, addUserPurl)
+	is.NoErr(err)
+
+	// CRITICAL, reachable under two OSV IDs that alias one CVE and landing on
+	// both components — one directly, one only through adduser's source purl.
+	for _, id := range []string{"GO-2025-list", "GHSA-list"} {
+		err = store.UpsertVulnerability(t.Context(), vuln.Row{
+			ID:          id,
+			CanonicalID: "CVE-2025-1000",
+			Summary:     "aliased critical",
+			Severity:    "CRITICAL",
+			Aliases:     []string{"CVE-2025-1000"},
+			Raw:         []byte("{}"),
+		})
+		is.NoErr(err)
+	}
+	is.NoErr(store.ReplacePackageVulns(t.Context(), aptPurl, []vuln.PackageVulnRef{
+		{VulnerabilityID: "GO-2025-list", FixedVersion: "2.7.15"},
+		{VulnerabilityID: "GHSA-list"},
+	}))
+	is.NoErr(store.ReplacePackageVulns(t.Context(), addUserSourcePurl, []vuln.PackageVulnRef{
+		{VulnerabilityID: "GO-2025-list"},
+	}))
+
+	// A MEDIUM on one package only, to have something the severity filter and
+	// the sort can separate from the CRITICAL.
+	seedVuln(t, store, "CVE-2025-2000", "MEDIUM", addUserPurl)
+
+	listVulns := func(query string) map[string]any {
+		t.Helper()
+		r, gerr := doWithAuth(t, http.MethodGet,
+			fmt.Sprintf("%s/api/v1/sboms/%s/vulns%s", srv.URL, sbomID, query), "", memberKey)
+		is.NoErr(gerr)
+		is.Equal(r.StatusCode, http.StatusOK)
+		var body map[string]any
+		is.NoErr(json.NewDecoder(r.Body).Decode(&body))
+		r.Body.Close()
+		return body
+	}
+
+	// Default ordering is worst-first, and the alias pair collapses to one row.
+	body := listVulns("")
+	data := body["data"].([]any)
+	is.Equal(len(data), 2)
+	is.Equal(body["pagination"].(map[string]any)["total"], float64(2))
+
+	first := data[0].(map[string]any)
+	is.Equal(first["canonicalId"], "CVE-2025-1000")
+	is.Equal(first["severity"], "CRITICAL")
+	is.Equal(first["affectedPackageCount"], float64(2))
+
+	// The inline packages are what the tab's expanded row renders; the
+	// source-purl match must be labelled as inherited, not silently direct.
+	pkgs := first["affectedPackages"].([]any)
+	is.Equal(len(pkgs), 2)
+	byPurl := map[string]map[string]any{}
+	for _, p := range pkgs {
+		pm := p.(map[string]any)
+		byPurl[pm["purl"].(string)] = pm
+	}
+	is.Equal(byPurl[aptPurl]["matchedViaSource"], false)
+	is.Equal(byPurl[aptPurl]["fixedVersion"], "2.7.15")
+	is.Equal(byPurl[addUserPurl]["matchedViaSource"], true)
+
+	second := data[1].(map[string]any)
+	is.Equal(second["canonicalId"], "CVE-2025-2000")
+	is.Equal(second["severity"], "MEDIUM")
+	is.Equal(second["affectedPackageCount"], float64(1))
+
+	// The list has to agree with the tile it is reached from.
+	r, err := doWithAuth(t, http.MethodGet, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomID), "", memberKey)
+	is.NoErr(err)
+	is.Equal(r.StatusCode, http.StatusOK)
+	var detail map[string]any
+	is.NoErr(json.NewDecoder(r.Body).Decode(&detail))
+	r.Body.Close()
+	summary := detail["vulnSummary"].(map[string]any)
+	is.Equal(summary["total"], float64(2))
+	is.Equal(summary["critical"], float64(1))
+	is.Equal(summary["medium"], float64(1))
+
+	// Severity filter narrows both the page and the total.
+	body = listVulns("?severity=CRITICAL")
+	data = body["data"].([]any)
+	is.Equal(len(data), 1)
+	is.Equal(data[0].(map[string]any)["canonicalId"], "CVE-2025-1000")
+	is.Equal(body["pagination"].(map[string]any)["total"], float64(1))
+
+	// Ascending severity sort flips the default worst-first order.
+	body = listVulns("?sort=severity&dir=asc")
+	data = body["data"].([]any)
+	is.Equal(data[0].(map[string]any)["canonicalId"], "CVE-2025-2000")
+
+	// Offset paging walks the same ordering without repeating a row.
+	body = listVulns("?limit=1&offset=1")
+	data = body["data"].([]any)
+	is.Equal(len(data), 1)
+	is.Equal(data[0].(map[string]any)["canonicalId"], "CVE-2025-2000")
+	pg := body["pagination"].(map[string]any)
+	is.Equal(pg["total"], float64(2))
+	is.Equal(pg["offset"], float64(1))
+}

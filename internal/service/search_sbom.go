@@ -411,6 +411,118 @@ func decorateComponentVulns(ctx context.Context, q *repository.Queries, sbomID p
 	return nil
 }
 
+// ListSBOMVulns returns one page of the SBOM's vulnerability list, keyed by
+// canonical_id so an alias group is a single finding, with the affected
+// components attached inline.
+func (s *searchService) ListSBOMVulns(ctx context.Context, sbomID pgtype.UUID, params SBOMVulnParams, vis VisibilityFilter) (PagedResult[SBOMVulnEntry], error) {
+	q := repository.New(s.db)
+
+	// Access check.
+	visible, err := q.IsSBOMVisible(ctx, repository.IsSBOMVisibleParams{
+		ID:      sbomID,
+		UserID:  vis.UserID,
+		IsAdmin: visAdminBool(vis),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return PagedResult[SBOMVulnEntry]{}, ErrNotFound
+		}
+		return PagedResult[SBOMVulnEntry]{}, fmt.Errorf("checking sbom visibility: %w", err)
+	}
+	if !visible {
+		return PagedResult[SBOMVulnEntry]{}, ErrNotFound
+	}
+
+	limit, offset := clampPage(params.Limit, params.Offset)
+	severity := optionalText(params.Severity)
+
+	total, err := q.CountSBOMVulns(ctx, repository.CountSBOMVulnsParams{
+		SbomID:   sbomID,
+		Severity: severity,
+	})
+	if err != nil {
+		return PagedResult[SBOMVulnEntry]{}, fmt.Errorf("counting sbom vulnerabilities: %w", err)
+	}
+
+	sortBy, sortDir := clampSort(params.SortBy, params.SortDir, SBOMVulnSortKeys)
+	rows, err := q.ListSBOMVulns(ctx, repository.ListSBOMVulnsParams{
+		SbomID:   sbomID,
+		Severity: severity,
+		SortBy:   sortBy,
+		SortDir:  sortDir,
+		Limit:    pgtype.Int4{Int32: limit, Valid: true},
+		Offset:   pgtype.Int4{Int32: offset, Valid: true},
+	})
+	if err != nil {
+		return PagedResult[SBOMVulnEntry]{}, fmt.Errorf("listing sbom vulnerabilities: %w", err)
+	}
+
+	items := make([]SBOMVulnEntry, len(rows))
+	canonicalIDs := make([]string, len(rows))
+	for i, r := range rows {
+		canonicalIDs[i] = r.CanonicalID
+		e := SBOMVulnEntry{
+			ID:                   r.ID,
+			CanonicalID:          r.CanonicalID,
+			Severity:             severityOrUnknown(r.Severity),
+			CvssScore:            float4ToPtr(r.CvssScore),
+			AffectedPackageCount: r.AffectedPackageCount,
+			AffectedPackages:     []SBOMVulnPackage{},
+		}
+		if r.Summary.Valid {
+			e.Summary = &r.Summary.String
+		}
+		items[i] = e
+	}
+
+	if len(canonicalIDs) > 0 {
+		if err := attachSBOMVulnPackages(ctx, q, sbomID, canonicalIDs, items); err != nil {
+			return PagedResult[SBOMVulnEntry]{}, err
+		}
+	}
+
+	return PagedResult[SBOMVulnEntry]{Data: items, Total: total, Limit: limit, Offset: offset}, nil
+}
+
+// attachSBOMVulnPackages fills in the AffectedPackages of one page of findings
+// with a single query, rather than one per row.
+func attachSBOMVulnPackages(ctx context.Context, q *repository.Queries, sbomID pgtype.UUID, canonicalIDs []string, items []SBOMVulnEntry) error {
+	rows, err := q.ListSBOMVulnAffectedPackages(ctx, repository.ListSBOMVulnAffectedPackagesParams{
+		SbomID:       sbomID,
+		CanonicalIds: canonicalIDs,
+	})
+	if err != nil {
+		return fmt.Errorf("listing affected packages: %w", err)
+	}
+
+	byCanonical := make(map[string][]SBOMVulnPackage, len(canonicalIDs))
+	for _, r := range rows {
+		p := SBOMVulnPackage{
+			Purl:             r.Purl,
+			Name:             r.Name,
+			MatchedViaSource: r.MatchedViaSource.Bool,
+		}
+		if r.GroupName.Valid {
+			p.Group = &r.GroupName.String
+		}
+		if r.Version.Valid {
+			p.Version = &r.Version.String
+		}
+		// fixed_version arrives as interface{} because it comes out of an
+		// array_agg subscript, the same way ListVulnsByPurl's does.
+		if fv, ok := r.FixedVersion.(string); ok && fv != "" {
+			p.FixedVersion = &fv
+		}
+		byCanonical[r.CanonicalID] = append(byCanonical[r.CanonicalID], p)
+	}
+	for i := range items {
+		if pkgs := byCanonical[items[i].CanonicalID]; pkgs != nil {
+			items[i].AffectedPackages = pkgs
+		}
+	}
+	return nil
+}
+
 // severityRank orders severity labels for max comparison.
 func severityRank(s string) int {
 	switch s {

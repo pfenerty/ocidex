@@ -21,4 +21,8 @@ const (
 	// sortBySeverity is both a sortable column and the default ranking for
 	// every vulnerability list — the catalog's and the cluster's.
 	sortBySeverity = "severity"
+	// sortByCVSS and sortByCanonicalID are the other two columns every
+	// vulnerability list shares, whatever it is scoped to.
+	sortByCVSS        = "cvss_score"
+	sortByCanonicalID = "canonical_id"
 )

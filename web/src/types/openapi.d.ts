@@ -1159,6 +1159,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sboms/{id}/vulns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List vulnerabilities in an SBOM
+         * @description Findings keyed by canonical id, so an alias group (GO-… / GHSA-… / CVE-…) is one row, with the components each affects.
+         */
+        get: operations["list-sbom-vulns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sources": {
         parameters: {
             query?: never;
@@ -2878,6 +2898,16 @@ export interface components {
             data: components["schemas"]["ProvenanceDriftSummary"][] | null;
             pagination: components["schemas"]["CursorMeta"];
         };
+        ListSBOMVulnsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListSBOMVulnsOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["SBOMVulnEntry"][] | null;
+            pagination: components["schemas"]["PaginationMeta"];
+        };
         ListSBOMsOutputBody: {
             /**
              * Format: uri
@@ -3319,6 +3349,25 @@ export interface components {
             sufficient: boolean;
             /** Format: int32 */
             version: number;
+        };
+        SBOMVulnEntry: {
+            /** Format: int64 */
+            affectedPackageCount: number;
+            affectedPackages: components["schemas"]["SBOMVulnPackage"][] | null;
+            canonicalId: string;
+            /** Format: float */
+            cvssScore?: number;
+            id: string;
+            severity: string;
+            summary?: string;
+        };
+        SBOMVulnPackage: {
+            fixedVersion?: string;
+            group?: string;
+            matchedViaSource: boolean;
+            name: string;
+            purl: string;
+            version?: string;
         };
         ScanJobResponse: {
             /**
@@ -6306,6 +6355,49 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListSBOMDriftHistoryOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-sbom-vulns": {
+        parameters: {
+            query?: {
+                /** @description Filter by severity */
+                severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "UNKNOWN";
+                /** @description Column to sort by. Unset means worst first: severity, then CVSS. */
+                sort?: "severity" | "cvss_score" | "affected_package_count" | "canonical_id";
+                /** @description Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it. */
+                dir?: "asc" | "desc";
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Number of results to skip */
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                /** @description SBOM UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListSBOMVulnsOutputBody"];
                 };
             };
             /** @description Error */
