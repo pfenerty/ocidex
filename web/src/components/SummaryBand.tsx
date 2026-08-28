@@ -5,7 +5,7 @@ import { StatBand, type StatTile } from "./ui/StatBand";
 import { vulnTile } from "./VulnTile";
 import { ShieldIcon, OciIcon, ContainerIcon, GitHubIcon } from "./metadata/OciIcons";
 
-export type SbomTab = "packages" | "provenance" | "image" | "git" | "raw";
+export type SbomTab = "packages" | "provenance" | "image" | "git" | "vulns" | "raw";
 
 // shortBuilder renders a recognizable builder name from a SLSA builder id URL.
 function shortBuilder(id: string | undefined): string | undefined {
@@ -104,7 +104,7 @@ export default function SummaryBand(props: {
             value: props.packageCount ?? "\u2014",
             sub: props.ecosystems.length > 0 ? props.ecosystems.join(" \u00b7 ") : "components",
         },
-        vulnTile<SbomTab>(props.vulns),
+        vulnTile<SbomTab>(props.vulns, "vulns"),
         {
             id: "raw",
             head: "SBOM",

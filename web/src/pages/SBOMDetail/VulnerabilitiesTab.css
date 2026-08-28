@@ -1,0 +1,12 @@
+/* The packages one advisory lands on, expanded under its row. Mirrors
+ * ClusterDetail/RunningWorkloads.css — the same shape of answer ("where does
+ * this actually reach") in the SBOM's own scope. */
+.affected-packages {
+    list-style: none;
+    margin: 0.35rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+}

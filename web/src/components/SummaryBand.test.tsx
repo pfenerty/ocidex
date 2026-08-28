@@ -121,7 +121,11 @@ describe("SummaryBand vulnerability tile", () => {
         expect(tile.querySelector(".sev-critical")).not.toBeNull();
     });
 
-    it("is not a button, because the page has no vulnerabilities tab yet", () => {
-        expect(renderVulnTile(summary({ high: 2, total: 2 })).tile.tagName).toBe("DIV");
+    it("is a button, because the page has a vulnerabilities tab to reach", () => {
+        // The inverse of what this asserted before ocidex-unn8.5. StatBand
+        // derives the element from whether the tile carries an id, so a tile
+        // that renders as a DIV here is one whose destination has gone missing —
+        // it would still look like a control and still do nothing.
+        expect(renderVulnTile(summary({ high: 2, total: 2 })).tile.tagName).toBe("BUTTON");
     });
 });

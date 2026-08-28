@@ -45,9 +45,11 @@ function VulnTileSub(props: { vulns: VulnSummary | undefined }) {
  * The vulnerability tile, shared so the SBOM band and the artifact band cannot
  * disagree about what "no vulnerabilities" means.
  *
- * It is deliberately not selectable. Neither page has a vulnerabilities tab, and
- * a tile that looks like a button but does nothing is worse than a plain stat.
- * Pass `id` once a page has somewhere to send the reader.
+ * Selectability is the caller's to grant: pass `id` on a page that has a
+ * vulnerabilities tab to send the reader to, and omit it on one that does not.
+ * StatBand renders an id-less tile as a plain <div> rather than a <button>,
+ * which is the point — a tile that looks like a control and does nothing is
+ * worse than a plain stat. The SBOM band passes "vulns" (ocidex-unn8.5).
  */
 export function vulnTile<T extends string>(
     vulns: VulnSummary | undefined,

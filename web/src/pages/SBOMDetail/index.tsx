@@ -1,7 +1,7 @@
 import "~/components/DetailSection.css";
-import { Show, createSignal, createMemo } from "solid-js";
-import { A, useParams, useNavigate } from "@solidjs/router";
-import { Breadcrumb, Button, ButtonGroup, Card, CardHeader, PageHeader, QueryBoundary, TabBar, type Crumb } from "~/components/ui";
+import { Show, createMemo } from "solid-js";
+import { A, useParams, useNavigate, useSearchParams } from "@solidjs/router";
+import { Breadcrumb, Button, ButtonGroup, Card, CardHeader, PageHeader, QueryBoundary, TabBar, createExpandedSet, type Crumb } from "~/components/ui";
 import { useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies, useSBOMDriftHistory, useArtifactSBOMs } from "~/api/queries";
 import { useArtifactNames } from "~/api/queries";
 import type { OCIMetadata, Provenance, GitCommitMetadata } from "~/api/client";
@@ -13,16 +13,68 @@ import ImageMetadataCard from "~/components/ImageMetadataCard";
 import ProvenanceCard from "~/components/ProvenanceCard";
 import GitCommitCard from "~/components/GitCommitCard";
 import SummaryBand, { type SbomTab } from "~/components/SummaryBand";
-import { VulnSummaryBar } from "~/components/VulnBadge";
+import type { SortDir } from "~/components/DataTable";
+import type { VulnSeverityFilter } from "~/api/queries";
 import { trustStatus, trustBadgeClass } from "~/utils/trust";
 import { parsePurl } from "~/utils/purl";
 import { artifactDisplayName, formatDateTime } from "~/utils/format";
 import { PackagesTab } from "./PackagesTab";
+import { VulnerabilitiesTab, SEVERITIES, SORT_KEYS as VULN_SORT_KEYS } from "./VulnerabilitiesTab";
+import type { SBOMVulnSortKey } from "~/api/queries";
+
+const TABS: SbomTab[] = ["packages", "provenance", "image", "git", "vulns", "raw"];
+
+/** Search params arrive as string | string[]; take the first value either way. */
+function one(v: string | string[] | undefined): string | undefined {
+    return Array.isArray(v) ? v[0] : v;
+}
 
 export default function SBOMDetail() {
     const params = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const [tab, setTab] = createSignal<SbomTab>("packages");
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    /* The tab used to be component state, which made every view of this page the
+       same URL. It lives in a search param now so the vulnerabilities tab's own
+       filter and sort are linkable — "the criticals in this image, worst first"
+       is the thing someone wants to paste into an issue. */
+    const tab = (): SbomTab => {
+        const t = one(searchParams.tab);
+        return TABS.find((candidate) => candidate === t) ?? "packages";
+    };
+    // Switching tabs drops the vuln list's filter/sort/page: they mean nothing
+    // to the other tabs and would otherwise reappear on the way back.
+    const setTab = (next: SbomTab) =>
+        setSearchParams({
+            tab: next === "packages" ? undefined : next,
+            severity: undefined,
+            sort: undefined,
+            dir: undefined,
+            offset: undefined,
+        });
+
+    // A hand-edited URL can say anything; an unrecognised value is dropped
+    // rather than forwarded, so the list shows everything instead of nothing.
+    const vulnSeverity = (): VulnSeverityFilter | undefined => {
+        const raw = one(searchParams.severity);
+        return SEVERITIES.find((candidate) => candidate === raw);
+    };
+    const vulnSortBy = (): SBOMVulnSortKey => {
+        const raw = one(searchParams.sort);
+        return VULN_SORT_KEYS.find((candidate) => candidate === raw) ?? "severity";
+    };
+    // Severity's useful default is worst-first, the opposite of what every
+    // other column wants.
+    const vulnSortDir = (): SortDir => {
+        const raw = one(searchParams.dir);
+        if (raw === "asc" || raw === "desc") return raw;
+        return vulnSortBy() === "canonical_id" ? "asc" : "desc";
+    };
+    const vulnOffset = () => {
+        const parsed = Number(one(searchParams.offset));
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    };
+    const vulnExpanded = createExpandedSet();
 
     const artifactLookup = useArtifactNames();
     const artifactLabel = (id: string | undefined) => {
@@ -203,9 +255,6 @@ export default function SBOMDetail() {
                                 onSelect={setTab}
                             />
 
-                            {/* --- Vulnerability summary --- */}
-                            <VulnSummaryBar summary={s.vulnSummary} />
-
                             {/* --- Tabs --- */}
                             <TabBar
                                 tabs={[
@@ -213,6 +262,7 @@ export default function SBOMDetail() {
                                     { id: "provenance", label: "Provenance" },
                                     { id: "image", label: "Image" },
                                     { id: "git", label: "Git" },
+                                    { id: "vulns", label: `Vulnerabilities (${s.vulnSummary?.total ?? 0})` },
                                     { id: "raw", label: "Raw" },
                                 ]}
                                 active={tab()}
@@ -278,6 +328,28 @@ export default function SBOMDetail() {
                                 >
                                     {(commit) => <GitCommitCard commit={commit()} />}
                                 </Show>
+                            </Show>
+
+                            {/* --- Vulnerabilities tab --- */}
+                            <Show when={tab() === "vulns"}>
+                                <VulnerabilitiesTab
+                                    sbomId={s.id}
+                                    summary={s.vulnSummary}
+                                    severity={vulnSeverity()}
+                                    sortBy={vulnSortBy()}
+                                    sortDir={vulnSortDir()}
+                                    offset={vulnOffset()}
+                                    expanded={vulnExpanded}
+                                    onSeverityChange={(value) =>
+                                        setSearchParams({ severity: value, offset: undefined })
+                                    }
+                                    onSort={(key, dir) =>
+                                        setSearchParams({ sort: key, dir, offset: undefined })
+                                    }
+                                    onPageChange={(next) =>
+                                        setSearchParams({ offset: next === 0 ? undefined : next })
+                                    }
+                                />
                             </Show>
 
                             {/* --- Raw tab (identity + CycloneDX internals) --- */}

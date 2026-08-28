@@ -1,7 +1,9 @@
 import type { Accessor } from "solid-js";
 import { createQuery, createInfiniteQuery } from "@tanstack/solid-query";
 import { client, unwrap } from "~/api/client";
-import type { ComponentSummary } from "~/api/client";
+import type { ComponentSummary, paths } from "~/api/client";
+import type { SortDir } from "~/components/DataTable";
+import type { VulnSeverityFilter } from "./clusters";
 
 /** List SBOMs with optional filters and keyset (cursor) pagination. */
 export function useSBOMs(
@@ -122,4 +124,46 @@ export function useSBOMDependencies(
             nodes: resp.nodes ?? [],
         }),
     }));
+}
+
+/** The columns the API will order an SBOM's vulnerability list by. */
+export type SBOMVulnSortKey =
+    NonNullable<paths["/api/v1/sboms/{id}/vulns"]["get"]["parameters"]["query"]>["sort"];
+
+export interface SBOMVulnQueryParams {
+    severity?: VulnSeverityFilter;
+    sort?: SBOMVulnSortKey;
+    dir?: SortDir;
+    limit?: number;
+    offset?: number;
+}
+
+/**
+ * useSBOMVulns — the findings inside one SBOM, keyed by canonical id server-side
+ * so an advisory published under several ids (GO-…, GHSA-…, CVE-…) is one row
+ * carrying the whole alias group's package count.
+ *
+ * That keying is what lets this list agree with the vulnSummary tile above it;
+ * a client-side fan-out over components could not, because it would count the
+ * same advisory once per id and once per package.
+ */
+export function useSBOMVulns(
+    id: Accessor<string>,
+    params?: Accessor<SBOMVulnQueryParams>,
+    options?: { enabled?: Accessor<boolean> },
+) {
+    return createQuery(() => {
+        const p = params?.() ?? {};
+        return {
+            queryKey: ["sbom", id(), "vulns", p.severity, p.sort, p.dir, p.limit, p.offset] as const,
+            queryFn: () =>
+                unwrap(
+                    client.GET("/api/v1/sboms/{id}/vulns", {
+                        params: { path: { id: id() }, query: p },
+                    }),
+                ),
+            enabled: options?.enabled?.() ?? true,
+            select: (resp) => ({ ...resp, data: resp.data ?? [] }),
+        };
+    });
 }

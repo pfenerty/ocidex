@@ -11,8 +11,9 @@ import { Dynamic } from "solid-js/web";
  *             is the selected one. This is the SBOM band's shape.
  *   `href`  → a link. This is the cluster CoverageBand's shape.
  *   neither → a plain div. A tile that only reports a number must not look
- *             clickable; the SBOM vulnerability tile is one of these until
- *             ocidex-ag4q.34 gives the page a tab for it.
+ *             clickable. The SBOM vulnerability tile was one of these until
+ *             ocidex-unn8.5 gave the page a tab to send the reader to; the
+ *             artifact band's still is.
  */
 export interface StatTile<T extends string = string> {
     id?: T;
