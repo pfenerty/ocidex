@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -565,4 +566,65 @@ func TestListRecentProvenanceDrift_DBError(t *testing.T) {
 
 	_, err := svc.ListRecentProvenanceDrift(context.Background(), DriftPage{Limit: 10}, VisibilityFilter{IsAdmin: true})
 	is.True(err != nil)
+}
+
+// TestGetSBOMDependencies_DecoratesVulns asserts the dependency graph carries the
+// same vulnerability decoration as the component-list paths. Before ocidex-unn8.1
+// the tree view's Vulns column was always empty because GetSBOMDependencies never
+// called decorateComponentVulns — a gap every other test passed straight through.
+func TestGetSBOMDependencies_DecoratesVulns(t *testing.T) {
+	is := is.New(t)
+	sbomID := pgtype.UUID{Bytes: [16]byte{9}, Valid: true}
+	compID := pgtype.UUID{Bytes: [16]byte{10}, Valid: true}
+	const purl = "pkg:golang/github.com/example/vulnerable@1.0.0"
+
+	db := &fakeDB{
+		queryRowFn: func(_ context.Context, sql string, _ ...any) pgx.Row {
+			return &fakeRow{scanFn: func(dest ...any) error {
+				// IsSBOMVisible.
+				if b, ok := dest[0].(*bool); ok {
+					*b = true
+					return nil
+				}
+				// GetSBOMMetadataBomRef — no metadata component.
+				_ = sql
+				return nil
+			}}
+		},
+		queryFn: func(_ context.Context, sql string, _ ...any) (pgx.Rows, error) {
+			switch {
+			case strings.Contains(sql, "ListSBOMComponents :many"):
+				return &scanFnRows{fns: []func(...any) error{
+					func(dest ...any) error {
+						*(dest[0].(*pgtype.UUID)) = compID
+						*(dest[2].(*string)) = "library"
+						*(dest[3].(*string)) = "vulnerable"
+						*(dest[6].(*pgtype.Text)) = pgtype.Text{String: purl, Valid: true}
+						return nil
+					},
+				}}, nil
+			case strings.Contains(sql, "ListSBOMComponentVulns :many"):
+				return &scanFnRows{fns: []func(...any) error{
+					func(dest ...any) error {
+						*(dest[0].(*string)) = purl
+						*(dest[1].(*string)) = "CVE-2024-0001"
+						*(dest[2].(*string)) = "CVE-2024-0001"
+						*(dest[3].(*pgtype.Text)) = pgtype.Text{String: sevHigh, Valid: true}
+						return nil
+					},
+				}}, nil
+			default:
+				// ListDependenciesBySBOM and anything else: no rows.
+				return emptyRows(), nil
+			}
+		},
+	}
+	svc := &searchService{db: db}
+
+	graph, err := svc.GetSBOMDependencies(context.Background(), sbomID, VisibilityFilter{})
+	is.NoErr(err)
+	is.Equal(len(graph.Nodes), 1)
+	is.Equal(graph.Nodes[0].VulnCount, 1)
+	is.Equal(graph.Nodes[0].HighCount, 1)
+	is.Equal(graph.Nodes[0].MaxSeverity, sevHigh)
 }

@@ -641,6 +641,12 @@ func (s *searchService) GetSBOMDependencies(ctx context.Context, sbomID pgtype.U
 		}
 	}
 
+	// The tree view renders a Vulns column from these nodes, exactly as the
+	// component-list paths do, so the graph must carry the same decoration.
+	if err := decorateComponentVulns(ctx, q, sbomID, nodes); err != nil {
+		return DependencyGraph{}, err
+	}
+
 	return DependencyGraph{Nodes: nodes, Edges: edges, Roots: roots}, nil
 }
 
