@@ -57,7 +57,7 @@ func applyVerification(ctx context.Context, p *Provenance, raw RawArtifacts, mod
 	if raw.SigPresent() {
 		checked = true
 		if idx := verifyOCISignatures(ctx, raw.Sigs, h, co); idx >= 0 {
-			restampFromSig(p, raw.Sigs[idx].Annotations)
+			restampFromSig(p, raw.Sigs[idx])
 		} else {
 			verified = false
 		}

@@ -2,6 +2,7 @@ package provenance
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -15,8 +16,10 @@ import (
 	"github.com/sigstore/cosign/v3/pkg/oci/empty"
 	"github.com/sigstore/cosign/v3/pkg/oci/mutate"
 	"github.com/sigstore/cosign/v3/pkg/oci/static"
+	sgbundle "github.com/sigstore/sigstore-go/pkg/bundle"
 	"github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/sigstore/sigstore-go/pkg/tuf"
+	"github.com/sigstore/sigstore-go/pkg/verify"
 	"golang.org/x/sync/singleflight"
 
 	"github.com/pfenerty/ocidex/internal/trust"
@@ -179,7 +182,7 @@ func applyKeylessVerification(ctx context.Context, p *Provenance, raw RawArtifac
 	if raw.SigPresent() {
 		checked = true
 		if idx := verifyOCISignatures(ctx, raw.Sigs, h, baseOpts); idx >= 0 {
-			restampFromSig(p, raw.Sigs[idx].Annotations)
+			restampFromSig(p, raw.Sigs[idx])
 		} else {
 			verified = false
 		}
@@ -219,6 +222,13 @@ func applyKeylessVerification(ctx context.Context, p *Provenance, raw RawArtifac
 func verifyOCISignatures(ctx context.Context, sigs []signedLayer, h v1.Hash, co cosign.CheckOpts) int {
 	co.ClaimVerifier = cosign.SimpleClaimVerifier
 	for i, layer := range sigs {
+		if layer.ArtifactType == bundleArtifactType {
+			if err := verifyBundleLayer(ctx, layer.Bytes, h, co); err != nil {
+				logRejection(ctx, "signature", i, len(sigs), err)
+				continue
+			}
+			return i
+		}
 		sig, err := buildOCISignature(layer.Bytes, layer.Annotations)
 		if err != nil {
 			logRejection(ctx, "signature", i, len(sigs), err)
@@ -242,6 +252,13 @@ func verifyOCISignatures(ctx context.Context, sigs []signedLayer, h v1.Hash, co 
 func verifyOCIAttestations(ctx context.Context, atts []signedLayer, h v1.Hash, co cosign.CheckOpts) int {
 	co.ClaimVerifier = cosign.IntotoSubjectClaimVerifier
 	for i, layer := range atts {
+		if layer.ArtifactType == bundleArtifactType {
+			if err := verifyBundleLayer(ctx, layer.Bytes, h, co); err != nil {
+				logRejection(ctx, "attestation", i, len(atts), err)
+				continue
+			}
+			return i
+		}
 		att, err := static.NewAttestation(layer.Bytes, buildStaticOptions(layer.Annotations)...)
 		if err != nil {
 			logRejection(ctx, "attestation", i, len(atts), err)
@@ -259,6 +276,31 @@ func verifyOCIAttestations(ctx context.Context, atts []signedLayer, h v1.Hash, c
 		return i
 	}
 	return -1
+}
+
+// verifyBundleLayer verifies one new-format Sigstore bundle
+// (application/vnd.dev.sigstore.bundle.v0.3+json). The certificate and Rekor
+// entry live inside the blob rather than in layer annotations, so
+// buildStaticOptions finds nothing to attach and the static.New* path rejects
+// every such layer for want of material it can never see.
+//
+// verify.WithArtifactDigest takes over the job co.ClaimVerifier does on the
+// legacy path — binding the signed subject to the digest being enriched — so a
+// valid bundle transplanted from another image is still rejected. Both trust
+// tiers are already covered by co: CheckOpts.verificationOptions() derives the
+// keyless identity policy from co.Identities and honours the public-key tier's
+// SigVerifier plus IgnoreTlog.
+func verifyBundleLayer(ctx context.Context, data []byte, h v1.Hash, co cosign.CheckOpts) error {
+	var b sgbundle.Bundle
+	if err := b.UnmarshalJSON(data); err != nil {
+		return fmt.Errorf("parsing sigstore bundle: %w", err)
+	}
+	digestBytes, err := hex.DecodeString(h.Hex)
+	if err != nil {
+		return fmt.Errorf("decoding image digest: %w", err)
+	}
+	_, err = cosign.VerifyNewBundle(ctx, &co, verify.WithArtifactDigest(h.Algorithm, digestBytes), &b)
+	return err
 }
 
 // logRejection records why one layer failed to verify. cosign's error used to be

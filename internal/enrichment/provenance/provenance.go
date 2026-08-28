@@ -34,6 +34,14 @@ const (
 	inTotoArtifactType = "application/vnd.in-toto+json"
 	bundleArtifactType = "application/vnd.dev.sigstore.bundle.v0.3+json"
 
+	// cosignSignPredicateType marks a Sigstore bundle that carries a signature
+	// rather than an attestation. It is read from the in-toto statement inside
+	// the DSSE payload, never from the manifest's
+	// dev.sigstore.bundle.predicateType annotation — cilium's 5 MB SPDX
+	// attestation bundle carries that annotation set to this exact value, so
+	// the annotation cannot discriminate (ocidex-gm28).
+	cosignSignPredicateType = "https://sigstore.dev/cosign/sign/v1"
+
 	// defaultTimeout bounds one Enrich call end to end. The chain is an
 	// existence HEAD, referrers discovery plus its child layer fetches, a Rekor
 	// lookup and cosign verification — and cosign may refresh the Sigstore
@@ -96,7 +104,7 @@ var ErrTooManyLayers = errors.New("manifest exceeds maximum layer count")
 type signedLayer struct {
 	Annotations  map[string]string `json:"annotations,omitempty"`
 	Bytes        []byte            `json:"bytes,omitempty"`        // simplesigning payload, DSSE envelope, or raw in-toto statement
-	ArtifactType string            `json:"artifactType,omitempty"` // attestations only; empty means DSSE
+	ArtifactType string            `json:"artifactType,omitempty"` // referrer artifact type; empty means DSSE or a tag-scheme signature
 }
 
 // RawArtifacts is everything discovery found attached to one image digest. It is
@@ -411,6 +419,10 @@ func (e *Enricher) extractFromReferrers(idx v1.ImageIndex, repo name.Repository,
 		case sigArtifactType:
 			budget = sigBudget
 		case attArtifactType, inTotoArtifactType, bundleArtifactType:
+			// Bundles draw the attestation budget even when they turn out to
+			// hold a signature: which kind it is is only knowable after the
+			// bytes are read. A signature bundle is ~10 KB against a 16 MiB
+			// budget, so this keeps the ocidex-wvnp memory envelope intact.
 			budget = attBudget
 		default:
 			continue
@@ -424,12 +436,25 @@ func (e *Enricher) extractFromReferrers(idx v1.ImageIndex, repo name.Repository,
 			return RawArtifacts{}, false, err
 		}
 
+		for i := range layers {
+			layers[i].ArtifactType = desc.ArtifactType
+		}
+
 		if desc.ArtifactType == sigArtifactType {
 			result.Sigs = append(result.Sigs, layers...)
 			continue
 		}
-		for i := range layers {
-			layers[i].ArtifactType = desc.ArtifactType
+		// A bundle referrer may be either kind, and only its payload says
+		// which — see bundleIsSignature.
+		if desc.ArtifactType == bundleArtifactType {
+			for _, l := range layers {
+				if bundleIsSignature(l.Bytes) {
+					result.Sigs = append(result.Sigs, l)
+				} else {
+					result.Atts = append(result.Atts, l)
+				}
+			}
+			continue
 		}
 		result.Atts = append(result.Atts, layers...)
 	}
