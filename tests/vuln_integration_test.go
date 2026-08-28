@@ -778,6 +778,128 @@ func TestComponentVulnsMatchSourcePurl(t *testing.T) {
 	is.Equal(countOccurrences(ids, "CVE-2025-src-0003"), 1)
 }
 
+// TestSBOMVulnsMatchSourcePurl is the SBOM-scoped counterpart to
+// TestComponentVulnsMatchSourcePurl (ocidex-unn8.2). A finding published only
+// against a component's derived source purl showed on the component's own page
+// but was invisible inside the SBOM that contains it, so the SBOM summary
+// undercounted against its own components.
+func TestSBOMVulnsMatchSourcePurl(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+
+	is := is.New(t)
+	store := vuln.NewPGStore(pool)
+
+	memberID := seedUser(t, pool, 8009, "sbom-source-purl-member", "member")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "sbom-source-purl-test", "read-write")
+	is.NoErr(err)
+
+	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), minimalSBOM, memberKey)
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusCreated)
+	var ingestResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingestResp))
+	resp.Body.Close()
+	sbomID := ingestResp["id"].(string)
+
+	var sbomUUID pgtype.UUID
+	is.NoErr(sbomUUID.Scan(sbomID))
+
+	const addUserSourcePurl = "pkg:deb/ubuntu/adduser@3.118ubuntu2?arch=src&distro=ubuntu-24.04"
+	_, err = pool.Exec(t.Context(),
+		"UPDATE component SET source_purl = $1 WHERE sbom_id = $2 AND purl = $3",
+		addUserSourcePurl, sbomUUID, addUserPurl)
+	is.NoErr(err)
+
+	// One direct match on apt's binary purl, one match reachable only through
+	// adduser's source purl.
+	seedVuln(t, store, "CVE-2026-src-1001", "HIGH", aptPurl)
+	seedVuln(t, store, "CVE-2026-src-1002", "CRITICAL", addUserSourcePurl)
+
+	sbomDetail := func() map[string]any {
+		r, gerr := doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s", srv.URL, sbomID))
+		is.NoErr(gerr)
+		is.Equal(r.StatusCode, http.StatusOK)
+		var detail map[string]any
+		is.NoErr(json.NewDecoder(r.Body).Decode(&detail))
+		r.Body.Close()
+		return detail
+	}
+	sbomVulnSummary := func() map[string]any {
+		return sbomDetail()["vulnSummary"].(map[string]any)
+	}
+
+	vs := sbomVulnSummary()
+	is.Equal(vs["critical"], float64(1))
+	is.Equal(vs["high"], float64(1))
+	is.Equal(vs["total"], float64(2))
+
+	// The component decoration must attribute the source-purl finding back to
+	// the component that carries it, not drop it or key it on the source purl.
+	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/sboms/%s/components", srv.URL, sbomID))
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var compResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&compResp))
+	resp.Body.Close()
+
+	byName := map[string]map[string]any{}
+	for _, c := range compResp["components"].([]any) {
+		cm := c.(map[string]any)
+		byName[cm["name"].(string)] = cm
+	}
+	is.Equal(byName["adduser"]["vulnCount"], float64(1))
+	is.Equal(byName["adduser"]["maxSeverity"], "CRITICAL")
+	is.Equal(byName["adduser"]["criticalCount"], float64(1))
+	is.Equal(byName["apt"]["vulnCount"], float64(1))
+	is.Equal(byName["apt"]["highCount"], float64(1))
+
+	// The artifact summary reads the same scope over its newest SBOM and must
+	// not disagree with the SBOM tile.
+	artifactID := sbomDetail()["artifactId"].(string)
+	resp, err = doGet(t, fmt.Sprintf("%s/api/v1/artifacts/%s/vuln-summary", srv.URL, artifactID))
+	is.NoErr(err)
+	is.Equal(resp.StatusCode, http.StatusOK)
+	var artResp map[string]any
+	is.NoErr(json.NewDecoder(resp.Body).Decode(&artResp))
+	resp.Body.Close()
+	artSummary := artResp["summary"].(map[string]any)
+	is.Equal(artSummary["critical"], float64(1))
+	is.Equal(artSummary["high"], float64(1))
+	is.Equal(artSummary["total"], float64(2))
+
+	// A vuln matched through both the binary and the source purl stays one
+	// finding, and counts as a direct match rather than an inherited one.
+	err = store.UpsertVulnerability(t.Context(), vuln.Row{
+		ID: "CVE-2026-src-1003", CanonicalID: "CVE-2026-src-1003", Summary: "dual-purl vuln", Severity: "LOW",
+		Aliases: []string{}, Raw: []byte("{}"),
+	})
+	is.NoErr(err)
+	err = store.ReplacePackageVulns(t.Context(), addUserPurl, []vuln.PackageVulnRef{
+		{VulnerabilityID: "CVE-2026-src-1003"},
+	})
+	is.NoErr(err)
+	err = store.ReplacePackageVulns(t.Context(), addUserSourcePurl, []vuln.PackageVulnRef{
+		{VulnerabilityID: "CVE-2026-src-1002"},
+		{VulnerabilityID: "CVE-2026-src-1003"},
+	})
+	is.NoErr(err)
+
+	vs = sbomVulnSummary()
+	is.Equal(vs["critical"], float64(1))
+	is.Equal(vs["high"], float64(1))
+	is.Equal(vs["low"], float64(1))
+	is.Equal(vs["total"], float64(3))
+}
+
 func countOccurrences(s []string, target string) int {
 	n := 0
 	for _, v := range s {
