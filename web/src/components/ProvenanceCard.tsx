@@ -1,7 +1,7 @@
 import "~/components/DetailSection.css";
 import "./ProvenanceCard.css";
 import { Show, For } from "solid-js";
-import { Check, X } from "lucide-solid";
+import { Check, X, ShieldX } from "lucide-solid";
 import type { Provenance, ProvenanceDriftSummary } from "~/api/client";
 import { formatDateTime } from "~/utils/format";
 import { isGitHubUrl, gitHubCommitUrl } from "~/utils/oci";
@@ -26,12 +26,32 @@ const historyColumns: Column<ProvenanceDriftSummary>[] = [
     { header: "Reason", class: "text-muted text-sm", render: (e) => driftReasonLabel(e.reason) },
 ];
 
-// FactPill renders a present/absent trust fact (e.g. "cosign signature ✓").
-function FactPill(props: { present: boolean; label: string }) {
+// FactPill renders a trust fact together with the verdict on it, when one was
+// reached. Colour follows the same axis as the status badge (utils/trust.ts):
+// blue where OCIDex affirmed the fact, red where a check rejected it, grey
+// where no check ran. Deliberately green-free, for the same reason the badge
+// is — a signature that cosign rejected must not read as clean, and a
+// present-but-unchecked one must not read as an endorsement (ocidex-vopn).
+//
+// verified is the blob-level verdict and covers signature and attestation
+// together, so when both are present and only one failed, both pills read
+// rejected; the card's Reason field names which.
+function FactPill(props: { present: boolean; label: string; verified?: boolean }) {
+    const state = () => {
+        if (!props.present) return "absent";
+        if (props.verified === true) return "verified";
+        if (props.verified === false) return "rejected";
+        return "present";
+    };
     return (
-        <span class={`fact-pill ${props.present ? "fact-present" : "fact-absent"}`}>
-            {props.present ? <Check size={14} /> : <X size={14} />}
+        <span class={`fact-pill fact-${state()}`}>
+            <Show when={state() === "rejected"} fallback={props.present ? <Check size={14} /> : <X size={14} />}>
+                <ShieldX size={14} />
+            </Show>
             {props.label}
+            {/* Spelled out, so the signal survives for a reader who cannot
+                distinguish the pill colours. */}
+            <Show when={state() === "rejected"}> — rejected</Show>
         </span>
     );
 }
@@ -91,8 +111,8 @@ export default function ProvenanceCard(props: {
 
             {/* Distinct trust facts */}
             <div class="fact-row">
-                <FactPill present={p.signaturePresent === true} label="cosign signature" />
-                <FactPill present={p.attestationPresent === true} label="SLSA attestation" />
+                <FactPill present={p.signaturePresent === true} label="cosign signature" verified={p.verified} />
+                <FactPill present={p.attestationPresent === true} label="SLSA attestation" verified={p.verified} />
             </div>
 
             <div class="detail-grid">

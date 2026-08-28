@@ -21,6 +21,62 @@ function fieldValue(container: HTMLElement, label: string): string | null {
     return field?.querySelector(".detail-value")?.textContent ?? null;
 }
 
+// factPill returns the pill whose label starts with `label`, so a test can
+// assert on its state class rather than on the whole fact row.
+function factPill(container: HTMLElement, label: string): HTMLElement | undefined {
+    return [...container.querySelectorAll<HTMLElement>(".fact-pill")].find((el) =>
+        el.textContent.includes(label),
+    );
+}
+
+// ocidex-vopn: the pill rendered presence only, so a signature cosign had
+// rejected got the same green check as one that passed — directly above a red
+// "Verification failed" badge.
+describe("ProvenanceCard trust fact pills", () => {
+    it("marks a rejected signature as rejected, not present", () => {
+        const { container } = renderCard(
+            makeProvenance({ verified: false, verificationError: "signature: no matching identities" }),
+            "verification_failed",
+        );
+
+        const pill = factPill(container, "cosign signature");
+        expect(pill?.className).toContain("fact-rejected");
+        expect(pill?.className).not.toContain("fact-present");
+        // Not colour-only: the verdict is in the text too.
+        expect(pill?.textContent).toContain("rejected");
+    });
+
+    it("marks a verified signature as verified", () => {
+        const { container } = renderCard(makeProvenance({ verified: true }), "verified");
+
+        const pill = factPill(container, "cosign signature");
+        expect(pill?.className).toContain("fact-verified");
+        expect(pill?.textContent).not.toContain("rejected");
+    });
+
+    it("leaves a present-but-unchecked signature neutral", () => {
+        // No trust anchor configured, so nothing verified it. ADR-037 calls this
+        // "no cryptographic check was performed" — it must not read as an
+        // endorsement.
+        const { container } = renderCard(makeProvenance({}), "signed");
+
+        const pill = factPill(container, "cosign signature");
+        expect(pill?.className).toContain("fact-present");
+        expect(pill?.className).not.toContain("fact-verified");
+    });
+
+    it("leaves an absent fact absent even when the verdict failed", () => {
+        const { container } = renderCard(
+            makeProvenance({ verified: false, attestationPresent: false }),
+            "verification_failed",
+        );
+
+        const pill = factPill(container, "SLSA attestation");
+        expect(pill?.className).toContain("fact-absent");
+        expect(pill?.textContent).not.toContain("rejected");
+    });
+});
+
 // ocidex-j9qa: a failed verification used to render a bare "Verification failed",
 // leaving the cosign error reachable only through the worker's logs.
 describe("ProvenanceCard verification reason", () => {

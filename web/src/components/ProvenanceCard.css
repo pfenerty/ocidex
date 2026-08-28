@@ -15,9 +15,26 @@
     border: 1px solid var(--color-border);
 }
 
+/* The four fact states share the trust colour axis documented in
+   utils/trust.ts: blue affirms, red is a trust problem, grey is absence of
+   information. No green — see ocidex-vopn. */
+
+/* Signing material is present but nothing checked it (no trust anchor
+   configured). Neutral, matching the `signed` badge: per ADR-037 this means
+   "no cryptographic check was performed", not "good". */
 .fact-present {
-    color: var(--color-success);
-    background: var(--color-success-bg);
+    color: var(--color-text);
+}
+
+.fact-verified {
+    color: var(--color-info);
+    background: var(--color-info-bg);
+    border-color: transparent;
+}
+
+.fact-rejected {
+    color: var(--color-danger);
+    background: var(--color-danger-bg);
     border-color: transparent;
 }
 
