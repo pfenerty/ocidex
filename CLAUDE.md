@@ -6,640 +6,217 @@
 - Do not do extra work that was not asked for
 - Assume the user is a competent engineer asking for specific functionality — do not over-explain or add unrequested features
 - Challenge design decisions when necessary
-- After making frontend changes, run `make frontend-lint-fix` to auto-fix ESLint errors, then `make frontend-lint` to verify no remaining issues
+
+## Hard Rules
+
+These are the mistakes that cost real time. Everything else is convention.
+
+| Rule | Why / how |
+|---|---|
+| **Never hand-edit `.tekton/*.yaml`** | Generated from `.tektonic/` by `make tekton-synth`. The `tekton-check` PR task re-synthesizes and fails the PR if `.tekton` comes out dirty. |
+| **Never hand-edit `internal/repository/*sql.go` or `models.go`** | sqlc output. Edit `db/queries/*.sql`, then `make generate`. |
+| **Never hand-edit `web/openapi.json` or `web/src/types/openapi.d.ts`** | Generated from `internal/api/types.go` + `router.go`. Run `make openapi` after any API type or route change — stale types fail the Docker build. |
+| **Never hand-edit `api/v1alpha1/zz_generated.deepcopy.go` or `config/operator/crd/*.yaml`** | controller-gen output. Edit `api/v1alpha1/*_types.go`, then `make generate-operator`. |
+| **Never test a pipeline change by pushing a commit** | Apply the task YAML to the cluster and run an isolated TaskRun — ~2 min instead of ~1 h. See [docs/CI_TEKTON.md](docs/CI_TEKTON.md). |
+| **Never ship a UI change you have not looked at** | A dead class name or unfetched font passes Vitest. See [docs/FRONTEND_DEV.md](docs/FRONTEND_DEV.md). |
+| **Never use `bd edit`** | It opens `$EDITOR` and blocks. Use `bd update --title/--description/--notes`. |
+| **Never use TodoWrite, TaskCreate, or markdown TODO lists** | Use `bd`. |
+| After a frontend change | `make frontend-lint-fix`, then `make frontend-lint` |
+| `docker` is not available in this environment | The Talos/Tilt loop needs it on the host; the auth rig ([docs/FRONTEND_DEV.md](docs/FRONTEND_DEV.md)) does not. |
+
+## Environment
+
+Most tools (`go`, `make`, `node`, `npm`, `oras`, `syft`, `tilt`, `talosctl`, `kubectl`) exist
+only inside the Flox environment. Every build/test command goes through it:
+
+```bash
+flox activate -- make fmt
+flox activate -- make help          # every target, self-documented — use this, not a list here
+```
+
+`golangci-lint`, `sqlc`, and `controller-gen` are installed by `make init` into `~/go/bin`, which
+is **not** on PATH inside Flox. Targets that invoke them (`lint`, `check`, `generate`,
+`generate-operator`) need the export:
+
+```bash
+flox activate -- bash -c 'export PATH="$HOME/go/bin:$PATH"; make check'
+```
+
+Two gotchas:
+
+- `DATABASE_URL` is exported for **make targets** only (the Makefile does `include .env` +
+  `export`). Running a binary directly does not read `.env` — do `set -a; . ./.env; set +a`.
+- `make migrate-up` / `migrate-down` run `go run ./cmd/ocidex migrate up|down` with migrations
+  embedded. There is no `goose` CLI; `~/.local/bin/goose` is an unrelated tool.
 
 ## Codebase Exploration
 
-This project has three code-exploration MCP servers available: **tokensave**, **repomix**, and
-**headroom**. Global guidance (`~/.claude/CLAUDE.md`) already mandates tokensave-first and bans
-Explore agents when tokensave is available — this section adds ocidex-specific detail on top of
-that mandate.
+`~/.claude/CLAUDE.md` already mandates tokensave-first and bans Explore agents. The ocidex
+specifics:
 
-**tokensave first, always** — it's a pre-built code graph over ocidex, not a text search. Use it
-for: "where is X defined," callers/callees, impact radius, "how does enricher dependency
-chaining work" (`tokensave_context`), symbol bodies (`tokensave_body`), signature lookups. Check
-`tokensave_status` if a call errors — a malformed-DB error means the local index needs
-`tokensave wipe && tokensave init && tokensave install`.
+- **tokensave** is a pre-built code graph, not a text search — use it for "where is X defined",
+  callers/callees, impact radius, symbol bodies. For planning a story, call
+  `tokensave_context(task=..., mode="plan")` **first**; it surfaces extension points and
+  dependency order. If a call errors, `tokensave_status`, then
+  `tokensave wipe && tokensave init && tokensave install`.
+- **repomix** only when tokensave doesn't answer — broad, non-symbol-shaped review
+  (e.g. auditing all of `.tekton/tasks/`).
+- **headroom** to compress any tool output over ~2k tokens before it lands in context.
+- **`Read`/`Grep`** for files you're about to edit, single targeted lookups, and non-code content
+  (prose, YAML, config).
 
-**repomix** only when tokensave_context doesn't fully answer — broad, non-symbol-shaped review
-(e.g. "read through all of `.tekton/tasks/` for a security review", full-directory audits).
-
-**MCP tools** (auto-allowed when the MCP server is active):
-```
-mcp__repomix__pack_codebase        → pack codebase, produces an output ID
-mcp__repomix__grep_repomix_output  → regex search within a packed output
-mcp__repomix__read_repomix_output  → read sections with offset/limit
-mcp__repomix__attach_packed_output → reattach a previous pack by ID
-```
-
-**CLI fallback** (when MCP tools are not loaded in the session):
-```bash
-# Pack and write to repomix-output.xml (gitignored)
-flox activate -- repomix
-
-# Pack a subtree only
-flox activate -- repomix internal/service
-
-# Search the output file directly
-grep -n "pattern" repomix-output.xml
-```
-
-**headroom** — compress any tool output over ~2k tokens (Bash output, repomix reads, file
-reads) before it lands in context. Retrieve full content by hash only when actually needed.
-
-**Fall back to plain `Read`/`Grep`** only for files you're about to edit directly, or non-code
-content (docs prose, YAML, config) these tools don't index well.
-
-## Story Planning Workflow
-
-The recurring "identify and plan the next story" routine (context-clear → plan mode → "what's
-next for epic X"):
-
-1. `bd ready` / `bd show <epic>` — identify the epic and its child stories.
-2. `bd show <story>` — read the target story's full description and acceptance criteria.
-3. `mcp__tokensave__tokensave_context(task=..., mode="plan")` as the **first** exploration
-   call — built for implementation planning (extension points, dependency order, test
-   coverage), not just symbol lookup.
-4. Fall back to `Read` only for files you intend to edit directly, or non-code content
-   tokensave can't index.
-5. `headroom_compress` anything over ~2k tokens before it re-enters context.
-6. Soft budget: ~15 research tool calls before falling back to `AskUserQuestion` if still
-   stuck — a proxy for "this needs human input, not more searching."
-
-**When to use Glob/Grep directly:**
-- You already know the file or directory
-- Single targeted lookup (one file, one symbol)
+Soft budget: ~15 research calls before falling back to `AskUserQuestion` — a proxy for "this
+needs human input, not more searching."
 
 ## Project Overview
 
-OCIDex (Open Container Initiative Dex) is a Go HTTP service for maintaining metadata about software artifacts, particularly SBOMs. It receives CycloneDX JSON SBOMs via API, stores them in a database, maintains links between software artifacts for tracking over time, and provides search by artifact, package/version, and license.
+OCIDex (Open Container Initiative Dex) is a Go HTTP service for maintaining metadata about
+software artifacts, particularly SBOMs. It receives CycloneDX JSON SBOMs via API, stores them,
+maintains links between artifacts for tracking over time, and provides search by artifact,
+package/version, and license.
 
-The project uses a layered architecture (API -> Service -> Repository) with dependency injection and interface-based design.
+- **Language:** Go (`github.com/pfenerty/ocidex`) — chi + huma v2, pgx + sqlc, goose migrations
+- **Database:** PostgreSQL
+- **Frontend:** SolidJS + Vite + Tailwind
+- **Messaging:** NATS JetStream (required — the deployment is distributed-only)
+- **Testing:** matryer/is (unit), testcontainers-go (integration), Vitest (frontend)
+- **Images:** Chainguard nginx for the web tier, distroless static-debian13 for Go (ADR-038)
+- **CI:** Tekton Pipelines-as-Code — see [docs/CI_TEKTON.md](docs/CI_TEKTON.md)
 
-## Tech Stack
-
-- **Language:** Go (module: `github.com/pfenerty/ocidex`)
-- **HTTP Router:** [chi](https://github.com/go-chi/chi)
-- **Database:** PostgreSQL (driver: pgx, query gen: sqlc, migrations: goose)
-- **Frontend:** SolidJS + Vite + Tailwind CSS
-- **Testing:** matryer/is (unit), testcontainers-go (integration)
-- **Linting:** golangci-lint (configured in `.golangci.yml`)
-- **CI:** Tekton Pipelines-as-Code (source in `.tektonic/`, generated to `.tekton/`). Lint, test, build, image publish, plus SAST/secrets/vuln scans (syft+grype, gitleaks, semgrep — report-only). PR pipeline gates the Go jobs on changed paths via tektonic `onChanges`; push/tag pipelines run unconditionally.
-- **Container:** Docker multi-stage build (Alpine)
-- **Dev Environment:** Flox
-
-## Flox Environment
-
-Most tools (`go`, `make`, `node`, `npm`, `oras`, `syft`) are only available inside the Flox environment. **All build/test commands must be run through Flox:**
-
-```bash
-# Correct — always wrap with flox activate
-flox activate -- bash -c 'export PATH="$HOME/go/bin:$PATH"; make check'
-flox activate -- bash -c 'export PATH="$HOME/go/bin:$PATH"; make test'
-flox activate -- bash -c 'export PATH="$HOME/go/bin:$PATH"; make lint'
-flox activate -- bash -c 'export PATH="$HOME/go/bin:$PATH"; make build'
-flox activate -- bash -c 'export PATH="$HOME/go/bin:$PATH"; make generate'
-
-# For simple commands that don't need ~/go/bin tools:
-flox activate -- make fmt
-flox activate -- make migrate-up
-flox activate -- make frontend-dev
-```
-
-**Why `bash -c` with PATH?** `golangci-lint` and `sqlc` are installed via `go install` into `~/go/bin/`, which isn't on PATH by default inside Flox. Commands that invoke these tools (`make lint`, `make check`, `make generate`) need the PATH export.
-
-Exceptions:
-- `make migrate-up` / `make migrate-down` run `go run ./cmd/ocidex migrate up|down` — the binary's own subcommand, with the migrations embedded. No separate `goose` CLI is needed or used; `~/.local/bin/goose` is the unrelated goose AI agent tool.
-- `DATABASE_URL` is exported automatically **for make targets** — the Makefile does `include .env` + `export`. Running a binary directly (`./bin/ocidex`) does not read `.env`; export the variables yourself with `set -a; . ./.env; set +a`.
-- `docker` is NOT available in this environment
-- `sqlc`, `golangci-lint`, and `controller-gen` require `flox activate -- make init` (or `go install`) first
-- `golangci-lint` v2 is required (config uses v2 format). The flox environment includes v2; `make init` installs `github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest`.
-- `controller-gen` lives at `~/go/bin/controller-gen` — installed via `go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest`. Targets that invoke it (`make generate-operator`) need the PATH export.
-
-## Key Commands
-
-```bash
-make run               # Run the application
-make build             # Build the binary to bin/
-make fmt               # Format code with gofmt
-make lint              # Run golangci-lint
-make test              # Run unit tests (race detector enabled)
-make test-coverage     # Run tests with HTML coverage report
-make test-integration  # Run integration tests from tests/
-make check             # Run fmt + lint + test
-make init              # Download deps and install tools
-make clean             # Clean build artifacts
-make generate          # Run sqlc code generation
-make generate-operator # Regenerate CRD manifests and deepcopy (controller-gen)
-make openapi           # Regenerate OpenAPI spec + frontend TypeScript types
-make migrate-up        # Run database migrations up
-make migrate-down      # Roll back last database migration
-make seed              # Seed database with real SBOMs
-make frontend          # Build the SolidJS frontend
-make frontend-dev      # Start frontend dev server (proxies API to :8080)
-make frontend-lint     # Run ESLint on the SolidJS frontend
-make frontend-lint-fix # Run ESLint with auto-fix on the SolidJS frontend
-make helm-check        # Lint Helm charts + validate renders against PodSecurity restricted
-make tekton-synth      # Synthesize Tekton pipeline YAML from TypeScript
-make tekton-check      # Verify .tekton is in sync with .tektonic/
-make dev-cluster-up    # Create local Talos dev cluster + registry (one-time per session)
-make dev-up            # Tilt: build, deploy, watch the stack on the local cluster
-make dev-down          # Stop Tilt
-make dev-cluster-down  # Destroy the local Talos cluster and registry
-```
-
-## Tekton CI Dev Loop
-
-**Never push commits just to test a pipeline change.** Edit task YAML directly and apply it to the cluster, then create an isolated TaskRun. This turns a 1-hour iteration into ~2 minutes.
-
-### Fast iteration on a single task
-
-```bash
-# 1. Edit the task YAML
-vim .tekton/tasks/gh-release.k8s.yaml
-
-# 2. Apply directly to the cluster — no commit, no PAC cycle
-# The ocidex-ci namespace carries webhooks.knative.dev/exclude=true, which bypasses the
-# Tekton admission webhook. Without it, kubectl apply fails with "non-existent variable"
-# for any ${VAR#prefix} in a script (image-release-*, helm-publish, helm-release).
-# The label is DECLARATIVE — do not `kubectl label` it by hand; it lives in
-# homelab/talos-cluster/flux/apps/ocidex-ci/namespace.yaml and Flux reconciles it.
-# Cost: the selector is `DoesNotExist`, so the label also disables Tekton's *defaulting*
-# webhook for the whole namespace, PAC PipelineRuns included. Safe here because the
-# tektonic-generated runs set serviceAccountName/timeouts explicitly.
-kubectl apply -f .tekton/tasks/gh-release.k8s.yaml
-
-# 3. Find a reusable workspace PVC from a recent pipeline run
-kubectl get pvc -n ocidex-ci
-
-# 4. Create an isolated TaskRun (edit params/PVC name as needed)
-#    `create`, not `apply` — apply rejects generateName.
-kubectl create -f - <<'EOF'
-apiVersion: tekton.dev/v1
-kind: TaskRun
-metadata:
-  generateName: test-gh-release-
-  namespace: ocidex-ci
-spec:
-  taskRef:
-    name: ocidex-gh-release
-  # ALWAYS include this. tektonic stamps this exact securityContext onto every
-  # PipelineRun's podTemplate, but a bare TaskRun has none — so root sidecars and
-  # uid-sensitive steps pass here and fail in real CI. That gap is what let the
-  # go-integration-test postgres sidecar (runAsUser: 0) ship broken: verified green
-  # by ad-hoc TaskRun, then CreateContainerConfigError on every actual pipeline.
-  podTemplate:
-    securityContext:
-      runAsUser: 1024
-      runAsGroup: 1024
-      fsGroup: 1024
-      runAsNonRoot: true
-      seccompProfile:
-        type: RuntimeDefault
-    env:
-      - name: HOME
-        value: /tekton/home
-  params:
-    - name: repo-full-name
-      value: pfenerty/ocidex
-    - name: revision
-      value: <sha>
-    - name: source-branch
-      value: refs/tags/v0.0.1-rc.2
-  workspaces:
-    - name: workspace
-      persistentVolumeClaim:
-        claimName: <pvc-from-recent-run>
-EOF
-
-# 5. Watch logs
-kubectl logs -n ocidex-ci -l tekton.dev/taskRun=<name> -f --all-containers
-```
-
-The workspace PVC from any recent push or tag run already has the source cloned — reuse it directly. PVCs persist after the run completes until Tekton's pruning kicks in (max 5 runs per `max-keep-runs`).
-
-### Triggering a full pipeline without a commit
-
-Re-push the current tag to trigger the tag pipeline, or push an empty commit to trigger the push pipeline:
-
-```bash
-# Re-trigger tag pipeline (no code change needed)
-git push origin :v0.0.1-rc.2 && git push origin v0.0.1-rc.2
-
-# Trigger push pipeline
-git commit --allow-empty -m "chore: retrigger CI" && git push
-```
-
-### Watching pipeline progress
-
-```bash
-kubectl get pipelinerun -n ocidex-ci --sort-by=.metadata.creationTimestamp | tail -5
-kubectl get taskrun -n ocidex-ci --sort-by=.metadata.creationTimestamp | grep <pr-name>
-kubectl logs -n ocidex-ci -l tekton.dev/taskRun=<taskrun-name> -f --all-containers
-```
-
-### Known gotchas
-
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| `secret-created: false` on PipelineRun | PAC GitHub App missing `Checks: read/write` | Add permission in GitHub App settings |
-| `CreateContainerConfigError` on task pod | Referenced secret doesn't exist in cluster | Verify secret with `kubectl get secret -n ocidex-ci`; ensure Flux has reconciled |
-| `refs/tags/v0.0.1-rc.2` appearing as image tag or release name | PAC sets `source_branch` to the full ref for tag events | Strip prefix: `TAG="${TAG#refs/tags/}"` after reading `$(params.source-branch)` |
-| `403 Forbidden` pulling `ghcr.io/<other-org>/image` | Cluster's `ghcr-docker-config` only covers `pfenerty/*` | Use images from `ghcr.io/pfenerty/apko-cicd/*` or Docker Hub instead |
-| Image release task shows `Succeeded` but image wasn't pushed | `onError: continue` masks step failures — TaskRun shows Succeeded even if buildctl failed | Check step logs directly; don't trust TaskRun status alone for `onError: continue` steps |
-| `CreateContainerConfigError`, kubelet event `container's runAsUser breaks non-root policy` | A container sets `runAsUser: 0` but inherits pod-level `runAsNonRoot: true` from tektonic's podTemplate. The kubelet check is independent of Pod Security Admission — the namespace being PSA `privileged` does *not* exempt it | Set `runAsNonRoot: false` alongside `runAsUser: 0` on that container's `securityContext` |
-| Ad-hoc TaskRun passes, same task fails in the pipeline | The TaskRun omitted `podTemplate` — no pod-level securityContext, so uid/non-root constraints never applied | Always include the `podTemplate` block from step 4 above |
-| Step logs show the failure, but `report-status` logs `exit-code=0` and the TaskRun Succeeds | A nushell script body used `exit 1`. That kills the process before tektonic's `try/catch` wrapper can persist the code to `/tekton/home/.exit-code`, so it keeps its initial `0` | Raise instead: `error make {msg: "..."}`. `exit` is safe in `sh` scripts — tektonic wraps those in a subshell and reads `$?` |
-
-### Shell variable syntax in task scripts
-
-Tekton's admission webhook flags `$VAR` and `${VAR}` patterns in scripts as undeclared Tekton params — even when they're plain shell variables. The webhook is bypassed for the `ocidex-ci` namespace (see above), but this affects:
-
-- **What to write**: Use `$VAR` (no braces) for simple references. For parameter expansion operators (`${VAR#prefix}`, `${VAR%suffix}`), use POSIX `sed` equivalents: `VAR=$(echo "$VAR" | sed 's|^prefix||')`.
-- **`ec` and exit-code files**: Write `echo "$ec"` not `echo "${ec}"`.
-- **The output line for buildctl**: Use `"name=${NAMES}"` — this is the one place where `${NAMES}` is required by buildctl's flag syntax and is exempt because it's inside a quoted arg, not a standalone variable reference.
-
-Only the standalone `Task` object is checked. A `PipelineRun`/`TaskRun` with the same script
-**embedded** as `spec.taskSpec` is admitted even without the namespace label — which is why real
-CI never hit this (PAC inlines remote tasks as `taskSpec`), and why an ad-hoc TaskRun built with
-an inline `taskSpec` is the escape hatch if the exclusion is ever removed.
-
-### `.tekton/` is generated — never commit a hand-edit
-
-`.tektonic/` is the source of truth; `.tekton/*.yaml` is `make tekton-synth` output. The
-`tekton-check` PR task (`.tektonic/jobs/tekton-check/spec.ts`) re-runs synthesis in CI and **fails
-the PR** if `.tekton` comes out dirty, so a hand-edit that isn't reflected in `.tektonic/` is
-guaranteed red — and would be silently reverted by the next synth anyway. It is gated on
-`pipelineChanged`, so it only runs when `.tektonic/**` or `.tekton/**` changed.
-
-This does not conflict with the fast-iteration loop above: editing `.tekton/tasks/*.yaml` and
-`kubectl apply`-ing it is still the right ~2-minute way to validate a task against the cluster.
-Just port the change back into `.tektonic/` and re-synth before committing.
-
-**Shell parameter expansion that cdk8s mangles** (historically `${VAR#prefix}` disappearing from
-block scalars) is solved by moving the script out of the TypeScript template literal into a
-sibling `.sh`/`.nu` file loaded via `.tektonic/script-lib.ts` — file contents pass through
-verbatim. See `.tektonic/jobs/image-build/release.sh` (`TAG="${TAG#refs/tags/}"`, which survives
-into all 11 generated `image-release-*.k8s.yaml`).
-
-**Backticks are also unsafe** inside a `nu\`...\`` template literal — including in comments —
-since they terminate the literal and produce an esbuild parse error at synth time.
-
-**Fail with `error make {msg: "..."}`, never `exit 1`.** tektonic wraps each script body in a
-try/catch that persists the caught code to `/tekton/home/.exit-code`, which the `report-status`
-step reads to decide pass/fail. nushell's `exit` kills the process before that wrapper runs, so
-the file keeps its initial `0` and — combined with `onError: continue` on the work step — the task
-reports **green on a real failure** (ocidex-es6).
-
-## Local K8s dev loop (Talos + Tilt)
-
-`make dev-cluster-up` provisions a Docker-backed Talos cluster (`talosctl cluster create`) wired
-to a local Docker registry on `localhost:5005`. `make dev-up` runs Tilt, which builds the API/worker
-images, pushes to the local registry, and applies `charts/ocidex` rendered with
-`tilt/values-dev.yaml`, plus the dev-only Postgres in `tilt/postgres.yaml` (the chart renders no
-database — ADR-031 keeps it external). Schema comes from the chart's migrate Job, surfaced as the
-Tilt resource `ocidex-migrate-1`. The frontend is served by Vite
-locally (port 3000) for HMR; the API is port-forwarded from the cluster on 8080. Tilt UI: `:10350`.
-
-The Talos registry-mirror config (`tilt/talos-cluster.yaml`) makes pods inside the cluster pull
-`localhost:5005/...` from the host's bridge IP `10.5.0.1`. `tilt`, `talosctl`, and `kubectl`
-are pinned in Flox — run these commands inside `flox activate`. `docker` is a host requirement.
-
-## Project Structure
+Layered architecture: API → Service → Repository, dependency-injected via constructors, each
+layer importing only the one below. Full design in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ```
-cmd/ocidex/            # API server entry point
+cmd/ocidex/            # API server entry point (also `migrate` subcommand)
 cmd/scanner-worker/    # OCI registry scanner worker
-cmd/oci-metadata-worker/   # Per-enricher workers — one per enrichment_jobs
-cmd/git-worker/            # enricher_name partition (ADR-033)
-cmd/user-enricher-worker/
-cmd/provenance-worker/
-cmd/vuln-worker/       # Scheduled OSV.dev vulnerability store refresher
+cmd/*-worker/          # One binary per enricher, partitioned by
+                       # enrichment_jobs.enricher_name (ADR-033):
+                       # oci-metadata, git, user-enricher, provenance, vuln
 cmd/ocidex-mcp/        # Stdio MCP server for agents (ADR-045)
-cmd/operator/          # K8s operator entry point (ocidex-01v)
+cmd/operator/          # K8s operator entry point
 cmd/specgen/           # OpenAPI spec generator
 internal/api/          # HTTP handlers and routing (chi + huma)
-internal/config/       # Configuration management (caarlos0/env)
-internal/repository/   # Data access layer (sqlc-generated + models)
 internal/service/      # Business logic
-internal/enrichment/   # SBOM enrichment pipeline
+internal/repository/   # Data access (sqlc-generated + models)
+internal/enrichment/   # SBOM enrichment pipeline (deps.go = the enricher graph)
 internal/scanner/      # OCI registry scanning
 internal/nats/         # NATS JetStream integration
-internal/event/        # In-process event bus
-internal/extension/    # Extension lifecycle management
-internal/audit/        # Audit logging
+internal/jobqueue/     # Generic outbox worker (ADR-024)
 db/migrations/         # goose SQL migrations
-db/queries/            # sqlc SQL queries (source of truth for repository layer)
-web/                   # SolidJS frontend (Vite + Tailwind)
-docker/                # Multi-stage Dockerfiles (api, web)
-api/v1alpha1/          # K8s CRD types (OCIRegistry, ScanRequest, APIKey) — generated deepcopy
-k8s/                   # Kubernetes manifests
-config/operator/       # CRD install manifests + RBAC (controller-gen output; do not edit)
-config/zot/            # Configuration templates (zot registry)
-scripts/               # Utility scripts (seed.nu)
+db/queries/            # sqlc SQL queries — source of truth for the repository layer
+web/                   # SolidJS frontend
+api/v1alpha1/          # K8s CRD types — generated deepcopy
+config/operator/       # CRD manifests + RBAC (controller-gen output; do not edit)
+.tektonic/             # CI source of truth → generates .tekton/
 tests/                 # Integration tests (testcontainers)
-.tekton/               # Tekton CI pipeline (tektonic TypeScript → generated YAML)
-docs/adr/              # Architecture Decision Records (see summary below)
-docs/DEVELOPMENT.md    # Coding patterns and examples
-docs/SBOM_DIFF.md      # User guide: diff views, identity rules, flavor axis, troubleshooting
-docs/CLUSTER_INVENTORY.md  # User guide: cluster page tabs, coverage semantics, auto-ingest
 ```
-
-## Generated Files
-
-`api/v1alpha1/zz_generated.deepcopy.go` and `config/operator/crd/*.yaml` are **generated by controller-gen**. Do not edit them directly. Instead:
-
-1. Edit the types in `api/v1alpha1/*_types.go`
-2. Run `make generate-operator` (requires `~/go/bin` in PATH)
-3. Commit both the type files and the regenerated output
-
-`internal/repository/*sql.go` and `internal/repository/models.go` are **generated by sqlc**. Do not edit them directly. Instead:
-
-1. Edit the SQL in `db/queries/*.sql`
-2. Run `make generate` (or `sqlc generate`)
-3. The `internal/repository/` files will be regenerated
-
-`web/openapi.json` and `web/src/types/openapi.d.ts` are **generated from the Go API types**. Whenever you add, remove, or change fields on any type in `internal/api/types.go` (or change routes/methods in `internal/api/router.go`), run:
-
-```bash
-flox activate -- make openapi
-```
-
-This regenerates `web/openapi.json` (via `cmd/specgen`) and `web/src/types/openapi.d.ts` (via `openapi-typescript`). The frontend TypeScript compiler enforces the generated types, so stale types cause Docker build failures.
-
-## Database Workflow
-
-- **Migrations:** `db/migrations/` managed by goose. Use `make migrate-up` / `make migrate-down`.
-- **Queries:** `db/queries/*.sql` with sqlc annotations. Run `make generate` after changes.
-- **Connection:** Configured via `DATABASE_URL` env var.
-
-## Frontend
-
-- **Framework:** SolidJS (not React — no virtual DOM, fine-grained reactivity)
-- **Build:** Vite (`make frontend` to build, `make frontend-dev` for dev server)
-- **API proxy:** Dev server proxies `/api/*` to `localhost:8080`
-- **Styling:** Tailwind CSS
-
-### Verify UI changes in a browser, not only in Vitest
-
-A CSS or markup change that passes `make frontend-test` can still be invisible or
-wrong on screen — the app has shipped several dead class names (`tab-btn`,
-`tab-active`, `btn-secondary`) and two font tokens that were declared for the
-whole app but never fetched. Those all pass unit tests, because a stylesheet that
-does nothing is not an assertion failure. **Look at the page.**
-
-There are two rigs. Pick by whether the page needs a signed-in user.
-
-**Auth-gated pages** (`/dashboard`, `/clusters`, `/admin`, anything behind a
-user) — and **anything touching a backend change on your branch**:
-
-```bash
-flox activate -- make dev-auth-up          # postgres + nats + this branch's API on :8080
-flox activate -- make frontend-dev-auth    # :3200, signed in as a local admin
-```
-
-No docker: `postgresql` and `nats-server` are native binaries in the Flox
-environment, and `scripts/dev-auth.sh` runs the whole stack out of `.dev/`.
-Auth is not a bypass — `internal/api/middleware.go` already accepts
-`Authorization: Bearer <api-key>` as equivalent to a session, so the rig mints a
-read-write key and the dev vite config presents it. Writes are safe: the
-database is a throwaway. `make dev-auth-reset` starts it over.
-
-`up` finishes by seeding a corpus (`scripts/dev-fixtures.py`, also reachable on
-its own as `make dev-auth-fixtures`) — 10 SBOMs over 5 artifacts in two
-namespaces, all five ADR-037 signing statuses including a drift *within* one
-artifact, two flavors plus one deliberate `unknown`, 6 CVEs wired to purls the
-corpus really contains, and a cluster whose 9 workloads cover all three ADR-044
-match states. Without it the rig renders nothing: every page it exists to
-unblock showed its empty state, so `/clusters/:id` — the surface most in need of
-a browser — was unverifiable. Two traps it encodes, both of which read as
-database bugs: `/api/v1/artifacts` defaults to `sufficient=true`, so an
-un-enriched SBOM is invisible; and `/vulnerabilities` INNER JOINs `vuln_rollup`,
-so a vulnerability with no rollup row does not appear at all. The seeder writes
-both. It is idempotent — every digest derives from the artifact's identity, so a
-re-run is a no-op under the `sbom.digest` UNIQUE constraint.
-
-**Public pages, against the real corpus** — prod data, no local backend needed:
-
-```bash
-flox activate -- make frontend-dev-live   # :3100, local frontend + prod data
-```
-
-The table below applies to the **prod-proxied** rig only; the local auth rig has
-none of these limits, at the cost of an empty database you seed yourself.
-
-Then drive either with the Firefox DevTools MCP — `navigate_page` to the right
-port, `evaluate_script` for computed styles, and
-`screenshot_page` to actually look. Assert on computed values, not on the
-stylesheet source:
-
-```js
-// what shipped, not what was written
-getComputedStyle(document.querySelector(".page-header h2")).fontSize
-await document.fonts.ready; [...document.fonts].map(f => f.family + ":" + f.status)
-```
-
-A font only reports `loaded` once some element on the current page uses it, so
-check `--font-mono` on a page that actually renders a digest or purl.
-
-| Limit | Why | Consequence |
-|---|---|---|
-| Signed out only | the prod session cookie is scoped to `ocidex.app` and does not travel to `localhost` | `/dashboard`, `/clusters`, `/admin` redirect to login — use `make frontend-dev-auth` for those, never a copied prod cookie |
-| Read only | requests reach **production** | never point it at a write flow, and never add credentials |
-| Frontend only | prod runs the deployed API, not your branch | a backend change (new field, new pagination) is invisible until the branch deploys — say so in the issue rather than claiming it was verified |
-
-Pair this with a **contract test** whenever the bug class is "the CSS silently did
-nothing": `fontContract.test.ts`, `typeScale.test.ts` and
-`components/ui/tabBarContract.test.ts` each read the stylesheet and fail if a
-token or class name loses its counterpart. The browser catches it once; the
-contract test keeps it caught.
 
 ## Code Conventions
 
-- Standard Go project layout (`cmd/`, `internal/`, `pkg/`)
-- Explicit error handling; propagate errors up, handle at boundaries
-- Use `context.Context` for cancellation and deadlines
-- Table-driven tests
-- Document all exported functions and types
+- Standard Go layout; explicit error handling, propagate up and handle at boundaries
+- `context.Context` for cancellation and deadlines
+- Table-driven tests; document all exported functions and types
+- Cyclomatic complexity limit: 15 (`.golangci.yml`)
 - Conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`
-- Cyclomatic complexity limit: 15
-- TDD: write failing test, then implement. For diff/tree code specifically,
-  see [docs/DEVELOPMENT.md § Testing diff/tree changes](docs/DEVELOPMENT.md#testing-difftree-changes) — codifies parity rule, ADR-contract testing, and the round-trip integration-test requirement.
+- TDD: failing test first. For diff/tree code see
+  [docs/DEVELOPMENT.md § Testing diff/tree changes](docs/DEVELOPMENT.md#testing-difftree-changes)
+- Prefer small, composable, idiomatic libraries over batteries-included frameworks
 
-## Configuration
+## Issue Tracking & Branching
 
-Environment variables (see `.env.example` and `docs/CONFIGURATION.md`):
-- `PORT` (default: 8080)
-- `LOG_LEVEL` (default: info)
-- `ENVIRONMENT` (development/staging/production)
-- `DATABASE_URL` (PostgreSQL connection string)
-- `NATS_URL` (required) — NATS JetStream URL. The deployment is distributed-only: the API publishes scan/enrich jobs and `scanner-worker` / the per-enricher workers consume them. Every one of those binaries (and Docker Compose) requires NATS. Migrations are applied explicitly via `ocidex migrate up`, not at startup.
+`bd prime` runs at session start and covers the command reference. What follows is
+ocidex-specific and overrides the beads defaults.
 
-## Health Endpoints
-
-- `GET /health` - Liveness check
-- `GET /ready` - Readiness check
-
-## Architecture Principles
-
-- Layered architecture: API -> Service -> Repository
-- Dependency injection via constructors
-- Program to interfaces for testability
-- Fail fast: validate config and dependencies at startup
-- Graceful shutdown with 30-second timeout
-- Prefer small, composable, idiomatic libraries over large batteries-included frameworks
-
-## Issue Tracking (Beads)
-
-This project uses [Beads](https://github.com/steveyegge/beads) (`bd`) for task tracking. **Do NOT use TodoWrite or TaskCreate** — use `bd` instead.
-
-The session-start hook auto-runs `bd prime` when `.beads/` is present. Run it manually after compaction or `/clear`.
-
-**Roadmap structure** (epics for the path to 1.0 and beyond):
-
-| Epic | Theme |
-|---|---|
-| `ocidex-ujj` | 1.0 — Solid Core (refactor + stabilize) |
-| `ocidex-0my` | 1.1 — Production K8s deployment |
-| `ocidex-e3g` | 1.2 — CLI tool (`cmd/ocidex-cli`) |
-| `ocidex-01v` | 1.3 — K8s operator + CRDs |
-| `ocidex-dsy` | 1.4 — Terraform provider |
-
-Verify epic IDs with `bd list --type=epic`; child IDs with `bd show <epic>`.
-
-**Workflow:**
+**One branch per epic.** Every story belongs to an epic; branch from `main` once at the start and
+work all child stories there. In a new session, `git checkout <epic-id>` before touching code —
+never work directly on `main`.
 
 ```bash
-bd ready                              # Find unblocked work
-bd ready --priority=1                 # Top-priority ready work
-bd show <id>                          # Inspect an issue — note the parent epic ID
+bd ready                                        # unblocked work
+bd show <id>                                    # note the parent epic ID
+git checkout <epic-id> || git checkout -b <epic-id>   # epic branch, from an up-to-date main
 
-# --- Switch to the epic branch BEFORE touching any code ---
-# Every story belongs to an epic. Always work on the epic's branch, not main.
-#
-# If the branch already exists (resuming an epic across sessions):
-git checkout <epic-id>
-#
-# If this is the first session for this epic:
-git checkout main && git pull
-git checkout -b <epic-id>
+bd update <id> --status=in_progress             # claim before coding
+# ... implement ...
+git add <changed files> .beads/issues.jsonl     # stage code AND beads state together
+git commit -m "feat: description (<issue-id>)"  # commit BEFORE closing
+bd update <id> --notes "Files: ...\nApproach: ..."
+bd close <id>
 
-# --- Each story within the epic ---
-bd update <id> --status=in_progress   # Claim it before coding
-# → explore codebase with repomix before implementing (see "Codebase Exploration with Repomix")
-# → implement the change
-git add <changed files> .beads/issues.jsonl  # Stage code AND beads state together
-git commit -m "feat/fix: description (<issue-id>)"  # Commit before closing
-bd update <id> --notes "Files: ...\nApproach: ..."  # Document implementation
-bd close <id>                         # Close AFTER committing
-bd close <id1> <id2> ...              # Close multiple at once
-bd close <id> --reason "..."          # Close with a brief one-liner (simple changes only)
-
-# --- When the entire epic is complete ---
+# epic complete — human reviews `git log main..<epic-id>` first
 git checkout main && git pull --rebase
 git merge <epic-id> --no-ff -m "feat: complete <epic-title> (<epic-id>)"
 git push
-bd close <epic-id>
+bd close <epic-id> && git branch -d <epic-id>
 ```
 
-**Conventions:**
-- Create the issue *before* writing code; mark `in_progress` when starting.
-- **One branch per epic**, named after the epic ID (e.g. `ocidex-hfi`). Branch from `main` once at the start of the epic; work all child stories on that branch. In a new session, always `git checkout <epic-id>` before touching code — never work directly on `main`. Do **not** push to remote mid-epic — push only when the epic is complete and merged.
-- **Commit code before closing the issue.** `bd close` without a prior `git commit` leaves changes stranded. The commit message should include the issue ID (e.g. `feat(tekton): add release tasks (ocidex-avi)`).
-- Priority is `0`–`4` (or `P0`–`P4`), where `0` is critical. Don't use `high`/`medium`/`low`.
-- Hierarchical IDs (`<epic>.<n>`) come from the `--parent` flag at create time.
-- Cross-issue dependencies via `bd dep add <issue> <depends-on>`.
-- **Never** use `bd edit` — it opens `$EDITOR` and blocks. Use `bd update --title/--description/--notes` instead.
-- Before closing an issue, always record how it was resolved: `bd update <id> --notes "Files: <key files>\nApproach: <what was done and why>"`. For trivial changes, `bd close <id> --reason "..."` is sufficient. Never close without recording something.
-- Beads auto-commits its database to Dolt; `git push` to remote happens only on epic completion.
+**Pushing the epic branch is free — do it.** The push pipeline's trigger is
+`{ on: PUSH, branch: "main" }` (`.tektonic/pipeline.ts`), so a feature-branch push runs no CI at
+all. It is the cheapest way to keep work off a single machine, and there is no reason to leave a
+session's work unpushed. **Merging to `main` is the CI-triggering event** (~70 min warm, 3 h
+timeout), so merge once per epic, not once per story.
 
-### Chained epics
+**Other conventions:**
 
-Epics are never nested. An epic that depends on another is a **sibling** linked with
-`bd dep add <epic> <depends-on>` — `bd list --type=epic` renders that chain as a tree, and the
-dependency carries blocking semantics that parentage would not. Nesting breaks both the
-branch model (a parent epic's branch would hold every child epic's work) and `/work-epic`
-(its loop implements one story per iteration and cannot implement a child epic).
+- Create the issue *before* writing code.
+- Priority is `0`–`4` (`0` = critical). Not `high`/`medium`/`low`.
+- Hierarchical IDs (`<epic>.<n>`) come from `--parent` at create time; cross-issue links from
+  `bd dep add <issue> <depends-on>`.
+- Never close without recording how it was resolved — `bd update <id> --notes` or
+  `bd close <id> --reason "..."` for trivial changes.
+- `bd dolt push` at session end is always safe.
 
-If a "sub-epic" doesn't deserve its own branch and its own `/work-epic` run, it's a story.
-To group epics into an initiative without ordering them, use a label, not a parent.
+**Chained epics.** Epics are never nested — an epic that depends on another is a **sibling**
+linked with `bd dep add <epic> <depends-on>`. Nesting breaks the branch model (a parent's branch
+would hold every child epic's work) and `/work-epic`, whose loop implements one story per
+iteration. If a "sub-epic" doesn't deserve its own branch and its own `/work-epic` run, it's a
+story; to group epics without ordering them, use a label, not a parent.
 
-**Default: merge to `main` in dependency order, one epic at a time. Do not stack branches.**
+Merge to `main` in dependency order, one epic at a time — **do not stack branches**. The next
+epic branches from the *new* `main`, so it starts with its dependency's work in place and never
+rebases. Siblings blocked only on a common parent branch from `main` in parallel once that parent
+merges; each rebases on `main` before its own merge. Stacking
+(`git checkout -b <next> <prev>`) is the exception, justified only when the previous epic's
+review is blocked and the work cannot wait — any review change to the parent then forces a rebase
+of every dependent commit.
 
-```bash
-# Per epic, start to finish:
-git checkout main && git pull --rebase
-git checkout -b <epic-id>
-# ... all child stories committed here, no pushes ...
-# --- epic done: human reviews `git log main..<epic-id>` ---
-git checkout main && git pull --rebase
-git merge <epic-id> --no-ff -m "feat: complete <epic-title> (<epic-id>)"
-git push                       # one CI run per epic
-bd close <epic-id>             # unblocks dependents
-git branch -d <epic-id>
-```
+## Architecture Decisions
 
-The next epic branches from the *new* `main`, so it starts with its dependency's work already
-in place and never rebases.
+Every major technical choice has an ADR in [docs/adr/](docs/adr/) — read the relevant one before
+changing the area it governs, and write a new one for a decision of comparable weight.
 
-**Siblings that share a parent but not each other** (e.g. `ocidex-0gp` and `ocidex-rj4`, both
-blocked only on `ocidex-9xs`) branch from `main` in parallel once the parent merges. Each
-rebases on `main` before its own merge; whichever finishes first merges first.
+- **Diff, dependency-tree, or changelog code → read ADRs 0019–0021 first.** They are the
+  normative contract; the implementation issues (`ocidex-bqh.*`) reference them by section.
+- **New API handler →** huma v2 pattern: `huma.Register(api, huma.Operation{...}, handler)` with
+  typed input/output structs. See `internal/api/sbom.go` and
+  [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+- **New enricher →** implement `enrichment.Enricher`, add `cmd/<name>-worker/` and a Dockerfile
+  stage, and register it in `internal/enrichment/deps.go` (`rootEnrichers`, or an edge in
+  `enricherDeps` if it needs another enricher's output). See ADRs 0026, 0033, 0035 and
+  [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) "Adding a New Enricher".
 
-**Stacking (`git checkout -b <next> <prev>`) is the exception**, justified only when the
-previous epic's review is blocked on someone unavailable and the work cannot wait. The cost is
-real: any review change to the parent forces a rebase of every dependent commit. If you stack,
-merge strictly in dependency order and rebase the child onto `main` as soon as the parent lands.
+## Where Things Are Documented
 
-## ADR Summary
-
-| # | Decision | Choice |
-|---|----------|--------|
-| 002 | HTTP Router | chi |
-| 003 | Structured Logging | log/slog |
-| 004 | Configuration | caarlos0/env |
-| 005 | Database Engine | PostgreSQL |
-| 006 | Database Access | sqlc + pgx |
-| 007 | Schema Migrations | goose |
-| 008 | Input Validation | Custom validation for CycloneDX |
-| 009 | Error Handling | stdlib errors + custom API error types |
-| 010 | Testing | matryer/is (unit) + testcontainers (integration) |
-| 011 | API Documentation | ~~oapi-codegen (spec-first)~~ superseded by 018 |
-| 012 | Frontend Framework | SolidJS |
-| 013 | State/Routing/Data | Collocated data fetching near components |
-| 014 | Build/Deploy | Vite; independent API/frontend deploys |
-| 015 | UI/Styling | Tailwind + lucide-solid + unovis + custom primitives (Kobalte/TanStack Table not adopted) |
-| 016 | Frontend Testing | Vitest + Solid Testing Library (Playwright/MSW not adopted; no E2E suite yet) |
-| 017 | Frontend Organization | Monorepo; single `make build` |
-| 018 | API Documentation | huma v2 (code-first, supersedes 011) |
-| 019 | Diff Identity Model | Layered: purl-base + identity-bearing qualifiers, tuple fallback, versioned-name post-pass with survivor guard |
-| 020 | Image Flavor Axis | Layered SBOM-content detection (OS metadata → purl fingerprint → tag suffix); persisted on `sbom.flavor` |
-| 021 | Backend-Computed Diff Tree | Enrich `DiffTree` response with `roots`, `isDirect`, `direction`, `nodeRef`, `descendantChanges`; frontend renders only |
-| 023 | Visual Identity | Field-guide / entry-card component conventions |
-| 024 | Outbox Pattern for Scan Queue | Postgres-as-queue, NATS-as-doorbell; generic worker in `internal/jobqueue` |
-| 025 | RBAC / Visibility Model | Registry owner, public/private visibility, API key scopes (read/write) |
-| 026 | Pluggable Enricher Interface | `Enricher` interface (`Name/CanEnrich/Enrich`), `Dispatcher`, registration at startup |
-| 027 | Ephemeral Job Contract | `--once` flag for K8s Job mode; env vars, exit codes, structured lifecycle logs |
-| 032 | Provenance Verification | ~~Tiered trust per registry (display → ECDSA verify); four status values; digest-bound; no cosign SDK~~ superseded by 037 |
-| 033 | Per-Enricher Services | Per-enricher `cmd/` binary + Docker image + NATS consumer; `enrichment_jobs.enricher_name` partitions work |
-| 034 | Component Provenance | CycloneDX retained (SPDX is a lateral move, no new capability); capability-driven typed columns (no generic property hoarding); base-vs-app layer caveat (ordinal-0-only, package-DB-layer granularity) |
-| 035 | Enricher Dependency Chaining | Completion-driven dependent enqueue via deps.go graph; reuses enrichment_jobs outbox + `.enrich.hint` doorbell; no new tables/subjects; `--once` mode does not chain |
-| 037 | Cosign-Delegated Provenance Verification | Three trust tiers (none/public_key/keyless) via cosign.CheckOpts; five status values incl. artifact_missing; adopted cosign/sigstore-go (786 transitive deps), reversing ADR-032 |
-| 038 | Web Serving & Base Image Policy | Chainguard nginx (178→19 pkgs) serving static only; L7 routing moved to the Gateway HTTPRoute; distroless static-debian13 for Go; Renovate `pinDigests` on runtime/build images, CI images excluded |
-| 039 | Namespace & Source Model | Split `registry`'s four jobs: `namespace` (owner/visibility) → `source` (ingest channel) → `registry` (OCI config + trust); rollups rekey to `namespace_id`; `scan_jobs` unchanged; amends ADR-025 |
-| 040 | Non-Container Artifact Identity | Caller-declared at upload (type/name/group/purl/version on `IngestParams`, precedence over BOM); digest = sha256 of the artifact *file*, preserving the `sbom.digest` UNIQUE idempotency guarantee; `validateUploadRequired` beside `validateContainerRequired` |
-| 041 | Derived Artifact Relationships | Relationships derived at query time from `component`, never stored; match key REUSES `componentKey` (ADR-019 Rules 1–2) so relationships cannot drift from diff; ADR-019 Rule 3 explicitly excluded; version compared separately as drift; both directions (`usages`/`contains`) filtered via `visible_namespace_ids` |
-| 042 | Canonical Resource URLs | Additive name-keyed `lookup` resolvers alongside unchanged UUID paths; key travels in **query params, not path segments** (artifact names carry slashes, so `by-name/{name}` is not viable — registries/namespaces keep theirs); qualifier ladder (`name`→`+type`→`+group`; `artifact+version`→`+arch`→`+flavor`); 200 unique / 404 none / 409 + candidates on ambiguity, visibility filtered *before* the count; `component` excluded (SBOM-scoped) — use `/components?purl=`; vulnerabilities already canonical |
-| 043 | Pagination Convention | Style is *derived*, not chosen: (1) mutable column in `ORDER BY` → offset (keyset cursor is ill-defined, e.g. the jobs lists' state bucket); (2) rows appended at the head of an immutable ordering → keyset on `(time DESC, id DESC)`; (3) otherwise the UI decides — numbered pages/total ⇒ offset, Load-more ⇒ keyset. Only the two provenance drift feeds changed (offset → cursor); every other endpoint already matched |
-| 044 | K8s Inventory Agent | Standalone push-based `cmd/k8s-agent` per cluster (rejected: operator controller — couples to CRD adoption; pull-via-kubeconfig — needs reachability + credential store); reports `status.containerStatuses[].imageID` normalized to a digest, joined to `sbom.digest` (UNIQUE per ADR-040) so the match is exact, never heuristic, with a second tier onto `sbom.index_digest` because containerd reports the *index* digest for multi-arch images (tier recorded, not hidden); three workload states (matched / unknown / unresolvable) must stay visually distinct — an unmatched digest must never read as clean; cluster owned by a namespace, filtered via `visible_namespace_ids`; snapshots are full transactional replacements (upsert + prune), staleness reported via `last_seen_at`; reuses `read-write` scope + `ClassOwner`, no new per-resource scope |
-| 045 | MCP Server | Standalone stdio `cmd/ocidex-mcp` wrapping `pkg/client` (rejected: MCP endpoint on the API service — new streaming transport + session state + second auth path; spec-only — every agent re-implements the ADR-042 409 handling); SDK is `modelcontextprotocol/go-sdk` v1.7.0 (4 transitive deps), whose generic `AddTool` derives schemas from Go types so they cannot drift from the `generate-client-check`-guarded SDK; credentials shared with the CLI via `internal/cliconfig`, so `ocidex-cli login` provisions it and there is no second store; missing key fails at **startup** (exit 2), not per call; API errors map to tool errors that say what to do next, wrapping with `%w` so sentinels survive; tools prefixed `ocidex_`; **stdout is JSON-RPC only** — all logs to stderr |
-
-**When working on diff, dependency-tree, or changelog code, read ADRs 0019–0021 first.** They are the normative contract; the implementation issues (`ocidex-bqh.*`) reference them by section.
-
-**When adding a new API handler,** follow the huma v2 pattern: `huma.Register(api, huma.Operation{...}, handler)` with typed input/output structs; see `docs/DEVELOPMENT.md` and `internal/api/sbom.go`.
-
-**When adding a new enricher,** implement `enrichment.Enricher`; create `cmd/<name>-worker/`, a Dockerfile stage, and register it in `internal/enrichment/deps.go` (add to `rootEnrichers`, or add an edge to `enricherDeps` if it needs another enricher's output first); see ADR-026, ADR-033, ADR-035, and `docs/DEVELOPMENT.md` "Adding a New Enricher".
-
+| Topic | Document |
+|---|---|
+| System design, data model, layering | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Coding patterns, testing, adding an enricher | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) |
+| Environment variables | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) |
+| Tekton CI: fast iteration, gotchas, script syntax | [docs/CI_TEKTON.md](docs/CI_TEKTON.md) |
+| Frontend dev rigs, browser verification | [docs/FRONTEND_DEV.md](docs/FRONTEND_DEV.md) |
+| Local Talos + Tilt cluster loop | [docs/K8S_DEV.md](docs/K8S_DEV.md) |
+| Production deployment (K8s + Flux) | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) |
+| Operations and runbooks | [docs/OPERATIONS.md](docs/OPERATIONS.md) |
+| SBOM ingestion paths | [docs/INGESTION.md](docs/INGESTION.md) |
+| Auth/authz matrix | [docs/AUTH_MATRIX.md](docs/AUTH_MATRIX.md) |
+| Diff views, identity rules, flavor axis | [docs/SBOM_DIFF.md](docs/SBOM_DIFF.md) |
+| Cluster page tabs, coverage semantics | [docs/CLUSTER_INVENTORY.md](docs/CLUSTER_INVENTORY.md) |
+| MCP server setup and tools | [docs/MCP.md](docs/MCP.md) |
+| Ephemeral `--once` job mode | [docs/EPHEMERAL_JOBS.md](docs/EPHEMERAL_JOBS.md) |
+| API versioning policy | [docs/API_VERSIONING.md](docs/API_VERSIONING.md) |
+| Image labeling | [docs/IMAGE_LABELING.md](docs/IMAGE_LABELING.md) |
+| Verifying released artifacts | [docs/verifying-artifacts.md](docs/verifying-artifacts.md) |
+| Cross-repo work (apko-cicd, tektonic) | [AGENTS.md](AGENTS.md), `~/code/CLAUDE.md` |
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 ## Beads Issue Tracker
@@ -660,36 +237,17 @@ bd close <id>         # Complete work
 - Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
 - Run `bd prime` for detailed command reference and session close protocol
 - Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
+<!-- END BEADS INTEGRATION -->
 
 ## Session Completion
 
-**When ending a work session**, commit all work locally. Push to remote only when an epic is complete.
+Overrides the beads session-close protocol. At the end of a work session:
 
-This project uses an **epic-branch model**: work accumulates on a local branch named after the epic (e.g. `ocidex-hfi`) and is pushed once when the epic is fully done. Pushing mid-epic triggers CI unnecessarily. The beads session-close protocol's default `git push` step is superseded by this rule.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **COMMIT all changes** - Uncommitted work is at risk if the session ends:
-   ```bash
-   git add <changed files> .beads/issues.jsonl   # always include beads state
-   git commit -m "..."      # Proper commit or wip: if mid-story
-   bd dolt push             # Always safe — beads has no remote CI impact
-   ```
-5. **Push only when the epic is complete:**
-   ```bash
-   git checkout main && git pull --rebase
-   git merge <epic-id> --no-ff -m "feat: complete <epic-title> (<epic-id>)"
-   git push
-   bd close <epic-id>
-   ```
-6. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-- All changes MUST be committed at session end — uncommitted work can be lost
-- Do NOT push the epic branch mid-epic — this triggers CI unnecessarily
-- Push to `main` only when the entire epic is merged and complete
-- `bd dolt push` is always safe and should run at session end regardless
-<!-- END BEADS INTEGRATION -->
+1. File issues for anything needing follow-up.
+2. Run the quality gates if code changed — tests, linters, build.
+3. Close finished work; update in-progress items with notes.
+4. **Commit everything**, including `.beads/issues.jsonl`. Uncommitted work is at risk.
+5. **Push the epic branch** — it triggers no CI (see "Issue Tracking & Branching"), and
+   `bd dolt push` is always safe.
+6. Merge to `main` only when the whole epic is done — that is the one CI-triggering push.
+7. Hand off with context for the next session.

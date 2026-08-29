@@ -161,7 +161,7 @@ syft registry:docker.io/library/nginx:latest -o cyclonedx-json | \
 | Frontend | [SolidJS](https://www.solidjs.com/) + [TanStack Query](https://tanstack.com/query) + [Tailwind CSS](https://tailwindcss.com/) |
 | API Client | [openapi-fetch](https://openapi-ts.dev/openapi-fetch/) with generated TypeScript types |
 | Testing | [matryer/is](https://github.com/matryer/is) (unit), [testcontainers-go](https://golang.testcontainers.org/) (integration) |
-| Container | Docker multi-stage build (Alpine) |
+| Container | Docker multi-stage build — [distroless](https://github.com/GoogleContainerTools/distroless) `static-debian13` for Go, [Chainguard](https://www.chainguard.dev/) nginx for the web tier ([ADR-038](docs/adr/0038-web-serving-and-base-image-policy.md)) |
 | Dev Environment | [Flox](https://flox.dev/) |
 
 ## Project Structure
@@ -245,7 +245,9 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full reference. Key v
 | [Ephemeral Jobs](docs/EPHEMERAL_JOBS.md) | K8s Job / `--once` mode for scanner and enrichment workers |
 | [MCP Server](docs/MCP.md) | Serving the catalog to agents over stdio: setup, tools, troubleshooting |
 | [API Versioning](docs/API_VERSIONING.md) | Versioning policy and breaking-change definition |
-| [Architecture Decision Records](docs/adr/) | 27 ADRs documenting every major technical choice |
+| [Frontend Development](docs/FRONTEND_DEV.md) | Dev rigs, browser verification, contract tests |
+| [Tekton CI](docs/CI_TEKTON.md) | Fast pipeline iteration, gotchas, task script syntax |
+| [Architecture Decision Records](docs/adr/) | 43 ADRs documenting every major technical choice |
 | [How AI Was Used](docs/AI.md) | Transparent account of AI's role in development |
 
 ## Releases

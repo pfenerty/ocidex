@@ -90,5 +90,7 @@ Before proposing significant changes, review the [Architecture Decision Records]
 |----------|---------------|
 | [Architecture](docs/ARCHITECTURE.md) | System design, data model, component overview |
 | [Development Guide](docs/DEVELOPMENT.md) | Coding patterns, testing strategy, stack examples |
+| [Frontend Development](docs/FRONTEND_DEV.md) | Dev rigs, browser verification, contract tests |
+| [Tekton CI](docs/CI_TEKTON.md) | Fast pipeline iteration, gotchas, task script syntax |
 | [ADRs](docs/adr/) | Rationale for every major technical decision |
 | [How AI Was Used](docs/AI.md) | AI's role in development |
