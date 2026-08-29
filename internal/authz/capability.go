@@ -266,3 +266,23 @@ func Allow(globalRole string, member Role, present bool, c Capability) bool {
 	}
 	return member.Allows(c)
 }
+
+// RolesWith returns the roles that grant c, as plain strings, for handing to
+// the SQL function namespace_ids_with_capability. It is the only place a
+// capability is resolved to a role set, which is what keeps roleCaps the single
+// authorization table: the database filters rows by a role list it is given and
+// holds no capability table of its own, so there is nothing on that side to
+// drift.
+//
+// The result is ordered as allRoles is, so a query plan and a test fixture both
+// see a stable array. An unknown capability yields an empty slice, which filters
+// to no namespaces — deny, not allow.
+func RolesWith(c Capability) []string {
+	out := make([]string, 0, len(allRoles))
+	for _, r := range allRoles {
+		if r.Allows(c) {
+			out = append(out, string(r))
+		}
+	}
+	return out
+}

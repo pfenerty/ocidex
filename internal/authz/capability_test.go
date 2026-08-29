@@ -199,3 +199,33 @@ func TestPackageHasNoInternalImports(t *testing.T) {
 		}
 	}
 }
+
+// TestRolesWithMatchesTheTable checks the capability -> roles direction that
+// SQL consumes. namespace_ids_with_capability takes a role array rather than a
+// capability name precisely so the database holds no second copy of the matrix;
+// RolesWith is the seam that makes that safe, so it has to agree with Allows
+// for every pair rather than being a hand-maintained list.
+func TestRolesWithMatchesTheTable(t *testing.T) {
+	for _, c := range allCapabilities {
+		got := make(map[string]bool)
+		for _, r := range RolesWith(c) {
+			got[r] = true
+		}
+		for _, r := range allRoles {
+			if got[string(r)] != r.Allows(c) {
+				t.Errorf("RolesWith(%s) disagrees with %s.Allows: in-list=%v allows=%v",
+					c, r, got[string(r)], r.Allows(c))
+			}
+		}
+	}
+
+	if n := len(RolesWith(CapManageMember)); n != 1 {
+		t.Errorf("RolesWith(manage_member) returned %d roles, want 1 (owner)", n)
+	}
+	if n := len(RolesWith(CapReadPrivate)); n != len(allRoles) {
+		t.Errorf("RolesWith(read_private) returned %d roles, want all %d", n, len(allRoles))
+	}
+	if n := len(RolesWith("no_such_capability")); n != 0 {
+		t.Errorf("RolesWith of an unknown capability returned %d roles, want 0", n)
+	}
+}
