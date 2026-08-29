@@ -209,3 +209,14 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 | GET | `/api/v1/vulns` | `list-top-vulnerabilities` | `public` |  | VisibilityFilter. |
 | GET | `/api/v1/vulns/{id}` | `get-vulnerability` | `public` |  | Advisory data is not tenant-scoped. |
 | GET | `/api/v1/vulns/{id}/workloads` | `list-vulnerability-workloads` | `authenticated` |  | Workload rows filtered via visible_namespace_ids on the owning namespace, so an invisible cluster contributes nothing rather than 403ing. |
+
+## Development-only operations
+
+Declared in `authRules` but **not registered above**, because the matrix is generated
+from a router built without a development config. These operations do not exist in a
+production build — they are absent from the route table and from `web/openapi.json`,
+not merely refused at runtime.
+
+| Operation | Class | Write | Notes |
+|---|---|---|---|
+| `dev-mint-session` | `public` |  | POST /api/v1/dev/session. Development builds only; not registered when ENVIRONMENT != development. Mints a real session cookie for a persona seeded by scripts/dev-auth.sh. |

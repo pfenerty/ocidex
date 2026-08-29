@@ -62,6 +62,13 @@ type AuthRule struct {
 	// Notes records anything the class alone does not convey — where the rule
 	// is enforced, or what a permitted caller still cannot see.
 	Notes string
+
+	// DevOnly reports that the operation is registered only in a development
+	// build. Such an operation is absent from a production spec by
+	// construction, so the coverage test must not treat its declaration as
+	// orphaned and the matrix renders it in its own section rather than
+	// dropping it — a rule nobody can see is a rule nobody reviews.
+	DevOnly bool
 }
 
 // Notes strings repeated across many operations. They carry no behaviour; they
@@ -102,7 +109,14 @@ const (
 // a row here fails TestAuthClassCoverage.
 var authRules = map[string]AuthRule{
 	// --- Meta ---------------------------------------------------------------
-	"health-check":    {Class: ClassPublic, Notes: "Liveness probe."},
+	"health-check": {Class: ClassPublic, Notes: "Liveness probe."},
+
+	// --- Development-only ---------------------------------------------------
+	"dev-mint-session": {
+		Class:   ClassPublic,
+		DevOnly: true,
+		Notes:   "POST /api/v1/dev/session. Development builds only; not registered when ENVIRONMENT != development. Mints a real session cookie for a persona seeded by scripts/dev-auth.sh.",
+	},
 	"readiness-check": {Class: ClassPublic, Notes: "Readiness probe; reports DB reachability."},
 	"api-version":     {Class: ClassPublic},
 
@@ -364,5 +378,43 @@ func AuthMatrixMarkdown(spec *huma.OpenAPI) string {
 		fmt.Fprintf(&b, "| %s | `%s` | `%s` | %s | %s | %s |\n",
 			r.Method, r.Path, r.OperationID, class, write, r.Rule.Notes)
 	}
+
+	writeDevOnlySection(&b, rows)
 	return b.String()
+}
+
+// writeDevOnlySection lists the declarations marked DevOnly that this spec does
+// not contain. Their absence from the table above is the point — the matrix is
+// generated from a production router — but an undocumented rule is one nobody
+// reviews, so the declarations are rendered here with their absence stated.
+func writeDevOnlySection(b *strings.Builder, rows []AuthMatrixRow) {
+	registered := make(map[string]bool, len(rows))
+	for _, r := range rows {
+		registered[r.OperationID] = true
+	}
+	var ids []string
+	for id, rule := range authRules {
+		if rule.DevOnly && !registered[id] {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	sort.Strings(ids)
+
+	b.WriteString("\n## Development-only operations\n\n")
+	b.WriteString("Declared in `authRules` but **not registered above**, because the matrix is generated\n")
+	b.WriteString("from a router built without a development config. These operations do not exist in a\n")
+	b.WriteString("production build — they are absent from the route table and from `web/openapi.json`,\n")
+	b.WriteString("not merely refused at runtime.\n\n")
+	b.WriteString("| Operation | Class | Write | Notes |\n|---|---|---|---|\n")
+	for _, id := range ids {
+		rule := authRules[id]
+		write := ""
+		if rule.Write {
+			write = "✓"
+		}
+		fmt.Fprintf(b, "| `%s` | `%s` | %s | %s |\n", id, rule.Class, write, rule.Notes)
+	}
 }

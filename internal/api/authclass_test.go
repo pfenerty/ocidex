@@ -110,8 +110,12 @@ func TestAuthClassCoverage(t *testing.T) {
 	}
 
 	var orphaned []string
-	for id := range api.AuthRules() {
-		if !registered[id] {
+	for id, rule := range api.AuthRules() {
+		// A DevOnly declaration is *expected* to be missing here:
+		// conformanceSpec builds the router with a nil config, which
+		// registerDevOps treats as not-development. TestDevSessionAbsentInProduction
+		// is what holds that end up.
+		if !registered[id] && !rule.DevOnly {
 			orphaned = append(orphaned, id)
 		}
 	}

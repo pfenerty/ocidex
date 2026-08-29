@@ -44,10 +44,16 @@ const (
 // URL schemes, and the ENVIRONMENT value that gates production-only behaviour
 // (secure cookies, https callback URLs).
 const (
-	schemeHTTP    = "http"
-	schemeHTTPS   = "https"
-	envProduction = "production"
+	schemeHTTP     = "http"
+	schemeHTTPS    = "https"
+	envProduction  = "production"
+	envDevelopment = "development"
 )
+
+// devSessionPath is the dev-only persona switch endpoint. It lives here beside
+// the other shared route constants so the path is greppable from the router
+// even though registerDevOps usually registers nothing.
+const devSessionPath = "/api/v1/dev/session"
 
 // visibilityPrivate mirrors service.VisibilityPrivate; namespaces and registries
 // carry the same "public" | "private" vocabulary.
@@ -127,6 +133,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	registerVulnOps(api, h)
 	registerJobOps(api, h)
 	registerAuthOps(r, api, h)
+	registerDevOps(api, h)
 
 	return r
 }
