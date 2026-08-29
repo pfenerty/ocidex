@@ -100,7 +100,7 @@ func (s *searchService) GetArtifact(ctx context.Context, id pgtype.UUID, vis Vis
 	}, nil
 }
 
-func (s *searchService) ListVersionsByArtifact(ctx context.Context, artifactID pgtype.UUID, limit, offset int32, mode VersionSortMode, vis VisibilityFilter) (ArtifactVersionsPage, error) {
+func (s *searchService) ListVersionsByArtifact(ctx context.Context, artifactID pgtype.UUID, limit, offset int32, mode VersionSortMode, colSort VersionColumnSort, vis VisibilityFilter) (ArtifactVersionsPage, error) {
 	q := repository.New(s.db)
 
 	// Semver ordering can't be expressed in SQL, so fetch every distinct version
@@ -140,6 +140,9 @@ func (s *searchService) ListVersionsByArtifact(ctx context.Context, artifactID p
 		all = filtered
 	}
 	sortVersions(all, resolved)
+	if colSort.Column == VersionSortSeverity {
+		sortVersionsBySeverity(all, colSort.Desc)
+	}
 
 	total := int64(len(all))
 	page := paginateVersions(all, limit, offset)
@@ -183,6 +186,21 @@ func artifactVersionFromRow(row repository.ListArtifactVersionsRow) ArtifactVers
 	if s, ok := row.SourceUrl.(string); ok && s != "" {
 		v.SourceURL = &s
 	}
+	// A zero total means sbom_vuln_rollup had no row, since the rollup only
+	// records SBOMs that have at least one finding. That is "no known
+	// vulnerabilities" or "never scanned" indistinguishably, so it maps to a nil
+	// summary rather than an all-zero one: the UI has to say "not scanned"
+	// (ADR-044), and an all-zero summary would license it to say "clean".
+	if total := row.VulnCritical + row.VulnHigh + row.VulnMedium + row.VulnLow + row.VulnUnknown; total > 0 {
+		v.Vulns = &VulnSummary{
+			Critical: int(row.VulnCritical),
+			High:     int(row.VulnHigh),
+			Medium:   int(row.VulnMedium),
+			Low:      int(row.VulnLow),
+			Unknown:  int(row.VulnUnknown),
+			Total:    int(total),
+		}
+	}
 	if arches, ok := row.Architectures.([]interface{}); ok {
 		strs := make([]string, 0, len(arches))
 		for _, a := range arches {
@@ -209,6 +227,72 @@ func sortVersions(vs []ArtifactVersion, mode VersionSortMode) {
 		ti, tj := versionEffectiveTime(vs[i]), versionEffectiveTime(vs[j])
 		return ti.After(tj) // descending
 	})
+}
+
+// VersionSortSeverity is the one column sort the versions list offers beyond
+// the mode's own ordering.
+const VersionSortSeverity = "severity"
+
+// VersionColumnSort is a column ordering layered on top of a VersionSortMode.
+//
+// It is deliberately not a third mode: a mode both orders and *filters*
+// (SortSemver drops every non-semver version), so folding severity into it
+// would silently change which rows the table contains when the user clicked a
+// column header.
+type VersionColumnSort struct {
+	Column string // VersionSortSeverity, or "" for the mode's own ordering
+	Desc   bool
+}
+
+// ParseVersionColumnSort validates a client-supplied column and direction,
+// falling back to the mode's ordering for anything it doesn't recognise.
+func ParseVersionColumnSort(column, dir string) VersionColumnSort {
+	if column != VersionSortSeverity {
+		return VersionColumnSort{}
+	}
+	return VersionColumnSort{Column: VersionSortSeverity, Desc: dir != "asc"}
+}
+
+// sortVersionsBySeverity reorders an already mode-sorted slice worst-first (or
+// least-worst-first when ascending). It is stable, so versions of equal severity
+// keep the mode's ordering between them.
+//
+// A version with no summary sorts last in *both* directions. It is unknown, not
+// clean; floating it to the top of an ascending sort would present "never
+// scanned" as the safest thing on the page, which is the ADR-044 mistake.
+func sortVersionsBySeverity(vs []ArtifactVersion, desc bool) {
+	sort.SliceStable(vs, func(i, j int) bool {
+		a, b := vs[i].Vulns, vs[j].Vulns
+		if a == nil || b == nil {
+			return b == nil && a != nil
+		}
+		c := compareSeverityCounts(a, b)
+		if desc {
+			return c > 0
+		}
+		return c < 0
+	})
+}
+
+// compareSeverityCounts orders two summaries worst-first: more criticals wins,
+// then more highs, and so on down the scale. Comparing rank by rank rather than
+// by a single total keeps one critical ahead of a hundred lows.
+func compareSeverityCounts(a, b *VulnSummary) int {
+	for _, pair := range [][2]int{
+		{a.Critical, b.Critical},
+		{a.High, b.High},
+		{a.Medium, b.Medium},
+		{a.Low, b.Low},
+		{a.Unknown, b.Unknown},
+	} {
+		if pair[0] != pair[1] {
+			if pair[0] > pair[1] {
+				return 1
+			}
+			return -1
+		}
+	}
+	return 0
 }
 
 // versionEffectiveTime returns the build time when known, else ingestion time.

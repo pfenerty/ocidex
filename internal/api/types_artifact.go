@@ -98,6 +98,10 @@ type ListArtifactVersionsInput struct {
 	PaginationParams
 	ID   string `path:"id" doc:"Artifact UUID" format:"uuid"`
 	Mode string `query:"mode" enum:"semver,all" doc:"Sort/filter mode: 'semver' (semver versions, semver order), 'all' (every version, build-time order). Empty auto-selects semver when available."`
+	// Sort is a column ordering layered on top of Mode, not a third mode: Mode
+	// also decides which versions appear at all, so sorting must not touch it.
+	Sort string `query:"sort" enum:"severity" doc:"Column to sort by, applied on top of mode. Empty keeps the mode's own ordering."`
+	Dir  string `query:"dir"  enum:"asc,desc"  doc:"Sort direction; defaults to desc (worst first) when sort is set."`
 }
 
 // ArtifactVersionSummary is a single version row returned by the versions endpoint.
@@ -113,6 +117,9 @@ type ArtifactVersionSummary struct {
 	CreatedAt     time.Time  `json:"createdAt"`
 	Sufficient    bool       `json:"sufficient"`
 	SigningStatus string     `json:"signingStatus" enum:"unsigned,signed,verified,verification_failed,artifact_missing" doc:"Signing status derived from provenance enrichment"`
+	// Omitted rather than zeroed when nothing is known, so a client cannot read
+	// "never scanned" as "clean" (ADR-044).
+	Vulns *service.VulnSummary `json:"vulns,omitempty" doc:"Severity counts for this version's newest SBOM. Absent means no findings are recorded, which may mean it was never scanned — do not render it as zero."`
 }
 
 // ListArtifactVersionsOutput is the response for GET /api/v1/artifacts/{id}/versions.

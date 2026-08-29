@@ -204,7 +204,7 @@ func (f *fakeSearchService) WarmDiscovery(_ context.Context) (*service.Discovery
 	return &service.Discovery{}, nil
 }
 
-func (f *fakeSearchService) ListVersionsByArtifact(_ context.Context, _ pgtype.UUID, limit, offset int32, _ service.VersionSortMode, _ service.VisibilityFilter) (service.ArtifactVersionsPage, error) {
+func (f *fakeSearchService) ListVersionsByArtifact(_ context.Context, _ pgtype.UUID, limit, offset int32, _ service.VersionSortMode, _ service.VersionColumnSort, _ service.VisibilityFilter) (service.ArtifactVersionsPage, error) {
 	return service.ArtifactVersionsPage{
 		PagedResult: service.PagedResult[service.ArtifactVersion]{
 			Data:   []service.ArtifactVersion{{VersionKey: "v1.0.0", SbomID: "sbom1", Architectures: []string{"amd64"}}},

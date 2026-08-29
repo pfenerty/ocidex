@@ -241,10 +241,27 @@ SELECT
     n.signing_status,
     a.architectures,
     c.sbom_count,
+    -- Severity counts come from the version's newest SBOM, the same row every
+    -- other column here already describes. Unioning findings across every SBOM
+    -- in the version would keep reporting it vulnerable after the fix shipped.
+    --
+    -- sbom_vuln_rollup holds a row only for an SBOM with at least one finding,
+    -- so a missing row is "no known vulnerabilities" *or* "never scanned" and
+    -- this join cannot tell them apart (ADR-044). Coalescing to zero here is
+    -- safe only because that same invariant makes a zero total unambiguous:
+    -- it can only have come from a missing row, never from a real scan. The
+    -- service maps a zero total back to a nil summary so the UI says "not
+    -- scanned"; rendering it as a clean zero is the bug.
+    COALESCE(r.critical, 0)::bigint AS vuln_critical,
+    COALESCE(r.high,     0)::bigint AS vuln_high,
+    COALESCE(r.medium,   0)::bigint AS vuln_medium,
+    COALESCE(r.low,      0)::bigint AS vuln_low,
+    COALESCE(r.unknown,  0)::bigint AS vuln_unknown,
     COUNT(*) OVER() AS total_count
 FROM newest_per_version n
 JOIN architectures_per_version a ON a.version_key = n.version_key
 JOIN sbom_count_per_version c ON c.version_key = n.version_key
+LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = n.id
 ORDER BY n.created_at DESC
 LIMIT $3 OFFSET $2
 `
@@ -269,6 +286,11 @@ type ListArtifactVersionsRow struct {
 	SigningStatus        string             `json:"signing_status"`
 	Architectures        interface{}        `json:"architectures"`
 	SbomCount            int64              `json:"sbom_count"`
+	VulnCritical         int64              `json:"vuln_critical"`
+	VulnHigh             int64              `json:"vuln_high"`
+	VulnMedium           int64              `json:"vuln_medium"`
+	VulnLow              int64              `json:"vuln_low"`
+	VulnUnknown          int64              `json:"vuln_unknown"`
 	TotalCount           int64              `json:"total_count"`
 }
 
@@ -299,6 +321,11 @@ func (q *Queries) ListArtifactVersions(ctx context.Context, arg ListArtifactVers
 			&i.SigningStatus,
 			&i.Architectures,
 			&i.SbomCount,
+			&i.VulnCritical,
+			&i.VulnHigh,
+			&i.VulnMedium,
+			&i.VulnLow,
+			&i.VulnUnknown,
 			&i.TotalCount,
 		); err != nil {
 			return nil, err

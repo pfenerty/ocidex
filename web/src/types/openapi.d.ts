@@ -1743,6 +1743,8 @@ export interface components {
             sourceUrl?: string;
             sufficient: boolean;
             versionKey: string;
+            /** @description Severity counts for this version's newest SBOM. Absent means no findings are recorded, which may mean it was never scanned — do not render it as zero. */
+            vulns?: components["schemas"]["VulnSummary"];
         };
         ArtifactVulnEntry: {
             /** Format: int64 */
@@ -4367,6 +4369,10 @@ export interface operations {
                 offset?: number;
                 /** @description Sort/filter mode: 'semver' (semver versions, semver order), 'all' (every version, build-time order). Empty auto-selects semver when available. */
                 mode?: "semver" | "all";
+                /** @description Column to sort by, applied on top of mode. Empty keeps the mode's own ordering. */
+                sort?: "severity";
+                /** @description Sort direction; defaults to desc (worst first) when sort is set. */
+                dir?: "asc" | "desc";
             };
             header?: never;
             path: {

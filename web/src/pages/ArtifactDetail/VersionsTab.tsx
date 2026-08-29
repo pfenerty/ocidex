@@ -2,8 +2,9 @@ import { Show, For } from "solid-js";
 import { A } from "@solidjs/router";
 import type { ArtifactVersionSummary, PaginationMeta } from "~/api/client";
 import DataTable from "~/components/DataTable";
-import type { Column } from "~/components/DataTable";
+import type { Column, SortDir } from "~/components/DataTable";
 import { SigningBadge, TimestampCell } from "~/components/cells";
+import { VulnCountBadges } from "~/components/VulnBadge";
 import { Button } from "~/components/ui";
 
 export function VersionsTab(props: {
@@ -17,6 +18,11 @@ export function VersionsTab(props: {
     isError: boolean;
     error?: unknown;
     onPageChange: (offset: number) => void;
+    /** Sorting is server-side: the API pages, so a client-side sort would only
+     *  reorder the 25 rows currently on screen. */
+    sortBy: string | undefined;
+    sortDir: SortDir;
+    onSort: (sortKey: string, dir: SortDir) => void;
 }) {
     const imageColumns: Column<ArtifactVersionSummary>[] = [
         {
@@ -88,6 +94,39 @@ export function VersionsTab(props: {
                 <TimestampCell iso={version.buildDate ?? version.createdAt} />
             ),
         },
+        {
+            header: "Vulnerabilities",
+            sortKey: "severity",
+            sortType: "numeric",
+            render: (version) => (
+                // `vulns` is absent when nothing is recorded for this version's
+                // newest SBOM, which means "no findings" or "never scanned"
+                // without distinguishing them. Rendering that as a zero — or as
+                // VulnCountBadges' own em dash, which reads the same — would
+                // claim a clean bill of health nobody issued (ADR-044).
+                <Show
+                    when={version.vulns}
+                    fallback={
+                        <span
+                            class="text-muted"
+                            title="No findings recorded for this version — it may never have been scanned"
+                        >
+                            not scanned
+                        </span>
+                    }
+                >
+                    {(v) => (
+                        <VulnCountBadges
+                            criticalCount={v().critical}
+                            highCount={v().high}
+                            mediumCount={v().medium}
+                            lowCount={v().low}
+                            unknownCount={v().unknown}
+                        />
+                    )}
+                </Show>
+            ),
+        },
         ...(props.isContainer ? imageColumns : []),
         {
             header: "",
@@ -125,6 +164,9 @@ export function VersionsTab(props: {
             error={props.error}
             emptyTitle="No versions yet"
             emptyMessage="Ingest a CycloneDX SBOM for this artifact to see it here."
+            sortBy={props.sortBy}
+            sortDir={props.sortDir}
+            onSort={props.onSort}
             pagination={
                 props.pagination
                     ? { pagination: props.pagination, onPageChange: props.onPageChange }

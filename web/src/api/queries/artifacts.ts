@@ -143,6 +143,9 @@ export interface UseArtifactVersionsParams {
     limit?: number;
     offset?: number;
     mode?: VersionSortMode;
+    /** Column ordering layered on top of `mode`, which also filters. */
+    sort?: "severity";
+    dir?: "asc" | "desc";
 }
 
 export function useArtifactVersions(
@@ -153,13 +156,28 @@ export function useArtifactVersions(
     return createQuery(() => {
         const p = params();
         return {
-            queryKey: ["artifact", id(), "versions", p.limit, p.offset, p.mode] as const,
+            queryKey: [
+                "artifact",
+                id(),
+                "versions",
+                p.limit,
+                p.offset,
+                p.mode,
+                p.sort,
+                p.dir,
+            ] as const,
             queryFn: () =>
                 unwrap(
                     client.GET("/api/v1/artifacts/{id}/versions", {
                         params: {
                             path: { id: id() },
-                            query: { limit: p.limit, offset: p.offset, mode: p.mode },
+                            query: {
+                                limit: p.limit,
+                                offset: p.offset,
+                                mode: p.mode,
+                                sort: p.sort,
+                                dir: p.dir,
+                            },
                         },
                     }),
                 ),

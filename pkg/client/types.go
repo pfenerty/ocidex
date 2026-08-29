@@ -650,6 +650,39 @@ func (e ListArtifactVersionsParamsMode) Valid() bool {
 	}
 }
 
+// Defines values for ListArtifactVersionsParamsSort.
+const (
+	ListArtifactVersionsParamsSortSeverity ListArtifactVersionsParamsSort = "severity"
+)
+
+// Valid indicates whether the value is a known member of the ListArtifactVersionsParamsSort enum.
+func (e ListArtifactVersionsParamsSort) Valid() bool {
+	switch e {
+	case ListArtifactVersionsParamsSortSeverity:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListArtifactVersionsParamsDir.
+const (
+	ListArtifactVersionsParamsDirAsc  ListArtifactVersionsParamsDir = "asc"
+	ListArtifactVersionsParamsDirDesc ListArtifactVersionsParamsDir = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ListArtifactVersionsParamsDir enum.
+func (e ListArtifactVersionsParamsDir) Valid() bool {
+	switch e {
+	case ListArtifactVersionsParamsDirAsc:
+		return true
+	case ListArtifactVersionsParamsDirDesc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListArtifactVulnsParamsSeverity.
 const (
 	ListArtifactVulnsParamsSeverityCRITICAL ListArtifactVulnsParamsSeverity = "CRITICAL"
@@ -886,34 +919,34 @@ func (e ListClusterWorkloadsParamsMatchState) Valid() bool {
 
 // Defines values for ListClusterWorkloadsParamsSort.
 const (
-	ListClusterWorkloadsParamsSortContainerName ListClusterWorkloadsParamsSort = "container_name"
-	ListClusterWorkloadsParamsSortImageRef      ListClusterWorkloadsParamsSort = "image_ref"
-	ListClusterWorkloadsParamsSortK8sNamespace  ListClusterWorkloadsParamsSort = "k8s_namespace"
-	ListClusterWorkloadsParamsSortLastSeenAt    ListClusterWorkloadsParamsSort = "last_seen_at"
-	ListClusterWorkloadsParamsSortMatchState    ListClusterWorkloadsParamsSort = "match_state"
-	ListClusterWorkloadsParamsSortPodCount      ListClusterWorkloadsParamsSort = "pod_count"
-	ListClusterWorkloadsParamsSortVulnCount     ListClusterWorkloadsParamsSort = "vuln_count"
-	ListClusterWorkloadsParamsSortWorkloadName  ListClusterWorkloadsParamsSort = "workload_name"
+	ContainerName ListClusterWorkloadsParamsSort = "container_name"
+	ImageRef      ListClusterWorkloadsParamsSort = "image_ref"
+	K8sNamespace  ListClusterWorkloadsParamsSort = "k8s_namespace"
+	LastSeenAt    ListClusterWorkloadsParamsSort = "last_seen_at"
+	MatchState    ListClusterWorkloadsParamsSort = "match_state"
+	PodCount      ListClusterWorkloadsParamsSort = "pod_count"
+	VulnCount     ListClusterWorkloadsParamsSort = "vuln_count"
+	WorkloadName  ListClusterWorkloadsParamsSort = "workload_name"
 )
 
 // Valid indicates whether the value is a known member of the ListClusterWorkloadsParamsSort enum.
 func (e ListClusterWorkloadsParamsSort) Valid() bool {
 	switch e {
-	case ListClusterWorkloadsParamsSortContainerName:
+	case ContainerName:
 		return true
-	case ListClusterWorkloadsParamsSortImageRef:
+	case ImageRef:
 		return true
-	case ListClusterWorkloadsParamsSortK8sNamespace:
+	case K8sNamespace:
 		return true
-	case ListClusterWorkloadsParamsSortLastSeenAt:
+	case LastSeenAt:
 		return true
-	case ListClusterWorkloadsParamsSortMatchState:
+	case MatchState:
 		return true
-	case ListClusterWorkloadsParamsSortPodCount:
+	case PodCount:
 		return true
-	case ListClusterWorkloadsParamsSortVulnCount:
+	case VulnCount:
 		return true
-	case ListClusterWorkloadsParamsSortWorkloadName:
+	case WorkloadName:
 		return true
 	default:
 		return false
@@ -1204,16 +1237,16 @@ func (e ListTopVulnerabilitiesParamsSort) Valid() bool {
 
 // Defines values for ListTopVulnerabilitiesParamsSortDir.
 const (
-	Asc  ListTopVulnerabilitiesParamsSortDir = "asc"
-	Desc ListTopVulnerabilitiesParamsSortDir = "desc"
+	ListTopVulnerabilitiesParamsSortDirAsc  ListTopVulnerabilitiesParamsSortDir = "asc"
+	ListTopVulnerabilitiesParamsSortDirDesc ListTopVulnerabilitiesParamsSortDir = "desc"
 )
 
 // Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSortDir enum.
 func (e ListTopVulnerabilitiesParamsSortDir) Valid() bool {
 	switch e {
-	case Asc:
+	case ListTopVulnerabilitiesParamsSortDirAsc:
 		return true
-	case Desc:
+	case ListTopVulnerabilitiesParamsSortDirDesc:
 		return true
 	default:
 		return false
@@ -1321,6 +1354,7 @@ type ArtifactVersionSummary struct {
 	SourceUrl     *string                             `json:"sourceUrl,omitempty"`
 	Sufficient    bool                                `json:"sufficient"`
 	VersionKey    string                              `json:"versionKey"`
+	Vulns         *VulnSummary                        `json:"vulns,omitempty"`
 }
 
 // ArtifactVersionSummarySigningStatus Signing status derived from provenance enrichment
@@ -3373,10 +3407,22 @@ type ListArtifactVersionsParams struct {
 
 	// Mode Sort/filter mode: 'semver' (semver versions, semver order), 'all' (every version, build-time order). Empty auto-selects semver when available.
 	Mode *ListArtifactVersionsParamsMode `form:"mode,omitempty" json:"mode,omitempty"`
+
+	// Sort Column to sort by, applied on top of mode. Empty keeps the mode's own ordering.
+	Sort *ListArtifactVersionsParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// Dir Sort direction; defaults to desc (worst first) when sort is set.
+	Dir *ListArtifactVersionsParamsDir `form:"dir,omitempty" json:"dir,omitempty"`
 }
 
 // ListArtifactVersionsParamsMode defines parameters for ListArtifactVersions.
 type ListArtifactVersionsParamsMode string
+
+// ListArtifactVersionsParamsSort defines parameters for ListArtifactVersions.
+type ListArtifactVersionsParamsSort string
+
+// ListArtifactVersionsParamsDir defines parameters for ListArtifactVersions.
+type ListArtifactVersionsParamsDir string
 
 // ListArtifactVulnsParams defines parameters for ListArtifactVulns.
 type ListArtifactVulnsParams struct {

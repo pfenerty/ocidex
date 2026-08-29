@@ -23,7 +23,7 @@ type SearchService interface {
 	GetArtifact(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) (ArtifactDetail, error)
 	ListArtifacts(ctx context.Context, filter ArtifactFilter) (CursorPage[ArtifactSummary], error)
 	ListSBOMsByArtifact(ctx context.Context, artifactID pgtype.UUID, subjectVersion, imageVersion string, page SBOMByArtifactPage, vis VisibilityFilter) (CursorPage[SBOMSummary], error)
-	ListVersionsByArtifact(ctx context.Context, artifactID pgtype.UUID, limit, offset int32, mode VersionSortMode, vis VisibilityFilter) (ArtifactVersionsPage, error)
+	ListVersionsByArtifact(ctx context.Context, artifactID pgtype.UUID, limit, offset int32, mode VersionSortMode, colSort VersionColumnSort, vis VisibilityFilter) (ArtifactVersionsPage, error)
 	GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch, flavor string, mode VersionSortMode, vis VisibilityFilter) (Changelog, error)
 	DiffSBOMs(ctx context.Context, fromID, toID pgtype.UUID, vis VisibilityFilter) (ChangelogEntry, error)
 	DiffSBOMsWithTree(ctx context.Context, fromID, toID pgtype.UUID, vis VisibilityFilter) (DiffTree, error)
@@ -530,6 +530,11 @@ type ArtifactVersion struct {
 	CreatedAt     time.Time  `json:"createdAt"`
 	Sufficient    bool       `json:"sufficient"`
 	SigningStatus string     `json:"signingStatus"`
+	// Vulns is nil when sbom_vuln_rollup has no row for this version's newest
+	// SBOM, which means "no known vulnerabilities" or "never scanned" without
+	// distinguishing them. Callers must render nil as unknown, never as a clean
+	// zero (ADR-044) — the same contract SBOMDetail's tile already follows.
+	Vulns *VulnSummary `json:"vulns,omitempty"`
 }
 
 // SBOMSummary is a lightweight SBOM representation for list views.

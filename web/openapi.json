@@ -324,6 +324,10 @@
           },
           "versionKey": {
             "type": "string"
+          },
+          "vulns": {
+            "$ref": "#/components/schemas/VulnSummary",
+            "description": "Severity counts for this version's newest SBOM. Absent means no findings are recorded, which may mean it was never scanned — do not render it as zero."
           }
         },
         "required": [
@@ -6971,6 +6975,33 @@
               "enum": [
                 "semver",
                 "all"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Column to sort by, applied on top of mode. Empty keeps the mode's own ordering.",
+            "explode": false,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Column to sort by, applied on top of mode. Empty keeps the mode's own ordering.",
+              "enum": [
+                "severity"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction; defaults to desc (worst first) when sort is set.",
+            "explode": false,
+            "in": "query",
+            "name": "dir",
+            "schema": {
+              "description": "Sort direction; defaults to desc (worst first) when sort is set.",
+              "enum": [
+                "asc",
+                "desc"
               ],
               "type": "string"
             }

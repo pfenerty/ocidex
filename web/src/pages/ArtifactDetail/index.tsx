@@ -86,6 +86,11 @@ export default function ArtifactDetail() {
     const [selectedFlavor, setSelectedFlavor] = createSignal<string | undefined>(undefined);
     // undefined = auto (let the backend pick semver when available, else all).
     const [viewMode, setViewMode] = createSignal<"semver" | "all" | undefined>(undefined);
+    // undefined = the mode's own ordering (semver precedence, or build time).
+    // Kept in component state rather than a search param: unlike the vulns tab
+    // there is no inbound link that needs to name a versions sort.
+    const [versionSortBy, setVersionSortBy] = createSignal<"severity" | undefined>(undefined);
+    const [versionSortDir, setVersionSortDir] = createSignal<SortDir>("desc");
     const versionLimit = 25;
 
     const artifactQuery = useArtifact(() => params.id);
@@ -98,8 +103,22 @@ export default function ArtifactDetail() {
 
     const versionsQuery = useArtifactVersions(
         () => params.id,
-        () => ({ limit: versionLimit, offset: versionOffset(), mode: viewMode() }),
+        () => ({
+            limit: versionLimit,
+            offset: versionOffset(),
+            mode: viewMode(),
+            sort: versionSortBy(),
+            dir: versionSortBy() === undefined ? undefined : versionSortDir(),
+        }),
     );
+
+    // Sorting reorders the whole result set server-side, so the current page
+    // number means nothing afterwards.
+    const sortVersions = (key: string, dir: SortDir) => {
+        setVersionSortBy(key === "severity" ? "severity" : undefined);
+        setVersionSortDir(dir);
+        setVersionOffset(0);
+    };
 
     // The versions query always runs, so it's the source of truth for whether
     // the artifact has semver versions and which mode the backend resolved to.
@@ -206,6 +225,9 @@ export default function ArtifactDetail() {
                                         isError={versionsQuery.isError}
                                         error={versionsQuery.error}
                                         onPageChange={setVersionOffset}
+                                        sortBy={versionSortBy()}
+                                        sortDir={versionSortDir()}
+                                        onSort={sortVersions}
                                     />
                                 </Show>
 

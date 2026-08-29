@@ -437,7 +437,7 @@ func (h *Handler) ListArtifactVersions(ctx context.Context, input *ListArtifactV
 	}
 
 	vis := visibilityFilterFromContext(ctx)
-	result, err := h.searchService.ListVersionsByArtifact(ctx, id, input.Limit, input.Offset, service.ParseVersionSortMode(input.Mode), vis)
+	result, err := h.searchService.ListVersionsByArtifact(ctx, id, input.Limit, input.Offset, service.ParseVersionSortMode(input.Mode), service.ParseVersionColumnSort(input.Sort, input.Dir), vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -456,6 +456,7 @@ func (h *Handler) ListArtifactVersions(ctx context.Context, input *ListArtifactV
 			CreatedAt:     v.CreatedAt,
 			Sufficient:    v.Sufficient,
 			SigningStatus: v.SigningStatus,
+			Vulns:         v.Vulns,
 		})
 	}
 
