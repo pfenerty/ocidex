@@ -11,6 +11,41 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addNamespaceMember = `-- name: AddNamespaceMember :one
+
+INSERT INTO namespace_member (namespace_id, user_id, role)
+VALUES ($1, $2, $3)
+ON CONFLICT (namespace_id, user_id) DO UPDATE
+SET role = EXCLUDED.role
+RETURNING namespace_id, user_id, role, created_at
+`
+
+type AddNamespaceMemberParams struct {
+	NamespaceID pgtype.UUID `json:"namespace_id"`
+	UserID      pgtype.UUID `json:"user_id"`
+	Role        string      `json:"role"`
+}
+
+// Membership (ocidex-y0hg.1). Nothing reads these yet: the visibility functions
+// still consult namespace.owner_id until ocidex-y0hg.3, and member management
+// lands in ocidex-y0hg.7. They are generated now so the schema change and the
+// repository surface it implies land in one migration-shaped commit.
+// Idempotent on (namespace_id, user_id): re-adding an existing member changes
+// their role rather than failing, which is what the member-management PUT wants.
+// Promoting someone to 'owner' while another owner exists violates
+// namespace_one_owner and surfaces as a unique violation, by design.
+func (q *Queries) AddNamespaceMember(ctx context.Context, arg AddNamespaceMemberParams) (NamespaceMember, error) {
+	row := q.db.QueryRow(ctx, addNamespaceMember, arg.NamespaceID, arg.UserID, arg.Role)
+	var i NamespaceMember
+	err := row.Scan(
+		&i.NamespaceID,
+		&i.UserID,
+		&i.Role,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const countOwnedPrivateNamespaces = `-- name: CountOwnedPrivateNamespaces :one
 SELECT COUNT(*) FROM namespace
 WHERE owner_id = $1 AND visibility <> 'public'
@@ -105,6 +140,94 @@ func (q *Queries) GetNamespaceByName(ctx context.Context, name string) (Namespac
 	return i, err
 }
 
+const getNamespaceMember = `-- name: GetNamespaceMember :one
+SELECT namespace_id, user_id, role, created_at FROM namespace_member
+WHERE namespace_id = $1 AND user_id = $2
+`
+
+type GetNamespaceMemberParams struct {
+	NamespaceID pgtype.UUID `json:"namespace_id"`
+	UserID      pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) GetNamespaceMember(ctx context.Context, arg GetNamespaceMemberParams) (NamespaceMember, error) {
+	row := q.db.QueryRow(ctx, getNamespaceMember, arg.NamespaceID, arg.UserID)
+	var i NamespaceMember
+	err := row.Scan(
+		&i.NamespaceID,
+		&i.UserID,
+		&i.Role,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const listNamespaceMembers = `-- name: ListNamespaceMembers :many
+SELECT namespace_id, user_id, role, created_at FROM namespace_member
+WHERE namespace_id = $1
+ORDER BY (role = 'owner') DESC, created_at ASC
+`
+
+// Owner first, then by join order, so the caller never has to sort a role
+// string to find who is answerable for the namespace.
+func (q *Queries) ListNamespaceMembers(ctx context.Context, namespaceID pgtype.UUID) ([]NamespaceMember, error) {
+	rows, err := q.db.Query(ctx, listNamespaceMembers, namespaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NamespaceMember{}
+	for rows.Next() {
+		var i NamespaceMember
+		if err := rows.Scan(
+			&i.NamespaceID,
+			&i.UserID,
+			&i.Role,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNamespaceMembershipsForUser = `-- name: ListNamespaceMembershipsForUser :many
+SELECT namespace_id, user_id, role, created_at FROM namespace_member
+WHERE user_id = $1
+ORDER BY created_at ASC
+`
+
+// One user's memberships across every namespace. Backs the me-scoped feeds that
+// ListNamespaces currently answers from owner_id.
+func (q *Queries) ListNamespaceMembershipsForUser(ctx context.Context, userID pgtype.UUID) ([]NamespaceMember, error) {
+	rows, err := q.db.Query(ctx, listNamespaceMembershipsForUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []NamespaceMember{}
+	for rows.Next() {
+		var i NamespaceMember
+		if err := rows.Scan(
+			&i.NamespaceID,
+			&i.UserID,
+			&i.Role,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listNamespaces = `-- name: ListNamespaces :many
 SELECT id, name, owner_id, visibility, created_at, updated_at FROM namespace
 WHERE (
@@ -160,6 +283,24 @@ func (q *Queries) ListNamespaces(ctx context.Context, arg ListNamespacesParams) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const removeNamespaceMember = `-- name: RemoveNamespaceMember :execrows
+DELETE FROM namespace_member
+WHERE namespace_id = $1 AND user_id = $2
+`
+
+type RemoveNamespaceMemberParams struct {
+	NamespaceID pgtype.UUID `json:"namespace_id"`
+	UserID      pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) RemoveNamespaceMember(ctx context.Context, arg RemoveNamespaceMemberParams) (int64, error) {
+	result, err := q.db.Exec(ctx, removeNamespaceMember, arg.NamespaceID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateNamespace = `-- name: UpdateNamespace :one

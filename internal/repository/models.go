@@ -195,6 +195,15 @@ type Namespace struct {
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
 
+// Membership of a namespace, with a per-namespace role. The namespace is the team (ADR-046); this table is what makes it one.
+type NamespaceMember struct {
+	NamespaceID pgtype.UUID `json:"namespace_id"`
+	UserID      pgtype.UUID `json:"user_id"`
+	// Closed set, mapped to compile-time capability sets in internal/auth. Not a DB-defined role: a new role is a code change.
+	Role      string             `json:"role"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type OcidexUser struct {
 	ID             pgtype.UUID        `json:"id"`
 	GithubID       int64              `json:"github_id"`
