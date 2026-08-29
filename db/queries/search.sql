@@ -246,16 +246,69 @@ ORDER BY name, group_name;
 -- Ordered by (name, group_name, id) with NULL group_name folded to '' so the
 -- cursor tuple comparison matches the ORDER BY. Access is gated by the service
 -- before this runs. The caller fetches row_limit+1 to detect a further page.
-SELECT id, bom_ref, type, name, group_name, version, purl
-FROM component
-WHERE sbom_id = @sbom_id
-  AND type != 'file'
+--
+-- Dual-mode pagination (ocidex-unn8.11): the default ordering is keyset, and
+-- sort_severity swaps it for offset. That is ADR-043's rule being applied, not
+-- an exception to it — rule (1) says a mutable column in the ORDER BY makes a
+-- keyset cursor ill-defined, and the severity keys below are computed from
+-- package_vulnerability, which the feed rewrites underneath a reader. The two
+-- styles hide behind one opaque cursor at the API boundary, whose arity differs
+-- so a cursor issued under one sort is rejected rather than silently misread.
+--
+-- The severity CTEs are a live join, not a rollup: the grain is one SBOM, a few
+-- hundred rows, not the 10.9M-row scan that forced component_rollup to exist.
+-- scope is copied verbatim from ListSBOMComponentVulns (bar its $1) so the
+-- ordering cannot disagree with the counts decorateComponentVulns puts in the
+-- badges — TestSBOMComponentSeverityScopeMatchesTheVulnQuery holds them equal.
+-- The canonical_id fallback to v.id likewise mirrors decorateComponentVulns:
+-- two aliased records dedupe to one finding, but two rows with no canonical id
+-- at all stay two.
+WITH scope AS (
+    SELECT DISTINCT c1.purl::text AS purl, c1.purl::text AS match_purl
+    FROM component c1 WHERE c1.sbom_id = @sbom_id AND c1.purl IS NOT NULL
+    UNION
+    SELECT DISTINCT c2.purl::text AS purl, c2.source_purl::text AS match_purl
+    FROM component c2 WHERE c2.sbom_id = @sbom_id AND c2.purl IS NOT NULL AND c2.source_purl IS NOT NULL
+), findings AS (
+    SELECT DISTINCT s.purl,
+           COALESCE(NULLIF(v.canonical_id, ''), v.id::text) AS finding_id,
+           upper(v.severity) AS severity
+    FROM scope s
+    JOIN package_vulnerability pv ON pv.purl = s.match_purl
+    JOIN vulnerability v ON v.id = pv.vulnerability_id
+), sev AS (
+    SELECT f.purl,
+           count(*) FILTER (WHERE f.severity = 'CRITICAL')::bigint AS critical,
+           count(*) FILTER (WHERE f.severity = 'HIGH')::bigint     AS high,
+           count(*) FILTER (WHERE f.severity = 'MEDIUM')::bigint   AS medium,
+           count(*) FILTER (WHERE f.severity = 'LOW')::bigint      AS low,
+           count(*) FILTER (WHERE f.severity IS NULL
+                               OR f.severity NOT IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW'))::bigint AS unknown
+    FROM findings f
+    GROUP BY f.purl
+)
+SELECT c.id, c.bom_ref, c.type, c.name, c.group_name, c.version, c.purl
+FROM component c
+LEFT JOIN sev ON sev.purl = c.purl
+WHERE c.sbom_id = @sbom_id
+  AND c.type != 'file'
   AND (
     NOT sqlc.narg('has_cursor')::boolean
-    OR (name, COALESCE(group_name, ''), id) > (sqlc.narg('cursor_name')::text, sqlc.narg('cursor_group')::text, sqlc.narg('cursor_id')::uuid)
+    OR (c.name, COALESCE(c.group_name, ''), c.id) > (sqlc.narg('cursor_name')::text, sqlc.narg('cursor_group')::text, sqlc.narg('cursor_id')::uuid)
   )
-ORDER BY name, COALESCE(group_name, ''), id
-LIMIT @row_limit;
+-- Ranked severity by severity rather than by a total: one critical outranks
+-- forty lows. sort_dir is 1 or -1 and multiplies the non-negative counts, which
+-- flips the whole ladder without a second set of keys. Under the default sort
+-- every key is NULL, so all rows tie and (name, group, id) alone decides — the
+-- keyset ordering is unchanged byte for byte.
+ORDER BY
+    CASE WHEN @sort_severity::boolean THEN COALESCE(sev.critical, 0) * @sort_dir::int END DESC,
+    CASE WHEN @sort_severity::boolean THEN COALESCE(sev.high,     0) * @sort_dir::int END DESC,
+    CASE WHEN @sort_severity::boolean THEN COALESCE(sev.medium,   0) * @sort_dir::int END DESC,
+    CASE WHEN @sort_severity::boolean THEN COALESCE(sev.low,      0) * @sort_dir::int END DESC,
+    CASE WHEN @sort_severity::boolean THEN COALESCE(sev.unknown,  0) * @sort_dir::int END DESC,
+    c.name, COALESCE(c.group_name, ''), c.id
+LIMIT @row_limit OFFSET @row_offset;
 
 -- name: ListSBOMPackages :many
 SELECT id, bom_ref, type, name, group_name, version, purl

@@ -2,7 +2,7 @@ import { createSignal, createMemo, Show, For } from "solid-js";
 import type { ComponentSummary, DependencyEdge } from "~/api/client";
 import { EmptyState } from "~/components/Feedback";
 import DataTable from "~/components/DataTable";
-import type { Column } from "~/components/DataTable";
+import type { Column, SortDir } from "~/components/DataTable";
 import {
     ComponentNameCell,
     VersionCell,
@@ -37,6 +37,15 @@ export function PackagesTab(props: {
      */
     totalCount?: number;
     componentCount?: number;
+    /**
+     * Server-side sort, owned by the page because the query that pages this
+     * list lives there. Only the severity column is sortable: the counts are
+     * not in the loaded window's shape, so sorting them client-side would
+     * order the first 200 rows and call it the worst packages in the SBOM.
+     */
+    sortBy?: string;
+    sortDir?: SortDir;
+    onSort?: (sortKey: string, dir: SortDir) => void;
 }) {
     const [filter, setFilter] = createSignal("");
     const [typeFilter, setTypeFilter] = createSignal("all");
@@ -131,6 +140,8 @@ export function PackagesTab(props: {
         },
         {
             header: "Vulns",
+            sortKey: "severity",
+            sortType: "numeric",
             render: (c) => (
                 <VulnCountBadges
                     criticalCount={c.criticalCount}
@@ -214,6 +225,9 @@ export function PackagesTab(props: {
                             rows={filtered()}
                             loading={false}
                             isError={false}
+                            sortBy={props.sortBy}
+                            sortDir={props.sortDir}
+                            onSort={props.onSort}
                             emptyTitle="No packages match"
                             emptyMessage="Try a different filter or type."
                             loadMore={{

@@ -799,8 +799,11 @@ func (s *searchService) ListSBOMComponents(ctx context.Context, sbomID pgtype.UU
 	return items, nil
 }
 
-// ListSBOMComponentsPage returns a keyset page of an SBOM's components, ordered
-// by (name, group_name, id). Access is gated the same way as ListSBOMComponents.
+// ListSBOMComponentsPage returns a page of an SBOM's components, ordered by
+// (name, group_name, id) by default and by severity when the page asks for it.
+// The ordering decides the pagination style: keyset for the default, offset for
+// severity (ADR-043 rule 1 — see the query comment). Access is gated the same
+// way as ListSBOMComponents.
 func (s *searchService) ListSBOMComponentsPage(ctx context.Context, sbomID pgtype.UUID, page ComponentPage, vis VisibilityFilter) (CursorPage[ComponentSummary], error) {
 	q := repository.New(s.db)
 
@@ -827,7 +830,12 @@ func (s *searchService) ListSBOMComponentsPage(ctx context.Context, sbomID pgtyp
 		CursorName:  textOrNull(page.CursorName),
 		CursorGroup: pgtype.Text{String: page.CursorGroup, Valid: page.HasCursor},
 		CursorID:    uuidOrNull(page.CursorID),
-		RowLimit:    page.Limit + 1,
+		// The severity keys collapse to NULL when SortSeverity is false, so the
+		// default ordering is unaffected and no second query is needed.
+		SortSeverity: page.SortSeverity,
+		SortDir:      sortDirSign(page.SortDesc),
+		RowOffset:    page.Offset,
+		RowLimit:     page.Limit + 1,
 	})
 	if err != nil {
 		return CursorPage[ComponentSummary]{}, fmt.Errorf("listing sbom components: %w", err)

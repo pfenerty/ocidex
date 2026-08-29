@@ -79,12 +79,35 @@ func (h *Handler) ListSBOMComponents(ctx context.Context, input *ListSBOMCompone
 		return nil, err
 	}
 
-	parts, hasCursor, err := decodeStringCursor(input.Cursor, 3)
+	// The two orderings page differently, so they carry different cursors: a
+	// 1-part offset for severity, the 3-part keyset tuple otherwise. Decoding
+	// against the wrong arity fails, which is the point — a cursor from the
+	// other sort must 400 rather than land on an unrelated row.
+	sortSeverity := input.Sort == componentSortSeverity
+	arity := 3
+	if sortSeverity {
+		arity = 1
+	}
+	parts, hasCursor, err := decodeStringCursor(input.Cursor, arity)
 	if err != nil {
 		return nil, huma.Error400BadRequest(err.Error())
 	}
-	page := service.ComponentPage{Limit: input.Limit, HasCursor: hasCursor}
-	if hasCursor {
+	page := service.ComponentPage{
+		Limit:        input.Limit,
+		HasCursor:    hasCursor && !sortSeverity,
+		SortSeverity: sortSeverity,
+		SortDesc:     input.Dir != "asc",
+	}
+	switch {
+	case sortSeverity && hasCursor:
+		// ParseInt bounds the value to int32 itself, so a hand-crafted cursor
+		// cannot wrap the offset negative.
+		offset, convErr := strconv.ParseInt(parts[0], 10, 32)
+		if convErr != nil || offset < 0 {
+			return nil, huma.Error400BadRequest("invalid cursor")
+		}
+		page.Offset = int32(offset)
+	case hasCursor:
 		page.CursorName, page.CursorGroup, page.CursorID = parts[0], parts[1], parts[2]
 	}
 
@@ -96,11 +119,24 @@ func (h *Handler) ListSBOMComponents(ctx context.Context, input *ListSBOMCompone
 
 	out := &ListSBOMComponentsOutput{}
 	out.Body.Components = result.Data
+	if sortSeverity {
+		next := int(page.Offset) + len(result.Data)
+		out.Body.Pagination = CursorMeta{Limit: input.Limit, HasMore: result.HasMore}
+		if result.HasMore {
+			c := encodeStringCursor(strconv.Itoa(next))
+			out.Body.Pagination.NextCursor = &c
+		}
+		return out, nil
+	}
 	out.Body.Pagination = cursorMeta(result.Data, result.HasMore, input.Limit, func(c service.ComponentSummary) string {
 		return encodeStringCursor(c.Name, derefOr(c.Group, ""), c.ID)
 	})
 	return out, nil
 }
+
+// componentSortSeverity is the one column the SBOM package list sorts by beyond
+// its default (name, group, id) ordering.
+const componentSortSeverity = "severity"
 
 // ListSBOMVulns handles GET /api/v1/sboms/{id}/vulns: the vulnerability list
 // the SBOM page's tile finally has somewhere to send a reader to.

@@ -456,6 +456,15 @@ type ComponentPage struct {
 	CursorGroup string
 	CursorID    string
 	HasCursor   bool
+	// SortSeverity orders by the package's own findings, worst severity first,
+	// instead of (name, group, id). It swaps the pagination style with it: the
+	// counts are computed from package_vulnerability, which the feed rewrites
+	// underneath a reader, so ADR-043 rule (1) rules out a keyset cursor and
+	// Offset carries the page. The caller keeps handing back one opaque cursor
+	// either way.
+	SortSeverity bool
+	SortDesc     bool
+	Offset       int32
 }
 
 // DriftPage carries keyset pagination state for the provenance drift feeds,

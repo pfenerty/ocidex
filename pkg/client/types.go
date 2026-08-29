@@ -1073,6 +1073,39 @@ func (e ListScanJobsParamsState) Valid() bool {
 	}
 }
 
+// Defines values for ListSbomComponentsParamsSort.
+const (
+	ListSbomComponentsParamsSortSeverity ListSbomComponentsParamsSort = "severity"
+)
+
+// Valid indicates whether the value is a known member of the ListSbomComponentsParamsSort enum.
+func (e ListSbomComponentsParamsSort) Valid() bool {
+	switch e {
+	case ListSbomComponentsParamsSortSeverity:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListSbomComponentsParamsDir.
+const (
+	ListSbomComponentsParamsDirAsc  ListSbomComponentsParamsDir = "asc"
+	ListSbomComponentsParamsDirDesc ListSbomComponentsParamsDir = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ListSbomComponentsParamsDir enum.
+func (e ListSbomComponentsParamsDir) Valid() bool {
+	switch e {
+	case ListSbomComponentsParamsDirAsc:
+		return true
+	case ListSbomComponentsParamsDirDesc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListSbomVulnsParamsSeverity.
 const (
 	ListSbomVulnsParamsSeverityCRITICAL ListSbomVulnsParamsSeverity = "CRITICAL"
@@ -1273,28 +1306,28 @@ func (e ListTopVulnerabilitiesParamsSeverity) Valid() bool {
 
 // Defines values for ListTopVulnerabilitiesParamsSort.
 const (
-	ListTopVulnerabilitiesParamsSortAffectedPurlCount ListTopVulnerabilitiesParamsSort = "affected_purl_count"
-	ListTopVulnerabilitiesParamsSortAffectedSbomCount ListTopVulnerabilitiesParamsSort = "affected_sbom_count"
-	ListTopVulnerabilitiesParamsSortCanonicalId       ListTopVulnerabilitiesParamsSort = "canonical_id"
-	ListTopVulnerabilitiesParamsSortCvssScore         ListTopVulnerabilitiesParamsSort = "cvss_score"
-	ListTopVulnerabilitiesParamsSortPublishedAt       ListTopVulnerabilitiesParamsSort = "published_at"
-	ListTopVulnerabilitiesParamsSortSeverity          ListTopVulnerabilitiesParamsSort = "severity"
+	AffectedPurlCount ListTopVulnerabilitiesParamsSort = "affected_purl_count"
+	AffectedSbomCount ListTopVulnerabilitiesParamsSort = "affected_sbom_count"
+	CanonicalId       ListTopVulnerabilitiesParamsSort = "canonical_id"
+	CvssScore         ListTopVulnerabilitiesParamsSort = "cvss_score"
+	PublishedAt       ListTopVulnerabilitiesParamsSort = "published_at"
+	Severity          ListTopVulnerabilitiesParamsSort = "severity"
 )
 
 // Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSort enum.
 func (e ListTopVulnerabilitiesParamsSort) Valid() bool {
 	switch e {
-	case ListTopVulnerabilitiesParamsSortAffectedPurlCount:
+	case AffectedPurlCount:
 		return true
-	case ListTopVulnerabilitiesParamsSortAffectedSbomCount:
+	case AffectedSbomCount:
 		return true
-	case ListTopVulnerabilitiesParamsSortCanonicalId:
+	case CanonicalId:
 		return true
-	case ListTopVulnerabilitiesParamsSortCvssScore:
+	case CvssScore:
 		return true
-	case ListTopVulnerabilitiesParamsSortPublishedAt:
+	case PublishedAt:
 		return true
-	case ListTopVulnerabilitiesParamsSortSeverity:
+	case Severity:
 		return true
 	default:
 		return false
@@ -1303,16 +1336,16 @@ func (e ListTopVulnerabilitiesParamsSort) Valid() bool {
 
 // Defines values for ListTopVulnerabilitiesParamsSortDir.
 const (
-	ListTopVulnerabilitiesParamsSortDirAsc  ListTopVulnerabilitiesParamsSortDir = "asc"
-	ListTopVulnerabilitiesParamsSortDirDesc ListTopVulnerabilitiesParamsSortDir = "desc"
+	Asc  ListTopVulnerabilitiesParamsSortDir = "asc"
+	Desc ListTopVulnerabilitiesParamsSortDir = "desc"
 )
 
 // Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSortDir enum.
 func (e ListTopVulnerabilitiesParamsSortDir) Valid() bool {
 	switch e {
-	case ListTopVulnerabilitiesParamsSortDirAsc:
+	case Asc:
 		return true
-	case ListTopVulnerabilitiesParamsSortDirDesc:
+	case Desc:
 		return true
 	default:
 		return false
@@ -3907,7 +3940,19 @@ type ListSbomComponentsParams struct {
 
 	// Cursor Opaque cursor from a previous response's nextCursor; omit for the first page
 	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Sort Column to sort by. Empty orders by name. Changing it invalidates any cursor already held.
+	Sort *ListSbomComponentsParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// Dir Sort direction; defaults to desc (worst first) when sort is set.
+	Dir *ListSbomComponentsParamsDir `form:"dir,omitempty" json:"dir,omitempty"`
 }
+
+// ListSbomComponentsParamsSort defines parameters for ListSbomComponents.
+type ListSbomComponentsParamsSort string
+
+// ListSbomComponentsParamsDir defines parameters for ListSbomComponents.
+type ListSbomComponentsParamsDir string
 
 // ListSbomDriftHistoryParams defines parameters for ListSbomDriftHistory.
 type ListSbomDriftHistoryParams struct {

@@ -976,3 +976,103 @@ func TestListArtifacts_DefaultSortKeepsKeyset(t *testing.T) {
 	is.True(spy.got.HasCursor)
 	is.Equal(spy.got.CursorName, "ubuntu")
 }
+
+// componentSortSpy captures the ComponentPage the handler builds for the SBOM
+// package list. Same shape as artifactSortSpy, for the same reason: the two
+// pagination styles are indistinguishable in the response, so only the params
+// reaching the service tell them apart.
+type componentSortSpy struct {
+	fakeSearchService
+	got     service.ComponentPage
+	hasMore bool
+	rows    int
+}
+
+func (f *componentSortSpy) ListSBOMComponentsPage(_ context.Context, _ pgtype.UUID, page service.ComponentPage, _ service.VisibilityFilter) (service.CursorPage[service.ComponentSummary], error) {
+	f.got = page
+	data := make([]service.ComponentSummary, f.rows)
+	for i := range data {
+		data[i] = service.ComponentSummary{ID: "comp1", SbomID: "sbom1", Name: "test-lib", Type: "library"}
+	}
+	return service.CursorPage[service.ComponentSummary]{Data: data, HasMore: f.hasMore}, nil
+}
+
+const testSBOMComponentsPath = "/api/v1/sboms/00000000-0000-0000-0000-000000000001/components"
+
+// Severity ordering is computed over the whole SBOM before the page is cut, so
+// (name, group, id) is no longer the ordering and cannot address a position in
+// it — ADR-043 rule (1), the same call as /artifacts in ocidex-unn8.9.
+func TestListSBOMComponents_SeveritySortPagesByOffset(t *testing.T) {
+	is := is.New(t)
+	spy := &componentSortSpy{rows: 2, hasMore: true}
+	router := newTestRouter(&fakeSBOMService{}, spy)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, testSBOMComponentsPath+"?sort=severity", nil))
+	is.Equal(w.Code, http.StatusOK)
+	is.True(spy.got.SortSeverity)
+	is.True(spy.got.SortDesc)   // desc is the default: worst first
+	is.True(!spy.got.HasCursor) // the keyset predicate must stay off
+	is.Equal(spy.got.Offset, int32(0))
+
+	var resp cursorBody
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &resp))
+	is.True(resp.Pagination.NextCursor != nil)
+
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, httptest.NewRequest(http.MethodGet,
+		testSBOMComponentsPath+"?sort=severity&cursor="+url.QueryEscape(*resp.Pagination.NextCursor), nil))
+	is.Equal(w2.Code, http.StatusOK)
+	is.Equal(spy.got.Offset, int32(2))
+}
+
+func TestListSBOMComponents_SeveritySortDirection(t *testing.T) {
+	is := is.New(t)
+	spy := &componentSortSpy{rows: 1}
+	router := newTestRouter(&fakeSBOMService{}, spy)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, testSBOMComponentsPath+"?sort=severity&dir=asc", nil))
+	is.Equal(w.Code, http.StatusOK)
+	is.True(!spy.got.SortDesc)
+}
+
+// A keyset cursor read as an offset would skip an arbitrary stretch of the
+// package list silently. The arities differ, so decoding rejects it first.
+func TestListSBOMComponents_CursorFromTheOtherSortIsRejected(t *testing.T) {
+	is := is.New(t)
+	spy := &componentSortSpy{rows: 1, hasMore: true}
+	router := newTestRouter(&fakeSBOMService{}, spy)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, testSBOMComponentsPath, nil))
+	var resp cursorBody
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &resp))
+	is.True(resp.Pagination.NextCursor != nil)
+
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, httptest.NewRequest(http.MethodGet,
+		testSBOMComponentsPath+"?sort=severity&cursor="+url.QueryEscape(*resp.Pagination.NextCursor), nil))
+	is.Equal(w2.Code, http.StatusBadRequest)
+}
+
+// The default path must be untouched by any of the above.
+func TestListSBOMComponents_DefaultSortKeepsKeyset(t *testing.T) {
+	is := is.New(t)
+	spy := &componentSortSpy{rows: 1, hasMore: true}
+	router := newTestRouter(&fakeSBOMService{}, spy)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, testSBOMComponentsPath, nil))
+	is.Equal(w.Code, http.StatusOK)
+	is.True(!spy.got.SortSeverity)
+
+	var resp cursorBody
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &resp))
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, httptest.NewRequest(http.MethodGet,
+		testSBOMComponentsPath+"?cursor="+url.QueryEscape(*resp.Pagination.NextCursor), nil))
+	is.Equal(w2.Code, http.StatusOK)
+	is.True(spy.got.HasCursor)
+	is.Equal(spy.got.CursorName, "test-lib")
+}

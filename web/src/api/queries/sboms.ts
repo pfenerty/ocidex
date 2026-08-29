@@ -55,24 +55,41 @@ export function useSBOM(
     }));
 }
 
-/** List components belonging to an SBOM with keyset (load-more) pagination.
- *  Pages accumulate in data.pages; flatten with sbomComponents(). */
-export function useSBOMComponents(id: Accessor<string>) {
-    return createInfiniteQuery(() => ({
-        queryKey: ["sbom", id(), "components"] as const,
-        queryFn: ({ pageParam }: { pageParam: string }) =>
-            unwrap(
-                client.GET("/api/v1/sboms/{id}/components", {
-                    params: {
-                        path: { id: id() },
-                        query: { limit: 200, cursor: pageParam !== "" ? pageParam : undefined },
-                    },
-                }),
-            ),
-        initialPageParam: "",
-        getNextPageParam: (last: { pagination?: { hasMore?: boolean; nextCursor?: string | null } }) =>
-            last.pagination?.hasMore === true ? (last.pagination.nextCursor ?? undefined) : undefined,
-    }));
+/** List components belonging to an SBOM with load-more pagination.
+ *  Pages accumulate in data.pages; flatten with sbomComponents().
+ *
+ *  The server pages this keyset by default and by offset under sort=severity,
+ *  but both travel in the same opaque cursor, so nothing here has to know which
+ *  (ADR-043 rule 1 — see the ListSBOMComponentsPage query comment). The sort is
+ *  in the query key, so changing it restarts the accumulation rather than
+ *  appending a differently-ordered page to the one already loaded. */
+export function useSBOMComponents(
+    id: Accessor<string>,
+    params?: Accessor<{ sort?: "severity"; dir?: "asc" | "desc" }>,
+) {
+    return createInfiniteQuery(() => {
+        const p = params?.() ?? {};
+        return {
+            queryKey: ["sbom", id(), "components", p.sort, p.dir] as const,
+            queryFn: ({ pageParam }: { pageParam: string }) =>
+                unwrap(
+                    client.GET("/api/v1/sboms/{id}/components", {
+                        params: {
+                            path: { id: id() },
+                            query: {
+                                limit: 200,
+                                cursor: pageParam !== "" ? pageParam : undefined,
+                                sort: p.sort,
+                                dir: p.dir,
+                            },
+                        },
+                    }),
+                ),
+            initialPageParam: "",
+            getNextPageParam: (last: { pagination?: { hasMore?: boolean; nextCursor?: string | null } }) =>
+                last.pagination?.hasMore === true ? (last.pagination.nextCursor ?? undefined) : undefined,
+        };
+    });
 }
 
 /** Flatten the accumulated component pages from useSBOMComponents. */

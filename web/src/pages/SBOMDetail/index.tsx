@@ -1,5 +1,5 @@
 import "~/components/DetailSection.css";
-import { Show, createMemo } from "solid-js";
+import { Show, createMemo, createSignal } from "solid-js";
 import { A, useParams, useNavigate, useSearchParams } from "@solidjs/router";
 import { Breadcrumb, Button, ButtonGroup, Card, CardHeader, PageHeader, QueryBoundary, TabBar, createExpandedSet, type Crumb } from "~/components/ui";
 import { useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies, useSBOMDriftHistory, useArtifactSBOMs } from "~/api/queries";
@@ -83,7 +83,16 @@ export default function SBOMDetail() {
     };
 
     const sbomQuery = useSBOM(() => params.id);
-    const componentsQuery = useSBOMComponents(() => params.id);
+    // Package-list sort lives here, not in PackagesTab, because it is a
+    // parameter of the paged query rather than a reordering of what is loaded:
+    // "worst first" has to be decided over the whole SBOM before the first page
+    // is cut, not over the 200 rows that happen to be on screen.
+    const [pkgSort, setPkgSort] = createSignal<"severity" | undefined>(undefined);
+    const [pkgSortDir, setPkgSortDir] = createSignal<SortDir>("desc");
+    const componentsQuery = useSBOMComponents(
+        () => params.id,
+        () => ({ sort: pkgSort(), dir: pkgSort() ? pkgSortDir() : undefined }),
+    );
     const loadedComponents = () => sbomComponents(componentsQuery.data?.pages);
     const depsQuery = useSBOMDependencies(() => params.id);
 
@@ -284,6 +293,12 @@ export default function SBOMDetail() {
                                             onLoadMore={() => void componentsQuery.fetchNextPage()}
                                             totalCount={s.packageCount}
                                             componentCount={s.componentCount}
+                                            sortBy={pkgSort()}
+                                            sortDir={pkgSortDir()}
+                                            onSort={(key, dir) => {
+                                                setPkgSort(key === "severity" ? "severity" : undefined);
+                                                setPkgSortDir(dir);
+                                            }}
                                         />
                                     )}
                                 </QueryBoundary>

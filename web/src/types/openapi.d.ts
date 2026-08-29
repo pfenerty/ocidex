@@ -6377,6 +6377,10 @@ export interface operations {
                 limit?: number;
                 /** @description Opaque cursor from a previous response's nextCursor; omit for the first page */
                 cursor?: string;
+                /** @description Column to sort by. Empty orders by name. Changing it invalidates any cursor already held. */
+                sort?: "severity";
+                /** @description Sort direction; defaults to desc (worst first) when sort is set. */
+                dir?: "asc" | "desc";
             };
             header?: never;
             path: {

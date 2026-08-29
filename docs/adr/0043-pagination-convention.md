@@ -97,6 +97,41 @@ on the interaction the UI actually offers:
 `ListSBOMComponents` lands here: an SBOM's component set is frozen once ingested, so offset would
 be perfectly correct, but the UI is Load-more and displays no total — keyset, and it stays keyset.
 
+### The procedure applies per ordering, not per endpoint
+
+*Amended 2026-08-29 (ocidex-unn8.9, ocidex-unn8.11).*
+
+An endpoint with a user-selectable sort does not have *an* `ORDER BY`; it has one per sort key.
+The procedure keys on the ordering, so it must be run for each of them, and an endpoint whose
+sort keys land on different rules is **paginated differently under each sort**. That is the rule
+being applied, not an exception to it — a single style forced across both would mean either a
+cursor against a mutable key (Rule 1's specific prohibition) or an offset over an append-at-head
+feed (Rule 2's).
+
+Two endpoints are in this position today, both for the same reason: severity sort orders by
+`vuln_rollup` / `sbom_vuln_rollup` counts, which the rollup refresh pass **rewrites in place**
+under a reader (`TRUNCATE` + re-`INSERT`, `internal/repository/rollup_refresh.go`). A mutable
+column in the `ORDER BY` is Rule 1, so severity pages by offset while the default ordering keeps
+its Rule 2 / Rule 3 keyset:
+
+| Endpoint | Default sort | Severity sort |
+|---|---|---|
+| `GET /artifacts` | `created_at DESC, id DESC` — Rule 2, keyset | counts, mutable — Rule 1, offset |
+| `GET /sboms/{id}/components` | `name, group_name, id` — Rule 3 (Load more), keyset | counts, mutable — Rule 1, offset |
+
+Both styles travel in the **same opaque cursor**, so the response shape does not change and the
+frontend's infinite query needs no branch. That is only safe because a cursor issued under one
+sort is *rejected* under the other rather than reinterpreted: `encodeStringCursor` /
+`decodeStringCursor` are arity-checked, the offset cursor is one element and the keyset cursor is
+three, so a mismatched cursor fails to decode and the handler returns 400. Reinterpreting one as
+the other would read a package name as an offset and skip an arbitrary stretch of the list with
+no error anywhere. Any future sort-dependent endpoint must keep that property — the arities have
+to differ, and the handler must 400 rather than fall back.
+
+The switch is not free for the client: changing sort invalidates any cursor already held, so the
+accumulated pages must be discarded and paging restarted. The frontend does this by putting the
+sort in the query key (`useArtifactsInfinite`, `useSBOMComponents`).
+
 ### Consequences
 
 * Good, because each endpoint's style is now derivable from its query rather than from the date it
@@ -116,9 +151,9 @@ be perfectly correct, but the UI is Load-more and displays no total — keyset, 
 | Endpoint | Ordering | Rule | Style |
 |---|---|---|---|
 | `GET /sbom` | `created_at DESC, id DESC` | 2 | cursor |
-| `GET /sbom/{id}/components` | `name, group_name, id` | 3 (Load more) | cursor |
+| `GET /sbom/{id}/components` | `name, group_name, id` | 3 (Load more) | cursor † |
 | `GET /sboms/{id}/drift` | `detected_at DESC, id DESC` | 2 | cursor *(changed)* |
-| `GET /artifacts` | `created_at DESC, id DESC` | 2 | cursor |
+| `GET /artifacts` | `created_at DESC, id DESC` | 2 | cursor † |
 | `GET /artifacts/{id}/sboms` | `created_at DESC, id DESC` | 2 | cursor |
 | `GET /registries/drift-feed` | `detected_at DESC, id DESC` | 2 | cursor *(changed)* |
 | `GET /components` | name/purl match | 3 (counted) | offset |
@@ -131,6 +166,9 @@ be perfectly correct, but the UI is Load-more and displays no total — keyset, 
 | `GET /registries` | name | 3 (counted, bounded set) | offset |
 | `GET /jobs` | **state bucket**, `created_at DESC` | 1 | offset |
 | `GET /enrichment-jobs` | **state bucket**, `created_at DESC` | 1 | offset |
+
+† Under `?sort=severity` these two run the procedure again and land on Rule 1 — offset, inside the
+same opaque cursor. See "The procedure applies per ordering, not per endpoint" above.
 
 Only the two drift feeds changed. Every other endpoint was already on the side the procedure
 selects — which is the evidence that the procedure describes the codebase's implicit rule rather

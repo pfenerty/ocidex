@@ -107,6 +107,13 @@ type GetSBOMDependenciesOutput struct {
 type ListSBOMComponentsInput struct {
 	CursorParams
 	ID string `path:"id" doc:"SBOM UUID" format:"uuid"`
+	// Sorting by severity changes what the opaque cursor carries — the counts
+	// come from package_vulnerability, which the feed rewrites under a reader,
+	// so the page is an offset rather than a keyset position (ADR-043 rule 1).
+	// A cursor issued under one sort is rejected under the other: its arity
+	// differs, so it fails to decode rather than silently skipping rows.
+	Sort string `query:"sort" enum:"severity" doc:"Column to sort by. Empty orders by name. Changing it invalidates any cursor already held."`
+	Dir  string `query:"dir"  enum:"asc,desc"  doc:"Sort direction; defaults to desc (worst first) when sort is set."`
 }
 
 // ListSBOMComponentsOutput is the response for GET /api/v1/sbom/{id}/components.

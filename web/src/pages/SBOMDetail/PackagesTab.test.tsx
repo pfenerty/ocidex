@@ -104,3 +104,48 @@ describe("PackagesTab count explanation", () => {
         expect(explanation(container)).not.toContain("loaded rows only");
     });
 });
+
+describe("PackagesTab severity sort", () => {
+    /** The clickable header cell for a column, by its label. */
+    function header(container: HTMLElement, label: string): HTMLElement {
+        const th = [...container.querySelectorAll("th")].find((h) => h.textContent.startsWith(label));
+        return must(th, `a "${label}" column header`);
+    }
+
+    // Severity is server-sorted: the counts order the whole SBOM, not the 200
+    // rows on screen. So the click has to leave the tab and reach the query.
+    it("asks the page for a severity sort, worst first", () => {
+        const calls: [string, string][] = [];
+        const { container } = renderTab({
+            components: comps(3),
+            onSort: (key, dir) => calls.push([key, dir]),
+        });
+        fireEvent.click(header(container, "Vulns"));
+        expect(calls).toEqual([["severity", "desc"]]);
+    });
+
+    it("flips to ascending on a second click", () => {
+        const calls: [string, string][] = [];
+        const { container } = renderTab({
+            components: comps(3),
+            sortBy: "severity",
+            sortDir: "desc",
+            onSort: (key, dir) => calls.push([key, dir]),
+        });
+        fireEvent.click(header(container, "Vulns"));
+        expect(calls).toEqual([["severity", "asc"]]);
+    });
+
+    // Nothing else in this table has a server-side ordering, and offering a
+    // client-side one over a partial window would sort 200 of 958 packages
+    // while looking like it sorted the SBOM.
+    it("makes no other column sortable", () => {
+        const { container } = renderTab({ components: comps(3), onSort: () => undefined });
+        // th-sortable is what marks a header clickable — a header without it
+        // has no affordance, and handleSort ignores a column with no sortKey.
+        expect(header(container, "Vulns").className).toContain("th-sortable");
+        for (const label of ["Name", "Version", "Type", "Package URL"]) {
+            expect(header(container, label).className).not.toContain("th-sortable");
+        }
+    });
+});
