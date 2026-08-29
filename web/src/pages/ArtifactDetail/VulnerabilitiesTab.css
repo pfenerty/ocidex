@@ -1,0 +1,12 @@
+/* The versions one advisory reaches, expanded under its row. Same shape as
+ * SBOMDetail/VulnerabilitiesTab.css one level up: there the answer to "where
+ * does this reach" is packages, here it is versions. */
+.affected-versions {
+    list-style: none;
+    margin: 0.35rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+}

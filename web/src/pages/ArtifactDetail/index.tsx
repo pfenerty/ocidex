@@ -1,6 +1,6 @@
 import "~/components/DetailSection.css";
 import { createSignal, For, Show } from "solid-js";
-import { useParams } from "@solidjs/router";
+import { useParams, useSearchParams } from "@solidjs/router";
 import {
     useArtifact,
     useArtifactVersions,
@@ -9,9 +9,11 @@ import {
     useArtifactUsages,
     useArtifactVulnSummary,
 } from "~/api/queries";
+import type { ArtifactVulnSortKey, VulnSeverityFilter } from "~/api/queries";
+import type { SortDir } from "~/components/DataTable";
 import { EmptyState } from "~/components/Feedback";
 import { Skeleton, SkeletonHeader, SkeletonText } from "~/components/Skeleton";
-import { Breadcrumb, ButtonGroup, Button, QueryBoundary, TabBar, type Crumb, type TabDef } from "~/components/ui";
+import { Breadcrumb, ButtonGroup, Button, QueryBoundary, TabBar, createExpandedSet, type Crumb, type TabDef } from "~/components/ui";
 import { artifactDisplayName } from "~/utils/format";
 import { ArtifactHeader, ArtifactIdentity } from "./ArtifactHeader";
 import { ArtifactBand, type ArtifactTab } from "./ArtifactBand";
@@ -19,11 +21,67 @@ import { VersionsTab } from "./VersionsTab";
 import { LicensesTab } from "./LicensesTab";
 import { ChangelogTab } from "./ChangelogTab";
 import { RelationshipsTab } from "./RelationshipsTab";
+import { VulnerabilitiesTab, SEVERITIES, SORT_KEYS as VULN_SORT_KEYS } from "./VulnerabilitiesTab";
+
+const TABS: ArtifactTab[] = ["versions", "changelog", "licenses", "vulns", "relationships"];
+
+/** Search params arrive as string | string[]; take the first value either way. */
+function one(v: string | string[] | undefined): string | undefined {
+    return Array.isArray(v) ? v[0] : v;
+}
 
 export default function ArtifactDetail() {
     const params = useParams<{ id: string }>();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [versionOffset, setVersionOffset] = createSignal(0);
-    const [tab, setTab] = createSignal<ArtifactTab>("versions");
+
+    /* The tab lives in a search param, not component state, so the reverse trail
+       from /vulnerabilities/:id can land directly on this artifact's affected
+       versions — ?tab=vulns&vuln=CVE-… — and so a filtered view is a link. */
+    const tab = (): ArtifactTab => {
+        const t = one(searchParams.tab);
+        return TABS.find((candidate) => candidate === t) ?? "versions";
+    };
+    // Switching tabs drops the vuln list's filter/sort/page: they mean nothing
+    // to the other tabs and would otherwise reappear on the way back.
+    const setTab = (next: ArtifactTab) =>
+        setSearchParams({
+            tab: next === "versions" ? undefined : next,
+            severity: undefined,
+            vuln: undefined,
+            sort: undefined,
+            dir: undefined,
+            offset: undefined,
+        });
+
+    // A hand-edited URL can say anything; an unrecognised value is dropped
+    // rather than forwarded, so the list shows everything instead of nothing.
+    const vulnSeverity = (): VulnSeverityFilter | undefined => {
+        const raw = one(searchParams.severity);
+        return SEVERITIES.find((candidate) => candidate === raw);
+    };
+    // ?vuln= is passed through unvalidated on purpose — it is an advisory id
+    // from another page, and the server decides whether it matches anything.
+    const vulnFilter = (): string | undefined => {
+        const raw = one(searchParams.vuln);
+        return raw !== undefined && raw !== "" ? raw : undefined;
+    };
+    const vulnSortBy = (): ArtifactVulnSortKey => {
+        const raw = one(searchParams.sort);
+        return VULN_SORT_KEYS.find((candidate) => candidate === raw) ?? "severity";
+    };
+    // Severity's useful default is worst-first, the opposite of what every
+    // other column wants.
+    const vulnSortDir = (): SortDir => {
+        const raw = one(searchParams.dir);
+        if (raw === "asc" || raw === "desc") return raw;
+        return vulnSortBy() === "canonical_id" ? "asc" : "desc";
+    };
+    const vulnOffset = () => {
+        const parsed = Number(one(searchParams.offset));
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    };
+    const vulnExpanded = createExpandedSet();
     const [selectedArch, setSelectedArch] = createSignal<string | undefined>("amd64");
     const [selectedFlavor, setSelectedFlavor] = createSignal<string | undefined>(undefined);
     // undefined = auto (let the backend pick semver when available, else all).
@@ -77,6 +135,7 @@ export default function ArtifactDetail() {
         { id: "versions", label: `Versions (${versionCount})` },
         { id: "changelog", label: "Changelog" },
         { id: "licenses", label: "Licenses" },
+        { id: "vulns", label: `Vulnerabilities (${vulnSummaryQuery.data?.summary.total ?? 0})` },
         { id: "relationships", label: "Relationships" },
     ];
 
@@ -181,6 +240,29 @@ export default function ArtifactDetail() {
                                         loading={licenseQuery.isFetching}
                                         isError={licenseQuery.isError}
                                         error={licenseQuery.error}
+                                    />
+                                </Show>
+
+                                <Show when={tab() === "vulns"}>
+                                    <VulnerabilitiesTab
+                                        artifactId={params.id}
+                                        summary={vulnSummaryQuery.data?.summary ?? undefined}
+                                        severity={vulnSeverity()}
+                                        vuln={vulnFilter()}
+                                        sortBy={vulnSortBy()}
+                                        sortDir={vulnSortDir()}
+                                        offset={vulnOffset()}
+                                        expanded={vulnExpanded}
+                                        onSeverityChange={(severity) =>
+                                            setSearchParams({ severity, offset: undefined })
+                                        }
+                                        onClearVuln={() => setSearchParams({ vuln: undefined, offset: undefined })}
+                                        onSort={(sortKey, dir) =>
+                                            setSearchParams({ sort: sortKey, dir, offset: undefined })
+                                        }
+                                        onPageChange={(offset) =>
+                                            setSearchParams({ offset: offset === 0 ? undefined : String(offset) })
+                                        }
                                     />
                                 </Show>
 

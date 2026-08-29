@@ -1,7 +1,9 @@
 import { createMemo, type Accessor } from "solid-js";
 import { createQuery, createInfiniteQuery } from "@tanstack/solid-query";
 import { client, unwrap } from "~/api/client";
-import type { ArtifactSummary } from "~/api/client";
+import type { ArtifactSummary, paths } from "~/api/client";
+import type { SortDir } from "~/components/DataTable";
+import type { VulnSeverityFilter } from "./clusters";
 
 // ---------------------------------------------------------------------------
 // useArtifacts — GET /api/v1/artifacts
@@ -289,6 +291,53 @@ export function useArtifactVulnSummary(id: Accessor<string>) {
                 }),
             ),
     }));
+}
+
+// ---------------------------------------------------------------------------
+// useArtifactVulns — GET /api/v1/artifacts/{id}/vulns
+// ---------------------------------------------------------------------------
+
+export type ArtifactVulnSortKey =
+    NonNullable<paths["/api/v1/artifacts/{id}/vulns"]["get"]["parameters"]["query"]>["sort"];
+
+export interface ArtifactVulnQueryParams {
+    severity?: VulnSeverityFilter;
+    /** Pre-filter to one advisory, by canonical or native id. This is the
+     *  parameter /vulnerabilities/:id links with. */
+    vuln?: string;
+    sort?: ArtifactVulnSortKey;
+    dir?: SortDir;
+    limit?: number;
+    offset?: number;
+}
+
+/**
+ * useArtifactVulns — the findings across an artifact's versions.
+ *
+ * Wider than useArtifactVulnSummary, which counts the newest SBOM only: this
+ * covers the newest SBOM *per version*, because the question it exists to
+ * answer is which versions carry a finding. The two therefore disagree by
+ * design, and the tab says so.
+ */
+export function useArtifactVulns(
+    id: Accessor<string>,
+    params?: Accessor<ArtifactVulnQueryParams>,
+    options?: { enabled?: Accessor<boolean> },
+) {
+    return createQuery(() => {
+        const p = params?.() ?? {};
+        return {
+            queryKey: ["artifact", id(), "vulns", p.severity, p.vuln, p.sort, p.dir, p.limit, p.offset] as const,
+            queryFn: () =>
+                unwrap(
+                    client.GET("/api/v1/artifacts/{id}/vulns", {
+                        params: { path: { id: id() }, query: p },
+                    }),
+                ),
+            enabled: options?.enabled?.() ?? true,
+            select: (resp) => ({ ...resp, data: resp.data ?? [] }),
+        };
+    });
 }
 
 // ---------------------------------------------------------------------------

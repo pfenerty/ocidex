@@ -4,7 +4,7 @@ import { vulnTile } from "~/components/VulnTile";
 import { trustStatus, trustBadgeClass } from "~/utils/trust";
 import { relativeDate } from "~/utils/format";
 
-export type ArtifactTab = "versions" | "changelog" | "licenses" | "relationships";
+export type ArtifactTab = "versions" | "changelog" | "licenses" | "vulns" | "relationships";
 
 /**
  * The summary band for an artifact: what a reader needs before deciding whether
@@ -56,7 +56,10 @@ export function ArtifactBand(props: {
                 value: a().sbomCount,
                 sub: sbomSub(),
             },
-            vulnTile<ArtifactTab>(props.vulns),
+            // The tile passes an id now that the page has a vulnerabilities tab
+            // to send the reader to. Without one StatBand renders it as a plain
+            // <div> — which is what it was, sitting among buttons doing nothing.
+            vulnTile<ArtifactTab>(props.vulns, "vulns"),
         ];
 
         // Signing is image-only. On an uploaded binary or library it would be a

@@ -49,6 +49,7 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 | GET | `/api/v1/artifacts/{id}/usages` | `get-artifact-usages` | `public` |  | Filtered via visible_namespace_ids (ADR-041). |
 | GET | `/api/v1/artifacts/{id}/versions` | `list-artifact-versions` | `public` |  | VisibilityFilter. |
 | GET | `/api/v1/artifacts/{id}/vuln-summary` | `get-artifact-vuln-summary` | `public` |  | VisibilityFilter. |
+| GET | `/api/v1/artifacts/{id}/vulns` | `list-artifact-vulns` | `public` |  | VisibilityFilter. |
 
 ### Auth
 

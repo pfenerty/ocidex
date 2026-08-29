@@ -361,3 +361,127 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactID p
 	}
 	return &vs, nil
 }
+
+// ListArtifactVulns returns one page of the artifact's vulnerability list.
+//
+// Scope note: this is wider than GetArtifactVulnSummary, which counts the
+// artifact's newest SBOM only. This list covers the newest SBOM per version,
+// because its job is to say *which versions* carry a finding — the question
+// /vulnerabilities/{id} sends a reader here with. The band tile and this tab
+// therefore report different totals by design; the tab states its scope.
+func (s *searchService) ListArtifactVulns(ctx context.Context, artifactID pgtype.UUID, params ArtifactVulnParams, vis VisibilityFilter) (PagedResult[ArtifactVulnEntry], error) {
+	q := repository.New(s.db)
+
+	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
+		AID:     artifactID,
+		UserID:  vis.UserID,
+		IsAdmin: visAdminBool(vis),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return PagedResult[ArtifactVulnEntry]{}, ErrNotFound
+		}
+		return PagedResult[ArtifactVulnEntry]{}, fmt.Errorf("checking artifact visibility: %w", err)
+	}
+	if !visible {
+		return PagedResult[ArtifactVulnEntry]{}, ErrNotFound
+	}
+
+	limit, offset := clampPage(params.Limit, params.Offset)
+	severity := optionalText(params.Severity)
+	vuln := optionalText(params.Vuln)
+
+	total, err := q.CountArtifactVulns(ctx, repository.CountArtifactVulnsParams{
+		ArtifactID: artifactID,
+		UserID:     vis.UserID,
+		IsAdmin:    visAdminBool(vis),
+		Severity:   severity,
+		Vuln:       vuln,
+	})
+	if err != nil {
+		return PagedResult[ArtifactVulnEntry]{}, fmt.Errorf("counting artifact vulns: %w", err)
+	}
+
+	sortBy, sortDir := clampSort(params.SortBy, params.SortDir, ArtifactVulnSortKeys)
+
+	rows, err := q.ListArtifactVulns(ctx, repository.ListArtifactVulnsParams{
+		ArtifactID: artifactID,
+		UserID:     vis.UserID,
+		IsAdmin:    visAdminBool(vis),
+		Severity:   severity,
+		Vuln:       vuln,
+		SortBy:     sortBy,
+		SortDir:    sortDir,
+		Limit:      pgtype.Int4{Int32: limit, Valid: true},
+		Offset:     pgtype.Int4{Int32: offset, Valid: true},
+	})
+	if err != nil {
+		return PagedResult[ArtifactVulnEntry]{}, fmt.Errorf("listing artifact vulns: %w", err)
+	}
+
+	items := make([]ArtifactVulnEntry, len(rows))
+	canonicalIDs := make([]string, len(rows))
+	for i, r := range rows {
+		canonicalIDs[i] = r.CanonicalID
+		items[i] = ArtifactVulnEntry{
+			ID:                   r.ID,
+			CanonicalID:          r.CanonicalID,
+			Severity:             r.Severity.String,
+			CvssScore:            float4ToPtr(r.CvssScore),
+			Summary:              textToPtr(r.Summary),
+			AffectedPackageCount: r.AffectedPackageCount,
+			AffectedVersionCount: r.AffectedVersionCount,
+			AffectedVersions:     []ArtifactVulnVersion{},
+		}
+	}
+
+	if len(canonicalIDs) > 0 {
+		if err := attachArtifactVulnVersions(ctx, q, artifactID, vis, canonicalIDs, items); err != nil {
+			return PagedResult[ArtifactVulnEntry]{}, err
+		}
+	}
+
+	return PagedResult[ArtifactVulnEntry]{Data: items, Total: total}, nil
+}
+
+// attachArtifactVulnVersions fills in the AffectedVersions of one page of
+// findings with a single extra query, one per page rather than one per row.
+func attachArtifactVulnVersions(ctx context.Context, q *repository.Queries, artifactID pgtype.UUID, vis VisibilityFilter, canonicalIDs []string, items []ArtifactVulnEntry) error {
+	rows, err := q.ListArtifactVulnAffectedVersions(ctx, repository.ListArtifactVulnAffectedVersionsParams{
+		ArtifactID:   artifactID,
+		UserID:       vis.UserID,
+		IsAdmin:      visAdminBool(vis),
+		CanonicalIds: canonicalIDs,
+	})
+	if err != nil {
+		return fmt.Errorf("listing affected versions: %w", err)
+	}
+
+	byCanonical := make(map[string][]ArtifactVulnVersion, len(canonicalIDs))
+	for _, r := range rows {
+		v := ArtifactVulnVersion{
+			Version:              r.VersionKey.String,
+			SbomID:               uuidToString(r.SbomID),
+			AffectedPackageCount: r.AffectedPackageCount,
+			PackageNames:         []string{},
+		}
+		// package_names arrives as interface{} because it comes out of
+		// array_agg, the same way ListSBOMVulnAffectedPackages' fixed_version
+		// does.
+		if names, ok := r.PackageNames.([]any); ok {
+			for _, n := range names {
+				if str, ok := n.(string); ok {
+					v.PackageNames = append(v.PackageNames, str)
+				}
+			}
+		}
+		byCanonical[r.CanonicalID] = append(byCanonical[r.CanonicalID], v)
+	}
+
+	for i := range items {
+		if versions := byCanonical[items[i].CanonicalID]; versions != nil {
+			items[i].AffectedVersions = versions
+		}
+	}
+	return nil
+}

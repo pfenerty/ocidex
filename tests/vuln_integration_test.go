@@ -3,6 +3,7 @@ package tests
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"slices"
 	"testing"
@@ -1046,4 +1047,174 @@ func TestSBOMVulnsList(t *testing.T) {
 	pg := body["pagination"].(map[string]any)
 	is.Equal(pg["total"], float64(2))
 	is.Equal(pg["offset"], float64(1))
+}
+
+// TestArtifactVulnsList covers the three properties the artifact vulnerability
+// tab rests on, none of which the SBOM-level list can show:
+//
+//   - the scope is the newest SBOM *per version*, not the newest SBOM overall,
+//     so a finding present only in an older version still appears — that is the
+//     whole point of the reverse trail from /vulnerabilities/{id};
+//   - within a version, only the newest SBOM counts, so a superseded SBOM's
+//     components do not resurrect a fixed finding;
+//   - ?vuln= pre-filters to one advisory by canonical id *or* native id, since
+//     the detail page's URL may carry either.
+func TestArtifactVulnsList(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+	is := is.New(t)
+	ctx := t.Context()
+
+	memberID := seedUser(t, pool, 8011, "artifact-vulns-list-member", "member")
+	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "artifact-vulns-list-test", "read-write")
+	is.NoErr(err)
+	nsID := seedNamespace(t, pool, "artifact-vulns-list-ns", memberID, "public")
+
+	var artifactID string
+	is.NoErr(pool.QueryRow(ctx, `
+		INSERT INTO artifact (type, name) VALUES ('container', 'artifact-vulns-list') RETURNING id::text
+	`).Scan(&artifactID))
+	// artifact_visible has required an artifact_namespace row since
+	// 00054_require_namespace — without it the artifact is invisible to
+	// everyone, and every read of it 404s.
+	_, err = pool.Exec(ctx, `
+		INSERT INTO artifact_namespace (artifact_id, namespace_id) VALUES ($1::uuid, $2::uuid)
+	`, artifactID, nsID)
+	is.NoErr(err)
+
+	// seedSBOM inserts one SBOM for the artifact at the given version, with one
+	// component per purl. Later inserts are newer within a version.
+	seedSBOM := func(digest, version string, purls ...string) string {
+		t.Helper()
+		var sbomID string
+		is.NoErr(pool.QueryRow(ctx, `
+			INSERT INTO sbom (spec_version, raw_bom, digest, artifact_id, namespace_id, subject_version)
+			VALUES ('1.6', '{}'::jsonb, $1, $2::uuid, $3::uuid, $4)
+			RETURNING id::text
+		`, digest, artifactID, nsID, version).Scan(&sbomID))
+		for i, p := range purls {
+			_, err := pool.Exec(ctx, `
+				INSERT INTO component (sbom_id, type, name, version, purl)
+				VALUES ($1::uuid, 'library', $2, '1.0.0', $3)
+			`, sbomID, fmt.Sprintf("lib-%d", i), p)
+			is.NoErr(err)
+		}
+		return sbomID
+	}
+
+	const (
+		oldPurl    = "pkg:golang/example.com/old@v1.0.0"
+		sharedPurl = "pkg:golang/example.com/shared@v1.0.0"
+		srcPurl    = "pkg:deb/debian/carrier@1.0?arch=src"
+	)
+
+	// v1.0.0: an early SBOM carrying the vulnerable package, superseded by a
+	// newer one that no longer does. Only the newer one is in scope.
+	seedSBOM("sha256:v1old", "1.0.0", oldPurl, sharedPurl)
+	v1SbomID := seedSBOM("sha256:v1new", "1.0.0", sharedPurl)
+
+	// v2.0.0: the artifact's newest SBOM overall. Carries the shared finding,
+	// plus one reached only through a source purl.
+	v2SbomID := seedSBOM("sha256:v2", "2.0.0", sharedPurl)
+	_, err = pool.Exec(ctx, `
+		INSERT INTO component (sbom_id, type, name, version, purl, source_purl)
+		VALUES ($1::uuid, 'library', 'carrier', '1.0', 'pkg:deb/debian/carrier@1.0', $2)
+	`, v2SbomID, srcPurl)
+	is.NoErr(err)
+
+	// v0.9.0: an older version whose only finding lives nowhere else. If the
+	// scope were "newest SBOM only" this row would vanish, which is the bug.
+	v09SbomID := seedSBOM("sha256:v09", "0.9.0", oldPurl)
+
+	// CVE-2025-3000: aliased across two OSV ids, on the shared package (both
+	// v1.0.0 and v2.0.0) and on the source purl (v2.0.0 only).
+	seedAdvisory(t, pool, "GO-2025-art", "CVE-2025-3000", "CRITICAL", 9.8, sharedPurl)
+	seedAdvisory(t, pool, "GHSA-art", "CVE-2025-3000", "CRITICAL", 9.8, srcPurl)
+	// CVE-2025-4000: only on the package that survives in v0.9.0 and in the
+	// superseded v1.0.0 SBOM.
+	seedAdvisory(t, pool, "CVE-2025-4000", "CVE-2025-4000", "MEDIUM", 5.3, oldPurl)
+
+	listVulns := func(query string) map[string]any {
+		t.Helper()
+		r, gerr := doWithAuth(t, http.MethodGet,
+			fmt.Sprintf("%s/api/v1/artifacts/%s/vulns%s", srv.URL, artifactID, query), "", memberKey)
+		is.NoErr(gerr)
+		if r.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(r.Body)
+			t.Fatalf("GET vulns%s: %d %s", query, r.StatusCode, string(b))
+		}
+		var body map[string]any
+		is.NoErr(json.NewDecoder(r.Body).Decode(&body))
+		r.Body.Close()
+		return body
+	}
+
+	// Default ordering is worst-first, and the alias group collapses to one row.
+	body := listVulns("")
+	data := body["data"].([]any)
+	is.Equal(len(data), 2)
+	is.Equal(body["pagination"].(map[string]any)["total"], float64(2))
+
+	first := data[0].(map[string]any)
+	is.Equal(first["canonicalId"], "CVE-2025-3000")
+	is.Equal(first["severity"], "CRITICAL")
+	// Two purls (shared + the source-purl carrier), two versions (1.0.0, 2.0.0).
+	is.Equal(first["affectedPackageCount"], float64(2))
+	is.Equal(first["affectedVersionCount"], float64(2))
+
+	versions := first["affectedVersions"].([]any)
+	is.Equal(len(versions), 2)
+	byVersion := map[string]map[string]any{}
+	for _, v := range versions {
+		vm := v.(map[string]any)
+		byVersion[vm["version"].(string)] = vm
+	}
+	// The v1.0.0 row points at the *newest* SBOM for that version, not the
+	// superseded one — that is what makes the onward link correct.
+	is.Equal(byVersion["1.0.0"]["sbomId"], v1SbomID)
+	is.Equal(byVersion["1.0.0"]["affectedPackageCount"], float64(1))
+	is.Equal(byVersion["2.0.0"]["sbomId"], v2SbomID)
+	is.Equal(byVersion["2.0.0"]["affectedPackageCount"], float64(2))
+
+	// The older-version-only finding survives, which the vuln-summary tile
+	// (newest SBOM only) cannot report.
+	second := data[1].(map[string]any)
+	is.Equal(second["canonicalId"], "CVE-2025-4000")
+	is.Equal(second["affectedVersionCount"], float64(1))
+	secondVersions := second["affectedVersions"].([]any)
+	is.Equal(len(secondVersions), 1)
+	is.Equal(secondVersions[0].(map[string]any)["version"], "0.9.0")
+	is.Equal(secondVersions[0].(map[string]any)["sbomId"], v09SbomID)
+
+	// Severity filter.
+	data = listVulns("?severity=CRITICAL")["data"].([]any)
+	is.Equal(len(data), 1)
+	is.Equal(data[0].(map[string]any)["canonicalId"], "CVE-2025-3000")
+
+	// ?vuln= by canonical id, and by native OSV id — the detail page's URL may
+	// carry either, and a reverse-trail link that 200s with zero rows reads as
+	// "not affected", which would be a lie.
+	for _, q := range []string{"?vuln=CVE-2025-3000", "?vuln=GHSA-art"} {
+		data = listVulns(q)["data"].([]any)
+		is.Equal(len(data), 1)
+		is.Equal(data[0].(map[string]any)["canonicalId"], "CVE-2025-3000")
+	}
+
+	// Sort ascending by version count puts the single-version finding first.
+	data = listVulns("?sort=affected_version_count&dir=asc")["data"].([]any)
+	is.Equal(data[0].(map[string]any)["canonicalId"], "CVE-2025-4000")
+
+	// Paging.
+	page := listVulns("?limit=1&offset=1")
+	data = page["data"].([]any)
+	is.Equal(len(data), 1)
+	is.Equal(data[0].(map[string]any)["canonicalId"], "CVE-2025-4000")
+	is.Equal(page["pagination"].(map[string]any)["total"], float64(2))
 }

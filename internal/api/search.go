@@ -760,3 +760,30 @@ func (h *Handler) GetArtifactChangelog(ctx context.Context, input *GetArtifactCh
 	out.Body = changelog
 	return out, nil
 }
+
+// ListArtifactVulns handles GET /api/v1/artifacts/{id}/vulns: the artifact's
+// vulnerability list, scoped to the newest SBOM per version so it can answer
+// which versions carry a finding.
+func (h *Handler) ListArtifactVulns(ctx context.Context, in *ListArtifactVulnsInput) (*ListArtifactVulnsOutput, error) {
+	id, err := parseUUID(in.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := h.searchService.ListArtifactVulns(ctx, id, service.ArtifactVulnParams{
+		Severity: in.Severity,
+		Vuln:     in.Vuln,
+		SortBy:   in.Sort,
+		SortDir:  in.Dir,
+		Limit:    in.Limit,
+		Offset:   in.Offset,
+	}, visibilityFilterFromContext(ctx))
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+
+	out := &ListArtifactVulnsOutput{}
+	out.Body.Data = result.Data
+	out.Body.Pagination = paginationMeta(result)
+	return out, nil
+}

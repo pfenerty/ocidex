@@ -155,6 +155,7 @@ var authRules = map[string]AuthRule{
 	"list-artifact-sboms":       {Class: ClassPublic, Notes: noteVisFilter},
 	"list-artifact-versions":    {Class: ClassPublic, Notes: noteVisFilter},
 	"get-artifact-vuln-summary": {Class: ClassPublic, Notes: noteVisFilter},
+	"list-artifact-vulns":       {Class: ClassPublic, Notes: noteVisFilter},
 	"get-artifact-usages":       {Class: ClassPublic, Notes: "Filtered via visible_namespace_ids (ADR-041)."},
 	"get-artifact-contains":     {Class: ClassPublic, Notes: "Filtered via visible_namespace_ids (ADR-041)."},
 	"delete-artifact":           {Class: ClassOwner, Write: true, Notes: "RequireArtifactOwner middleware."},

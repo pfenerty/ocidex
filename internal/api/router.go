@@ -438,6 +438,15 @@ func registerArtifactOps(api huma.API, h *Handler) {
 	}, h.GetArtifactVulnSummary)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "list-artifact-vulns",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/artifacts/{id}/vulns",
+		Summary:     "List vulnerabilities across an artifact's versions",
+		Description: "Findings keyed by canonical id over the newest SBOM per version, with the versions each affects. Wider than /vuln-summary, which counts the newest SBOM only. ?vuln= pre-filters to a single advisory.",
+		Tags:        []string{tagArtifacts},
+	}, h.ListArtifactVulns)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "get-artifact-usages",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/artifacts/{id}/usages",

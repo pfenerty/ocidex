@@ -105,9 +105,13 @@ describe("ArtifactBand vulnerability tile", () => {
         expect(sub(container, "Vulnerabilities")).toBe("not scanned");
     });
 
-    it("is not clickable, because the page has no vulnerabilities tab", () => {
+    it("is a button, because the page now has a vulnerabilities tab", () => {
+        // The inverse of what this asserted before ocidex-unn8.6, and still the
+        // same property: the tag must match whether there is anywhere to go. A
+        // DIV here means the destination went missing and the tile silently
+        // became decoration again.
         const { container } = renderBand();
-        expect(tile(container, "Vulnerabilities").tagName).toBe("DIV");
+        expect(tile(container, "Vulnerabilities").tagName).toBe("BUTTON");
     });
 });
 

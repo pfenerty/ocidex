@@ -337,6 +337,84 @@
         ],
         "type": "object"
       },
+      "ArtifactVulnEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "affectedPackageCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "affectedVersionCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "affectedVersions": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactVulnVersion"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "canonicalId": {
+            "type": "string"
+          },
+          "cvssScore": {
+            "format": "float",
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "canonicalId",
+          "severity",
+          "affectedPackageCount",
+          "affectedVersionCount",
+          "affectedVersions"
+        ],
+        "type": "object"
+      },
+      "ArtifactVulnVersion": {
+        "additionalProperties": false,
+        "properties": {
+          "affectedPackageCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "packageNames": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "sbomId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "sbomId",
+          "affectedPackageCount",
+          "packageNames"
+        ],
+        "type": "object"
+      },
       "CategoryCountEntry": {
         "additionalProperties": false,
         "properties": {
@@ -3040,6 +3118,37 @@
           "pagination",
           "hasSemver",
           "resolvedMode"
+        ],
+        "type": "object"
+      },
+      "ListArtifactVulnsOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListArtifactVulnsOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactVulnEntry"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        },
+        "required": [
+          "data",
+          "pagination"
         ],
         "type": "object"
       },
@@ -6934,6 +7043,136 @@
           }
         },
         "summary": "Get artifact vulnerability summary",
+        "tags": [
+          "Artifacts"
+        ]
+      }
+    },
+    "/api/v1/artifacts/{id}/vulns": {
+      "get": {
+        "description": "Findings keyed by canonical id over the newest SBOM per version, with the versions each affects. Wider than /vuln-summary, which counts the newest SBOM only. ?vuln= pre-filters to a single advisory.",
+        "operationId": "list-artifact-vulns",
+        "parameters": [
+          {
+            "description": "Artifact UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Artifact UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by severity",
+            "explode": false,
+            "in": "query",
+            "name": "severity",
+            "schema": {
+              "description": "Filter by severity",
+              "enum": [
+                "CRITICAL",
+                "HIGH",
+                "MEDIUM",
+                "LOW",
+                "UNKNOWN"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter to a single advisory, by canonical id or native OSV id",
+            "explode": false,
+            "in": "query",
+            "name": "vuln",
+            "schema": {
+              "description": "Filter to a single advisory, by canonical id or native OSV id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Column to sort by. Unset means worst first: severity, then CVSS.",
+            "explode": false,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Column to sort by. Unset means worst first: severity, then CVSS.",
+              "enum": [
+                "severity",
+                "cvss_score",
+                "affected_package_count",
+                "affected_version_count",
+                "canonical_id"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it.",
+            "explode": false,
+            "in": "query",
+            "name": "dir",
+            "schema": {
+              "description": "Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it.",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of results per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "description": "Maximum number of results per page",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of results to skip",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Number of results to skip",
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListArtifactVulnsOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List vulnerabilities across an artifact's versions",
         "tags": [
           "Artifacts"
         ]

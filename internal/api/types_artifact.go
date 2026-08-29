@@ -194,3 +194,26 @@ type GetArtifactContainsOutput struct {
 		Contains []service.ArtifactRelation `json:"contains"`
 	}
 }
+
+// ListArtifactVulnsInput is the request for GET /api/v1/artifacts/{id}/vulns.
+//
+// Offset pagination for the same reason as ListSBOMVulnsInput: numbered pages
+// (ADR-043 rule 3) over computed aggregates with no immutable cursor tuple.
+type ListArtifactVulnsInput struct {
+	ID       string `path:"id" doc:"Artifact UUID" format:"uuid"`
+	Severity string `query:"severity" enum:"CRITICAL,HIGH,MEDIUM,LOW,UNKNOWN" doc:"Filter by severity"`
+	// Vuln closes the reverse trail: /vulnerabilities/{id} links here for one
+	// advisory rather than dropping the reader into an unfiltered list.
+	Vuln string `query:"vuln" doc:"Filter to a single advisory, by canonical id or native OSV id"`
+	Sort string `query:"sort" enum:"severity,cvss_score,affected_package_count,affected_version_count,canonical_id" doc:"Column to sort by. Unset means worst first: severity, then CVSS."`
+	Dir  string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it."`
+	PaginationParams
+}
+
+// ListArtifactVulnsOutput is the response for GET /api/v1/artifacts/{id}/vulns.
+type ListArtifactVulnsOutput struct {
+	Body struct {
+		Data       []service.ArtifactVulnEntry `json:"data"`
+		Pagination PaginationMeta              `json:"pagination"`
+	}
+}

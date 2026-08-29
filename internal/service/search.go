@@ -44,6 +44,7 @@ type SearchService interface {
 	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (VulnerabilityDetailResult, error)
 	GetComponentVulns(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) ([]ComponentVulnEntry, error)
 	ListSBOMVulns(ctx context.Context, sbomID pgtype.UUID, params SBOMVulnParams, vis VisibilityFilter) (PagedResult[SBOMVulnEntry], error)
+	ListArtifactVulns(ctx context.Context, artifactID pgtype.UUID, params ArtifactVulnParams, vis VisibilityFilter) (PagedResult[ArtifactVulnEntry], error)
 	ListSBOMDriftHistory(ctx context.Context, sbomID pgtype.UUID, page DriftPage, vis VisibilityFilter) (CursorPage[ProvenanceDriftSummary], error)
 	ListRecentProvenanceDrift(ctx context.Context, page DriftPage, vis VisibilityFilter) (CursorPage[RecentDriftEntry], error)
 	ListOwnedActivity(ctx context.Context, ownerID pgtype.UUID, page FeedPage) (CursorPage[ActivityEntry], error)
@@ -225,6 +226,57 @@ var SBOMVulnSortKeys = map[string]bool{
 	sortBySeverity:           true,
 	sortByCVSS:               true,
 	"affected_package_count": true,
+	sortByCanonicalID:        true,
+}
+
+// ArtifactVulnEntry is one row of an artifact's vulnerability list. Same
+// canonical_id keying as SBOMVulnEntry, one level up: the scope is the newest
+// SBOM per version, so a row also carries how many of those versions it hits.
+type ArtifactVulnEntry struct {
+	ID                   string   `json:"id"`
+	CanonicalID          string   `json:"canonicalId"`
+	Severity             string   `json:"severity"`
+	CvssScore            *float32 `json:"cvssScore,omitempty"`
+	Summary              *string  `json:"summary,omitempty"`
+	AffectedPackageCount int64    `json:"affectedPackageCount"`
+	// AffectedVersionCount is how many of the artifact's versions carry this
+	// finding. It is the reverse trail's answer: /vulnerabilities/{id} sends a
+	// reader here asking "which versions of this artifact", and this is it.
+	AffectedVersionCount int64 `json:"affectedVersionCount"`
+	// AffectedVersions is attached inline for the page, so expanding a row
+	// costs no second request.
+	AffectedVersions []ArtifactVulnVersion `json:"affectedVersions"`
+}
+
+// ArtifactVulnVersion is one of an artifact's versions that a vulnerability
+// reaches, with the SBOM that carries it so the row can link onward.
+type ArtifactVulnVersion struct {
+	Version              string   `json:"version"`
+	SbomID               string   `json:"sbomId"`
+	AffectedPackageCount int64    `json:"affectedPackageCount"`
+	PackageNames         []string `json:"packageNames"`
+}
+
+// ArtifactVulnParams filters, sorts and pages ListArtifactVulns.
+type ArtifactVulnParams struct {
+	Severity string
+	// Vuln pre-filters to a single advisory, matched against either the
+	// canonical id or the native OSV id. This is what lets
+	// /vulnerabilities/{id} link to the one row it is talking about.
+	Vuln    string
+	SortBy  string // one of ArtifactVulnSortKeys; empty means the default
+	SortDir string
+	Limit   int32
+	Offset  int32
+}
+
+// ArtifactVulnSortKeys are the columns ListArtifactVulns will order by. As with
+// SBOMVulnSortKeys, anything else is dropped before it reaches the query.
+var ArtifactVulnSortKeys = map[string]bool{
+	sortBySeverity:           true,
+	sortByCVSS:               true,
+	"affected_package_count": true,
+	"affected_version_count": true,
 	sortByCanonicalID:        true,
 }
 

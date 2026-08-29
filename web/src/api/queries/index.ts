@@ -1,4 +1,5 @@
-export { useArtifacts, useArtifactsInfinite, useArtifact, useArtifactSBOMs, useArtifactVersions, useArtifactChangelog, useArtifactLicenseSummary, useArtifactUsages, useArtifactContains, useArtifactVulnSummary, useArtifactNames } from "./artifacts";
+export { useArtifacts, useArtifactsInfinite, useArtifact, useArtifactSBOMs, useArtifactVersions, useArtifactChangelog, useArtifactLicenseSummary, useArtifactUsages, useArtifactContains, useArtifactVulnSummary, useArtifactVulns, useArtifactNames } from "./artifacts";
+export type { ArtifactVulnQueryParams, ArtifactVulnSortKey } from "./artifacts";
 export { useSBOMs, useSBOM, useSBOMComponents, sbomComponents, useSBOMDependencies, useSBOMDriftHistory, useSBOMVulns } from "./sboms";
 export type { SBOMVulnQueryParams, SBOMVulnSortKey } from "./sboms";
 export { useDistinctComponents, useComponentPurlTypes, useComponentVersions, useComponent, useComponentVulns, useComponentsByPurl } from "./components";

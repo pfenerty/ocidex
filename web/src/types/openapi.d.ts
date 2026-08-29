@@ -301,6 +301,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/artifacts/{id}/vulns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List vulnerabilities across an artifact's versions
+         * @description Findings keyed by canonical id over the newest SBOM per version, with the versions each affects. Wider than /vuln-summary, which counts the newest SBOM only. ?vuln= pre-filters to a single advisory.
+         */
+        get: operations["list-artifact-vulns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/keys": {
         parameters: {
             query?: never;
@@ -1724,6 +1744,26 @@ export interface components {
             sufficient: boolean;
             versionKey: string;
         };
+        ArtifactVulnEntry: {
+            /** Format: int64 */
+            affectedPackageCount: number;
+            /** Format: int64 */
+            affectedVersionCount: number;
+            affectedVersions: components["schemas"]["ArtifactVulnVersion"][] | null;
+            canonicalId: string;
+            /** Format: float */
+            cvssScore?: number;
+            id: string;
+            severity: string;
+            summary?: string;
+        };
+        ArtifactVulnVersion: {
+            /** Format: int64 */
+            affectedPackageCount: number;
+            packageNames: string[] | null;
+            sbomId: string;
+            version: string;
+        };
         CategoryCountEntry: {
             category: string;
             /** Format: int64 */
@@ -2706,6 +2746,16 @@ export interface components {
              * @enum {string}
              */
             resolvedMode: "semver" | "all";
+        };
+        ListArtifactVulnsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListArtifactVulnsOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["ArtifactVulnEntry"][] | null;
+            pagination: components["schemas"]["PaginationMeta"];
         };
         ListArtifactsOutputBody: {
             /**
@@ -4366,6 +4416,51 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GetArtifactVulnSummaryOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-artifact-vulns": {
+        parameters: {
+            query?: {
+                /** @description Filter by severity */
+                severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "UNKNOWN";
+                /** @description Filter to a single advisory, by canonical id or native OSV id */
+                vuln?: string;
+                /** @description Column to sort by. Unset means worst first: severity, then CVSS. */
+                sort?: "severity" | "cvss_score" | "affected_package_count" | "affected_version_count" | "canonical_id";
+                /** @description Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it. */
+                dir?: "asc" | "desc";
+                /** @description Maximum number of results per page */
+                limit?: number;
+                /** @description Number of results to skip */
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Artifact UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListArtifactVulnsOutputBody"];
                 };
             };
             /** @description Error */
