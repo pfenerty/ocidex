@@ -31,12 +31,15 @@ type CreateNamespaceParams struct {
 }
 
 // UpdateNamespaceParams holds the parameters for updating a namespace.
-// OwnerID is preserved when the zero value is passed, so a caller that only
-// wants to rename or re-scope a namespace cannot accidentally orphan it.
+//
+// There is no OwnerID. Ownership was never transferable through this path — the
+// handler says so and only ever read the existing owner back and wrote it
+// straight out again — and with ownership in namespace_member (ocidex-y0hg.4)
+// there is nothing to carry forward. Transferring ownership is member
+// management.
 type UpdateNamespaceParams struct {
 	ID         string
 	Name       string
-	OwnerID    pgtype.UUID
 	Visibility string
 }
 
@@ -65,9 +68,9 @@ func (s *namespaceService) Create(ctx context.Context, params CreateNamespacePar
 		visibility = "private"
 	}
 	ns, err := s.repo.CreateNamespace(ctx, repository.CreateNamespaceParams{
-		Name:       params.Name,
-		OwnerID:    params.OwnerID,
-		Visibility: visibility,
+		Name:        params.Name,
+		OwnerUserID: params.OwnerID,
+		Visibility:  visibility,
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -75,7 +78,13 @@ func (s *namespaceService) Create(ctx context.Context, params CreateNamespacePar
 		}
 		return Namespace{}, fmt.Errorf("creating namespace: %w", err)
 	}
-	return namespaceFromRepo(ns), nil
+	return namespaceFromRepo(repository.Namespace{
+		ID:         ns.ID,
+		Name:       ns.Name,
+		Visibility: ns.Visibility,
+		CreatedAt:  ns.CreatedAt,
+		UpdatedAt:  ns.UpdatedAt,
+	}, ns.OwnerID), nil
 }
 
 func (s *namespaceService) Get(ctx context.Context, id string) (Namespace, error) {
@@ -87,7 +96,7 @@ func (s *namespaceService) Get(ctx context.Context, id string) (Namespace, error
 	if err != nil {
 		return Namespace{}, ErrNotFound
 	}
-	return namespaceFromRepo(ns), nil
+	return namespaceFromRepo(ns.Namespace, ns.OwnerID), nil
 }
 
 func (s *namespaceService) GetByName(ctx context.Context, name string) (Namespace, error) {
@@ -95,7 +104,7 @@ func (s *namespaceService) GetByName(ctx context.Context, name string) (Namespac
 	if err != nil {
 		return Namespace{}, ErrNotFound
 	}
-	return namespaceFromRepo(ns), nil
+	return namespaceFromRepo(ns.Namespace, ns.OwnerID), nil
 }
 
 func (s *namespaceService) List(ctx context.Context, filter VisibilityFilter) ([]Namespace, error) {
@@ -109,7 +118,7 @@ func (s *namespaceService) List(ctx context.Context, filter VisibilityFilter) ([
 	}
 	out := make([]Namespace, len(rows))
 	for i, ns := range rows {
-		out[i] = namespaceFromRepo(ns)
+		out[i] = namespaceFromRepo(ns.Namespace, ns.OwnerID)
 	}
 	return out, nil
 }
@@ -123,22 +132,17 @@ func (s *namespaceService) Update(ctx context.Context, params UpdateNamespacePar
 	if err != nil {
 		return Namespace{}, ErrNotFound
 	}
-	ownerID := params.OwnerID
-	if !ownerID.Valid {
-		ownerID = existing.OwnerID
-	}
 	visibility := params.Visibility
 	if visibility == "" {
-		visibility = existing.Visibility
+		visibility = existing.Namespace.Visibility
 	}
 	name := params.Name
 	if name == "" {
-		name = existing.Name
+		name = existing.Namespace.Name
 	}
 	ns, err := s.repo.UpdateNamespace(ctx, repository.UpdateNamespaceParams{
 		ID:         uid,
 		Name:       name,
-		OwnerID:    ownerID,
 		Visibility: visibility,
 	})
 	if err != nil {
@@ -147,7 +151,13 @@ func (s *namespaceService) Update(ctx context.Context, params UpdateNamespacePar
 		}
 		return Namespace{}, fmt.Errorf("updating namespace: %w", err)
 	}
-	return namespaceFromRepo(ns), nil
+	return namespaceFromRepo(repository.Namespace{
+		ID:         ns.ID,
+		Name:       ns.Name,
+		Visibility: ns.Visibility,
+		CreatedAt:  ns.CreatedAt,
+		UpdatedAt:  ns.UpdatedAt,
+	}, ns.OwnerID), nil
 }
 
 // Delete removes a namespace. Sources, SBOMs and rollup rows beneath it cascade
@@ -168,11 +178,15 @@ func (s *namespaceService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func namespaceFromRepo(ns repository.Namespace) Namespace {
+// namespaceFromRepo renders a namespace row plus its owner. The owner arrives
+// separately because it is no longer a column: every namespace-returning query
+// projects it with namespace_owner(), and sqlc gives each of them its own row
+// type. Passing it in keeps one renderer rather than one per query shape.
+func namespaceFromRepo(ns repository.Namespace, ownerID pgtype.UUID) Namespace {
 	out := Namespace{
 		ID:         uuidToStr(ns.ID),
 		Name:       ns.Name,
-		OwnerID:    uuidToPtr(ns.OwnerID),
+		OwnerID:    uuidToPtr(ownerID),
 		Visibility: ns.Visibility,
 	}
 	if ns.CreatedAt.Valid {

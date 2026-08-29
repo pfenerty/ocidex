@@ -186,9 +186,8 @@ type LicenseRollup struct {
 
 // Tenancy boundary. The only table carrying ownership and visibility (ADR-039). A namespace may hold several sources.
 type Namespace struct {
-	ID      pgtype.UUID `json:"id"`
-	Name    string      `json:"name"`
-	OwnerID pgtype.UUID `json:"owner_id"`
+	ID   pgtype.UUID `json:"id"`
+	Name string      `json:"name"`
 	// Defaults to private. Namespaces migrated from registries keep the registry's existing value, so this default only applies to namespaces created after the migration.
 	Visibility string             `json:"visibility"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`

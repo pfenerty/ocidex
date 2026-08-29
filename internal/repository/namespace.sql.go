@@ -26,10 +26,10 @@ type AddNamespaceMemberParams struct {
 	Role        string      `json:"role"`
 }
 
-// Membership (ocidex-y0hg.1). Nothing reads these yet: the visibility functions
-// still consult namespace.owner_id until ocidex-y0hg.3, and member management
-// lands in ocidex-y0hg.7. They are generated now so the schema change and the
-// repository surface it implies land in one migration-shaped commit.
+// Membership (ocidex-y0hg.1). Direct reads and writes of the membership table.
+// The read *paths* deliberately do not use these: visibility goes through the
+// functions 00066 rewrote, which is what keeps one rule in one place. Member
+// management (ocidex-y0hg.7) is what consumes them.
 // Idempotent on (namespace_id, user_id): re-adding an existing member changes
 // their role rather than failing, which is what the member-management PUT wants.
 // Promoting someone to 'owner' while another owner exists violates
@@ -48,15 +48,15 @@ func (q *Queries) AddNamespaceMember(ctx context.Context, arg AddNamespaceMember
 
 const countOwnedPrivateNamespaces = `-- name: CountOwnedPrivateNamespaces :one
 SELECT COUNT(*) FROM namespace
-WHERE owner_id = $1 AND visibility <> 'public'
+WHERE id IN (SELECT owned_namespace_ids($1)) AND visibility <> 'public'
 `
 
 // A viewer who owns no private namespace sees exactly the public set, i.e. the
 // same data as an anonymous viewer. The dashboard-stats cache uses this to
 // collapse such viewers onto the shared anonymous scope instead of minting a
 // per-user scope that the background warmer can never enumerate.
-func (q *Queries) CountOwnedPrivateNamespaces(ctx context.Context, ownerID pgtype.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countOwnedPrivateNamespaces, ownerID)
+func (q *Queries) CountOwnedPrivateNamespaces(ctx context.Context, viewerID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countOwnedPrivateNamespaces, viewerID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -64,30 +64,56 @@ func (q *Queries) CountOwnedPrivateNamespaces(ctx context.Context, ownerID pgtyp
 
 const createNamespace = `-- name: CreateNamespace :one
 
-INSERT INTO namespace (name, owner_id, visibility)
-VALUES ($1, $2, $3)
-RETURNING id, name, owner_id, visibility, created_at, updated_at
+WITH ns AS (
+    INSERT INTO namespace (name, visibility)
+    VALUES ($1, $2)
+    RETURNING id, name, visibility, created_at, updated_at
+), owner_row AS (
+    INSERT INTO namespace_member (namespace_id, user_id, role)
+    SELECT ns.id, $3::uuid, 'owner'
+    FROM ns
+    WHERE $3::uuid IS NOT NULL
+    RETURNING user_id
+)
+SELECT ns.id, ns.name, ns.visibility, ns.created_at, ns.updated_at, (SELECT user_id FROM owner_row) AS owner_id FROM ns
 `
 
 type CreateNamespaceParams struct {
-	Name       string      `json:"name"`
-	OwnerID    pgtype.UUID `json:"owner_id"`
-	Visibility string      `json:"visibility"`
+	Name        string      `json:"name"`
+	Visibility  string      `json:"visibility"`
+	OwnerUserID pgtype.UUID `json:"owner_user_id"`
+}
+
+type CreateNamespaceRow struct {
+	ID         pgtype.UUID        `json:"id"`
+	Name       string             `json:"name"`
+	Visibility string             `json:"visibility"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	OwnerID    pgtype.UUID        `json:"owner_id"`
 }
 
 // Namespace is the authorization anchor (ADR-039): ownership and visibility live
 // here and nowhere else. Everything about *how* an SBOM arrived belongs on
 // source; everything that needs an OCI manifest belongs on registry.
-func (q *Queries) CreateNamespace(ctx context.Context, arg CreateNamespaceParams) (Namespace, error) {
-	row := q.db.QueryRow(ctx, createNamespace, arg.Name, arg.OwnerID, arg.Visibility)
-	var i Namespace
+// Creating a namespace creates its owner member in the same statement
+// (ocidex-y0hg.4). Two statements would leave a window in which a namespace
+// exists with nobody in it, and a caller that crashed inside that window would
+// leave an orphan nobody can administer.
+//
+// A NULL owner_user_id creates an ownerless namespace, which is what the
+// registry-import path does when it has no user to attribute. The member INSERT
+// then selects no rows rather than failing, and the projected owner is NULL.
+func (q *Queries) CreateNamespace(ctx context.Context, arg CreateNamespaceParams) (CreateNamespaceRow, error) {
+	row := q.db.QueryRow(ctx, createNamespace, arg.Name, arg.Visibility, arg.OwnerUserID)
+	var i CreateNamespaceRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.OwnerID,
 		&i.Visibility,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OwnerID,
 	)
 	return i, err
 }
@@ -105,37 +131,47 @@ func (q *Queries) DeleteNamespace(ctx context.Context, id pgtype.UUID) (int64, e
 }
 
 const getNamespace = `-- name: GetNamespace :one
-SELECT id, name, owner_id, visibility, created_at, updated_at FROM namespace WHERE id = $1
+SELECT n.id, n.name, n.visibility, n.created_at, n.updated_at, namespace_owner(n.id) AS owner_id FROM namespace n WHERE n.id = $1
 `
 
-func (q *Queries) GetNamespace(ctx context.Context, id pgtype.UUID) (Namespace, error) {
+type GetNamespaceRow struct {
+	Namespace Namespace   `json:"namespace"`
+	OwnerID   pgtype.UUID `json:"owner_id"`
+}
+
+func (q *Queries) GetNamespace(ctx context.Context, id pgtype.UUID) (GetNamespaceRow, error) {
 	row := q.db.QueryRow(ctx, getNamespace, id)
-	var i Namespace
+	var i GetNamespaceRow
 	err := row.Scan(
-		&i.ID,
-		&i.Name,
+		&i.Namespace.ID,
+		&i.Namespace.Name,
+		&i.Namespace.Visibility,
+		&i.Namespace.CreatedAt,
+		&i.Namespace.UpdatedAt,
 		&i.OwnerID,
-		&i.Visibility,
-		&i.CreatedAt,
-		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const getNamespaceByName = `-- name: GetNamespaceByName :one
-SELECT id, name, owner_id, visibility, created_at, updated_at FROM namespace WHERE name = $1
+SELECT n.id, n.name, n.visibility, n.created_at, n.updated_at, namespace_owner(n.id) AS owner_id FROM namespace n WHERE n.name = $1
 `
 
-func (q *Queries) GetNamespaceByName(ctx context.Context, name string) (Namespace, error) {
+type GetNamespaceByNameRow struct {
+	Namespace Namespace   `json:"namespace"`
+	OwnerID   pgtype.UUID `json:"owner_id"`
+}
+
+func (q *Queries) GetNamespaceByName(ctx context.Context, name string) (GetNamespaceByNameRow, error) {
 	row := q.db.QueryRow(ctx, getNamespaceByName, name)
-	var i Namespace
+	var i GetNamespaceByNameRow
 	err := row.Scan(
-		&i.ID,
-		&i.Name,
+		&i.Namespace.ID,
+		&i.Namespace.Name,
+		&i.Namespace.Visibility,
+		&i.Namespace.CreatedAt,
+		&i.Namespace.UpdatedAt,
 		&i.OwnerID,
-		&i.Visibility,
-		&i.CreatedAt,
-		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -202,7 +238,7 @@ ORDER BY created_at ASC
 `
 
 // One user's memberships across every namespace. Backs the me-scoped feeds that
-// ListNamespaces currently answers from owner_id.
+// ListNamespaces answers through owned_namespace_ids.
 func (q *Queries) ListNamespaceMembershipsForUser(ctx context.Context, userID pgtype.UUID) ([]NamespaceMember, error) {
 	rows, err := q.db.Query(ctx, listNamespaceMembershipsForUser, userID)
 	if err != nil {
@@ -229,22 +265,26 @@ func (q *Queries) ListNamespaceMembershipsForUser(ctx context.Context, userID pg
 }
 
 const listNamespaces = `-- name: ListNamespaces :many
-SELECT id, name, owner_id, visibility, created_at, updated_at FROM namespace
+SELECT n.id, n.name, n.visibility, n.created_at, n.updated_at, namespace_owner(n.id) AS owner_id FROM namespace n
 WHERE (
     CASE WHEN COALESCE($1::boolean, false)
-         THEN owner_id = $2::uuid
-         ELSE $3::boolean = true
-              OR visibility = 'public'
-              OR ($2::uuid IS NOT NULL AND owner_id = $2::uuid)
+         THEN n.id IN (SELECT owned_namespace_ids($2::uuid))
+         ELSE n.id IN (SELECT visible_namespace_ids(
+                       $2::uuid, $3::boolean))
     END
 )
-ORDER BY created_at ASC
+ORDER BY n.created_at ASC
 `
 
 type ListNamespacesParams struct {
 	OwnedOnly pgtype.Bool `json:"owned_only"`
 	UserID    pgtype.UUID `json:"user_id"`
 	IsAdmin   pgtype.Bool `json:"is_admin"`
+}
+
+type ListNamespacesRow struct {
+	Namespace Namespace   `json:"namespace"`
+	OwnerID   pgtype.UUID `json:"owner_id"`
 }
 
 // Two selection paths, one query (ocidex-998g.2).
@@ -256,24 +296,31 @@ type ListNamespacesParams struct {
 // admin. Keeping both in one query is what stops the me-scoped feeds from
 // drifting away from the ones they mirror.
 //
-// `owner_id = NULL` evaluates to NULL rather than true, so an unauthenticated
-// caller on the ownership path matches nothing.
-func (q *Queries) ListNamespaces(ctx context.Context, arg ListNamespacesParams) ([]Namespace, error) {
+// Both paths are function calls now rather than inline predicates
+// (ocidex-y0hg.4). "Mine" means any membership, not the owner role: a security
+// engineer's workspace should list the namespaces they are in.
+//
+// An unauthenticated caller on the ownership path still matches nothing, but for
+// a different reason than before, and it is worth saying rather than leaving to
+// be re-derived. It used to be that `owner = NULL` evaluates to NULL and never
+// to true; now owned_namespace_ids(NULL) returns the empty set and `id IN
+// (empty set)` is false. Same answer, different mechanism.
+func (q *Queries) ListNamespaces(ctx context.Context, arg ListNamespacesParams) ([]ListNamespacesRow, error) {
 	rows, err := q.db.Query(ctx, listNamespaces, arg.OwnedOnly, arg.UserID, arg.IsAdmin)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Namespace{}
+	items := []ListNamespacesRow{}
 	for rows.Next() {
-		var i Namespace
+		var i ListNamespacesRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
+			&i.Namespace.ID,
+			&i.Namespace.Name,
+			&i.Namespace.Visibility,
+			&i.Namespace.CreatedAt,
+			&i.Namespace.UpdatedAt,
 			&i.OwnerID,
-			&i.Visibility,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -306,35 +353,41 @@ func (q *Queries) RemoveNamespaceMember(ctx context.Context, arg RemoveNamespace
 const updateNamespace = `-- name: UpdateNamespace :one
 UPDATE namespace
 SET name       = $2,
-    owner_id   = $3,
-    visibility = $4,
+    visibility = $3,
     updated_at = now()
 WHERE id = $1
-RETURNING id, name, owner_id, visibility, created_at, updated_at
+RETURNING id, name, visibility, created_at, updated_at, namespace_owner(id) AS owner_id
 `
 
 type UpdateNamespaceParams struct {
 	ID         pgtype.UUID `json:"id"`
 	Name       string      `json:"name"`
-	OwnerID    pgtype.UUID `json:"owner_id"`
 	Visibility string      `json:"visibility"`
 }
 
-func (q *Queries) UpdateNamespace(ctx context.Context, arg UpdateNamespaceParams) (Namespace, error) {
-	row := q.db.QueryRow(ctx, updateNamespace,
-		arg.ID,
-		arg.Name,
-		arg.OwnerID,
-		arg.Visibility,
-	)
-	var i Namespace
+type UpdateNamespaceRow struct {
+	ID         pgtype.UUID        `json:"id"`
+	Name       string             `json:"name"`
+	Visibility string             `json:"visibility"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	OwnerID    pgtype.UUID        `json:"owner_id"`
+}
+
+// Ownership is not transferable here and never was: the handler says so and only
+// ever carried the existing owner forward. With ownership in namespace_member
+// there is nothing to carry, so the parameter is gone rather than reinstated as
+// a no-op. Transferring ownership is member management (ocidex-y0hg.7).
+func (q *Queries) UpdateNamespace(ctx context.Context, arg UpdateNamespaceParams) (UpdateNamespaceRow, error) {
+	row := q.db.QueryRow(ctx, updateNamespace, arg.ID, arg.Name, arg.Visibility)
+	var i UpdateNamespaceRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.OwnerID,
 		&i.Visibility,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OwnerID,
 	)
 	return i, err
 }

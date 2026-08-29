@@ -98,15 +98,13 @@ func (q *Queries) GetSourceByName(ctx context.Context, arg GetSourceByNameParams
 }
 
 const listSources = `-- name: ListSources :many
-SELECT s.id, s.namespace_id, s.kind, s.name, s.created_at, s.updated_at, n.name AS namespace_name, n.owner_id, n.visibility
+SELECT s.id, s.namespace_id, s.kind, s.name, s.created_at, s.updated_at, n.name AS namespace_name, namespace_owner(n.id) AS owner_id, n.visibility
 FROM source s
 JOIN namespace n ON n.id = s.namespace_id
 WHERE (
     CASE WHEN COALESCE($1::boolean, false)
-         THEN n.owner_id = $2::uuid
-         ELSE $3::boolean = true
-              OR n.visibility = 'public'
-              OR ($2::uuid IS NOT NULL AND n.owner_id = $2::uuid)
+         THEN n.id IN (SELECT owned_namespace_ids($2::uuid))
+         ELSE n.id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
     END
 )
 ORDER BY s.created_at ASC

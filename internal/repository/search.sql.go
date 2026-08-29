@@ -797,7 +797,7 @@ FROM sbom s
 JOIN namespace n ON n.id = s.namespace_id
 LEFT JOIN source src ON src.id = s.source_id
 LEFT JOIN artifact a ON a.id = s.artifact_id
-WHERE n.owner_id = $1::uuid
+WHERE n.id IN (SELECT owned_namespace_ids($1::uuid))
   AND (
     NOT $2::boolean
     OR (s.created_at, s.id) < ($3::timestamptz, $4::uuid)
@@ -807,7 +807,7 @@ LIMIT $5
 `
 
 type ListOwnedActivityParams struct {
-	OwnerID         pgtype.UUID        `json:"owner_id"`
+	ViewerID        pgtype.UUID        `json:"viewer_id"`
 	HasCursor       pgtype.Bool        `json:"has_cursor"`
 	CursorCreatedAt pgtype.Timestamptz `json:"cursor_created_at"`
 	CursorID        pgtype.UUID        `json:"cursor_id"`
@@ -835,14 +835,14 @@ type ListOwnedActivityRow struct {
 // This is the ownership path, not the visibility path — an SBOM ingested into
 // somebody else's public namespace is not the caller's activity. Unlike the
 // other me-scoped collections there is no visibility-path twin to share, so no
-// owned_only switch: owner_id is the only rule this query has.
+// owned_only switch: membership is the only rule this query has.
 //
 // Rows are appended at the head of an immutable ordering, so pagination is
 // keyset on (created_at DESC, id DESC) per ADR-043 rule 2. The caller fetches
 // row_limit+1 to detect whether a further page exists.
 func (q *Queries) ListOwnedActivity(ctx context.Context, arg ListOwnedActivityParams) ([]ListOwnedActivityRow, error) {
 	rows, err := q.db.Query(ctx, listOwnedActivity,
-		arg.OwnerID,
+		arg.ViewerID,
 		arg.HasCursor,
 		arg.CursorCreatedAt,
 		arg.CursorID,

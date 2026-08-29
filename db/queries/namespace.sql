@@ -3,15 +3,32 @@
 -- source; everything that needs an OCI manifest belongs on registry.
 
 -- name: CreateNamespace :one
-INSERT INTO namespace (name, owner_id, visibility)
-VALUES ($1, $2, $3)
-RETURNING *;
+-- Creating a namespace creates its owner member in the same statement
+-- (ocidex-y0hg.4). Two statements would leave a window in which a namespace
+-- exists with nobody in it, and a caller that crashed inside that window would
+-- leave an orphan nobody can administer.
+--
+-- A NULL owner_user_id creates an ownerless namespace, which is what the
+-- registry-import path does when it has no user to attribute. The member INSERT
+-- then selects no rows rather than failing, and the projected owner is NULL.
+WITH ns AS (
+    INSERT INTO namespace (name, visibility)
+    VALUES (@name, @visibility)
+    RETURNING *
+), owner_row AS (
+    INSERT INTO namespace_member (namespace_id, user_id, role)
+    SELECT ns.id, sqlc.narg('owner_user_id')::uuid, 'owner'
+    FROM ns
+    WHERE sqlc.narg('owner_user_id')::uuid IS NOT NULL
+    RETURNING user_id
+)
+SELECT ns.*, (SELECT user_id FROM owner_row) AS owner_id FROM ns;
 
 -- name: GetNamespace :one
-SELECT * FROM namespace WHERE id = $1;
+SELECT sqlc.embed(n), namespace_owner(n.id) AS owner_id FROM namespace n WHERE n.id = $1;
 
 -- name: GetNamespaceByName :one
-SELECT * FROM namespace WHERE name = $1;
+SELECT sqlc.embed(n), namespace_owner(n.id) AS owner_id FROM namespace n WHERE n.name = $1;
 
 -- name: ListNamespaces :many
 -- Two selection paths, one query (ocidex-998g.2).
@@ -23,27 +40,36 @@ SELECT * FROM namespace WHERE name = $1;
 -- admin. Keeping both in one query is what stops the me-scoped feeds from
 -- drifting away from the ones they mirror.
 --
--- `owner_id = NULL` evaluates to NULL rather than true, so an unauthenticated
--- caller on the ownership path matches nothing.
-SELECT * FROM namespace
+-- Both paths are function calls now rather than inline predicates
+-- (ocidex-y0hg.4). "Mine" means any membership, not the owner role: a security
+-- engineer's workspace should list the namespaces they are in.
+--
+-- An unauthenticated caller on the ownership path still matches nothing, but for
+-- a different reason than before, and it is worth saying rather than leaving to
+-- be re-derived. It used to be that `owner = NULL` evaluates to NULL and never
+-- to true; now owned_namespace_ids(NULL) returns the empty set and `id IN
+-- (empty set)` is false. Same answer, different mechanism.
+SELECT sqlc.embed(n), namespace_owner(n.id) AS owner_id FROM namespace n
 WHERE (
     CASE WHEN COALESCE(sqlc.narg('owned_only')::boolean, false)
-         THEN owner_id = sqlc.narg('user_id')::uuid
-         ELSE sqlc.narg('is_admin')::boolean = true
-              OR visibility = 'public'
-              OR (sqlc.narg('user_id')::uuid IS NOT NULL AND owner_id = sqlc.narg('user_id')::uuid)
+         THEN n.id IN (SELECT owned_namespace_ids(sqlc.narg('user_id')::uuid))
+         ELSE n.id IN (SELECT visible_namespace_ids(
+                       sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
     END
 )
-ORDER BY created_at ASC;
+ORDER BY n.created_at ASC;
 
 -- name: UpdateNamespace :one
+-- Ownership is not transferable here and never was: the handler says so and only
+-- ever carried the existing owner forward. With ownership in namespace_member
+-- there is nothing to carry, so the parameter is gone rather than reinstated as
+-- a no-op. Transferring ownership is member management (ocidex-y0hg.7).
 UPDATE namespace
 SET name       = $2,
-    owner_id   = $3,
-    visibility = $4,
+    visibility = $3,
     updated_at = now()
 WHERE id = $1
-RETURNING *;
+RETURNING *, namespace_owner(id) AS owner_id;
 
 -- name: DeleteNamespace :execrows
 DELETE FROM namespace WHERE id = $1;
@@ -54,12 +80,12 @@ DELETE FROM namespace WHERE id = $1;
 -- collapse such viewers onto the shared anonymous scope instead of minting a
 -- per-user scope that the background warmer can never enumerate.
 SELECT COUNT(*) FROM namespace
-WHERE owner_id = @owner_id AND visibility <> 'public';
+WHERE id IN (SELECT owned_namespace_ids(@viewer_id)) AND visibility <> 'public';
 
--- Membership (ocidex-y0hg.1). Nothing reads these yet: the visibility functions
--- still consult namespace.owner_id until ocidex-y0hg.3, and member management
--- lands in ocidex-y0hg.7. They are generated now so the schema change and the
--- repository surface it implies land in one migration-shaped commit.
+-- Membership (ocidex-y0hg.1). Direct reads and writes of the membership table.
+-- The read *paths* deliberately do not use these: visibility goes through the
+-- functions 00066 rewrote, which is what keeps one rule in one place. Member
+-- management (ocidex-y0hg.7) is what consumes them.
 
 -- name: AddNamespaceMember :one
 -- Idempotent on (namespace_id, user_id): re-adding an existing member changes
@@ -85,7 +111,7 @@ ORDER BY (role = 'owner') DESC, created_at ASC;
 
 -- name: ListNamespaceMembershipsForUser :many
 -- One user's memberships across every namespace. Backs the me-scoped feeds that
--- ListNamespaces currently answers from owner_id.
+-- ListNamespaces answers through owned_namespace_ids.
 SELECT * FROM namespace_member
 WHERE user_id = $1
 ORDER BY created_at ASC;

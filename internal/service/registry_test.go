@@ -30,22 +30,26 @@ type fakeRegistryRepo struct {
 	markPolledFn   func(ctx context.Context, id pgtype.UUID) (repository.Registry, error)
 	trustSummaryFn func(ctx context.Context, arg repository.ListRegistryTrustSummaryParams) ([]repository.ListRegistryTrustSummaryRow, error)
 
-	getNamespaceByNameFn func(ctx context.Context, name string) (repository.Namespace, error)
-	createNamespaceFn    func(ctx context.Context, arg repository.CreateNamespaceParams) (repository.Namespace, error)
+	getNamespaceByNameFn func(ctx context.Context, name string) (repository.GetNamespaceByNameRow, error)
+	createNamespaceFn    func(ctx context.Context, arg repository.CreateNamespaceParams) (repository.CreateNamespaceRow, error)
 }
 
-func (f *fakeRegistryRepo) GetNamespaceByName(ctx context.Context, name string) (repository.Namespace, error) {
+func (f *fakeRegistryRepo) GetNamespaceByName(ctx context.Context, name string) (repository.GetNamespaceByNameRow, error) {
 	if f.getNamespaceByNameFn != nil {
 		return f.getNamespaceByNameFn(ctx, name)
 	}
-	return repository.Namespace{}, pgx.ErrNoRows
+	return repository.GetNamespaceByNameRow{}, pgx.ErrNoRows
 }
 
-func (f *fakeRegistryRepo) CreateNamespace(ctx context.Context, arg repository.CreateNamespaceParams) (repository.Namespace, error) {
+func (f *fakeRegistryRepo) CreateNamespace(ctx context.Context, arg repository.CreateNamespaceParams) (repository.CreateNamespaceRow, error) {
 	if f.createNamespaceFn != nil {
 		return f.createNamespaceFn(ctx, arg)
 	}
-	return repository.Namespace{Name: arg.Name, OwnerID: arg.OwnerID, Visibility: arg.Visibility}, nil
+	return repository.CreateNamespaceRow{
+		Name:       arg.Name,
+		OwnerID:    arg.OwnerUserID,
+		Visibility: arg.Visibility,
+	}, nil
 }
 
 func (f *fakeRegistryRepo) CreateRegistry(ctx context.Context, arg repository.CreateRegistryParams) (repository.Registry, error) {
@@ -190,9 +194,9 @@ func TestRegistryCreate_NoNamespaceLeavesNamespaceIDNull(t *testing.T) {
 			captured = arg.NamespaceID
 			return repository.Registry{}, nil
 		},
-		getNamespaceByNameFn: func(_ context.Context, _ string) (repository.Namespace, error) {
+		getNamespaceByNameFn: func(_ context.Context, _ string) (repository.GetNamespaceByNameRow, error) {
 			t.Fatal("namespace should not be looked up when none was requested")
-			return repository.Namespace{}, nil
+			return repository.GetNamespaceByNameRow{}, nil
 		},
 	})
 
@@ -213,13 +217,13 @@ func TestRegistryCreate_ReusesExistingNamespace(t *testing.T) {
 			captured = arg.NamespaceID
 			return repository.Registry{}, nil
 		},
-		getNamespaceByNameFn: func(_ context.Context, name string) (repository.Namespace, error) {
+		getNamespaceByNameFn: func(_ context.Context, name string) (repository.GetNamespaceByNameRow, error) {
 			is.Equal(name, "team-a")
-			return repository.Namespace{ID: existing}, nil
+			return repository.GetNamespaceByNameRow{Namespace: repository.Namespace{ID: existing}}, nil
 		},
-		createNamespaceFn: func(_ context.Context, _ repository.CreateNamespaceParams) (repository.Namespace, error) {
+		createNamespaceFn: func(_ context.Context, _ repository.CreateNamespaceParams) (repository.CreateNamespaceRow, error) {
 			t.Fatal("existing namespace should not be re-created")
-			return repository.Namespace{}, nil
+			return repository.CreateNamespaceRow{}, nil
 		},
 	})
 
@@ -244,9 +248,9 @@ func TestRegistryCreate_CreatesNamespaceOnFirstUse(t *testing.T) {
 			captured = arg.NamespaceID
 			return repository.Registry{}, nil
 		},
-		createNamespaceFn: func(_ context.Context, arg repository.CreateNamespaceParams) (repository.Namespace, error) {
+		createNamespaceFn: func(_ context.Context, arg repository.CreateNamespaceParams) (repository.CreateNamespaceRow, error) {
 			capturedName, capturedVis = arg.Name, arg.Visibility
-			return repository.Namespace{ID: minted}, nil
+			return repository.CreateNamespaceRow{ID: minted}, nil
 		},
 	})
 
@@ -273,15 +277,15 @@ func TestRegistryCreate_NamespaceRaceReReads(t *testing.T) {
 			captured = arg.NamespaceID
 			return repository.Registry{}, nil
 		},
-		getNamespaceByNameFn: func(_ context.Context, _ string) (repository.Namespace, error) {
+		getNamespaceByNameFn: func(_ context.Context, _ string) (repository.GetNamespaceByNameRow, error) {
 			lookups++
 			if lookups == 1 {
-				return repository.Namespace{}, pgx.ErrNoRows
+				return repository.GetNamespaceByNameRow{}, pgx.ErrNoRows
 			}
-			return repository.Namespace{ID: winner}, nil
+			return repository.GetNamespaceByNameRow{Namespace: repository.Namespace{ID: winner}}, nil
 		},
-		createNamespaceFn: func(_ context.Context, _ repository.CreateNamespaceParams) (repository.Namespace, error) {
-			return repository.Namespace{}, &pgconn.PgError{Code: "23505"}
+		createNamespaceFn: func(_ context.Context, _ repository.CreateNamespaceParams) (repository.CreateNamespaceRow, error) {
+			return repository.CreateNamespaceRow{}, &pgconn.PgError{Code: "23505"}
 		},
 	})
 

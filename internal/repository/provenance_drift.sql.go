@@ -174,7 +174,7 @@ WHERE (
   AND (
     CASE WHEN COALESCE($4::boolean, false)
          THEN s.namespace_id IN (
-              SELECT id FROM namespace WHERE owner_id = $5::uuid)
+              SELECT owned_namespace_ids($5::uuid))
          ELSE s.namespace_id IN (
               SELECT visible_namespace_ids($5::uuid, $6::boolean))
     END

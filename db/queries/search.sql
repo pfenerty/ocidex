@@ -60,7 +60,7 @@ LIMIT @row_limit;
 -- This is the ownership path, not the visibility path — an SBOM ingested into
 -- somebody else's public namespace is not the caller's activity. Unlike the
 -- other me-scoped collections there is no visibility-path twin to share, so no
--- owned_only switch: owner_id is the only rule this query has.
+-- owned_only switch: membership is the only rule this query has.
 --
 -- Rows are appended at the head of an immutable ordering, so pagination is
 -- keyset on (created_at DESC, id DESC) per ADR-043 rule 2. The caller fetches
@@ -78,7 +78,7 @@ FROM sbom s
 JOIN namespace n ON n.id = s.namespace_id
 LEFT JOIN source src ON src.id = s.source_id
 LEFT JOIN artifact a ON a.id = s.artifact_id
-WHERE n.owner_id = sqlc.arg('owner_id')::uuid
+WHERE n.id IN (SELECT owned_namespace_ids(sqlc.arg('viewer_id')::uuid))
   AND (
     NOT sqlc.narg('has_cursor')::boolean
     OR (s.created_at, s.id) < (sqlc.narg('cursor_created_at')::timestamptz, sqlc.narg('cursor_id')::uuid)

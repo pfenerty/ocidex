@@ -56,9 +56,8 @@ WITH visible_sbom AS (
     SELECT s.id
     FROM sbom s
     JOIN namespace n ON n.id = s.namespace_id
-    WHERE n.visibility = 'public'
-       OR n.owner_id = $1::uuid
-       OR COALESCE($2::boolean, false)
+    WHERE n.id IN (SELECT visible_namespace_ids(
+             $1::uuid, $2::boolean))
 )
 SELECT
     license_category(l.spdx_id) AS category,
@@ -106,9 +105,8 @@ WITH visible_sbom AS (
     SELECT s.id, s.created_at
     FROM sbom s
     JOIN namespace n ON n.id = s.namespace_id
-    WHERE n.visibility = 'public'
-       OR n.owner_id = $1::uuid
-       OR COALESCE($2::boolean, false)
+    WHERE n.id IN (SELECT visible_namespace_ids(
+             $1::uuid, $2::boolean))
 ),
 pkg_first_seen AS (
     SELECT DATE(MIN(vs.created_at)) AS first_seen
@@ -165,9 +163,8 @@ WITH visible_sbom AS (
     SELECT s.id, s.created_at
     FROM sbom s
     JOIN namespace n ON n.id = s.namespace_id
-    WHERE n.visibility = 'public'
-       OR n.owner_id = $2::uuid
-       OR COALESCE($3::boolean, false)
+    WHERE n.id IN (SELECT visible_namespace_ids(
+             $2::uuid, $3::boolean))
 )
 SELECT
     DATE(created_at)::text AS day,
@@ -215,9 +212,8 @@ WITH visible_sbom AS (
     SELECT s.id
     FROM sbom s
     JOIN namespace n ON n.id = s.namespace_id
-    WHERE n.visibility = 'public'
-       OR n.owner_id = $1::uuid
-       OR COALESCE($2::boolean, false)
+    WHERE n.id IN (SELECT visible_namespace_ids(
+             $1::uuid, $2::boolean))
 )
 SELECT
     (SELECT COUNT(*)::bigint FROM artifact a
@@ -335,9 +331,8 @@ WITH visible_sbom AS (
     SELECT s.id, s.created_at
     FROM sbom s
     JOIN namespace n ON n.id = s.namespace_id
-    WHERE n.visibility = 'public'
-       OR n.owner_id = $1::uuid
-       OR COALESCE($2::boolean, false)
+    WHERE n.id IN (SELECT visible_namespace_ids(
+             $1::uuid, $2::boolean))
 ),
 ver_first_seen AS (
     SELECT DATE(MIN(vs.created_at)) AS first_seen
@@ -394,9 +389,8 @@ WITH visible_sbom AS (
     SELECT s.id
     FROM sbom s
     JOIN namespace n ON n.id = s.namespace_id
-    WHERE n.visibility = 'public'
-       OR n.owner_id = $1::uuid
-       OR COALESCE($2::boolean, false)
+    WHERE n.id IN (SELECT visible_namespace_ids(
+             $1::uuid, $2::boolean))
 )
 SELECT
     COUNT(DISTINCT v.canonical_id)::bigint AS total_vulns,

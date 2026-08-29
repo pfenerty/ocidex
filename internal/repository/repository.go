@@ -94,11 +94,11 @@ type ArtifactRepository interface {
 // Namespace is the authorization anchor: ownership and visibility live here
 // and nowhere else (ADR-039).
 type NamespaceRepository interface {
-	CreateNamespace(ctx context.Context, arg CreateNamespaceParams) (Namespace, error)
-	GetNamespace(ctx context.Context, id pgtype.UUID) (Namespace, error)
-	GetNamespaceByName(ctx context.Context, name string) (Namespace, error)
-	ListNamespaces(ctx context.Context, arg ListNamespacesParams) ([]Namespace, error)
-	UpdateNamespace(ctx context.Context, arg UpdateNamespaceParams) (Namespace, error)
+	CreateNamespace(ctx context.Context, arg CreateNamespaceParams) (CreateNamespaceRow, error)
+	GetNamespace(ctx context.Context, id pgtype.UUID) (GetNamespaceRow, error)
+	GetNamespaceByName(ctx context.Context, name string) (GetNamespaceByNameRow, error)
+	ListNamespaces(ctx context.Context, arg ListNamespacesParams) ([]ListNamespacesRow, error)
+	UpdateNamespace(ctx context.Context, arg UpdateNamespaceParams) (UpdateNamespaceRow, error)
 	DeleteNamespace(ctx context.Context, id pgtype.UUID) (int64, error)
 }
 
@@ -166,8 +166,8 @@ type RegistryRepository interface {
 
 	// Creating a registry into a named namespace needs these two: the namespace
 	// is created on first use, since nothing orders OCIRegistry reconciles.
-	GetNamespaceByName(ctx context.Context, name string) (Namespace, error)
-	CreateNamespace(ctx context.Context, arg CreateNamespaceParams) (Namespace, error)
+	GetNamespaceByName(ctx context.Context, name string) (GetNamespaceByNameRow, error)
+	CreateNamespace(ctx context.Context, arg CreateNamespaceParams) (CreateNamespaceRow, error)
 }
 
 // EnrichmentJobRepository defines data access methods for enrichment job lifecycle.

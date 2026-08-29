@@ -5,7 +5,7 @@
 -- by testing namespace_id against visible_namespace_ids(NULL, false).
 --
 -- That call reduces to `visibility = public`, because the
--- admin term is false and `owner_id = NULL` is NULL, never true. Reusing the
+-- admin term is false and nobody is a member of anything as nobody. Reusing the
 -- function rather than writing `n.visibility = 'public'` inline keeps one
 -- definition of visibility in the database, so a future change to the rule
 -- cannot leave the discovery surface behind on the old one.

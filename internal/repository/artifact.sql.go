@@ -175,13 +175,17 @@ func (q *Queries) GetArtifact(ctx context.Context, id pgtype.UUID) (GetArtifactR
 }
 
 const getArtifactOwnerID = `-- name: GetArtifactOwnerID :one
-SELECT n.owner_id
+SELECT namespace_owner(an.namespace_id) AS owner_id
 FROM artifact_namespace an
-JOIN namespace n ON n.id = an.namespace_id
-WHERE an.artifact_id = $1 AND n.owner_id IS NOT NULL
+WHERE an.artifact_id = $1 AND namespace_owner(an.namespace_id) IS NOT NULL
 LIMIT 1
 `
 
+// The owner of any one namespace holding the artifact. An artifact can hang from
+// several namespaces with different owners, and this has always answered with
+// whichever row came first; ocidex-y0hg.6 replaces the caller with a capability
+// check that asks the question per namespace instead of collapsing it to one
+// user.
 func (q *Queries) GetArtifactOwnerID(ctx context.Context, artifactID pgtype.UUID) (pgtype.UUID, error) {
 	row := q.db.QueryRow(ctx, getArtifactOwnerID, artifactID)
 	var owner_id pgtype.UUID
@@ -418,8 +422,9 @@ WHERE ($1::text IS NULL OR a.type = $1)
   AND CASE WHEN COALESCE($4::boolean, false)
            THEN EXISTS (
                SELECT 1 FROM artifact_namespace an
-               JOIN namespace n ON n.id = an.namespace_id
-               WHERE an.artifact_id = a.id AND n.owner_id = $5::uuid)
+               WHERE an.artifact_id = a.id
+                 AND an.namespace_id IN (
+                       SELECT owned_namespace_ids($5::uuid)))
            ELSE artifact_visible(a.id, $5::uuid, $6::boolean)
       END
   AND (

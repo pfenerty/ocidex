@@ -409,7 +409,7 @@ func (s *registryService) Create(ctx context.Context, params CreateRegistryParam
 		PollIntervalMinutes: int32(params.PollIntervalMinutes), //nolint:gosec // G115: poll interval is validated to fit int32
 		AuthUsername:        toNullText(params.AuthUsername),
 		AuthToken:           toNullText(params.AuthToken),
-		OwnerID:             params.OwnerID,
+		OwnerUserID:         params.OwnerID,
 		Visibility:          visibility,
 		IncludeUntagged:     params.IncludeUntagged,
 		VerificationMode:    verificationMode,
@@ -444,22 +444,22 @@ func (s *registryService) resolveNamespace(ctx context.Context, params CreateReg
 	}
 	ns, err := s.repo.GetNamespaceByName(ctx, params.Namespace)
 	if err == nil {
-		return ns.ID, nil
+		return ns.Namespace.ID, nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return pgtype.UUID{}, fmt.Errorf("looking up namespace %q: %w", params.Namespace, err)
 	}
 	created, err := s.repo.CreateNamespace(ctx, repository.CreateNamespaceParams{
-		Name:       params.Namespace,
-		OwnerID:    params.OwnerID,
-		Visibility: visibility,
+		Name:        params.Namespace,
+		OwnerUserID: params.OwnerID,
+		Visibility:  visibility,
 	})
 	if err != nil {
 		// A concurrent reconcile won the race; re-read rather than fail.
 		if isUniqueViolation(err) {
 			ns, getErr := s.repo.GetNamespaceByName(ctx, params.Namespace)
 			if getErr == nil {
-				return ns.ID, nil
+				return ns.Namespace.ID, nil
 			}
 		}
 		return pgtype.UUID{}, fmt.Errorf("creating namespace %q: %w", params.Namespace, err)

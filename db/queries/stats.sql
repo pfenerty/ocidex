@@ -3,9 +3,8 @@ WITH visible_sbom AS (
     SELECT s.id
     FROM sbom s
     JOIN namespace n ON n.id = s.namespace_id
-    WHERE n.visibility = 'public'
-       OR n.owner_id = sqlc.narg('user_id')::uuid
-       OR COALESCE(sqlc.narg('is_admin')::boolean, false)
+    WHERE n.id IN (SELECT visible_namespace_ids(
+             sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
 )
 SELECT
     (SELECT COUNT(*)::bigint FROM artifact a
@@ -45,9 +44,8 @@ WITH visible_sbom AS (
     SELECT s.id
     FROM sbom s
     JOIN namespace n ON n.id = s.namespace_id
-    WHERE n.visibility = 'public'
-       OR n.owner_id = sqlc.narg('user_id')::uuid
-       OR COALESCE(sqlc.narg('is_admin')::boolean, false)
+    WHERE n.id IN (SELECT visible_namespace_ids(
+             sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
 )
 SELECT
     license_category(l.spdx_id) AS category,
@@ -64,9 +62,8 @@ WITH visible_sbom AS (
     SELECT s.id, s.created_at
     FROM sbom s
     JOIN namespace n ON n.id = s.namespace_id
-    WHERE n.visibility = 'public'
-       OR n.owner_id = sqlc.narg('user_id')::uuid
-       OR COALESCE(sqlc.narg('is_admin')::boolean, false)
+    WHERE n.id IN (SELECT visible_namespace_ids(
+             sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
 )
 SELECT
     DATE(created_at)::text AS day,
@@ -83,9 +80,8 @@ WITH visible_sbom AS (
     SELECT s.id, s.created_at
     FROM sbom s
     JOIN namespace n ON n.id = s.namespace_id
-    WHERE n.visibility = 'public'
-       OR n.owner_id = sqlc.narg('user_id')::uuid
-       OR COALESCE(sqlc.narg('is_admin')::boolean, false)
+    WHERE n.id IN (SELECT visible_namespace_ids(
+             sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
 ),
 pkg_first_seen AS (
     SELECT DATE(MIN(vs.created_at)) AS first_seen
@@ -111,9 +107,8 @@ WITH visible_sbom AS (
     SELECT s.id, s.created_at
     FROM sbom s
     JOIN namespace n ON n.id = s.namespace_id
-    WHERE n.visibility = 'public'
-       OR n.owner_id = sqlc.narg('user_id')::uuid
-       OR COALESCE(sqlc.narg('is_admin')::boolean, false)
+    WHERE n.id IN (SELECT visible_namespace_ids(
+             sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
 ),
 ver_first_seen AS (
     SELECT DATE(MIN(vs.created_at)) AS first_seen
@@ -160,9 +155,8 @@ WITH visible_sbom AS (
     SELECT s.id
     FROM sbom s
     JOIN namespace n ON n.id = s.namespace_id
-    WHERE n.visibility = 'public'
-       OR n.owner_id = sqlc.narg('user_id')::uuid
-       OR COALESCE(sqlc.narg('is_admin')::boolean, false)
+    WHERE n.id IN (SELECT visible_namespace_ids(
+             sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
 )
 SELECT
     COUNT(DISTINCT v.canonical_id)::bigint AS total_vulns,

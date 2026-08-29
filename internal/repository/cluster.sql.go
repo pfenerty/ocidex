@@ -1032,15 +1032,13 @@ func (q *Queries) ListClusterWorkloads(ctx context.Context, arg ListClusterWorkl
 }
 
 const listClusters = `-- name: ListClusters :many
-SELECT c.id, c.namespace_id, c.name, c.description, c.last_seen_at, c.created_at, c.updated_at, c.auto_ingest, n.name AS namespace_name, n.owner_id, n.visibility
+SELECT c.id, c.namespace_id, c.name, c.description, c.last_seen_at, c.created_at, c.updated_at, c.auto_ingest, n.name AS namespace_name, namespace_owner(n.id) AS owner_id, n.visibility
 FROM cluster c
 JOIN namespace n ON n.id = c.namespace_id
 WHERE (
     CASE WHEN COALESCE($1::boolean, false)
-         THEN n.owner_id = $2::uuid
-         ELSE $3::boolean = true
-              OR n.visibility = 'public'
-              OR ($2::uuid IS NOT NULL AND n.owner_id = $2::uuid)
+         THEN n.id IN (SELECT owned_namespace_ids($2::uuid))
+         ELSE n.id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
     END
 )
 ORDER BY c.created_at ASC

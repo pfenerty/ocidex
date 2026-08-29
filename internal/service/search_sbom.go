@@ -282,7 +282,7 @@ func (s *searchService) ListOwnedActivity(ctx context.Context, ownerID pgtype.UU
 
 	// Fetch one extra row to detect whether a further page exists.
 	rows, err := q.ListOwnedActivity(ctx, repository.ListOwnedActivityParams{
-		OwnerID:         ownerID,
+		ViewerID:        ownerID,
 		HasCursor:       pgtype.Bool{Bool: page.HasCursor, Valid: true},
 		CursorCreatedAt: pgtype.Timestamptz{Time: page.CursorCreatedAt, Valid: page.HasCursor},
 		CursorID:        uuidOrNull(page.CursorID),

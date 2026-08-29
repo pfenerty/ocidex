@@ -23,15 +23,13 @@ SELECT * FROM cluster WHERE namespace_id = $1 ORDER BY created_at ASC;
 -- Visibility resolved through the owning namespace; owned_only switches to the
 -- ownership path. Same two-paths-one-query shape as ListSources and
 -- ListNamespaces — see ListNamespaces for why they are not split.
-SELECT sqlc.embed(c), n.name AS namespace_name, n.owner_id, n.visibility
+SELECT sqlc.embed(c), n.name AS namespace_name, namespace_owner(n.id) AS owner_id, n.visibility
 FROM cluster c
 JOIN namespace n ON n.id = c.namespace_id
 WHERE (
     CASE WHEN COALESCE(sqlc.narg('owned_only')::boolean, false)
-         THEN n.owner_id = sqlc.narg('user_id')::uuid
-         ELSE sqlc.narg('is_admin')::boolean = true
-              OR n.visibility = 'public'
-              OR (sqlc.narg('user_id')::uuid IS NOT NULL AND n.owner_id = sqlc.narg('user_id')::uuid)
+         THEN n.id IN (SELECT owned_namespace_ids(sqlc.narg('user_id')::uuid))
+         ELSE n.id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
     END
 )
 ORDER BY c.created_at ASC;

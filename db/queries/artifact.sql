@@ -131,8 +131,9 @@ WHERE (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))
   AND CASE WHEN COALESCE(sqlc.narg('owned_only')::boolean, false)
            THEN EXISTS (
                SELECT 1 FROM artifact_namespace an
-               JOIN namespace n ON n.id = an.namespace_id
-               WHERE an.artifact_id = a.id AND n.owner_id = sqlc.narg('user_id')::uuid)
+               WHERE an.artifact_id = a.id
+                 AND an.namespace_id IN (
+                       SELECT owned_namespace_ids(sqlc.narg('user_id')::uuid)))
            ELSE artifact_visible(a.id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
       END
   AND (
@@ -209,10 +210,14 @@ WHERE s.artifact_id = $1
   AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
 
 -- name: GetArtifactOwnerID :one
-SELECT n.owner_id
+-- The owner of any one namespace holding the artifact. An artifact can hang from
+-- several namespaces with different owners, and this has always answered with
+-- whichever row came first; ocidex-y0hg.6 replaces the caller with a capability
+-- check that asks the question per namespace instead of collapsing it to one
+-- user.
+SELECT namespace_owner(an.namespace_id) AS owner_id
 FROM artifact_namespace an
-JOIN namespace n ON n.id = an.namespace_id
-WHERE an.artifact_id = $1 AND n.owner_id IS NOT NULL
+WHERE an.artifact_id = $1 AND namespace_owner(an.namespace_id) IS NOT NULL
 LIMIT 1;
 
 -- name: UpsertArtifactNamespace :exec

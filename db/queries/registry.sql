@@ -17,11 +17,25 @@ WITH new_id AS (
     SELECT gen_random_uuid() AS id
 ),
 ns AS (
-    INSERT INTO namespace (id, name, owner_id, visibility)
-    SELECT n.id, @name::text, sqlc.narg('owner_id')::uuid, @visibility::text
+    INSERT INTO namespace (id, name, visibility)
+    SELECT n.id, @name::text, @visibility::text
     FROM new_id n
     WHERE sqlc.narg('namespace_id')::uuid IS NULL
     RETURNING id
+),
+-- The owner of a namespace minted here is a member row, not a column
+-- (ocidex-y0hg.4). It is written only on the mint path: supplying namespace_id
+-- means joining a namespace that already has its own members, and an import
+-- must not quietly make the importing user its owner.
+--
+-- A NULL owner_user_id leaves the namespace ownerless, which is what the
+-- unattributed import paths have always produced.
+ns_owner AS (
+    INSERT INTO namespace_member (namespace_id, user_id, role)
+    SELECT ns.id, sqlc.narg('owner_user_id')::uuid, 'owner'
+    FROM ns
+    WHERE sqlc.narg('owner_user_id')::uuid IS NOT NULL
+    RETURNING user_id
 ),
 target_ns AS (
     SELECT COALESCE(sqlc.narg('namespace_id')::uuid, (SELECT id FROM ns)) AS id
@@ -48,7 +62,7 @@ FROM src
 RETURNING *;
 
 -- name: GetRegistry :one
-SELECT sqlc.embed(r), src.name, n.owner_id, n.visibility
+SELECT sqlc.embed(r), src.name, namespace_owner(n.id) AS owner_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -59,7 +73,7 @@ WHERE r.id = $1;
 -- name. source.name is unique per namespace, not globally, so once registries
 -- share a namespace this can in principle match more than one row; the oldest
 -- wins. Callers that need an exact handle should use the id.
-SELECT sqlc.embed(r), src.name, n.owner_id, n.visibility
+SELECT sqlc.embed(r), src.name, namespace_owner(n.id) AS owner_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -68,15 +82,11 @@ ORDER BY r.created_at ASC
 LIMIT 1;
 
 -- name: ListRegistries :many
-SELECT sqlc.embed(r), src.name, n.owner_id, n.visibility
+SELECT sqlc.embed(r), src.name, namespace_owner(n.id) AS owner_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
-WHERE (
-    sqlc.narg('is_admin')::boolean = true
-    OR n.visibility = 'public'
-    OR (sqlc.narg('user_id')::uuid IS NOT NULL AND n.owner_id = sqlc.narg('user_id')::uuid)
-)
+WHERE n.id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
 ORDER BY r.created_at ASC;
 
 -- name: ListRegistriesByNamespace :many
@@ -84,7 +94,7 @@ ORDER BY r.created_at ASC;
 -- Cluster auto-ingest resolves an image host against these and nothing else: a
 -- registry in another namespace could match the host, but using it would let one
 -- namespace's cluster trigger pulls with another namespace's credentials.
-SELECT sqlc.embed(r), src.name, n.owner_id, n.visibility
+SELECT sqlc.embed(r), src.name, namespace_owner(n.id) AS owner_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -94,16 +104,14 @@ ORDER BY r.created_at ASC;
 -- name: ListRegistriesPaged :many
 -- owned_only switches from the visibility path to the ownership path, which is
 -- what /api/v1/users/me/registries needs — see ListNamespaces.
-SELECT sqlc.embed(r), src.name, n.owner_id, n.visibility, COUNT(*) OVER() AS total_count
+SELECT sqlc.embed(r), src.name, namespace_owner(n.id) AS owner_id, n.visibility, COUNT(*) OVER() AS total_count
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
 WHERE (
     CASE WHEN COALESCE(sqlc.narg('owned_only')::boolean, false)
-         THEN n.owner_id = sqlc.narg('user_id')::uuid
-         ELSE sqlc.narg('is_admin')::boolean = true
-              OR n.visibility = 'public'
-              OR (sqlc.narg('user_id')::uuid IS NOT NULL AND n.owner_id = sqlc.narg('user_id')::uuid)
+         THEN n.id IN (SELECT owned_namespace_ids(sqlc.narg('user_id')::uuid))
+         ELSE n.id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
     END
 )
 ORDER BY r.created_at ASC
@@ -171,7 +179,7 @@ WHERE id = $1
 RETURNING *;
 
 -- name: ListPollableRegistries :many
-SELECT sqlc.embed(r), src.name, n.owner_id, n.visibility
+SELECT sqlc.embed(r), src.name, namespace_owner(n.id) AS owner_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id

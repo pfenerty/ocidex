@@ -21,15 +21,13 @@ SELECT * FROM source WHERE namespace_id = $1 ORDER BY created_at ASC;
 -- listed to a viewer who cannot see the namespace holding it. owned_only
 -- switches to the ownership path — see ListNamespaces for why the two live in
 -- one query.
-SELECT sqlc.embed(s), n.name AS namespace_name, n.owner_id, n.visibility
+SELECT sqlc.embed(s), n.name AS namespace_name, namespace_owner(n.id) AS owner_id, n.visibility
 FROM source s
 JOIN namespace n ON n.id = s.namespace_id
 WHERE (
     CASE WHEN COALESCE(sqlc.narg('owned_only')::boolean, false)
-         THEN n.owner_id = sqlc.narg('user_id')::uuid
-         ELSE sqlc.narg('is_admin')::boolean = true
-              OR n.visibility = 'public'
-              OR (sqlc.narg('user_id')::uuid IS NOT NULL AND n.owner_id = sqlc.narg('user_id')::uuid)
+         THEN n.id IN (SELECT owned_namespace_ids(sqlc.narg('user_id')::uuid))
+         ELSE n.id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
     END
 )
 ORDER BY s.created_at ASC;
