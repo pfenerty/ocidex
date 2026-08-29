@@ -4,8 +4,7 @@ import { defineConfig, mergeConfig } from "vite";
 import base from "./vite.config";
 
 /**
- * Dev server pointed at the local authenticated rig (`scripts/dev-auth.sh`),
- * signed in as a local admin.
+ * Dev server pointed at the local authenticated rig (`scripts/dev-auth.sh`).
  *
  * This is the counterpart to `vite.config.live.ts`. That one proxies to
  * production, which makes it signed-out and read-only, so `/dashboard`,
@@ -13,18 +12,22 @@ import base from "./vite.config";
  * a browser. Everything here is local instead: this branch's API, a throwaway
  * Postgres, fixture data. Writes are safe because nothing leaves the machine.
  *
- * Authentication is not a bypass. `internal/api/middleware.go` already treats
- * `Authorization: Bearer <api-key>` as equivalent to a session cookie, and
- * `hasWriteAccess` grants writes to a `read-write` key, so the proxy simply
- * presents the key the rig minted. No OAuth, no cookie forgery, and no
- * dev-only branch in the shipped binary.
+ * Authentication is a real session, not a bypass and not an injected key.
+ * The proxy used to attach the rig's admin API key to every request, which
+ * made the rig permanently one principal *and* routed it down a code path
+ * (`Authorization: Bearer`) that production browsers never take — so the
+ * cookie half of the auth system had no browser coverage at all. Now the page
+ * starts signed out and the persona switcher
+ * (`web/src/components/dev/PersonaSwitcher.tsx`) mints a genuine session
+ * cookie through the dev-only endpoint in `internal/api/devauth.go`.
  *
- * The key is generated per machine into `.dev/` (gitignored) and is not a
- * credential for anything that exists outside this laptop.
+ * The roster below is derived from the key names the rig wrote, so
+ * `scripts/dev-auth.sh`'s PERSONAS array stays the only place personas are
+ * declared.
  */
 const KEY_FILE = resolve(__dirname, "../.dev/dev-auth.env");
 
-function devAPIKey(): string {
+function devPersonas(): string[] {
     let contents: string;
     try {
         contents = readFileSync(KEY_FILE, "utf8");
@@ -34,11 +37,15 @@ function devAPIKey(): string {
                 `Start the rig first:  make dev-auth-up`,
         );
     }
-    const match = /^OCIDEX_DEV_API_KEY=(.+)$/m.exec(contents);
-    if (match?.[1] === undefined) {
-        throw new Error(`${KEY_FILE} has no OCIDEX_DEV_API_KEY line — try: make dev-auth-reset`);
+    const names = [...contents.matchAll(/^OCIDEX_DEV_KEY_(.+)_RW=/gm)].map((m) =>
+        m[1].toLowerCase(),
+    );
+    if (names.length === 0) {
+        throw new Error(
+            `${KEY_FILE} declares no personas (no OCIDEX_DEV_KEY_*_RW lines) — try: make dev-auth-reset`,
+        );
     }
-    return match[1].trim();
+    return names;
 }
 
 const target = "http://127.0.0.1:8080";
@@ -46,26 +53,19 @@ const target = "http://127.0.0.1:8080";
 export default mergeConfig(
     base,
     defineConfig({
+        // Read at config time, so a persona added to scripts/dev-auth.sh shows
+        // up on the next `make frontend-dev-auth` with nothing else to change.
+        define: {
+            "import.meta.env.VITE_DEV_PERSONAS": JSON.stringify(devPersonas().join(",")),
+        },
         server: {
             // Distinct from :3000 (local API, signed out) and :3100 (prod,
             // signed out) so all three can run at once.
             port: 3200,
             proxy: {
-                "/api": {
-                    target,
-                    changeOrigin: false,
-                    configure: (proxy) => {
-                        const key = devAPIKey();
-                        proxy.on("proxyReq", (proxyReq) => {
-                            // Only set what is absent: a request that already
-                            // carries its own Authorization header (a test of
-                            // the 401 path) should stay unauthenticated.
-                            if (!proxyReq.getHeader("authorization")) {
-                                proxyReq.setHeader("authorization", `Bearer ${key}`);
-                            }
-                        });
-                    },
-                },
+                // changeOrigin:false so the API sees the browser's Host and
+                // the session cookie stays same-origin from :3200.
+                "/api": { target, changeOrigin: false },
                 "/auth": { target, changeOrigin: false },
                 "/health": { target, changeOrigin: false },
                 "/ready": { target, changeOrigin: false },

@@ -244,7 +244,7 @@ case "${1:-up}" in
         seed_fixtures
         printf '\n\033[32m✓\033[0m rig up — api :%s, postgres :%s, nats :%s\n' \
             "$API_PORT" "$PGPORT" "$NATS_PORT"
-        printf '  next: \033[1mmake frontend-dev-auth\033[0m  (:3200, signed in as devadmin/admin)\n'
+        printf '  next: \033[1mmake frontend-dev-auth\033[0m  (:3200, signed out — pick a persona in the switcher)\n'
         printf '\n  personas (\033[1mmake dev-auth-status\033[0m to re-print):\n'
         roster
         ;;

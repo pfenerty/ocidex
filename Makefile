@@ -146,7 +146,7 @@ dev-auth-status: ## Show which rig services are up and the persona roster
 dev-auth-reset: ## Destroy the rig's database and credentials
 	./scripts/dev-auth.sh reset
 
-frontend-dev-auth: ## Start the frontend on :3200 signed in against the local rig
+frontend-dev-auth: ## Start the frontend on :3200 against the local rig, with the persona switcher
 	cd web && npx vite --config vite.config.auth.ts
 
 frontend-lint: ## Run ESLint on the frontend

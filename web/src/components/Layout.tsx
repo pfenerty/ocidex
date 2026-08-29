@@ -1,12 +1,21 @@
 import "./Layout.css";
 import { A, useNavigate, useLocation } from "@solidjs/router";
-import { createEffect, createSignal, onCleanup, onMount, Show, type ParentProps } from "solid-js";
+import { createEffect, createSignal, lazy, onCleanup, onMount, Show, type ParentProps } from "solid-js";
 import { Home, LayoutDashboard, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Server, Database, Settings, LogOut, Search, Menu, X } from "lucide-solid";
 import ThemeToggle from "~/components/ThemeToggle";
 import CommandPalette, { openCommandPalette, isAppleShortcut } from "~/components/CommandPalette";
 import { GitHubMark } from "./icons/GitHubMark";
 import { useAuth } from "~/context/auth";
 import { API_BASE_URL } from "~/api/client";
+
+// The dev rig's persona switcher, behind a dynamic import rather than a static
+// one. `import.meta.env.DEV` is replaced by the literal `false` in a
+// production build, so this collapses to `undefined` and Rollup drops the
+// import() with it — a static import would have pulled the component and its
+// stylesheet into the shipped bundle even though nothing renders them.
+const PersonaSwitcher = import.meta.env.DEV
+    ? lazy(() => import("~/components/dev/PersonaSwitcher"))
+    : undefined;
 
 export default function Layout(props: ParentProps) {
     const { user, refetch } = useAuth();
@@ -62,6 +71,11 @@ export default function Layout(props: ParentProps) {
         {/* Outside the /login branch on purpose: the shortcut is muscle memory
             or it is nothing, so it may not blink out on one route. */}
         <CommandPalette />
+        {/* Outside the /login branch for the same reason the palette is, plus
+            one of its own: with the rig no longer injecting an API key, the
+            first thing a fresh :3200 shows is the signed-out state, and a
+            switcher you cannot reach until you are signed in is no use. */}
+        {PersonaSwitcher && <PersonaSwitcher />}
         <Show when={location.pathname !== "/login"} fallback={<>{props.children}</>}>
         <div class="layout">
             {/* Only ever visible under the drawer — see `.sidebar-backdrop`. It
