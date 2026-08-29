@@ -17,6 +17,10 @@ Idempotent: every digest is derived from the artifact's own identity, so a
 second run re-uploads the same SBOMs and the `sbom.digest` UNIQUE constraint
 (ADR-040) turns them into no-ops rather than duplicates.
 
+The corpus spans both tenants: devowner's `local` and `private-lab`, and
+devoutsider's `outsider-lab`. Both sides must hold rows, because against an
+empty namespace a cross-tenant 404 proves nothing.
+
 Usage:
     python3 scripts/dev-fixtures.py           # reads .dev/dev-auth.env
 """
@@ -36,6 +40,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ENVFILE = ROOT / ".dev" / "dev-auth.env"
+
+# The two tenants the rig draws its authorization boundary between. `local` and
+# `private-lab` belong to devowner; OUTSIDER_NS belongs to devoutsider, who is a
+# member of nothing else.
+OUTSIDER_NS = "outsider-lab"
 
 
 # --------------------------------------------------------------------------
@@ -262,6 +271,15 @@ def corpus():
     items.append(dict(ns="private-lab", image="ghcr.io/acme/internal-billing", tag="v2.1.0",
                       arch="amd64", os=("debian", "12"), built=built(5),
                       components=debian + gomods[:3]))
+    # devoutsider's tenant. It has to hold real rows: against an *empty*
+    # namespace a cross-tenant 404 is indistinguishable from "nothing there",
+    # so the denial test (ocidex-r6lu.5) would pass even if the filter were
+    # removed entirely.
+    for rel, tag in enumerate(["v3.0.0", "v3.1.0"]):
+        items.append(dict(ns=OUTSIDER_NS, by="outsider",
+                          image="ghcr.io/contoso/outsider-svc", tag=tag,
+                          arch="amd64", os=("alpine", "3.20"), built=built(30 - rel * 20),
+                          components=drift(alpine, rel) + drift(gomods, rel)))
     return items
 
 
@@ -559,9 +577,17 @@ def main() -> None:
     args = ap.parse_args()
 
     env = load_env()
-    key = args.api_key or env.get("OCIDEX_DEV_API_KEY") or die("no API key")
     db_url = args.db_url or env.get("DATABASE_URL") or die("no DATABASE_URL")
-    api = API(args.base_url, key)
+
+    # Each tenant seeds its own rows with its own key, through the ordinary
+    # ownership rules. Seeding both sides as one superuser would leave the
+    # corpus reachable in ways a real caller's would not be, which is the whole
+    # thing the persona rig exists to stop.
+    owner_key = (args.api_key or env.get("OCIDEX_DEV_KEY_DEVOWNER_RW")
+                 or env.get("OCIDEX_DEV_API_KEY") or die("no API key"))
+    outsider_key = env.get("OCIDEX_DEV_KEY_DEVOUTSIDER_RW") or owner_key
+    api = API(args.base_url, owner_key)
+    outsider_api = API(args.base_url, outsider_key)
 
     status, _ = api.get("/api/v1/namespaces")
     if status == 401:
@@ -569,14 +595,16 @@ def main() -> None:
 
     public_ns = ensure_namespace(api, "local", "public")
     private_ns = ensure_namespace(api, "private-lab", "private")
+    outsider_ns = ensure_namespace(outsider_api, OUTSIDER_NS, "private")
     ensure_source(api, public_ns, "local", "uploads")
     ensure_source(api, private_ns, "private-lab", "uploads")
+    ensure_source(outsider_api, outsider_ns, OUTSIDER_NS, "uploads")
 
     digests = {}
     index_pairs = []
     items = corpus()
     for item in items:
-        dig, idx = upload(api, item)
+        dig, idx = upload(outsider_api if item.get("by") == "outsider" else api, item)
         digests[(item["image"], item["tag"], item["arch"])] = (dig, idx)
         if item["image"] == "ghcr.io/pfenerty/ocidex-web":
             index_pairs.append((dig, idx))

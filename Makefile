@@ -140,7 +140,7 @@ dev-auth-down: ## Stop the local authenticated rig
 dev-auth-fixtures: ## Re-seed the rig's corpus (artifacts, vulns, cluster workloads)
 	./scripts/dev-auth.sh fixtures
 
-dev-auth-status: ## Show which rig services are up
+dev-auth-status: ## Show which rig services are up and the persona roster
 	./scripts/dev-auth.sh status
 
 dev-auth-reset: ## Destroy the rig's database and credentials
