@@ -1688,6 +1688,7 @@ export interface components {
             type: string;
             /** Format: int64 */
             versionCount: number;
+            vulns?: components["schemas"]["VulnSummary"];
             watched: boolean;
         };
         ArtifactRelation: {
@@ -1715,6 +1716,7 @@ export interface components {
             /** Format: int64 */
             sufficientSbomCount: number;
             type: string;
+            vulns?: components["schemas"]["VulnSummary"];
         };
         ArtifactTypeCountEntry: {
             /** Format: int64 */
@@ -4057,6 +4059,10 @@ export interface operations {
                 name?: string;
                 /** @description Filter to artifacts with sufficiently enriched SBOMs; pass 'false' to include all (default: true) */
                 sufficient?: string;
+                /** @description Column to sort by. Empty orders by name. Changing it invalidates any cursor already held. */
+                sort?: "severity";
+                /** @description Sort direction; defaults to desc (worst first) when sort is set. */
+                dir?: "asc" | "desc";
             };
             header?: never;
             path?: never;
@@ -6809,6 +6815,10 @@ export interface operations {
                 name?: string;
                 /** @description Filter to artifacts with sufficiently enriched SBOMs; pass 'false' to include all (default: true) */
                 sufficient?: string;
+                /** @description Column to sort by. Empty orders by name. Changing it invalidates any cursor already held. */
+                sort?: "severity";
+                /** @description Sort direction; defaults to desc (worst first) when sort is set. */
+                dir?: "asc" | "desc";
             };
             header?: never;
             path?: never;

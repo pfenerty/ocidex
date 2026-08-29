@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -347,7 +348,19 @@ func (h *Handler) ListMyArtifacts(ctx context.Context, input *ListMyArtifactsInp
 }
 
 func (h *Handler) listArtifacts(ctx context.Context, input *ListArtifactsInput, vis service.VisibilityFilter) (*ListArtifactsOutput, error) {
-	parts, hasCursor, err := decodeStringCursor(input.Cursor, 3)
+	// The severity sort pages by offset, the default sort by keyset, so the
+	// cursor carries a different tuple in each (ADR-043 rule 1: the severity
+	// columns are a rollup a refresh pass rewrites under the reader, which
+	// makes a keyset position ill-defined). Both still travel as one opaque
+	// cursor, so the client's "load more" is unchanged; a cursor minted under
+	// the other sort fails the arity check and returns 400 rather than a
+	// silently wrong page.
+	sortSeverity := input.Sort == artifactSortSeverity
+	arity := 3
+	if sortSeverity {
+		arity = 1
+	}
+	parts, hasCursor, err := decodeStringCursor(input.Cursor, arity)
 	if err != nil {
 		return nil, huma.Error400BadRequest(err.Error())
 	}
@@ -359,10 +372,21 @@ func (h *Handler) listArtifacts(ctx context.Context, input *ListArtifactsInput, 
 		Name:              input.Name,
 		RequireSufficient: requireSufficient,
 		Limit:             input.Limit,
-		HasCursor:         hasCursor,
+		HasCursor:         hasCursor && !sortSeverity,
 		Visibility:        vis,
+		SortSeverity:      sortSeverity,
+		SortDesc:          input.Dir != "asc",
 	}
-	if hasCursor {
+	switch {
+	case sortSeverity && hasCursor:
+		// ParseInt bounds the value to int32 itself, so a hand-crafted
+		// cursor cannot wrap the offset negative.
+		offset, convErr := strconv.ParseInt(parts[0], 10, 32)
+		if convErr != nil || offset < 0 {
+			return nil, huma.Error400BadRequest("invalid cursor")
+		}
+		filter.Offset = int32(offset)
+	case hasCursor:
 		filter.CursorName, filter.CursorType, filter.CursorID = parts[0], parts[1], parts[2]
 	}
 
@@ -373,11 +397,28 @@ func (h *Handler) listArtifacts(ctx context.Context, input *ListArtifactsInput, 
 
 	out := &ListArtifactsOutput{}
 	out.Body.Data = result.Data
+	if sortSeverity {
+		// The next page starts where this one ended. Encoding it through the
+		// same helper keeps the cursor opaque, so no client learns that this
+		// particular sort is offset-paginated and starts doing arithmetic on
+		// it.
+		next := int(filter.Offset) + len(result.Data)
+		out.Body.Pagination = CursorMeta{Limit: input.Limit, HasMore: result.HasMore}
+		if result.HasMore {
+			c := encodeStringCursor(strconv.Itoa(next))
+			out.Body.Pagination.NextCursor = &c
+		}
+		return out, nil
+	}
 	out.Body.Pagination = cursorMeta(result.Data, result.HasMore, input.Limit, func(a service.ArtifactSummary) string {
 		return encodeStringCursor(a.Name, a.Type, a.ID)
 	})
 	return out, nil
 }
+
+// artifactSortSeverity is the one column /artifacts sorts by beyond its default
+// (name, type, id) ordering.
+const artifactSortSeverity = "severity"
 
 // GetArtifact handles GET /api/v1/artifacts/{id}.
 func (h *Handler) GetArtifact(ctx context.Context, input *GetArtifactInput) (*GetArtifactOutput, error) {

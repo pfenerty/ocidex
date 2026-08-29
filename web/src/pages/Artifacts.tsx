@@ -1,8 +1,9 @@
-import { createMemo } from "solid-js";
+import { createMemo, Show } from "solid-js";
 import { A, useSearchParams } from "@solidjs/router";
 import { useArtifactsInfinite } from "~/api/queries";
 import DataTable from "~/components/DataTable";
-import type { Column } from "~/components/DataTable";
+import type { Column, SortDir } from "~/components/DataTable";
+import { VulnCountBadges } from "~/components/VulnBadge";
 import { artifactDisplayName, plural } from "~/utils/format";
 import { SigningBadge, TypeBadge } from "~/components/cells";
 import { DEFAULT_PAGE_SIZE, type ArtifactSummary } from "~/api/client";
@@ -88,6 +89,36 @@ const columns: Column<ArtifactSummary>[] = [
         render: (a) => <SigningBadge status={a.signingStatus} />,
     },
     {
+        header: "Vulnerabilities",
+        sortKey: "severity",
+        sortType: "numeric",
+        render: (a) => (
+            // `vulns` is absent when the artifact's newest SBOM has no rollup
+            // row, which means "no findings" or "never scanned" without
+            // distinguishing them. Rendering that as a zero — or as
+            // VulnCountBadges' own em dash, which reads the same — would claim
+            // a clean bill of health nobody issued (ADR-044).
+            <Show
+                when={a.vulns}
+                fallback={
+                    <span class="text-muted" title="No findings recorded for this artifact — it may never have been scanned">
+                        not scanned
+                    </span>
+                }
+            >
+                {(v) => (
+                    <VulnCountBadges
+                        criticalCount={v().critical}
+                        highCount={v().high}
+                        mediumCount={v().medium}
+                        lowCount={v().low}
+                        unknownCount={v().unknown}
+                    />
+                )}
+            </Show>
+        ),
+    },
+    {
         header: "SBOMs",
         render: (a) => plural(a.sbomCount, "SBOM"),
     },
@@ -99,11 +130,17 @@ export default function Artifacts() {
     // signals, so the one view a reader would actually want to send someone —
     // "these artifacts, filtered this way" — was the one that could not be
     // linked to or survive a reload.
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const param = (key: string): string => {
         const v = searchParams[key];
         return (Array.isArray(v) ? v[0] : v) ?? "";
     };
+
+    // The sort lives in the URL for the same reason the filters do: "the worst
+    // artifacts we have, worst first" is precisely the view someone wants to
+    // send to someone else.
+    const sortBy = () => (param("sort") === "severity" ? "severity" : undefined);
+    const sortDir = (): SortDir => (param("dir") === "asc" ? "asc" : "desc");
 
     const query = useArtifactsInfinite(() => ({
         name: param("name"),
@@ -113,10 +150,19 @@ export default function Artifacts() {
         // list is limited to artifacts whose SBOMs are substantial enough to
         // say anything about.
         sufficient: param("all") !== "1",
+        // Sorting is server-side: the list is paged, so a client-side sort
+        // would only reorder the rows fetched so far.
+        sort: sortBy(),
+        dir: sortBy() === undefined ? undefined : sortDir(),
     }));
 
     const rawArtifacts = () => query.data?.pages.flatMap((p) => p.data ?? []) ?? [];
-    const artifacts = () => grouped().flatMap((g) => g.items);
+
+    // Grouping is dropped under the severity sort. The two are incompatible by
+    // construction: DataTable only labels runs of equal keys, so grouping means
+    // re-collecting rows by name, which would undo the ordering the server just
+    // applied. A flat worst-first list is what the sort was asked for anyway.
+    const artifacts = () => (sortBy() === undefined ? grouped().flatMap((g) => g.items) : rawArtifacts());
 
     // Still grouped here rather than in DataTable: the table only labels runs of
     // equal keys, it does not reorder, so the rows have to arrive grouped.
@@ -140,7 +186,16 @@ export default function Artifacts() {
     // A single heading spanning the whole table is noise — it repeats what the
     // filters already say. Headings earn their row only once there is more than
     // one thing to tell apart.
-    const showGroupHeadings = () => grouped().length > 1;
+    const showGroupHeadings = () => sortBy() === undefined && grouped().length > 1;
+
+    // Changing the sort re-orders the whole result set server-side, so every
+    // page already loaded is stale — dropping the cursor restarts from page one.
+    const sortArtifacts = (key: string, dir: SortDir) => {
+        setSearchParams({
+            sort: key === "severity" ? "severity" : undefined,
+            dir: key === "severity" ? dir : undefined,
+        });
+    };
 
     return (
         <>
@@ -154,6 +209,9 @@ export default function Artifacts() {
             <DataTable
                 columns={columns}
                 rows={query.data === undefined ? undefined : artifacts()}
+                sortBy={sortBy()}
+                sortDir={sortDir()}
+                onSort={sortArtifacts}
                 loading={query.isFetching}
                 isError={query.isError}
                 error={query.error}

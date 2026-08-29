@@ -14,6 +14,10 @@ export interface UseArtifactsParams {
     name?: string;
     type?: string;
     sufficient?: boolean;
+    /** Severity sort. Server-side: the list is paged, so sorting on the client
+     *  would only reorder the rows already fetched. */
+    sort?: "severity";
+    dir?: "asc" | "desc";
 }
 
 /** Single-page artifact fetch (first keyset page). Used where the full bounded
@@ -47,7 +51,7 @@ export function useArtifactsInfinite(params: Accessor<UseArtifactsParams>) {
     return createInfiniteQuery(() => {
         const p = params();
         return {
-            queryKey: ["artifacts-infinite", p.name, p.type, p.limit, p.sufficient] as const,
+            queryKey: ["artifacts-infinite", p.name, p.type, p.limit, p.sufficient, p.sort, p.dir] as const,
             queryFn: ({ pageParam }: { pageParam: string }) =>
                 unwrap(
                     client.GET("/api/v1/artifacts", {
@@ -58,6 +62,8 @@ export function useArtifactsInfinite(params: Accessor<UseArtifactsParams>) {
                                 name: p.name !== "" ? p.name : undefined,
                                 type: p.type !== "" ? p.type : undefined,
                                 sufficient: p.sufficient !== undefined ? String(p.sufficient) : undefined,
+                                sort: p.sort,
+                                dir: p.dir,
                             },
                         },
                     }),

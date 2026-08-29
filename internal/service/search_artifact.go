@@ -191,16 +191,7 @@ func artifactVersionFromRow(row repository.ListArtifactVersionsRow) ArtifactVers
 	// vulnerabilities" or "never scanned" indistinguishably, so it maps to a nil
 	// summary rather than an all-zero one: the UI has to say "not scanned"
 	// (ADR-044), and an all-zero summary would license it to say "clean".
-	if total := row.VulnCritical + row.VulnHigh + row.VulnMedium + row.VulnLow + row.VulnUnknown; total > 0 {
-		v.Vulns = &VulnSummary{
-			Critical: int(row.VulnCritical),
-			High:     int(row.VulnHigh),
-			Medium:   int(row.VulnMedium),
-			Low:      int(row.VulnLow),
-			Unknown:  int(row.VulnUnknown),
-			Total:    int(total),
-		}
-	}
+	v.Vulns = vulnSummaryOrNil(row.VulnCritical, row.VulnHigh, row.VulnMedium, row.VulnLow, row.VulnUnknown)
 	if arches, ok := row.Architectures.([]interface{}); ok {
 		strs := make([]string, 0, len(arches))
 		for _, a := range arches {
@@ -334,6 +325,9 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 		CursorName:        textOrNull(filter.CursorName),
 		CursorType:        textOrNull(filter.CursorType),
 		CursorID:          uuidOrNull(filter.CursorID),
+		SortSeverity:      filter.SortSeverity,
+		SortDir:           sortDirSign(filter.SortDesc),
+		RowOffset:         filter.Offset,
 		RowLimit:          filter.Limit + 1,
 	})
 	if err != nil {
@@ -355,10 +349,45 @@ func (s *searchService) ListArtifacts(ctx context.Context, filter ArtifactFilter
 			SbomCount:           row.SbomCount,
 			SufficientSbomCount: row.SufficientSbomCount,
 			SigningStatus:       row.SigningStatus,
+			// Zero total means sbom_vuln_rollup had no row for the newest
+			// SBOM, since the rollup only records SBOMs with at least one
+			// finding. That is "no known vulnerabilities" or "never scanned"
+			// indistinguishably, so it maps to a nil summary rather than an
+			// all-zero one: the UI has to say "not scanned" (ADR-044), and an
+			// all-zero summary would license it to say "clean".
+			Vulns: vulnSummaryOrNil(row.VulnCritical, row.VulnHigh, row.VulnMedium, row.VulnLow, row.VulnUnknown),
 		})
 	}
 
 	return CursorPage[ArtifactSummary]{Data: items, HasMore: hasMore}, nil
+}
+
+// sortDirSign maps a direction onto the multiplier the ORDER BY in
+// ListArtifacts uses to flip its severity keys without a second set of them.
+func sortDirSign(desc bool) int32 {
+	if desc {
+		return 1
+	}
+	return -1
+}
+
+// vulnSummaryOrNil folds rollup counts into a summary, or nil when they are all
+// zero. See the ADR-044 note at the call sites: zero is absence of a rollup
+// row, which is unknown rather than clean, and a non-nil all-zero summary would
+// let a renderer claim otherwise.
+func vulnSummaryOrNil(critical, high, medium, low, unknown int64) *VulnSummary {
+	total := critical + high + medium + low + unknown
+	if total == 0 {
+		return nil
+	}
+	return &VulnSummary{
+		Critical: int(critical),
+		High:     int(high),
+		Medium:   int(medium),
+		Low:      int(low),
+		Unknown:  int(unknown),
+		Total:    int(total),
+	}
 }
 
 // GetArtifactLicenseSummary returns aggregated license counts for an artifact's latest SBOM.

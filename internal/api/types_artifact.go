@@ -16,6 +16,12 @@ type ListArtifactsInput struct {
 	Type       string `query:"type" doc:"Filter by artifact type"`
 	Name       string `query:"name" doc:"Filter by artifact name"`
 	Sufficient string `query:"sufficient" doc:"Filter to artifacts with sufficiently enriched SBOMs; pass 'false' to include all (default: true)"`
+	// Sorting by severity changes what the opaque cursor carries — the counts
+	// are a rollup that gets rewritten under a reader, so the page is an
+	// offset rather than a keyset position (ADR-043 rule 1). A cursor issued
+	// under one sort is rejected under the other, since its arity differs.
+	Sort string `query:"sort" enum:"severity" doc:"Column to sort by. Empty orders by name. Changing it invalidates any cursor already held."`
+	Dir  string `query:"dir"  enum:"asc,desc"  doc:"Sort direction; defaults to desc (worst first) when sort is set."`
 }
 
 // ListMyArtifactsInput is the request for GET /api/v1/users/me/artifacts. It

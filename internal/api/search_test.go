@@ -874,3 +874,105 @@ func TestDiffSBOMs(t *testing.T) {
 		})
 	}
 }
+
+// artifactSortSpy captures the filter the handler built, so the tests below can
+// assert on the translation rather than on a response body that would look the
+// same either way.
+type artifactSortSpy struct {
+	fakeSearchService
+	got     service.ArtifactFilter
+	hasMore bool
+	rows    int
+}
+
+func (f *artifactSortSpy) ListArtifacts(_ context.Context, filter service.ArtifactFilter) (service.CursorPage[service.ArtifactSummary], error) {
+	f.got = filter
+	data := make([]service.ArtifactSummary, f.rows)
+	for i := range data {
+		data[i] = service.ArtifactSummary{ID: "art1", Type: "container", Name: "ubuntu"}
+	}
+	return service.CursorPage[service.ArtifactSummary]{Data: data, HasMore: f.hasMore}, nil
+}
+
+// The severity sort orders by a rollup that a refresh pass rewrites underneath
+// the reader, so ADR-043 rule (1) rules out a keyset cursor and the page has to
+// be an offset. The cursor stays opaque either way, so the client's load-more
+// is unchanged — which is exactly why this needs a test: nothing in the
+// response shape distinguishes the two pagination styles.
+func TestListArtifacts_SeveritySortPagesByOffset(t *testing.T) {
+	is := is.New(t)
+	spy := &artifactSortSpy{rows: 2, hasMore: true}
+	router := newTestRouter(&fakeSBOMService{}, spy)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/artifacts?sort=severity", nil))
+	is.Equal(w.Code, http.StatusOK)
+	is.True(spy.got.SortSeverity)
+	is.True(spy.got.SortDesc)   // desc is the default: worst first
+	is.True(!spy.got.HasCursor) // the keyset predicate must stay off
+	is.Equal(spy.got.Offset, int32(0))
+
+	var resp cursorBody
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &resp))
+	is.True(resp.Pagination.NextCursor != nil)
+
+	// Feeding that cursor back advances the offset by the page just returned.
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, httptest.NewRequest(http.MethodGet,
+		"/api/v1/artifacts?sort=severity&cursor="+url.QueryEscape(*resp.Pagination.NextCursor), nil))
+	is.Equal(w2.Code, http.StatusOK)
+	is.Equal(spy.got.Offset, int32(2))
+}
+
+func TestListArtifacts_SeveritySortDirection(t *testing.T) {
+	is := is.New(t)
+	spy := &artifactSortSpy{rows: 1}
+	router := newTestRouter(&fakeSBOMService{}, spy)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/artifacts?sort=severity&dir=asc", nil))
+	is.Equal(w.Code, http.StatusOK)
+	is.True(!spy.got.SortDesc)
+}
+
+// A cursor minted under one sort carries the wrong tuple for the other. It has
+// to be rejected rather than reinterpreted: silently reading a keyset cursor's
+// first element ("some artifact name") as an offset would skip an arbitrary
+// stretch of the list with no error anywhere.
+func TestListArtifacts_CursorFromTheOtherSortIsRejected(t *testing.T) {
+	is := is.New(t)
+	spy := &artifactSortSpy{rows: 1, hasMore: true}
+	router := newTestRouter(&fakeSBOMService{}, spy)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/artifacts", nil))
+	var resp cursorBody
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &resp))
+	is.True(resp.Pagination.NextCursor != nil)
+
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, httptest.NewRequest(http.MethodGet,
+		"/api/v1/artifacts?sort=severity&cursor="+url.QueryEscape(*resp.Pagination.NextCursor), nil))
+	is.Equal(w2.Code, http.StatusBadRequest)
+}
+
+// The default path must be untouched by any of the above.
+func TestListArtifacts_DefaultSortKeepsKeyset(t *testing.T) {
+	is := is.New(t)
+	spy := &artifactSortSpy{rows: 1, hasMore: true}
+	router := newTestRouter(&fakeSBOMService{}, spy)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/artifacts", nil))
+	is.Equal(w.Code, http.StatusOK)
+	is.True(!spy.got.SortSeverity)
+
+	var resp cursorBody
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &resp))
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, httptest.NewRequest(http.MethodGet,
+		"/api/v1/artifacts?cursor="+url.QueryEscape(*resp.Pagination.NextCursor), nil))
+	is.Equal(w2.Code, http.StatusOK)
+	is.True(spy.got.HasCursor)
+	is.Equal(spy.got.CursorName, "ubuntu")
+}

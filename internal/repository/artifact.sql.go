@@ -364,9 +364,47 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
                  AND pe.status = 'success' AND signing_status(pe.data) = 'signed'
            ) THEN 'signed'
            ELSE 'unsigned'
-       END)::text AS signing_status
+       END)::text AS signing_status,
+       -- Severity counts for this artifact's newest SBOM (ocidex-unn8.9). They
+       -- come from sbom_vuln_rollup rather than an aggregate over component:
+       -- ocidex-ckv.2 measured that shape at ~53s against a 30s timeout, which
+       -- is why the rollups exist at all.
+       --
+       -- Newest SBOM, not a union across every SBOM under the artifact: a union
+       -- would keep reporting the artifact vulnerable long after the fix
+       -- shipped, because the fixed version does not delete its predecessors.
+       -- That differs from the signing_status ladder above, which *is*
+       -- worst-case-across-SBOMs — deliberately, since an unsigned sibling is a
+       -- live gap while a superseded CVE is not.
+       --
+       -- The rollup holds a row only for an SBOM with at least one finding, so
+       -- a zero total here means "no findings" *or* "never scanned" and this
+       -- join cannot tell them apart (ADR-044). Coalescing to zero is safe only
+       -- because that same invariant makes a zero unambiguous — it can only
+       -- have come from a missing row. The service maps a zero total back to a
+       -- nil summary so the UI says "not scanned"; rendering it as a clean zero
+       -- is the bug.
+       COALESCE(vr.critical, 0)::bigint AS vuln_critical,
+       COALESCE(vr.high,     0)::bigint AS vuln_high,
+       COALESCE(vr.medium,   0)::bigint AS vuln_medium,
+       COALESCE(vr.low,      0)::bigint AS vuln_low,
+       COALESCE(vr.unknown,  0)::bigint AS vuln_unknown
 FROM artifact a
 LEFT JOIN sbom s ON s.artifact_id = a.id
+LEFT JOIN LATERAL (
+    SELECT COALESCE(r.critical, 0)::bigint AS critical,
+           COALESCE(r.high,     0)::bigint AS high,
+           COALESCE(r.medium,   0)::bigint AS medium,
+           COALESCE(r.low,      0)::bigint AS low,
+           COALESCE(r.unknown,  0)::bigint AS unknown,
+           (COALESCE(r.critical, 0) + COALESCE(r.high, 0) + COALESCE(r.medium, 0)
+            + COALESCE(r.low, 0) + COALESCE(r.unknown, 0))::bigint AS total
+    FROM sbom sv
+    LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = sv.id
+    WHERE sv.artifact_id = a.id
+    ORDER BY sv.created_at DESC, sv.id DESC
+    LIMIT 1
+) vr ON TRUE
 WHERE ($1::text IS NULL OR a.type = $1)
   AND ($2::text IS NULL OR a.name ILIKE '%' || $2::text || '%')
   AND ($3::boolean IS NULL
@@ -388,9 +426,16 @@ WHERE ($1::text IS NULL OR a.type = $1)
     NOT $7::boolean
     OR (a.name, a.type, a.id) > ($8::text, $9::text, $10::uuid)
   )
-GROUP BY a.id
-ORDER BY a.name, a.type, a.id
-LIMIT $11
+GROUP BY a.id, vr.critical, vr.high, vr.medium, vr.low, vr.unknown, vr.total
+ORDER BY
+    CASE WHEN $11::boolean THEN COALESCE(vr.total, 0) = 0 END,
+    CASE WHEN $11::boolean THEN COALESCE(vr.critical, 0) * $12::int END DESC,
+    CASE WHEN $11::boolean THEN COALESCE(vr.high,     0) * $12::int END DESC,
+    CASE WHEN $11::boolean THEN COALESCE(vr.medium,   0) * $12::int END DESC,
+    CASE WHEN $11::boolean THEN COALESCE(vr.low,      0) * $12::int END DESC,
+    CASE WHEN $11::boolean THEN COALESCE(vr.unknown,  0) * $12::int END DESC,
+    a.name, a.type, a.id
+LIMIT $14 OFFSET $13
 `
 
 type ListArtifactsParams struct {
@@ -404,6 +449,9 @@ type ListArtifactsParams struct {
 	CursorName        pgtype.Text `json:"cursor_name"`
 	CursorType        pgtype.Text `json:"cursor_type"`
 	CursorID          pgtype.UUID `json:"cursor_id"`
+	SortSeverity      bool        `json:"sort_severity"`
+	SortDir           int32       `json:"sort_dir"`
+	RowOffset         int32       `json:"row_offset"`
 	RowLimit          int32       `json:"row_limit"`
 }
 
@@ -418,11 +466,38 @@ type ListArtifactsRow struct {
 	SbomCount           int64              `json:"sbom_count"`
 	SufficientSbomCount int64              `json:"sufficient_sbom_count"`
 	SigningStatus       string             `json:"signing_status"`
+	VulnCritical        int64              `json:"vuln_critical"`
+	VulnHigh            int64              `json:"vuln_high"`
+	VulnMedium          int64              `json:"vuln_medium"`
+	VulnLow             int64              `json:"vuln_low"`
+	VulnUnknown         int64              `json:"vuln_unknown"`
 }
 
 // Same artifact_missing-first rollup precedence as GetArtifact above — see
 // that query's comment for why this cross-SBOM ladder deliberately checks
 // worst-case first.
+// The inner join is LEFT so the lateral picks the *newest* SBOM and then looks
+// for its rollup row, rather than the newest SBOM that happens to have one:
+// an inner join would silently fall back to a superseded SBOM's findings.
+// Two orderings in one query. The severity keys are wrapped in a CASE that
+// collapses to NULL when @sort_severity is false, which makes every row tie on
+// them and hands the decision to the trailing (name, type, id) — the default
+// ordering, unchanged. A second query would have meant a second copy of the
+// WHERE clause above, and a filter that drifts between the two paths is a
+// worse bug than six CASEs.
+//
+// Direction is a sign flip (@sort_dir is 1 for desc, -1 for asc) rather than a
+// second pair of keys, which works because counts are non-negative. The
+// zero-total gate is *outside* that flip on purpose: a zero total is unknown,
+// not clean, so it sorts last in both directions. Floating never-scanned
+// artifacts to the top of an ascending sort would present them as the safest
+// thing on the page, which is the ADR-044 mistake.
+//
+// Counts are compared rank by rank rather than as one total so a single
+// critical outranks a hundred lows.
+// Offset is 0 on the keyset path; it only moves under the severity sort, where
+// ADR-043 rule (1) rules a keyset cursor out — the ORDER BY columns are a
+// rollup that a refresh pass rewrites under the reader's feet.
 func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([]ListArtifactsRow, error) {
 	rows, err := q.db.Query(ctx, listArtifacts,
 		arg.Type,
@@ -435,6 +510,9 @@ func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([
 		arg.CursorName,
 		arg.CursorType,
 		arg.CursorID,
+		arg.SortSeverity,
+		arg.SortDir,
+		arg.RowOffset,
 		arg.RowLimit,
 	)
 	if err != nil {
@@ -455,6 +533,11 @@ func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([
 			&i.SbomCount,
 			&i.SufficientSbomCount,
 			&i.SigningStatus,
+			&i.VulnCritical,
+			&i.VulnHigh,
+			&i.VulnMedium,
+			&i.VulnLow,
+			&i.VulnUnknown,
 		); err != nil {
 			return nil, err
 		}

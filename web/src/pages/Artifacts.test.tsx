@@ -43,6 +43,15 @@ vi.mock("@solidjs/router", () => ({
 
 const mockUseArtifacts = vi.mocked(useArtifactsInfinite);
 
+interface VulnSummary {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+    unknown: number;
+    total: number;
+}
+
 interface ArtifactRow {
     id: string;
     name: string;
@@ -50,6 +59,7 @@ interface ArtifactRow {
     sbomCount: number;
     sufficientSbomCount: number;
     group?: string;
+    vulns?: VulnSummary;
 }
 
 interface InfiniteQuery {
@@ -272,5 +282,63 @@ describe("Artifacts", () => {
         select.dispatchEvent(new Event("change", { bubbles: true }));
 
         expect(router.setSearchParams).toHaveBeenCalledWith({ type: undefined });
+    });
+});
+
+// The bug this guards is the one ADR-044 names: an artifact nobody has scanned
+// must never render as a clean zero, and VulnCountBadges' own em-dash fallback
+// for an all-zero summary reads exactly like one.
+describe("Artifacts severity column", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        for (const k of Object.keys(router.searchParams)) delete router.searchParams[k];
+    });
+
+    it("says 'not scanned' when no summary is present", () => {
+        mockUseArtifacts.mockReturnValue(makeQuery({ data: page([makeArtifact()]) }) as never);
+        const { getByText } = renderArtifacts();
+        expect(getByText("not scanned")).toBeDefined();
+    });
+
+    it("renders per-severity counts when a summary is present", () => {
+        mockUseArtifacts.mockReturnValue(
+            makeQuery({
+                data: page([
+                    makeArtifact({ vulns: { critical: 2, high: 3, medium: 0, low: 1, unknown: 0, total: 6 } }),
+                ]),
+            }) as never
+        );
+        const { container, queryByText } = renderArtifacts();
+        expect(queryByText("not scanned")).toBeNull();
+        const chip = container.querySelector(".vuln-chip");
+        expect(chip?.textContent.replace(/\s+/g, "")).toBe("23010");
+    });
+
+    it("writes the sort to the URL instead of reordering in place", () => {
+        mockUseArtifacts.mockReturnValue(makeQuery({ data: page([makeArtifact()]) }) as never);
+        const { getByText } = renderArtifacts();
+
+        getByText("Vulnerabilities").click();
+
+        // Server-side: the list is paged, so a client-side sort would only
+        // reorder the rows already fetched.
+        expect(router.setSearchParams).toHaveBeenCalledWith({ sort: "severity", dir: "desc" });
+    });
+
+    // Grouping re-collects rows by name, which would undo the ordering the
+    // server just applied, so the two cannot both be on.
+    it("drops group headings while sorted by severity", () => {
+        router.searchParams.sort = "severity";
+        mockUseArtifacts.mockReturnValue(
+            makeQuery({
+                data: page([
+                    makeArtifact({ id: "a", name: "ghcr.io/one/app" }),
+                    makeArtifact({ id: "b", name: "docker.io/two/app" }),
+                ]),
+            }) as never
+        );
+        const { container } = renderArtifacts();
+        expect(container.querySelectorAll("tr.group-header-row").length).toBe(0);
+        expect(mockUseArtifacts.mock.calls[0][0]().sort).toBe("severity");
     });
 });

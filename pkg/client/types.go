@@ -614,6 +614,39 @@ func (e RetryAllFailedEnrichmentJobsParamsEnricherName) Valid() bool {
 	}
 }
 
+// Defines values for ListArtifactsParamsSort.
+const (
+	ListArtifactsParamsSortSeverity ListArtifactsParamsSort = "severity"
+)
+
+// Valid indicates whether the value is a known member of the ListArtifactsParamsSort enum.
+func (e ListArtifactsParamsSort) Valid() bool {
+	switch e {
+	case ListArtifactsParamsSortSeverity:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListArtifactsParamsDir.
+const (
+	ListArtifactsParamsDirAsc  ListArtifactsParamsDir = "asc"
+	ListArtifactsParamsDirDesc ListArtifactsParamsDir = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ListArtifactsParamsDir enum.
+func (e ListArtifactsParamsDir) Valid() bool {
+	switch e {
+	case ListArtifactsParamsDirAsc:
+		return true
+	case ListArtifactsParamsDirDesc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetArtifactChangelogParamsMode.
 const (
 	GetArtifactChangelogParamsModeAll    GetArtifactChangelogParamsMode = "all"
@@ -919,34 +952,34 @@ func (e ListClusterWorkloadsParamsMatchState) Valid() bool {
 
 // Defines values for ListClusterWorkloadsParamsSort.
 const (
-	ContainerName ListClusterWorkloadsParamsSort = "container_name"
-	ImageRef      ListClusterWorkloadsParamsSort = "image_ref"
-	K8sNamespace  ListClusterWorkloadsParamsSort = "k8s_namespace"
-	LastSeenAt    ListClusterWorkloadsParamsSort = "last_seen_at"
-	MatchState    ListClusterWorkloadsParamsSort = "match_state"
-	PodCount      ListClusterWorkloadsParamsSort = "pod_count"
-	VulnCount     ListClusterWorkloadsParamsSort = "vuln_count"
-	WorkloadName  ListClusterWorkloadsParamsSort = "workload_name"
+	ListClusterWorkloadsParamsSortContainerName ListClusterWorkloadsParamsSort = "container_name"
+	ListClusterWorkloadsParamsSortImageRef      ListClusterWorkloadsParamsSort = "image_ref"
+	ListClusterWorkloadsParamsSortK8sNamespace  ListClusterWorkloadsParamsSort = "k8s_namespace"
+	ListClusterWorkloadsParamsSortLastSeenAt    ListClusterWorkloadsParamsSort = "last_seen_at"
+	ListClusterWorkloadsParamsSortMatchState    ListClusterWorkloadsParamsSort = "match_state"
+	ListClusterWorkloadsParamsSortPodCount      ListClusterWorkloadsParamsSort = "pod_count"
+	ListClusterWorkloadsParamsSortVulnCount     ListClusterWorkloadsParamsSort = "vuln_count"
+	ListClusterWorkloadsParamsSortWorkloadName  ListClusterWorkloadsParamsSort = "workload_name"
 )
 
 // Valid indicates whether the value is a known member of the ListClusterWorkloadsParamsSort enum.
 func (e ListClusterWorkloadsParamsSort) Valid() bool {
 	switch e {
-	case ContainerName:
+	case ListClusterWorkloadsParamsSortContainerName:
 		return true
-	case ImageRef:
+	case ListClusterWorkloadsParamsSortImageRef:
 		return true
-	case K8sNamespace:
+	case ListClusterWorkloadsParamsSortK8sNamespace:
 		return true
-	case LastSeenAt:
+	case ListClusterWorkloadsParamsSortLastSeenAt:
 		return true
-	case MatchState:
+	case ListClusterWorkloadsParamsSortMatchState:
 		return true
-	case PodCount:
+	case ListClusterWorkloadsParamsSortPodCount:
 		return true
-	case VulnCount:
+	case ListClusterWorkloadsParamsSortVulnCount:
 		return true
-	case WorkloadName:
+	case ListClusterWorkloadsParamsSortWorkloadName:
 		return true
 	default:
 		return false
@@ -1109,6 +1142,39 @@ func (e ListSbomVulnsParamsDir) Valid() bool {
 	}
 }
 
+// Defines values for ListMyArtifactsParamsSort.
+const (
+	ListMyArtifactsParamsSortSeverity ListMyArtifactsParamsSort = "severity"
+)
+
+// Valid indicates whether the value is a known member of the ListMyArtifactsParamsSort enum.
+func (e ListMyArtifactsParamsSort) Valid() bool {
+	switch e {
+	case ListMyArtifactsParamsSortSeverity:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListMyArtifactsParamsDir.
+const (
+	ListMyArtifactsParamsDirAsc  ListMyArtifactsParamsDir = "asc"
+	ListMyArtifactsParamsDirDesc ListMyArtifactsParamsDir = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ListMyArtifactsParamsDir enum.
+func (e ListMyArtifactsParamsDir) Valid() bool {
+	switch e {
+	case ListMyArtifactsParamsDirAsc:
+		return true
+	case ListMyArtifactsParamsDirDesc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListMyVulnerabilitiesParamsSeverity.
 const (
 	ListMyVulnerabilitiesParamsSeverityCRITICAL ListMyVulnerabilitiesParamsSeverity = "CRITICAL"
@@ -1207,28 +1273,28 @@ func (e ListTopVulnerabilitiesParamsSeverity) Valid() bool {
 
 // Defines values for ListTopVulnerabilitiesParamsSort.
 const (
-	AffectedPurlCount ListTopVulnerabilitiesParamsSort = "affected_purl_count"
-	AffectedSbomCount ListTopVulnerabilitiesParamsSort = "affected_sbom_count"
-	CanonicalId       ListTopVulnerabilitiesParamsSort = "canonical_id"
-	CvssScore         ListTopVulnerabilitiesParamsSort = "cvss_score"
-	PublishedAt       ListTopVulnerabilitiesParamsSort = "published_at"
-	Severity          ListTopVulnerabilitiesParamsSort = "severity"
+	ListTopVulnerabilitiesParamsSortAffectedPurlCount ListTopVulnerabilitiesParamsSort = "affected_purl_count"
+	ListTopVulnerabilitiesParamsSortAffectedSbomCount ListTopVulnerabilitiesParamsSort = "affected_sbom_count"
+	ListTopVulnerabilitiesParamsSortCanonicalId       ListTopVulnerabilitiesParamsSort = "canonical_id"
+	ListTopVulnerabilitiesParamsSortCvssScore         ListTopVulnerabilitiesParamsSort = "cvss_score"
+	ListTopVulnerabilitiesParamsSortPublishedAt       ListTopVulnerabilitiesParamsSort = "published_at"
+	ListTopVulnerabilitiesParamsSortSeverity          ListTopVulnerabilitiesParamsSort = "severity"
 )
 
 // Valid indicates whether the value is a known member of the ListTopVulnerabilitiesParamsSort enum.
 func (e ListTopVulnerabilitiesParamsSort) Valid() bool {
 	switch e {
-	case AffectedPurlCount:
+	case ListTopVulnerabilitiesParamsSortAffectedPurlCount:
 		return true
-	case AffectedSbomCount:
+	case ListTopVulnerabilitiesParamsSortAffectedSbomCount:
 		return true
-	case CanonicalId:
+	case ListTopVulnerabilitiesParamsSortCanonicalId:
 		return true
-	case CvssScore:
+	case ListTopVulnerabilitiesParamsSortCvssScore:
 		return true
-	case PublishedAt:
+	case ListTopVulnerabilitiesParamsSortPublishedAt:
 		return true
-	case Severity:
+	case ListTopVulnerabilitiesParamsSortSeverity:
 		return true
 	default:
 		return false
@@ -1289,19 +1355,20 @@ type AffectedComponent struct {
 // ArtifactDetail defines model for ArtifactDetail.
 type ArtifactDetail struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema              *string   `json:"$schema,omitempty"`
-	Cpe                 *string   `json:"cpe,omitempty"`
-	CreatedAt           time.Time `json:"createdAt"`
-	Group               *string   `json:"group,omitempty"`
-	Id                  string    `json:"id"`
-	Name                string    `json:"name"`
-	Purl                *string   `json:"purl,omitempty"`
-	SbomCount           int64     `json:"sbomCount"`
-	SigningStatus       string    `json:"signingStatus"`
-	SufficientSbomCount int64     `json:"sufficientSbomCount"`
-	Type                string    `json:"type"`
-	VersionCount        int64     `json:"versionCount"`
-	Watched             bool      `json:"watched"`
+	Schema              *string      `json:"$schema,omitempty"`
+	Cpe                 *string      `json:"cpe,omitempty"`
+	CreatedAt           time.Time    `json:"createdAt"`
+	Group               *string      `json:"group,omitempty"`
+	Id                  string       `json:"id"`
+	Name                string       `json:"name"`
+	Purl                *string      `json:"purl,omitempty"`
+	SbomCount           int64        `json:"sbomCount"`
+	SigningStatus       string       `json:"signingStatus"`
+	SufficientSbomCount int64        `json:"sufficientSbomCount"`
+	Type                string       `json:"type"`
+	VersionCount        int64        `json:"versionCount"`
+	Vulns               *VulnSummary `json:"vulns,omitempty"`
+	Watched             bool         `json:"watched"`
 }
 
 // ArtifactRelation defines model for ArtifactRelation.
@@ -1322,13 +1389,14 @@ type ArtifactRelation struct {
 
 // ArtifactSummary defines model for ArtifactSummary.
 type ArtifactSummary struct {
-	Group               *string `json:"group,omitempty"`
-	Id                  string  `json:"id"`
-	Name                string  `json:"name"`
-	SbomCount           int64   `json:"sbomCount"`
-	SigningStatus       string  `json:"signingStatus"`
-	SufficientSbomCount int64   `json:"sufficientSbomCount"`
-	Type                string  `json:"type"`
+	Group               *string      `json:"group,omitempty"`
+	Id                  string       `json:"id"`
+	Name                string       `json:"name"`
+	SbomCount           int64        `json:"sbomCount"`
+	SigningStatus       string       `json:"signingStatus"`
+	SufficientSbomCount int64        `json:"sufficientSbomCount"`
+	Type                string       `json:"type"`
+	Vulns               *VulnSummary `json:"vulns,omitempty"`
 }
 
 // ArtifactTypeCountEntry defines model for ArtifactTypeCountEntry.
@@ -3350,7 +3418,19 @@ type ListArtifactsParams struct {
 
 	// Sufficient Filter to artifacts with sufficiently enriched SBOMs; pass 'false' to include all (default: true)
 	Sufficient *string `form:"sufficient,omitempty" json:"sufficient,omitempty"`
+
+	// Sort Column to sort by. Empty orders by name. Changing it invalidates any cursor already held.
+	Sort *ListArtifactsParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// Dir Sort direction; defaults to desc (worst first) when sort is set.
+	Dir *ListArtifactsParamsDir `form:"dir,omitempty" json:"dir,omitempty"`
 }
+
+// ListArtifactsParamsSort defines parameters for ListArtifacts.
+type ListArtifactsParamsSort string
+
+// ListArtifactsParamsDir defines parameters for ListArtifacts.
+type ListArtifactsParamsDir string
 
 // LookupArtifactParams defines parameters for LookupArtifact.
 type LookupArtifactParams struct {
@@ -3895,7 +3975,19 @@ type ListMyArtifactsParams struct {
 
 	// Sufficient Filter to artifacts with sufficiently enriched SBOMs; pass 'false' to include all (default: true)
 	Sufficient *string `form:"sufficient,omitempty" json:"sufficient,omitempty"`
+
+	// Sort Column to sort by. Empty orders by name. Changing it invalidates any cursor already held.
+	Sort *ListMyArtifactsParamsSort `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// Dir Sort direction; defaults to desc (worst first) when sort is set.
+	Dir *ListMyArtifactsParamsDir `form:"dir,omitempty" json:"dir,omitempty"`
 }
+
+// ListMyArtifactsParamsSort defines parameters for ListMyArtifacts.
+type ListMyArtifactsParamsSort string
+
+// ListMyArtifactsParamsDir defines parameters for ListMyArtifacts.
+type ListMyArtifactsParamsDir string
 
 // ListMyDriftFeedParams defines parameters for ListMyDriftFeed.
 type ListMyDriftFeedParams struct {

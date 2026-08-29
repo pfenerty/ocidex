@@ -427,6 +427,15 @@ type ArtifactFilter struct {
 	CursorID          string
 	HasCursor         bool
 	Visibility        VisibilityFilter
+
+	// SortSeverity orders by the newest SBOM's severity counts instead of
+	// (name, type, id), and with it the pagination style changes: those
+	// counts are a rollup a refresh pass rewrites underneath the reader, so
+	// ADR-043 rule (1) rules out a keyset cursor and Offset carries the page
+	// instead. The caller keeps handing back an opaque cursor either way.
+	SortSeverity bool
+	SortDesc     bool
+	Offset       int32
 }
 
 // SBOMByArtifactPage carries keyset pagination state for ListSBOMsByArtifact,
@@ -500,6 +509,12 @@ type ArtifactSummary struct {
 	SbomCount           int64   `json:"sbomCount"`
 	SufficientSbomCount int64   `json:"sufficientSbomCount"`
 	SigningStatus       string  `json:"signingStatus"`
+
+	// Vulns is nil when the artifact's newest SBOM has no sbom_vuln_rollup
+	// row, which means "no known vulnerabilities" or "never scanned" without
+	// distinguishing them. Callers must render nil as unknown, never as a
+	// clean zero (ADR-044) — the same contract ArtifactVersion.Vulns carries.
+	Vulns *VulnSummary `json:"vulns,omitempty"`
 }
 
 // ArtifactDetail extends ArtifactSummary with full metadata.

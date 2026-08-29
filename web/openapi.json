@@ -151,6 +151,9 @@
             "format": "int64",
             "type": "integer"
           },
+          "vulns": {
+            "$ref": "#/components/schemas/VulnSummary"
+          },
           "watched": {
             "type": "boolean"
           }
@@ -242,6 +245,9 @@
           },
           "type": {
             "type": "string"
+          },
+          "vulns": {
+            "$ref": "#/components/schemas/VulnSummary"
           }
         },
         "required": [
@@ -6439,6 +6445,33 @@
               "description": "Filter to artifacts with sufficiently enriched SBOMs; pass 'false' to include all (default: true)",
               "type": "string"
             }
+          },
+          {
+            "description": "Column to sort by. Empty orders by name. Changing it invalidates any cursor already held.",
+            "explode": false,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Column to sort by. Empty orders by name. Changing it invalidates any cursor already held.",
+              "enum": [
+                "severity"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction; defaults to desc (worst first) when sort is set.",
+            "explode": false,
+            "in": "query",
+            "name": "dir",
+            "schema": {
+              "description": "Sort direction; defaults to desc (worst first) when sort is set.",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -11127,6 +11160,33 @@
             "name": "sufficient",
             "schema": {
               "description": "Filter to artifacts with sufficiently enriched SBOMs; pass 'false' to include all (default: true)",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Column to sort by. Empty orders by name. Changing it invalidates any cursor already held.",
+            "explode": false,
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "description": "Column to sort by. Empty orders by name. Changing it invalidates any cursor already held.",
+              "enum": [
+                "severity"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort direction; defaults to desc (worst first) when sort is set.",
+            "explode": false,
+            "in": "query",
+            "name": "dir",
+            "schema": {
+              "description": "Sort direction; defaults to desc (worst first) when sort is set.",
+              "enum": [
+                "asc",
+                "desc"
+              ],
               "type": "string"
             }
           }

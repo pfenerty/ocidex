@@ -128,3 +128,34 @@ func TestArtifactVersionFromRow_ZeroCountsMeanNoSummary(t *testing.T) {
 	})
 	is.Equal(withFindings.Vulns, &VulnSummary{Critical: 1, Low: 2, Total: 3})
 }
+
+// sbom_vuln_rollup holds a row only for an SBOM with at least one finding, so
+// all-zero counts mean the row was missing: "no known vulnerabilities" *or*
+// "never scanned", indistinguishably. A non-nil all-zero summary would let the
+// UI render that as a clean zero, which is the ADR-044 bug.
+func TestVulnSummaryOrNil(t *testing.T) {
+	is := is.New(t)
+
+	is.Equal(vulnSummaryOrNil(0, 0, 0, 0, 0), (*VulnSummary)(nil))
+
+	got := vulnSummaryOrNil(1, 2, 3, 4, 5)
+	is.True(got != nil)
+	is.Equal(got.Critical, 1)
+	is.Equal(got.High, 2)
+	is.Equal(got.Medium, 3)
+	is.Equal(got.Low, 4)
+	is.Equal(got.Unknown, 5)
+	is.Equal(got.Total, 15)
+
+	// A finding of unknown severity alone still counts as scanned.
+	is.True(vulnSummaryOrNil(0, 0, 0, 0, 1) != nil)
+}
+
+// The ORDER BY in ListArtifacts flips its severity keys by multiplying them
+// instead of carrying a second set, which works only because counts are
+// non-negative. Getting the sign backwards would silently invert the sort.
+func TestSortDirSign(t *testing.T) {
+	is := is.New(t)
+	is.Equal(sortDirSign(true), int32(1))   // desc: worst first
+	is.Equal(sortDirSign(false), int32(-1)) // asc
+}
