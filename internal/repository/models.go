@@ -120,6 +120,12 @@ type ComponentRollup struct {
 	PurlTypes []string `json:"purl_types"`
 	Versions  []string `json:"versions"`
 	SbomCount int64    `json:"sbom_count"`
+	// Distinct canonical vulnerability ids of CRITICAL severity reachable from any version of this package identity in this namespace. A CVE affecting two versions counts once: the row is the identity, not a version.
+	Critical int64 `json:"critical"`
+	High     int64 `json:"high"`
+	Medium   int64 `json:"medium"`
+	Low      int64 `json:"low"`
+	Unknown  int64 `json:"unknown"`
 }
 
 type Dependency struct {

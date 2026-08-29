@@ -723,6 +723,12 @@ type DistinctComponentSummary struct {
 	PurlTypes    []string `json:"purlTypes,omitempty"`
 	VersionCount int64    `json:"versionCount"`
 	SbomCount    int64    `json:"sbomCount"`
+	// Vulns is always present, and all-zero genuinely means "no known
+	// vulnerabilities": component_rollup carries a row for every package
+	// identity, so there is no never-scanned state for a zero to be confused
+	// with. That is why this is a value where ArtifactSummary.Vulns is a
+	// pointer — the ADR-044 caveat does not apply at this grain.
+	Vulns VulnSummary `json:"vulns"`
 }
 
 // ComponentVersionEntry represents a specific version of a component and the SBOM it came from.

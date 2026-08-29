@@ -54,15 +54,70 @@ func RollupAggregate(table string) (string, bool) {
 // a NULL version as an array element on purpose: a component with no recorded
 // version is a distinct thing from one versioned "", and the read queries
 // distinguish them.
+//
+// The severity counts (ocidex-unn8.10) reuse sbomVulnRollupAggregate's scope and
+// dedup rules — purl UNION source_purl so both legs stay index-equality lookups
+// on package_vulnerability.purl, one finding per distinct canonical_id so an OSV
+// alias group counts once — but at this table's grain, which is the package
+// identity rather than the SBOM. So a CVE that affects three versions of the
+// same package counts once, not three times: the row answers "is this package
+// risky", not "how many vulnerable copies are there".
+//
+// Unlike sbom_vuln_rollup, every identity gets a row whether or not it has
+// findings, so zero here means "no known vulnerabilities" rather than the
+// "no findings *or* never scanned" ambiguity ADR-044 warns about. Readers render
+// it as a plain zero.
 const componentRollupAggregate = `
-SELECT s.namespace_id, c.type, c.name, c.group_name,
-       COALESCE(array_agg(DISTINCT split_part(replace(c.purl, 'pkg:', ''), '/', 1))
-                FILTER (WHERE c.purl IS NOT NULL), '{}')::text[] AS purl_types,
-       array_agg(DISTINCT c.version)::text[] AS versions,
-       count(DISTINCT c.sbom_id)::bigint AS sbom_count
-FROM component c
-JOIN sbom s ON s.id = c.sbom_id
-GROUP BY s.namespace_id, c.type, c.name, c.group_name`
+WITH base AS (
+    SELECT s.namespace_id, c.type, c.name, c.group_name,
+           COALESCE(array_agg(DISTINCT split_part(replace(c.purl, 'pkg:', ''), '/', 1))
+                    FILTER (WHERE c.purl IS NOT NULL), '{}')::text[] AS purl_types,
+           array_agg(DISTINCT c.version)::text[] AS versions,
+           count(DISTINCT c.sbom_id)::bigint AS sbom_count
+    FROM component c
+    JOIN sbom s ON s.id = c.sbom_id
+    GROUP BY s.namespace_id, c.type, c.name, c.group_name
+), scope AS (
+    SELECT DISTINCT s1.namespace_id, c1.type, c1.name, c1.group_name,
+           c1.purl::text AS match_purl
+    FROM component c1
+    JOIN sbom s1 ON s1.id = c1.sbom_id
+    WHERE c1.purl IS NOT NULL
+    UNION
+    SELECT DISTINCT s2.namespace_id, c2.type, c2.name, c2.group_name,
+           c2.source_purl::text AS match_purl
+    FROM component c2
+    JOIN sbom s2 ON s2.id = c2.sbom_id
+    WHERE c2.source_purl IS NOT NULL
+), findings AS (
+    SELECT DISTINCT sc.namespace_id, sc.type, sc.name, sc.group_name,
+           v.canonical_id, v.severity
+    FROM scope sc
+    JOIN package_vulnerability pv ON pv.purl = sc.match_purl
+    JOIN vulnerability v ON v.id = pv.vulnerability_id
+), sev AS (
+    SELECT f.namespace_id, f.type, f.name, f.group_name,
+           count(*) FILTER (WHERE f.severity = 'CRITICAL')::bigint AS critical,
+           count(*) FILTER (WHERE f.severity = 'HIGH')::bigint     AS high,
+           count(*) FILTER (WHERE f.severity = 'MEDIUM')::bigint   AS medium,
+           count(*) FILTER (WHERE f.severity = 'LOW')::bigint      AS low,
+           count(*) FILTER (WHERE f.severity IS NULL
+                               OR f.severity NOT IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW'))::bigint AS unknown
+    FROM findings f
+    GROUP BY f.namespace_id, f.type, f.name, f.group_name
+)
+SELECT b.namespace_id, b.type, b.name, b.group_name, b.purl_types, b.versions, b.sbom_count,
+       COALESCE(sv.critical, 0)::bigint AS critical,
+       COALESCE(sv.high,     0)::bigint AS high,
+       COALESCE(sv.medium,   0)::bigint AS medium,
+       COALESCE(sv.low,      0)::bigint AS low,
+       COALESCE(sv.unknown,  0)::bigint AS unknown
+FROM base b
+LEFT JOIN sev sv
+       ON sv.namespace_id = b.namespace_id
+      AND sv.type = b.type
+      AND sv.name = b.name
+      AND sv.group_name IS NOT DISTINCT FROM b.group_name`
 
 // Distinct (license, namespace, component identity) triples. The identity is the
 // same four-part tuple ListLicenses used to count distinct, pre-joined with a

@@ -2199,13 +2199,17 @@
           "versionCount": {
             "format": "int64",
             "type": "integer"
+          },
+          "vulns": {
+            "$ref": "#/components/schemas/VulnSummary"
           }
         },
         "required": [
           "name",
           "type",
           "versionCount",
-          "sbomCount"
+          "sbomCount",
+          "vulns"
         ],
         "type": "object"
       },
@@ -8364,12 +8368,12 @@
             }
           },
           {
-            "description": "Sort field",
+            "description": "Sort field: name, version_count, sbom_count, or severity (worst first, ranked critical to unknown). Unrecognised values fall back to name.",
             "explode": false,
             "in": "query",
             "name": "sort",
             "schema": {
-              "description": "Sort field",
+              "description": "Sort field: name, version_count, sbom_count, or severity (worst first, ranked critical to unknown). Unrecognised values fall back to name.",
               "type": "string"
             }
           },

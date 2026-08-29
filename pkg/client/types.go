@@ -2035,12 +2035,13 @@ type DiscoveryOutputBody struct {
 
 // DistinctComponentSummary defines model for DistinctComponentSummary.
 type DistinctComponentSummary struct {
-	Group        *string   `json:"group,omitempty"`
-	Name         string    `json:"name"`
-	PurlTypes    *[]string `json:"purlTypes,omitempty"`
-	SbomCount    int64     `json:"sbomCount"`
-	Type         string    `json:"type"`
-	VersionCount int64     `json:"versionCount"`
+	Group        *string     `json:"group,omitempty"`
+	Name         string      `json:"name"`
+	PurlTypes    *[]string   `json:"purlTypes,omitempty"`
+	SbomCount    int64       `json:"sbomCount"`
+	Type         string      `json:"type"`
+	VersionCount int64       `json:"versionCount"`
+	Vulns        VulnSummary `json:"vulns"`
 }
 
 // EnrichmentJobResponse defines model for EnrichmentJobResponse.
@@ -3683,7 +3684,7 @@ type SearchDistinctComponentsParams struct {
 	// PurlType Filter by purl type
 	PurlType *string `form:"purl_type,omitempty" json:"purl_type,omitempty"`
 
-	// Sort Sort field
+	// Sort Sort field: name, version_count, sbom_count, or severity (worst first, ranked critical to unknown). Unrecognised values fall back to name.
 	Sort *string `form:"sort,omitempty" json:"sort,omitempty"`
 
 	// SortDir Sort direction (asc or desc)

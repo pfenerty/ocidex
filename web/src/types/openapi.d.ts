@@ -2374,6 +2374,7 @@ export interface components {
             type: string;
             /** Format: int64 */
             versionCount: number;
+            vulns: components["schemas"]["VulnSummary"];
         };
         EnrichmentJobResponse: {
             /** @description Name of the artifact, for display */
@@ -5076,7 +5077,7 @@ export interface operations {
                 type?: string;
                 /** @description Filter by purl type */
                 purl_type?: string;
-                /** @description Sort field */
+                /** @description Sort field: name, version_count, sbom_count, or severity (worst first, ranked critical to unknown). Unrecognised values fall back to name. */
                 sort?: string;
                 /** @description Sort direction (asc or desc) */
                 sort_dir?: string;

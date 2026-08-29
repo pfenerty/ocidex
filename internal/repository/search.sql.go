@@ -1323,6 +1323,24 @@ SELECT r.name, r.group_name, r.type,
        COALESCE(string_agg(DISTINCT p.purl_type, ',' ORDER BY p.purl_type), '') AS purl_types,
        COUNT(DISTINCT v.version) AS version_count,
        COALESCE(SUM(r.sbom_count) FILTER (WHERE COALESCE(v.ord, 1) = 1 AND COALESCE(p.ord, 1) = 1), 0)::bigint AS sbom_count,
+       -- Severity counts (ocidex-unn8.10) come out of the rollup for the same
+       -- ~53s reason as sbom_count. MAX, not SUM, across the visible namespaces:
+       -- a CVE affecting this package is a property of the package, so summing
+       -- the per-namespace rows would report it once per namespace that happens
+       -- to hold the package. MAX reports the worst any one namespace sees --
+       -- a lower bound when two namespaces hold disjoint version sets, which is
+       -- the safe direction to be wrong in for an ordering key. It is also
+       -- immune to the unnest row multiplication, so it needs no ordinality
+       -- filter.
+       --
+       -- Zero is a real zero here, unlike the artifact and version lists:
+       -- component_rollup has a row for every package identity, so there is no
+       -- "never scanned" state to confuse it with (ADR-044 does not apply).
+       MAX(r.critical)::bigint AS critical,
+       MAX(r.high)::bigint     AS high,
+       MAX(r.medium)::bigint   AS medium,
+       MAX(r.low)::bigint      AS low,
+       MAX(r.unknown)::bigint  AS unknown,
        COUNT(*) OVER() AS total_count
 FROM component_rollup r
 LEFT JOIN LATERAL unnest(r.versions) WITH ORDINALITY AS v(version, ord) ON true
@@ -1335,6 +1353,15 @@ WHERE ($1::text IS NULL OR r.name ILIKE $1)
         SELECT visible_namespace_ids($5::uuid, $6::boolean)))
 GROUP BY r.name, r.group_name, r.type
 ORDER BY
+  -- 'severity' needs five keys rather than one: a single total would rank a
+  -- package with 40 lows above one with a critical. Ranked lexicographically,
+  -- worst severity first, the way the /artifacts list orders. The keys collapse
+  -- to NULL under any other sort, so every row ties and the CASE below decides.
+  CASE WHEN $7::text = 'severity' THEN MAX(r.critical) END * CASE $8::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
+  CASE WHEN $7::text = 'severity' THEN MAX(r.high)     END * CASE $8::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
+  CASE WHEN $7::text = 'severity' THEN MAX(r.medium)   END * CASE $8::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
+  CASE WHEN $7::text = 'severity' THEN MAX(r.low)      END * CASE $8::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
+  CASE WHEN $7::text = 'severity' THEN MAX(r.unknown)  END * CASE $8::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
   CASE $7::text
     WHEN 'version_count' THEN COUNT(DISTINCT v.version)
     WHEN 'sbom_count' THEN COALESCE(SUM(r.sbom_count) FILTER (WHERE COALESCE(v.ord, 1) = 1 AND COALESCE(p.ord, 1) = 1), 0)
@@ -1363,6 +1390,11 @@ type SearchDistinctComponentsRow struct {
 	PurlTypes    interface{} `json:"purl_types"`
 	VersionCount int64       `json:"version_count"`
 	SbomCount    int64       `json:"sbom_count"`
+	Critical     int64       `json:"critical"`
+	High         int64       `json:"high"`
+	Medium       int64       `json:"medium"`
+	Low          int64       `json:"low"`
+	Unknown      int64       `json:"unknown"`
 	TotalCount   int64       `json:"total_count"`
 }
 
@@ -1403,6 +1435,11 @@ func (q *Queries) SearchDistinctComponents(ctx context.Context, arg SearchDistin
 			&i.PurlTypes,
 			&i.VersionCount,
 			&i.SbomCount,
+			&i.Critical,
+			&i.High,
+			&i.Medium,
+			&i.Low,
+			&i.Unknown,
 			&i.TotalCount,
 		); err != nil {
 			return nil, err

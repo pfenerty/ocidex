@@ -12,12 +12,13 @@ import type { components } from "~/types/openapi";
 import DataTable from "~/components/DataTable";
 import type { Column, SortDir } from "~/components/DataTable";
 import { ComponentNameCell } from "~/components/cells";
+import { VulnCountBadges } from "~/components/VulnBadge";
 import { Button, PageHeader, Toolbar } from "~/components/ui";
 import type { ToolbarField } from "~/components/ui";
 
 type DistinctComponentSummary = components["schemas"]["DistinctComponentSummary"];
 type ComponentSummary = components["schemas"]["ComponentSummary"];
-type SortColumn = "name" | "version_count" | "sbom_count";
+type SortColumn = "name" | "version_count" | "sbom_count" | "severity";
 
 export default function Components() {
     const [searchParams] = useSearchParams();
@@ -179,6 +180,25 @@ function ComponentBrowser() {
             sortType: "numeric",
             align: "right",
             render: (c) => formatCount(c.sbomCount),
+        },
+        {
+            header: "Vulnerabilities",
+            sortKey: "severity",
+            sortType: "numeric",
+            align: "right",
+            // An em dash, not "not scanned": component_rollup has a row for
+            // every package identity, so all-zero here is a real "nothing
+            // known against it" rather than the /artifacts list's ambiguity
+            // between no findings and never scanned (ADR-044).
+            render: (c) => (
+                <VulnCountBadges
+                    criticalCount={c.vulns.critical}
+                    highCount={c.vulns.high}
+                    mediumCount={c.vulns.medium}
+                    lowCount={c.vulns.low}
+                    unknownCount={c.vulns.unknown}
+                />
+            ),
         },
     ];
 

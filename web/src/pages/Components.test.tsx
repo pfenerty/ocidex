@@ -145,3 +145,61 @@ describe("Components filters live in the URL", () => {
         expect(textInputs(container).map((i) => i.value)).toEqual(["", ""]);
     });
 });
+
+// ocidex-unn8.10: the package catalogue had no risk column, so it could not be
+// ordered by severity at all.
+describe("Components severity column", () => {
+    const row = (over: Record<string, unknown> = {}) => ({
+        name: "openssl",
+        type: "library",
+        purlTypes: ["apk"],
+        versionCount: 3,
+        sbomCount: 5,
+        vulns: { critical: 2, high: 3, medium: 0, low: 1, unknown: 0, total: 6 },
+        ...over,
+    });
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mockPurlTypes.mockReturnValue(queryState({ data: { types: [] } }));
+    });
+
+    const renderRows = (rows: Record<string, unknown>[]) => {
+        mockDistinct.mockReturnValue(
+            queryState({ data: { data: rows, pagination: { total: rows.length, limit: 20, offset: 0 } } }),
+        );
+        return renderAt("/components");
+    };
+
+    it("renders the per-severity counts as a chip", () => {
+        const { container } = renderRows([row()]);
+
+        const chip = container.querySelector(".vuln-chip");
+        expect(chip?.textContent.replace(/\s+/g, "")).toBe("23010");
+    });
+
+    // Unlike /artifacts, an all-zero row here is a real "nothing known against
+    // this package" — component_rollup carries a row for every identity, so
+    // there is no never-scanned state to warn about (ADR-044).
+    it("renders an em dash, not a scan warning, when nothing is known", () => {
+        const { container, queryByText } = renderRows([
+            row({ vulns: { critical: 0, high: 0, medium: 0, low: 0, unknown: 0, total: 0 } }),
+        ]);
+
+        expect(container.querySelector(".vuln-chip")).toBeNull();
+        expect(queryByText("—")).toBeTruthy();
+        expect(queryByText("not scanned")).toBeNull();
+    });
+
+    it("asks the server for a worst-first severity sort when the header is clicked", async () => {
+        const { getByText } = renderRows([row()]);
+
+        fireEvent.click(getByText("Vulnerabilities"));
+
+        await waitFor(() => {
+            const args = mockDistinct.mock.calls[mockDistinct.mock.calls.length - 1][0]();
+            expect(args.sort).toBe("severity");
+            expect(args.sort_dir).toBe("desc");
+        });
+    });
+});

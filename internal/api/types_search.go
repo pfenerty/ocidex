@@ -34,7 +34,7 @@ type SearchDistinctComponentsInput struct {
 	Group    string `query:"group" doc:"Filter by component group"`
 	Type     string `query:"type" doc:"Filter by component type"`
 	PurlType string `query:"purl_type" doc:"Filter by purl type"`
-	Sort     string `query:"sort" doc:"Sort field"`
+	Sort     string `query:"sort" doc:"Sort field: name, version_count, sbom_count, or severity (worst first, ranked critical to unknown). Unrecognised values fall back to name."`
 	SortDir  string `query:"sort_dir" doc:"Sort direction (asc or desc)"`
 }
 

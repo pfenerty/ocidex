@@ -57,7 +57,10 @@ func (s *searchService) SearchDistinctComponents(ctx context.Context, filter Com
 	}
 	sortBy := filter.Sort
 	switch sortBy {
-	case sortByName, "version_count", "sbom_count":
+	// "severity" (ocidex-unn8.10) orders by the rollup's five per-severity
+	// counts, ranked worst-first; the query, not this list, decides how they
+	// break ties against each other.
+	case sortByName, "version_count", "sbom_count", "severity":
 	default:
 		sortBy = sortByName
 	}
@@ -99,6 +102,17 @@ func (s *searchService) SearchDistinctComponents(ctx context.Context, filter Com
 			PurlTypes:    purlTypes,
 			VersionCount: row.VersionCount,
 			SbomCount:    row.SbomCount,
+			// A value, not a pointer, unlike ArtifactSummary.Vulns: every
+			// package identity has a component_rollup row, so all-zero here
+			// means "no known vulnerabilities" and never "not scanned".
+			Vulns: VulnSummary{
+				Critical: int(row.Critical),
+				High:     int(row.High),
+				Medium:   int(row.Medium),
+				Low:      int(row.Low),
+				Unknown:  int(row.Unknown),
+				Total:    int(row.Critical + row.High + row.Medium + row.Low + row.Unknown),
+			},
 		})
 	}
 

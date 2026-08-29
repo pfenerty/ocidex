@@ -111,6 +111,7 @@ func TestSearchDistinctComponents_SortNormalization(t *testing.T) {
 		{"valid sort invalid dir", "version_count", "sideways", "version_count", "asc"},
 		{"valid both", "sbom_count", "desc", "sbom_count", "desc"},
 		{"name explicit", "name", "asc", "name", "asc"},
+		{"severity passes the allowlist", "severity", "desc", "severity", "desc"},
 	}
 
 	for _, tt := range tests {
@@ -155,9 +156,14 @@ func TestSearchDistinctComponents_Pagination(t *testing.T) {
 		// dest[1] GroupName (pgtype.Text)  — zero
 		*(dest[2].(*string)) = "library" // Type
 		// dest[3] PurlTypes (interface{})  — zero
-		*(dest[4].(*int64)) = 3  // VersionCount
-		*(dest[5].(*int64)) = 5  // SbomCount
-		*(dest[6].(*int64)) = 42 // TotalCount
+		*(dest[4].(*int64)) = 3   // VersionCount
+		*(dest[5].(*int64)) = 5   // SbomCount
+		*(dest[6].(*int64)) = 2   // Critical
+		*(dest[7].(*int64)) = 1   // High
+		*(dest[8].(*int64)) = 0   // Medium
+		*(dest[9].(*int64)) = 4   // Low
+		*(dest[10].(*int64)) = 3  // Unknown
+		*(dest[11].(*int64)) = 42 // TotalCount
 		return nil
 	}
 
@@ -178,6 +184,10 @@ func TestSearchDistinctComponents_Pagination(t *testing.T) {
 	is.Equal(result.Limit, int32(20))
 	is.Equal(result.Offset, int32(40))
 	is.Equal(len(result.Data), 2)
+	// Severity counts ride along on every row and Total is derived, not read
+	// (ocidex-unn8.10). Vulns is a value: all-zero would mean "nothing known",
+	// never "not scanned", so there is no absent case to assert.
+	is.Equal(result.Data[0].Vulns, VulnSummary{Critical: 2, High: 1, Medium: 0, Low: 4, Unknown: 3, Total: 10})
 }
 
 // TestSearchDistinctComponents_PurlTypeParsing verifies that a comma-separated
