@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/matryer/is"
+	dbfs "github.com/pfenerty/ocidex/db"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
@@ -118,7 +119,7 @@ func TestRollupRefreshTruncatesAndRepopulatesEveryRollup(t *testing.T) {
 	_, err := refresherFor(tx).refresh(context.Background())
 	is.NoErr(err)
 
-	for _, table := range []string{"component_rollup", "license_rollup", "vuln_rollup"} {
+	for _, table := range []string{"component_rollup", "license_rollup", "vuln_rollup", "sbom_vuln_rollup"} {
 		is.True(tx.firstIndex("CREATE TEMP TABLE tmp_"+table) >= 0)
 		truncate := tx.firstIndex("TRUNCATE " + table)
 		insert := tx.firstIndex("INSERT INTO " + table)
@@ -272,4 +273,49 @@ func TestNewRollupRefresherDefaultsInterval(t *testing.T) {
 	is := is.New(t)
 	is.Equal(NewRollupRefresher(&fakeDB{}, 0, discardLogger()).interval, RollupRefreshInterval)
 	is.Equal(NewRollupRefresher(&fakeDB{}, -time.Second, discardLogger()).interval, RollupRefreshInterval)
+}
+
+// The seeding INSERT in the migration and the aggregate the refresher runs are
+// two copies of one query, and rollup_refresh.go's header comment makes keeping
+// them in step normative. The failure mode is nasty precisely because it is
+// quiet: a divergence leaves the rollup correct immediately after the migration
+// and wrong after the first refresh pass, with nothing in between to notice.
+//
+// Only sbom_vuln_rollup (ocidex-unn8.7) is checked. The other three were seeded
+// by 00051 keyed on registry_id and rekeyed to namespace_id by 00053, so their
+// migration text is a historical record rather than a current definition — the
+// aggregate consts are the live truth for those. This one was authored against
+// the current schema, so the two texts can and must agree.
+func TestSBOMVulnRollupSeedMatchesTheRefreshAggregate(t *testing.T) {
+	is := is.New(t)
+
+	aggregate, ok := repository.RollupAggregate("sbom_vuln_rollup")
+	is.True(ok) // sbom_vuln_rollup must be a refresh target, not just a table
+
+	raw, err := dbfs.Migrations.ReadFile("migrations/00063_sbom_vuln_rollup.sql")
+	is.NoErr(err)
+
+	const insertPrefix = "INSERT INTO sbom_vuln_rollup (sbom_id, namespace_id, critical, high, medium, low, unknown)"
+	start := strings.Index(string(raw), insertPrefix)
+	is.True(start >= 0) // the migration must still seed the table
+	body := string(raw)[start+len(insertPrefix):]
+	end := strings.Index(body, ";")
+	is.True(end >= 0)
+
+	is.Equal(normalizeSQL(body[:end]), normalizeSQL(aggregate))
+}
+
+// normalizeSQL reduces a statement to the parts that change its meaning:
+// comments and layout are dropped so the comparison is about the query, not
+// about how either copy happens to be indented.
+func normalizeSQL(s string) string {
+	lines := strings.Split(s, "\n")
+	kept := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if i := strings.Index(line, "--"); i >= 0 {
+			line = line[:i]
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(strings.Fields(strings.Join(kept, " ")), " ")
 }

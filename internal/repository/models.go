@@ -277,6 +277,17 @@ type Sbom struct {
 	SourceID pgtype.UUID `json:"source_id"`
 }
 
+// Per-severity finding counts per SBOM, deduplicated by canonical_id, scoped purl ∪ source_purl. Absence of a row means no findings OR never scanned — callers must not render it as a clean zero.
+type SbomVulnRollup struct {
+	SbomID      pgtype.UUID `json:"sbom_id"`
+	NamespaceID pgtype.UUID `json:"namespace_id"`
+	Critical    int64       `json:"critical"`
+	High        int64       `json:"high"`
+	Medium      int64       `json:"medium"`
+	Low         int64       `json:"low"`
+	Unknown     int64       `json:"unknown"`
+}
+
 type ScanJob struct {
 	ID            pgtype.UUID        `json:"id"`
 	RegistryID    pgtype.UUID        `json:"registry_id"`

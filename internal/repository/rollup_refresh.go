@@ -6,11 +6,12 @@
 // for their effect, and the aggregate text has to be interpolated into a
 // CREATE TEMP TABLE ... AS, which sqlc has no way to express.
 //
-// The three aggregate statements below are the definition of the rollups. The
-// seeding INSERTs in db/migrations/00051_list_rollups.sql are the same queries
-// and must be kept in step with these: a divergence would leave the rollup
-// correct immediately after migration and wrong after the first refresh, which
-// is the hardest version of this bug to notice.
+// The four aggregate statements below are the definition of the rollups. The
+// seeding INSERTs in db/migrations/00051_list_rollups.sql and
+// db/migrations/00063_sbom_vuln_rollup.sql are the same queries and must be
+// kept in step with these: a divergence would leave the rollup correct
+// immediately after migration and wrong after the first refresh, which is the
+// hardest version of this bug to notice.
 package repository
 
 import (
@@ -33,6 +34,20 @@ var rollupTargets = []struct {
 	{"component_rollup", componentRollupAggregate},
 	{"license_rollup", licenseRollupAggregate},
 	{"vuln_rollup", vulnRollupAggregate},
+	{"sbom_vuln_rollup", sbomVulnRollupAggregate},
+}
+
+// RollupAggregate returns the aggregate that defines a rollup table, and
+// whether that table is one of the rollups at all. Exported so a test can hold
+// the definition against the seeding INSERT in the migration that created the
+// table; nothing in the running service needs it.
+func RollupAggregate(table string) (string, bool) {
+	for _, t := range rollupTargets {
+		if t.table == table {
+			return t.aggregate, true
+		}
+	}
+	return "", false
 }
 
 // One row per (namespace, package identity). array_agg(DISTINCT c.version) keeps
@@ -74,15 +89,55 @@ JOIN sbom s ON s.id = comp.sbom_id
 WHERE v.canonical_id <> '' AND comp.purl IS NOT NULL
 GROUP BY v.canonical_id, s.namespace_id`
 
+// Per-severity finding counts at SBOM grain (ocidex-unn8.7), backing the
+// severity columns on the artifact-versions, /artifacts and /components lists.
+//
+// Semantics are GetSBOMVulnSummary's: one finding per distinct canonical_id, so
+// an OSV alias group (GO-… + GHSA-… for one CVE) counts once; scope is
+// purl ∪ source_purl per ocidex-unn8.2, as a UNION rather than an OR-join so
+// both legs stay index-equality lookups on package_vulnerability.purl. The
+// buckets mirror buildVulnSummary's switch including its default arm, so a NULL
+// or unrecognised label lands in unknown rather than vanishing.
+//
+// Only SBOMs with at least one finding get a row. A missing row means "no
+// findings" *or* "never scanned" and this table cannot distinguish them; a
+// reader that renders absence as a clean zero is the ADR-044 bug.
+const sbomVulnRollupAggregate = `
+WITH scope AS (
+    SELECT DISTINCT c1.sbom_id, c1.purl::text AS match_purl
+    FROM component c1 WHERE c1.purl IS NOT NULL
+    UNION
+    SELECT DISTINCT c2.sbom_id, c2.source_purl::text AS match_purl
+    FROM component c2 WHERE c2.source_purl IS NOT NULL
+), findings AS (
+    SELECT DISTINCT sc.sbom_id, v.canonical_id, v.severity
+    FROM scope sc
+    JOIN package_vulnerability pv ON pv.purl = sc.match_purl
+    JOIN vulnerability v ON v.id = pv.vulnerability_id
+)
+SELECT f.sbom_id, s.namespace_id,
+       count(*) FILTER (WHERE f.severity = 'CRITICAL')::bigint AS critical,
+       count(*) FILTER (WHERE f.severity = 'HIGH')::bigint     AS high,
+       count(*) FILTER (WHERE f.severity = 'MEDIUM')::bigint   AS medium,
+       count(*) FILTER (WHERE f.severity = 'LOW')::bigint      AS low,
+       count(*) FILTER (WHERE f.severity IS NULL
+                           OR f.severity NOT IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW'))::bigint AS unknown
+FROM findings f
+JOIN sbom s ON s.id = f.sbom_id
+GROUP BY f.sbom_id, s.namespace_id`
+
 // RollupWatermark summarises the ingest state the rollups were built from. Two
 // passes that observe the same watermark would compute the same component and
 // license rollups, so the second can be skipped.
 //
 // It covers ingest only. package_vulnerability grows whenever the vulnerability
-// feed updates, with no new SBOM to move the watermark, so vuln_rollup can go
-// stale without this noticing — that is what the unconditional backstop interval
-// is for. Ingest gets the fast path because it is the one a user watches: they
-// push an SBOM and immediately look for its packages.
+// feed updates, with no new SBOM to move the watermark, so vuln_rollup and
+// sbom_vuln_rollup can go stale without this noticing — that is what the
+// unconditional backstop interval is for. Extending the watermark to observe
+// the feed would not help: both rollups also move when severities are revised
+// in place, which no count-and-max can see. Ingest gets the fast path because
+// it is the one a user watches: they push an SBOM and immediately look for its
+// packages.
 type RollupWatermark struct {
 	SBOMs  int64
 	Latest time.Time
