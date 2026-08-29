@@ -149,3 +149,77 @@ describe("PackagesTab severity sort", () => {
         }
     });
 });
+
+describe("PackagesTab vulnerable-only toggle", () => {
+    /** The shared toggle button. */
+    function toggle(container: HTMLElement): HTMLButtonElement {
+        const b = [...container.querySelectorAll("button")].find((x) => x.textContent === "Vulnerable only");
+        return must(b, "the vulnerable-only toggle");
+    }
+
+    function rowNames(container: HTMLElement): string[] {
+        return [...container.querySelectorAll("tbody tr")].map(
+            (r) => must(r.querySelector("td"), "a name cell").textContent.trim(),
+        );
+    }
+
+    /** comps() with a finding pinned onto one of them. */
+    function withOneVulnerable(n = 3) {
+        const list = comps(n);
+        return list.map((c, i) => (i === 1 ? { ...c, criticalCount: 2 } : c));
+    }
+
+    it("narrows the list to packages with findings", () => {
+        const { container } = renderTab({ components: withOneVulnerable() });
+        expect(rowNames(container)).toHaveLength(3);
+        fireEvent.click(toggle(container));
+        expect(rowNames(container)).toEqual(["pkg-1"]);
+    });
+
+    it("is off until asked for", () => {
+        const { container } = renderTab({ components: withOneVulnerable() });
+        expect(toggle(container).getAttribute("aria-pressed")).toBe("false");
+        expect(rowNames(container)).toHaveLength(3);
+    });
+
+    // The count line already says a filtered figure is quoted against the
+    // loaded rows; the toggle is a filter like any other and must not escape it.
+    it("counts the narrowed list against the loaded rows", () => {
+        const { container } = renderTab({ components: withOneVulnerable(200), totalCount: 958, hasMore: true });
+        fireEvent.click(toggle(container));
+        expect(countLine(container)).toBe("1 of 200 loaded packages");
+    });
+
+    it("composes with the text filter rather than replacing it", () => {
+        const list = comps(20).map((c, i) => (i % 2 === 0 ? { ...c, highCount: 1 } : c));
+        const { container } = renderTab({ components: list });
+        fireEvent.click(toggle(container));
+        fireEvent.input(must(container.querySelector("input"), "the filter input"), { target: { value: "pkg-1" } });
+        // pkg-1x that are even-numbered, i.e. carry a finding: 10, 12, 14, 16, 18.
+        expect(rowNames(container)).toEqual(["pkg-10", "pkg-12", "pkg-14", "pkg-16", "pkg-18"]);
+    });
+
+    // Offering a filter that can only ever empty the table is worse than not
+    // offering it: the reader reads the empty result as "the query is broken".
+    it("is disabled when nothing loaded has a finding", () => {
+        const { container } = renderTab({ components: comps(3) });
+        expect(toggle(container).disabled).toBe(true);
+    });
+
+    // It filters a question, not a widget. Switching view must not drop it —
+    // which is why the button sits outside the list-only controls.
+    it("stays applied across a view-mode switch", () => {
+        const list = withOneVulnerable();
+        const { container } = renderTab({
+            components: list,
+            depsGraph: { nodes: list, edges: [{ from: "pkg-0", to: "pkg-1" }] as never },
+        });
+        // Tree is the default when a graph is present; the toggle is still there.
+        fireEvent.click(toggle(container));
+        expect(toggle(container).getAttribute("aria-pressed")).toBe("true");
+        const listBtn = must([...container.querySelectorAll("button")].find((b) => b.textContent === "List"), "the List button");
+        fireEvent.click(listBtn);
+        expect(toggle(container).getAttribute("aria-pressed")).toBe("true");
+        expect(rowNames(container)).toEqual(["pkg-1"]);
+    });
+});

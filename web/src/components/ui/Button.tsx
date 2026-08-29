@@ -33,7 +33,11 @@ interface Common {
     /** Renders a spinner and blocks interaction. Implies `disabled`. */
     loading?: boolean;
     disabled?: boolean;
-    /** The pressed state inside a `.btn-group` toggle pair. */
+    /**
+     * The pressed state of a toggle. Styled by `.btn.active`, which is not
+     * scoped to `.btn-group` — a lone toggle (Packages' "Vulnerable only")
+     * is pressed in exactly the same sense as one half of a pair.
+     */
     active?: boolean;
     class?: string;
     children?: JSX.Element;

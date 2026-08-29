@@ -849,13 +849,19 @@
         align-items: center;
     }
 
-    .btn-group .btn.active {
+    /* Not scoped to .btn-group. A pressed button is a pressed button: the
+       vulnerable-only filter on an SBOM's Packages tab is a standalone toggle,
+       and while this rule required an enclosing group it emitted `.active` and
+       computed the same background in both states (ocidex-unn8.12) — the
+       `tab-btn` failure again, one layer down. `.btn-group` still lays the pair
+       out; it no longer owns what pressed looks like. */
+    .btn.active {
         background: var(--color-secondary);
         border-color: var(--color-secondary);
         color: var(--color-secondary-fg);
     }
 
-    .btn-group .btn.active:hover {
+    .btn.active:hover {
         background: var(--color-secondary-hover);
         border-color: var(--color-secondary-hover);
     }

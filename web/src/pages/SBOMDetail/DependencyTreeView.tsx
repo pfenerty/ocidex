@@ -1,4 +1,4 @@
-import { createSignal, createMemo, Show } from "solid-js";
+import { createSignal, createMemo, createEffect, on, Show } from "solid-js";
 import { A } from "@solidjs/router";
 import { Button } from "~/components/ui";
 import DataTable from "~/components/DataTable";
@@ -36,8 +36,26 @@ interface DepRow {
     isCyclic: boolean;
 }
 
+/** Total findings on a node; undefined counts read as zero. */
+function vulnTotal(node: Pick<TreeNode, "criticalCount" | "highCount" | "mediumCount" | "lowCount" | "unknownCount">): number {
+    return (
+        (node.criticalCount ?? 0) +
+        (node.highCount ?? 0) +
+        (node.mediumCount ?? 0) +
+        (node.lowCount ?? 0) +
+        (node.unknownCount ?? 0)
+    );
+}
+
 export function DependencyTreeView(props: {
     graph: { edges: DependencyEdge[]; nodes: ComponentSummary[]; roots?: string[] | null };
+    /**
+     * Show only the paths that reach a vulnerable package. This narrows the
+     * tree without flattening it: the ancestry is what says which direct
+     * dependency pulled the vulnerable one in, so the branches that lead
+     * nowhere are dropped and the surviving depth is kept.
+     */
+    vulnerableOnly?: boolean;
 }) {
     const treeData = createMemo(() => {
         const nameMap = new Map<
@@ -132,7 +150,50 @@ export function DependencyTreeView(props: {
         return { roots: rootRefs, nodes };
     });
 
+    /**
+     * Refs that are vulnerable or have a vulnerable descendant — i.e. every ref
+     * worth drawing under the filter. Computed once per graph rather than per
+     * row, and cycle-safe: a ref already on the current descent path is skipped
+     * rather than followed, so a circular dependency cannot recurse forever.
+     */
+    const pathRefs = createMemo(() => {
+        const { roots, nodes } = treeData();
+        const keep = new Set<string>();
+        const onPath = new Set<string>();
+        function visit(ref: string): boolean {
+            if (onPath.has(ref)) return false;
+            const node = nodes.get(ref);
+            if (!node) return false;
+            onPath.add(ref);
+            let reaches = vulnTotal(node) > 0;
+            for (const childRef of node.children) {
+                // Not short-circuited: a sibling deeper in the branch still has
+                // to be marked, or the path to it would be cut above.
+                if (visit(childRef)) reaches = true;
+            }
+            onPath.delete(ref);
+            if (reaches) keep.add(ref);
+            return reaches;
+        }
+        for (const rootRef of roots) visit(rootRef);
+        return keep;
+    });
+
     const [expandedRefs, setExpandedRefs] = createSignal(new Set<string>(), { equals: false });
+
+    // Turning the filter on opens the surviving paths, so the vulnerable
+    // package is on screen without a single click — the whole point of the
+    // filter, given the default tree shows 8 roots over 287 packages. It seeds
+    // the same signal the twisties use, so expanding and collapsing afterwards
+    // behaves exactly as it does with the filter off.
+    // Not deferred: a view that mounts with the filter already on has to open
+    // its paths too, or the filter silently does half its job on first paint.
+    createEffect(on(
+        () => props.vulnerableOnly === true,
+        (enabled) => {
+            if (enabled) setExpandedRefs(() => new Set(pathRefs()));
+        },
+    ));
 
     const toggleExpanded = (ref: string) => {
         setExpandedRefs(s => {
@@ -166,10 +227,12 @@ export function DependencyTreeView(props: {
     const visibleRows = createMemo((): DepRow[] => {
         const { roots, nodes } = treeData();
         const expanded = expandedRefs();
+        const keep = props.vulnerableOnly === true ? pathRefs() : undefined;
         const result: DepRow[] = [];
         const pathSet = new Set<string>();
 
         function visit(ref: string, depth: number) {
+            if (keep !== undefined && !keep.has(ref)) return;
             const node = nodes.get(ref);
             if (!node) return;
             const isCyclic = pathSet.has(ref);
@@ -185,9 +248,18 @@ export function DependencyTreeView(props: {
         return result;
     });
 
+    // Children that will actually be drawn. Under the filter this is a subset,
+    // and it has to be the subset the twisty and the child-count badge quote —
+    // otherwise a branch whose children were all filtered away still offers an
+    // arrow that opens onto nothing, and says "12" while showing one.
+    const shownChildren = (node: TreeNode) => {
+        const keep = props.vulnerableOnly === true ? pathRefs() : undefined;
+        return keep === undefined ? node.children : node.children.filter((c) => keep.has(c));
+    };
+
     // A row is only expandable when it has children it is not already inside:
     // a cyclic row's children are its own ancestors, so opening it would loop.
-    const expandable = (row: DepRow) => row.node.children.length > 0 && !row.isCyclic;
+    const expandable = (row: DepRow) => shownChildren(row.node).length > 0 && !row.isCyclic;
 
     const columns = (): Column<DepRow>[] => [
         {
@@ -215,8 +287,8 @@ export function DependencyTreeView(props: {
                             </A>
                         )}
                     </Show>
-                    <Show when={row.node.children.length > 0}>
-                        <span class="badge badge-sm">{row.node.children.length}</span>
+                    <Show when={shownChildren(row.node).length > 0}>
+                        <span class="badge badge-sm">{shownChildren(row.node).length}</span>
                     </Show>
                     <Show when={row.isCyclic}>
                         <span class="badge badge-warning badge-sm">circular</span>
@@ -274,8 +346,12 @@ export function DependencyTreeView(props: {
                 rows={visibleRows()}
                 loading={false}
                 isError={false}
-                emptyTitle="No dependencies"
-                emptyMessage="This SBOM records no dependency relationships."
+                emptyTitle={props.vulnerableOnly === true ? "No vulnerable dependencies" : "No dependencies"}
+                emptyMessage={
+                    props.vulnerableOnly === true
+                        ? "No package in this dependency graph has a recorded vulnerability."
+                        : "This SBOM records no dependency relationships."
+                }
                 rowClickable={expandable}
                 onRowClick={(row) => toggleExpanded(row.node.ref)}
             />

@@ -50,9 +50,20 @@ export function PackagesTab(props: {
     const [filter, setFilter] = createSignal("");
     const [typeFilter, setTypeFilter] = createSignal("all");
     const [viewMode, setViewMode] = createSignal<"tree" | "list">("tree");
+    // One filter across both view modes: the reader asking "what is vulnerable
+    // in here" should not have to re-apply it after switching between the tree
+    // and the list, and the answer is the same set either way.
+    const [vulnerableOnly, setVulnerableOnly] = createSignal(false);
 
     const ecoType = (c: ComponentSummary) =>
         parsePurl(c.purl ?? "")?.type ?? c.type;
+
+    const vulnTotal = (c: ComponentSummary) =>
+        (c.criticalCount ?? 0) +
+        (c.highCount ?? 0) +
+        (c.mediumCount ?? 0) +
+        (c.lowCount ?? 0) +
+        (c.unknownCount ?? 0);
 
     const packages = createMemo(() =>
         props.components.filter((c) => c.type !== "file"),
@@ -69,6 +80,7 @@ export function PackagesTab(props: {
         const q = filter().toLowerCase();
         const t = typeFilter();
         return comps.filter((c) => {
+            if (vulnerableOnly() && vulnTotal(c) === 0) return false;
             if (t !== "all" && ecoType(c) !== t) return false;
             if (!q) return true;
             const display =
@@ -103,6 +115,13 @@ export function PackagesTab(props: {
             ? `${filtered().length} of ${packages().length} loaded packages`
             : loadedLabel();
 
+    // The two views draw from different sources — the list from the paged
+    // component window, the tree from the whole dependency graph — so the
+    // toggle is only pointless when *neither* has anything to show.
+    const hasVulnerable = () =>
+        packages().some((c) => vulnTotal(c) > 0) ||
+        (props.depsGraph?.nodes.some((c) => vulnTotal(c) > 0) ?? false);
+
     const countExplanation = () => {
         const all = props.componentCount ?? 0;
         const files = all - total();
@@ -112,6 +131,9 @@ export function PackagesTab(props: {
         }
         if (!allLoaded()) {
             parts.push("Filtering and type counts apply to the loaded rows only.");
+        }
+        if (vulnerableOnly() && effectiveMode() === "tree") {
+            parts.push("The tree keeps the path to each vulnerable package, so an unaffected parent still appears.");
         }
         return parts.join(" ");
     };
@@ -196,6 +218,24 @@ export function PackagesTab(props: {
                     <span class="text-muted text-sm">
                         <Tooltip content={countExplanation()}>{countLabel()}</Tooltip>
                     </span>
+                    {/* Outside the list-only block: this one applies to both
+                        views, and losing it on a view switch is exactly the
+                        thing that makes a filter feel like it belongs to the
+                        widget rather than to the question. */}
+                    <Button
+                        size="sm"
+                        active={vulnerableOnly()}
+                        aria-pressed={vulnerableOnly()}
+                        disabled={!hasVulnerable()}
+                        title={
+                            hasVulnerable()
+                                ? undefined
+                                : "No loaded package has a recorded vulnerability"
+                        }
+                        onClick={() => setVulnerableOnly((v) => !v)}
+                    >
+                        Vulnerable only
+                    </Button>
                     <Show when={hasTree()}>
                         <ButtonGroup class="ml-auto">
                             <Button
@@ -240,7 +280,7 @@ export function PackagesTab(props: {
                 >
                     {(graph) => (
                         <Card>
-                            <DependencyTreeView graph={graph} />
+                            <DependencyTreeView graph={graph} vulnerableOnly={vulnerableOnly()} />
                         </Card>
                     )}
                 </Show>
