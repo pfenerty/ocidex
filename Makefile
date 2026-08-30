@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-dev-live frontend-dev-auth dev-auth-up dev-auth-down dev-auth-fixtures dev-auth-status dev-auth-reset frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
+.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-dev-live frontend-dev-auth dev-auth-up dev-auth-down dev-auth-fixtures dev-auth-status dev-auth-reset dev-mock-idp frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
 
 all: check build ## Run all checks and build
 
@@ -145,6 +145,11 @@ dev-auth-status: ## Show which rig services are up and the persona roster
 
 dev-auth-reset: ## Destroy the rig's database and credentials
 	./scripts/dev-auth.sh reset
+
+# Started automatically by dev-auth-up; this target is for running it alone,
+# e.g. against an API you are already running by hand.
+dev-mock-idp: ## Run the dev-only mock OIDC issuer on :9999
+	go run ./cmd/mock-idp -addr 127.0.0.1:9999 -issuer http://127.0.0.1:9999
 
 frontend-dev-auth: ## Start the frontend on :3200 against the local rig, with the persona switcher
 	cd web && npx vite --config vite.config.auth.ts

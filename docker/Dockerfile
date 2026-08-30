@@ -48,6 +48,10 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       ./cmd/k8s-agent \
       ./cmd/operator \
       ./cmd/ocidex-cli
+# Deliberately absent: ./cmd/mock-idp, ./cmd/specgen, ./cmd/authmatrix. The
+# first is a mock OIDC issuer that hands a session to whoever asks; the others
+# are build-time generators. None belongs in a shipped image, and
+# TestMockIDPShipsInNoImage keeps the first of those honest.
 
 # ---- Final stages (labels injected via buildctl CLI flags, not Dockerfile) ---
 

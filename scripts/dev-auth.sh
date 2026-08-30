@@ -12,8 +12,14 @@
 # environment; everything below runs out of .dev/ (gitignored).
 #
 # The GitHub OAuth vars are set to placeholders only because the API validates
-# their presence at startup. The /auth routes are never exercised here — the
-# rig authenticates by API key — so no OAuth app exists and none is needed.
+# their presence at startup; no GitHub OAuth app exists and none is needed.
+#
+# The /auth routes ARE exercised here, via cmd/mock-idp (ocidex-iqkt.4): a
+# dev-only OIDC issuer on :9999 that the API is pointed at with
+# OIDC_ISSUER_URL. Open http://localhost:8080/auth/login/oidc:mock and the mock
+# issuer offers a persona to sign in as, which drives the real login →
+# callback → session-cookie path. That covers the protocol; the API-key path
+# below stays the fast way to switch personas in the browser.
 #
 # Auth uses no bypass and no new code path. internal/api/middleware.go already
 # accepts `Authorization: Bearer <api-key>` as equivalent to a session cookie,
@@ -28,6 +34,10 @@ PGDATA="$DEV/pgdata"
 PGPORT=5433
 NATS_PORT=4222
 API_PORT=8080
+IDP_PORT=9999
+# Published as the iss claim and used verbatim as OIDC_ISSUER_URL: go-oidc
+# rejects a token whose iss differs from the discovery URL by a trailing slash.
+IDP_URL="http://127.0.0.1:9999"
 ENVFILE="$DEV/dev-auth.env"
 
 export PGHOST=127.0.0.1
@@ -145,6 +155,9 @@ ON CONFLICT (github_id) DO UPDATE SET github_username = EXCLUDED.github_username
 INSERT INTO user_identity (user_id, provider, subject)
 SELECT id, 'github', '$gid' FROM ocidex_user WHERE github_id = $gid
 ON CONFLICT (provider, subject) DO NOTHING;
+INSERT INTO user_identity (user_id, provider, subject, email)
+SELECT id, 'oidc:mock', '$user', '$user@ocidex.test' FROM ocidex_user WHERE github_id = $gid
+ON CONFLICT (provider, subject) DO NOTHING;
 "
         # Two keys per persona, spanning the ceiling (ADR-046): one holding
         # every capability, which resolves to whatever the persona's roles
@@ -239,6 +252,36 @@ ORDER BY u.github_id;
 SQL
 }
 
+# ── Mock OIDC issuer ────────────────────────────────────────────────────────
+# Dev only. Signs with a key generated at startup and issues a token for
+# whoever the request names, so it must never be reachable from anything but
+# this machine — which is why it binds 127.0.0.1 and ships in no image.
+start_idp() {
+    if [ -f "$DEV/idp.pid" ] && kill -0 "$(cat "$DEV/idp.pid")" 2>/dev/null; then
+        log "mock idp already running on :$IDP_PORT"
+        return
+    fi
+    log "starting mock idp on :$IDP_PORT"
+    (
+        cd "$ROOT"
+        nohup go run ./cmd/mock-idp \
+            -addr "127.0.0.1:$IDP_PORT" \
+            -issuer "$IDP_URL" \
+            -personas "$(printf '%s,' "${PERSONAS[@]%%:*}" | sed 's/,$//')" \
+            >"$DEV/idp.log" 2>&1 &
+        echo $! > "$DEV/idp.pid"
+    )
+    for _ in $(seq 1 60); do
+        if curl -sf "$IDP_URL/.well-known/openid-configuration" >/dev/null 2>&1; then
+            log "mock idp ready"
+            return
+        fi
+        sleep 1
+    done
+    tail -30 "$DEV/idp.log"
+    die "mock idp did not become ready"
+}
+
 # ── API ─────────────────────────────────────────────────────────────────────
 start_api() {
     if [ -f "$DEV/api.pid" ] && kill -0 "$(cat "$DEV/api.pid")" 2>/dev/null; then
@@ -256,6 +299,9 @@ start_api() {
         SESSION_SECRET="$(openssl rand -hex 32)" \
         GITHUB_CLIENT_ID=dev-unused \
         GITHUB_CLIENT_SECRET=dev-unused \
+        OIDC_ISSUER_URL="$IDP_URL" \
+        OIDC_CLIENT_ID=ocidex-dev \
+        OIDC_NAME=mock \
         FRONTEND_URL="http://localhost:3200" \
         CORS_ALLOWED_ORIGINS="http://localhost:3200" \
         nohup go run ./cmd/ocidex >"$DEV/api.log" 2>&1 &
@@ -280,7 +326,7 @@ seed_fixtures() {
 }
 
 stop_all() {
-    for svc in api nats; do
+    for svc in api idp nats; do
         if [ -f "$DEV/$svc.pid" ]; then
             # go run spawns the real binary as a child; kill the group.
             pkill -P "$(cat "$DEV/$svc.pid")" 2>/dev/null || true
@@ -302,11 +348,15 @@ case "${1:-up}" in
         start_nats
         migrate
         seed_auth
+        # Before the API: it performs OIDC discovery at startup and refuses to
+        # start if the issuer is unreachable.
+        start_idp
         start_api
         seed_fixtures
-        printf '\n\033[32m✓\033[0m rig up — api :%s, postgres :%s, nats :%s\n' \
-            "$API_PORT" "$PGPORT" "$NATS_PORT"
+        printf '\n\033[32m✓\033[0m rig up — api :%s, postgres :%s, nats :%s, mock idp :%s\n' \
+            "$API_PORT" "$PGPORT" "$NATS_PORT" "$IDP_PORT"
         printf '  next: \033[1mmake frontend-dev-auth\033[0m  (:3200, signed out — pick a persona in the switcher)\n'
+        printf '  or exercise the real OIDC flow: \033[1mhttp://localhost:%s/auth/login/oidc:mock\033[0m\n' "$API_PORT"
         printf '\n  personas (\033[1mmake dev-auth-status\033[0m to re-print):\n'
         roster
         ;;
@@ -318,6 +368,8 @@ case "${1:-up}" in
             && echo "nats: up" || echo "nats: down"
         curl -sf "http://127.0.0.1:$API_PORT/ready" >/dev/null 2>&1 \
             && echo "api: up" || echo "api: down"
+        curl -sf "$IDP_URL/.well-known/openid-configuration" >/dev/null 2>&1 \
+            && echo "mock idp: up" || echo "mock idp: down"
         if pg_running; then
             echo "personas:"
             roster
