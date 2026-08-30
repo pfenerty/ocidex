@@ -56,6 +56,22 @@ type Config struct {
 	SessionSecret      string `env:"SESSION_SECRET"` //nolint:gosec
 	SessionMaxAgeDays  int    `env:"SESSION_MAX_AGE_DAYS" envDefault:"7"`
 
+	// Generic OIDC. Setting OIDC_ISSUER_URL is what enables the provider;
+	// leaving it empty leaves OCIDex GitHub-only, exactly as before.
+	OIDCIssuerURL    string `env:"OIDC_ISSUER_URL"`
+	OIDCClientID     string `env:"OIDC_CLIENT_ID"`
+	OIDCClientSecret string `env:"OIDC_CLIENT_SECRET"`
+	// OIDCName is the permanent key half of the "oidc:<name>" provider string
+	// stored against every account that signs in through this issuer. Changing
+	// it after the first login orphans those accounts.
+	OIDCName   string   `env:"OIDC_NAME"   envDefault:"oidc"`
+	OIDCScopes []string `env:"OIDC_SCOPES" envSeparator:","`
+	// OIDCRedirectURL defaults to the shared callback: the provider a sign-in
+	// began with rides in the signed state cookie, so one registered redirect
+	// URI serves every issuer. Point it at /auth/callback/oidc:<name> only for
+	// an IdP that insists on a distinct URI per client.
+	OIDCRedirectURL string `env:"OIDC_REDIRECT_URL" envDefault:"http://localhost:8080/auth/callback"`
+
 	// Frontend URL — used as the post-OAuth redirect target and for CORS defaults.
 	FrontendURL string `env:"FRONTEND_URL" envDefault:"http://localhost:3000"`
 
@@ -381,6 +397,14 @@ func (c *K8sAgentConfig) SlogLevel() slog.Level {
 func (c *Config) validate() error {
 	if c.NATSURL == "" {
 		return fmt.Errorf("NATS_URL is required")
+	}
+	// Half-configured OIDC is worse than none: the login button would exist
+	// and fail. Discovery itself is validated at startup in cmd/ocidex.
+	if c.OIDCIssuerURL != "" && c.OIDCClientID == "" {
+		return fmt.Errorf("OIDC_CLIENT_ID is required when OIDC_ISSUER_URL is set")
+	}
+	if c.OIDCIssuerURL == "" && c.OIDCClientID != "" {
+		return fmt.Errorf("OIDC_ISSUER_URL is required when OIDC_CLIENT_ID is set")
 	}
 	return nil
 }

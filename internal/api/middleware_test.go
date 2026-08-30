@@ -119,6 +119,11 @@ type fakeAuthService struct {
 	// to a user who has never signed in. A test that does not set it gets the
 	// "no such user" answer, which is the safe default.
 	usersByID map[string]service.AuthUser
+
+	// buildAuthURL and exchange let a test observe which provider the login
+	// and callback handlers resolved. Nil keeps the stub behaviour.
+	buildAuthURL func(provider, state, verifier string) (string, error)
+	exchange     func(provider, code, verifier string) (service.AuthUser, error)
 }
 
 func (f *fakeAuthService) ValidateAPIKey(_ context.Context, token string) (service.AuthUser, error) {
@@ -130,9 +135,19 @@ func (f *fakeAuthService) ValidateAPIKey(_ context.Context, token string) (servi
 
 func (f *fakeAuthService) ProviderNames() []string { return []string{"github"} }
 
-func (f *fakeAuthService) BuildAuthURL(_, _, _ string) (string, error) { return "", nil }
+func (f *fakeAuthService) BuildAuthURL(provider, state, verifier string) (string, error) {
+	if f.buildAuthURL != nil {
+		return f.buildAuthURL(provider, state, verifier)
+	}
 
-func (f *fakeAuthService) ExchangeCodeForUser(_ context.Context, _, _, _ string) (service.AuthUser, error) {
+	return "", nil
+}
+
+func (f *fakeAuthService) ExchangeCodeForUser(_ context.Context, provider, code, verifier string) (service.AuthUser, error) {
+	if f.exchange != nil {
+		return f.exchange(provider, code, verifier)
+	}
+
 	return service.AuthUser{}, errors.New("not implemented")
 }
 

@@ -46,6 +46,27 @@ All three vars are required. The app will refuse to start without them.
 | `GITHUB_REDIRECT_URL` | `http://localhost:8080/auth/callback` | OAuth callback URL. Must be registered in the GitHub OAuth App. When accessed via a non-localhost address (Tailscale, remote IP), set to that address. |
 | `SESSION_MAX_AGE_DAYS` | `7` | How long login sessions last. |
 
+### Authentication (generic OIDC)
+
+Optional and additive: GitHub stays available whether or not this is set. Setting
+`OIDC_ISSUER_URL` is what enables the provider, and one implementation covers Google, Okta,
+Entra, Keycloak, Auth0 and GitLab.
+
+Discovery runs at **startup**. A wrong issuer URL stops the process with a clear error rather
+than producing a login button that fails on click.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OIDC_ISSUER_URL` | `""` | Discovery base — the URL serving `/.well-known/openid-configuration`. Must match the `iss` claim exactly. Empty leaves OCIDex GitHub-only. |
+| `OIDC_CLIENT_ID` | — | Required when `OIDC_ISSUER_URL` is set. |
+| `OIDC_CLIENT_SECRET` | `""` | Omit for a public client; PKCE is always used regardless. |
+| `OIDC_NAME` | `oidc` | Permanent key half of the `oidc:<name>` provider string stored against every account signed in through this issuer. **Changing it after the first login orphans those accounts.** |
+| `OIDC_SCOPES` | `openid,profile,email` | Comma-separated. `openid` is added if absent. |
+| `OIDC_REDIRECT_URL` | `http://localhost:8080/auth/callback` | The shared callback: the provider a sign-in began with rides in the signed state cookie, so one registered redirect URI serves every issuer. Point it at `/auth/callback/oidc:<name>` only for an IdP that insists on a distinct URI per client. |
+
+Login routes: `/auth/login` (defaults to GitHub) and `/auth/login/{provider}`, where
+`{provider}` is `github` or `oidc:<name>`.
+
 ### Frontend / CORS
 
 | Variable | Default | Description |

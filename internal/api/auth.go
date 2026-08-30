@@ -73,7 +73,10 @@ func deriveFrontendURL(r *http.Request, configuredFrontendURL string) string {
 // written into the signed state cookie rather than the callback path so that a
 // second issuer needs no second redirect URI registered anywhere.
 func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) {
-	provider := r.URL.Query().Get("provider")
+	provider := chi.URLParam(r, "provider")
+	if provider == "" {
+		provider = r.URL.Query().Get("provider")
+	}
 	if provider == "" {
 		provider = auth.ProviderGitHub
 	}
@@ -167,10 +170,15 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The state cookie is signed, so it is the authority on which issuer this
+	// sign-in began with; the path is only consulted when the cookie predates
+	// providers being named, which keeps sign-ins that were mid-flight across
+	// a deploy working.
 	provider := stateData["provider"]
 	if provider == "" {
-		// A state cookie minted before providers were named. Treating it as
-		// GitHub keeps sign-ins that were mid-flight across a deploy working.
+		provider = chi.URLParam(r, "provider")
+	}
+	if provider == "" {
 		provider = auth.ProviderGitHub
 	}
 
@@ -237,8 +245,18 @@ func (h *Handler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 // registerAuthOps registers raw chi routes and huma-managed auth endpoints.
 func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 	// Browser-redirect flows (not huma-managed).
+	//
+	// The bare paths are the canonical ones: the provider a sign-in began with
+	// rides in the signed state cookie, so one registered redirect URI serves
+	// every issuer and GitHub's existing OAuth app needs no change. The
+	// {provider} variants exist for an IdP that insists on a distinct redirect
+	// URI per client, and to give the multi-provider login UI a stable link
+	// per provider. Both hit the same handler — the path is a shorthand for
+	// ?provider=, not a second code path.
 	r.Get("/auth/login", h.HandleLogin)
+	r.Get("/auth/login/{provider}", h.HandleLogin)
 	r.Get("/auth/callback", h.HandleCallback)
+	r.Get("/auth/callback/{provider}", h.HandleCallback)
 	r.Post("/auth/logout", h.HandleLogout)
 
 	authMW := RequireAuthenticated(api)

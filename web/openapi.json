@@ -6317,7 +6317,7 @@
         "type": "http"
       },
       "cookieAuth": {
-        "description": "Session cookie obtained via GitHub OAuth (/auth/login)",
+        "description": "Session cookie obtained via /auth/login (GitHub) or /auth/login/{provider}",
         "in": "cookie",
         "name": "ocidex_session",
         "type": "apiKey"

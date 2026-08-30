@@ -63,10 +63,6 @@ func run() error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	if err := validateOAuthConfig(cfg); err != nil {
-		return err
-	}
-
 	// Initialize structured logging.
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: cfg.SlogLevel(),
@@ -78,6 +74,12 @@ func run() error {
 	)
 
 	ctx := context.Background()
+
+	providers, err := buildIdentityProviders(ctx, cfg)
+	if err != nil {
+		return err
+	}
+
 	pool, bgPool, err := setupDatabase(ctx, cfg)
 	if err != nil {
 		return err
@@ -107,11 +109,7 @@ func run() error {
 	ociValidator := ocivalidate.NewValidator(ocivalidate.WithInsecureResolver(insecureResolver))
 	sbomSvc := service.NewSBOMService(pool, bus, ociValidator)
 	searchSvc := service.NewSearchService(pool, service.WithWarmDB(bgPool))
-	// The provider list is the whole of OCIDex's identity configuration.
-	// ocidex-iqkt.3 appends the configured OIDC issuers here.
-	authSvc := service.NewAuthService(pool, cfg, bus, []auth.Provider{
-		auth.NewGitHubProvider(cfg.GitHubClientID, cfg.GitHubClientSecret, cfg.GitHubRedirectURL),
-	})
+	authSvc := service.NewAuthService(pool, cfg, bus, providers)
 
 	jobSvc := service.NewJobService(pool)
 	// The API enqueues and administers enrichment jobs but never claims one, so
@@ -284,6 +282,41 @@ func validateOAuthConfig(cfg *config.Config) error {
 		return fmt.Errorf("GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and SESSION_SECRET are required")
 	}
 	return nil
+}
+
+// buildIdentityProviders assembles the provider list, which is the whole of
+// OCIDex's identity configuration.
+//
+// OIDC discovery is a network call and it is made here, before the server
+// listens, so a wrong OIDC_ISSUER_URL stops the process instead of producing a
+// login button that 500s on click.
+func buildIdentityProviders(ctx context.Context, cfg *config.Config) ([]auth.Provider, error) {
+	if err := validateOAuthConfig(cfg); err != nil {
+		return nil, err
+	}
+
+	providers := make([]auth.Provider, 0, 2)
+	providers = append(providers,
+		auth.NewGitHubProvider(cfg.GitHubClientID, cfg.GitHubClientSecret, cfg.GitHubRedirectURL))
+
+	if cfg.OIDCIssuerURL == "" {
+		return providers, nil
+	}
+
+	oidcProvider, err := auth.NewOIDCProvider(ctx, auth.OIDCConfig{
+		Name:         cfg.OIDCName,
+		IssuerURL:    cfg.OIDCIssuerURL,
+		ClientID:     cfg.OIDCClientID,
+		ClientSecret: cfg.OIDCClientSecret,
+		RedirectURL:  cfg.OIDCRedirectURL,
+		Scopes:       cfg.OIDCScopes,
+	})
+	if err != nil {
+		return nil, err
+	}
+	slog.Info("oidc provider configured", "provider", oidcProvider.Name(), "issuer", cfg.OIDCIssuerURL)
+
+	return append(providers, oidcProvider), nil
 }
 
 func warnUnpolledRegistries(ctx context.Context, registrySvc service.RegistryService) {

@@ -46,6 +46,53 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
+			name: "OIDC off by default",
+			env: map[string]string{
+				"DATABASE_URL": "postgres://localhost/test",
+				"NATS_URL":     "nats://localhost:4222",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.OIDCIssuerURL, "")
+				is.Equal(cfg.OIDCName, "oidc")
+				is.Equal(cfg.OIDCRedirectURL, "http://localhost:8080/auth/callback")
+			},
+		},
+		{
+			// Half-configured OIDC is worse than none: the login button would
+			// exist and fail. Reject it at load rather than at first click.
+			name: "OIDC issuer without client ID is rejected",
+			env: map[string]string{
+				"DATABASE_URL":    "postgres://localhost/test",
+				"NATS_URL":        "nats://localhost:4222",
+				"OIDC_ISSUER_URL": "https://issuer.example.com",
+			},
+			wantErr: true,
+		},
+		{
+			name: "OIDC client ID without issuer is rejected",
+			env: map[string]string{
+				"DATABASE_URL":   "postgres://localhost/test",
+				"NATS_URL":       "nats://localhost:4222",
+				"OIDC_CLIENT_ID": "abc",
+			},
+			wantErr: true,
+		},
+		{
+			name: "OIDC scopes parse as a comma-separated list",
+			env: map[string]string{
+				"DATABASE_URL":    "postgres://localhost/test",
+				"NATS_URL":        "nats://localhost:4222",
+				"OIDC_ISSUER_URL": "https://issuer.example.com",
+				"OIDC_CLIENT_ID":  "abc",
+				"OIDC_NAME":       "keycloak",
+				"OIDC_SCOPES":     "openid,profile,email,groups",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.OIDCName, "keycloak")
+				is.Equal(cfg.OIDCScopes, []string{"openid", "profile", "email", "groups"})
+			},
+		},
+		{
 			// Regression guard for ocidex-mf3: the scanner/enrichment workers
 			// share config.Load() but never authenticate browser sessions, so
 			// GITHUB_*/SESSION_SECRET must remain optional. Load() must succeed

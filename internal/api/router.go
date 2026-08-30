@@ -178,7 +178,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 			Type:        "apiKey",
 			In:          "cookie",
 			Name:        sessionCookieName,
-			Description: "Session cookie obtained via GitHub OAuth (/auth/login)",
+			Description: "Session cookie obtained via /auth/login (GitHub) or /auth/login/{provider}",
 		},
 	}
 	// Global security: any request must satisfy bearerAuth OR cookieAuth.

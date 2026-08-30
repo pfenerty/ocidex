@@ -7,6 +7,7 @@ require (
 	github.com/anchore/stereoscope v0.3.0
 	github.com/anchore/syft v1.49.0
 	github.com/caarlos0/env/v11 v11.4.1
+	github.com/coreos/go-oidc/v3 v3.18.0
 	github.com/danielgtaylor/huma/v2 v2.39.0
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/go-chi/cors v1.2.2
@@ -20,6 +21,7 @@ require (
 	github.com/pandatix/go-cvss v0.6.2
 	github.com/pressly/goose/v3 v3.27.3
 	github.com/sigstore/cosign/v3 v3.1.2
+	github.com/sigstore/protobuf-specs v0.5.1
 	github.com/sigstore/rekor v1.5.3
 	github.com/sigstore/sigstore v1.10.8
 	github.com/sigstore/sigstore-go v1.2.2
@@ -40,7 +42,6 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
-	github.com/coreos/go-oidc/v3 v3.18.0 // indirect
 	github.com/cyberphone/json-canonicalization v0.0.0-20241213102144-19d51d7fe467 // indirect
 	github.com/digitorus/pkcs7 v0.0.0-20230818184609-3a137a874352 // indirect
 	github.com/digitorus/timestamp v0.0.0-20231217203849-220c5c2851b7 // indirect
@@ -96,7 +97,6 @@ require (
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
-	github.com/sigstore/protobuf-specs v0.5.1 // indirect
 	github.com/sigstore/rekor-tiles/v2 v2.3.0 // indirect
 	github.com/sigstore/timestamp-authority/v2 v2.1.2 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20220721030215-126854af5e6d // indirect
