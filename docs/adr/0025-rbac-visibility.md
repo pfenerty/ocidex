@@ -1,7 +1,16 @@
 # ADR 0025: RBAC and Visibility Model
 
-**Status:** Accepted  
+**Status:** Superseded by [ADR-046](0046-namespace-membership-rbac.md)  
 **Date:** 2026-06-06
+
+> **Superseded.** Kept unedited as the record of why the simple model was chosen, and
+> because its Consequences section predicted its own replacement. Two changes have since
+> invalidated it. [ADR-039](0039-namespace-and-source-model.md) moved the authorization
+> anchor from registry to namespace, so `RequireRegistryOwner` and the registry `public`
+> boolean described below no longer exist. [ADR-046](0046-namespace-membership-rbac.md)
+> then replaced single ownership with per-namespace membership and a capability matrix,
+> and replaced the `read` / `read-write` API key scope with a capability ceiling
+> intersected against the holder's live roles. Read ADR-046 for the model in force.
 
 ## Context
 
