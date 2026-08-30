@@ -27,8 +27,17 @@ vi.mock("@solidjs/router", () => ({
         class?: string;
         end?: boolean;
         "aria-label"?: string;
+        // Forwarded for the same reason aria-label is: it is the whole
+        // observable form of the role emphasis on the rail, and a mock that
+        // dropped it would make those assertions vacuous.
+        "data-lead"?: string;
     }) => (
-        <a href={props.href} class={props.class} aria-label={props["aria-label"]}>
+        <a
+            href={props.href}
+            class={props.class}
+            aria-label={props["aria-label"]}
+            data-lead={props["data-lead"]}
+        >
             {props.children}
         </a>
     ),
@@ -43,10 +52,16 @@ vi.mock("~/context/auth", () => ({
     useAuth: () => ({ user: mockUserFn, refetch: mockRefetch }),
 }));
 
-interface User { id: string; github_username: string; role: string }
+interface Membership { namespace_id: string; role: string }
+interface User { id: string; github_username: string; role: string; memberships?: Membership[] }
 
 function makeUser(overrides?: Partial<User>): User {
     return { id: "1", github_username: "alice", role: "user", ...overrides };
+}
+
+/** Memberships in the shape /users/me reports them, from role names. */
+function member(...roles: string[]): Membership[] {
+    return roles.map((role, i) => ({ namespace_id: `n${String(i)}`, role }));
 }
 
 // Layout mounts the command palette, which holds four search queries. They are
@@ -222,5 +237,50 @@ describe("Layout mobile drawer", () => {
             "Vulnerabilities", "Compare", "Clusters", "Admin", "Search", "Sign out"]) {
             expect(sidebar.querySelector(`[aria-label="${name}"]`)).not.toBeNull();
         }
+    });
+
+    describe("role emphasis", () => {
+        const railHrefs = (container: HTMLElement) =>
+            [...(container.querySelector("aside.sidebar nav")?.querySelectorAll("a") ?? [])].map(
+                (a) => a.getAttribute("href"),
+            );
+        const led = (container: HTMLElement) =>
+            [...(container.querySelector("aside.sidebar nav")?.querySelectorAll("a[data-lead]") ?? [])].map(
+                (a) => a.getAttribute("href"),
+            );
+
+        it("accents the security links for a mostly-security caller", () => {
+            mockUserFn = asResource(makeUser({ memberships: member("security", "security", "developer") }));
+            const { container } = render(() => <Wrapped>page</Wrapped>);
+            expect(led(container)).toEqual(["/vulnerabilities", "/clusters"]);
+        });
+
+        it("accents the shipping links for a mostly-developer caller", () => {
+            mockUserFn = asResource(makeUser({ memberships: member("developer") }));
+            const { container } = render(() => <Wrapped>page</Wrapped>);
+            expect(led(container)).toEqual(["/artifacts", "/admin/sources"]);
+        });
+
+        it("accents nothing for an owner", () => {
+            mockUserFn = asResource(makeUser({ memberships: member("owner", "security") }));
+            const { container } = render(() => <Wrapped>page</Wrapped>);
+            expect(led(container)).toEqual([]);
+        });
+
+        // The rail is accented, never reordered and never filtered: the same
+        // links in the same order for every emphasis. Link position is muscle
+        // memory, and a link that vanishes per persona hides a page the caller
+        // is still allowed to open.
+        it("shows the same links in the same order under every emphasis", () => {
+            let expected: (string | null)[] | undefined;
+            for (const roles of [["security"], ["developer"], ["owner"], []]) {
+                mockUserFn = asResource(makeUser({ memberships: member(...roles) }));
+                const { container, unmount } = render(() => <Wrapped>page</Wrapped>);
+                const hrefs = railHrefs(container);
+                expected ??= hrefs;
+                expect(hrefs).toEqual(expected);
+                unmount();
+            }
+        });
     });
 });

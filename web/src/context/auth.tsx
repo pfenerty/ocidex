@@ -6,11 +6,20 @@ import {
     type ResourceReturn,
 } from "solid-js";
 import { API_BASE_URL } from "~/api/client";
+import type { Membership } from "~/utils/emphasis";
 
 interface User {
     id: string;
     github_username: string;
     role: string;
+    /**
+     * The caller's namespace memberships, as /users/me reports them. Present
+     * so the UI can emphasise what this kind of user came for (see
+     * ~/utils/emphasis) — it is never an authorization input, and it is
+     * optional because a client running against an older server will not get
+     * the field at all.
+     */
+    memberships?: Membership[];
 }
 
 interface AuthContextValue {

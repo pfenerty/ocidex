@@ -75,14 +75,28 @@ function setAll(query: Query) {
     }
 }
 
-beforeEach(() => {
-    vi.clearAllMocks();
+/**
+ * Sign the mocked auth context in, optionally with namespace memberships. No
+ * memberships is the ordinary case and the one every pre-existing test here
+ * runs under: it produces the "balanced" emphasis, which is the ordering the
+ * page shipped with.
+ */
+function signedInAs(...roles: string[]) {
+    const memberships = roles.map((role, i) => ({ namespace_id: `n${String(i)}`, role }));
     vi.mocked(useAuth).mockReturnValue({
-        user: (() => ({ id: "u1", github_username: "octocat", role: "member" })) as unknown as ReturnType<
-            typeof useAuth
-        >["user"],
+        user: (() => ({
+            id: "u1",
+            github_username: "octocat",
+            role: "member",
+            memberships,
+        })) as unknown as ReturnType<typeof useAuth>["user"],
         refetch: vi.fn(),
     });
+}
+
+beforeEach(() => {
+    vi.clearAllMocks();
+    signedInAs();
     setAll(loaded([]));
 });
 
@@ -235,6 +249,50 @@ describe("Dashboard", () => {
                     .querySelector('[data-section="namespaces"]')
                     ?.classList.contains("dash-section-inventory"),
             ).toBe(true);
+        });
+    });
+
+    describe("role emphasis", () => {
+        const sectionIDs = (container: HTMLElement) =>
+            [...container.querySelectorAll("[data-section]")].map((el) => el.getAttribute("data-section"));
+
+        it("leads a mostly-security caller with what is wrong", () => {
+            signedInAs("security", "security", "developer");
+            const { container } = render(() => <Dashboard />);
+            expect(sectionIDs(container).slice(0, 3)).toEqual(["drift", "exposure", "clusters"]);
+        });
+
+        it("leads a mostly-developer caller with what they just shipped", () => {
+            signedInAs("developer", "developer", "security");
+            const { container } = render(() => <Dashboard />);
+            expect(sectionIDs(container).slice(0, 2)).toEqual(["ingest", "namespaces"]);
+        });
+
+        it("keeps the shipped ordering for an owner", () => {
+            signedInAs("owner", "security");
+            const { container } = render(() => <Dashboard />);
+            expect(sectionIDs(container)).toEqual([
+                "drift",
+                "exposure",
+                "namespaces",
+                "ingest",
+                "clusters",
+                "watch-feed",
+            ]);
+        });
+
+        // The point of the story, and the thing a reordering bug would break
+        // silently: emphasis is a permutation of the panels, never a filter.
+        // Hiding a panel a caller is allowed to see would make the page lie
+        // about what they have access to.
+        it("renders every section under every emphasis", () => {
+            const all = ["drift", "exposure", "namespaces", "ingest", "clusters", "watch-feed"];
+            for (const roles of [["security"], ["developer"], ["owner"], []]) {
+                signedInAs(...roles);
+                const { container, unmount } = render(() => <Dashboard />);
+                expect([...sectionIDs(container)].sort()).toEqual([...all].sort());
+                unmount();
+            }
         });
     });
 

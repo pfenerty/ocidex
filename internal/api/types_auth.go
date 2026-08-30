@@ -10,12 +10,26 @@ import (
 // Auth — Me
 // ---------------------------------------------------------------------------
 
+// MyMembership is one of the caller's own namespace_member rows.
+//
+// It carries the namespace ID and the role and nothing else: it exists so a
+// client can tell what kind of user is signed in — mostly security, mostly
+// developer, or answerable for a namespace — and emphasise accordingly. It is
+// not an authorization input. Every endpoint re-derives the caller's grants
+// server-side on each request (ADR-046 M1), so a client that lied about this
+// list would change nothing but its own layout.
+type MyMembership struct {
+	NamespaceID string `json:"namespace_id" doc:"Namespace UUID"`
+	Role        string `json:"role" enum:"owner,maintainer,security,developer,viewer" doc:"The caller's role in that namespace"`
+}
+
 // MeOutput is the response for GET /api/v1/users/me.
 type MeOutput struct {
 	Body struct {
-		ID             string `json:"id" doc:"User UUID"`
-		GitHubUsername string `json:"github_username" doc:"GitHub login"`
-		Role           string `json:"role" doc:"User role: admin, member, or viewer"`
+		ID             string         `json:"id" doc:"User UUID"`
+		GitHubUsername string         `json:"github_username" doc:"GitHub login"`
+		Role           string         `json:"role" doc:"User role: admin, member, or viewer"`
+		Memberships    []MyMembership `json:"memberships" doc:"The caller's namespace memberships, for UI emphasis only"`
 	}
 }
 

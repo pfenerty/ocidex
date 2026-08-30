@@ -10,6 +10,7 @@ import {
 } from "./panels";
 import "./Dashboard.css";
 import { PageHeader } from "~/components/ui";
+import { roleEmphasis, type Emphasis } from "~/utils/emphasis";
 
 interface Section {
     /** Stable key; also what a future per-section preference would be keyed by. */
@@ -47,6 +48,42 @@ const SECTIONS: Section[] = [
 ];
 
 /**
+ * Per-emphasis lead order (ocidex-y0hg.9). Each entry lists the sections that
+ * go first for that kind of caller; anything not named keeps its SECTIONS
+ * order behind them.
+ *
+ * Every emphasis renders every section — this list is a permutation, never a
+ * filter. `orderFor` asserts that by construction: it appends the remainder
+ * rather than taking the lead list as the answer, so a section added to
+ * SECTIONS and forgotten here still renders.
+ *
+ * "balanced" is absent on purpose: an owner, a maintainer, a viewer and a
+ * mixed caller all get SECTIONS as written, which is the ordering the page
+ * shipped with (alarms first, then inventory).
+ */
+const LEAD: Record<Exclude<Emphasis, "balanced">, readonly string[]> = {
+    // Someone whose namespaces are mostly 'security' is here for what is
+    // wrong: drift, then exposure, then the cluster workloads that could not
+    // be resolved back to an artifact (ADR-044).
+    security: ["drift", "exposure", "clusters"],
+    // Someone whose namespaces are mostly 'developer' is here for what they
+    // just shipped: recent ingests and the scans behind them, then their own
+    // namespaces. The alarms follow immediately — they are demoted, not
+    // buried.
+    developer: ["ingest", "namespaces"],
+};
+
+/** SECTIONS reordered for an emphasis, with every section still present. */
+function orderFor(emphasis: Emphasis): Section[] {
+    if (emphasis === "balanced") return SECTIONS;
+    const lead = LEAD[emphasis];
+    const led = lead
+        .map((id) => SECTIONS.find((s) => s.id === id))
+        .filter((s): s is Section => s !== undefined);
+    return [...led, ...SECTIONS.filter((s) => !led.includes(s))];
+}
+
+/**
  * Dashboard is the signed-in workspace: everything the caller owns or follows,
  * on one page, each panel a preview that links through to the page that owns
  * the data in full.
@@ -59,6 +96,12 @@ const SECTIONS: Section[] = [
 export default function Dashboard(): JSX.Element {
     const { user } = useAuth();
 
+    // Which panels lead is a property of the caller's namespace roles, not of
+    // what they are allowed to fetch: every panel below is rendered for every
+    // caller, and every one of them reads a /users/me/* endpoint that has
+    // already decided what this caller may see.
+    const emphasis = () => roleEmphasis(user()?.memberships);
+
     return (
         <>
             <PageHeader
@@ -70,8 +113,8 @@ export default function Dashboard(): JSX.Element {
                 }
             />
 
-            <div class="dash-grid">
-                <For each={SECTIONS}>
+            <div class="dash-grid" data-emphasis={emphasis()}>
+                <For each={orderFor(emphasis())}>
                     {(section) => (
                         <div
                             data-section={section.id}

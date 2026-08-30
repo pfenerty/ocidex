@@ -3104,8 +3104,19 @@ export interface components {
             github_username: string;
             /** @description User UUID */
             id: string;
+            /** @description The caller's namespace memberships, for UI emphasis only */
+            memberships: components["schemas"]["MyMembership"][] | null;
             /** @description User role: admin, member, or viewer */
             role: string;
+        };
+        MyMembership: {
+            /** @description Namespace UUID */
+            namespace_id: string;
+            /**
+             * @description The caller's role in that namespace
+             * @enum {string}
+             */
+            role: "owner" | "maintainer" | "security" | "developer" | "viewer";
         };
         NATSStatus: {
             enabled: boolean;

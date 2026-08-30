@@ -4088,6 +4088,16 @@
             "description": "User UUID",
             "type": "string"
           },
+          "memberships": {
+            "description": "The caller's namespace memberships, for UI emphasis only",
+            "items": {
+              "$ref": "#/components/schemas/MyMembership"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "role": {
             "description": "User role: admin, member, or viewer",
             "type": "string"
@@ -4096,6 +4106,32 @@
         "required": [
           "id",
           "github_username",
+          "role",
+          "memberships"
+        ],
+        "type": "object"
+      },
+      "MyMembership": {
+        "additionalProperties": false,
+        "properties": {
+          "namespace_id": {
+            "description": "Namespace UUID",
+            "type": "string"
+          },
+          "role": {
+            "description": "The caller's role in that namespace",
+            "enum": [
+              "owner",
+              "maintainer",
+              "security",
+              "developer",
+              "viewer"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "namespace_id",
           "role"
         ],
         "type": "object"

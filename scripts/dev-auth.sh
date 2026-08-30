@@ -83,19 +83,28 @@ migrate() {
 }
 
 # ── Personas ────────────────────────────────────────────────────────────────
-# Five principals, one on each side of every authorization boundary the app
-# draws today: a global admin, a namespace owner, a member who owns nothing, a
-# global viewer, and a member who owns a *different* namespace. The last is the
-# one that makes cross-tenant denial observable — without a second tenant,
-# "denied" and "nothing there" render identically.
+# Six principals, one on each side of every authorization boundary the app
+# draws today: a global admin, a namespace owner, a global viewer, a member who
+# owns a *different* namespace, and the two non-owner namespace roles. The
+# outsider is the one that makes cross-tenant denial observable — without a
+# second tenant, "denied" and "nothing there" render identically.
 #
-# Fields: username:github_id:global_role:owned_namespace
+# devsecurity and devdeveloper are members of `local`, the namespace the
+# fixtures fill, in the two roles that differ in what they came for rather than
+# in what they may read. Both may read everything in it; the Workspace and the
+# sidebar lead with different things for each (ocidex-y0hg.9), which is only
+# observable with two personas whose *roles* differ and whose *data* does not.
+#
+# Fields: username:github_id:global_role:owned_namespace:memberships
+# where memberships is a comma-separated list of `namespace=role` in addition
+# to the owner row implied by owned_namespace.
 PERSONAS=(
-    "devadmin:1:admin:"
-    "devowner:2:member:local"
-    "devsecurity:3:member:"
-    "devviewer:4:viewer:"
-    "devoutsider:5:member:outsider-lab"
+    "devadmin:1:admin::"
+    "devowner:2:member:local:"
+    "devsecurity:3:member::local=security"
+    "devviewer:4:viewer::"
+    "devoutsider:5:member:outsider-lab:"
+    "devdeveloper:6:member::local=developer"
 )
 
 # Every capability the server knows (internal/authz/capability.go), as a
@@ -116,12 +125,13 @@ seed_auth() {
         return
     fi
 
-    local sql env_body persona user gid role ns scope key hash prefix var
+    local sql env_body persona user gid role ns extra key hash prefix var
+    local pair mns mrole
     sql=""
     env_body=""
 
     for persona in "${PERSONAS[@]}"; do
-        IFS=: read -r user gid role ns <<<"$persona"
+        IFS=: read -r user gid role ns extra <<<"$persona"
         sql+="
 INSERT INTO ocidex_user (github_id, github_username, role)
 VALUES ($gid, '$user', '$role')
@@ -167,6 +177,23 @@ WHERE n.name = '$ns' AND u.github_id = $gid
 ON CONFLICT (namespace_id, user_id) DO NOTHING;
 "
         fi
+        # Non-owner memberships. The SELECT quietly inserts nothing if the
+        # namespace does not exist yet, so a persona here has to come after the
+        # persona that owns the namespace it joins — which is why the roster is
+        # ordered, and why re-running the seed is harmless: DO UPDATE makes a
+        # changed role in PERSONAS take effect rather than being ignored.
+        if [ -n "$extra" ]; then
+            for pair in ${extra//,/ }; do
+                mns="${pair%%=*}"
+                mrole="${pair#*=}"
+                sql+="
+INSERT INTO namespace_member (namespace_id, user_id, role)
+SELECT n.id, u.id, '$mrole' FROM namespace n, ocidex_user u
+WHERE n.name = '$mns' AND u.github_id = $gid
+ON CONFLICT (namespace_id, user_id) DO UPDATE SET role = EXCLUDED.role;
+"
+            done
+        fi
     done
 
     log "seeding ${#PERSONAS[@]} personas, $(( ${#PERSONAS[@]} * 2 )) API keys"
@@ -182,18 +209,21 @@ ENV
     log "credentials written to $ENVFILE"
 }
 
-# Prints who exists and what they own. The roster is the whole point of the rig
-# — a reviewer has to know which key is which before switching personas.
+# Prints who exists and what they are a member of. The roster is the whole point
+# of the rig — a reviewer has to know which key is which before switching
+# personas.
 #
-# "Owns" is now a membership row (ADR-046), not a namespace column: the owner is
-# the single `namespace_member` with role 'owner'.
+# It lists every membership with its role, not just ownership: with two personas
+# whose only distinguishing feature is a non-owner role (ocidex-y0hg.9), an
+# owner-only roster showed both of them owning nothing and looked identical.
 roster() {
     psql -tA -F' ' <<'SQL' 2>/dev/null || echo "  (database not reachable)"
-SELECT '  ' || rpad(u.github_username, 12) || rpad(u.role, 7)
+SELECT '  ' || rpad(u.github_username, 13) || rpad(u.role, 7)
        || rpad((SELECT count(*) FROM api_key k WHERE k.user_id = u.id) || ' keys', 8)
-       || 'owns: ' || coalesce(string_agg(n.name || ' (' || n.visibility || ')', ', '), '-')
+       || 'member of: '
+       || coalesce(string_agg(n.name || ' (' || m.role || ')', ', ' ORDER BY m.role), '-')
 FROM ocidex_user u
-LEFT JOIN namespace_member m ON m.user_id = u.id AND m.role = 'owner'
+LEFT JOIN namespace_member m ON m.user_id = u.id
 LEFT JOIN namespace n ON n.id = m.namespace_id
 GROUP BY u.id, u.github_username, u.role
 ORDER BY u.github_id;

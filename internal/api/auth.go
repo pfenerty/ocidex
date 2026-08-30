@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sort"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -416,6 +417,20 @@ func (h *Handler) GetMe(ctx context.Context, _ *struct{}) (*MeOutput, error) {
 	out.Body.ID = uuid.UUID(user.ID.Bytes).String()
 	out.Body.GitHubUsername = user.GitHubUsername
 	out.Body.Role = user.Role
+	// Grants is already on the request — the authenticate middleware loads it
+	// for every call — so this costs no query. Sorted because a map iterates in
+	// a different order every request, and a response that reshuffles for no
+	// reason is a diff nobody can read.
+	out.Body.Memberships = make([]MyMembership, 0, len(user.Grants))
+	for nsID, role := range user.Grants {
+		out.Body.Memberships = append(out.Body.Memberships, MyMembership{
+			NamespaceID: nsID,
+			Role:        string(role),
+		})
+	}
+	sort.Slice(out.Body.Memberships, func(i, j int) bool {
+		return out.Body.Memberships[i].NamespaceID < out.Body.Memberships[j].NamespaceID
+	})
 	return out, nil
 }
 

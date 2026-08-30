@@ -6,6 +6,7 @@ import ThemeToggle from "~/components/ThemeToggle";
 import CommandPalette, { openCommandPalette, isAppleShortcut } from "~/components/CommandPalette";
 import { GitHubMark } from "./icons/GitHubMark";
 import { useAuth } from "~/context/auth";
+import { roleEmphasis, type Emphasis } from "~/utils/emphasis";
 import { API_BASE_URL } from "~/api/client";
 
 // The dev rig's persona switcher, behind a dynamic import rather than a static
@@ -17,10 +18,34 @@ const PersonaSwitcher = import.meta.env.DEV
     ? lazy(() => import("~/components/dev/PersonaSwitcher"))
     : undefined;
 
+/**
+ * Which nav links the sidebar accents, per role emphasis (ocidex-y0hg.9).
+ *
+ * The rail is *accented*, never reordered and never filtered: link positions
+ * are muscle memory, and a nav that rearranges itself per persona costs more
+ * than the emphasis is worth. Every link every caller is entitled to stays
+ * exactly where it was; two of them get a marker saying "this is the one your
+ * namespaces are about".
+ */
+const NAV_LEAD: Record<Exclude<Emphasis, "balanced">, readonly string[]> = {
+    security: ["/vulnerabilities", "/clusters"],
+    developer: ["/artifacts", "/admin/sources"],
+};
+
 export default function Layout(props: ParentProps) {
     const { user, refetch } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
+
+    // `data-lead` rather than a class so the accent is one CSS rule and the
+    // contract is readable from a snapshot; `undefined` rather than "false"
+    // so the attribute is simply absent when there is nothing to accent.
+    const emphasis = () => roleEmphasis(user()?.memberships);
+    const lead = (href: string): "true" | undefined => {
+        const e = emphasis();
+        if (e === "balanced") return undefined;
+        return NAV_LEAD[e].includes(href) ? "true" : undefined;
+    };
 
     // Paths whose every request is authenticated: /admin's surfaces and the
     // /dashboard workspace, which is built entirely from /users/me/* endpoints
@@ -122,7 +147,7 @@ export default function Layout(props: ParentProps) {
                             <span>Workspace</span>
                         </A>
                     </Show>
-                    <A href="/artifacts" aria-label="Artifacts">
+                    <A href="/artifacts" aria-label="Artifacts" data-lead={lead("/artifacts")}>
                         <Package size={16} />
                         <span>Artifacts</span>
                     </A>
@@ -134,7 +159,7 @@ export default function Layout(props: ParentProps) {
                         <ShieldCheck size={16} />
                         <span>Licenses</span>
                     </A>
-                    <A href="/vulnerabilities" aria-label="Vulnerabilities">
+                    <A href="/vulnerabilities" aria-label="Vulnerabilities" data-lead={lead("/vulnerabilities")}>
                         <ShieldAlert size={16} />
                         <span>Vulnerabilities</span>
                     </A>
@@ -143,7 +168,7 @@ export default function Layout(props: ParentProps) {
                         <span>Compare</span>
                     </A>
                     <Show when={user()}>
-                        <A href="/clusters" aria-label="Clusters">
+                        <A href="/clusters" aria-label="Clusters" data-lead={lead("/clusters")}>
                             <Server size={16} />
                             <span>Clusters</span>
                         </A>
@@ -155,7 +180,7 @@ export default function Layout(props: ParentProps) {
                         simply had no route to the page. Admins keep reaching it
                         through Admin, where the rest of the tabs are. */}
                     <Show when={user() !== undefined && user()?.role !== "admin"}>
-                        <A href="/admin/sources" aria-label="Sources">
+                        <A href="/admin/sources" aria-label="Sources" data-lead={lead("/admin/sources")}>
                             <Database size={16} />
                             <span>Sources</span>
                         </A>

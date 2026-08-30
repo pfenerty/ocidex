@@ -256,6 +256,23 @@
     color: var(--color-secondary);
 }
 
+/* Role emphasis (ocidex-y0hg.9). A caller whose namespace roles are mostly
+   'security' or mostly 'developer' gets the two links their work starts from
+   accented: full-strength label text and a 2px bar down the left edge.
+
+   Accent only — the link is in the same place, in the same order, for every
+   caller, and nothing is hidden from anyone. The bar is an inset shadow rather
+   than a border so it costs no layout: turning it on must not shift the rest
+   of the rail by a pixel.
+
+   It stays below `.active` in the cascade on purpose. Where you are beats what
+   you are here for, and the two markers are different anyway — `.active`
+   recolours the whole row, this one only lifts the text and draws the bar. */
+.sidebar nav a[data-lead] {
+    color: var(--color-text);
+    box-shadow: inset 2px 0 0 var(--color-secondary);
+}
+
 .main-content {
     flex: 1;
     padding: 2rem;

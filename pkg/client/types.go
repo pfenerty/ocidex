@@ -320,6 +320,33 @@ func (e ListArtifactVersionsOutputBodyResolvedMode) Valid() bool {
 	}
 }
 
+// Defines values for MyMembershipRole.
+const (
+	MyMembershipRoleDeveloper  MyMembershipRole = "developer"
+	MyMembershipRoleMaintainer MyMembershipRole = "maintainer"
+	MyMembershipRoleOwner      MyMembershipRole = "owner"
+	MyMembershipRoleSecurity   MyMembershipRole = "security"
+	MyMembershipRoleViewer     MyMembershipRole = "viewer"
+)
+
+// Valid indicates whether the value is a known member of the MyMembershipRole enum.
+func (e MyMembershipRole) Valid() bool {
+	switch e {
+	case MyMembershipRoleDeveloper:
+		return true
+	case MyMembershipRoleMaintainer:
+		return true
+	case MyMembershipRoleOwner:
+		return true
+	case MyMembershipRoleSecurity:
+		return true
+	case MyMembershipRoleViewer:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for NamespaceMemberResponseRole.
 const (
 	NamespaceMemberResponseRoleDeveloper  NamespaceMemberResponseRole = "developer"
@@ -613,19 +640,19 @@ func (e UpdateRegistryInputBodyVisibility) Valid() bool {
 
 // Defines values for UpdateUserRoleInputBodyRole.
 const (
-	Admin  UpdateUserRoleInputBodyRole = "admin"
-	Member UpdateUserRoleInputBodyRole = "member"
-	Viewer UpdateUserRoleInputBodyRole = "viewer"
+	UpdateUserRoleInputBodyRoleAdmin  UpdateUserRoleInputBodyRole = "admin"
+	UpdateUserRoleInputBodyRoleMember UpdateUserRoleInputBodyRole = "member"
+	UpdateUserRoleInputBodyRoleViewer UpdateUserRoleInputBodyRole = "viewer"
 )
 
 // Valid indicates whether the value is a known member of the UpdateUserRoleInputBodyRole enum.
 func (e UpdateUserRoleInputBodyRole) Valid() bool {
 	switch e {
-	case Admin:
+	case UpdateUserRoleInputBodyRoleAdmin:
 		return true
-	case Member:
+	case UpdateUserRoleInputBodyRoleMember:
 		return true
-	case Viewer:
+	case UpdateUserRoleInputBodyRoleViewer:
 		return true
 	default:
 		return false
@@ -2723,9 +2750,24 @@ type MeOutputBody struct {
 	// Id User UUID
 	Id string `json:"id"`
 
+	// Memberships The caller's namespace memberships, for UI emphasis only
+	Memberships *[]MyMembership `json:"memberships"`
+
 	// Role User role: admin, member, or viewer
 	Role string `json:"role"`
 }
+
+// MyMembership defines model for MyMembership.
+type MyMembership struct {
+	// NamespaceId Namespace UUID
+	NamespaceId string `json:"namespace_id"`
+
+	// Role The caller's role in that namespace
+	Role MyMembershipRole `json:"role"`
+}
+
+// MyMembershipRole The caller's role in that namespace
+type MyMembershipRole string
 
 // NATSStatus defines model for NATSStatus.
 type NATSStatus struct {
