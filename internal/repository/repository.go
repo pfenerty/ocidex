@@ -220,4 +220,9 @@ type AuthRepository interface {
 	TouchAPIKeyLastUsed(ctx context.Context, id pgtype.UUID) error
 	ListAPIKeysByUser(ctx context.Context, userID pgtype.UUID) ([]ListAPIKeysByUserRow, error)
 	DeleteAPIKey(ctx context.Context, arg DeleteAPIKeyParams) (int64, error)
+	// ListNamespaceMembershipsForUser backs AuthService.LoadGrants. It sits on
+	// the auth repository rather than the namespace one because the caller's
+	// grants are part of establishing who the caller is, resolved once per
+	// request alongside the session (ocidex-y0hg.5).
+	ListNamespaceMembershipsForUser(ctx context.Context, userID pgtype.UUID) ([]NamespaceMember, error)
 }

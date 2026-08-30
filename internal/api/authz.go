@@ -3,8 +3,43 @@ package api
 import (
 	"context"
 
+	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/service"
 )
+
+// can reports whether user holds capability c in the namespace identified by
+// namespaceID.
+//
+// It is the only place in the API layer that calls authz.Allow, the same way
+// visibilityFilterFromContext is the only place that builds a VisibilityFilter,
+// and TestCapabilityHasOneConstructor fails the build if a second one appears.
+// The two global rules Allow applies — an admin short-circuits everything, an
+// installation-wide viewer is capped at reading — are exactly the kind of thing
+// a hand-rolled `user.Grants[ns] == authz.RoleOwner` at a call site would drop,
+// and it would pass every test written for the caller it was added for.
+//
+// An empty namespaceID means the resource has no namespace, which no membership
+// can cover: only a global admin gets through. Callers that must keep admitting
+// members for un-namespaced legacy rows say so themselves rather than having it
+// hidden here.
+func can(user service.AuthUser, namespaceID string, c authz.Capability) bool {
+	role, present := user.Grants[namespaceID]
+	if namespaceID == "" {
+		role, present = "", false
+	}
+	return authz.Allow(user.Role, role, present, c)
+}
+
+// canFromContext is can for the caller in ctx. An unauthenticated caller holds
+// nothing: there is no anonymous membership, and a public namespace is read
+// through the SQL visibility functions rather than through a capability.
+func canFromContext(ctx context.Context, namespaceID string, c authz.Capability) bool {
+	user, ok := UserFromContext(ctx)
+	if !ok {
+		return false
+	}
+	return can(user, namespaceID, c)
+}
 
 // visibilityFilterFromContext builds the row-visibility filter for the caller
 // in ctx. It is the only place in the API layer that constructs a

@@ -174,23 +174,28 @@ func (q *Queries) GetArtifact(ctx context.Context, id pgtype.UUID) (GetArtifactR
 	return i, err
 }
 
-const getArtifactOwnerID = `-- name: GetArtifactOwnerID :one
-SELECT namespace_owner(an.namespace_id) AS owner_id
+const getArtifactNamespaceID = `-- name: GetArtifactNamespaceID :one
+SELECT an.namespace_id
 FROM artifact_namespace an
-WHERE an.artifact_id = $1 AND namespace_owner(an.namespace_id) IS NOT NULL
+WHERE an.artifact_id = $1
+ORDER BY an.namespace_id
 LIMIT 1
 `
 
-// The owner of any one namespace holding the artifact. An artifact can hang from
-// several namespaces with different owners, and this has always answered with
-// whichever row came first; ocidex-y0hg.6 replaces the caller with a capability
-// check that asks the question per namespace instead of collapsing it to one
-// user.
-func (q *Queries) GetArtifactOwnerID(ctx context.Context, artifactID pgtype.UUID) (pgtype.UUID, error) {
-	row := q.db.QueryRow(ctx, getArtifactOwnerID, artifactID)
-	var owner_id pgtype.UUID
-	err := row.Scan(&owner_id)
-	return owner_id, err
+// Any one namespace holding the artifact. An artifact can hang from several
+// namespaces with different members, and this answers with whichever row comes
+// first — as its owner-returning predecessor did (ocidex-y0hg.5). The caller is
+// a capability check, so the question it settles is now "may you do this here"
+// rather than "are you this one user"; asking it of every namespace the artifact
+// belongs to is ocidex-y0hg.6.
+//
+// Ordered rather than left to the heap, so that "whichever row came first" is a
+// stable answer across two identical requests instead of a plan detail.
+func (q *Queries) GetArtifactNamespaceID(ctx context.Context, artifactID pgtype.UUID) (pgtype.UUID, error) {
+	row := q.db.QueryRow(ctx, getArtifactNamespaceID, artifactID)
+	var namespace_id pgtype.UUID
+	err := row.Scan(&namespace_id)
+	return namespace_id, err
 }
 
 const listArtifactVersions = `-- name: ListArtifactVersions :many

@@ -20,8 +20,14 @@ import (
 
 // Registry is the domain model for a configured OCI registry.
 type Registry struct {
-	ID                  string
-	Name                string
+	ID   string
+	Name string
+	// NamespaceID is the namespace this registry hangs from, reached through
+	// its source row. It is the authorization anchor (ADR-039): every decision
+	// about a registry is a capability question asked of this namespace, which
+	// is why the ID travels with the model rather than being re-derived by
+	// whoever needs it (ocidex-y0hg.5).
+	NamespaceID         string
 	Type                string
 	URL                 string
 	Insecure            bool
@@ -426,10 +432,11 @@ func (s *registryService) Create(ctx context.Context, params CreateRegistryParam
 		return Registry{}, fmt.Errorf("creating registry: %w", err)
 	}
 	return fromRepo(registryComposite{
-		reg:        r,
-		name:       params.Name,
-		ownerID:    params.OwnerID,
-		visibility: visibility,
+		reg:         r,
+		name:        params.Name,
+		namespaceID: namespaceID,
+		ownerID:     params.OwnerID,
+		visibility:  visibility,
 	}), nil
 }
 
@@ -473,7 +480,7 @@ func (s *registryService) GetByName(ctx context.Context, name string) (Registry,
 		return Registry{}, ErrNotFound
 	}
 	return fromRepo(registryComposite{
-		reg: r.Registry, name: r.Name, ownerID: r.OwnerID, visibility: r.Visibility,
+		reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, ownerID: r.OwnerID, visibility: r.Visibility,
 	}), nil
 }
 
@@ -487,7 +494,7 @@ func (s *registryService) Get(ctx context.Context, id string) (Registry, error) 
 		return Registry{}, ErrNotFound
 	}
 	return fromRepo(registryComposite{
-		reg: r.Registry, name: r.Name, ownerID: r.OwnerID, visibility: r.Visibility,
+		reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, ownerID: r.OwnerID, visibility: r.Visibility,
 	}), nil
 }
 
@@ -502,7 +509,7 @@ func (s *registryService) List(ctx context.Context, filter VisibilityFilter) ([]
 	out := make([]Registry, len(rows))
 	for i, r := range rows {
 		out[i] = fromRepo(registryComposite{
-			reg: r.Registry, name: r.Name, ownerID: r.OwnerID, visibility: r.Visibility,
+			reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, ownerID: r.OwnerID, visibility: r.Visibility,
 		})
 	}
 	return out, nil
@@ -526,7 +533,7 @@ func (s *registryService) ListPaged(ctx context.Context, filter VisibilityFilter
 	out := make([]Registry, len(rows))
 	for i, r := range rows {
 		out[i] = fromRepo(registryComposite{
-			reg: r.Registry, name: r.Name, ownerID: r.OwnerID, visibility: r.Visibility,
+			reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, ownerID: r.OwnerID, visibility: r.Visibility,
 		})
 	}
 	return PagedResult[Registry]{Data: out, Total: total, Limit: limit, Offset: offset}, nil
@@ -542,10 +549,11 @@ func (s *registryService) Update(ctx context.Context, params UpdateRegistryParam
 		return Registry{}, ErrNotFound
 	}
 	existing := fromRepo(registryComposite{
-		reg:        existingRow.Registry,
-		name:       existingRow.Name,
-		ownerID:    existingRow.OwnerID,
-		visibility: existingRow.Visibility,
+		reg:         existingRow.Registry,
+		name:        existingRow.Name,
+		namespaceID: existingRow.NamespaceID,
+		ownerID:     existingRow.OwnerID,
+		visibility:  existingRow.Visibility,
 	})
 
 	visibility := params.Visibility
@@ -610,10 +618,11 @@ func (s *registryService) Update(ctx context.Context, params UpdateRegistryParam
 		return Registry{}, fmt.Errorf("updating registry: %w", err)
 	}
 	return fromRepo(registryComposite{
-		reg:        r,
-		name:       params.Name,
-		ownerID:    existingRow.OwnerID,
-		visibility: visibility,
+		reg:         r,
+		name:        params.Name,
+		namespaceID: existingRow.NamespaceID,
+		ownerID:     existingRow.OwnerID,
+		visibility:  visibility,
 	}), nil
 }
 
@@ -625,7 +634,7 @@ func (s *registryService) ListPollable(ctx context.Context) ([]Registry, error) 
 	out := make([]Registry, len(rows))
 	for i, r := range rows {
 		out[i] = fromRepo(registryComposite{
-			reg: r.Registry, name: r.Name, ownerID: r.OwnerID, visibility: r.Visibility,
+			reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, ownerID: r.OwnerID, visibility: r.Visibility,
 		})
 	}
 	return out, nil
@@ -695,10 +704,11 @@ func (s *registryService) TrustSummary(ctx context.Context, vis VisibilityFilter
 // fields ADR-039 moved onto namespace. sqlc emits a distinct Row type per joined
 // query, so each read path adapts into this one shape before mapping.
 type registryComposite struct {
-	reg        repository.Registry
-	name       string
-	ownerID    pgtype.UUID
-	visibility string
+	reg         repository.Registry
+	name        string
+	namespaceID pgtype.UUID
+	ownerID     pgtype.UUID
+	visibility  string
 }
 
 func fromRepo(c registryComposite) Registry {
@@ -706,6 +716,7 @@ func fromRepo(c registryComposite) Registry {
 	out := Registry{
 		ID:                  uuidToStr(r.ID),
 		Name:                c.name,
+		NamespaceID:         uuidToStr(c.namespaceID),
 		Type:                r.Type,
 		URL:                 r.Url,
 		Insecure:            r.Insecure,

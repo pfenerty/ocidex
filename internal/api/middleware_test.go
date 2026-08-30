@@ -11,6 +11,7 @@ import (
 	"github.com/matryer/is"
 
 	"github.com/pfenerty/ocidex/internal/api"
+	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -37,14 +38,19 @@ var (
 	// testRegistryID is the UUID string used for test registries.
 	testRegistryID = "00000000-0000-0000-0000-000000000001"
 
-	// testRegistry is a registry owned by ownerUUID.
+	// mwNamespaceID is the namespace testRegistry hangs from — the anchor
+	// RequireCapability resolves to and asks its question of.
+	mwNamespaceID = "00000000-0000-0000-0000-0000000000ff"
+
+	// testRegistry is a registry in mwNamespaceID.
 	testRegistry = service.Registry{
-		ID:       testRegistryID,
-		Name:     "test",
-		Type:     "generic",
-		URL:      "registry.example.com",
-		ScanMode: "webhook",
-		OwnerID:  &ownerIDStr,
+		ID:          testRegistryID,
+		Name:        "test",
+		Type:        "generic",
+		URL:         "registry.example.com",
+		ScanMode:    "webhook",
+		NamespaceID: mwNamespaceID,
+		OwnerID:     &ownerIDStr,
 	}
 )
 
@@ -104,6 +110,11 @@ func (f *fakeRegistryService) TrustSummary(_ context.Context, _ service.Visibili
 
 type fakeAuthService struct {
 	users map[string]service.AuthUser
+	// grants maps a user's string ID to that user's namespace roles. It is
+	// keyed by user rather than baked into the AuthUser because the real
+	// OptionalAuthenticate resolves grants per request rather than reading
+	// them off the session row.
+	grants map[string]map[string]authz.Role
 }
 
 func (f *fakeAuthService) ValidateAPIKey(_ context.Context, token string) (service.AuthUser, error) {
@@ -159,84 +170,117 @@ func (f *fakeAuthService) CleanExpiredSessions(_ context.Context) error {
 	return nil
 }
 
-// newRegistryOwnerTestRouter builds a router with auth and registry services wired.
-func newRegistryOwnerTestRouter(regSvc service.RegistryService, authSvc service.AuthService) http.Handler {
+func (f *fakeAuthService) LoadGrants(_ context.Context, userID pgtype.UUID) (map[string]authz.Role, error) {
+	if g, ok := f.grants[uuidString(userID)]; ok {
+		return g, nil
+	}
+	return map[string]authz.Role{}, nil
+}
+
+// newCapabilityTestRouter builds a router with auth and registry services wired.
+// DELETE /registries/{id} is the operation under test: it declares
+// authz.CapManageSource, which owner and maintainer hold and security,
+// developer and viewer do not.
+func newCapabilityTestRouter(regSvc service.RegistryService, authSvc service.AuthService) http.Handler {
 	h := api.NewHandler(nil, nil, authSvc, regSvc, nil, nil, nil, nil, nil, nil, &fakePinger{}, nil, nil)
 	return api.NewRouter(h, "*", "", "")
+}
+
+// deleteRegistryAs issues the delete with the given bearer token, or with no
+// credentials at all when token is empty.
+func deleteRegistryAs(router http.Handler, token string) int {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodDelete, "/api/v1/registries/"+testRegistryID, nil)
+	if token != "" {
+		r.Header.Set("Authorization", "Bearer "+token)
+	}
+	router.ServeHTTP(w, r)
+	return w.Code
 }
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
-func TestRequireRegistryOwner_AdminAllowed(t *testing.T) {
+// TestRequireCapability covers the three answers the middleware owes a caller:
+// an anonymous request never reaches the resolve, a member is judged on the
+// capability its namespace role grants rather than on who created the row, and
+// a global admin passes without any membership at all.
+func TestRequireCapability(t *testing.T) {
+	tests := []struct {
+		name       string
+		token      string
+		user       service.AuthUser
+		role       authz.Role // namespace role, empty means not a member
+		wantStatus int
+	}{
+		{
+			name:       "anonymous is unauthenticated",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "admin passes without membership",
+			token:      "admin-token",
+			user:       service.AuthUser{ID: otherUUID, Role: "admin"},
+			wantStatus: http.StatusNoContent,
+		},
+		{
+			name:       "maintainer holds manage_source",
+			token:      "member-token",
+			user:       service.AuthUser{ID: ownerUUID, Role: "member"},
+			role:       authz.RoleMaintainer,
+			wantStatus: http.StatusNoContent,
+		},
+		{
+			name:       "viewer does not hold manage_source",
+			token:      "member-token",
+			user:       service.AuthUser{ID: ownerUUID, Role: "member"},
+			role:       authz.RoleViewer,
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "non-member is forbidden",
+			token:      "other-token",
+			user:       service.AuthUser{ID: otherUUID, Role: "member"},
+			wantStatus: http.StatusForbidden,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+
+			authSvc := &fakeAuthService{users: map[string]service.AuthUser{}}
+			if tt.token != "" {
+				authSvc.users[tt.token] = tt.user
+			}
+			if tt.role != "" {
+				authSvc.grants = map[string]map[string]authz.Role{
+					uuidString(tt.user.ID): {mwNamespaceID: tt.role},
+				}
+			}
+
+			router := newCapabilityTestRouter(&fakeRegistryService{registry: testRegistry}, authSvc)
+			is.Equal(deleteRegistryAs(router, tt.token), tt.wantStatus)
+		})
+	}
+}
+
+// TestRequireCapabilityGlobalViewerFloor pins the one rule a namespace owner
+// cannot override: an installation-wide viewer given a namespace role still
+// gets no capability beyond reading.
+func TestRequireCapabilityGlobalViewerFloor(t *testing.T) {
 	is := is.New(t)
 
 	authSvc := &fakeAuthService{
 		users: map[string]service.AuthUser{
-			"admin-token": {ID: otherUUID, Role: "admin"},
+			"viewer-token": {ID: ownerUUID, Role: "viewer"},
+		},
+		grants: map[string]map[string]authz.Role{
+			uuidString(ownerUUID): {mwNamespaceID: authz.RoleOwner},
 		},
 	}
-	regSvc := &fakeRegistryService{registry: testRegistry}
-	router := newRegistryOwnerTestRouter(regSvc, authSvc)
 
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodDelete, "/api/v1/registries/"+testRegistryID, nil)
-	r.Header.Set("Authorization", "Bearer admin-token")
-	router.ServeHTTP(w, r)
-
-	is.Equal(w.Code, http.StatusNoContent)
-}
-
-func TestRequireRegistryOwner_OwnerAllowed(t *testing.T) {
-	is := is.New(t)
-
-	authSvc := &fakeAuthService{
-		users: map[string]service.AuthUser{
-			"owner-token": {ID: ownerUUID, Role: "member"},
-		},
-	}
-	regSvc := &fakeRegistryService{registry: testRegistry}
-	router := newRegistryOwnerTestRouter(regSvc, authSvc)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodDelete, "/api/v1/registries/"+testRegistryID, nil)
-	r.Header.Set("Authorization", "Bearer owner-token")
-	router.ServeHTTP(w, r)
-
-	is.Equal(w.Code, http.StatusNoContent)
-}
-
-func TestRequireRegistryOwner_NonOwnerForbidden(t *testing.T) {
-	is := is.New(t)
-
-	authSvc := &fakeAuthService{
-		users: map[string]service.AuthUser{
-			"other-token": {ID: otherUUID, Role: "member"},
-		},
-	}
-	regSvc := &fakeRegistryService{registry: testRegistry}
-	router := newRegistryOwnerTestRouter(regSvc, authSvc)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodDelete, "/api/v1/registries/"+testRegistryID, nil)
-	r.Header.Set("Authorization", "Bearer other-token")
-	router.ServeHTTP(w, r)
-
-	is.Equal(w.Code, http.StatusForbidden)
-}
-
-func TestRequireRegistryOwner_UnauthForbidden(t *testing.T) {
-	is := is.New(t)
-
-	authSvc := &fakeAuthService{users: map[string]service.AuthUser{}}
-	regSvc := &fakeRegistryService{registry: testRegistry}
-	router := newRegistryOwnerTestRouter(regSvc, authSvc)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodDelete, "/api/v1/registries/"+testRegistryID, nil)
-	// No Authorization header
-	router.ServeHTTP(w, r)
-
-	is.Equal(w.Code, http.StatusUnauthorized)
+	router := newCapabilityTestRouter(&fakeRegistryService{registry: testRegistry}, authSvc)
+	is.Equal(deleteRegistryAs(router, "viewer-token"), http.StatusForbidden)
 }

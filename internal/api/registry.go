@@ -12,6 +12,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
 	"github.com/pfenerty/ocidex/internal/trust"
@@ -200,7 +201,7 @@ func (h *Handler) listRecentDrift(ctx context.Context, in CursorParams, vis serv
 
 // GetRegistry returns a single registry by ID.
 func (h *Handler) GetRegistry(ctx context.Context, in *GetRegistryInput) (*GetRegistryOutput, error) {
-	user, ok := UserFromContext(ctx)
+	_, ok := UserFromContext(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
@@ -208,7 +209,8 @@ func (h *Handler) GetRegistry(ctx context.Context, in *GetRegistryInput) (*GetRe
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}
-	if !canManageRegistry(user, reg) && reg.Visibility == visibilityPrivate {
+	if reg.Visibility == visibilityPrivate &&
+		!canFromContext(ctx, reg.NamespaceID, authz.CapReadPrivate) {
 		return nil, huma.Error404NotFound("registry not found")
 	}
 	return &GetRegistryOutput{Body: toRegistryResponse(reg, h.cfg.APIBaseURL, nil)}, nil
@@ -216,7 +218,7 @@ func (h *Handler) GetRegistry(ctx context.Context, in *GetRegistryInput) (*GetRe
 
 // GetRegistryByName returns a single registry by name.
 func (h *Handler) GetRegistryByName(ctx context.Context, in *GetRegistryByNameInput) (*GetRegistryByNameOutput, error) {
-	user, ok := UserFromContext(ctx)
+	_, ok := UserFromContext(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
@@ -224,7 +226,8 @@ func (h *Handler) GetRegistryByName(ctx context.Context, in *GetRegistryByNameIn
 	if err != nil {
 		return nil, huma.Error404NotFound("registry not found")
 	}
-	if !canManageRegistry(user, reg) && reg.Visibility == visibilityPrivate {
+	if reg.Visibility == visibilityPrivate &&
+		!canFromContext(ctx, reg.NamespaceID, authz.CapReadPrivate) {
 		return nil, huma.Error404NotFound("registry not found")
 	}
 	return &GetRegistryByNameOutput{Body: toRegistryResponse(reg, h.cfg.APIBaseURL, nil)}, nil
@@ -507,17 +510,6 @@ func (h *Handler) ScanRegistry(ctx context.Context, in *ScanRegistryInput) (*Sca
 	out := &ScanRegistryOutput{}
 	out.Body.Message = fmt.Sprintf("scan started for registry %q", reg.Name)
 	return out, nil
-}
-
-// canManageRegistry returns true if the user is an admin or the registry owner.
-func canManageRegistry(user service.AuthUser, reg service.Registry) bool {
-	if user.Role == roleAdmin {
-		return true
-	}
-	if reg.OwnerID != nil && user.ID.Valid {
-		return *reg.OwnerID == uuidToStr(user.ID)
-	}
-	return false
 }
 
 func uuidToStr(u pgtype.UUID) string {

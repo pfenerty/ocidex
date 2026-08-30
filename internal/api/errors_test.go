@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/matryer/is"
-	"github.com/pfenerty/ocidex/internal/service"
 )
 
 func TestMapServiceError_NotFound(t *testing.T) {
@@ -23,12 +22,7 @@ func TestMapServiceError_NotFound(t *testing.T) {
 
 func TestMapServiceError_InternalError(t *testing.T) {
 	is := is.New(t)
-	authSvc := &fakeAuthService{
-		users: map[string]service.AuthUser{
-			"member-token": {ID: ownerUUID, Role: "member"},
-		},
-	}
-	router := newTestRouterWithAuth(&failSBOMService{}, &fakeSearchService{}, authSvc)
+	router := newTestRouterWithAuth(&failSBOMService{}, &fakeSearchService{}, memberAuthSvc())
 
 	body := `{
 		"bomFormat": "CycloneDX",

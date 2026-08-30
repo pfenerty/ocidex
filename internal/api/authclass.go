@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/pfenerty/ocidex/internal/authz"
 )
 
 // AuthClass is the authorization class of an operation: the single rule that
@@ -43,17 +45,41 @@ const (
 	// ClassOwner admits the owner of the namespace the resource hangs from, or
 	// an admin (ADR-039: namespace ownership is the only ownership check in the
 	// system — sources and registries inherit their answer from the namespace
-	// above them). Enforced either by an ownership middleware
-	// (Require{Registry,SBOM,Artifact}Owner) or, where the target namespace is
-	// only knowable from the request body, by canManageNamespace /
-	// namespaceOwnerCheck inside the handler. AuthRule.Notes records which.
+	// above them).
+	//
+	// Deprecated: superseded by ClassCapability. The enforcement it named is
+	// already gone — every site now asks for a capability (ocidex-y0hg.5) — and
+	// the rows still carrying it are migrated and the constant deleted in
+	// ocidex-y0hg.6. It is not kept as an alias afterwards: an alias would let a
+	// new operation quietly inherit owner-only semantics without naming what it
+	// actually needs.
 	ClassOwner AuthClass = "owner"
+
+	// ClassCapability admits a caller holding the operation's declared
+	// AuthRule.Cap in the namespace the resource hangs from. It is the
+	// membership-era replacement for ClassOwner: the namespace is still the
+	// authorization anchor, but the question asked of it is "does your role
+	// there grant this capability" rather than "are you the one owner".
+	//
+	// A rule of this class is the only one whose Cap field is meaningful, and it
+	// must set one — a capability-class operation with no capability would admit
+	// nobody but an admin while reading like a deliberate rule. Enforced by
+	// RequireCapability where the target namespace is knowable from the path, or
+	// by requireNamespaceCapability inside the handler where it is only knowable
+	// from the body. AuthRule.Notes records which.
+	ClassCapability AuthClass = "capability"
 )
 
 // AuthRule is the declared authorization contract for one operation.
 type AuthRule struct {
 	// Class is the rule deciding whether the caller may invoke the operation.
 	Class AuthClass
+
+	// Cap is the capability a ClassCapability operation requires, and is empty
+	// for every other class. It is what the operation declares instead of a
+	// role, so that adding a role to authz.roleCaps cannot silently widen an
+	// endpoint that never mentioned it.
+	Cap authz.Capability
 
 	// Write reports whether the operation also declares RequireWrite, which
 	// rejects a read-scoped API key. True for every state-mutating operation.
@@ -74,8 +100,8 @@ type AuthRule struct {
 // Notes strings repeated across many operations. They carry no behaviour; they
 // are constants so a change to the wording lands in one place.
 const (
-	noteVisFilter       = "VisibilityFilter."
-	noteRegistryOwnerMW = "RequireRegistryOwner middleware."
+	noteVisFilter        = "VisibilityFilter."
+	noteManageRegistryMW = "RequireCapability(manage_source) middleware."
 
 	// noteNamespaceScoped marks the operational feeds that any authenticated
 	// caller may invoke but which return only rows from the namespaces the
@@ -156,7 +182,7 @@ var authRules = map[string]AuthRule{
 	"diff-sboms":                   {Class: ClassPublic, Notes: "VisibilityFilter on both sides."},
 	"diff-tree":                    {Class: ClassPublic, Notes: "VisibilityFilter on both sides."},
 	"ingest-sbom":                  {Class: ClassMember, Write: true, Notes: "Caller must also own the namespace behind ?source= (resolveIngestSource)."},
-	"delete-sbom":                  {Class: ClassOwner, Write: true, Notes: "RequireSBOMOwner middleware."},
+	"delete-sbom":                  {Class: ClassOwner, Write: true, Notes: "RequireCapability(delete_artifact) middleware on the SBOM's namespace."},
 	"get-dashboard-stats":          {Class: ClassPublic, Notes: noteVisFilter},
 	"get-discovery":                {Class: ClassPublic, Notes: "Public namespaces only, in SQL; no viewer parameter, so the response is identical for every caller."},
 	"get-artifact-changelog":       {Class: ClassPublic, Notes: noteVisFilter},
@@ -172,7 +198,7 @@ var authRules = map[string]AuthRule{
 	"list-artifact-vulns":       {Class: ClassPublic, Notes: noteVisFilter},
 	"get-artifact-usages":       {Class: ClassPublic, Notes: "Filtered via visible_namespace_ids (ADR-041)."},
 	"get-artifact-contains":     {Class: ClassPublic, Notes: "Filtered via visible_namespace_ids (ADR-041)."},
-	"delete-artifact":           {Class: ClassOwner, Write: true, Notes: "RequireArtifactOwner middleware."},
+	"delete-artifact":           {Class: ClassOwner, Write: true, Notes: "RequireCapability(delete_artifact) middleware on the artifact's namespace."},
 
 	// --- Components & licenses ---------------------------------------------
 	"search-components":          {Class: ClassPublic, Notes: noteVisFilter},
@@ -198,15 +224,15 @@ var authRules = map[string]AuthRule{
 	"get-namespace":         {Class: ClassAuthenticated, Notes: "A private namespace the caller does not own 404s, so its existence is not leaked."},
 	"get-namespace-by-name": {Class: ClassAuthenticated, Notes: "A private namespace the caller does not own 404s."},
 	"create-namespace":      {Class: ClassAuthenticated, Write: true, Notes: "Owned by the calling user."},
-	"update-namespace":      {Class: ClassOwner, Write: true, Notes: "canManageNamespace in handler."},
-	"delete-namespace":      {Class: ClassOwner, Write: true, Notes: "canManageNamespace in handler; deletes everything ingested under the namespace."},
+	"update-namespace":      {Class: ClassOwner, Write: true, Notes: "manage_member capability check in handler."},
+	"delete-namespace":      {Class: ClassOwner, Write: true, Notes: "delete_namespace capability check in handler; deletes everything ingested under the namespace."},
 
 	// --- Sources ------------------------------------------------------------
 	"list-sources":  {Class: ClassAuthenticated, Notes: "Visibility resolved through the owning namespace."},
 	"get-source":    {Class: ClassAuthenticated, Notes: "404s when the owning namespace is private and unowned."},
-	"create-source": {Class: ClassOwner, Write: true, Notes: "namespaceOwnerCheck on the body's namespace_id."},
-	"update-source": {Class: ClassOwner, Write: true, Notes: "namespaceOwnerCheck on the source's namespace."},
-	"delete-source": {Class: ClassOwner, Write: true, Notes: "namespaceOwnerCheck on the source's namespace."},
+	"create-source": {Class: ClassOwner, Write: true, Notes: "manage_source capability on the body's namespace_id."},
+	"update-source": {Class: ClassOwner, Write: true, Notes: "manage_source capability on the source's namespace."},
+	"delete-source": {Class: ClassOwner, Write: true, Notes: "manage_source capability on the source's namespace."},
 
 	// --- Clusters -----------------------------------------------------------
 	// Per ADR-044 K8 the inventory push reuses the read-write scope rather than
@@ -215,26 +241,26 @@ var authRules = map[string]AuthRule{
 	// than left implicit; narrowing it is ocidex-wp9b.2's job.
 	"list-clusters":                 {Class: ClassAuthenticated, Notes: "Visibility resolved through the owning namespace."},
 	"get-cluster":                   {Class: ClassAuthenticated, Notes: "404s when the owning namespace is private and unowned."},
-	"create-cluster":                {Class: ClassOwner, Write: true, Notes: "namespaceOwnerCheck on the body's namespace_id."},
-	"update-cluster":                {Class: ClassOwner, Write: true, Notes: "namespaceOwnerCheck on the cluster's namespace."},
-	"delete-cluster":                {Class: ClassOwner, Write: true, Notes: "namespaceOwnerCheck on the cluster's namespace; drops reported inventory only."},
-	"put-cluster-inventory":         {Class: ClassOwner, Write: true, Notes: "namespaceOwnerCheck on the cluster's namespace — ownership, not visibility, because a public namespace must not make inventory writable by anyone."},
+	"create-cluster":                {Class: ClassOwner, Write: true, Notes: "manage_cluster capability on the body's namespace_id."},
+	"update-cluster":                {Class: ClassOwner, Write: true, Notes: "manage_cluster capability on the cluster's namespace."},
+	"delete-cluster":                {Class: ClassOwner, Write: true, Notes: "manage_cluster capability on the cluster's namespace; drops reported inventory only."},
+	"put-cluster-inventory":         {Class: ClassOwner, Write: true, Notes: "push_inventory capability on the cluster's namespace — membership, not visibility, because a public namespace must not make inventory writable by anyone."},
 	"list-cluster-workloads":        {Class: ClassAuthenticated, Notes: "Cluster gated on namespace visibility; rows additionally filtered via visible_namespace_ids."},
 	"list-cluster-images":           {Class: ClassAuthenticated, Notes: "Same gate and same rows as list-cluster-workloads, grouped by image rather than by workload-container."},
 	"list-cluster-vulns":            {Class: ClassAuthenticated, Notes: "Same gate as list-cluster-workloads; findings and coverage are returned together so neither can be read without the other."},
 	"list-cluster-k8s-namespaces":   {Class: ClassAuthenticated, Notes: "Same gate as list-cluster-workloads; the facet counts describe only the rows that gate admits."},
 	"list-cluster-unknown-images":   {Class: ClassAuthenticated, Notes: "Same gate as list-cluster-workloads. It names the namespace's registries, so cluster visibility is what authorizes learning them; resolution never leaves the cluster's own namespace."},
-	"ingest-cluster-unknown-images": {Class: ClassOwner, Write: true, Notes: "Ownership, not the visibility that guards the matching list: this spends the namespace's registry credentials and enqueues scan work. Same gate as put-cluster-inventory, which is the other trigger for the same action."},
+	"ingest-cluster-unknown-images": {Class: ClassOwner, Write: true, Notes: "trigger_scan capability, not the visibility that guards the matching list: this spends the namespace's registry credentials and enqueues scan work. Same gate as put-cluster-inventory, which is the other trigger for the same action."},
 
 	// --- Registries ---------------------------------------------------------
 	"list-registries":            {Class: ClassAuthenticated, Notes: "Own plus public registries."},
 	"get-registry":               {Class: ClassAuthenticated, Notes: "A private registry the caller does not own 404s."},
 	"get-registry-by-name":       {Class: ClassAuthenticated, Notes: "A private registry the caller does not own 404s."},
 	"create-registry":            {Class: ClassAuthenticated, Write: true, Notes: "Creates the namespace and source beneath it, owned by the caller."},
-	"update-registry":            {Class: ClassOwner, Write: true, Notes: noteRegistryOwnerMW},
-	"delete-registry":            {Class: ClassOwner, Write: true, Notes: noteRegistryOwnerMW},
-	"scan-registry":              {Class: ClassOwner, Write: true, Notes: noteRegistryOwnerMW},
-	"regenerate-webhook-secret":  {Class: ClassOwner, Write: true, Notes: "RequireRegistryOwner middleware; response contains the new secret."},
+	"update-registry":            {Class: ClassOwner, Write: true, Notes: noteManageRegistryMW},
+	"delete-registry":            {Class: ClassOwner, Write: true, Notes: noteManageRegistryMW},
+	"scan-registry":              {Class: ClassOwner, Write: true, Notes: "RequireCapability(trigger_scan) middleware."},
+	"regenerate-webhook-secret":  {Class: ClassOwner, Write: true, Notes: "RequireCapability(read_secret) middleware; response contains the new secret."},
 	"test-registry-connection":   {Class: ClassAdmin, Write: true, Notes: "Dials an arbitrary caller-supplied host from inside the cluster."},
 	"get-registry-trust-summary": {Class: ClassAuthenticated, Notes: noteNamespaceScoped},
 	"list-recent-drift":          {Class: ClassAuthenticated, Notes: noteNamespaceScoped},

@@ -7,21 +7,30 @@ import (
 	"testing"
 
 	"github.com/matryer/is"
+
+	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
-// memberAuthSvc returns a fakeAuthService that maps "member-token" to a member user.
+// memberAuthSvc returns a fakeAuthService that maps "member-token" to a member
+// user holding maintainer in testNamespaceID — the namespace every ingest test
+// posts a source in. Ingest is a capability now, not a property of who created
+// the namespace, so the grant has to be stated rather than inferred from an
+// owner column.
 func memberAuthSvc() *fakeAuthService {
 	return &fakeAuthService{
 		users: map[string]service.AuthUser{
 			"member-token": {ID: ownerUUID, Role: "member"},
 		},
+		grants: map[string]map[string]authz.Role{
+			uuidString(ownerUUID): {testNamespaceID: authz.RoleMaintainer},
+		},
 	}
 }
 
 // memberRouter returns a router with a wired member auth service (no registry
-// service), so RequireMember / RequireSBOMOwner / RequireArtifactOwner all
-// pass for authenticated members when the resource has no registry owner.
+// service), so RequireMember and RequireCapability both pass for authenticated
+// members when the resource hangs from no namespace.
 func memberRouter(sbomSvc service.SBOMService) http.Handler {
 	return newTestRouterWithAuth(sbomSvc, &fakeSearchService{}, memberAuthSvc())
 }
@@ -125,10 +134,10 @@ func TestDeleteSBOM(t *testing.T) {
 		id         string
 		wantStatus int
 	}{
-		// fakeSBOMService.GetSBOMNamespaceID returns zero UUID → no owner → member allowed
+		// fakeSBOMService.GetSBOMNamespaceID returns zero UUID → no namespace → member allowed
 		{"valid uuid", "01020304-0506-0708-090a-0b0c0d0e0f10", http.StatusNoContent},
-		// invalid UUID: RequireSBOMOwner parses the id before huma's format check
-		// runs, so it answers 404 rather than 422.
+		// invalid UUID: RequireCapability's resolve parses the id before huma's
+		// format check runs, so it answers 404 rather than 422.
 		{"bad uuid", "not-a-uuid", http.StatusNotFound},
 	}
 
@@ -164,10 +173,10 @@ func TestDeleteArtifact(t *testing.T) {
 		id         string
 		wantStatus int
 	}{
-		// fakeSBOMService.GetArtifactOwnerID returns zero UUID → no owner → member allowed
+		// fakeSBOMService.GetArtifactNamespaceID returns zero UUID → no namespace → member allowed
 		{"valid uuid", "01020304-0506-0708-090a-0b0c0d0e0f10", http.StatusNoContent},
-		// invalid UUID: RequireArtifactOwner parses the id before huma's format
-		// check runs, so it answers 404 rather than 422.
+		// invalid UUID: RequireCapability's resolve parses the id before huma's
+		// format check runs, so it answers 404 rather than 422.
 		{"bad uuid", "not-a-uuid", http.StatusNotFound},
 	}
 

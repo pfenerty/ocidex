@@ -58,10 +58,11 @@ type SBOMService interface {
 	// Returns a zero UUID (with Valid=false) when the SBOM has no registry association.
 	// Returns ErrNotFound if no SBOM with that ID exists.
 	GetSBOMNamespaceID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
-	// GetArtifactOwnerID returns the owner_id of any registry linked to the artifact.
-	// Returns a zero UUID (with Valid=false) when no registry with an owner is linked.
+	// GetArtifactNamespaceID returns one namespace the artifact hangs from —
+	// the authorization anchor a capability check asks its question of.
+	// Returns a zero UUID (with Valid=false) when the artifact hangs from none.
 	// Returns ErrNotFound if no artifact with that ID exists.
-	GetArtifactOwnerID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
+	GetArtifactNamespaceID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error)
 }
 
 // DigestValidator validates that a container image digest points to a single
@@ -508,19 +509,19 @@ func (s *sbomService) GetSBOMNamespaceID(ctx context.Context, id pgtype.UUID) (p
 	return row.NamespaceID, nil
 }
 
-func (s *sbomService) GetArtifactOwnerID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
+func (s *sbomService) GetArtifactNamespaceID(ctx context.Context, id pgtype.UUID) (pgtype.UUID, error) {
 	q := repository.New(s.pool)
 	if _, err := q.GetArtifact(ctx, id); err != nil {
 		return pgtype.UUID{}, ErrNotFound
 	}
-	ownerID, err := q.GetArtifactOwnerID(ctx, id)
+	namespaceID, err := q.GetArtifactNamespaceID(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return pgtype.UUID{}, nil
 	}
 	if err != nil {
-		return pgtype.UUID{}, fmt.Errorf("looking up artifact owner: %w", err)
+		return pgtype.UUID{}, fmt.Errorf("looking up artifact namespace: %w", err)
 	}
-	return ownerID, nil
+	return namespaceID, nil
 }
 
 // Ensure *Queries satisfies the SBOMRepository and ArtifactRepository interfaces.

@@ -9,7 +9,9 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -58,6 +60,25 @@ func OptionalAuthenticate(authSvc service.AuthService) func(http.Handler) http.H
 				return
 			}
 
+			// Namespace grants are resolved here, once, and attached to the
+			// principal for the life of the request (ocidex-y0hg.5). Once,
+			// because a capability check happens in middleware and again in the
+			// handler and a per-check query would multiply for free; here,
+			// because the alternative — writing the grant set onto the session
+			// or API-key row — would mean a role change only took effect at the
+			// next login, which the epic explicitly rules out.
+			//
+			// A failure to load grants is not a failure to authenticate: the
+			// caller continues with no grants, which denies every capability
+			// check but still answers public-class routes. Failing the whole
+			// request would take the browse surface down with the membership
+			// table.
+			grants, gerr := authSvc.LoadGrants(r.Context(), user.ID)
+			if gerr != nil {
+				slog.WarnContext(r.Context(), "loading namespace grants", "error", gerr)
+			}
+			user.Grants = grants
+
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKeyUser{}, user)))
 		})
 	}
@@ -67,33 +88,6 @@ func OptionalAuthenticate(authSvc service.AuthService) func(http.Handler) http.H
 func UserFromContext(ctx context.Context) (service.AuthUser, bool) {
 	u, ok := ctx.Value(ctxKeyUser{}).(service.AuthUser)
 	return u, ok
-}
-
-// RequireRegistryOwner returns a huma middleware that loads the registry from
-// the {id} path param and rejects with 403 unless the caller is the owner or
-// an admin. Pass a nil svc to skip the check (useful in tests that don't wire
-// a registry service).
-func RequireRegistryOwner(api huma.API, svc service.RegistryService) func(huma.Context, func(huma.Context)) {
-	if svc == nil {
-		return func(ctx huma.Context, next func(huma.Context)) { next(ctx) }
-	}
-	return func(ctx huma.Context, next func(huma.Context)) {
-		user, ok := UserFromContext(ctx.Context())
-		if !ok {
-			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, "not authenticated")
-			return
-		}
-		reg, err := svc.Get(ctx.Context(), ctx.Param("id"))
-		if err != nil {
-			_ = huma.WriteErr(api, ctx, http.StatusNotFound, "registry not found")
-			return
-		}
-		if !canManageRegistry(user, reg) {
-			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
-			return
-		}
-		next(ctx)
-	}
 }
 
 // RequireMember returns a huma middleware that 401s unauthenticated callers and
@@ -144,103 +138,71 @@ func RequireAdmin(api huma.API) func(huma.Context, func(huma.Context)) {
 	}
 }
 
+// RequireCapability returns a huma middleware that admits only a caller holding
+// capability c in the namespace resolve derives from the request.
+//
+// It replaces RequireRegistryOwner, RequireSBOMOwner and RequireArtifactOwner
+// (ocidex-y0hg.5), which differed from each other only in how they found the
+// namespace and then asked the same hard-coded "are you the owner" question.
+// resolve is those bodies lifted out: everything above it is one rule, declared
+// once, and an operation names the capability it needs rather than a role that
+// happens to have it.
+//
+// The answers:
+//
+//   - No credentials: 401. A capability is a property of a principal and there
+//     is no anonymous membership.
+//   - resolve fails: 404. resolve loads the target resource, so its failure is
+//     the resource not existing (or not being visible), and a caller who may
+//     not act on a thing must not learn it exists from the status code.
+//   - resolve yields an invalid UUID: the resource hangs from no namespace.
+//     Legacy uploaded rows are like this — sbom.namespace_id is still nullable
+//     and the visibility functions treat the NULL arm as public — so this
+//     admits any member or admin, exactly as the ownership middlewares did.
+//     That arm dies with the nullable column (ocidex-0gp.3), not before: making
+//     it a 403 now would strand every pre-namespace upload behind admin.
+//   - Otherwise: authz.Allow through can(), so an admin passes regardless of
+//     membership and a member without c gets 403.
+func RequireCapability(api huma.API, c authz.Capability,
+	resolve func(huma.Context) (pgtype.UUID, error),
+) func(huma.Context, func(huma.Context)) {
+	return func(ctx huma.Context, next func(huma.Context)) {
+		user, ok := UserFromContext(ctx.Context())
+		if !ok {
+			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, "not authenticated")
+			return
+		}
+		namespaceID, err := resolve(ctx)
+		if err != nil {
+			_ = huma.WriteErr(api, ctx, http.StatusNotFound, "not found")
+			return
+		}
+		if !namespaceID.Valid {
+			if user.Role != roleAdmin && user.Role != roleMember {
+				_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
+				return
+			}
+			next(ctx)
+			return
+		}
+		if !can(user, uuidToStr(namespaceID), c) {
+			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
+			return
+		}
+		next(ctx)
+	}
+}
+
 // RequireWrite returns a huma middleware that 403s a caller presenting a
 // read-scoped API key. It checks the key scope only and is deliberately
 // orthogonal to the auth-class middlewares (RequireAuthenticated, RequireMember,
-// RequireAdmin, Require*Owner): a state-mutating operation declares one of those
-// plus this one, and authentication is enforced by the auth-class middleware
-// listed first.
+// RequireAdmin, RequireCapability): a state-mutating operation declares one of
+// those plus this one, and authentication is enforced by the auth-class
+// middleware listed first.
 func RequireWrite(api huma.API) func(huma.Context, func(huma.Context)) {
 	return func(ctx huma.Context, next func(huma.Context)) {
 		if user, ok := UserFromContext(ctx.Context()); ok && !isWriteAllowed(user) {
 			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "read-only API key cannot perform write operations")
-			return
-		}
-		next(ctx)
-	}
-}
-
-// RequireSBOMOwner returns a huma middleware that requires auth + ownership of
-// the SBOM's namespace OR admin role. If the SBOM has no namespace association,
-// any authenticated member|admin is allowed. When sbomSvc or nsSvc is nil the
-// ownership check is skipped but auth is still enforced.
-func RequireSBOMOwner(api huma.API, sbomSvc service.SBOMService, nsSvc service.NamespaceService) func(huma.Context, func(huma.Context)) {
-	return func(ctx huma.Context, next func(huma.Context)) {
-		user, ok := UserFromContext(ctx.Context())
-		if !ok {
-			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, "not authenticated")
-			return
-		}
-		if user.Role != roleAdmin && user.Role != roleMember {
-			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
-			return
-		}
-		if sbomSvc == nil || nsSvc == nil {
-			next(ctx)
-			return
-		}
-		id, err := parseUUID(ctx.Param("id"))
-		if err != nil {
-			_ = huma.WriteErr(api, ctx, http.StatusNotFound, "sbom not found")
-			return
-		}
-		namespaceID, err := sbomSvc.GetSBOMNamespaceID(ctx.Context(), id)
-		if err != nil {
-			_ = huma.WriteErr(api, ctx, http.StatusNotFound, "sbom not found")
-			return
-		}
-		if !namespaceID.Valid {
-			next(ctx)
-			return
-		}
-		ns, err := nsSvc.Get(ctx.Context(), uuidToStr(namespaceID))
-		if err != nil || !canManageNamespace(user, ns) {
-			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
-			return
-		}
-		next(ctx)
-	}
-}
-
-// RequireArtifactOwner returns a huma middleware that requires auth + ownership
-// of any namespace linked to the artifact OR admin role. If the artifact has no
-// namespace association, any authenticated member|admin is allowed. When sbomSvc
-// or nsSvc is nil the ownership check is skipped but auth is still enforced.
-func RequireArtifactOwner(api huma.API, sbomSvc service.SBOMService, nsSvc service.NamespaceService) func(huma.Context, func(huma.Context)) {
-	return func(ctx huma.Context, next func(huma.Context)) {
-		user, ok := UserFromContext(ctx.Context())
-		if !ok {
-			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, "not authenticated")
-			return
-		}
-		if user.Role != roleAdmin && user.Role != roleMember {
-			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
-			return
-		}
-		if sbomSvc == nil || nsSvc == nil {
-			next(ctx)
-			return
-		}
-		id, err := parseUUID(ctx.Param("id"))
-		if err != nil {
-			_ = huma.WriteErr(api, ctx, http.StatusNotFound, "artifact not found")
-			return
-		}
-		ownerID, err := sbomSvc.GetArtifactOwnerID(ctx.Context(), id)
-		if err != nil {
-			_ = huma.WriteErr(api, ctx, http.StatusNotFound, "artifact not found")
-			return
-		}
-		if !ownerID.Valid {
-			next(ctx)
-			return
-		}
-		if user.Role == roleAdmin {
-			next(ctx)
-			return
-		}
-		if !user.ID.Valid || uuidToStr(ownerID) != uuidToStr(user.ID) {
-			_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
 			return
 		}
 		next(ctx)

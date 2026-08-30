@@ -231,7 +231,9 @@ func TestAuthBoundaries(t *testing.T) {
 		// Admin only.
 		{"list users", http.MethodGet, "/api/v1/users", "", 401, 403, 403, 200},
 		{"admin status", http.MethodGet, "/api/v1/admin/status", "", 401, 403, 403, 200},
-		// Registry owner or admin (RequireRegistryOwner middleware).
+		// manage_source in the registry's namespace, or admin
+		// (RequireCapability middleware). The member created the namespace, so
+		// the ocidex-y0hg.1 backfill gave them an owner membership row.
 		{"patch registry", http.MethodPatch, "/api/v1/registries/" + memberRegID, patchRegistryBody, 401, 403, 200, 200},
 	}
 

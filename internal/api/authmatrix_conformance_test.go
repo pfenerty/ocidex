@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/pfenerty/ocidex/internal/api"
+	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -34,20 +35,21 @@ import (
 
 // A persona is one seeded principal. The five mirror scripts/dev-auth.sh's
 // PERSONAS array, and the two facts that matter to authorization are its global
-// role and whether it owns the resources the fakes resolve to.
+// role and what it holds in the namespaces the fakes resolve to.
 type persona struct {
 	name  string
 	token string
 	user  service.AuthUser
 }
 
-// personas is the roster. devowner carries ownerUUID, which is the owner of
-// every namespace and registry the fakes in helpers_test.go / middleware_test.go
-// return, so it is the only principal that passes an ownership check without
-// being an admin. devsecurity and devoutsider are deliberately two distinct
-// non-owning members: the rig separates them because ocidex-y0hg will give them
-// different capabilities in the same namespace, and the harness should already
-// be driving both by then.
+// personas is the roster. devowner carries ownerUUID and, since ocidex-y0hg.5,
+// an explicit owner-role membership in every namespace the fakes in
+// helpers_test.go / middleware_test.go resolve to (see personaGrants) — it is
+// still the only principal that passes without being an admin, but it passes on
+// a grant now rather than on a column. devsecurity and devoutsider are
+// deliberately two distinct non-owning members: the rig separates them because
+// ocidex-y0hg.7 will give them different roles in the same namespace, and the
+// harness should already be driving both by then.
 var personas = []persona{
 	{name: "devadmin", token: "tok-devadmin",
 		user: service.AuthUser{ID: personaID(0xa1), GitHubUsername: "devadmin", Role: "admin", APIKeyScope: "read-write"}},
@@ -66,6 +68,19 @@ var personas = []persona{
 // RequireWrite.
 const readOnlyToken = "tok-readonly"
 
+// personaGrants is devowner's membership. The fakes resolve every namespaced
+// route to one of two namespaces — testNamespaceID for namespaces, sources and
+// clusters, mwNamespaceID for registries — so an owner row in each is what
+// "devowner owns the fixture" means now that owner_id is gone.
+func personaGrants() map[string]map[string]authz.Role {
+	return map[string]map[string]authz.Role{
+		uuidString(ownerUUID): {
+			testNamespaceID: authz.RoleOwner,
+			mwNamespaceID:   authz.RoleOwner,
+		},
+	}
+}
+
 func personaAuthService() *fakeAuthService {
 	users := map[string]service.AuthUser{
 		readOnlyToken: {ID: personaID(0xa1), GitHubUsername: "devadmin", Role: "admin", APIKeyScope: "read"},
@@ -73,7 +88,7 @@ func personaAuthService() *fakeAuthService {
 	for _, p := range personas {
 		users[p.token] = p.user
 	}
-	return &fakeAuthService{users: users}
+	return &fakeAuthService{users: users, grants: personaGrants()}
 }
 
 // ownerProbe records what this fixture is actually able to observe about a
@@ -83,22 +98,24 @@ func personaAuthService() *fakeAuthService {
 type ownerProbe string
 
 const (
-	// ownerEnforced: the probe reaches the ownership check and a non-owning
-	// member is refused. This is the bucket that actually proves the rule.
+	// ownerEnforced: the probe reaches the capability check and a member
+	// without the capability is refused. This is the bucket that actually
+	// proves the rule.
 	ownerEnforced ownerProbe = "enforced"
 
 	// ownerBodyGated: the target namespace is knowable only from the request
 	// body, so huma rejects the conformance probe's `{}` with 422 before the
-	// handler's canManageNamespace runs. The rule is enforced in the handler
-	// and covered by that handler's own tests; this harness cannot see it.
-	// ocidex-y0hg.5's RequireCapability moves the check into a middleware with
-	// a path/body resolver, at which point these become ownerEnforced.
+	// handler's capability check runs. The rule is enforced in the handler and
+	// covered by that handler's own tests; this harness cannot see it.
+	// RequireCapability (ocidex-y0hg.5) takes a resolver, so a body resolver
+	// would move these to ownerEnforced; writing one is not part of .5.
 	ownerBodyGated ownerProbe = "body-gated"
 
-	// ownerNoNamespace: the fake resolves no owning namespace for the target,
-	// and Require{SBOM,Artifact}Owner deliberately fall through to the
-	// member/admin floor when an SBOM has no namespace association. So the
-	// probe observes the floor, not the ownership rule.
+	// ownerNoNamespace: the fake resolves no namespace for the target, and
+	// RequireCapability deliberately falls through to the member/admin floor
+	// when the row hangs from none — the legacy arm that outlives the nullable
+	// sbom.namespace_id. So the probe observes the floor, not the capability
+	// rule.
 	ownerNoNamespace ownerProbe = "no-namespace"
 )
 
@@ -186,7 +203,7 @@ func expectFor(r api.AuthMatrixRow, p persona) (verdict, bool) {
 			}
 			return forbidden, true
 		case ownerNoNamespace:
-			// The ownership check falls through, but the member/admin floor
+			// The capability check falls through, but the member/admin floor
 			// still holds and is worth pinning: it is what keeps a viewer out.
 			if isAdmin || isMember {
 				return admitted, true
@@ -196,6 +213,15 @@ func expectFor(r api.AuthMatrixRow, p persona) (verdict, bool) {
 			// Validation answers first, for every persona.
 			return "", false
 		}
+		return "", false
+
+	case api.ClassCapability:
+		// No operation declares this yet — ocidex-y0hg.5 added the class and
+		// the middleware, ocidex-y0hg.6 flips the owner-class rows onto it.
+		// Deriving an expectation means reading r.Rule.Cap against the roles in
+		// personaGrants, which is that story's work;
+		// TestNoUnjudgedCapabilityOperations breaks the build if a row lands
+		// here first, so this cannot become a silent skip.
 		return "", false
 
 	case api.ClassSecret:
@@ -281,5 +307,25 @@ func TestWriteScopeEnforcedForEveryMutation(t *testing.T) {
 			t.Errorf("%s %s (%s) declares Write but a read-scoped admin key got %s, want 403",
 				r.Method, r.Path, r.OperationID, got)
 		}
+	}
+}
+
+// TestNoUnjudgedCapabilityOperations fails the moment an operation declares
+// ClassCapability, because expectFor cannot yet derive an expectation for one.
+// It is the same discipline TestOwnerProbesCoverEveryOwnerOperation applies to
+// the owner class: flipping a row to a class the harness cannot judge must
+// break the build rather than quietly drop that operation from the roster.
+func TestNoUnjudgedCapabilityOperations(t *testing.T) {
+	var unjudged []string
+	for _, r := range conformanceSpec() {
+		if r.Declared && r.Rule.Class == api.ClassCapability {
+			unjudged = append(unjudged, r.OperationID)
+		}
+	}
+	sort.Strings(unjudged)
+	if len(unjudged) > 0 {
+		t.Fatalf("operations declare %s but expectFor derives no persona expectation "+
+			"(extend expectFor to read Rule.Cap against personaGrants):\n  %s",
+			api.ClassCapability, strings.Join(unjudged, "\n  "))
 	}
 }

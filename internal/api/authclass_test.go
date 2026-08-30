@@ -42,9 +42,9 @@ const conformanceUUID = "00000000-0000-0000-0000-0000000000ff"
 
 // newConformanceRouter builds a router with every service the auth middlewares
 // consult wired to a fake. The registry service matters especially:
-// RequireRegistryOwner degrades to a pass-through when its service is nil, so a
-// router built with nil services would silently skip owner-class enforcement
-// and the suite would pass while proving nothing.
+// RequireCapability's resolver degrades to the un-namespaced arm when its
+// service is nil, so a router built with nil services would silently skip
+// capability enforcement and the suite would pass while proving nothing.
 func newConformanceRouter(authSvc service.AuthService) http.Handler {
 	h := api.NewHandler(
 		&fakeSBOMService{},

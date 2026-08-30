@@ -11,7 +11,67 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/pfenerty/ocidex/internal/authz"
 )
+
+// The resolve functions RequireCapability takes: given a request, which
+// namespace is the operation aimed at? Each one is the lookup its retired
+// ownership middleware already performed, lifted out so that the rule above it
+// is written once (ocidex-y0hg.5).
+//
+// A nil service yields an invalid UUID rather than an error, preserving the
+// pass-through the old middlewares gave tests that wire no service: an invalid
+// UUID lands on RequireCapability's un-namespaced arm, which admits a member.
+
+// sbomNamespace resolves the {id} path param to the SBOM's namespace.
+func (h *Handler) sbomNamespace(ctx huma.Context) (pgtype.UUID, error) {
+	if h.sbomService == nil {
+		return pgtype.UUID{}, nil
+	}
+	id, err := parseUUID(ctx.Param("id"))
+	if err != nil {
+		return pgtype.UUID{}, err
+	}
+	return h.sbomService.GetSBOMNamespaceID(ctx.Context(), id)
+}
+
+// artifactNamespace resolves the {id} path param to a namespace the artifact
+// hangs from.
+//
+// An artifact can hang from several namespaces with different members, and this
+// answers with whichever row comes first — which is what the ownership
+// middleware it replaces did with the owner. Asking the question per namespace
+// is ocidex-y0hg.6's job; collapsing it here is carried forward deliberately so
+// that this story changes who is admitted, not how many namespaces are
+// consulted.
+func (h *Handler) artifactNamespace(ctx huma.Context) (pgtype.UUID, error) {
+	if h.sbomService == nil {
+		return pgtype.UUID{}, nil
+	}
+	id, err := parseUUID(ctx.Param("id"))
+	if err != nil {
+		return pgtype.UUID{}, err
+	}
+	return h.sbomService.GetArtifactNamespaceID(ctx.Context(), id)
+}
+
+// registryNamespace resolves the {id} path param to the registry's namespace,
+// reached through its source row.
+func (h *Handler) registryNamespace(ctx huma.Context) (pgtype.UUID, error) {
+	if h.registryService == nil {
+		return pgtype.UUID{}, nil
+	}
+	reg, err := h.registryService.Get(ctx.Context(), ctx.Param("id"))
+	if err != nil {
+		return pgtype.UUID{}, err
+	}
+	if reg.NamespaceID == "" {
+		return pgtype.UUID{}, nil
+	}
+	return parseUUID(reg.NamespaceID)
+}
 
 const maxSBOMBodyBytes int64 = 10 << 20 // 10 MB
 
@@ -185,7 +245,7 @@ func registerVersionOps(api huma.API, h *Handler) {
 func registerSBOMOps(api huma.API, h *Handler) {
 	memberMW := RequireMember(api)
 	writeMW := RequireWrite(api)
-	sbomOwnerMW := RequireSBOMOwner(api, h.sbomService, h.namespaceService)
+	deleteSBOMMW := RequireCapability(api, authz.CapDeleteArtifact, h.sbomNamespace)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "ingest-sbom",
@@ -260,7 +320,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 		Summary:       "Delete an SBOM",
 		Tags:          []string{tagSBOMs},
 		DefaultStatus: http.StatusNoContent,
-		Middlewares:   huma.Middlewares{sbomOwnerMW, writeMW},
+		Middlewares:   huma.Middlewares{deleteSBOMMW, writeMW},
 	}, h.DeleteSBOM)
 
 	huma.Register(api, huma.Operation{
@@ -362,7 +422,7 @@ func registerLicenseOps(api huma.API, h *Handler) {
 // ---------------------------------------------------------------------------
 
 func registerArtifactOps(api huma.API, h *Handler) {
-	artifactOwnerMW := RequireArtifactOwner(api, h.sbomService, h.namespaceService)
+	deleteArtifactMW := RequireCapability(api, authz.CapDeleteArtifact, h.artifactNamespace)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-artifacts",
@@ -401,7 +461,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Summary:       "Delete an artifact",
 		Tags:          []string{tagArtifacts},
 		DefaultStatus: http.StatusNoContent,
-		Middlewares:   huma.Middlewares{artifactOwnerMW, RequireWrite(api)},
+		Middlewares:   huma.Middlewares{deleteArtifactMW, RequireWrite(api)},
 	}, h.DeleteArtifact)
 
 	huma.Register(api, huma.Operation{
@@ -518,7 +578,9 @@ func registerWebhookOps(api huma.API, h *Handler) {
 // ---------------------------------------------------------------------------
 
 func registerRegistryOps(api huma.API, h *Handler) {
-	ownerMW := RequireRegistryOwner(api, h.registryService)
+	manageRegistryMW := RequireCapability(api, authz.CapManageSource, h.registryNamespace)
+	scanRegistryMW := RequireCapability(api, authz.CapTriggerScan, h.registryNamespace)
+	registrySecretMW := RequireCapability(api, authz.CapReadSecret, h.registryNamespace)
 	adminMW := RequireAdmin(api)
 	authMW := RequireAuthenticated(api)
 	writeMW := RequireWrite(api)
@@ -597,7 +659,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Path:        pathRegistryByID,
 		Summary:     "Update a registry (partial)",
 		Tags:        []string{tagRegistries},
-		Middlewares: huma.Middlewares{ownerMW, writeMW},
+		Middlewares: huma.Middlewares{manageRegistryMW, writeMW},
 	}, h.UpdateRegistry)
 
 	huma.Register(api, huma.Operation{
@@ -607,7 +669,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Summary:       "Delete a registry",
 		Tags:          []string{tagRegistries},
 		DefaultStatus: http.StatusNoContent,
-		Middlewares:   huma.Middlewares{ownerMW, writeMW},
+		Middlewares:   huma.Middlewares{manageRegistryMW, writeMW},
 	}, h.DeleteRegistry)
 
 	huma.Register(api, huma.Operation{
@@ -618,7 +680,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Description:   "Walks the registry catalog, filters by configured patterns, and queues scan requests for all matching images.",
 		Tags:          []string{tagRegistries},
 		DefaultStatus: http.StatusAccepted,
-		Middlewares:   huma.Middlewares{ownerMW, writeMW},
+		Middlewares:   huma.Middlewares{scanRegistryMW, writeMW},
 	}, h.ScanRegistry)
 
 	huma.Register(api, huma.Operation{
@@ -628,7 +690,7 @@ func registerRegistryOps(api huma.API, h *Handler) {
 		Summary:     "Regenerate webhook secret",
 		Description: "Generates a new webhook secret for the registry. The previous secret is immediately invalidated.",
 		Tags:        []string{tagRegistries},
-		Middlewares: huma.Middlewares{ownerMW, writeMW},
+		Middlewares: huma.Middlewares{registrySecretMW, writeMW},
 	}, h.RegenerateWebhookSecret)
 }
 

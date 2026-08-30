@@ -7,6 +7,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
 )
@@ -15,7 +16,7 @@ import (
 // one namespace. Like sources, visibility is resolved entirely through the
 // owning namespace (ADR-039, ADR-044 K6).
 func (h *Handler) ListClusters(ctx context.Context, in *ListClustersInput) (*ListClustersOutput, error) {
-	user, ok := UserFromContext(ctx)
+	_, ok := UserFromContext(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
@@ -25,7 +26,7 @@ func (h *Handler) ListClusters(ctx context.Context, in *ListClustersInput) (*Lis
 		if err != nil {
 			return nil, huma.Error404NotFound("namespace not found")
 		}
-		if !canManageNamespace(user, ns) && ns.Visibility == visibilityPrivate {
+		if ns.Visibility == visibilityPrivate && !canReadPrivate(ctx, ns) {
 			return nil, huma.Error404NotFound("namespace not found")
 		}
 		rows, err := h.clusterService.ListByNamespace(ctx, in.NamespaceID)
@@ -80,7 +81,7 @@ func (h *Handler) CreateCluster(ctx context.Context, in *CreateClusterInput) (*C
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if err := h.namespaceOwnerCheck(ctx, user, in.Body.NamespaceID); err != nil {
+	if err := h.requireNamespaceCapability(ctx, user, in.Body.NamespaceID, authz.CapManageCluster); err != nil {
 		return nil, err
 	}
 	cluster, err := h.clusterService.Create(ctx, service.CreateClusterParams{
@@ -96,7 +97,7 @@ func (h *Handler) CreateCluster(ctx context.Context, in *CreateClusterInput) (*C
 
 // UpdateCluster renames or re-describes a cluster.
 func (h *Handler) UpdateCluster(ctx context.Context, in *UpdateClusterInput) (*UpdateClusterOutput, error) {
-	if err := h.clusterOwnerCheck(ctx, in.ID); err != nil {
+	if err := h.clusterCapabilityCheck(ctx, in.ID, authz.CapManageCluster); err != nil {
 		return nil, err
 	}
 	cluster, err := h.clusterService.Update(ctx, service.UpdateClusterParams{
@@ -115,7 +116,7 @@ func (h *Handler) UpdateCluster(ctx context.Context, in *UpdateClusterInput) (*U
 // workloads matched are untouched — inventory is derived state about a cluster,
 // not about the catalogue.
 func (h *Handler) DeleteCluster(ctx context.Context, in *DeleteClusterInput) (*struct{}, error) {
-	if err := h.clusterOwnerCheck(ctx, in.ID); err != nil {
+	if err := h.clusterCapabilityCheck(ctx, in.ID, authz.CapManageCluster); err != nil {
 		return nil, err
 	}
 	if err := h.clusterService.Delete(ctx, in.ID); err != nil {
@@ -130,7 +131,7 @@ func (h *Handler) DeleteCluster(ctx context.Context, in *DeleteClusterInput) (*s
 // cluster's inventory readable by anyone, and it must not thereby make it
 // writable by anyone.
 func (h *Handler) PutInventory(ctx context.Context, in *PutInventoryInput) (*PutInventoryOutput, error) {
-	if err := h.clusterOwnerCheck(ctx, in.ID); err != nil {
+	if err := h.clusterCapabilityCheck(ctx, in.ID, authz.CapPushInventory); err != nil {
 		return nil, err
 	}
 
@@ -211,7 +212,7 @@ func (h *Handler) autoIngestAfterSnapshot(ctx context.Context, clusterID string)
 // Ownership rather than visibility is required — this spends registry
 // credentials and enqueues work, which reading a cluster does not.
 func (h *Handler) IngestUnknown(ctx context.Context, in *IngestUnknownInput) (*IngestUnknownOutput, error) {
-	if err := h.clusterOwnerCheck(ctx, in.ID); err != nil {
+	if err := h.clusterCapabilityCheck(ctx, in.ID, authz.CapTriggerScan); err != nil {
 		return nil, err
 	}
 	if h.scanSubmitter == nil {
@@ -447,7 +448,7 @@ func (h *Handler) ListVulnWorkloads(ctx context.Context, in *ListVulnWorkloadsIn
 // namespace. 404 rather than 403 so a private cluster's existence is not
 // confirmed to someone who cannot see it.
 func (h *Handler) visibleCluster(ctx context.Context, id string) (service.Cluster, error) {
-	user, ok := UserFromContext(ctx)
+	_, ok := UserFromContext(ctx)
 	if !ok {
 		return service.Cluster{}, huma.Error401Unauthorized("not authenticated")
 	}
@@ -459,18 +460,26 @@ func (h *Handler) visibleCluster(ctx context.Context, id string) (service.Cluste
 	if err != nil {
 		return service.Cluster{}, huma.Error404NotFound("cluster not found")
 	}
-	if !canManageNamespace(user, ns) && ns.Visibility == visibilityPrivate {
+	if ns.Visibility == visibilityPrivate && !canReadPrivate(ctx, ns) {
 		return service.Cluster{}, huma.Error404NotFound("cluster not found")
 	}
 	cluster.NamespaceName = ns.Name
 	return cluster, nil
 }
 
-// clusterOwnerCheck requires the caller to own the namespace the cluster hangs
-// from. This is the ClassOwner enforcement point for every cluster mutation
+// clusterCapabilityCheck requires capability c in the namespace the cluster
+// hangs from.
+// This is the ClassCapability enforcement point for every cluster mutation
 // including inventory push, which is a mutation even though it reads like a
 // report (ADR-044 K8).
-func (h *Handler) clusterOwnerCheck(ctx context.Context, id string) error {
+//
+// The capability is a parameter rather than a constant because the four callers
+// do genuinely different things: reconfiguring a cluster is manage_cluster,
+// pushing an inventory is push_inventory (what a CI agent does), and asking for
+// unknown images to be ingested spends the namespace's registry credentials, so
+// it is trigger_scan. Collapsing them onto one check is how a developer role
+// ends up able to delete a cluster (ocidex-y0hg.5).
+func (h *Handler) clusterCapabilityCheck(ctx context.Context, id string, c authz.Capability) error {
 	user, ok := UserFromContext(ctx)
 	if !ok {
 		return huma.Error401Unauthorized("not authenticated")
@@ -479,7 +488,7 @@ func (h *Handler) clusterOwnerCheck(ctx context.Context, id string) error {
 	if err != nil {
 		return huma.Error404NotFound("cluster not found")
 	}
-	return h.namespaceOwnerCheck(ctx, user, cluster.NamespaceID)
+	return h.requireNamespaceCapability(ctx, user, cluster.NamespaceID, c)
 }
 
 func toClusterResponse(c service.Cluster) ClusterResponse {

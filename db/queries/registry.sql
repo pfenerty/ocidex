@@ -62,7 +62,7 @@ FROM src
 RETURNING *;
 
 -- name: GetRegistry :one
-SELECT sqlc.embed(r), src.name, namespace_owner(n.id) AS owner_id, n.visibility
+SELECT sqlc.embed(r), src.name, n.id AS namespace_id, namespace_owner(n.id) AS owner_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -73,7 +73,7 @@ WHERE r.id = $1;
 -- name. source.name is unique per namespace, not globally, so once registries
 -- share a namespace this can in principle match more than one row; the oldest
 -- wins. Callers that need an exact handle should use the id.
-SELECT sqlc.embed(r), src.name, namespace_owner(n.id) AS owner_id, n.visibility
+SELECT sqlc.embed(r), src.name, n.id AS namespace_id, namespace_owner(n.id) AS owner_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -82,7 +82,7 @@ ORDER BY r.created_at ASC
 LIMIT 1;
 
 -- name: ListRegistries :many
-SELECT sqlc.embed(r), src.name, namespace_owner(n.id) AS owner_id, n.visibility
+SELECT sqlc.embed(r), src.name, n.id AS namespace_id, namespace_owner(n.id) AS owner_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -94,7 +94,7 @@ ORDER BY r.created_at ASC;
 -- Cluster auto-ingest resolves an image host against these and nothing else: a
 -- registry in another namespace could match the host, but using it would let one
 -- namespace's cluster trigger pulls with another namespace's credentials.
-SELECT sqlc.embed(r), src.name, namespace_owner(n.id) AS owner_id, n.visibility
+SELECT sqlc.embed(r), src.name, n.id AS namespace_id, namespace_owner(n.id) AS owner_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -104,7 +104,7 @@ ORDER BY r.created_at ASC;
 -- name: ListRegistriesPaged :many
 -- owned_only switches from the visibility path to the ownership path, which is
 -- what /api/v1/users/me/registries needs — see ListNamespaces.
-SELECT sqlc.embed(r), src.name, namespace_owner(n.id) AS owner_id, n.visibility, COUNT(*) OVER() AS total_count
+SELECT sqlc.embed(r), src.name, n.id AS namespace_id, namespace_owner(n.id) AS owner_id, n.visibility, COUNT(*) OVER() AS total_count
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id
@@ -179,7 +179,7 @@ WHERE id = $1
 RETURNING *;
 
 -- name: ListPollableRegistries :many
-SELECT sqlc.embed(r), src.name, namespace_owner(n.id) AS owner_id, n.visibility
+SELECT sqlc.embed(r), src.name, n.id AS namespace_id, namespace_owner(n.id) AS owner_id, n.visibility
 FROM registry r
 JOIN source src ON src.id = r.id
 JOIN namespace n ON n.id = src.namespace_id

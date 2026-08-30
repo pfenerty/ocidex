@@ -42,7 +42,7 @@ func (f *fakeSBOMService) GetSBOMNamespaceID(_ context.Context, _ pgtype.UUID) (
 	return pgtype.UUID{}, nil
 }
 
-func (f *fakeSBOMService) GetArtifactOwnerID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
+func (f *fakeSBOMService) GetArtifactNamespaceID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
 	return pgtype.UUID{}, nil
 }
 
@@ -69,7 +69,7 @@ func (f *failSBOMService) GetSBOMNamespaceID(_ context.Context, _ pgtype.UUID) (
 	return pgtype.UUID{}, errors.New("database unavailable")
 }
 
-func (f *failSBOMService) GetArtifactOwnerID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
+func (f *failSBOMService) GetArtifactNamespaceID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
 	return pgtype.UUID{}, errors.New("database unavailable")
 }
 

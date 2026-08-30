@@ -10,6 +10,7 @@ import (
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -25,7 +26,8 @@ import (
 //
 // An unresolvable source is a 400 rather than a 404: the request named
 // something that does not exist, the endpoint exists fine. Naming a source in a
-// namespace the caller does not own is a 403, whether or not they can read it.
+// namespace the caller cannot ingest into is a 403, whether or not they can read
+// it.
 func (h *Handler) resolveIngestSource(ctx context.Context, ref string) (service.Source, error) {
 	if ref == "" {
 		return service.Source{}, huma.Error400BadRequest(
@@ -58,9 +60,9 @@ func (h *Handler) resolveIngestSource(ctx context.Context, ref string) (service.
 	if err != nil {
 		return service.Source{}, mapServiceError(err)
 	}
-	if user, ok := UserFromContext(ctx); ok && !canManageNamespace(user, ns) {
+	if user, ok := UserFromContext(ctx); ok && !can(user, ns.ID, authz.CapIngest) {
 		return service.Source{}, huma.Error403Forbidden(
-			"cannot ingest into namespace " + ns.Name + ": not owned by this API key")
+			"cannot ingest into namespace " + ns.Name + ": no ingest capability there")
 	}
 	return src, nil
 }

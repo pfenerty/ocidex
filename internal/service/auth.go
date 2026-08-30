@@ -17,6 +17,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 
+	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/repository"
@@ -31,6 +32,17 @@ type AuthUser struct {
 	// APIKeyScope is the scope of the API key used to authenticate this request.
 	// Empty for session (cookie) authentication; "read" or "read-write" for API key auth.
 	APIKeyScope string
+	// Grants is the caller's namespace membership, keyed by namespace ID
+	// string. A namespace absent from the map is one the caller is not a member
+	// of, which grants nothing — a public namespace is readable through the SQL
+	// visibility functions, not through here.
+	//
+	// It is resolved per request (LoadGrants, called once from the API layer's
+	// authenticate middleware) and deliberately not stored on the session or
+	// API-key row. The epic's acceptance criterion is that a role change takes
+	// effect without a re-login, and a grant set cached at login is precisely
+	// how that criterion gets broken by accident.
+	Grants map[string]authz.Role
 }
 
 // APIKeyMeta is the display-safe representation of an API key (no hash).
@@ -58,6 +70,10 @@ type AuthService interface {
 	ListUsers(ctx context.Context) ([]AuthUser, error)
 	UpdateUserRole(ctx context.Context, targetID pgtype.UUID, role string) (AuthUser, error)
 	CleanExpiredSessions(ctx context.Context) error
+	// LoadGrants returns the user's namespace memberships keyed by namespace ID.
+	// The API layer calls it once per authenticated request; see AuthUser.Grants
+	// for why it is not folded into ValidateSession's row.
+	LoadGrants(ctx context.Context, userID pgtype.UUID) (map[string]authz.Role, error)
 }
 
 type authService struct {
@@ -328,6 +344,31 @@ func (s *authService) UpdateUserRole(ctx context.Context, targetID pgtype.UUID, 
 
 func (s *authService) CleanExpiredSessions(ctx context.Context) error {
 	return s.repo.DeleteExpiredSessions(ctx)
+}
+
+// LoadGrants reads the caller's namespace_member rows in one query and returns
+// them keyed by namespace ID.
+//
+// A user with no memberships gets an empty (non-nil) map rather than an error,
+// because "member of nothing" is the ordinary state of a new account and must
+// read as a clean deny at every capability check rather than as a failure.
+//
+// Role strings that no longer map to a known role are kept as-is: authz.Role
+// grants nothing unless it is one of the five, so a row written by a future
+// version denies instead of panicking.
+func (s *authService) LoadGrants(ctx context.Context, userID pgtype.UUID) (map[string]authz.Role, error) {
+	if !userID.Valid {
+		return map[string]authz.Role{}, nil
+	}
+	rows, err := s.repo.ListNamespaceMembershipsForUser(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("loading namespace grants: %w", err)
+	}
+	out := make(map[string]authz.Role, len(rows))
+	for _, m := range rows {
+		out[uuidToStr(m.NamespaceID)] = authz.Role(m.Role)
+	}
+	return out, nil
 }
 
 func sha256hex(s string) string {

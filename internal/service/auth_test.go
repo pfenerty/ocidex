@@ -36,6 +36,7 @@ type fakeAuthRepo struct {
 	listUsersFn         func(ctx context.Context) ([]repository.OcidexUser, error)
 	updateUserRoleFn    func(ctx context.Context, arg repository.UpdateUserRoleParams) (repository.OcidexUser, error)
 	deleteExpiredFn     func(ctx context.Context) error
+	listMembershipsFn   func(ctx context.Context, userID pgtype.UUID) ([]repository.NamespaceMember, error)
 }
 
 func (f *fakeAuthRepo) CreateSession(ctx context.Context, arg repository.CreateSessionParams) (repository.Session, error) {
@@ -127,6 +128,13 @@ func (f *fakeAuthRepo) DeleteExpiredSessions(ctx context.Context) error {
 		return f.deleteExpiredFn(ctx)
 	}
 	return nil
+}
+
+func (f *fakeAuthRepo) ListNamespaceMembershipsForUser(ctx context.Context, userID pgtype.UUID) ([]repository.NamespaceMember, error) {
+	if f.listMembershipsFn != nil {
+		return f.listMembershipsFn(ctx, userID)
+	}
+	return nil, nil
 }
 
 // newTestAuthService builds an authService with the given fake repo and a

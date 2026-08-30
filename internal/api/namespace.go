@@ -5,20 +5,20 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
-// canManageNamespace returns true if the user is an admin or the namespace owner.
-// This is the only ownership check in the system that matters: sources and
-// registries inherit their answer from the namespace above them (ADR-039).
-func canManageNamespace(user service.AuthUser, ns service.Namespace) bool {
-	if user.Role == roleAdmin {
-		return true
-	}
-	if ns.OwnerID != nil && user.ID.Valid {
-		return *ns.OwnerID == uuidToStr(user.ID)
-	}
-	return false
+// canReadPrivate reports whether the caller may see a private namespace's
+// content. It is the read half of what canManageNamespace used to answer
+// (ocidex-y0hg.5): membership of a private namespace is precisely the right to
+// read it, so every role holds CapReadPrivate and a non-member holds nothing.
+//
+// A public namespace never reaches here — its rows are visible through the SQL
+// visibility functions — which is why the callers all read
+// `ns.Visibility == visibilityPrivate && !canReadPrivate(...)`.
+func canReadPrivate(ctx context.Context, ns service.Namespace) bool {
+	return canFromContext(ctx, ns.ID, authz.CapReadPrivate)
 }
 
 // ListNamespaces returns the namespaces visible to the current user: their own,
@@ -68,7 +68,7 @@ func (h *Handler) listNamespaces(ctx context.Context, vis service.VisibilityFilt
 // not own is reported as missing rather than forbidden, so its existence is not
 // leaked.
 func (h *Handler) GetNamespace(ctx context.Context, in *GetNamespaceInput) (*GetNamespaceOutput, error) {
-	user, ok := UserFromContext(ctx)
+	_, ok := UserFromContext(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
@@ -76,7 +76,7 @@ func (h *Handler) GetNamespace(ctx context.Context, in *GetNamespaceInput) (*Get
 	if err != nil {
 		return nil, huma.Error404NotFound("namespace not found")
 	}
-	if !canManageNamespace(user, ns) && ns.Visibility == visibilityPrivate {
+	if ns.Visibility == visibilityPrivate && !canReadPrivate(ctx, ns) {
 		return nil, huma.Error404NotFound("namespace not found")
 	}
 	return &GetNamespaceOutput{Body: toNamespaceResponse(ns, nil)}, nil
@@ -84,7 +84,7 @@ func (h *Handler) GetNamespace(ctx context.Context, in *GetNamespaceInput) (*Get
 
 // GetNamespaceByName returns a single namespace by name.
 func (h *Handler) GetNamespaceByName(ctx context.Context, in *GetNamespaceByNameInput) (*GetNamespaceByNameOutput, error) {
-	user, ok := UserFromContext(ctx)
+	_, ok := UserFromContext(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
@@ -92,7 +92,7 @@ func (h *Handler) GetNamespaceByName(ctx context.Context, in *GetNamespaceByName
 	if err != nil {
 		return nil, huma.Error404NotFound("namespace not found")
 	}
-	if !canManageNamespace(user, ns) && ns.Visibility == visibilityPrivate {
+	if ns.Visibility == visibilityPrivate && !canReadPrivate(ctx, ns) {
 		return nil, huma.Error404NotFound("namespace not found")
 	}
 	return &GetNamespaceByNameOutput{Body: toNamespaceResponse(ns, nil)}, nil
@@ -127,8 +127,8 @@ func (h *Handler) UpdateNamespace(ctx context.Context, in *UpdateNamespaceInput)
 	if err != nil {
 		return nil, huma.Error404NotFound("namespace not found")
 	}
-	if !canManageNamespace(user, existing) {
-		return nil, huma.Error403Forbidden("not the namespace owner")
+	if !can(user, existing.ID, authz.CapManageMember) {
+		return nil, huma.Error403Forbidden("forbidden")
 	}
 	ns, err := h.namespaceService.Update(ctx, service.UpdateNamespaceParams{
 		ID:         in.ID,
@@ -152,8 +152,8 @@ func (h *Handler) DeleteNamespace(ctx context.Context, in *DeleteNamespaceInput)
 	if err != nil {
 		return nil, huma.Error404NotFound("namespace not found")
 	}
-	if !canManageNamespace(user, existing) {
-		return nil, huma.Error403Forbidden("not the namespace owner")
+	if !can(user, existing.ID, authz.CapDeleteNamespace) {
+		return nil, huma.Error403Forbidden("forbidden")
 	}
 	if err := h.namespaceService.Delete(ctx, in.ID); err != nil {
 		return nil, mapServiceError(err)
@@ -173,16 +173,23 @@ func toNamespaceResponse(ns service.Namespace, ownerUsername *string) NamespaceR
 	}
 }
 
-// namespaceOwnerCheck resolves the namespace owning a source and reports whether
-// the user may manage it. Every source-level authorization decision routes
-// through here rather than growing its own rule (ADR-039).
-func (h *Handler) namespaceOwnerCheck(ctx context.Context, user service.AuthUser, namespaceID string) error {
-	ns, err := h.namespaceService.Get(ctx, namespaceID)
-	if err != nil {
+// requireNamespaceCapability is RequireCapability for the operations that
+// cannot use it: those whose target namespace is named in the request body, or
+// reached through a resource the handler has already loaded, and so is not
+// knowable from the path a middleware sees. Every such authorization decision
+// routes through here rather than growing its own rule (ADR-039).
+//
+// It resolves the namespace first and 404s if it is missing, which is what
+// makes "you may not act on this" and "this is not here" the same answer for a
+// caller who cannot see it either way.
+func (h *Handler) requireNamespaceCapability(
+	ctx context.Context, user service.AuthUser, namespaceID string, c authz.Capability,
+) error {
+	if _, err := h.namespaceService.Get(ctx, namespaceID); err != nil {
 		return huma.Error404NotFound("namespace not found")
 	}
-	if !canManageNamespace(user, ns) {
-		return huma.Error403Forbidden("not the namespace owner")
+	if !can(user, namespaceID, c) {
+		return huma.Error403Forbidden("forbidden")
 	}
 	return nil
 }

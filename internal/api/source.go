@@ -5,6 +5,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -12,7 +13,7 @@ import (
 // scoped to one namespace. Visibility is always resolved through the owning
 // namespace — a source carries none of its own (ADR-039).
 func (h *Handler) ListSources(ctx context.Context, in *ListSourcesInput) (*ListSourcesOutput, error) {
-	user, ok := UserFromContext(ctx)
+	_, ok := UserFromContext(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
@@ -24,7 +25,7 @@ func (h *Handler) ListSources(ctx context.Context, in *ListSourcesInput) (*ListS
 		if err != nil {
 			return nil, huma.Error404NotFound("namespace not found")
 		}
-		if !canManageNamespace(user, ns) && ns.Visibility == visibilityPrivate {
+		if ns.Visibility == visibilityPrivate && !canReadPrivate(ctx, ns) {
 			return nil, huma.Error404NotFound("namespace not found")
 		}
 		rows, err := h.sourceService.ListByNamespace(ctx, in.NamespaceID)
@@ -68,7 +69,7 @@ func (h *Handler) listSources(ctx context.Context, vis service.VisibilityFilter)
 
 // GetSource returns a single source, gated on its namespace's visibility.
 func (h *Handler) GetSource(ctx context.Context, in *GetSourceInput) (*GetSourceOutput, error) {
-	user, ok := UserFromContext(ctx)
+	_, ok := UserFromContext(ctx)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
@@ -80,7 +81,7 @@ func (h *Handler) GetSource(ctx context.Context, in *GetSourceInput) (*GetSource
 	if err != nil {
 		return nil, huma.Error404NotFound("source not found")
 	}
-	if !canManageNamespace(user, ns) && ns.Visibility == visibilityPrivate {
+	if ns.Visibility == visibilityPrivate && !canReadPrivate(ctx, ns) {
 		return nil, huma.Error404NotFound("source not found")
 	}
 	src.NamespaceName = ns.Name
@@ -95,7 +96,7 @@ func (h *Handler) CreateSource(ctx context.Context, in *CreateSourceInput) (*Cre
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	if err := h.namespaceOwnerCheck(ctx, user, in.Body.NamespaceID); err != nil {
+	if err := h.requireNamespaceCapability(ctx, user, in.Body.NamespaceID, authz.CapManageSource); err != nil {
 		return nil, err
 	}
 	src, err := h.sourceService.Create(ctx, service.CreateSourceParams{
@@ -119,7 +120,7 @@ func (h *Handler) UpdateSource(ctx context.Context, in *UpdateSourceInput) (*Upd
 	if err != nil {
 		return nil, huma.Error404NotFound("source not found")
 	}
-	if err := h.namespaceOwnerCheck(ctx, user, existing.NamespaceID); err != nil {
+	if err := h.requireNamespaceCapability(ctx, user, existing.NamespaceID, authz.CapManageSource); err != nil {
 		return nil, err
 	}
 	src, err := h.sourceService.Update(ctx, service.UpdateSourceParams{
@@ -143,7 +144,7 @@ func (h *Handler) DeleteSource(ctx context.Context, in *DeleteSourceInput) (*str
 	if err != nil {
 		return nil, huma.Error404NotFound("source not found")
 	}
-	if err := h.namespaceOwnerCheck(ctx, user, existing.NamespaceID); err != nil {
+	if err := h.requireNamespaceCapability(ctx, user, existing.NamespaceID, authz.CapManageSource); err != nil {
 		return nil, err
 	}
 	if err := h.sourceService.Delete(ctx, in.ID); err != nil {

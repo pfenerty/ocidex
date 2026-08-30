@@ -40,7 +40,7 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 |---|---|---|---|---|---|
 | GET | `/api/v1/artifacts` | `list-artifacts` | `public` |  | VisibilityFilter. |
 | GET | `/api/v1/artifacts/lookup` | `lookup-artifact` | `public` |  | VisibilityFilter applied before the ambiguity count (ADR-042). |
-| DELETE | `/api/v1/artifacts/{id}` | `delete-artifact` | `owner` | ✓ | RequireArtifactOwner middleware. |
+| DELETE | `/api/v1/artifacts/{id}` | `delete-artifact` | `owner` | ✓ | RequireCapability(delete_artifact) middleware on the artifact's namespace. |
 | GET | `/api/v1/artifacts/{id}` | `get-artifact` | `public` |  | VisibilityFilter. |
 | GET | `/api/v1/artifacts/{id}/changelog` | `get-artifact-changelog` | `public` |  | VisibilityFilter. |
 | GET | `/api/v1/artifacts/{id}/contains` | `get-artifact-contains` | `public` |  | Filtered via visible_namespace_ids (ADR-041). |
@@ -78,13 +78,13 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 | Method | Path | Operation | Class | Write | Notes |
 |---|---|---|---|---|---|
 | GET | `/api/v1/clusters` | `list-clusters` | `authenticated` |  | Visibility resolved through the owning namespace. |
-| POST | `/api/v1/clusters` | `create-cluster` | `owner` | ✓ | namespaceOwnerCheck on the body's namespace_id. |
-| DELETE | `/api/v1/clusters/{id}` | `delete-cluster` | `owner` | ✓ | namespaceOwnerCheck on the cluster's namespace; drops reported inventory only. |
+| POST | `/api/v1/clusters` | `create-cluster` | `owner` | ✓ | manage_cluster capability on the body's namespace_id. |
+| DELETE | `/api/v1/clusters/{id}` | `delete-cluster` | `owner` | ✓ | manage_cluster capability on the cluster's namespace; drops reported inventory only. |
 | GET | `/api/v1/clusters/{id}` | `get-cluster` | `authenticated` |  | 404s when the owning namespace is private and unowned. |
-| PATCH | `/api/v1/clusters/{id}` | `update-cluster` | `owner` | ✓ | namespaceOwnerCheck on the cluster's namespace. |
+| PATCH | `/api/v1/clusters/{id}` | `update-cluster` | `owner` | ✓ | manage_cluster capability on the cluster's namespace. |
 | GET | `/api/v1/clusters/{id}/images` | `list-cluster-images` | `authenticated` |  | Same gate and same rows as list-cluster-workloads, grouped by image rather than by workload-container. |
-| POST | `/api/v1/clusters/{id}/ingest-unknown` | `ingest-cluster-unknown-images` | `owner` | ✓ | Ownership, not the visibility that guards the matching list: this spends the namespace's registry credentials and enqueues scan work. Same gate as put-cluster-inventory, which is the other trigger for the same action. |
-| POST | `/api/v1/clusters/{id}/inventory` | `put-cluster-inventory` | `owner` | ✓ | namespaceOwnerCheck on the cluster's namespace — ownership, not visibility, because a public namespace must not make inventory writable by anyone. |
+| POST | `/api/v1/clusters/{id}/ingest-unknown` | `ingest-cluster-unknown-images` | `owner` | ✓ | trigger_scan capability, not the visibility that guards the matching list: this spends the namespace's registry credentials and enqueues scan work. Same gate as put-cluster-inventory, which is the other trigger for the same action. |
+| POST | `/api/v1/clusters/{id}/inventory` | `put-cluster-inventory` | `owner` | ✓ | push_inventory capability on the cluster's namespace — membership, not visibility, because a public namespace must not make inventory writable by anyone. |
 | GET | `/api/v1/clusters/{id}/k8s-namespaces` | `list-cluster-k8s-namespaces` | `authenticated` |  | Same gate as list-cluster-workloads; the facet counts describe only the rows that gate admits. |
 | GET | `/api/v1/clusters/{id}/unknown-images` | `list-cluster-unknown-images` | `authenticated` |  | Same gate as list-cluster-workloads. It names the namespace's registries, so cluster visibility is what authorizes learning them; resolution never leaves the cluster's own namespace. |
 | GET | `/api/v1/clusters/{id}/vulns` | `list-cluster-vulns` | `authenticated` |  | Same gate as list-cluster-workloads; findings and coverage are returned together so neither can be read without the other. |
@@ -149,9 +149,9 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 | GET | `/api/v1/namespaces` | `list-namespaces` | `authenticated` |  | Own plus public namespaces. |
 | POST | `/api/v1/namespaces` | `create-namespace` | `authenticated` | ✓ | Owned by the calling user. |
 | GET | `/api/v1/namespaces/by-name/{name}` | `get-namespace-by-name` | `authenticated` |  | A private namespace the caller does not own 404s. |
-| DELETE | `/api/v1/namespaces/{id}` | `delete-namespace` | `owner` | ✓ | canManageNamespace in handler; deletes everything ingested under the namespace. |
+| DELETE | `/api/v1/namespaces/{id}` | `delete-namespace` | `owner` | ✓ | delete_namespace capability check in handler; deletes everything ingested under the namespace. |
 | GET | `/api/v1/namespaces/{id}` | `get-namespace` | `authenticated` |  | A private namespace the caller does not own 404s, so its existence is not leaked. |
-| PATCH | `/api/v1/namespaces/{id}` | `update-namespace` | `owner` | ✓ | canManageNamespace in handler. |
+| PATCH | `/api/v1/namespaces/{id}` | `update-namespace` | `owner` | ✓ | manage_member capability check in handler. |
 
 ### Registries
 
@@ -163,12 +163,12 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 | GET | `/api/v1/registries/drift-feed` | `list-recent-drift` | `authenticated` |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
 | POST | `/api/v1/registries/test-connection` | `test-registry-connection` | `admin` | ✓ | Dials an arbitrary caller-supplied host from inside the cluster. |
 | GET | `/api/v1/registries/trust-summary` | `get-registry-trust-summary` | `authenticated` |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
-| DELETE | `/api/v1/registries/{id}` | `delete-registry` | `owner` | ✓ | RequireRegistryOwner middleware. |
+| DELETE | `/api/v1/registries/{id}` | `delete-registry` | `owner` | ✓ | RequireCapability(manage_source) middleware. |
 | GET | `/api/v1/registries/{id}` | `get-registry` | `authenticated` |  | A private registry the caller does not own 404s. |
-| PATCH | `/api/v1/registries/{id}` | `update-registry` | `owner` | ✓ | RequireRegistryOwner middleware. |
-| POST | `/api/v1/registries/{id}/scan` | `scan-registry` | `owner` | ✓ | RequireRegistryOwner middleware. |
+| PATCH | `/api/v1/registries/{id}` | `update-registry` | `owner` | ✓ | RequireCapability(manage_source) middleware. |
+| POST | `/api/v1/registries/{id}/scan` | `scan-registry` | `owner` | ✓ | RequireCapability(trigger_scan) middleware. |
 | POST | `/api/v1/registries/{id}/webhook` | `registry-webhook` | `secret` |  | HMAC over the body against the registry's webhook secret; no user identity. |
-| POST | `/api/v1/registries/{id}/webhook-secret` | `regenerate-webhook-secret` | `owner` | ✓ | RequireRegistryOwner middleware; response contains the new secret. |
+| POST | `/api/v1/registries/{id}/webhook-secret` | `regenerate-webhook-secret` | `owner` | ✓ | RequireCapability(read_secret) middleware; response contains the new secret. |
 
 ### SBOMs
 
@@ -179,7 +179,7 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 | GET | `/api/v1/sboms/diff` | `diff-sboms` | `public` |  | VisibilityFilter on both sides. |
 | GET | `/api/v1/sboms/diff-tree` | `diff-tree` | `public` |  | VisibilityFilter on both sides. |
 | GET | `/api/v1/sboms/lookup` | `lookup-sbom` | `public` |  | VisibilityFilter applied before the ambiguity count (ADR-042). |
-| DELETE | `/api/v1/sboms/{id}` | `delete-sbom` | `owner` | ✓ | RequireSBOMOwner middleware. |
+| DELETE | `/api/v1/sboms/{id}` | `delete-sbom` | `owner` | ✓ | RequireCapability(delete_artifact) middleware on the SBOM's namespace. |
 | GET | `/api/v1/sboms/{id}` | `get-sbom` | `public` |  | VisibilityFilter. |
 | GET | `/api/v1/sboms/{id}/components` | `list-sbom-components` | `public` |  | VisibilityFilter. |
 | GET | `/api/v1/sboms/{id}/dependencies` | `get-sbom-dependencies` | `public` |  | VisibilityFilter. |
@@ -191,10 +191,10 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 | Method | Path | Operation | Class | Write | Notes |
 |---|---|---|---|---|---|
 | GET | `/api/v1/sources` | `list-sources` | `authenticated` |  | Visibility resolved through the owning namespace. |
-| POST | `/api/v1/sources` | `create-source` | `owner` | ✓ | namespaceOwnerCheck on the body's namespace_id. |
-| DELETE | `/api/v1/sources/{id}` | `delete-source` | `owner` | ✓ | namespaceOwnerCheck on the source's namespace. |
+| POST | `/api/v1/sources` | `create-source` | `owner` | ✓ | manage_source capability on the body's namespace_id. |
+| DELETE | `/api/v1/sources/{id}` | `delete-source` | `owner` | ✓ | manage_source capability on the source's namespace. |
 | GET | `/api/v1/sources/{id}` | `get-source` | `authenticated` |  | 404s when the owning namespace is private and unowned. |
-| PATCH | `/api/v1/sources/{id}` | `update-source` | `owner` | ✓ | namespaceOwnerCheck on the source's namespace. |
+| PATCH | `/api/v1/sources/{id}` | `update-source` | `owner` | ✓ | manage_source capability on the source's namespace. |
 
 ### Stats
 
