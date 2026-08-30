@@ -63,13 +63,13 @@ func TestMeScopedCollectionsExcludeOthersPublicRows(t *testing.T) {
 	is := is.New(t)
 
 	ownerID := seedUser(t, pool, 7501, "me-owner", "member")
-	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", "read-write")
+	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", nil)
 	is.NoErr(err)
 	otherID := seedUser(t, pool, 7502, "me-other", "member")
-	otherKey, err := authSvc.CreateAPIKey(t.Context(), otherID, "other", "read-write")
+	otherKey, err := authSvc.CreateAPIKey(t.Context(), otherID, "other", nil)
 	is.NoErr(err)
 	adminID := seedUser(t, pool, 7503, "me-admin", "admin")
-	adminKey, err := authSvc.CreateAPIKey(t.Context(), adminID, "admin", "read-write")
+	adminKey, err := authSvc.CreateAPIKey(t.Context(), adminID, "admin", nil)
 	is.NoErr(err)
 
 	// Tenant one: private, owned by ownerID.

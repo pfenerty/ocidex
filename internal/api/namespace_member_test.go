@@ -47,7 +47,7 @@ func (c *conflictNamespaceService) RemoveMember(ctx context.Context, namespaceID
 func rosterRouter(nsSvc service.NamespaceService, role authz.Role) http.Handler {
 	authSvc := &fakeAuthService{
 		users: map[string]service.AuthUser{
-			"owner-token": {ID: ownerUUID, Role: "member", APIKeyScope: "read-write"},
+			"owner-token": {ID: ownerUUID, Role: "member", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()},
 		},
 		grants: map[string]map[string]authz.Role{
 			uuidString(ownerUUID): {testNamespaceID: role},

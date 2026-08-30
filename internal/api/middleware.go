@@ -15,15 +15,16 @@ import (
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
-const (
-	scopeRead      = "read"
-	scopeReadWrite = "read-write"
-)
-
-// isWriteAllowed reports whether the user may perform state-mutating operations.
-// Session-authenticated users (empty APIKeyScope) always have write access.
+// isWriteAllowed reports whether the credential the request arrived on may
+// perform state-mutating operations at all.
+//
+// It asks one question — does this key carry any mutating capability — and
+// deliberately not "which one". The per-operation capability declared alongside
+// Write is what narrows an individual endpoint; this stays the coarse gate it
+// has always been, so the ~40 operations that declare Write keep meaning
+// exactly what they meant under the read / read-write pair.
 func isWriteAllowed(user service.AuthUser) bool {
-	return user.APIKeyScope == "" || user.APIKeyScope == scopeReadWrite
+	return user.KeyAllowsAnyWrite()
 }
 
 type ctxKeyUser struct{}
@@ -193,8 +194,9 @@ func RequireCapability(api huma.API, c authz.Capability,
 	}
 }
 
-// RequireWrite returns a huma middleware that 403s a caller presenting a
-// read-scoped API key. It checks the key scope only and is deliberately
+// RequireWrite returns a huma middleware that 403s a caller presenting an API
+// key that carries no mutating capability. It checks the key's ceiling only and
+// is deliberately
 // orthogonal to the auth-class middlewares (RequireAuthenticated, RequireMember,
 // RequireAdmin, RequireCapability): a state-mutating operation declares one of
 // those plus this one, and authentication is enforced by the auth-class

@@ -108,6 +108,26 @@ func (in *ScanRequestStatus) DeepCopy() *ScanRequestStatus {
 	return out
 }
 
+// DeepCopyInto copies all fields of APIKeySpec into out.
+func (in *APIKeySpec) DeepCopyInto(out *APIKeySpec) {
+	*out = *in
+	if in.Capabilities != nil {
+		in, out := &in.Capabilities, &out.Capabilities
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+}
+
+// DeepCopy returns a deep copy of APIKeySpec.
+func (in *APIKeySpec) DeepCopy() *APIKeySpec {
+	if in == nil {
+		return nil
+	}
+	out := new(APIKeySpec)
+	in.DeepCopyInto(out)
+	return out
+}
+
 // DeepCopyInto copies all fields of APIKeyStatus into out.
 func (in *APIKeyStatus) DeepCopyInto(out *APIKeyStatus) {
 	*out = *in

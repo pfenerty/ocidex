@@ -74,7 +74,7 @@ func TestMainModuleVersionBackfill(t *testing.T) {
 	is := is.New(t)
 
 	memberID := seedUser(t, pool, 9101, "main-mod-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "main-mod-test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "main-mod-test", nil)
 	is.NoErr(err)
 
 	// Ingest the SBOM.

@@ -10,6 +10,8 @@
 // TestPackageHasNoInternalImports enforces.
 package authz
 
+import "fmt"
+
 // Capability is one thing a member may do inside a namespace. Capabilities are
 // the unit authorization is expressed in: an operation declares the capability
 // it needs, and a role either grants it or does not. Roles never appear in an
@@ -243,6 +245,58 @@ func (r Role) Dominates(other Role) bool {
 		}
 	}
 	return true
+}
+
+var knownCapabilities = func() map[Capability]bool {
+	m := make(map[Capability]bool, len(allCapabilities))
+	for _, c := range allCapabilities {
+		m[c] = true
+	}
+	return m
+}()
+
+// Valid reports whether c is a known capability. Use it to reject a capability
+// string at the API boundary or when reading one back out of a row; the CHECK
+// constraint on api_key.capabilities is the backstop, not the message.
+func (c Capability) Valid() bool {
+	return knownCapabilities[c]
+}
+
+// Mutating reports whether exercising c changes state.
+//
+// Every capability except CapReadPrivate does, which is why this is a
+// one-liner and not a second table: the capability set was drawn so that
+// reading is one capability and everything else is a write of some kind. It
+// exists so RequireWrite can ask "does this key carry any mutating capability"
+// without any caller enumerating the list and getting it wrong the next time a
+// capability is added.
+func (c Capability) Mutating() bool {
+	return c != CapReadPrivate
+}
+
+// ParseCapabilities converts capability strings into Capabilities, rejecting
+// the whole list if any one of them is unknown. A key declaring a capability
+// this build has never heard of is a typo or a downgrade, and either way it
+// must not be silently dropped into a narrower key than the caller asked for.
+func ParseCapabilities(names []string) ([]Capability, error) {
+	out := make([]Capability, 0, len(names))
+	for _, n := range names {
+		c := Capability(n)
+		if !c.Valid() {
+			return nil, fmt.Errorf("unknown capability %q", n)
+		}
+		out = append(out, c)
+	}
+	return out, nil
+}
+
+// Strings renders capabilities for storage or for the wire.
+func Strings(caps []Capability) []string {
+	out := make([]string, len(caps))
+	for i, c := range caps {
+		out[i] = string(c)
+	}
+	return out
 }
 
 // AllRoles returns the five roles, highest first. Fresh slice per call.

@@ -45,8 +45,11 @@ Generated from `roleCaps` in [`internal/authz/capability.go`](../internal/authz/
 ## Write scope
 
 The **Write** column is orthogonal to the class. A ✓ means the operation also declares
-`RequireWrite`, which rejects an API key issued with the `read` scope (403) even when the
-key's owner passes the class check. Session cookies and `read-write` keys are unaffected.
+`RequireWrite`, which rejects (403) an API key whose declared capabilities are all
+read-only, even when the key's owner passes the class check. It is a coarse gate: the
+**Capability** column is what narrows an individual operation, and a key is refused
+there unless it declares that capability *and* its owner's role grants it. Session
+cookies carry no ceiling and are unaffected.
 
 ## Operations
 

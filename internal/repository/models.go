@@ -16,7 +16,8 @@ type ApiKey struct {
 	Prefix     string             `json:"prefix"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
-	Scope      string             `json:"scope"`
+	// Ceiling on what this key may do, intersected at validation time with the owner's live namespace roles. Mirrors the Capability constants in internal/authz.
+	Capabilities []string `json:"capabilities"`
 }
 
 type Artifact struct {

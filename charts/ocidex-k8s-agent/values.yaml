@@ -28,8 +28,8 @@ server:
   url: ""
 
 # apiKey configures where the agent reads its OCIDex API key (OCIDEX_API_KEY). The key
-# needs the read-write scope and must belong to a user who owns the namespace the cluster
-# is registered under (ADR-044 K8 — no new per-resource scope).
+# needs the push_inventory capability, and must belong to a member of the namespace the
+# cluster is registered under whose role grants it (ADR-044 K8, ADR-046).
 apiKey:
   secretName: ocidex-k8s-agent-secrets
   secretKey: OCIDEX_API_KEY

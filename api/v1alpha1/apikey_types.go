@@ -11,11 +11,16 @@ type APIKeySpec struct {
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
 
-	// Scope controls what operations the key permits.
-	// +kubebuilder:validation:Enum=read;read-write
-	// +kubebuilder:default=read
+	// Capabilities is the ceiling on what the key may do. It is never a grant:
+	// the server intersects it with the live namespace roles of the user the
+	// operator authenticates as, so narrowing that user's role narrows every
+	// key it has provisioned without any change here.
+	//
+	// Omitting it asks for every capability, which resolves to exactly what
+	// that user can do.
+	// +kubebuilder:validation:Enum=read_private;ingest;trigger_scan;push_inventory;delete_artifact;manage_source;manage_cluster;read_secret;manage_member;delete_namespace
 	// +optional
-	Scope string `json:"scope,omitempty"`
+	Capabilities []string `json:"capabilities,omitempty"`
 
 	// SecretRef names the Secret (in the same namespace) where the plaintext
 	// API key will be written under the "api-key" data key.
@@ -42,7 +47,7 @@ type APIKeyStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Namespaced,shortName=apikey
-// +kubebuilder:printcolumn:name="Scope",type=string,JSONPath=`.spec.scope`
+// +kubebuilder:printcolumn:name="Capabilities",type=string,JSONPath=`.spec.capabilities`
 // +kubebuilder:printcolumn:name="Prefix",type=string,JSONPath=`.status.prefix`
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`

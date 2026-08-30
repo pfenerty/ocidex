@@ -29,9 +29,18 @@ type AuthUser struct {
 	GitHubID       int64
 	GitHubUsername string
 	Role           string
-	// APIKeyScope is the scope of the API key used to authenticate this request.
-	// Empty for session (cookie) authentication; "read" or "read-write" for API key auth.
-	APIKeyScope string
+	// APIKeyAuth reports whether this request was authenticated by an API key
+	// rather than by a session cookie.
+	APIKeyAuth bool
+	// APIKeyCaps is the capability ceiling declared on that key. It is only
+	// ever a ceiling: what the caller may actually do is this set INTERSECTED
+	// with their live namespace roles, which is what makes a demotion narrow
+	// every key the member holds without a rotation.
+	//
+	// Meaningless unless APIKeyAuth — a session is the user themselves and
+	// carries no ceiling, and an empty slice on a key means a key that may do
+	// nothing but read public data.
+	APIKeyCaps []authz.Capability
 	// Grants is the caller's namespace membership, keyed by namespace ID
 	// string. A namespace absent from the map is one the caller is not a member
 	// of, which grants nothing — a public namespace is readable through the SQL
@@ -47,12 +56,49 @@ type AuthUser struct {
 
 // APIKeyMeta is the display-safe representation of an API key (no hash).
 type APIKeyMeta struct {
-	ID         pgtype.UUID
-	Name       string
-	Prefix     string
-	Scope      string
-	CreatedAt  time.Time
-	LastUsedAt *time.Time
+	ID           pgtype.UUID
+	Name         string
+	Prefix       string
+	Capabilities []authz.Capability
+	CreatedAt    time.Time
+	LastUsedAt   *time.Time
+}
+
+// KeyAllows reports whether the credential this request arrived on permits c at
+// all, before any namespace membership is consulted.
+//
+// A session always does: the ceiling exists to make a key narrower than its
+// owner, and a browser session is the owner. This is the "INTERSECT" half of
+// the key model and is deliberately separate from authz.Allow, which knows
+// about roles and not about credentials — including for an installation admin,
+// whose admin short-circuit must not out-rank a key they deliberately issued
+// read-only.
+func (u AuthUser) KeyAllows(c authz.Capability) bool {
+	if !u.APIKeyAuth {
+		return true
+	}
+	for _, held := range u.APIKeyCaps {
+		if held == c {
+			return true
+		}
+	}
+	return false
+}
+
+// KeyAllowsAnyWrite reports whether the credential permits any state-mutating
+// capability. It is what RequireWrite asks, and the reason the old read /
+// read-write pair can retire without touching the ~40 operations that declare
+// Write.
+func (u AuthUser) KeyAllowsAnyWrite() bool {
+	if !u.APIKeyAuth {
+		return true
+	}
+	for _, held := range u.APIKeyCaps {
+		if held.Mutating() {
+			return true
+		}
+	}
+	return false
 }
 
 // AuthService handles GitHub OAuth, sessions, and API key management.
@@ -62,7 +108,7 @@ type AuthService interface {
 	CreateSession(ctx context.Context, userID pgtype.UUID) (plaintext string, err error)
 	ValidateSession(ctx context.Context, token string) (AuthUser, error)
 	DeleteSession(ctx context.Context, token string) error
-	CreateAPIKey(ctx context.Context, userID pgtype.UUID, name, scope string) (plaintext string, err error)
+	CreateAPIKey(ctx context.Context, userID pgtype.UUID, name string, caps []authz.Capability) (plaintext string, err error)
 	ValidateAPIKey(ctx context.Context, rawKey string) (AuthUser, error)
 	ListAPIKeys(ctx context.Context, userID pgtype.UUID) ([]APIKeyMeta, error)
 	DeleteAPIKey(ctx context.Context, userID pgtype.UUID, keyID pgtype.UUID) error
@@ -200,9 +246,21 @@ func (s *authService) DeleteSession(ctx context.Context, token string) error {
 	return nil
 }
 
-func (s *authService) CreateAPIKey(ctx context.Context, userID pgtype.UUID, name, scope string) (string, error) {
-	if scope != "read" && scope != "read-write" {
-		scope = "read-write"
+// CreateAPIKey mints a key with the given capability ceiling.
+//
+// An empty ceiling means "everything I can do", which is both the historical
+// read-write behaviour and the right default: the narrowing that matters
+// happens at validation time against live membership, so a key that names no
+// capability is a key that simply tracks its owner. A caller who wants a
+// narrow key says so explicitly.
+func (s *authService) CreateAPIKey(ctx context.Context, userID pgtype.UUID, name string, caps []authz.Capability) (string, error) {
+	if len(caps) == 0 {
+		caps = authz.AllCapabilities()
+	}
+	for _, c := range caps {
+		if !c.Valid() {
+			return "", &ValidationError{Message: fmt.Sprintf("unknown capability %q", c)}
+		}
 	}
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
@@ -220,7 +278,8 @@ func (s *authService) CreateAPIKey(ctx context.Context, userID pgtype.UUID, name
 		Name:    name,
 		KeyHash: hash,
 		Prefix:  prefix,
-		Scope:   scope,
+
+		Capabilities: authz.Strings(caps),
 	})
 	if err != nil {
 		return "", fmt.Errorf("creating api key: %w", err)
@@ -238,12 +297,22 @@ func (s *authService) ValidateAPIKey(ctx context.Context, rawKey string) (AuthUs
 			slog.Warn("touch api key last used", "err", err)
 		}
 	}()
+	// An unknown capability string on the row is dropped rather than rejected:
+	// it can only come from a version that knew about a capability this build
+	// does not, and a key must narrow — never fail open — across a downgrade.
+	caps := make([]authz.Capability, 0, len(row.Capabilities))
+	for _, name := range row.Capabilities {
+		if c := authz.Capability(name); c.Valid() {
+			caps = append(caps, c)
+		}
+	}
 	return AuthUser{
 		ID:             row.UserID,
 		GitHubID:       row.GithubID,
 		GitHubUsername: row.GithubUsername,
 		Role:           row.Role,
-		APIKeyScope:    row.Scope,
+		APIKeyAuth:     true,
+		APIKeyCaps:     caps,
 	}, nil
 }
 
@@ -254,12 +323,23 @@ func (s *authService) ListAPIKeys(ctx context.Context, userID pgtype.UUID) ([]AP
 	}
 	out := make([]APIKeyMeta, len(rows))
 	for i, r := range rows {
+		caps, err := authz.ParseCapabilities(r.Capabilities)
+		if err != nil {
+			// Same reasoning as ValidateAPIKey: render what this build
+			// understands rather than failing the whole listing.
+			caps = nil
+			for _, name := range r.Capabilities {
+				if c := authz.Capability(name); c.Valid() {
+					caps = append(caps, c)
+				}
+			}
+		}
 		m := APIKeyMeta{
-			ID:        r.ID,
-			Name:      r.Name,
-			Prefix:    r.Prefix,
-			Scope:     r.Scope,
-			CreatedAt: r.CreatedAt.Time,
+			ID:           r.ID,
+			Name:         r.Name,
+			Prefix:       r.Prefix,
+			Capabilities: caps,
+			CreatedAt:    r.CreatedAt.Time,
 		}
 		if r.LastUsedAt.Valid {
 			t := r.LastUsedAt.Time

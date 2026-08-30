@@ -11,6 +11,7 @@ import (
 	"github.com/matryer/is"
 
 	"github.com/pfenerty/ocidex/internal/api"
+	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/service"
 )
@@ -58,7 +59,7 @@ func (f *configFakeAuthService) UpdateUserRole(_ context.Context, _ pgtype.UUID,
 	return f.updateRoleOut, nil
 }
 
-func (f *configFakeAuthService) CreateAPIKey(_ context.Context, _ pgtype.UUID, _, _ string) (string, error) {
+func (f *configFakeAuthService) CreateAPIKey(_ context.Context, _ pgtype.UUID, _ string, _ []authz.Capability) (string, error) {
 	return f.createKeyOut, nil
 }
 
@@ -75,11 +76,11 @@ func newBoundaryAuthSvc() *configFakeAuthService {
 	return &configFakeAuthService{
 		fakeAuthService: fakeAuthService{
 			users: map[string]service.AuthUser{
-				tokenAdminRW:  {ID: boundaryAdminUUID, GitHubUsername: "admin", Role: "admin", APIKeyScope: ""},
-				tokenAdminRO:  {ID: boundaryAdminUUID, GitHubUsername: "admin", Role: "admin", APIKeyScope: "read"},
-				tokenMemberRW: {ID: boundaryMemberUUID, GitHubUsername: "member", Role: "member", APIKeyScope: ""},
-				tokenMemberRO: {ID: boundaryMemberUUID, GitHubUsername: "member", Role: "member", APIKeyScope: "read"},
-				tokenViewerRW: {ID: boundaryViewerUUID, GitHubUsername: "viewer", Role: "viewer", APIKeyScope: ""},
+				tokenAdminRW:  {ID: boundaryAdminUUID, GitHubUsername: "admin", Role: "admin"},
+				tokenAdminRO:  {ID: boundaryAdminUUID, GitHubUsername: "admin", Role: "admin", APIKeyAuth: true, APIKeyCaps: []authz.Capability{authz.CapReadPrivate}},
+				tokenMemberRW: {ID: boundaryMemberUUID, GitHubUsername: "member", Role: "member"},
+				tokenMemberRO: {ID: boundaryMemberUUID, GitHubUsername: "member", Role: "member", APIKeyAuth: true, APIKeyCaps: []authz.Capability{authz.CapReadPrivate}},
+				tokenViewerRW: {ID: boundaryViewerUUID, GitHubUsername: "viewer", Role: "viewer"},
 			},
 		},
 		listUsersOut:  []service.AuthUser{},

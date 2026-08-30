@@ -282,3 +282,66 @@ func TestDominatesAgreesWithTheTable(t *testing.T) {
 		t.Error("an unknown role holds nothing and must dominate no real role")
 	}
 }
+
+func TestCapabilityValidAndMutating(t *testing.T) {
+	for _, c := range AllCapabilities() {
+		if !c.Valid() {
+			t.Errorf("%s is enumerated but not Valid", c)
+		}
+	}
+	if Capability("read-write").Valid() {
+		t.Error("the retired API key scope must not read as a capability")
+	}
+	if Capability("").Valid() {
+		t.Error("the empty string is not a capability")
+	}
+
+	// Mutating is what RequireWrite asks. Reading is the only capability that
+	// changes nothing; every other one is a write of some kind, and a new
+	// capability that is somehow read-only has to come here and say so.
+	if CapReadPrivate.Mutating() {
+		t.Error("read_private does not mutate")
+	}
+	for _, c := range AllCapabilities() {
+		if c != CapReadPrivate && !c.Mutating() {
+			t.Errorf("%s must count as a write", c)
+		}
+	}
+}
+
+func TestParseCapabilitiesRejectsTheWholeListOnOneBadName(t *testing.T) {
+	got, err := ParseCapabilities([]string{"ingest", "read_private"})
+	if err != nil {
+		t.Fatalf("parsing known capabilities: %v", err)
+	}
+	if len(got) != 2 || got[0] != CapIngest || got[1] != CapReadPrivate {
+		t.Errorf("parsed %v, want [ingest read_private] in order", got)
+	}
+
+	// Dropping the unknown name and keeping the rest would silently mint a key
+	// narrower than the caller asked for, which they would discover as a 403 in
+	// CI rather than as an error at creation.
+	if _, err := ParseCapabilities([]string{"ingest", "read-write"}); err == nil {
+		t.Error("a list containing an unknown capability must be rejected outright")
+	}
+
+	if caps, err := ParseCapabilities(nil); err != nil || len(caps) != 0 {
+		t.Errorf("empty list: got %v, %v", caps, err)
+	}
+}
+
+func TestStringsRoundTrips(t *testing.T) {
+	all := AllCapabilities()
+	back, err := ParseCapabilities(Strings(all))
+	if err != nil {
+		t.Fatalf("round trip: %v", err)
+	}
+	if len(back) != len(all) {
+		t.Fatalf("round trip lost capabilities: %d -> %d", len(all), len(back))
+	}
+	for i := range all {
+		if back[i] != all[i] {
+			t.Errorf("position %d: %s -> %s", i, all[i], back[i])
+		}
+	}
+}

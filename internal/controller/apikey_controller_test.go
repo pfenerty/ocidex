@@ -26,9 +26,9 @@ func newTestAPIKey() *v1alpha1.APIKey {
 			Generation: 1,
 		},
 		Spec: v1alpha1.APIKeySpec{
-			Name:      "my-api-key",
-			Scope:     "read",
-			SecretRef: corev1.LocalObjectReference{Name: "key-secret"},
+			Name:         "my-api-key",
+			Capabilities: []string{"read_private"},
+			SecretRef:    corev1.LocalObjectReference{Name: "key-secret"},
 		},
 	}
 }
@@ -56,6 +56,61 @@ func stubCreate(plaintext, keyID string) *ocidexclient.FakeClient {
 				{Id: keyID, Name: "my-api-key", Prefix: plaintext[:8]},
 			}, nil
 		},
+	}
+}
+
+// The CR's capabilities are a ceiling the server intersects with the operator
+// user's live roles, so the reconciler's whole job here is to forward them
+// faithfully — and to send nothing at all when none are named, which is how the
+// API spells "everything that user may do".
+func TestAPIKeyReconciler_ForwardsCapabilities(t *testing.T) {
+	tests := []struct {
+		name string
+		spec []string
+		want *[]ocidexclient.CreateAPIKeyInputBodyCapabilities
+	}{
+		{
+			name: "named capabilities are forwarded",
+			spec: []string{"ingest", "push_inventory"},
+			want: &[]ocidexclient.CreateAPIKeyInputBodyCapabilities{
+				ocidexclient.Ingest, ocidexclient.PushInventory,
+			},
+		},
+		{
+			name: "an unset ceiling is left absent, not sent empty",
+			spec: nil,
+			want: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			cr := newTestAPIKey()
+			cr.Spec.Capabilities = tt.spec
+			cr.Finalizers = []string{apiKeyFinalizer}
+
+			k8s := fake.NewClientBuilder().
+				WithScheme(testScheme).
+				WithObjects(cr).
+				WithStatusSubresource(cr).
+				Build()
+
+			var got ocidexclient.CreateAPIKeyInputBody
+			ocidex := stubCreate("ocidex_sk_abcdefgh1234", "key-uuid")
+			ocidex.CreateAPIKeyFn = func(_ context.Context, body ocidexclient.CreateAPIKeyInputBody) (ocidexclient.CreateAPIKeyOutputBody, error) {
+				got = body
+				return ocidexclient.CreateAPIKeyOutputBody{Key: "ocidex_sk_abcdefgh1234"}, nil
+			}
+
+			_, err := reconcileKey(t, k8s, ocidex, cr)
+			is.NoErr(err)
+			if tt.want == nil {
+				is.True(got.Capabilities == nil)
+				return
+			}
+			is.Equal(*got.Capabilities, *tt.want)
+		})
 	}
 }
 

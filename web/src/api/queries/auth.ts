@@ -1,5 +1,6 @@
 import { createQuery, createMutation, useQueryClient } from "@tanstack/solid-query";
 import { client, unwrap } from "~/api/client";
+import type { Capability } from "~/api/client";
 
 export function useListAPIKeys() {
     return createQuery(() => ({
@@ -11,8 +12,8 @@ export function useListAPIKeys() {
 export function useCreateAPIKey() {
     const queryClient = useQueryClient();
     return createMutation(() => ({
-        mutationFn: ({ name, scope }: { name: string; scope: "read" | "read-write" }) =>
-            unwrap(client.POST("/api/v1/auth/keys", { body: { name, scope } })),
+        mutationFn: ({ name, capabilities }: { name: string; capabilities: Capability[] }) =>
+            unwrap(client.POST("/api/v1/auth/keys", { body: { name, capabilities } })),
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ["auth", "keys"] }),
     }));
 }

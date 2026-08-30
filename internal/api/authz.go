@@ -22,7 +22,16 @@ import (
 // can cover: only a global admin gets through. Callers that must keep admitting
 // members for un-namespaced legacy rows say so themselves rather than having it
 // hidden here.
+//
+// The key ceiling is applied first and outside authz.Allow, which is the only
+// order that is correct: Allow short-circuits an installation admin, and an
+// admin who deliberately issued themselves a key scoped to {ingest} must not
+// have that key answer for delete_namespace. A capability the credential does
+// not carry is a deny no membership can restore.
 func can(user service.AuthUser, namespaceID string, c authz.Capability) bool {
+	if !user.KeyAllows(c) {
+		return false
+	}
 	role, present := user.Grants[namespaceID]
 	if namespaceID == "" {
 		role, present = "", false

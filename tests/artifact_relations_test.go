@@ -238,7 +238,7 @@ func TestArtifactUsagesAndContainsAcrossSources(t *testing.T) {
 	is := is.New(t)
 
 	ownerID := seedUser(t, pool, 7301, "rel-owner", "member")
-	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", "read-write")
+	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", nil)
 	is.NoErr(err)
 
 	nsID := seedNamespace(t, pool, "rel-ns", ownerID, "public")
@@ -300,7 +300,7 @@ func TestArtifactRelationsTupleFallbackAndVersionedNames(t *testing.T) {
 	is := is.New(t)
 
 	ownerID := seedUser(t, pool, 7401, "tuple-owner", "member")
-	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", "read-write")
+	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", nil)
 	is.NoErr(err)
 
 	nsID := seedNamespace(t, pool, "tuple-ns", ownerID, "public")
@@ -358,10 +358,10 @@ func TestArtifactRelationsRespectNamespaceVisibility(t *testing.T) {
 	is := is.New(t)
 
 	ownerID := seedUser(t, pool, 7501, "vis-owner", "member")
-	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", "read-write")
+	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", nil)
 	is.NoErr(err)
 	strangerID := seedUser(t, pool, 7502, "vis-stranger", "member")
-	strangerKey, err := authSvc.CreateAPIKey(t.Context(), strangerID, "stranger", "read-write")
+	strangerKey, err := authSvc.CreateAPIKey(t.Context(), strangerID, "stranger", nil)
 	is.NoErr(err)
 
 	publicNS := seedNamespace(t, pool, "vis-public", ownerID, "public")

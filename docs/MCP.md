@@ -15,9 +15,10 @@ one command:
 ocidex-cli login          # writes ~/.config/ocidex/config.yaml, mode 0600
 ```
 
-The key needs the `read-write` scope only for `ocidex_ingest_sbom`; every other tool is
-satisfied by a `read` key, and a read-only key makes the ingest tool fail with a message that
-says so.
+The key needs the `ingest` capability only for `ocidex_ingest_sbom`; every other tool is
+satisfied by a `read_private` key, and a key without `ingest` makes the ingest tool fail with a
+message that says so. Capabilities are a ceiling — the key can never exceed what its owner's
+namespace roles allow, so a demotion narrows it with no key change (ADR-046).
 
 There is deliberately **no `--key` flag**: an argument is visible in the process table and
 echoed by any CI runner that logs its commands. The two supported paths are the config file and
@@ -85,7 +86,7 @@ call in the API, which reports the server URL and the user the key belongs to.
 | `ocidex_artifact_vulnerabilities` | Severity histogram for an artifact |
 | `ocidex_component_vulnerabilities` | Advisories hitting one component occurrence |
 | `ocidex_get_vulnerability` | An advisory and the artifacts it affects |
-| `ocidex_ingest_sbom` | Upload a CycloneDX document (**write**; needs `read-write`) |
+| `ocidex_ingest_sbom` | Upload a CycloneDX document (**write**; needs `ingest`) |
 
 Name-keyed lookups follow the [ADR-042](adr/0042-canonical-resource-urls.md) qualifier ladder:
 a name that matches several artifacts returns the candidate list with the qualifier that
@@ -110,7 +111,7 @@ pagination and ambiguous lookups.
 | Server exits immediately, log says `no API key` | No credentials in the config file or environment | `ocidex-cli login`, or set `OCIDEX_API_KEY` |
 | Server exits, log mentions `chmod 600` | Config file is group- or world-readable | `chmod 600 ~/.config/ocidex/config.yaml` |
 | Every tool returns "not found" | The key's namespaces are empty, or the artifacts are private to someone else | Check `ocidex_whoami` and `ocidex_list_namespaces` |
-| `ocidex_ingest_sbom` says the key cannot write | Key has the `read` scope | Create a `read-write` key and re-run `ocidex-cli login` |
+| `ocidex_ingest_sbom` says the key cannot write | The key lacks `ingest`, or its owner's role on the namespace does not grant it | Create a key with `--capability ingest` and re-run `ocidex-cli login`, or have the namespace owner raise your role |
 | Client reports a protocol/parse error | Something wrote to stdout | Only JSON-RPC may go to stdout; the server keeps all diagnostics on stderr, so suspect a wrapper script |
 
 Startup diagnostics — version, target server — go to stderr and appear in the client's server

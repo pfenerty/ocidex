@@ -15,9 +15,10 @@ import (
 // declares exactly one, and TestAuthClassCoverage fails the build if one is
 // missing, stale, or contradicted by the router's middleware wiring.
 //
-// The class is orthogonal to API-key scope. Scope is declared separately by
-// AuthRule.Write, which corresponds to RequireWrite in the router: a mutating
-// operation declares a class *and* Write, never Write alone.
+// The class is orthogonal to the credential's own ceiling. A key declares the
+// capabilities it may exercise (ADR-046); AuthRule.Write, which corresponds to
+// RequireWrite in the router, records only whether the operation mutates at
+// all. A mutating operation declares a class *and* Write, never Write alone.
 type AuthClass string
 
 const (
@@ -75,7 +76,8 @@ type AuthRule struct {
 	Cap authz.Capability
 
 	// Write reports whether the operation also declares RequireWrite, which
-	// rejects a read-scoped API key. True for every state-mutating operation.
+	// rejects an API key carrying no mutating capability. True for every
+	// state-mutating operation.
 	Write bool
 
 	// Notes records anything the class alone does not convey — where the rule
@@ -233,10 +235,11 @@ var authRules = map[string]AuthRule{
 	"delete-source": {Class: ClassCapability, Cap: authz.CapManageSource, Write: true, Notes: "manage_source capability on the source's namespace."},
 
 	// --- Clusters -----------------------------------------------------------
-	// Per ADR-044 K8 the inventory push reuses the read-write scope rather than
-	// getting a scope of its own, so a key issued for uploading SBOMs can also
-	// push inventory into any cluster its owner has. That is stated here rather
-	// than left implicit; narrowing it is ocidex-wp9b.2's job.
+	// ADR-044 K8 originally had the inventory push reuse the read-write scope,
+	// so a key issued for uploading SBOMs could also push inventory into any
+	// cluster its owner had. That is no longer true: a key declares the
+	// capabilities it may exercise, and an ingest-only key is refused here even
+	// when its owner may push (ADR-046).
 	"list-clusters":                 {Class: ClassAuthenticated, Notes: "Visibility resolved through the owning namespace."},
 	"get-cluster":                   {Class: ClassAuthenticated, Notes: "404s when the owning namespace is private and unowned."},
 	"create-cluster":                {Class: ClassCapability, Cap: authz.CapManageCluster, Write: true, Notes: "manage_cluster capability on the body's namespace_id."},
@@ -377,8 +380,11 @@ func AuthMatrixMarkdown(spec *huma.OpenAPI) string {
 
 	b.WriteString("\n## Write scope\n\n")
 	b.WriteString("The **Write** column is orthogonal to the class. A ✓ means the operation also declares\n")
-	b.WriteString("`RequireWrite`, which rejects an API key issued with the `read` scope (403) even when the\n")
-	b.WriteString("key's owner passes the class check. Session cookies and `read-write` keys are unaffected.\n\n")
+	b.WriteString("`RequireWrite`, which rejects (403) an API key whose declared capabilities are all\n")
+	b.WriteString("read-only, even when the key's owner passes the class check. It is a coarse gate: the\n")
+	b.WriteString("**Capability** column is what narrows an individual operation, and a key is refused\n")
+	b.WriteString("there unless it declares that capability *and* its owner's role grants it. Session\n")
+	b.WriteString("cookies carry no ceiling and are unaffected.\n\n")
 
 	b.WriteString("## Operations\n\n")
 

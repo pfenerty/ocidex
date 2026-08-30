@@ -399,8 +399,9 @@ curl -fsS -X POST https://ocidex.app/api/v1/clusters \
   -H "Authorization: Bearer $OCIDEX_API_KEY" -H 'Content-Type: application/json' \
   -d '{"name":"prod-eu","namespace_id":"<namespace-uuid>"}'
 
-# 2. Create the API key Secret in the target cluster. read-write scope, owned by a user
-#    who owns the namespace the cluster is registered under (ADR-044 K8).
+# 2. Create the API key Secret in the target cluster. The key needs the push_inventory
+#    capability, held by a member of the namespace the cluster is registered under
+#    whose role grants it (ADR-044 K8, ADR-046).
 kubectl create namespace ocidex-agent
 kubectl -n ocidex-agent create secret generic ocidex-k8s-agent-secrets \
   --from-literal=OCIDEX_API_KEY="$OCIDEX_API_KEY"

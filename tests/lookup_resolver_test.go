@@ -35,7 +35,7 @@ func TestLookupSBOM_WithoutEnrichment(t *testing.T) {
 	ctx := t.Context()
 
 	userID := seedUser(t, pool, 7401, "lookup-member", "member")
-	key, err := authSvc.CreateAPIKey(ctx, userID, "lookup-test", "read-write")
+	key, err := authSvc.CreateAPIKey(ctx, userID, "lookup-test", nil)
 	i.NoErr(err)
 
 	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, userID), minimalSBOM, key)

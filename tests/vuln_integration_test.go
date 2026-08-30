@@ -59,7 +59,7 @@ func TestVulnSBOMSummaryJoin(t *testing.T) {
 	store := vuln.NewPGStore(pool)
 
 	memberID := seedUser(t, pool, 8001, "vuln-test-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "vuln-test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "vuln-test", nil)
 	is.NoErr(err)
 
 	// Ingest SBOM — at this point no vulns exist, so summary should be absent.
@@ -198,7 +198,7 @@ func TestVulnAliasDedup(t *testing.T) {
 	store := vuln.NewPGStore(pool)
 
 	memberID := seedUser(t, pool, 8003, "alias-dedup-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "alias-dedup-test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "alias-dedup-test", nil)
 	is.NoErr(err)
 
 	// Ingest SBOM.
@@ -338,7 +338,7 @@ func TestVulnAliasDetailResolution(t *testing.T) {
 	store := vuln.NewPGStore(pool)
 
 	memberID := seedUser(t, pool, 8004, "alias-detail-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "alias-detail-test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "alias-detail-test", nil)
 	is.NoErr(err)
 
 	// Ingest SBOM to create artifact + component rows.
@@ -437,7 +437,7 @@ func TestVulnLiveJoinSemantics(t *testing.T) {
 	store := vuln.NewPGStore(pool)
 
 	memberID := seedUser(t, pool, 8002, "vuln-live-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "vuln-live-test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "vuln-live-test", nil)
 	is.NoErr(err)
 
 	// Ingest SBOM.
@@ -491,7 +491,7 @@ func TestVulnDuplicatePurlSummaryParity(t *testing.T) {
 	store := vuln.NewPGStore(pool)
 
 	memberID := seedUser(t, pool, 8005, "dup-purl-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "dup-purl-test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "dup-purl-test", nil)
 	is.NoErr(err)
 
 	// Ingest SBOM with two components sharing addUserPurl.
@@ -549,7 +549,7 @@ func TestPurlVulnStateSkipsCleanPurls(t *testing.T) {
 	store := vuln.NewPGStore(pool)
 
 	memberID := seedUser(t, pool, 8006, "purl-state-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "purl-state-test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "purl-state-test", nil)
 	is.NoErr(err)
 
 	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), minimalSBOM, memberKey)
@@ -620,7 +620,7 @@ func TestSourcePurlIncludedInGatherQueries(t *testing.T) {
 	store := vuln.NewPGStore(pool)
 
 	memberID := seedUser(t, pool, 8007, "source-purl-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "source-purl-test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "source-purl-test", nil)
 	is.NoErr(err)
 
 	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), minimalSBOM, memberKey)
@@ -690,7 +690,7 @@ func TestComponentVulnsMatchSourcePurl(t *testing.T) {
 	store := vuln.NewPGStore(pool)
 
 	memberID := seedUser(t, pool, 8008, "source-purl-vuln-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "source-purl-vuln-test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "source-purl-vuln-test", nil)
 	is.NoErr(err)
 
 	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), minimalSBOM, memberKey)
@@ -800,7 +800,7 @@ func TestSBOMVulnsMatchSourcePurl(t *testing.T) {
 	store := vuln.NewPGStore(pool)
 
 	memberID := seedUser(t, pool, 8009, "sbom-source-purl-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "sbom-source-purl-test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "sbom-source-purl-test", nil)
 	is.NoErr(err)
 
 	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), minimalSBOM, memberKey)
@@ -930,7 +930,7 @@ func TestSBOMVulnsList(t *testing.T) {
 	store := vuln.NewPGStore(pool)
 
 	memberID := seedUser(t, pool, 8010, "sbom-vulns-list-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "sbom-vulns-list-test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "sbom-vulns-list-test", nil)
 	is.NoErr(err)
 
 	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), minimalSBOM, memberKey)
@@ -1073,7 +1073,7 @@ func TestArtifactVulnsList(t *testing.T) {
 	ctx := t.Context()
 
 	memberID := seedUser(t, pool, 8011, "artifact-vulns-list-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "artifact-vulns-list-test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "artifact-vulns-list-test", nil)
 	is.NoErr(err)
 	nsID := seedNamespace(t, pool, "artifact-vulns-list-ns", memberID, "public")
 

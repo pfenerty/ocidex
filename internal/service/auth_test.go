@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
 
+	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/repository"
@@ -254,7 +255,7 @@ func TestCreateAPIKey_PrefixAndFormat(t *testing.T) {
 	}
 	svc := newTestAuthService(repo)
 
-	key, err := svc.CreateAPIKey(context.Background(), pgtype.UUID{Valid: true}, "ci", "read-write")
+	key, err := svc.CreateAPIKey(context.Background(), pgtype.UUID{Valid: true}, "ci", nil)
 
 	is.NoErr(err)
 	is.True(strings.HasPrefix(key, "ocidex_")) // plaintext starts with prefix
@@ -272,7 +273,7 @@ func TestCreateAPIKey_RepoError(t *testing.T) {
 	}
 	svc := newTestAuthService(repo)
 
-	_, err := svc.CreateAPIKey(context.Background(), pgtype.UUID{Valid: true}, "ci", "read-write")
+	_, err := svc.CreateAPIKey(context.Background(), pgtype.UUID{Valid: true}, "ci", nil)
 	is.True(err != nil)
 }
 
@@ -541,4 +542,107 @@ func TestCleanExpiredSessions_Delegates(t *testing.T) {
 	err := svc.CleanExpiredSessions(context.Background())
 	is.NoErr(err)
 	is.True(called)
+}
+
+// ---------------------------------------------------------------------------
+// API key capabilities (ADR-046)
+// ---------------------------------------------------------------------------
+
+func TestCreateAPIKey_CapabilityCeiling(t *testing.T) {
+	tests := []struct {
+		name    string
+		caps    []authz.Capability
+		want    []string
+		wantErr bool
+	}{
+		{
+			// "No ceiling" is not "no capabilities" — it is "whatever I can
+			// do", which the validation-time intersection then narrows.
+			name: "an unspecified ceiling stores every capability",
+			caps: nil,
+			want: authz.Strings(authz.AllCapabilities()),
+		},
+		{
+			name: "a named ceiling is stored verbatim",
+			caps: []authz.Capability{authz.CapIngest, authz.CapReadPrivate},
+			want: []string{"ingest", "read_private"},
+		},
+		{
+			name:    "an unknown capability is rejected, not dropped",
+			caps:    []authz.Capability{authz.CapIngest, authz.Capability("delete_everything")},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			var stored []string
+			called := false
+			repo := &fakeAuthRepo{
+				createAPIKeyFn: func(_ context.Context, arg repository.CreateAPIKeyParams) (repository.ApiKey, error) {
+					called = true
+					stored = arg.Capabilities
+					return repository.ApiKey{}, nil
+				},
+			}
+			svc := newTestAuthService(repo)
+
+			_, err := svc.CreateAPIKey(context.Background(), pgtype.UUID{Valid: true}, "ci", tt.caps)
+
+			if tt.wantErr {
+				var verr *ValidationError
+				is.True(errors.As(err, &verr)) // a bad capability is a 422, not a 500
+				is.True(!called)               // and nothing is minted
+				return
+			}
+			is.NoErr(err)
+			is.Equal(stored, tt.want)
+		})
+	}
+}
+
+func TestValidateAPIKey_CapabilitiesNarrowOnly(t *testing.T) {
+	tests := []struct {
+		name string
+		row  []string
+		want []authz.Capability
+	}{
+		{
+			name: "known capabilities come back as they are",
+			row:  []string{"read_private", "ingest"},
+			want: []authz.Capability{authz.CapReadPrivate, authz.CapIngest},
+		},
+		{
+			// A row written by a newer build. Dropping the stranger narrows the
+			// key; keeping or honouring it would fail open on a downgrade.
+			name: "an unrecognised capability is dropped",
+			row:  []string{"read_private", "read_minds"},
+			want: []authz.Capability{authz.CapReadPrivate},
+		},
+		{
+			name: "a key that carries nothing carries nothing",
+			row:  nil,
+			want: []authz.Capability{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			repo := &fakeAuthRepo{
+				getAPIKeyByHashFn: func(_ context.Context, _ string) (repository.GetAPIKeyByHashRow, error) {
+					return repository.GetAPIKeyByHashRow{Role: "member", Capabilities: tt.row}, nil
+				},
+				touchAPIKeyFn: func(_ context.Context, _ pgtype.UUID) error { return nil },
+			}
+			svc := newTestAuthService(repo)
+
+			user, err := svc.ValidateAPIKey(context.Background(), "ocidex_k")
+
+			is.NoErr(err)
+			is.True(user.APIKeyAuth) // the ceiling only means anything on a key
+			is.Equal(user.APIKeyCaps, tt.want)
+		})
+	}
 }

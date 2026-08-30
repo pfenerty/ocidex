@@ -151,10 +151,10 @@ func TestPrivateNamespaceHidesSBOMsFromNonOwner(t *testing.T) {
 	is := is.New(t)
 
 	ownerID := seedUser(t, pool, 7101, "ns-owner", "member")
-	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", "read-write")
+	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", nil)
 	is.NoErr(err)
 	strangerID := seedUser(t, pool, 7102, "ns-stranger", "member")
-	strangerKey, err := authSvc.CreateAPIKey(t.Context(), strangerID, "stranger", "read-write")
+	strangerKey, err := authSvc.CreateAPIKey(t.Context(), strangerID, "stranger", nil)
 	is.NoErr(err)
 
 	nsID := seedNamespace(t, pool, "private-ns", ownerID, "private")
@@ -199,10 +199,10 @@ func TestSourcesInOneNamespaceShareVisibility(t *testing.T) {
 	is := is.New(t)
 
 	ownerID := seedUser(t, pool, 7201, "shared-owner", "member")
-	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", "read-write")
+	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", nil)
 	is.NoErr(err)
 	strangerID := seedUser(t, pool, 7202, "shared-stranger", "member")
-	strangerKey, err := authSvc.CreateAPIKey(t.Context(), strangerID, "stranger", "read-write")
+	strangerKey, err := authSvc.CreateAPIKey(t.Context(), strangerID, "stranger", nil)
 	is.NoErr(err)
 
 	nsID := seedNamespace(t, pool, "shared-ns", ownerID, "private")

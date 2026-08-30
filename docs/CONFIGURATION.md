@@ -192,7 +192,7 @@ no OCIDex deployment of its own, and talks only to the OCIDex API over HTTP.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OCIDEX_SERVER` | — | **Required.** OCIDex API base URL, e.g. `https://ocidex.example.com`. |
-| `OCIDEX_API_KEY` | — | **Required.** API key with the `read-write` scope, owned by the owner of the cluster's namespace. |
+| `OCIDEX_API_KEY` | — | **Required.** API key carrying the `push_inventory` capability, owned by a member whose role on the cluster's namespace grants it. |
 | `OCIDEX_CLUSTER_ID` | — | **Required.** UUID of the registered `cluster` this agent reports for. Supplied rather than discovered: a Kubernetes cluster has no stable self-identifier, and a defaulted one could replace the wrong cluster's inventory. |
 | `OCIDEX_NAMESPACES` | *(all)* | Comma-separated Kubernetes namespace allowlist. Empty means every namespace. |
 | `OCIDEX_REPORT_INTERVAL` | `5m` | Time between snapshots. Ignored under `--once`. |

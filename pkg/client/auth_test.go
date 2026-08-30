@@ -21,8 +21,8 @@ func TestCreateAPIKey(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	scope := CreateAPIKeyInputBodyScopeReadWrite
-	body := CreateAPIKeyInputBody{Name: "my-key", Scope: &scope}
+	caps := []CreateAPIKeyInputBodyCapabilities{Ingest, ReadPrivate}
+	body := CreateAPIKeyInputBody{Name: "my-key", Capabilities: &caps}
 	resp, err := newTestClient(srv).CreateAPIKey(context.Background(), body)
 	is.NoErr(err)
 	is.Equal(resp.Key, "ocidex_abc123")
@@ -34,7 +34,7 @@ func TestListAPIKeys(t *testing.T) {
 		is.Equal(r.Method, http.MethodGet)
 		is.Equal(r.URL.Path, "/api/v1/auth/keys")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"keys":[{"id":"key-1","name":"my-key","prefix":"ocidex_a","scope":"read-write","created_at":"2024-01-01T00:00:00Z"}]}`))
+		_, _ = w.Write([]byte(`{"keys":[{"id":"key-1","name":"my-key","prefix":"ocidex_a","capabilities":["ingest"],"created_at":"2024-01-01T00:00:00Z"}]}`))
 	}))
 	defer srv.Close()
 

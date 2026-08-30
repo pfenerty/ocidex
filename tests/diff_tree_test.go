@@ -165,7 +165,7 @@ func TestDiffTreeEndpoint(t *testing.T) {
 
 	// SBOM ingest requires member role; seed a user + API key for the test.
 	memberID := seedUser(t, pool, 9001, "diff-tree-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "diff-tree-test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "diff-tree-test", nil)
 	is.NoErr(err)
 
 	// --- Ingest "from" SBOM (alpine-3.14) ---

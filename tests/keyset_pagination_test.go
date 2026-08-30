@@ -137,7 +137,7 @@ func TestKeysetPagination_NoGapsOrDupes(t *testing.T) {
 
 	is := is.New(t)
 	memberID := seedUser(t, pool, 7401, "keyset-member", "member")
-	key, err := authSvc.CreateAPIKey(t.Context(), memberID, "keyset-test", "read-write")
+	key, err := authSvc.CreateAPIKey(t.Context(), memberID, "keyset-test", nil)
 	is.NoErr(err)
 
 	ingest := func(body string) string {
@@ -209,7 +209,7 @@ func TestSBOMComponents_ExcludesFiles(t *testing.T) {
 
 	is := is.New(t)
 	memberID := seedUser(t, pool, 7402, "files-member", "member")
-	key, err := authSvc.CreateAPIKey(t.Context(), memberID, "files-test", "read-write")
+	key, err := authSvc.CreateAPIKey(t.Context(), memberID, "files-test", nil)
 	is.NoErr(err)
 
 	// 120 files + 5 packages: with a page size of 50, an unfiltered endpoint

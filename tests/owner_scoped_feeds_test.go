@@ -119,13 +119,13 @@ func TestOwnerScopedFeedsExcludeNonOwners(t *testing.T) {
 	is := is.New(t)
 
 	ownerID := seedUser(t, pool, 7301, "feed-owner", "member")
-	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", "read-write")
+	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", nil)
 	is.NoErr(err)
 	strangerID := seedUser(t, pool, 7302, "feed-stranger", "member")
-	strangerKey, err := authSvc.CreateAPIKey(t.Context(), strangerID, "stranger", "read-write")
+	strangerKey, err := authSvc.CreateAPIKey(t.Context(), strangerID, "stranger", nil)
 	is.NoErr(err)
 	adminID := seedUser(t, pool, 7303, "feed-admin", "admin")
-	adminKey, err := authSvc.CreateAPIKey(t.Context(), adminID, "admin", "read-write")
+	adminKey, err := authSvc.CreateAPIKey(t.Context(), adminID, "admin", nil)
 	is.NoErr(err)
 
 	// One private namespace owned by ownerID, with an SBOM to hang jobs off.
@@ -223,10 +223,10 @@ func TestGetScanJobHidesOtherTenantsJob(t *testing.T) {
 	is := is.New(t)
 
 	ownerID := seedUser(t, pool, 7401, "job-owner", "member")
-	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", "read-write")
+	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", nil)
 	is.NoErr(err)
 	strangerID := seedUser(t, pool, 7402, "job-stranger", "member")
-	strangerKey, err := authSvc.CreateAPIKey(t.Context(), strangerID, "stranger", "read-write")
+	strangerKey, err := authSvc.CreateAPIKey(t.Context(), strangerID, "stranger", nil)
 	is.NoErr(err)
 
 	nsID := seedNamespace(t, pool, "job-ns", ownerID, "private")

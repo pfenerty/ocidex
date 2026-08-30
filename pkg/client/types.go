@@ -89,18 +89,42 @@ func (e ClusterWorkloadResponseMatchState) Valid() bool {
 	}
 }
 
-// Defines values for CreateAPIKeyInputBodyScope.
+// Defines values for CreateAPIKeyInputBodyCapabilities.
 const (
-	CreateAPIKeyInputBodyScopeRead      CreateAPIKeyInputBodyScope = "read"
-	CreateAPIKeyInputBodyScopeReadWrite CreateAPIKeyInputBodyScope = "read-write"
+	DeleteArtifact  CreateAPIKeyInputBodyCapabilities = "delete_artifact"
+	DeleteNamespace CreateAPIKeyInputBodyCapabilities = "delete_namespace"
+	Ingest          CreateAPIKeyInputBodyCapabilities = "ingest"
+	ManageCluster   CreateAPIKeyInputBodyCapabilities = "manage_cluster"
+	ManageMember    CreateAPIKeyInputBodyCapabilities = "manage_member"
+	ManageSource    CreateAPIKeyInputBodyCapabilities = "manage_source"
+	PushInventory   CreateAPIKeyInputBodyCapabilities = "push_inventory"
+	ReadPrivate     CreateAPIKeyInputBodyCapabilities = "read_private"
+	ReadSecret      CreateAPIKeyInputBodyCapabilities = "read_secret"
+	TriggerScan     CreateAPIKeyInputBodyCapabilities = "trigger_scan"
 )
 
-// Valid indicates whether the value is a known member of the CreateAPIKeyInputBodyScope enum.
-func (e CreateAPIKeyInputBodyScope) Valid() bool {
+// Valid indicates whether the value is a known member of the CreateAPIKeyInputBodyCapabilities enum.
+func (e CreateAPIKeyInputBodyCapabilities) Valid() bool {
 	switch e {
-	case CreateAPIKeyInputBodyScopeRead:
+	case DeleteArtifact:
 		return true
-	case CreateAPIKeyInputBodyScopeReadWrite:
+	case DeleteNamespace:
+		return true
+	case Ingest:
+		return true
+	case ManageCluster:
+		return true
+	case ManageMember:
+		return true
+	case ManageSource:
+		return true
+	case PushInventory:
+		return true
+	case ReadPrivate:
+		return true
+	case ReadSecret:
+		return true
+	case TriggerScan:
 		return true
 	default:
 		return false
@@ -272,24 +296,6 @@ func (e EnrichmentJobResponseState) Valid() bool {
 	case EnrichmentJobResponseStateRunning:
 		return true
 	case EnrichmentJobResponseStateSucceeded:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for KeyMetaResponseScope.
-const (
-	KeyMetaResponseScopeRead      KeyMetaResponseScope = "read"
-	KeyMetaResponseScopeReadWrite KeyMetaResponseScope = "read-write"
-)
-
-// Valid indicates whether the value is a known member of the KeyMetaResponseScope enum.
-func (e KeyMetaResponseScope) Valid() bool {
-	switch e {
-	case KeyMetaResponseScopeRead:
-		return true
-	case KeyMetaResponseScopeReadWrite:
 		return true
 	default:
 		return false
@@ -1769,15 +1775,15 @@ type CreateAPIKeyInputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema *string `json:"$schema,omitempty"`
 
+	// Capabilities Capabilities this key may exercise, intersected with the owner's live namespace roles. Empty means all of them.
+	Capabilities *[]CreateAPIKeyInputBodyCapabilities `json:"capabilities,omitempty"`
+
 	// Name Human-readable label for this key
 	Name string `json:"name"`
-
-	// Scope Key scope: read (GET only) or read-write (full access)
-	Scope *CreateAPIKeyInputBodyScope `json:"scope,omitempty"`
 }
 
-// CreateAPIKeyInputBodyScope Key scope: read (GET only) or read-write (full access)
-type CreateAPIKeyInputBodyScope string
+// CreateAPIKeyInputBodyCapabilities defines model for CreateAPIKeyInputBody.Capabilities.
+type CreateAPIKeyInputBodyCapabilities string
 
 // CreateAPIKeyOutputBody defines model for CreateAPIKeyOutputBody.
 type CreateAPIKeyOutputBody struct {
@@ -2394,7 +2400,9 @@ type InventoryWorkload struct {
 
 // KeyMetaResponse defines model for KeyMetaResponse.
 type KeyMetaResponse struct {
-	CreatedAt time.Time `json:"created_at"`
+	// Capabilities Capabilities this key may exercise, before intersection with the owner's live namespace roles
+	Capabilities *[]string `json:"capabilities"`
+	CreatedAt    time.Time `json:"created_at"`
 
 	// Id Key UUID
 	Id         string     `json:"id"`
@@ -2403,13 +2411,7 @@ type KeyMetaResponse struct {
 
 	// Prefix First 8 characters of the key
 	Prefix string `json:"prefix"`
-
-	// Scope Key scope
-	Scope KeyMetaResponseScope `json:"scope"`
 }
-
-// KeyMetaResponseScope Key scope
-type KeyMetaResponseScope string
 
 // LicenseCount defines model for LicenseCount.
 type LicenseCount struct {

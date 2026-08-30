@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -543,13 +544,13 @@ func (h *Handler) CreateAPIKey(ctx context.Context, in *CreateAPIKeyInput) (*Cre
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
-	scope := in.Body.Scope
-	if scope == "" {
-		scope = scopeReadWrite
-	}
-	plaintext, err := h.authService.CreateAPIKey(ctx, user.ID, in.Body.Name, scope)
+	caps, err := authz.ParseCapabilities(in.Body.Capabilities)
 	if err != nil {
-		return nil, huma.Error500InternalServerError(fmt.Sprintf("creating key: %v", err))
+		return nil, huma.Error422UnprocessableEntity(err.Error())
+	}
+	plaintext, err := h.authService.CreateAPIKey(ctx, user.ID, in.Body.Name, caps)
+	if err != nil {
+		return nil, mapServiceError(err)
 	}
 	out := &CreateAPIKeyOutput{}
 	out.Body.Key = plaintext
@@ -569,12 +570,12 @@ func (h *Handler) ListAPIKeys(ctx context.Context, _ *struct{}) (*ListAPIKeysOut
 	out.Body.Keys = make([]KeyMetaResponse, len(keys))
 	for i, k := range keys {
 		out.Body.Keys[i] = KeyMetaResponse{
-			ID:         uuid.UUID(k.ID.Bytes).String(),
-			Name:       k.Name,
-			Prefix:     k.Prefix,
-			Scope:      k.Scope,
-			CreatedAt:  k.CreatedAt,
-			LastUsedAt: k.LastUsedAt,
+			ID:           uuid.UUID(k.ID.Bytes).String(),
+			Name:         k.Name,
+			Prefix:       k.Prefix,
+			Capabilities: authz.Strings(k.Capabilities),
+			CreatedAt:    k.CreatedAt,
+			LastUsedAt:   k.LastUsedAt,
 		}
 	}
 	return out, nil

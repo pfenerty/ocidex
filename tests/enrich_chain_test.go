@@ -98,7 +98,7 @@ func ingestChainSBOM(t *testing.T, pool *pgxpool.Pool) pgtype.UUID {
 	defer srv.Close()
 
 	memberID := seedUser(t, pool, 9202, "chain-test-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "chain-test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "chain-test", nil)
 	is.NoErr(err)
 
 	id := mustIngest(t, srv.URL, ingestPath(t, pool, memberID), chainTestSBOM, memberKey)

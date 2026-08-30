@@ -72,8 +72,11 @@ type WatchArtifactInput struct {
 // CreateAPIKeyInput is the request for POST /api/v1/auth/keys.
 type CreateAPIKeyInput struct {
 	Body struct {
-		Name  string `json:"name" minLength:"1" maxLength:"100" doc:"Human-readable label for this key"`
-		Scope string `json:"scope,omitempty" enum:"read,read-write" default:"read-write" doc:"Key scope: read (GET only) or read-write (full access)"`
+		Name string `json:"name" minLength:"1" maxLength:"100" doc:"Human-readable label for this key"`
+		// Capabilities is a ceiling, not a grant: the key can never do more
+		// than its owner's live namespace roles allow. Omitting it asks for
+		// every capability, which resolves to exactly what the owner can do.
+		Capabilities []string `json:"capabilities,omitempty" enum:"read_private,ingest,trigger_scan,push_inventory,delete_artifact,manage_source,manage_cluster,read_secret,manage_member,delete_namespace" doc:"Capabilities this key may exercise, intersected with the owner's live namespace roles. Empty means all of them."`
 	}
 }
 
@@ -86,12 +89,12 @@ type CreateAPIKeyOutput struct {
 
 // KeyMetaResponse is the display-safe API key representation.
 type KeyMetaResponse struct {
-	ID         string     `json:"id" doc:"Key UUID"`
-	Name       string     `json:"name"`
-	Prefix     string     `json:"prefix" doc:"First 8 characters of the key"`
-	Scope      string     `json:"scope" enum:"read,read-write" doc:"Key scope"`
-	CreatedAt  time.Time  `json:"created_at"`
-	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+	ID           string     `json:"id" doc:"Key UUID"`
+	Name         string     `json:"name"`
+	Prefix       string     `json:"prefix" doc:"First 8 characters of the key"`
+	Capabilities []string   `json:"capabilities" doc:"Capabilities this key may exercise, before intersection with the owner's live namespace roles"`
+	CreatedAt    time.Time  `json:"created_at"`
+	LastUsedAt   *time.Time `json:"last_used_at,omitempty"`
 }
 
 // ListAPIKeysOutput is the response for GET /api/v1/auth/keys.

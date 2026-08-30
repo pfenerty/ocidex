@@ -18,8 +18,8 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.scope
-      name: Scope
+    - jsonPath: .spec.capabilities
+      name: Capabilities
       type: string
     - jsonPath: .status.prefix
       name: Prefix
@@ -57,15 +57,31 @@ spec:
           spec:
             description: APIKeySpec defines the desired state of an OCIDex API key.
             properties:
+              capabilities:
+                description: |-
+                  Capabilities is the ceiling on what the key may do. It is never a grant:
+                  the server intersects it with the live namespace roles of the user the
+                  operator authenticates as, so narrowing that user's role narrows every
+                  key it has provisioned without any change here.
+
+                  Omitting it asks for every capability, which resolves to exactly what
+                  that user can do.
+                enum:
+                - read_private
+                - ingest
+                - trigger_scan
+                - push_inventory
+                - delete_artifact
+                - manage_source
+                - manage_cluster
+                - read_secret
+                - manage_member
+                - delete_namespace
+                items:
+                  type: string
+                type: array
               name:
                 description: Name is a human-readable label for the key.
-                type: string
-              scope:
-                default: read
-                description: Scope controls what operations the key permits.
-                enum:
-                - read
-                - read-write
                 type: string
               secretRef:
                 description: |-

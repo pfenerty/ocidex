@@ -80,11 +80,18 @@ func (r *APIKeyReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 }
 
 func (r *APIKeyReconciler) createAndPersist(ctx context.Context, cr *v1alpha1.APIKey) (ctrl.Result, error) {
-	scope := ocidexclient.CreateAPIKeyInputBodyScope(cr.Spec.Scope)
-	out, err := r.OCIDexClient.CreateAPIKey(ctx, ocidexclient.CreateAPIKeyInputBody{
-		Name:  cr.Spec.Name,
-		Scope: &scope,
-	})
+	body := ocidexclient.CreateAPIKeyInputBody{Name: cr.Spec.Name}
+	// An empty list is left absent rather than sent: both mean "everything the
+	// operator's own user may do", and sending nothing keeps that the server's
+	// definition alone.
+	if len(cr.Spec.Capabilities) > 0 {
+		caps := make([]ocidexclient.CreateAPIKeyInputBodyCapabilities, len(cr.Spec.Capabilities))
+		for i, c := range cr.Spec.Capabilities {
+			caps[i] = ocidexclient.CreateAPIKeyInputBodyCapabilities(c)
+		}
+		body.Capabilities = &caps
+	}
+	out, err := r.OCIDexClient.CreateAPIKey(ctx, body)
 	if err != nil {
 		SetCondition(&cr.Status.Conditions, "Ready", metav1.ConditionFalse, "APIError", err.Error(), cr.Generation)
 		_ = r.Status().Update(ctx, cr)

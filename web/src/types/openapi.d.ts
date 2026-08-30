@@ -2073,14 +2073,10 @@ export interface components {
              * @example https://example.com/schemas/CreateAPIKeyInputBody.json
              */
             readonly $schema?: string;
+            /** @description Capabilities this key may exercise, intersected with the owner's live namespace roles. Empty means all of them. */
+            capabilities?: ("read_private" | "ingest" | "trigger_scan" | "push_inventory" | "delete_artifact" | "manage_source" | "manage_cluster" | "read_secret" | "manage_member" | "delete_namespace")[] | null;
             /** @description Human-readable label for this key */
             name: string;
-            /**
-             * @description Key scope: read (GET only) or read-write (full access)
-             * @default read-write
-             * @enum {string}
-             */
-            scope: "read" | "read-write";
         };
         CreateAPIKeyOutputBody: {
             /**
@@ -2724,6 +2720,8 @@ export interface components {
             workload_name: string;
         };
         KeyMetaResponse: {
+            /** @description Capabilities this key may exercise, before intersection with the owner's live namespace roles */
+            capabilities: string[] | null;
             /** Format: date-time */
             created_at: string;
             /** @description Key UUID */
@@ -2733,11 +2731,6 @@ export interface components {
             name: string;
             /** @description First 8 characters of the key */
             prefix: string;
-            /**
-             * @description Key scope
-             * @enum {string}
-             */
-            scope: "read" | "read-write";
         };
         LicenseCount: {
             /**

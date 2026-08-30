@@ -402,7 +402,7 @@ func TestFullLifecycle(t *testing.T) {
 
 	// SBOM ingest + delete require member/owner role; seed user + API key.
 	memberID := seedUser(t, pool, 7001, "lifecycle-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "lifecycle-test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "lifecycle-test", nil)
 	is.NoErr(err)
 
 	// --- Ingest first SBOM ---
@@ -551,7 +551,7 @@ func TestDigestNormalization(t *testing.T) {
 	is := is.New(t)
 
 	memberID := seedUser(t, pool, 7002, "digest-norm-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "digest-test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "digest-test", nil)
 	is.NoErr(err)
 
 	// Syft-style: name without digest, version is digest
@@ -665,7 +665,7 @@ func TestArtifactDetailSigningStatusParity(t *testing.T) {
 	is := is.New(t)
 
 	memberID := seedUser(t, pool, 8100, "signing-parity-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "signing-parity-test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "signing-parity-test", nil)
 	is.NoErr(err)
 
 	// Ingest an SBOM.
@@ -789,7 +789,7 @@ func TestSigningStatusParity_AllStatuses(t *testing.T) {
 	defer srv.Close()
 
 	memberID := seedUser(t, pool, 8200, "signing-status-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "signing-status-test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "signing-status-test", nil)
 	is.New(t).NoErr(err)
 
 	for i, fx := range signingStatusFixtures {
@@ -859,7 +859,7 @@ func TestArtifactRollupSigningStatus_ArtifactMissingDominates(t *testing.T) {
 	is := is.New(t)
 
 	memberID := seedUser(t, pool, 8300, "signing-rollup-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "signing-rollup-test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "signing-rollup-test", nil)
 	is.NoErr(err)
 
 	// First SBOM: verified.
@@ -929,7 +929,7 @@ func TestProvenanceRecheckErrorPreservesData(t *testing.T) {
 	ctx := t.Context()
 
 	memberID := seedUser(t, pool, 3001, "test-provenance-recheck", "member")
-	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "test", nil)
 	is.NoErr(err)
 
 	sbomJSON := fmt.Sprintf(signingStatusSBOMTemplate, 99, 99, 99)
@@ -1026,7 +1026,7 @@ func TestProvenanceDriftFullCycle(t *testing.T) {
 	ctx := t.Context()
 
 	memberID := seedUser(t, pool, 3100, "test-drift-cycle", "member")
-	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "test", nil)
 	is.NoErr(err)
 
 	sbomJSON := fmt.Sprintf(signingStatusSBOMTemplate, 98, 98, 98)
@@ -1114,7 +1114,7 @@ func TestProvenanceDriftUnsignedNeedsConfirmation(t *testing.T) {
 	ctx := t.Context()
 
 	memberID := seedUser(t, pool, 3101, "test-drift-confirm", "member")
-	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "test", nil)
 	is.NoErr(err)
 
 	sbomJSON := fmt.Sprintf(signingStatusSBOMTemplate, 97, 97, 97)

@@ -127,7 +127,7 @@ a cluster's name never changes the setting.
 
 The **Ingest** buttons on the Gaps tab do the same thing on demand, synchronously, and report
 per-reason counts. The bulk button ingests the whole gap; a row button ingests that image only.
-Both need `read-write` scope and ownership of the cluster's namespace — the same gate the agent's
+Both need the `push_inventory` capability on the cluster's namespace — the same gate the agent's
 own push uses.
 
 ### Queued is not scanned

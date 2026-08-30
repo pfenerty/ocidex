@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/matryer/is"
+
+	"github.com/pfenerty/ocidex/internal/authz"
 )
 
 // mustPostJSON posts body and fails with the server's error body on an
@@ -86,13 +88,13 @@ func TestClusterInventoryAPI(t *testing.T) {
 	ownerID := seedUser(t, pool, 2001, "cluster-owner", "member")
 	otherID := seedUser(t, pool, 2002, "cluster-other", "member")
 
-	ownerKey, err := authSvc.CreateAPIKey(ctx, ownerID, "test", "read-write")
+	ownerKey, err := authSvc.CreateAPIKey(ctx, ownerID, "test", nil)
 	is.NoErr(err)
-	otherKey, err := authSvc.CreateAPIKey(ctx, otherID, "test", "read-write")
+	otherKey, err := authSvc.CreateAPIKey(ctx, otherID, "test", nil)
 	is.NoErr(err)
 	// A read-scoped key belonging to the owner: it must still be refused, since
 	// the inventory push is a write however much it reads like a report.
-	ownerReadKey, err := authSvc.CreateAPIKey(ctx, ownerID, "test-ro", "read")
+	ownerReadKey, err := authSvc.CreateAPIKey(ctx, ownerID, "test-ro", []authz.Capability{authz.CapReadPrivate})
 	is.NoErr(err)
 
 	// Public namespace on purpose: it makes the cluster readable by anyone, which

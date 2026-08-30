@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -10,9 +12,20 @@ import (
 	"github.com/pfenerty/ocidex/pkg/client"
 )
 
-// keyScopes is the server's vocabulary, repeated here so a typo is rejected
-// before it becomes a key with the wrong power.
-var keyScopes = []string{"read", "read-write"}
+// keyCapabilities is the server's vocabulary, repeated here so a typo is
+// rejected before it becomes a key with the wrong power.
+var keyCapabilities = []string{
+	"read_private",
+	"ingest",
+	"trigger_scan",
+	"push_inventory",
+	"delete_artifact",
+	"manage_source",
+	"manage_cluster",
+	"read_secret",
+	"manage_member",
+	"delete_namespace",
+}
 
 func newKeyCmd(cfg *rootConfig) *cobra.Command {
 	cmd := &cobra.Command{
@@ -32,7 +45,21 @@ func keyColumns() []output.Column[client.KeyMetaResponse] {
 		{Header: "ID", Value: func(k client.KeyMetaResponse) string { return k.Id }},
 		{Header: colName, Value: func(k client.KeyMetaResponse) string { return k.Name }},
 		{Header: "PREFIX", Value: func(k client.KeyMetaResponse) string { return k.Prefix }},
-		{Header: "SCOPE", Value: func(k client.KeyMetaResponse) string { return string(k.Scope) }},
+		{Header: "CAPABILITIES", Value: func(k client.KeyMetaResponse) string {
+			// A key holding everything is the common case and its ten names
+			// would swamp the row, so it collapses to one word.
+			var caps []string
+			if k.Capabilities != nil {
+				caps = *k.Capabilities
+			}
+			if len(caps) == len(keyCapabilities) {
+				return "all"
+			}
+			if len(caps) == 0 {
+				return "none"
+			}
+			return strings.Join(caps, ",")
+		}},
 		{Header: "LAST USED", Value: func(k client.KeyMetaResponse) string {
 			// Never-used is the interesting state — a key issued and forgotten
 			// is one to revoke — so it gets a word, not an empty cell.
@@ -69,7 +96,8 @@ is what identifies a key in the audit log.`,
 }
 
 func newKeyCreateCmd(cfg *rootConfig) *cobra.Command {
-	var name, scope string
+	var name string
+	var caps []string
 
 	cmd := &cobra.Command{
 		Use:   verbCreate,
@@ -80,11 +108,14 @@ The key is printed once, on stdout, and never again. Everything else this
 command says goes to stderr, so ` + "`ocidex-cli key create --name ci > key.txt`" + `
 captures exactly the key and nothing else.
 
-Scope defaults to read. Ask for read-write only where something actually
-writes: a leaked read key cannot delete an SBOM.`,
+Capabilities are a ceiling, not a grant: the key can never do more than your
+namespace roles allow, and a role change narrows every key you hold without any
+key change. Omitting --capability asks for all of them, which resolves to
+exactly what you can do. Name them where something narrower will do: a key that
+only ingests cannot delete an SBOM even where you can.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if err := validateKeyScope(scope); err != nil {
+			if err := validateKeyCapabilities(caps); err != nil {
 				return err
 			}
 			api, err := cfg.authed()
@@ -93,9 +124,12 @@ writes: a leaked read key cannot delete an SBOM.`,
 			}
 
 			body := client.CreateAPIKeyInputBody{Name: name}
-			if scope != "" {
-				s := client.CreateAPIKeyInputBodyScope(scope)
-				body.Scope = &s
+			if len(caps) > 0 {
+				typed := make([]client.CreateAPIKeyInputBodyCapabilities, len(caps))
+				for i, c := range caps {
+					typed[i] = client.CreateAPIKeyInputBodyCapabilities(c)
+				}
+				body.Capabilities = &typed
 			}
 			out, err := api.CreateAPIKey(cmd.Context(), body)
 			if err != nil {
@@ -113,23 +147,23 @@ writes: a leaked read key cannot delete an SBOM.`,
 
 	f := cmd.Flags()
 	f.StringVar(&name, "name", "", "human-readable label for the key (required)")
-	f.StringVar(&scope, "scope", "", "read or read-write (server default read)")
+	f.StringSliceVar(&caps, "capability", nil,
+		"capability this key may exercise, repeatable (default: all of them)")
 	_ = cmd.MarkFlagRequired("name")
 	return cmd
 }
 
-// validateKeyScope rejects an unknown scope before sending it, so a typo fails
-// loudly here rather than silently yielding whatever the server defaults to.
-func validateKeyScope(scope string) error {
-	if scope == "" {
-		return nil
-	}
-	for _, s := range keyScopes {
-		if scope == s {
-			return nil
+// validateKeyCapabilities rejects an unknown capability before sending it, so a
+// typo fails loudly here rather than quietly yielding a key that is missing the
+// power it was created for.
+func validateKeyCapabilities(caps []string) error {
+	for _, c := range caps {
+		if !slices.Contains(keyCapabilities, c) {
+			return usagef("--capability must be one of %s (got %q)",
+				strings.Join(keyCapabilities, ", "), c)
 		}
 	}
-	return usagef("--scope must be read or read-write (got %q)", scope)
+	return nil
 }
 
 func newKeyDeleteCmd(cfg *rootConfig) *cobra.Command {

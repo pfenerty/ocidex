@@ -134,6 +134,15 @@ export type NamespaceMember = components["schemas"]["NamespaceMemberResponse"];
  */
 export type NamespaceRole = NamespaceMember["role"];
 export type APIKey = components["schemas"]["KeyMetaResponse"];
+/**
+ * The closed capability set (ADR-046), taken from the create-key request body
+ * so that adding a capability in Go is a compile error here until the UI lists
+ * it. The key-listing response is plain strings — a key minted by a newer build
+ * can name a capability this one has never heard of.
+ */
+export type Capability = NonNullable<
+    components["schemas"]["CreateAPIKeyInputBody"]["capabilities"]
+>[number];
 export type UserAccount = components["schemas"]["UserResponse"];
 export type ErrorModel = components["schemas"]["ErrorModel"];
 export type DashboardStats = components["schemas"]["DashboardStatsOutputBody"];

@@ -19,10 +19,11 @@ func TestKeyList(t *testing.T) {
 	used := time.Date(2026, 8, 1, 9, 0, 0, 0, time.UTC)
 	fake := &client.FakeClient{
 		ListAPIKeysFn: func(context.Context) ([]client.KeyMetaResponse, error) {
+			narrow := []string{"ingest"}
 			return []client.KeyMetaResponse{
-				{Id: testKeyID, Name: "ci", Prefix: "ocidex_a", Scope: "read-write",
+				{Id: testKeyID, Name: "ci", Prefix: "ocidex_a", Capabilities: &narrow,
 					CreatedAt: used, LastUsedAt: &used},
-				{Id: "other", Name: "laptop", Prefix: "ocidex_b", Scope: "read", CreatedAt: used},
+				{Id: "other", Name: "laptop", Prefix: "ocidex_b", Capabilities: &keyCapabilities, CreatedAt: used},
 			}, nil
 		},
 	}
@@ -32,7 +33,10 @@ func TestKeyList(t *testing.T) {
 
 	lines := strings.Split(strings.TrimRight(stdout, "\n"), "\n")
 	is.Equal(len(lines), 3)
-	is.True(strings.Contains(lines[1], "read-write"))
+	is.True(strings.Contains(lines[1], "ingest"))
+	// A key holding every capability collapses to a word: ten comma-separated
+	// names in a table cell is not information.
+	is.True(strings.Contains(lines[2], "all"))
 	// A key that has never been used is the one worth revoking, so the state
 	// must be legible rather than an empty cell.
 	is.True(strings.Contains(lines[2], "never"))
@@ -48,10 +52,13 @@ func TestKeyCreate(t *testing.T) {
 		},
 	}
 
-	stdout, stderr, err := runCLI(t, fake, "key", "create", "--name", "ci", "--scope", "read-write")
+	stdout, stderr, err := runCLI(t, fake, "key", "create",
+		"--name", "ci", "--capability", "ingest", "--capability", "read_private")
 	is.NoErr(err)
 	is.Equal(got.Name, "ci")
-	is.Equal(string(*got.Scope), "read-write")
+	is.Equal(*got.Capabilities, []client.CreateAPIKeyInputBodyCapabilities{
+		client.Ingest, client.ReadPrivate,
+	})
 
 	// The key alone on stdout: `key create > key.txt` must capture the key and
 	// nothing else. The warning is guidance, so stderr.
@@ -59,9 +66,10 @@ func TestKeyCreate(t *testing.T) {
 	is.True(strings.Contains(stderr, "cannot be shown again"))
 }
 
-// An unset --scope stays absent rather than being sent as "", which would ask
-// the server to validate an empty enum instead of applying its default.
-func TestKeyCreateDefaultScope(t *testing.T) {
+// An unnamed capability set stays absent rather than being sent as an empty
+// list. Both mean "all of them" to the server today, but sending nothing keeps
+// the server's default the single definition of that.
+func TestKeyCreateDefaultCapabilities(t *testing.T) {
 	is := is.New(t)
 	var got client.CreateAPIKeyInputBody
 	fake := &client.FakeClient{
@@ -73,10 +81,10 @@ func TestKeyCreateDefaultScope(t *testing.T) {
 
 	_, _, err := runCLI(t, fake, "key", "create", "--name", "ci")
 	is.NoErr(err)
-	is.True(got.Scope == nil)
+	is.True(got.Capabilities == nil)
 }
 
-func TestKeyCreateRejectsUnknownScope(t *testing.T) {
+func TestKeyCreateRejectsUnknownCapability(t *testing.T) {
 	is := is.New(t)
 	called := false
 	fake := &client.FakeClient{
@@ -86,10 +94,12 @@ func TestKeyCreateRejectsUnknownScope(t *testing.T) {
 		},
 	}
 
-	_, _, err := runCLI(t, fake, "key", "create", "--name", "ci", "--scope", "write")
+	_, _, err := runCLI(t, fake, "key", "create", "--name", "ci", "--capability", "write")
 	is.True(err != nil)
 	is.True(!called)
-	is.True(strings.Contains(err.Error(), "read-write"))
+	// The error names the vocabulary — a rejected typo should not send the
+	// caller to the docs to find out what was allowed.
+	is.True(strings.Contains(err.Error(), "read_private"))
 }
 
 func TestKeyCreateRequiresName(t *testing.T) {

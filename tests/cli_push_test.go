@@ -86,7 +86,7 @@ func TestCLIPush(t *testing.T) {
 	is := is.New(t)
 
 	memberID := seedUser(t, pool, 9401, "cli-push-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "cli-push", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "cli-push", nil)
 	is.NoErr(err)
 
 	nsName := "cli-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]

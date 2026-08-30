@@ -57,7 +57,7 @@ func TestDashboardStatsArtifactTypeBreakdown(t *testing.T) {
 	is := is.New(t)
 
 	ownerID := seedUser(t, pool, 7401, "stats-types-owner", "member")
-	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "stats-types", "read-write")
+	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "stats-types", nil)
 	is.NoErr(err)
 
 	// Two containers in a public namespace, one application in a private one.

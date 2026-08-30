@@ -1188,19 +1188,32 @@
             "readOnly": true,
             "type": "string"
           },
+          "capabilities": {
+            "description": "Capabilities this key may exercise, intersected with the owner's live namespace roles. Empty means all of them.",
+            "items": {
+              "enum": [
+                "read_private",
+                "ingest",
+                "trigger_scan",
+                "push_inventory",
+                "delete_artifact",
+                "manage_source",
+                "manage_cluster",
+                "read_secret",
+                "manage_member",
+                "delete_namespace"
+              ],
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "name": {
             "description": "Human-readable label for this key",
             "maxLength": 100,
             "minLength": 1,
-            "type": "string"
-          },
-          "scope": {
-            "default": "read-write",
-            "description": "Key scope: read (GET only) or read-write (full access)",
-            "enum": [
-              "read",
-              "read-write"
-            ],
             "type": "string"
           }
         },
@@ -2933,6 +2946,16 @@
       "KeyMetaResponse": {
         "additionalProperties": false,
         "properties": {
+          "capabilities": {
+            "description": "Capabilities this key may exercise, before intersection with the owner's live namespace roles",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "created_at": {
             "format": "date-time",
             "type": "string"
@@ -2951,21 +2974,13 @@
           "prefix": {
             "description": "First 8 characters of the key",
             "type": "string"
-          },
-          "scope": {
-            "description": "Key scope",
-            "enum": [
-              "read",
-              "read-write"
-            ],
-            "type": "string"
           }
         },
         "required": [
           "id",
           "name",
           "prefix",
-          "scope",
+          "capabilities",
           "created_at"
         ],
         "type": "object"

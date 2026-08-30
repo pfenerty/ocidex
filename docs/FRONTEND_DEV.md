@@ -31,7 +31,7 @@ No docker: `postgresql` and `nats-server` are native binaries in the Flox
 environment, and `scripts/dev-auth.sh` runs the whole stack out of `.dev/`.
 Auth is not a bypass — `internal/api/middleware.go` already accepts
 `Authorization: Bearer <api-key>` as equivalent to a session, so the rig mints a
-read-write key and the dev vite config presents it. Writes are safe: the
+fully-capable key and the dev vite config presents it. Writes are safe: the
 database is a throwaway. `make dev-auth-reset` starts it over.
 
 `up` finishes by seeding a corpus (`scripts/dev-fixtures.py`, also reachable on

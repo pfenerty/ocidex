@@ -90,7 +90,7 @@ func TestIngestParity_CopyFromRoundTrip(t *testing.T) {
 	ctx := t.Context()
 
 	memberID := seedUser(t, pool, 7301, "parity-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "parity-test", "read-write")
+	memberKey, err := authSvc.CreateAPIKey(ctx, memberID, "parity-test", nil)
 	is.NoErr(err)
 
 	// --- Ingest ---

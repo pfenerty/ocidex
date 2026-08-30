@@ -104,10 +104,10 @@ func TestWatchedArtifactChangeFeed(t *testing.T) {
 	store := vuln.NewPGStore(pool)
 
 	watcherID := seedUser(t, pool, 7611, "feed-watcher", "member")
-	watcherKey, err := authSvc.CreateAPIKey(t.Context(), watcherID, "watcher", "read-write")
+	watcherKey, err := authSvc.CreateAPIKey(t.Context(), watcherID, "watcher", nil)
 	is.NoErr(err)
 	ownerID := seedUser(t, pool, 7612, "feed-owner", "member")
-	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", "read-write")
+	ownerKey, err := authSvc.CreateAPIKey(t.Context(), ownerID, "owner", nil)
 	is.NoErr(err)
 
 	// The watched artifact belongs to somebody else and is public, which is the
