@@ -855,6 +855,50 @@ export interface paths {
         patch: operations["update-namespace"];
         trace?: never;
     };
+    "/api/v1/namespaces/{id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List namespace members
+         * @description The namespace's members and their roles, owner first. Requires the manage_member capability.
+         */
+        get: operations["list-namespace-members"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/namespaces/{id}/members/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Add a member or change their role
+         * @description Grants a role in this namespace. The user must already exist; there is no invite flow. Demoting or removing the owner is a 409, as is granting a second owner.
+         */
+        put: operations["set-namespace-member"];
+        post?: never;
+        /**
+         * Remove a member
+         * @description Removes a member's role in this namespace. Removing the owner is a 409.
+         */
+        delete: operations["remove-namespace-member"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/registries": {
         parameters: {
             query?: never;
@@ -2904,6 +2948,15 @@ export interface components {
             data: components["schemas"]["WatchEntry"][] | null;
             pagination: components["schemas"]["CursorMeta"];
         };
+        ListNamespaceMembersOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListNamespaceMembersOutputBody.json
+             */
+            readonly $schema?: string;
+            data: components["schemas"]["NamespaceMemberResponse"][] | null;
+        };
         ListNamespacesOutputBody: {
             /**
              * Format: uri
@@ -3072,6 +3125,26 @@ export interface components {
              * @description Containers reported in this namespace
              */
             workload_count: number;
+        };
+        NamespaceMemberResponse: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/NamespaceMemberResponse.json
+             */
+            readonly $schema?: string;
+            /** @description Capabilities the role grants, for display */
+            capabilities: string[] | null;
+            created_at: string;
+            /**
+             * @description The member's role in this namespace
+             * @enum {string}
+             */
+            role: "owner" | "maintainer" | "security" | "developer" | "viewer";
+            /** @description UUID of the member */
+            user_id: string;
+            /** @description GitHub username of the member */
+            username: string;
         };
         NamespaceResponse: {
             /**
@@ -3497,6 +3570,19 @@ export interface components {
             readonly $schema?: string;
             data: components["schemas"]["DistinctComponentSummary"][] | null;
             pagination: components["schemas"]["PaginationMeta"];
+        };
+        SetNamespaceMemberInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/SetNamespaceMemberInputBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * @description Role to grant in this namespace
+             * @enum {string}
+             */
+            role: "owner" | "maintainer" | "security" | "developer" | "viewer";
         };
         SourceResponse: {
             /**
@@ -5697,6 +5783,108 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["NamespaceResponse"];
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-namespace-members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Namespace UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListNamespaceMembersOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "set-namespace-member": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Namespace UUID */
+                id: string;
+                /** @description UUID of the user to grant a role to */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetNamespaceMemberInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NamespaceMemberResponse"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "remove-namespace-member": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Namespace UUID */
+                id: string;
+                /** @description UUID of the member to remove */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {

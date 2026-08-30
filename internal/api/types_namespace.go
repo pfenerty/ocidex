@@ -83,3 +83,55 @@ type UpdateNamespaceOutput struct {
 type DeleteNamespaceInput struct {
 	ID string `path:"id" doc:"Namespace UUID" format:"uuid"`
 }
+
+// ---------------------------------------------------------------------------
+// Namespace members (ocidex-y0hg.7)
+// ---------------------------------------------------------------------------
+
+// NamespaceMemberResponse is one seat at a namespace. The username is joined in
+// for display; user_id is the identifier the mutating routes take, because a
+// GitHub username is a handle its owner can change.
+type NamespaceMemberResponse struct {
+	UserID    string   `json:"user_id" doc:"UUID of the member"`
+	Username  string   `json:"username" doc:"GitHub username of the member"`
+	Role      string   `json:"role" enum:"owner,maintainer,security,developer,viewer" doc:"The member's role in this namespace"`
+	Caps      []string `json:"capabilities" doc:"Capabilities the role grants, for display"`
+	CreatedAt string   `json:"created_at"`
+}
+
+// ListNamespaceMembersInput is the request for GET /api/v1/namespaces/{id}/members.
+type ListNamespaceMembersInput struct {
+	ID string `path:"id" doc:"Namespace UUID" format:"uuid"`
+}
+
+// ListNamespaceMembersOutput is the response for GET /api/v1/namespaces/{id}/members.
+type ListNamespaceMembersOutput struct {
+	Body struct {
+		Data []NamespaceMemberResponse `json:"data"`
+	}
+}
+
+// SetNamespaceMemberInput is the request for
+// PUT /api/v1/namespaces/{id}/members/{user_id}. It is a PUT rather than a
+// POST/PATCH pair because the caller states the membership they want: adding a
+// member and changing one's role are the same statement.
+type SetNamespaceMemberInput struct {
+	ID     string `path:"id" doc:"Namespace UUID" format:"uuid"`
+	UserID string `path:"user_id" doc:"UUID of the user to grant a role to" format:"uuid"`
+	Body   struct {
+		Role string `json:"role" enum:"owner,maintainer,security,developer,viewer" doc:"Role to grant in this namespace"`
+	}
+}
+
+// SetNamespaceMemberOutput is the response for
+// PUT /api/v1/namespaces/{id}/members/{user_id}.
+type SetNamespaceMemberOutput struct {
+	Body NamespaceMemberResponse
+}
+
+// RemoveNamespaceMemberInput is the request for
+// DELETE /api/v1/namespaces/{id}/members/{user_id}.
+type RemoveNamespaceMemberInput struct {
+	ID     string `path:"id" doc:"Namespace UUID" format:"uuid"`
+	UserID string `path:"user_id" doc:"UUID of the member to remove" format:"uuid"`
+}

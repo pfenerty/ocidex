@@ -51,6 +51,14 @@ type NamespaceService interface {
 	List(ctx context.Context, filter VisibilityFilter) ([]Namespace, error)
 	Update(ctx context.Context, params UpdateNamespaceParams) (Namespace, error)
 	Delete(ctx context.Context, id string) error
+
+	// Membership (ocidex-y0hg.7), implemented in namespace_member.go. It sits
+	// on the namespace service rather than a service of its own because a
+	// membership is not a thing that exists apart from its namespace: every
+	// guard rail on it is a statement about the namespace it belongs to.
+	ListMembers(ctx context.Context, namespaceID string) ([]NamespaceMember, error)
+	SetMember(ctx context.Context, params SetNamespaceMemberParams) (NamespaceMember, error)
+	RemoveMember(ctx context.Context, namespaceID, userID string) error
 }
 
 type namespaceService struct {

@@ -121,6 +121,30 @@ func (f *fakeNamespaceService) Update(_ context.Context, _ service.UpdateNamespa
 
 func (f *fakeNamespaceService) Delete(_ context.Context, _ string) error { return nil }
 
+func (f *fakeNamespaceService) ListMembers(_ context.Context, _ string) ([]service.NamespaceMember, error) {
+	return []service.NamespaceMember{f.member()}, nil
+}
+
+func (f *fakeNamespaceService) SetMember(_ context.Context, params service.SetNamespaceMemberParams) (service.NamespaceMember, error) {
+	m := f.member()
+	m.UserID = params.UserID
+	m.Role = params.Role
+	return m, nil
+}
+
+func (f *fakeNamespaceService) RemoveMember(_ context.Context, _, _ string) error { return nil }
+
+// member is the one seat the fake namespace has: ownerUUID, as its owner. It
+// matches ns()'s owner so a test that reads the roster sees the same principal
+// the grants in the fake auth service describe.
+func (f *fakeNamespaceService) member() service.NamespaceMember {
+	return service.NamespaceMember{
+		NamespaceID: testNamespaceID,
+		UserID:      ownerIDStr,
+		Role:        "owner",
+	}
+}
+
 func (f *fakeNamespaceService) ns() service.Namespace {
 	owner := ownerIDStr
 	return service.Namespace{

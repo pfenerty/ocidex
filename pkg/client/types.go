@@ -314,6 +314,33 @@ func (e ListArtifactVersionsOutputBodyResolvedMode) Valid() bool {
 	}
 }
 
+// Defines values for NamespaceMemberResponseRole.
+const (
+	NamespaceMemberResponseRoleDeveloper  NamespaceMemberResponseRole = "developer"
+	NamespaceMemberResponseRoleMaintainer NamespaceMemberResponseRole = "maintainer"
+	NamespaceMemberResponseRoleOwner      NamespaceMemberResponseRole = "owner"
+	NamespaceMemberResponseRoleSecurity   NamespaceMemberResponseRole = "security"
+	NamespaceMemberResponseRoleViewer     NamespaceMemberResponseRole = "viewer"
+)
+
+// Valid indicates whether the value is a known member of the NamespaceMemberResponseRole enum.
+func (e NamespaceMemberResponseRole) Valid() bool {
+	switch e {
+	case NamespaceMemberResponseRoleDeveloper:
+		return true
+	case NamespaceMemberResponseRoleMaintainer:
+		return true
+	case NamespaceMemberResponseRoleOwner:
+		return true
+	case NamespaceMemberResponseRoleSecurity:
+		return true
+	case NamespaceMemberResponseRoleViewer:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for NamespaceResponseVisibility.
 const (
 	NamespaceResponseVisibilityPrivate NamespaceResponseVisibility = "private"
@@ -395,6 +422,33 @@ func (e ScanJobResponseState) Valid() bool {
 	case ScanJobResponseStateRunning:
 		return true
 	case ScanJobResponseStateSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SetNamespaceMemberInputBodyRole.
+const (
+	SetNamespaceMemberInputBodyRoleDeveloper  SetNamespaceMemberInputBodyRole = "developer"
+	SetNamespaceMemberInputBodyRoleMaintainer SetNamespaceMemberInputBodyRole = "maintainer"
+	SetNamespaceMemberInputBodyRoleOwner      SetNamespaceMemberInputBodyRole = "owner"
+	SetNamespaceMemberInputBodyRoleSecurity   SetNamespaceMemberInputBodyRole = "security"
+	SetNamespaceMemberInputBodyRoleViewer     SetNamespaceMemberInputBodyRole = "viewer"
+)
+
+// Valid indicates whether the value is a known member of the SetNamespaceMemberInputBodyRole enum.
+func (e SetNamespaceMemberInputBodyRole) Valid() bool {
+	switch e {
+	case SetNamespaceMemberInputBodyRoleDeveloper:
+		return true
+	case SetNamespaceMemberInputBodyRoleMaintainer:
+		return true
+	case SetNamespaceMemberInputBodyRoleOwner:
+		return true
+	case SetNamespaceMemberInputBodyRoleSecurity:
+		return true
+	case SetNamespaceMemberInputBodyRoleViewer:
 		return true
 	default:
 		return false
@@ -2530,6 +2584,13 @@ type ListMyWatchesOutputBody struct {
 	Pagination CursorMeta    `json:"pagination"`
 }
 
+// ListNamespaceMembersOutputBody defines model for ListNamespaceMembersOutputBody.
+type ListNamespaceMembersOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string                    `json:"$schema,omitempty"`
+	Data   *[]NamespaceMemberResponse `json:"data"`
+}
+
 // ListNamespacesOutputBody defines model for ListNamespacesOutputBody.
 type ListNamespacesOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -2677,6 +2738,28 @@ type NamespaceFacetResponse struct {
 	// WorkloadCount Containers reported in this namespace
 	WorkloadCount int64 `json:"workload_count"`
 }
+
+// NamespaceMemberResponse defines model for NamespaceMemberResponse.
+type NamespaceMemberResponse struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// Capabilities Capabilities the role grants, for display
+	Capabilities *[]string `json:"capabilities"`
+	CreatedAt    string    `json:"created_at"`
+
+	// Role The member's role in this namespace
+	Role NamespaceMemberResponseRole `json:"role"`
+
+	// UserId UUID of the member
+	UserId string `json:"user_id"`
+
+	// Username GitHub username of the member
+	Username string `json:"username"`
+}
+
+// NamespaceMemberResponseRole The member's role in this namespace
+type NamespaceMemberResponseRole string
 
 // NamespaceResponse defines model for NamespaceResponse.
 type NamespaceResponse struct {
@@ -3082,6 +3165,18 @@ type SearchDistinctComponentsOutputBody struct {
 	Data       *[]DistinctComponentSummary `json:"data"`
 	Pagination PaginationMeta              `json:"pagination"`
 }
+
+// SetNamespaceMemberInputBody defines model for SetNamespaceMemberInputBody.
+type SetNamespaceMemberInputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// Role Role to grant in this namespace
+	Role SetNamespaceMemberInputBodyRole `json:"role"`
+}
+
+// SetNamespaceMemberInputBodyRole Role to grant in this namespace
+type SetNamespaceMemberInputBodyRole string
 
 // SourceResponse defines model for SourceResponse.
 type SourceResponse struct {
@@ -4167,6 +4262,9 @@ type CreateNamespaceJSONRequestBody = CreateNamespaceInputBody
 
 // UpdateNamespaceJSONRequestBody defines body for UpdateNamespace for application/json ContentType.
 type UpdateNamespaceJSONRequestBody = UpdateNamespaceInputBody
+
+// SetNamespaceMemberJSONRequestBody defines body for SetNamespaceMember for application/json ContentType.
+type SetNamespaceMemberJSONRequestBody = SetNamespaceMemberInputBody
 
 // CreateRegistryJSONRequestBody defines body for CreateRegistry for application/json ContentType.
 type CreateRegistryJSONRequestBody = CreateRegistryInputBody

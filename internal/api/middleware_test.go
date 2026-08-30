@@ -115,6 +115,10 @@ type fakeAuthService struct {
 	// OptionalAuthenticate resolves grants per request rather than reading
 	// them off the session row.
 	grants map[string]map[string]authz.Role
+	// usersByID backs GetUser, which member management calls to refuse a grant
+	// to a user who has never signed in. A test that does not set it gets the
+	// "no such user" answer, which is the safe default.
+	usersByID map[string]service.AuthUser
 }
 
 func (f *fakeAuthService) ValidateAPIKey(_ context.Context, token string) (service.AuthUser, error) {
@@ -154,12 +158,22 @@ func (f *fakeAuthService) DeleteAPIKey(_ context.Context, _ pgtype.UUID, _ pgtyp
 	return errors.New("not implemented")
 }
 
-func (f *fakeAuthService) GetUser(_ context.Context, _ pgtype.UUID) (service.AuthUser, error) {
-	return service.AuthUser{}, errors.New("not implemented")
+func (f *fakeAuthService) GetUser(_ context.Context, id pgtype.UUID) (service.AuthUser, error) {
+	if u, ok := f.usersByID[uuidString(id)]; ok {
+		return u, nil
+	}
+	return service.AuthUser{}, errors.New("no such user")
 }
 
 func (f *fakeAuthService) ListUsers(_ context.Context) ([]service.AuthUser, error) {
-	return nil, errors.New("not implemented")
+	if f.usersByID == nil {
+		return nil, errors.New("not implemented")
+	}
+	out := make([]service.AuthUser, 0, len(f.usersByID))
+	for _, u := range f.usersByID {
+		out = append(out, u)
+	}
+	return out, nil
 }
 
 func (f *fakeAuthService) UpdateUserRole(_ context.Context, _ pgtype.UUID, _ string) (service.AuthUser, error) {

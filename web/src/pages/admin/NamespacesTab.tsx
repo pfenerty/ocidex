@@ -2,6 +2,7 @@ import { Show, createSignal, createMemo } from "solid-js";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { Button, Card, CardHeader, FormField } from "~/components/ui";
+import { NamespaceMembers } from "./NamespaceMembers";
 import { useToast } from "~/context/toast";
 import { relativeDate } from "~/utils/format";
 import type { Namespace, Source } from "~/api/client";
@@ -32,6 +33,7 @@ export function NamespacesTab() {
     const [newName, setNewName] = createSignal("");
     const [newVisibility, setNewVisibility] = createSignal<Visibility>("private");
 
+    const [membersID, setMembersID] = createSignal<string | null>(null);
     const [editingID, setEditingID] = createSignal<string | null>(null);
     const [editName, setEditName] = createSignal("");
     const [editVisibility, setEditVisibility] = createSignal<Visibility>("private");
@@ -45,6 +47,14 @@ export function NamespacesTab() {
         }
         return counts;
     });
+
+    // The roster panel is rendered from the list rather than from a detail
+    // page, because a namespace has no detail page. Resolving the id against
+    // the live list keeps the panel correct if the namespace is renamed or
+    // deleted underneath it.
+    const membersNamespace = createMemo(() =>
+        ((query.data?.data ?? []) as Namespace[]).find((ns) => ns.id === membersID()),
+    );
 
     function handleCreate(e: Event) {
         e.preventDefault();
@@ -179,6 +189,13 @@ export function NamespacesTab() {
                             </Button>
                             <Button
                                 size="sm"
+                                active={membersID() === ns.id}
+                                onClick={() => setMembersID(membersID() === ns.id ? null : ns.id)}
+                            >
+                                Members
+                            </Button>
+                            <Button
+                                size="sm"
                                 onClick={() => handleDelete(ns)}
                                 disabled={deleteNamespace.isPending}
                             >
@@ -240,6 +257,10 @@ export function NamespacesTab() {
                     </Button>
                 </form>
             </Card>
+
+            <Show when={membersNamespace()}>
+                {(ns) => <NamespaceMembers namespace={ns()} onClose={() => setMembersID(null)} />}
+            </Show>
 
             <DataTable
                 columns={columns}

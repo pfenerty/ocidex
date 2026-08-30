@@ -174,6 +174,9 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 | DELETE | `/api/v1/namespaces/{id}` | `delete-namespace` | `capability` | `delete_namespace` | ✓ | delete_namespace capability check in handler; deletes everything ingested under the namespace. |
 | GET | `/api/v1/namespaces/{id}` | `get-namespace` | `authenticated` | — |  | A private namespace the caller does not own 404s, so its existence is not leaked. |
 | PATCH | `/api/v1/namespaces/{id}` | `update-namespace` | `capability` | `manage_member` | ✓ | manage_member capability check in handler. |
+| GET | `/api/v1/namespaces/{id}/members` | `list-namespace-members` | `capability` | `manage_member` |  | RequireCapability(manage_member) middleware, on the {id} path param. Who may see the roster is who may change it. |
+| DELETE | `/api/v1/namespaces/{id}/members/{user_id}` | `remove-namespace-member` | `capability` | `manage_member` | ✓ | RequireCapability(manage_member) middleware, on the {id} path param. Removing the owner is a 409. |
+| PUT | `/api/v1/namespaces/{id}/members/{user_id}` | `set-namespace-member` | `capability` | `manage_member` | ✓ | RequireCapability(manage_member) middleware, on the {id} path param. A caller may not grant a role they do not hold themselves; demoting or removing the owner, or granting a second one, is a 409. |
 
 ### Registries
 

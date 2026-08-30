@@ -229,3 +229,56 @@ func TestRolesWithMatchesTheTable(t *testing.T) {
 		t.Errorf("RolesWith of an unknown capability returned %d roles, want 0", n)
 	}
 }
+
+// TestDominatesAgreesWithTheTable pins Dominates to the capability sets rather
+// than to a remembered ordering, and states the pairs member management turns
+// on: owner dominates everything, viewer dominates only itself, and developer
+// dominates security but not the other way round.
+func TestDominatesAgreesWithTheTable(t *testing.T) {
+	for _, r := range allRoles {
+		for _, other := range allRoles {
+			want := true
+			for _, c := range allCapabilities {
+				if other.Allows(c) && !r.Allows(c) {
+					want = false
+					break
+				}
+			}
+			if got := r.Dominates(other); got != want {
+				t.Errorf("%s.Dominates(%s) = %v, want %v", r, other, got, want)
+			}
+		}
+	}
+
+	for _, r := range allRoles {
+		if !r.Dominates(r) {
+			t.Errorf("%s does not dominate itself", r)
+		}
+		if !RoleOwner.Dominates(r) {
+			t.Errorf("owner does not dominate %s", r)
+		}
+		if r != RoleOwner && r.Dominates(RoleOwner) {
+			t.Errorf("%s dominates owner", r)
+		}
+	}
+
+	// developer is a strict superset of security (it adds ingest and
+	// push_inventory to the same read and re-scan), so domination runs one way
+	// only. Pinning the direction is the point: a rank-based implementation
+	// would just as happily have it backwards, since security sounds senior.
+	if !RoleDeveloper.Dominates(RoleSecurity) {
+		t.Error("developer holds everything security holds and must dominate it")
+	}
+	if RoleSecurity.Dominates(RoleDeveloper) {
+		t.Error("security lacks ingest and push_inventory and must not dominate developer")
+	}
+	if !RoleViewer.Dominates(RoleViewer) || RoleViewer.Dominates(RoleDeveloper) {
+		t.Error("viewer must dominate itself and nothing above it")
+	}
+	if !Role("no_such_role").Dominates("another_unknown") {
+		t.Error("an unknown role holds nothing, so it dominates another empty role")
+	}
+	if Role("no_such_role").Dominates(RoleViewer) {
+		t.Error("an unknown role holds nothing and must dominate no real role")
+	}
+}

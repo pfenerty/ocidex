@@ -143,9 +143,12 @@ FROM ocidex_user WHERE github_id = $gid;
         done
         if [ -n "$ns" ]; then
             sql+="
-INSERT INTO namespace (name, owner_id, visibility)
-SELECT '$ns', id, 'private' FROM ocidex_user WHERE github_id = $gid
+INSERT INTO namespace (name, visibility) VALUES ('$ns', 'private')
 ON CONFLICT (name) DO NOTHING;
+INSERT INTO namespace_member (namespace_id, user_id, role)
+SELECT n.id, u.id, 'owner' FROM namespace n, ocidex_user u
+WHERE n.name = '$ns' AND u.github_id = $gid
+ON CONFLICT (namespace_id, user_id) DO NOTHING;
 "
         fi
     done
@@ -165,13 +168,17 @@ ENV
 
 # Prints who exists and what they own. The roster is the whole point of the rig
 # — a reviewer has to know which key is which before switching personas.
+#
+# "Owns" is now a membership row (ADR-046), not a namespace column: the owner is
+# the single `namespace_member` with role 'owner'.
 roster() {
     psql -tA -F' ' <<'SQL' 2>/dev/null || echo "  (database not reachable)"
 SELECT '  ' || rpad(u.github_username, 12) || rpad(u.role, 7)
        || rpad((SELECT count(*) FROM api_key k WHERE k.user_id = u.id) || ' keys', 8)
        || 'owns: ' || coalesce(string_agg(n.name || ' (' || n.visibility || ')', ', '), '-')
 FROM ocidex_user u
-LEFT JOIN namespace n ON n.owner_id = u.id
+LEFT JOIN namespace_member m ON m.user_id = u.id AND m.role = 'owner'
+LEFT JOIN namespace n ON n.id = m.namespace_id
 GROUP BY u.id, u.github_username, u.role
 ORDER BY u.github_id;
 SQL

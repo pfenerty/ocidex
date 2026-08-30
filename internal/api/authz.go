@@ -30,6 +30,29 @@ func can(user service.AuthUser, namespaceID string, c authz.Capability) bool {
 	return authz.Allow(user.Role, role, present, c)
 }
 
+// mayGrant reports whether user may hand out role in the namespace identified
+// by namespaceID.
+//
+// Holding CapManageMember says you may edit the membership; it does not say
+// which roles you may write into it. Without this, an owner-equivalent role
+// added later could grant itself a superset of its own rights by way of a
+// colleague and then log in as nobody in particular. Today only the owner holds
+// CapManageMember and the owner dominates every role, so this refuses nothing —
+// which is exactly why it is written down now, while it is easy: the rule has
+// to already be true when a second role gains the capability.
+//
+// An installation-wide admin is unconstrained here, as everywhere.
+func mayGrant(user service.AuthUser, namespaceID string, role authz.Role) bool {
+	if user.Role == roleAdmin {
+		return true
+	}
+	callerRole, present := user.Grants[namespaceID]
+	if namespaceID == "" || !present {
+		return false
+	}
+	return callerRole.Dominates(role)
+}
+
 // canFromContext is can for the caller in ctx. An unauthenticated caller holds
 // nothing: there is no anonymous membership, and a public namespace is read
 // through the SQL visibility functions rather than through a capability.

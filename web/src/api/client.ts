@@ -126,6 +126,13 @@ export type EnrichmentJob = components["schemas"]["EnrichmentJobResponse"];
 export type Registry = components["schemas"]["RegistryResponse"];
 export type Source = components["schemas"]["SourceResponse"];
 export type Namespace = components["schemas"]["NamespaceResponse"];
+export type NamespaceMember = components["schemas"]["NamespaceMemberResponse"];
+/**
+ * The closed role set (ADR-046). It comes from the generated schema rather than
+ * a hand-written union so that adding a role in Go is a compile error here
+ * until the UI decides what to do with it.
+ */
+export type NamespaceRole = NamespaceMember["role"];
 export type APIKey = components["schemas"]["KeyMetaResponse"];
 export type UserAccount = components["schemas"]["UserResponse"];
 export type ErrorModel = components["schemas"]["ErrorModel"];

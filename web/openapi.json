@@ -3605,6 +3605,33 @@
         ],
         "type": "object"
       },
+      "ListNamespaceMembersOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListNamespaceMembersOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/NamespaceMemberResponse"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
       "ListNamespacesOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -4089,6 +4116,60 @@
         "required": [
           "k8s_namespace",
           "workload_count"
+        ],
+        "type": "object"
+      },
+      "NamespaceMemberResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/NamespaceMemberResponse.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "capabilities": {
+            "description": "Capabilities the role grants, for display",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "role": {
+            "description": "The member's role in this namespace",
+            "enum": [
+              "owner",
+              "maintainer",
+              "security",
+              "developer",
+              "viewer"
+            ],
+            "type": "string"
+          },
+          "user_id": {
+            "description": "UUID of the member",
+            "type": "string"
+          },
+          "username": {
+            "description": "GitHub username of the member",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "username",
+          "role",
+          "capabilities",
+          "created_at"
         ],
         "type": "object"
       },
@@ -5228,6 +5309,35 @@
         "required": [
           "data",
           "pagination"
+        ],
+        "type": "object"
+      },
+      "SetNamespaceMemberInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/SetNamespaceMemberInputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "role": {
+            "description": "Role to grant in this namespace",
+            "enum": [
+              "owner",
+              "maintainer",
+              "security",
+              "developer",
+              "viewer"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "role"
         ],
         "type": "object"
       },
@@ -9366,6 +9476,164 @@
           }
         },
         "summary": "Update a namespace (partial)",
+        "tags": [
+          "Namespaces"
+        ]
+      }
+    },
+    "/api/v1/namespaces/{id}/members": {
+      "get": {
+        "description": "The namespace's members and their roles, owner first. Requires the manage_member capability.",
+        "operationId": "list-namespace-members",
+        "parameters": [
+          {
+            "description": "Namespace UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Namespace UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListNamespaceMembersOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List namespace members",
+        "tags": [
+          "Namespaces"
+        ]
+      }
+    },
+    "/api/v1/namespaces/{id}/members/{user_id}": {
+      "delete": {
+        "description": "Removes a member's role in this namespace. Removing the owner is a 409.",
+        "operationId": "remove-namespace-member",
+        "parameters": [
+          {
+            "description": "Namespace UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Namespace UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "UUID of the member to remove",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "description": "UUID of the member to remove",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Remove a member",
+        "tags": [
+          "Namespaces"
+        ]
+      },
+      "put": {
+        "description": "Grants a role in this namespace. The user must already exist; there is no invite flow. Demoting or removing the owner is a 409, as is granting a second owner.",
+        "operationId": "set-namespace-member",
+        "parameters": [
+          {
+            "description": "Namespace UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Namespace UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "UUID of the user to grant a role to",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "description": "UUID of the user to grant a role to",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetNamespaceMemberInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NamespaceMemberResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Add a member or change their role",
         "tags": [
           "Namespaces"
         ]

@@ -225,6 +225,26 @@ func (r Role) Capabilities() []Capability {
 	return out
 }
 
+// Dominates reports whether r grants every capability other grants. It is the
+// question member management asks before writing a grant: a member may hand out
+// a role only if they already hold everything that role would confer, so nobody
+// grants themselves a promotion by way of a colleague.
+//
+// It is deliberately a capability-set comparison rather than a rank. The five
+// roles are not a chain — security and developer each hold something the other
+// does not — so any total ordering would have to invent an answer for pairs the
+// capability table already answers. A role always dominates itself, and an
+// unknown role holds nothing, so it dominates only other empty roles.
+func (r Role) Dominates(other Role) bool {
+	mine := roleCaps[r]
+	for c, held := range roleCaps[other] {
+		if held && !mine[c] {
+			return false
+		}
+	}
+	return true
+}
+
 // AllRoles returns the five roles, highest first. Fresh slice per call.
 func AllRoles() []Role {
 	return append([]Role(nil), allRoles...)

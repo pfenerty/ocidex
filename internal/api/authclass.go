@@ -95,6 +95,7 @@ type AuthRule struct {
 const (
 	noteVisFilter        = "VisibilityFilter."
 	noteManageRegistryMW = "RequireCapability(manage_source) middleware."
+	noteManageMemberMW   = "RequireCapability(manage_member) middleware, on the {id} path param."
 
 	// noteNamespaceScoped marks the operational feeds that any authenticated
 	// caller may invoke but which return only rows from the namespaces the
@@ -219,6 +220,10 @@ var authRules = map[string]AuthRule{
 	"create-namespace":      {Class: ClassAuthenticated, Write: true, Notes: "Owned by the calling user."},
 	"update-namespace":      {Class: ClassCapability, Cap: authz.CapManageMember, Write: true, Notes: "manage_member capability check in handler."},
 	"delete-namespace":      {Class: ClassCapability, Cap: authz.CapDeleteNamespace, Write: true, Notes: "delete_namespace capability check in handler; deletes everything ingested under the namespace."},
+
+	"list-namespace-members":  {Class: ClassCapability, Cap: authz.CapManageMember, Notes: noteManageMemberMW + " Who may see the roster is who may change it."},
+	"set-namespace-member":    {Class: ClassCapability, Cap: authz.CapManageMember, Write: true, Notes: noteManageMemberMW + " A caller may not grant a role they do not hold themselves; demoting or removing the owner, or granting a second one, is a 409."},
+	"remove-namespace-member": {Class: ClassCapability, Cap: authz.CapManageMember, Write: true, Notes: noteManageMemberMW + " Removing the owner is a 409."},
 
 	// --- Sources ------------------------------------------------------------
 	"list-sources":  {Class: ClassAuthenticated, Notes: "Visibility resolved through the owning namespace."},

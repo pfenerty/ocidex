@@ -100,6 +100,15 @@ type NamespaceRepository interface {
 	ListNamespaces(ctx context.Context, arg ListNamespacesParams) ([]ListNamespacesRow, error)
 	UpdateNamespace(ctx context.Context, arg UpdateNamespaceParams) (UpdateNamespaceRow, error)
 	DeleteNamespace(ctx context.Context, id pgtype.UUID) (int64, error)
+	// Membership (ocidex-y0hg.7). These are the write side of the namespace
+	// team; the read side that decides what rows a caller sees goes through
+	// the SQL visibility functions instead, so that the rule stays in one
+	// place. AddNamespaceMember upserts, and returns a unique violation on
+	// namespace_one_owner when a second owner is proposed.
+	AddNamespaceMember(ctx context.Context, arg AddNamespaceMemberParams) (NamespaceMember, error)
+	GetNamespaceMember(ctx context.Context, arg GetNamespaceMemberParams) (NamespaceMember, error)
+	ListNamespaceMembers(ctx context.Context, namespaceID pgtype.UUID) ([]NamespaceMember, error)
+	RemoveNamespaceMember(ctx context.Context, arg RemoveNamespaceMemberParams) (int64, error)
 }
 
 // SourceRepository defines data access methods for source management. A source

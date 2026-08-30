@@ -57,6 +57,22 @@ func (h *Handler) artifactNamespace(ctx huma.Context) (pgtype.UUID, error) {
 	return h.sbomService.GetArtifactNamespaceID(ctx.Context(), id)
 }
 
+// namespaceParam resolves the {id} path param as a namespace of its own — the
+// member routes, where the namespace is not reached through anything. It loads
+// the namespace rather than merely parsing the id so that a member operation on
+// a namespace that is not there answers 404, the same way requireNamespaceCapability
+// does for the body-named case.
+func (h *Handler) namespaceParam(ctx huma.Context) (pgtype.UUID, error) {
+	if h.namespaceService == nil {
+		return pgtype.UUID{}, nil
+	}
+	ns, err := h.namespaceService.Get(ctx.Context(), ctx.Param("id"))
+	if err != nil {
+		return pgtype.UUID{}, err
+	}
+	return parseUUID(ns.ID)
+}
+
 // registryNamespace resolves the {id} path param to the registry's namespace,
 // reached through its source row.
 func (h *Handler) registryNamespace(ctx huma.Context) (pgtype.UUID, error) {
@@ -97,8 +113,11 @@ const (
 const (
 	pathRegistryByID  = "/api/v1/registries/{id}"
 	pathNamespaceByID = "/api/v1/namespaces/{id}"
-	pathSourceByID    = "/api/v1/sources/{id}"
-	pathClusterByID   = "/api/v1/clusters/{id}"
+
+	pathNamespaceMembers      = "/api/v1/namespaces/{id}/members"
+	pathNamespaceMemberByUser = "/api/v1/namespaces/{id}/members/{user_id}"
+	pathSourceByID            = "/api/v1/sources/{id}"
+	pathClusterByID           = "/api/v1/clusters/{id}"
 )
 
 // URL schemes, and the ENVIRONMENT value that gates production-only behaviour
@@ -759,6 +778,43 @@ func registerNamespaceOps(api huma.API, h *Handler) {
 		DefaultStatus: http.StatusNoContent,
 		Middlewares:   huma.Middlewares{authMW, writeMW},
 	}, h.DeleteNamespace)
+
+	// Membership. The namespace is the {id} path param itself, so unlike the
+	// body-named cases these can be guarded by middleware rather than in the
+	// handler, and a caller without manage_member never reaches the roster.
+	memberMW := RequireCapability(api, authz.CapManageMember, h.namespaceParam)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-namespace-members",
+		Method:      http.MethodGet,
+		Path:        pathNamespaceMembers,
+		Summary:     "List namespace members",
+		Description: "The namespace's members and their roles, owner first. Requires the manage_member capability.",
+		Tags:        []string{tagNamespaces},
+		Middlewares: huma.Middlewares{authMW, memberMW},
+	}, h.ListNamespaceMembers)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "set-namespace-member",
+		Method:      http.MethodPut,
+		Path:        pathNamespaceMemberByUser,
+		Summary:     "Add a member or change their role",
+		Description: "Grants a role in this namespace. The user must already exist; there is no invite flow. " +
+			"Demoting or removing the owner is a 409, as is granting a second owner.",
+		Tags:        []string{tagNamespaces},
+		Middlewares: huma.Middlewares{authMW, memberMW, writeMW},
+	}, h.SetNamespaceMember)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "remove-namespace-member",
+		Method:        http.MethodDelete,
+		Path:          pathNamespaceMemberByUser,
+		Summary:       "Remove a member",
+		Description:   "Removes a member's role in this namespace. Removing the owner is a 409.",
+		Tags:          []string{tagNamespaces},
+		DefaultStatus: http.StatusNoContent,
+		Middlewares:   huma.Middlewares{authMW, memberMW, writeMW},
+	}, h.RemoveNamespaceMember)
 }
 
 // ---------------------------------------------------------------------------
