@@ -18,7 +18,29 @@ declaration or a declaration outlives its operation.
 | `authenticated` | Any authenticated principal, `viewer` included. `RequireAuthenticated`. |
 | `member` | `member` or `admin`; `viewer` is rejected with 403. `RequireMember`. |
 | `admin` | `admin` only; everyone else gets 403. `RequireAdmin`. |
-| `owner` | The owner of the namespace the resource hangs from, or an `admin`. Per ADR-039 namespace ownership is the *only* ownership check — sources and registries inherit their answer from the namespace above them. Enforced by an ownership middleware or, where the namespace is only knowable from the body, in the handler; the Notes column says which. |
+| `capability` | A caller whose role in the namespace the resource hangs from grants the capability in the **Capability** column, or an `admin`. Per ADR-039 the namespace is the *only* authorization anchor — sources and registries inherit their answer from the namespace above them. Enforced by `RequireCapability` or, where the namespace is only knowable from the request, in the handler; the Notes column says which. The capability each role grants is in the table below. |
+
+## Namespace roles and capabilities
+
+A `capability` operation asks whether the caller's role **in the namespace the resource
+hangs from** grants the capability it declares. An installation-wide `admin`
+short-circuits every cell; an installation-wide `viewer` is capped at `read_private`
+whatever role a namespace gave them; a non-member holds nothing (ADR-046).
+
+Generated from `roleCaps` in [`internal/authz/capability.go`](../internal/authz/capability.go).
+
+| Capability | `owner` | `maintainer` | `security` | `developer` | `viewer` |
+|---|---|---|---|---|---|
+| `read_private` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `ingest` | ✓ | ✓ |  | ✓ |  |
+| `trigger_scan` | ✓ | ✓ | ✓ | ✓ |  |
+| `push_inventory` | ✓ | ✓ |  | ✓ |  |
+| `delete_artifact` | ✓ | ✓ |  |  |  |
+| `manage_source` | ✓ | ✓ |  |  |  |
+| `manage_cluster` | ✓ | ✓ |  |  |  |
+| `read_secret` | ✓ | ✓ |  |  |  |
+| `manage_member` | ✓ |  |  |  |  |
+| `delete_namespace` | ✓ |  |  |  |  |
 
 ## Write scope
 
@@ -30,185 +52,185 @@ key's owner passes the class check. Session cookies and `read-write` keys are un
 
 ### Admin
 
-| Method | Path | Operation | Class | Write | Notes |
-|---|---|---|---|---|---|
-| GET | `/api/v1/admin/status` | `get-system-status` | `admin` |  | Exposes DB and job-queue internals. |
+| Method | Path | Operation | Class | Capability | Write | Notes |
+|---|---|---|---|---|---|---|
+| GET | `/api/v1/admin/status` | `get-system-status` | `admin` | — |  | Exposes DB and job-queue internals. |
 
 ### Artifacts
 
-| Method | Path | Operation | Class | Write | Notes |
-|---|---|---|---|---|---|
-| GET | `/api/v1/artifacts` | `list-artifacts` | `public` |  | VisibilityFilter. |
-| GET | `/api/v1/artifacts/lookup` | `lookup-artifact` | `public` |  | VisibilityFilter applied before the ambiguity count (ADR-042). |
-| DELETE | `/api/v1/artifacts/{id}` | `delete-artifact` | `owner` | ✓ | RequireCapability(delete_artifact) middleware on the artifact's namespace. |
-| GET | `/api/v1/artifacts/{id}` | `get-artifact` | `public` |  | VisibilityFilter. |
-| GET | `/api/v1/artifacts/{id}/changelog` | `get-artifact-changelog` | `public` |  | VisibilityFilter. |
-| GET | `/api/v1/artifacts/{id}/contains` | `get-artifact-contains` | `public` |  | Filtered via visible_namespace_ids (ADR-041). |
-| GET | `/api/v1/artifacts/{id}/license-summary` | `get-artifact-license-summary` | `public` |  | VisibilityFilter. |
-| GET | `/api/v1/artifacts/{id}/sboms` | `list-artifact-sboms` | `public` |  | VisibilityFilter. |
-| GET | `/api/v1/artifacts/{id}/usages` | `get-artifact-usages` | `public` |  | Filtered via visible_namespace_ids (ADR-041). |
-| GET | `/api/v1/artifacts/{id}/versions` | `list-artifact-versions` | `public` |  | VisibilityFilter. |
-| GET | `/api/v1/artifacts/{id}/vuln-summary` | `get-artifact-vuln-summary` | `public` |  | VisibilityFilter. |
-| GET | `/api/v1/artifacts/{id}/vulns` | `list-artifact-vulns` | `public` |  | VisibilityFilter. |
+| Method | Path | Operation | Class | Capability | Write | Notes |
+|---|---|---|---|---|---|---|
+| GET | `/api/v1/artifacts` | `list-artifacts` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/artifacts/lookup` | `lookup-artifact` | `public` | — |  | VisibilityFilter applied before the ambiguity count (ADR-042). |
+| DELETE | `/api/v1/artifacts/{id}` | `delete-artifact` | `capability` | `delete_artifact` | ✓ | RequireCapability(delete_artifact) middleware on the artifact's namespace. |
+| GET | `/api/v1/artifacts/{id}` | `get-artifact` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/artifacts/{id}/changelog` | `get-artifact-changelog` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/artifacts/{id}/contains` | `get-artifact-contains` | `public` | — |  | Filtered via visible_namespace_ids (ADR-041). |
+| GET | `/api/v1/artifacts/{id}/license-summary` | `get-artifact-license-summary` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/artifacts/{id}/sboms` | `list-artifact-sboms` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/artifacts/{id}/usages` | `get-artifact-usages` | `public` | — |  | Filtered via visible_namespace_ids (ADR-041). |
+| GET | `/api/v1/artifacts/{id}/versions` | `list-artifact-versions` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/artifacts/{id}/vuln-summary` | `get-artifact-vuln-summary` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/artifacts/{id}/vulns` | `list-artifact-vulns` | `public` | — |  | VisibilityFilter. |
 
 ### Auth
 
-| Method | Path | Operation | Class | Write | Notes |
-|---|---|---|---|---|---|
-| GET | `/api/v1/auth/keys` | `list-api-keys` | `member` |  | Own keys only. |
-| POST | `/api/v1/auth/keys` | `create-api-key` | `member` | ✓ | Key is scoped to the calling user. |
-| DELETE | `/api/v1/auth/keys/{id}` | `delete-api-key` | `member` | ✓ | Own keys only. |
-| GET | `/api/v1/users` | `list-users` | `admin` |  |  |
-| GET | `/api/v1/users/me` | `get-me` | `authenticated` |  | Returns the calling principal. |
-| GET | `/api/v1/users/me/activity` | `list-my-activity` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
-| GET | `/api/v1/users/me/artifacts` | `list-my-artifacts` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
-| GET | `/api/v1/users/me/drift-feed` | `list-my-drift-feed` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
-| GET | `/api/v1/users/me/namespaces` | `list-my-namespaces` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
-| GET | `/api/v1/users/me/registries` | `list-my-registries` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
-| GET | `/api/v1/users/me/sources` | `list-my-sources` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
-| GET | `/api/v1/users/me/vulns` | `list-my-vulnerabilities` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
-| GET | `/api/v1/users/me/watches` | `list-my-watches` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
-| GET | `/api/v1/users/me/watches/feed` | `list-my-watch-feed` | `authenticated` |  | Self-scoped, and additionally visibility-filtered: an artifact made private after being starred stays on the watchlist but stops producing events. |
-| DELETE | `/api/v1/users/me/watches/{artifact_id}` | `unwatch-artifact` | `authenticated` | ✓ | Removes the caller's own watch; idempotent. |
-| PUT | `/api/v1/users/me/watches/{artifact_id}` | `watch-artifact` | `authenticated` | ✓ | Watch is self-scoped; the artifact must be visible to the caller, which may include others' public artifacts. |
-| PATCH | `/api/v1/users/{id}/role` | `update-user-role` | `admin` | ✓ |  |
+| Method | Path | Operation | Class | Capability | Write | Notes |
+|---|---|---|---|---|---|---|
+| GET | `/api/v1/auth/keys` | `list-api-keys` | `member` | — |  | Own keys only. |
+| POST | `/api/v1/auth/keys` | `create-api-key` | `member` | — | ✓ | Key is scoped to the calling user. |
+| DELETE | `/api/v1/auth/keys/{id}` | `delete-api-key` | `member` | — | ✓ | Own keys only. |
+| GET | `/api/v1/users` | `list-users` | `admin` | — |  |  |
+| GET | `/api/v1/users/me` | `get-me` | `authenticated` | — |  | Returns the calling principal. |
+| GET | `/api/v1/users/me/activity` | `list-my-activity` | `authenticated` | — |  | Owned rows only; excludes others' public rows, and admins get no widening. |
+| GET | `/api/v1/users/me/artifacts` | `list-my-artifacts` | `authenticated` | — |  | Owned rows only; excludes others' public rows, and admins get no widening. |
+| GET | `/api/v1/users/me/drift-feed` | `list-my-drift-feed` | `authenticated` | — |  | Owned rows only; excludes others' public rows, and admins get no widening. |
+| GET | `/api/v1/users/me/namespaces` | `list-my-namespaces` | `authenticated` | — |  | Owned rows only; excludes others' public rows, and admins get no widening. |
+| GET | `/api/v1/users/me/registries` | `list-my-registries` | `authenticated` | — |  | Owned rows only; excludes others' public rows, and admins get no widening. |
+| GET | `/api/v1/users/me/sources` | `list-my-sources` | `authenticated` | — |  | Owned rows only; excludes others' public rows, and admins get no widening. |
+| GET | `/api/v1/users/me/vulns` | `list-my-vulnerabilities` | `authenticated` | — |  | Owned rows only; excludes others' public rows, and admins get no widening. |
+| GET | `/api/v1/users/me/watches` | `list-my-watches` | `authenticated` | — |  | Owned rows only; excludes others' public rows, and admins get no widening. |
+| GET | `/api/v1/users/me/watches/feed` | `list-my-watch-feed` | `authenticated` | — |  | Self-scoped, and additionally visibility-filtered: an artifact made private after being starred stays on the watchlist but stops producing events. |
+| DELETE | `/api/v1/users/me/watches/{artifact_id}` | `unwatch-artifact` | `authenticated` | — | ✓ | Removes the caller's own watch; idempotent. |
+| PUT | `/api/v1/users/me/watches/{artifact_id}` | `watch-artifact` | `authenticated` | — | ✓ | Watch is self-scoped; the artifact must be visible to the caller, which may include others' public artifacts. |
+| PATCH | `/api/v1/users/{id}/role` | `update-user-role` | `admin` | — | ✓ |  |
 
 ### Clusters
 
-| Method | Path | Operation | Class | Write | Notes |
-|---|---|---|---|---|---|
-| GET | `/api/v1/clusters` | `list-clusters` | `authenticated` |  | Visibility resolved through the owning namespace. |
-| POST | `/api/v1/clusters` | `create-cluster` | `owner` | ✓ | manage_cluster capability on the body's namespace_id. |
-| DELETE | `/api/v1/clusters/{id}` | `delete-cluster` | `owner` | ✓ | manage_cluster capability on the cluster's namespace; drops reported inventory only. |
-| GET | `/api/v1/clusters/{id}` | `get-cluster` | `authenticated` |  | 404s when the owning namespace is private and unowned. |
-| PATCH | `/api/v1/clusters/{id}` | `update-cluster` | `owner` | ✓ | manage_cluster capability on the cluster's namespace. |
-| GET | `/api/v1/clusters/{id}/images` | `list-cluster-images` | `authenticated` |  | Same gate and same rows as list-cluster-workloads, grouped by image rather than by workload-container. |
-| POST | `/api/v1/clusters/{id}/ingest-unknown` | `ingest-cluster-unknown-images` | `owner` | ✓ | trigger_scan capability, not the visibility that guards the matching list: this spends the namespace's registry credentials and enqueues scan work. Same gate as put-cluster-inventory, which is the other trigger for the same action. |
-| POST | `/api/v1/clusters/{id}/inventory` | `put-cluster-inventory` | `owner` | ✓ | push_inventory capability on the cluster's namespace — membership, not visibility, because a public namespace must not make inventory writable by anyone. |
-| GET | `/api/v1/clusters/{id}/k8s-namespaces` | `list-cluster-k8s-namespaces` | `authenticated` |  | Same gate as list-cluster-workloads; the facet counts describe only the rows that gate admits. |
-| GET | `/api/v1/clusters/{id}/unknown-images` | `list-cluster-unknown-images` | `authenticated` |  | Same gate as list-cluster-workloads. It names the namespace's registries, so cluster visibility is what authorizes learning them; resolution never leaves the cluster's own namespace. |
-| GET | `/api/v1/clusters/{id}/vulns` | `list-cluster-vulns` | `authenticated` |  | Same gate as list-cluster-workloads; findings and coverage are returned together so neither can be read without the other. |
-| GET | `/api/v1/clusters/{id}/workloads` | `list-cluster-workloads` | `authenticated` |  | Cluster gated on namespace visibility; rows additionally filtered via visible_namespace_ids. |
-| GET | `/api/v1/users/me/clusters` | `list-my-clusters` | `authenticated` |  | Owned rows only; excludes others' public rows, and admins get no widening. |
+| Method | Path | Operation | Class | Capability | Write | Notes |
+|---|---|---|---|---|---|---|
+| GET | `/api/v1/clusters` | `list-clusters` | `authenticated` | — |  | Visibility resolved through the owning namespace. |
+| POST | `/api/v1/clusters` | `create-cluster` | `capability` | `manage_cluster` | ✓ | manage_cluster capability on the body's namespace_id. |
+| DELETE | `/api/v1/clusters/{id}` | `delete-cluster` | `capability` | `manage_cluster` | ✓ | manage_cluster capability on the cluster's namespace; drops reported inventory only. |
+| GET | `/api/v1/clusters/{id}` | `get-cluster` | `authenticated` | — |  | 404s when the owning namespace is private and unowned. |
+| PATCH | `/api/v1/clusters/{id}` | `update-cluster` | `capability` | `manage_cluster` | ✓ | manage_cluster capability on the cluster's namespace. |
+| GET | `/api/v1/clusters/{id}/images` | `list-cluster-images` | `authenticated` | — |  | Same gate and same rows as list-cluster-workloads, grouped by image rather than by workload-container. |
+| POST | `/api/v1/clusters/{id}/ingest-unknown` | `ingest-cluster-unknown-images` | `capability` | `trigger_scan` | ✓ | trigger_scan, not the visibility that guards the matching list: this spends the namespace's registry credentials and enqueues scan work. It deliberately diverges from put-cluster-inventory, the other trigger for the same action — pushing inventory is what a CI agent does (push_inventory), asking the installation to go scan what it found is not. |
+| POST | `/api/v1/clusters/{id}/inventory` | `put-cluster-inventory` | `capability` | `push_inventory` | ✓ | push_inventory capability on the cluster's namespace — membership, not visibility, because a public namespace must not make inventory writable by anyone. |
+| GET | `/api/v1/clusters/{id}/k8s-namespaces` | `list-cluster-k8s-namespaces` | `authenticated` | — |  | Same gate as list-cluster-workloads; the facet counts describe only the rows that gate admits. |
+| GET | `/api/v1/clusters/{id}/unknown-images` | `list-cluster-unknown-images` | `authenticated` | — |  | Same gate as list-cluster-workloads. It names the namespace's registries, so cluster visibility is what authorizes learning them; resolution never leaves the cluster's own namespace. |
+| GET | `/api/v1/clusters/{id}/vulns` | `list-cluster-vulns` | `authenticated` | — |  | Same gate as list-cluster-workloads; findings and coverage are returned together so neither can be read without the other. |
+| GET | `/api/v1/clusters/{id}/workloads` | `list-cluster-workloads` | `authenticated` | — |  | Cluster gated on namespace visibility; rows additionally filtered via visible_namespace_ids. |
+| GET | `/api/v1/users/me/clusters` | `list-my-clusters` | `authenticated` | — |  | Owned rows only; excludes others' public rows, and admins get no widening. |
 
 ### Components
 
-| Method | Path | Operation | Class | Write | Notes |
-|---|---|---|---|---|---|
-| GET | `/api/v1/components` | `search-components` | `public` |  | VisibilityFilter. |
-| GET | `/api/v1/components/distinct` | `search-distinct-components` | `public` |  | VisibilityFilter. |
-| GET | `/api/v1/components/purl-types` | `list-component-purl-types` | `public` |  | VisibilityFilter. |
-| GET | `/api/v1/components/versions` | `get-component-versions` | `public` |  | VisibilityFilter. |
-| GET | `/api/v1/components/{id}` | `get-component` | `public` |  | VisibilityFilter. |
-| GET | `/api/v1/components/{id}/vulns` | `get-component-vulns` | `public` |  | VisibilityFilter. |
+| Method | Path | Operation | Class | Capability | Write | Notes |
+|---|---|---|---|---|---|---|
+| GET | `/api/v1/components` | `search-components` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/components/distinct` | `search-distinct-components` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/components/purl-types` | `list-component-purl-types` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/components/versions` | `get-component-versions` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/components/{id}` | `get-component` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/components/{id}/vulns` | `get-component-vulns` | `public` | — |  | VisibilityFilter. |
 
 ### Discovery
 
-| Method | Path | Operation | Class | Write | Notes |
-|---|---|---|---|---|---|
-| GET | `/api/v1/discover` | `get-discovery` | `public` |  | Public namespaces only, in SQL; no viewer parameter, so the response is identical for every caller. |
+| Method | Path | Operation | Class | Capability | Write | Notes |
+|---|---|---|---|---|---|---|
+| GET | `/api/v1/discover` | `get-discovery` | `public` | — |  | Public namespaces only, in SQL; no viewer parameter, so the response is identical for every caller. |
 
 ### Health
 
-| Method | Path | Operation | Class | Write | Notes |
-|---|---|---|---|---|---|
-| GET | `/health` | `health-check` | `public` |  | Liveness probe. |
-| GET | `/ready` | `readiness-check` | `public` |  | Readiness probe; reports DB reachability. |
+| Method | Path | Operation | Class | Capability | Write | Notes |
+|---|---|---|---|---|---|---|
+| GET | `/health` | `health-check` | `public` | — |  | Liveness probe. |
+| GET | `/ready` | `readiness-check` | `public` | — |  | Readiness probe; reports DB reachability. |
 
 ### Jobs
 
-| Method | Path | Operation | Class | Write | Notes |
-|---|---|---|---|---|---|
-| POST | `/api/v1/admin/enrichment-jobs/retry-failed` | `retry-all-failed-enrichment-jobs` | `admin` | ✓ |  |
-| POST | `/api/v1/admin/enrichment-jobs/{id}/retry` | `retry-enrichment-job` | `admin` | ✓ |  |
-| POST | `/api/v1/admin/jobs/retry-failed` | `retry-all-failed-scan-jobs` | `admin` | ✓ |  |
-| POST | `/api/v1/admin/jobs/{id}/retry` | `retry-scan-job` | `admin` | ✓ |  |
-| GET | `/api/v1/enrichment-jobs` | `list-enrichment-jobs` | `authenticated` |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
-| GET | `/api/v1/enrichment-jobs/summary` | `enrichment-jobs-summary` | `authenticated` |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
-| GET | `/api/v1/jobs` | `list-scan-jobs` | `authenticated` |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
-| GET | `/api/v1/jobs/{id}` | `get-scan-job` | `authenticated` |  | A job outside the caller's visible namespaces 404s. |
+| Method | Path | Operation | Class | Capability | Write | Notes |
+|---|---|---|---|---|---|---|
+| POST | `/api/v1/admin/enrichment-jobs/retry-failed` | `retry-all-failed-enrichment-jobs` | `admin` | — | ✓ |  |
+| POST | `/api/v1/admin/enrichment-jobs/{id}/retry` | `retry-enrichment-job` | `admin` | — | ✓ |  |
+| POST | `/api/v1/admin/jobs/retry-failed` | `retry-all-failed-scan-jobs` | `admin` | — | ✓ |  |
+| POST | `/api/v1/admin/jobs/{id}/retry` | `retry-scan-job` | `admin` | — | ✓ |  |
+| GET | `/api/v1/enrichment-jobs` | `list-enrichment-jobs` | `authenticated` | — |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
+| GET | `/api/v1/enrichment-jobs/summary` | `enrichment-jobs-summary` | `authenticated` | — |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
+| GET | `/api/v1/jobs` | `list-scan-jobs` | `authenticated` | — |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
+| GET | `/api/v1/jobs/{id}` | `get-scan-job` | `authenticated` | — |  | A job outside the caller's visible namespaces 404s. |
 
 ### Licenses
 
-| Method | Path | Operation | Class | Write | Notes |
-|---|---|---|---|---|---|
-| GET | `/api/v1/licenses` | `list-licenses` | `public` |  | VisibilityFilter. |
-| GET | `/api/v1/licenses/lookup` | `lookup-license` | `public` |  | VisibilityFilter. |
-| GET | `/api/v1/licenses/{id}/components` | `list-components-by-license` | `public` |  | VisibilityFilter. |
+| Method | Path | Operation | Class | Capability | Write | Notes |
+|---|---|---|---|---|---|---|
+| GET | `/api/v1/licenses` | `list-licenses` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/licenses/lookup` | `lookup-license` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/licenses/{id}/components` | `list-components-by-license` | `public` | — |  | VisibilityFilter. |
 
 ### Meta
 
-| Method | Path | Operation | Class | Write | Notes |
-|---|---|---|---|---|---|
-| GET | `/api/v1/` | `api-version` | `public` |  |  |
+| Method | Path | Operation | Class | Capability | Write | Notes |
+|---|---|---|---|---|---|---|
+| GET | `/api/v1/` | `api-version` | `public` | — |  |  |
 
 ### Namespaces
 
-| Method | Path | Operation | Class | Write | Notes |
-|---|---|---|---|---|---|
-| GET | `/api/v1/namespaces` | `list-namespaces` | `authenticated` |  | Own plus public namespaces. |
-| POST | `/api/v1/namespaces` | `create-namespace` | `authenticated` | ✓ | Owned by the calling user. |
-| GET | `/api/v1/namespaces/by-name/{name}` | `get-namespace-by-name` | `authenticated` |  | A private namespace the caller does not own 404s. |
-| DELETE | `/api/v1/namespaces/{id}` | `delete-namespace` | `owner` | ✓ | delete_namespace capability check in handler; deletes everything ingested under the namespace. |
-| GET | `/api/v1/namespaces/{id}` | `get-namespace` | `authenticated` |  | A private namespace the caller does not own 404s, so its existence is not leaked. |
-| PATCH | `/api/v1/namespaces/{id}` | `update-namespace` | `owner` | ✓ | manage_member capability check in handler. |
+| Method | Path | Operation | Class | Capability | Write | Notes |
+|---|---|---|---|---|---|---|
+| GET | `/api/v1/namespaces` | `list-namespaces` | `authenticated` | — |  | Own plus public namespaces. |
+| POST | `/api/v1/namespaces` | `create-namespace` | `authenticated` | — | ✓ | Owned by the calling user. |
+| GET | `/api/v1/namespaces/by-name/{name}` | `get-namespace-by-name` | `authenticated` | — |  | A private namespace the caller does not own 404s. |
+| DELETE | `/api/v1/namespaces/{id}` | `delete-namespace` | `capability` | `delete_namespace` | ✓ | delete_namespace capability check in handler; deletes everything ingested under the namespace. |
+| GET | `/api/v1/namespaces/{id}` | `get-namespace` | `authenticated` | — |  | A private namespace the caller does not own 404s, so its existence is not leaked. |
+| PATCH | `/api/v1/namespaces/{id}` | `update-namespace` | `capability` | `manage_member` | ✓ | manage_member capability check in handler. |
 
 ### Registries
 
-| Method | Path | Operation | Class | Write | Notes |
-|---|---|---|---|---|---|
-| GET | `/api/v1/registries` | `list-registries` | `authenticated` |  | Own plus public registries. |
-| POST | `/api/v1/registries` | `create-registry` | `authenticated` | ✓ | Creates the namespace and source beneath it, owned by the caller. |
-| GET | `/api/v1/registries/by-name/{name}` | `get-registry-by-name` | `authenticated` |  | A private registry the caller does not own 404s. |
-| GET | `/api/v1/registries/drift-feed` | `list-recent-drift` | `authenticated` |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
-| POST | `/api/v1/registries/test-connection` | `test-registry-connection` | `admin` | ✓ | Dials an arbitrary caller-supplied host from inside the cluster. |
-| GET | `/api/v1/registries/trust-summary` | `get-registry-trust-summary` | `authenticated` |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
-| DELETE | `/api/v1/registries/{id}` | `delete-registry` | `owner` | ✓ | RequireCapability(manage_source) middleware. |
-| GET | `/api/v1/registries/{id}` | `get-registry` | `authenticated` |  | A private registry the caller does not own 404s. |
-| PATCH | `/api/v1/registries/{id}` | `update-registry` | `owner` | ✓ | RequireCapability(manage_source) middleware. |
-| POST | `/api/v1/registries/{id}/scan` | `scan-registry` | `owner` | ✓ | RequireCapability(trigger_scan) middleware. |
-| POST | `/api/v1/registries/{id}/webhook` | `registry-webhook` | `secret` |  | HMAC over the body against the registry's webhook secret; no user identity. |
-| POST | `/api/v1/registries/{id}/webhook-secret` | `regenerate-webhook-secret` | `owner` | ✓ | RequireCapability(read_secret) middleware; response contains the new secret. |
+| Method | Path | Operation | Class | Capability | Write | Notes |
+|---|---|---|---|---|---|---|
+| GET | `/api/v1/registries` | `list-registries` | `authenticated` | — |  | Own plus public registries. |
+| POST | `/api/v1/registries` | `create-registry` | `authenticated` | — | ✓ | Creates the namespace and source beneath it, owned by the caller. |
+| GET | `/api/v1/registries/by-name/{name}` | `get-registry-by-name` | `authenticated` | — |  | A private registry the caller does not own 404s. |
+| GET | `/api/v1/registries/drift-feed` | `list-recent-drift` | `authenticated` | — |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
+| POST | `/api/v1/registries/test-connection` | `test-registry-connection` | `admin` | — | ✓ | Dials an arbitrary caller-supplied host from inside the cluster. |
+| GET | `/api/v1/registries/trust-summary` | `get-registry-trust-summary` | `authenticated` | — |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
+| DELETE | `/api/v1/registries/{id}` | `delete-registry` | `capability` | `manage_source` | ✓ | RequireCapability(manage_source) middleware. |
+| GET | `/api/v1/registries/{id}` | `get-registry` | `authenticated` | — |  | A private registry the caller does not own 404s. |
+| PATCH | `/api/v1/registries/{id}` | `update-registry` | `capability` | `manage_source` | ✓ | RequireCapability(manage_source) middleware. |
+| POST | `/api/v1/registries/{id}/scan` | `scan-registry` | `capability` | `trigger_scan` | ✓ | RequireCapability(trigger_scan) middleware. |
+| POST | `/api/v1/registries/{id}/webhook` | `registry-webhook` | `secret` | — |  | HMAC over the body against the registry's webhook secret; no user identity. |
+| POST | `/api/v1/registries/{id}/webhook-secret` | `regenerate-webhook-secret` | `capability` | `read_secret` | ✓ | RequireCapability(read_secret) middleware; response contains the new secret. |
 
 ### SBOMs
 
-| Method | Path | Operation | Class | Write | Notes |
-|---|---|---|---|---|---|
-| GET | `/api/v1/sboms` | `list-sboms` | `public` |  | VisibilityFilter. |
-| POST | `/api/v1/sboms` | `ingest-sbom` | `member` | ✓ | Caller must also own the namespace behind ?source= (resolveIngestSource). |
-| GET | `/api/v1/sboms/diff` | `diff-sboms` | `public` |  | VisibilityFilter on both sides. |
-| GET | `/api/v1/sboms/diff-tree` | `diff-tree` | `public` |  | VisibilityFilter on both sides. |
-| GET | `/api/v1/sboms/lookup` | `lookup-sbom` | `public` |  | VisibilityFilter applied before the ambiguity count (ADR-042). |
-| DELETE | `/api/v1/sboms/{id}` | `delete-sbom` | `owner` | ✓ | RequireCapability(delete_artifact) middleware on the SBOM's namespace. |
-| GET | `/api/v1/sboms/{id}` | `get-sbom` | `public` |  | VisibilityFilter. |
-| GET | `/api/v1/sboms/{id}/components` | `list-sbom-components` | `public` |  | VisibilityFilter. |
-| GET | `/api/v1/sboms/{id}/dependencies` | `get-sbom-dependencies` | `public` |  | VisibilityFilter. |
-| GET | `/api/v1/sboms/{id}/drift` | `list-sbom-drift-history` | `public` |  | VisibilityFilter. |
-| GET | `/api/v1/sboms/{id}/vulns` | `list-sbom-vulns` | `public` |  | VisibilityFilter. |
+| Method | Path | Operation | Class | Capability | Write | Notes |
+|---|---|---|---|---|---|---|
+| GET | `/api/v1/sboms` | `list-sboms` | `public` | — |  | VisibilityFilter. |
+| POST | `/api/v1/sboms` | `ingest-sbom` | `capability` | `ingest` | ✓ | resolveIngestSource requires the capability in the namespace behind ?source=; RequireMember is the floor beneath it. |
+| GET | `/api/v1/sboms/diff` | `diff-sboms` | `public` | — |  | VisibilityFilter on both sides. |
+| GET | `/api/v1/sboms/diff-tree` | `diff-tree` | `public` | — |  | VisibilityFilter on both sides. |
+| GET | `/api/v1/sboms/lookup` | `lookup-sbom` | `public` | — |  | VisibilityFilter applied before the ambiguity count (ADR-042). |
+| DELETE | `/api/v1/sboms/{id}` | `delete-sbom` | `capability` | `delete_artifact` | ✓ | RequireCapability(delete_artifact) middleware on the SBOM's namespace. |
+| GET | `/api/v1/sboms/{id}` | `get-sbom` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/sboms/{id}/components` | `list-sbom-components` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/sboms/{id}/dependencies` | `get-sbom-dependencies` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/sboms/{id}/drift` | `list-sbom-drift-history` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/sboms/{id}/vulns` | `list-sbom-vulns` | `public` | — |  | VisibilityFilter. |
 
 ### Sources
 
-| Method | Path | Operation | Class | Write | Notes |
-|---|---|---|---|---|---|
-| GET | `/api/v1/sources` | `list-sources` | `authenticated` |  | Visibility resolved through the owning namespace. |
-| POST | `/api/v1/sources` | `create-source` | `owner` | ✓ | manage_source capability on the body's namespace_id. |
-| DELETE | `/api/v1/sources/{id}` | `delete-source` | `owner` | ✓ | manage_source capability on the source's namespace. |
-| GET | `/api/v1/sources/{id}` | `get-source` | `authenticated` |  | 404s when the owning namespace is private and unowned. |
-| PATCH | `/api/v1/sources/{id}` | `update-source` | `owner` | ✓ | manage_source capability on the source's namespace. |
+| Method | Path | Operation | Class | Capability | Write | Notes |
+|---|---|---|---|---|---|---|
+| GET | `/api/v1/sources` | `list-sources` | `authenticated` | — |  | Visibility resolved through the owning namespace. |
+| POST | `/api/v1/sources` | `create-source` | `capability` | `manage_source` | ✓ | manage_source capability on the body's namespace_id. |
+| DELETE | `/api/v1/sources/{id}` | `delete-source` | `capability` | `manage_source` | ✓ | manage_source capability on the source's namespace. |
+| GET | `/api/v1/sources/{id}` | `get-source` | `authenticated` | — |  | 404s when the owning namespace is private and unowned. |
+| PATCH | `/api/v1/sources/{id}` | `update-source` | `capability` | `manage_source` | ✓ | manage_source capability on the source's namespace. |
 
 ### Stats
 
-| Method | Path | Operation | Class | Write | Notes |
-|---|---|---|---|---|---|
-| GET | `/api/v1/stats` | `get-dashboard-stats` | `public` |  | VisibilityFilter. |
+| Method | Path | Operation | Class | Capability | Write | Notes |
+|---|---|---|---|---|---|---|
+| GET | `/api/v1/stats` | `get-dashboard-stats` | `public` | — |  | VisibilityFilter. |
 
 ### Vulnerabilities
 
-| Method | Path | Operation | Class | Write | Notes |
-|---|---|---|---|---|---|
-| GET | `/api/v1/vulns` | `list-top-vulnerabilities` | `public` |  | VisibilityFilter. |
-| GET | `/api/v1/vulns/{id}` | `get-vulnerability` | `public` |  | Advisory data is not tenant-scoped. |
-| GET | `/api/v1/vulns/{id}/workloads` | `list-vulnerability-workloads` | `authenticated` |  | Workload rows filtered via visible_namespace_ids on the owning namespace, so an invisible cluster contributes nothing rather than 403ing. |
+| Method | Path | Operation | Class | Capability | Write | Notes |
+|---|---|---|---|---|---|---|
+| GET | `/api/v1/vulns` | `list-top-vulnerabilities` | `public` | — |  | VisibilityFilter. |
+| GET | `/api/v1/vulns/{id}` | `get-vulnerability` | `public` | — |  | Advisory data is not tenant-scoped. |
+| GET | `/api/v1/vulns/{id}/workloads` | `list-vulnerability-workloads` | `authenticated` | — |  | Workload rows filtered via visible_namespace_ids on the owning namespace, so an invisible cluster contributes nothing rather than 403ing. |
 
 ## Development-only operations
 
@@ -217,6 +239,6 @@ from a router built without a development config. These operations do not exist 
 production build — they are absent from the route table and from `web/openapi.json`,
 not merely refused at runtime.
 
-| Operation | Class | Write | Notes |
-|---|---|---|---|
-| `dev-mint-session` | `public` |  | POST /api/v1/dev/session. Development builds only; not registered when ENVIRONMENT != development. Mints a real session cookie for a persona seeded by scripts/dev-auth.sh. |
+| Operation | Class | Capability | Write | Notes |
+|---|---|---|---|---|
+| `dev-mint-session` | `public` | — |  | POST /api/v1/dev/session. Development builds only; not registered when ENVIRONMENT != development. Mints a real session cookie for a persona seeded by scripts/dev-auth.sh. |

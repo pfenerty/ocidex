@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -24,8 +25,8 @@ import (
 // (scripts/dev-auth.sh) against every declared operation and asserts admit or
 // deny against what the class promises. The expectations are derived from the
 // class rather than written per operation, so a new operation inherits its row
-// the moment it declares a class — except ClassOwner, whose rows need one
-// hand-recorded fact each (see ownerProbes) and fail the build until they have
+// the moment it declares a class — except ClassCapability, whose rows need one
+// hand-recorded fact each (see capProbes) and fail the build until they have
 // one.
 //
 // "Admit" is "not 401 and not 403", not "200". The fakes behind
@@ -42,14 +43,12 @@ type persona struct {
 	user  service.AuthUser
 }
 
-// personas is the roster. devowner carries ownerUUID and, since ocidex-y0hg.5,
-// an explicit owner-role membership in every namespace the fakes in
-// helpers_test.go / middleware_test.go resolve to (see personaGrants) — it is
-// still the only principal that passes without being an admin, but it passes on
-// a grant now rather than on a column. devsecurity and devoutsider are
-// deliberately two distinct non-owning members: the rig separates them because
-// ocidex-y0hg.7 will give them different roles in the same namespace, and the
-// harness should already be driving both by then.
+// personas is the roster. Each carries a global role and, for the three that
+// are members of the fixture namespaces, a namespace role (see personaRoles).
+// The four member-ish personas are what let a capability be probed from both
+// sides: devowner holds every capability, devsecurity holds only read_private
+// and trigger_scan, devviewer is capped by its installation-wide viewer role
+// whatever the namespace grants it, and devoutsider is a member of nothing.
 var personas = []persona{
 	{name: "devadmin", token: "tok-devadmin",
 		user: service.AuthUser{ID: personaID(0xa1), GitHubUsername: "devadmin", Role: "admin", APIKeyScope: "read-write"}},
@@ -68,17 +67,40 @@ var personas = []persona{
 // RequireWrite.
 const readOnlyToken = "tok-readonly"
 
-// personaGrants is devowner's membership. The fakes resolve every namespaced
-// route to one of two namespaces — testNamespaceID for namespaces, sources and
-// clusters, mwNamespaceID for registries — so an owner row in each is what
-// "devowner owns the fixture" means now that owner_id is gone.
+// personaRoles is each persona's namespace role in the fixture. A persona
+// absent from this map is a member of nothing — the "authenticated but
+// unrelated" case every capability must refuse.
+var personaRoles = map[string]authz.Role{
+	"devowner":    authz.RoleOwner,
+	"devsecurity": authz.RoleSecurity,
+	"devviewer":   authz.RoleViewer,
+}
+
+// personaRole reports p's namespace role and whether p is a member at all —
+// the two arguments authz.Allow takes.
+func personaRole(p persona) (authz.Role, bool) {
+	role, ok := personaRoles[p.name]
+	return role, ok
+}
+
+// personaGrants is the membership the fake auth service hands back. The fakes
+// resolve every namespaced route to one of two namespaces — testNamespaceID for
+// namespaces, sources and clusters, mwNamespaceID for registries — so each
+// member holds the same role in both, which is what lets capabilityVerdict
+// answer without knowing which of the two a given route landed on.
 func personaGrants() map[string]map[string]authz.Role {
-	return map[string]map[string]authz.Role{
-		uuidString(ownerUUID): {
-			testNamespaceID: authz.RoleOwner,
-			mwNamespaceID:   authz.RoleOwner,
-		},
+	grants := map[string]map[string]authz.Role{}
+	for _, p := range personas {
+		role, ok := personaRoles[p.name]
+		if !ok {
+			continue
+		}
+		grants[uuidString(p.user.ID)] = map[string]authz.Role{
+			testNamespaceID: role,
+			mwNamespaceID:   role,
+		}
 	}
+	return grants
 }
 
 func personaAuthService() *fakeAuthService {
@@ -91,58 +113,62 @@ func personaAuthService() *fakeAuthService {
 	return &fakeAuthService{users: users, grants: personaGrants()}
 }
 
-// ownerProbe records what this fixture is actually able to observe about a
-// ClassOwner operation. Not every owner-class rule is reachable from a
+// capProbe records what this fixture is actually able to observe about a
+// ClassCapability operation. Not every capability rule is reachable from a
 // table-driven probe, and recording which are not is the point: an operation
 // silently in the wrong bucket is a rule nobody is checking.
-type ownerProbe string
+type capProbe string
 
 const (
-	// ownerEnforced: the probe reaches the capability check and a member
+	// capEnforced: the probe reaches the capability check and a member
 	// without the capability is refused. This is the bucket that actually
-	// proves the rule.
-	ownerEnforced ownerProbe = "enforced"
+	// proves the rule, and the only one
+	// TestEveryEnforcedCapabilityIsProbedBothWays counts.
+	capEnforced capProbe = "enforced"
 
-	// ownerBodyGated: the target namespace is knowable only from the request
-	// body, so huma rejects the conformance probe's `{}` with 422 before the
-	// handler's capability check runs. The rule is enforced in the handler and
-	// covered by that handler's own tests; this harness cannot see it.
-	// RequireCapability (ocidex-y0hg.5) takes a resolver, so a body resolver
-	// would move these to ownerEnforced; writing one is not part of .5.
-	ownerBodyGated ownerProbe = "body-gated"
+	// capRequestGated: the target namespace is knowable only from the request
+	// body or query, so the request is answered — 422 from huma for the
+	// probe's `{}`, 400 from the handler for a missing `?source=` — before the
+	// capability check runs. The rule is enforced in the handler and covered by
+	// that handler's own tests; this harness cannot see it. RequireCapability
+	// takes a resolver, so writing a body resolver would move these to
+	// capEnforced.
+	capRequestGated capProbe = "request-gated"
 
-	// ownerNoNamespace: the fake resolves no namespace for the target, and
+	// capNoNamespace: the fake resolves no namespace for the target, and
 	// RequireCapability deliberately falls through to the member/admin floor
 	// when the row hangs from none — the legacy arm that outlives the nullable
 	// sbom.namespace_id. So the probe observes the floor, not the capability
 	// rule.
-	ownerNoNamespace ownerProbe = "no-namespace"
+	capNoNamespace capProbe = "no-namespace"
 )
 
-// ownerProbes must name every ClassOwner operation.
-// TestOwnerProbesCoverEveryOwnerOperation fails the build when one is missing,
-// which is the same discipline TestAuthClassCoverage applies to authRules: a
-// new owner-class operation may not slip in without someone deciding what this
-// harness can prove about it.
-var ownerProbes = map[string]ownerProbe{
-	"delete-cluster":                ownerEnforced,
-	"ingest-cluster-unknown-images": ownerEnforced,
-	"delete-namespace":              ownerEnforced,
-	"update-namespace":              ownerEnforced,
-	"delete-registry":               ownerEnforced,
-	"update-registry":               ownerEnforced,
-	"scan-registry":                 ownerEnforced,
-	"regenerate-webhook-secret":     ownerEnforced,
-	"delete-source":                 ownerEnforced,
+// capProbes must name every ClassCapability operation.
+// TestCapProbesCoverEveryCapabilityOperation fails the build when one is
+// missing, which is the same discipline TestAuthClassCoverage applies to
+// authRules: a new capability-class operation may not slip in without someone
+// deciding what this harness can prove about it.
+var capProbes = map[string]capProbe{
+	"delete-cluster":                capEnforced,
+	"ingest-cluster-unknown-images": capEnforced,
+	"delete-namespace":              capEnforced,
+	"update-namespace":              capEnforced,
+	"delete-registry":               capEnforced,
+	"update-registry":               capEnforced,
+	"scan-registry":                 capEnforced,
+	"regenerate-webhook-secret":     capEnforced,
+	"delete-source":                 capEnforced,
 
-	"create-cluster":        ownerBodyGated,
-	"update-cluster":        ownerBodyGated,
-	"put-cluster-inventory": ownerBodyGated,
-	"create-source":         ownerBodyGated,
-	"update-source":         ownerBodyGated,
+	"create-cluster":        capRequestGated,
+	"update-cluster":        capRequestGated,
+	"put-cluster-inventory": capRequestGated,
+	"create-source":         capRequestGated,
+	"update-source":         capRequestGated,
 
-	"delete-artifact": ownerNoNamespace,
-	"delete-sbom":     ownerNoNamespace,
+	"ingest-sbom": capRequestGated,
+
+	"delete-artifact": capNoNamespace,
+	"delete-sbom":     capNoNamespace,
 }
 
 // verdict is what a persona's probe of one operation produced, reduced to the
@@ -172,12 +198,24 @@ func probe(router http.Handler, r api.AuthMatrixRow, token string) verdict {
 	}
 }
 
+// capabilityVerdict is what a declared capability promises one persona. It asks
+// authz.Allow the same question the middleware does rather than restating the
+// role table here, because a second copy of that table would happily agree with
+// a wrong one in production. What this harness proves is the wiring: that the
+// capability an operation declares is the one its route actually enforces.
+func capabilityVerdict(c authz.Capability, p persona) verdict {
+	role, present := personaRole(p)
+	if authz.Allow(p.user.Role, role, present, c) {
+		return admitted
+	}
+	return forbidden
+}
+
 // expectFor returns the verdict the declared class promises for one persona, and
 // whether the harness is able to assert it at all.
 func expectFor(r api.AuthMatrixRow, p persona) (verdict, bool) {
 	isAdmin := p.user.Role == "admin"
 	isMember := p.user.Role == "member"
-	isOwner := p.user.ID == ownerUUID
 
 	switch r.Rule.Class {
 	case api.ClassPublic, api.ClassAuthenticated:
@@ -195,33 +233,22 @@ func expectFor(r api.AuthMatrixRow, p persona) (verdict, bool) {
 		}
 		return forbidden, true
 
-	case api.ClassOwner:
-		switch ownerProbes[r.OperationID] {
-		case ownerEnforced:
-			if isAdmin || isOwner {
-				return admitted, true
-			}
-			return forbidden, true
-		case ownerNoNamespace:
+	case api.ClassCapability:
+		switch capProbes[r.OperationID] {
+		case capEnforced:
+			return capabilityVerdict(r.Rule.Cap, p), true
+		case capNoNamespace:
 			// The capability check falls through, but the member/admin floor
 			// still holds and is worth pinning: it is what keeps a viewer out.
 			if isAdmin || isMember {
 				return admitted, true
 			}
 			return forbidden, true
-		case ownerBodyGated:
-			// Validation answers first, for every persona.
+		case capRequestGated:
+			// The request is answered before the capability check, for every
+			// persona.
 			return "", false
 		}
-		return "", false
-
-	case api.ClassCapability:
-		// No operation declares this yet — ocidex-y0hg.5 added the class and
-		// the middleware, ocidex-y0hg.6 flips the owner-class rows onto it.
-		// Deriving an expectation means reading r.Rule.Cap against the roles in
-		// personaGrants, which is that story's work;
-		// TestNoUnjudgedCapabilityOperations breaks the build if a row lands
-		// here first, so this cannot become a silent skip.
 		return "", false
 
 	case api.ClassSecret:
@@ -256,37 +283,37 @@ func TestPersonaConformance(t *testing.T) {
 	}
 }
 
-// TestOwnerProbesCoverEveryOwnerOperation is the build break the acceptance
-// criteria ask for: an owner-class operation with no entry here has no persona
-// expectation, and the suite says so instead of silently skipping it.
-func TestOwnerProbesCoverEveryOwnerOperation(t *testing.T) {
+// TestCapProbesCoverEveryCapabilityOperation is the build break the acceptance
+// criteria ask for: a capability-class operation with no entry here has no
+// persona expectation, and the suite says so instead of silently skipping it.
+func TestCapProbesCoverEveryCapabilityOperation(t *testing.T) {
 	registered := map[string]bool{}
 	var missing []string
 	for _, r := range conformanceSpec() {
-		if !r.Declared || r.Rule.Class != api.ClassOwner {
+		if !r.Declared || r.Rule.Class != api.ClassCapability {
 			continue
 		}
 		registered[r.OperationID] = true
-		if _, ok := ownerProbes[r.OperationID]; !ok {
+		if _, ok := capProbes[r.OperationID]; !ok {
 			missing = append(missing, r.OperationID)
 		}
 	}
 	sort.Strings(missing)
 	if len(missing) > 0 {
-		t.Fatalf("owner-class operations with no entry in ownerProbes "+
+		t.Fatalf("capability-class operations with no entry in capProbes "+
 			"(decide what this harness can prove about each):\n  %s",
 			strings.Join(missing, "\n  "))
 	}
 
 	var stale []string
-	for id := range ownerProbes {
+	for id := range capProbes {
 		if !registered[id] {
 			stale = append(stale, id)
 		}
 	}
 	sort.Strings(stale)
 	if len(stale) > 0 {
-		t.Fatalf("ownerProbes names operations that are not owner-class any more:\n  %s",
+		t.Fatalf("capProbes names operations that are not capability-class any more:\n  %s",
 			strings.Join(stale, "\n  "))
 	}
 }
@@ -310,22 +337,56 @@ func TestWriteScopeEnforcedForEveryMutation(t *testing.T) {
 	}
 }
 
-// TestNoUnjudgedCapabilityOperations fails the moment an operation declares
-// ClassCapability, because expectFor cannot yet derive an expectation for one.
-// It is the same discipline TestOwnerProbesCoverEveryOwnerOperation applies to
-// the owner class: flipping a row to a class the harness cannot judge must
-// break the build rather than quietly drop that operation from the roster.
-func TestNoUnjudgedCapabilityOperations(t *testing.T) {
-	var unjudged []string
+// TestEveryEnforcedCapabilityIsProbedBothWays is what makes the roster mean
+// something. A capability row driven only by principals that hold it proves the
+// route is reachable, not that it is guarded; one driven only by principals that
+// lack it would pass just as well if the handler were deleted. So every enforced
+// row must have a persona this harness expects to admit and a persona it expects
+// to refuse — and TestPersonaConformance then drives both.
+func TestEveryEnforcedCapabilityIsProbedBothWays(t *testing.T) {
+	var oneSided []string
 	for _, r := range conformanceSpec() {
-		if r.Declared && r.Rule.Class == api.ClassCapability {
-			unjudged = append(unjudged, r.OperationID)
+		if !r.Declared || r.Rule.Class != api.ClassCapability {
+			continue
+		}
+		if capProbes[r.OperationID] != capEnforced {
+			continue
+		}
+		var admits, refuses int
+		for _, p := range personas {
+			if capabilityVerdict(r.Rule.Cap, p) == admitted {
+				admits++
+			} else {
+				refuses++
+			}
+		}
+		if admits == 0 || refuses == 0 {
+			oneSided = append(oneSided, fmt.Sprintf("%s (%s): %d admitted, %d refused",
+				r.OperationID, r.Rule.Cap, admits, refuses))
 		}
 	}
-	sort.Strings(unjudged)
-	if len(unjudged) > 0 {
-		t.Fatalf("operations declare %s but expectFor derives no persona expectation "+
-			"(extend expectFor to read Rule.Cap against personaGrants):\n  %s",
-			api.ClassCapability, strings.Join(unjudged, "\n  "))
+	sort.Strings(oneSided)
+	if len(oneSided) > 0 {
+		t.Fatalf("capability operations no persona exercises from both sides "+
+			"(give a persona in personaRoles a role that separates them):\n  %s",
+			strings.Join(oneSided, "\n  "))
+	}
+}
+
+// TestCapabilityIsDeclaredExactlyWhereItIsUsed pins the two halves of the rule
+// together: a ClassCapability row without a Cap has nothing for the middleware
+// to check, and a Cap on any other class is a capability nobody enforces.
+func TestCapabilityIsDeclaredExactlyWhereItIsUsed(t *testing.T) {
+	for _, r := range conformanceSpec() {
+		if !r.Declared {
+			continue
+		}
+		switch {
+		case r.Rule.Class == api.ClassCapability && r.Rule.Cap == "":
+			t.Errorf("%s declares %s but names no capability", r.OperationID, api.ClassCapability)
+		case r.Rule.Class != api.ClassCapability && r.Rule.Cap != "":
+			t.Errorf("%s is class %s but names capability %q; only %s is enforced by capability",
+				r.OperationID, r.Rule.Class, r.Rule.Cap, api.ClassCapability)
+		}
 	}
 }

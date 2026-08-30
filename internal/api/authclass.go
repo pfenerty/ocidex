@@ -42,24 +42,17 @@ const (
 	// ClassAdmin admits admin only. Enforced by RequireAdmin.
 	ClassAdmin AuthClass = "admin"
 
-	// ClassOwner admits the owner of the namespace the resource hangs from, or
-	// an admin (ADR-039: namespace ownership is the only ownership check in the
-	// system — sources and registries inherit their answer from the namespace
-	// above them).
-	//
-	// Deprecated: superseded by ClassCapability. The enforcement it named is
-	// already gone — every site now asks for a capability (ocidex-y0hg.5) — and
-	// the rows still carrying it are migrated and the constant deleted in
-	// ocidex-y0hg.6. It is not kept as an alias afterwards: an alias would let a
-	// new operation quietly inherit owner-only semantics without naming what it
-	// actually needs.
-	ClassOwner AuthClass = "owner"
-
 	// ClassCapability admits a caller holding the operation's declared
-	// AuthRule.Cap in the namespace the resource hangs from. It is the
-	// membership-era replacement for ClassOwner: the namespace is still the
-	// authorization anchor, but the question asked of it is "does your role
-	// there grant this capability" rather than "are you the one owner".
+	// AuthRule.Cap in the namespace the resource hangs from. The namespace is
+	// still the authorization anchor (ADR-039: sources and registries inherit
+	// their answer from the namespace above them), but the question asked of it
+	// is "does your role there grant this capability" rather than "are you the
+	// one owner".
+	//
+	// It replaced an owner class outright rather than sitting beside one
+	// (ocidex-y0hg.6). No alias survives, because an alias would let a new
+	// operation quietly inherit owner-only semantics without naming what it
+	// actually needs.
 	//
 	// A rule of this class is the only one whose Cap field is meaningful, and it
 	// must set one — a capability-class operation with no capability would admit
@@ -181,8 +174,8 @@ var authRules = map[string]AuthRule{
 	"list-sbom-drift-history":      {Class: ClassPublic, Notes: noteVisFilter},
 	"diff-sboms":                   {Class: ClassPublic, Notes: "VisibilityFilter on both sides."},
 	"diff-tree":                    {Class: ClassPublic, Notes: "VisibilityFilter on both sides."},
-	"ingest-sbom":                  {Class: ClassMember, Write: true, Notes: "Caller must also own the namespace behind ?source= (resolveIngestSource)."},
-	"delete-sbom":                  {Class: ClassOwner, Write: true, Notes: "RequireCapability(delete_artifact) middleware on the SBOM's namespace."},
+	"ingest-sbom":                  {Class: ClassCapability, Cap: authz.CapIngest, Write: true, Notes: "resolveIngestSource requires the capability in the namespace behind ?source=; RequireMember is the floor beneath it."},
+	"delete-sbom":                  {Class: ClassCapability, Cap: authz.CapDeleteArtifact, Write: true, Notes: "RequireCapability(delete_artifact) middleware on the SBOM's namespace."},
 	"get-dashboard-stats":          {Class: ClassPublic, Notes: noteVisFilter},
 	"get-discovery":                {Class: ClassPublic, Notes: "Public namespaces only, in SQL; no viewer parameter, so the response is identical for every caller."},
 	"get-artifact-changelog":       {Class: ClassPublic, Notes: noteVisFilter},
@@ -198,7 +191,7 @@ var authRules = map[string]AuthRule{
 	"list-artifact-vulns":       {Class: ClassPublic, Notes: noteVisFilter},
 	"get-artifact-usages":       {Class: ClassPublic, Notes: "Filtered via visible_namespace_ids (ADR-041)."},
 	"get-artifact-contains":     {Class: ClassPublic, Notes: "Filtered via visible_namespace_ids (ADR-041)."},
-	"delete-artifact":           {Class: ClassOwner, Write: true, Notes: "RequireCapability(delete_artifact) middleware on the artifact's namespace."},
+	"delete-artifact":           {Class: ClassCapability, Cap: authz.CapDeleteArtifact, Write: true, Notes: "RequireCapability(delete_artifact) middleware on the artifact's namespace."},
 
 	// --- Components & licenses ---------------------------------------------
 	"search-components":          {Class: ClassPublic, Notes: noteVisFilter},
@@ -224,15 +217,15 @@ var authRules = map[string]AuthRule{
 	"get-namespace":         {Class: ClassAuthenticated, Notes: "A private namespace the caller does not own 404s, so its existence is not leaked."},
 	"get-namespace-by-name": {Class: ClassAuthenticated, Notes: "A private namespace the caller does not own 404s."},
 	"create-namespace":      {Class: ClassAuthenticated, Write: true, Notes: "Owned by the calling user."},
-	"update-namespace":      {Class: ClassOwner, Write: true, Notes: "manage_member capability check in handler."},
-	"delete-namespace":      {Class: ClassOwner, Write: true, Notes: "delete_namespace capability check in handler; deletes everything ingested under the namespace."},
+	"update-namespace":      {Class: ClassCapability, Cap: authz.CapManageMember, Write: true, Notes: "manage_member capability check in handler."},
+	"delete-namespace":      {Class: ClassCapability, Cap: authz.CapDeleteNamespace, Write: true, Notes: "delete_namespace capability check in handler; deletes everything ingested under the namespace."},
 
 	// --- Sources ------------------------------------------------------------
 	"list-sources":  {Class: ClassAuthenticated, Notes: "Visibility resolved through the owning namespace."},
 	"get-source":    {Class: ClassAuthenticated, Notes: "404s when the owning namespace is private and unowned."},
-	"create-source": {Class: ClassOwner, Write: true, Notes: "manage_source capability on the body's namespace_id."},
-	"update-source": {Class: ClassOwner, Write: true, Notes: "manage_source capability on the source's namespace."},
-	"delete-source": {Class: ClassOwner, Write: true, Notes: "manage_source capability on the source's namespace."},
+	"create-source": {Class: ClassCapability, Cap: authz.CapManageSource, Write: true, Notes: "manage_source capability on the body's namespace_id."},
+	"update-source": {Class: ClassCapability, Cap: authz.CapManageSource, Write: true, Notes: "manage_source capability on the source's namespace."},
+	"delete-source": {Class: ClassCapability, Cap: authz.CapManageSource, Write: true, Notes: "manage_source capability on the source's namespace."},
 
 	// --- Clusters -----------------------------------------------------------
 	// Per ADR-044 K8 the inventory push reuses the read-write scope rather than
@@ -241,26 +234,26 @@ var authRules = map[string]AuthRule{
 	// than left implicit; narrowing it is ocidex-wp9b.2's job.
 	"list-clusters":                 {Class: ClassAuthenticated, Notes: "Visibility resolved through the owning namespace."},
 	"get-cluster":                   {Class: ClassAuthenticated, Notes: "404s when the owning namespace is private and unowned."},
-	"create-cluster":                {Class: ClassOwner, Write: true, Notes: "manage_cluster capability on the body's namespace_id."},
-	"update-cluster":                {Class: ClassOwner, Write: true, Notes: "manage_cluster capability on the cluster's namespace."},
-	"delete-cluster":                {Class: ClassOwner, Write: true, Notes: "manage_cluster capability on the cluster's namespace; drops reported inventory only."},
-	"put-cluster-inventory":         {Class: ClassOwner, Write: true, Notes: "push_inventory capability on the cluster's namespace — membership, not visibility, because a public namespace must not make inventory writable by anyone."},
+	"create-cluster":                {Class: ClassCapability, Cap: authz.CapManageCluster, Write: true, Notes: "manage_cluster capability on the body's namespace_id."},
+	"update-cluster":                {Class: ClassCapability, Cap: authz.CapManageCluster, Write: true, Notes: "manage_cluster capability on the cluster's namespace."},
+	"delete-cluster":                {Class: ClassCapability, Cap: authz.CapManageCluster, Write: true, Notes: "manage_cluster capability on the cluster's namespace; drops reported inventory only."},
+	"put-cluster-inventory":         {Class: ClassCapability, Cap: authz.CapPushInventory, Write: true, Notes: "push_inventory capability on the cluster's namespace — membership, not visibility, because a public namespace must not make inventory writable by anyone."},
 	"list-cluster-workloads":        {Class: ClassAuthenticated, Notes: "Cluster gated on namespace visibility; rows additionally filtered via visible_namespace_ids."},
 	"list-cluster-images":           {Class: ClassAuthenticated, Notes: "Same gate and same rows as list-cluster-workloads, grouped by image rather than by workload-container."},
 	"list-cluster-vulns":            {Class: ClassAuthenticated, Notes: "Same gate as list-cluster-workloads; findings and coverage are returned together so neither can be read without the other."},
 	"list-cluster-k8s-namespaces":   {Class: ClassAuthenticated, Notes: "Same gate as list-cluster-workloads; the facet counts describe only the rows that gate admits."},
 	"list-cluster-unknown-images":   {Class: ClassAuthenticated, Notes: "Same gate as list-cluster-workloads. It names the namespace's registries, so cluster visibility is what authorizes learning them; resolution never leaves the cluster's own namespace."},
-	"ingest-cluster-unknown-images": {Class: ClassOwner, Write: true, Notes: "trigger_scan capability, not the visibility that guards the matching list: this spends the namespace's registry credentials and enqueues scan work. Same gate as put-cluster-inventory, which is the other trigger for the same action."},
+	"ingest-cluster-unknown-images": {Class: ClassCapability, Cap: authz.CapTriggerScan, Write: true, Notes: "trigger_scan, not the visibility that guards the matching list: this spends the namespace's registry credentials and enqueues scan work. It deliberately diverges from put-cluster-inventory, the other trigger for the same action — pushing inventory is what a CI agent does (push_inventory), asking the installation to go scan what it found is not."},
 
 	// --- Registries ---------------------------------------------------------
 	"list-registries":            {Class: ClassAuthenticated, Notes: "Own plus public registries."},
 	"get-registry":               {Class: ClassAuthenticated, Notes: "A private registry the caller does not own 404s."},
 	"get-registry-by-name":       {Class: ClassAuthenticated, Notes: "A private registry the caller does not own 404s."},
 	"create-registry":            {Class: ClassAuthenticated, Write: true, Notes: "Creates the namespace and source beneath it, owned by the caller."},
-	"update-registry":            {Class: ClassOwner, Write: true, Notes: noteManageRegistryMW},
-	"delete-registry":            {Class: ClassOwner, Write: true, Notes: noteManageRegistryMW},
-	"scan-registry":              {Class: ClassOwner, Write: true, Notes: "RequireCapability(trigger_scan) middleware."},
-	"regenerate-webhook-secret":  {Class: ClassOwner, Write: true, Notes: "RequireCapability(read_secret) middleware; response contains the new secret."},
+	"update-registry":            {Class: ClassCapability, Cap: authz.CapManageSource, Write: true, Notes: noteManageRegistryMW},
+	"delete-registry":            {Class: ClassCapability, Cap: authz.CapManageSource, Write: true, Notes: noteManageRegistryMW},
+	"scan-registry":              {Class: ClassCapability, Cap: authz.CapTriggerScan, Write: true, Notes: "RequireCapability(trigger_scan) middleware."},
+	"regenerate-webhook-secret":  {Class: ClassCapability, Cap: authz.CapReadSecret, Write: true, Notes: "RequireCapability(read_secret) middleware; response contains the new secret."},
 	"test-registry-connection":   {Class: ClassAdmin, Write: true, Notes: "Dials an arbitrary caller-supplied host from inside the cluster."},
 	"get-registry-trust-summary": {Class: ClassAuthenticated, Notes: noteNamespaceScoped},
 	"list-recent-drift":          {Class: ClassAuthenticated, Notes: noteNamespaceScoped},
@@ -352,7 +345,7 @@ var classDescriptions = []struct {
 	{ClassAuthenticated, "Any authenticated principal, `viewer` included. `RequireAuthenticated`."},
 	{ClassMember, "`member` or `admin`; `viewer` is rejected with 403. `RequireMember`."},
 	{ClassAdmin, "`admin` only; everyone else gets 403. `RequireAdmin`."},
-	{ClassOwner, "The owner of the namespace the resource hangs from, or an `admin`. Per ADR-039 namespace ownership is the *only* ownership check — sources and registries inherit their answer from the namespace above them. Enforced by an ownership middleware or, where the namespace is only knowable from the body, in the handler; the Notes column says which."},
+	{ClassCapability, "A caller whose role in the namespace the resource hangs from grants the capability in the **Capability** column, or an `admin`. Per ADR-039 the namespace is the *only* authorization anchor — sources and registries inherit their answer from the namespace above them. Enforced by `RequireCapability` or, where the namespace is only knowable from the request, in the handler; the Notes column says which. The capability each role grants is in the table below."},
 }
 
 // AuthMatrixMarkdown renders docs/AUTH_MATRIX.md from the operations registered
@@ -375,6 +368,8 @@ func AuthMatrixMarkdown(spec *huma.OpenAPI) string {
 		fmt.Fprintf(&b, "| `%s` | %s |\n", cd.Class, cd.Desc)
 	}
 
+	writeRoleCapabilityTable(&b)
+
 	b.WriteString("\n## Write scope\n\n")
 	b.WriteString("The **Write** column is orthogonal to the class. A ✓ means the operation also declares\n")
 	b.WriteString("`RequireWrite`, which rejects an API key issued with the `read` scope (403) even when the\n")
@@ -391,7 +386,7 @@ func AuthMatrixMarkdown(spec *huma.OpenAPI) string {
 			}
 			tag = r.Tag
 			fmt.Fprintf(&b, "### %s\n\n", tag)
-			b.WriteString("| Method | Path | Operation | Class | Write | Notes |\n|---|---|---|---|---|---|\n")
+			b.WriteString("| Method | Path | Operation | Class | Capability | Write | Notes |\n|---|---|---|---|---|---|---|\n")
 		}
 		class := "**UNDECLARED**"
 		if r.Declared {
@@ -401,8 +396,8 @@ func AuthMatrixMarkdown(spec *huma.OpenAPI) string {
 		if r.Rule.Write {
 			write = "✓"
 		}
-		fmt.Fprintf(&b, "| %s | `%s` | `%s` | %s | %s | %s |\n",
-			r.Method, r.Path, r.OperationID, class, write, r.Rule.Notes)
+		fmt.Fprintf(&b, "| %s | `%s` | `%s` | %s | %s | %s | %s |\n",
+			r.Method, r.Path, r.OperationID, class, capCell(r.Rule), write, r.Rule.Notes)
 	}
 
 	writeDevOnlySection(&b, rows)
@@ -434,13 +429,62 @@ func writeDevOnlySection(b *strings.Builder, rows []AuthMatrixRow) {
 	b.WriteString("from a router built without a development config. These operations do not exist in a\n")
 	b.WriteString("production build — they are absent from the route table and from `web/openapi.json`,\n")
 	b.WriteString("not merely refused at runtime.\n\n")
-	b.WriteString("| Operation | Class | Write | Notes |\n|---|---|---|---|\n")
+	b.WriteString("| Operation | Class | Capability | Write | Notes |\n|---|---|---|---|---|\n")
 	for _, id := range ids {
 		rule := authRules[id]
 		write := ""
 		if rule.Write {
 			write = "✓"
 		}
-		fmt.Fprintf(b, "| `%s` | `%s` | %s | %s |\n", id, rule.Class, write, rule.Notes)
+		fmt.Fprintf(b, "| `%s` | `%s` | %s | %s | %s |\n", id, rule.Class, capCell(rule), write, rule.Notes)
+	}
+}
+
+// capCell renders the Capability column. Only a capability-class rule has one;
+// an em dash rather than an empty cell says the other classes answer without
+// consulting a namespace role at all, which is the distinction a reader of the
+// table is trying to make.
+func capCell(rule AuthRule) string {
+	if rule.Cap == "" {
+		return "—"
+	}
+	return "`" + string(rule.Cap) + "`"
+}
+
+// writeRoleCapabilityTable renders authz's role × capability table into the
+// legend. The capability column above names what an operation needs; without
+// this table a reader has to open internal/authz/capability.go to learn which
+// role grants it, and the answer would be one more thing free to drift out of
+// the document (ocidex-y0hg.6).
+func writeRoleCapabilityTable(b *strings.Builder) {
+	roles := authz.AllRoles()
+
+	b.WriteString("\n## Namespace roles and capabilities\n\n")
+	b.WriteString("A `capability` operation asks whether the caller's role **in the namespace the resource\n")
+	b.WriteString("hangs from** grants the capability it declares. An installation-wide `admin`\n")
+	b.WriteString("short-circuits every cell; an installation-wide `viewer` is capped at `read_private`\n")
+	b.WriteString("whatever role a namespace gave them; a non-member holds nothing (ADR-046).\n\n")
+	b.WriteString("Generated from `roleCaps` in [`internal/authz/capability.go`](../internal/authz/capability.go).\n\n")
+
+	b.WriteString("| Capability |")
+	for _, r := range roles {
+		fmt.Fprintf(b, " `%s` |", r)
+	}
+	b.WriteString("\n|---|")
+	for range roles {
+		b.WriteString("---|")
+	}
+	b.WriteString("\n")
+
+	for _, c := range authz.AllCapabilities() {
+		fmt.Fprintf(b, "| `%s` |", c)
+		for _, r := range roles {
+			cell := ""
+			if r.Allows(c) {
+				cell = "✓"
+			}
+			fmt.Fprintf(b, " %s |", cell)
+		}
+		b.WriteString("\n")
 	}
 }
