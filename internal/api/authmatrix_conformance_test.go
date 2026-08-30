@@ -51,15 +51,15 @@ type persona struct {
 // whatever the namespace grants it, and devoutsider is a member of nothing.
 var personas = []persona{
 	{name: "devadmin", token: "tok-devadmin",
-		user: service.AuthUser{ID: personaID(0xa1), GitHubUsername: "devadmin", Role: "admin", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}},
+		user: service.AuthUser{ID: personaID(0xa1), DisplayName: "devadmin", Role: "admin", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}},
 	{name: "devowner", token: "tok-devowner",
-		user: service.AuthUser{ID: ownerUUID, GitHubUsername: "devowner", Role: "member", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}},
+		user: service.AuthUser{ID: ownerUUID, DisplayName: "devowner", Role: "member", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}},
 	{name: "devsecurity", token: "tok-devsecurity",
-		user: service.AuthUser{ID: personaID(0xa3), GitHubUsername: "devsecurity", Role: "member", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}},
+		user: service.AuthUser{ID: personaID(0xa3), DisplayName: "devsecurity", Role: "member", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}},
 	{name: "devviewer", token: "tok-devviewer",
-		user: service.AuthUser{ID: personaID(0xa4), GitHubUsername: "devviewer", Role: "viewer", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}},
+		user: service.AuthUser{ID: personaID(0xa4), DisplayName: "devviewer", Role: "viewer", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}},
 	{name: "devoutsider", token: "tok-devoutsider",
-		user: service.AuthUser{ID: personaID(0xa5), GitHubUsername: "devoutsider", Role: "member", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}},
+		user: service.AuthUser{ID: personaID(0xa5), DisplayName: "devoutsider", Role: "member", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()}},
 }
 
 // readOnlyToken authenticates devadmin — the persona no class can refuse — with
@@ -105,7 +105,7 @@ func personaGrants() map[string]map[string]authz.Role {
 
 func personaAuthService() *fakeAuthService {
 	users := map[string]service.AuthUser{
-		readOnlyToken: {ID: personaID(0xa1), GitHubUsername: "devadmin", Role: "admin", APIKeyAuth: true, APIKeyCaps: []authz.Capability{authz.CapReadPrivate}},
+		readOnlyToken: {ID: personaID(0xa1), DisplayName: "devadmin", Role: "admin", APIKeyAuth: true, APIKeyCaps: []authz.Capability{authz.CapReadPrivate}},
 	}
 	for _, p := range personas {
 		users[p.token] = p.user

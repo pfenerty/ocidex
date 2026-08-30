@@ -59,16 +59,16 @@ func TestGetMeReportsMembershipsFromTheRequestsOwnGrants(t *testing.T) {
 			is := is.New(t)
 
 			user := service.AuthUser{
-				ID:             pgtype.UUID{Bytes: [16]byte{1}, Valid: true},
-				GitHubUsername: "octocat",
-				Role:           "member",
-				Grants:         tt.grants,
+				ID:          pgtype.UUID{Bytes: [16]byte{1}, Valid: true},
+				DisplayName: "octocat",
+				Role:        "member",
+				Grants:      tt.grants,
 			}
 			ctx := context.WithValue(context.Background(), ctxKeyUser{}, user)
 
 			out, err := (&Handler{}).GetMe(ctx, nil)
 			is.NoErr(err)
-			is.Equal(out.Body.GitHubUsername, "octocat")
+			is.Equal(out.Body.DisplayName, "octocat")
 			is.Equal(out.Body.Memberships, tt.want) // memberships did not match the caller's grants
 		})
 	}

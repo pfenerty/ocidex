@@ -64,7 +64,7 @@ func (h *Handler) DevMintSession(ctx context.Context, in *DevSessionInput) (*Dev
 	var user service.AuthUser
 	found := false
 	for _, u := range users {
-		if strings.EqualFold(u.GitHubUsername, in.Body.Username) {
+		if strings.EqualFold(u.DisplayName, in.Body.Username) {
 			user, found = u, true
 			break
 		}
@@ -92,7 +92,7 @@ func (h *Handler) DevMintSession(ctx context.Context, in *DevSessionInput) (*Dev
 			Secure:   false,
 		},
 	}
-	out.Body.Username = user.GitHubUsername
+	out.Body.Username = user.DisplayName
 	out.Body.Role = user.Role
 	return out, nil
 }

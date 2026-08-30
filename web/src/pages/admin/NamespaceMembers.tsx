@@ -220,7 +220,7 @@ export function NamespaceMembers(props: { namespace: Namespace; onClose: () => v
                         >
                             <option value="">Select a user…</option>
                             <For each={candidates()}>
-                                {(u) => <option value={u.id}>{u.github_username}</option>}
+                                {(u) => <option value={u.id}>{u.display_name}</option>}
                             </For>
                         </select>
                     </FormField>

@@ -53,8 +53,8 @@ func rosterRouter(nsSvc service.NamespaceService, role authz.Role) http.Handler 
 			uuidString(ownerUUID): {testNamespaceID: role},
 		},
 		usersByID: map[string]service.AuthUser{
-			memberTargetID: {GitHubUsername: "devsecurity"},
-			ownerIDStr:     {ID: ownerUUID, GitHubUsername: "devowner"},
+			memberTargetID: {DisplayName: "devsecurity"},
+			ownerIDStr:     {ID: ownerUUID, DisplayName: "devowner"},
 		},
 	}
 	h := api.NewHandler(nil, nil, authSvc, nil, nsSvc, nil, nil, nil, nil, nil, &fakePinger{}, nil, nil)

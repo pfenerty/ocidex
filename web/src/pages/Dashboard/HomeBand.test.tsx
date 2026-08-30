@@ -30,7 +30,7 @@ function setUser(username: string | undefined) {
         user: (() =>
             username === undefined
                 ? undefined
-                : { id: "u1", github_username: username, role: "member" }) as unknown as ReturnType<
+                : { id: "u1", display_name: username, role: "member" }) as unknown as ReturnType<
             typeof useAuth
         >["user"],
         refetch: vi.fn(),

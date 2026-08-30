@@ -76,11 +76,11 @@ func newBoundaryAuthSvc() *configFakeAuthService {
 	return &configFakeAuthService{
 		fakeAuthService: fakeAuthService{
 			users: map[string]service.AuthUser{
-				tokenAdminRW:  {ID: boundaryAdminUUID, GitHubUsername: "admin", Role: "admin"},
-				tokenAdminRO:  {ID: boundaryAdminUUID, GitHubUsername: "admin", Role: "admin", APIKeyAuth: true, APIKeyCaps: []authz.Capability{authz.CapReadPrivate}},
-				tokenMemberRW: {ID: boundaryMemberUUID, GitHubUsername: "member", Role: "member"},
-				tokenMemberRO: {ID: boundaryMemberUUID, GitHubUsername: "member", Role: "member", APIKeyAuth: true, APIKeyCaps: []authz.Capability{authz.CapReadPrivate}},
-				tokenViewerRW: {ID: boundaryViewerUUID, GitHubUsername: "viewer", Role: "viewer"},
+				tokenAdminRW:  {ID: boundaryAdminUUID, DisplayName: "admin", Role: "admin"},
+				tokenAdminRO:  {ID: boundaryAdminUUID, DisplayName: "admin", Role: "admin", APIKeyAuth: true, APIKeyCaps: []authz.Capability{authz.CapReadPrivate}},
+				tokenMemberRW: {ID: boundaryMemberUUID, DisplayName: "member", Role: "member"},
+				tokenMemberRO: {ID: boundaryMemberUUID, DisplayName: "member", Role: "member", APIKeyAuth: true, APIKeyCaps: []authz.Capability{authz.CapReadPrivate}},
+				tokenViewerRW: {ID: boundaryViewerUUID, DisplayName: "viewer", Role: "viewer"},
 			},
 		},
 		listUsersOut:  []service.AuthUser{},

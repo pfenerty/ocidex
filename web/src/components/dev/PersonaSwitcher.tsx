@@ -93,7 +93,7 @@ export default function PersonaSwitcher() {
                     id="persona-select"
                     class="persona-switcher-select"
                     disabled={busy()}
-                    value={user()?.github_username ?? ""}
+                    value={user()?.display_name ?? ""}
                     onChange={(e) => void become(e.currentTarget.value)}
                 >
                     <option value="">signed out</option>

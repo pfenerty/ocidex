@@ -132,10 +132,19 @@ seed_auth() {
 
     for persona in "${PERSONAS[@]}"; do
         IFS=: read -r user gid role ns extra <<<"$persona"
+        # display_name and the user_identity row are what the server reads
+        # since ocidex-iqkt.2. github_id/github_username are still written only
+        # because the columns outlive that story by one release; they go with
+        # the columns in ocidex-iqkt.5, and $gid becomes the identity subject.
         sql+="
-INSERT INTO ocidex_user (github_id, github_username, role)
-VALUES ($gid, '$user', '$role')
-ON CONFLICT (github_id) DO UPDATE SET github_username = EXCLUDED.github_username, role = EXCLUDED.role;
+INSERT INTO ocidex_user (github_id, github_username, display_name, role)
+VALUES ($gid, '$user', '$user', '$role')
+ON CONFLICT (github_id) DO UPDATE SET github_username = EXCLUDED.github_username,
+                                      display_name    = EXCLUDED.display_name,
+                                      role            = EXCLUDED.role;
+INSERT INTO user_identity (user_id, provider, subject)
+SELECT id, 'github', '$gid' FROM ocidex_user WHERE github_id = $gid
+ON CONFLICT (provider, subject) DO NOTHING;
 "
         # Two keys per persona, spanning the ceiling (ADR-046): one holding
         # every capability, which resolves to whatever the persona's roles
@@ -218,14 +227,14 @@ ENV
 # owner-only roster showed both of them owning nothing and looked identical.
 roster() {
     psql -tA -F' ' <<'SQL' 2>/dev/null || echo "  (database not reachable)"
-SELECT '  ' || rpad(u.github_username, 13) || rpad(u.role, 7)
+SELECT '  ' || rpad(coalesce(u.display_name, '?'), 13) || rpad(u.role, 7)
        || rpad((SELECT count(*) FROM api_key k WHERE k.user_id = u.id) || ' keys', 8)
        || 'member of: '
        || coalesce(string_agg(n.name || ' (' || m.role || ')', ', ' ORDER BY m.role), '-')
 FROM ocidex_user u
 LEFT JOIN namespace_member m ON m.user_id = u.id
 LEFT JOIN namespace n ON n.id = m.namespace_id
-GROUP BY u.id, u.github_username, u.role
+GROUP BY u.id, u.display_name, u.role
 ORDER BY u.github_id;
 SQL
 }

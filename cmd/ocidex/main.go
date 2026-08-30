@@ -21,6 +21,7 @@ import (
 	"github.com/pfenerty/ocidex/db"
 	"github.com/pfenerty/ocidex/internal/api"
 	"github.com/pfenerty/ocidex/internal/audit"
+	"github.com/pfenerty/ocidex/internal/auth"
 	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/dbaudit"
 	"github.com/pfenerty/ocidex/internal/enrichment"
@@ -106,7 +107,11 @@ func run() error {
 	ociValidator := ocivalidate.NewValidator(ocivalidate.WithInsecureResolver(insecureResolver))
 	sbomSvc := service.NewSBOMService(pool, bus, ociValidator)
 	searchSvc := service.NewSearchService(pool, service.WithWarmDB(bgPool))
-	authSvc := service.NewAuthService(pool, cfg, bus)
+	// The provider list is the whole of OCIDex's identity configuration.
+	// ocidex-iqkt.3 appends the configured OIDC issuers here.
+	authSvc := service.NewAuthService(pool, cfg, bus, []auth.Provider{
+		auth.NewGitHubProvider(cfg.GitHubClientID, cfg.GitHubClientSecret, cfg.GitHubRedirectURL),
+	})
 
 	jobSvc := service.NewJobService(pool)
 	// The API enqueues and administers enrichment jobs but never claims one, so

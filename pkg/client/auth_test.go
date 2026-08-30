@@ -64,14 +64,14 @@ func TestGetCurrentUser(t *testing.T) {
 		is.Equal(r.Method, http.MethodGet)
 		is.Equal(r.URL.Path, "/api/v1/users/me")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"user-1","github_username":"pfenerty","role":"admin"}`))
+		_, _ = w.Write([]byte(`{"id":"user-1","display_name":"pfenerty","role":"admin"}`))
 	}))
 	defer srv.Close()
 
 	me, err := newTestClient(srv).GetCurrentUser(context.Background())
 	is.NoErr(err)
 	is.Equal(me.Id, "user-1")
-	is.Equal(me.GithubUsername, "pfenerty")
+	is.Equal(me.DisplayName, "pfenerty")
 	is.Equal(me.Role, "admin")
 }
 

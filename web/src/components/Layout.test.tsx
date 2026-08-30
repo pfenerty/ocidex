@@ -53,10 +53,10 @@ vi.mock("~/context/auth", () => ({
 }));
 
 interface Membership { namespace_id: string; role: string }
-interface User { id: string; github_username: string; role: string; memberships?: Membership[] }
+interface User { id: string; display_name: string; role: string; memberships?: Membership[] }
 
 function makeUser(overrides?: Partial<User>): User {
-    return { id: "1", github_username: "alice", role: "user", ...overrides };
+    return { id: "1", display_name: "alice", role: "user", ...overrides };
 }
 
 /** Memberships in the shape /users/me reports them, from role names. */
@@ -113,8 +113,8 @@ describe("Layout", () => {
         expect(queryByText("Admin")).toBeNull();
     });
 
-    it("shows github_username when authenticated", () => {
-        mockUserFn = asResource(makeUser({ github_username: "alice" }));
+    it("shows display_name when authenticated", () => {
+        mockUserFn = asResource(makeUser({ display_name: "alice" }));
         const { getByText } = render(() => <Wrapped>page</Wrapped>);
         expect(getByText("alice")).toBeDefined();
     });

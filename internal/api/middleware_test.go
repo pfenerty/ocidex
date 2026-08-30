@@ -128,9 +128,11 @@ func (f *fakeAuthService) ValidateAPIKey(_ context.Context, token string) (servi
 	return service.AuthUser{}, errors.New("invalid token")
 }
 
-func (f *fakeAuthService) BuildAuthURL(_ string) string { return "" }
+func (f *fakeAuthService) ProviderNames() []string { return []string{"github"} }
 
-func (f *fakeAuthService) ExchangeCodeForUser(_ context.Context, _ string) (service.AuthUser, error) {
+func (f *fakeAuthService) BuildAuthURL(_, _, _ string) (string, error) { return "", nil }
+
+func (f *fakeAuthService) ExchangeCodeForUser(_ context.Context, _, _, _ string) (service.AuthUser, error) {
 	return service.AuthUser{}, errors.New("not implemented")
 }
 

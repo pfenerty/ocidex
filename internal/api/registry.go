@@ -130,7 +130,7 @@ func (h *Handler) listRegistries(ctx context.Context, vis service.VisibilityFilt
 	}
 	ownerNames := make(map[string]string, len(users))
 	for _, u := range users {
-		ownerNames[uuidToStr(u.ID)] = u.GitHubUsername
+		ownerNames[uuidToStr(u.ID)] = u.DisplayName
 	}
 	out := &ListRegistriesOutput{}
 	out.Body.Data = make([]RegistryResponse, len(result.Data))

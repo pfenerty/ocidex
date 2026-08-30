@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/matryer/is"
 
 	"github.com/pfenerty/ocidex/internal/api"
+	"github.com/pfenerty/ocidex/internal/auth"
 	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/event"
 	"github.com/pfenerty/ocidex/internal/service"
@@ -43,7 +45,9 @@ func setupServerWithAuth(t *testing.T, pool *pgxpool.Pool) (*httptest.Server, se
 func setupServerWithStats(t *testing.T, pool *pgxpool.Pool) (*httptest.Server, service.AuthService, service.SearchService) {
 	t.Helper()
 	cfg := &config.Config{SessionSecret: testSessionSecret}
-	authSvc := service.NewAuthService(pool, cfg, event.NewBus(slog.Default()))
+	authSvc := service.NewAuthService(pool, cfg, event.NewBus(slog.Default()), []auth.Provider{
+		auth.NewGitHubProvider("test-client", "test-secret", "http://localhost/auth/callback"),
+	})
 	sbomSvc := service.NewSBOMService(pool, nil, nil)
 	searchSvc := service.NewSearchService(pool)
 	registrySvc := service.NewRegistryService(pool)
@@ -94,11 +98,19 @@ func refreshRollups(t *testing.T, pool *pgxpool.Pool) {
 func seedUser(t *testing.T, pool *pgxpool.Pool, githubID int64, username, role string) pgtype.UUID {
 	t.Helper()
 	var id pgtype.UUID
+	// display_name and the identity row are what the server actually reads
+	// since ocidex-iqkt.1/.2; the github_* columns are written only because
+	// they outlive this story by one release.
 	row := pool.QueryRow(t.Context(),
-		"INSERT INTO ocidex_user (github_id, github_username, role) VALUES ($1, $2, $3) RETURNING id",
+		"INSERT INTO ocidex_user (github_id, github_username, display_name, role) VALUES ($1, $2, $2, $3) RETURNING id",
 		githubID, username, role)
 	if err := row.Scan(&id); err != nil {
 		t.Fatalf("seeding user %s: %v", username, err)
+	}
+	if _, err := pool.Exec(t.Context(),
+		"INSERT INTO user_identity (user_id, provider, subject) VALUES ($1, 'github', $2)",
+		id, strconv.FormatInt(githubID, 10)); err != nil {
+		t.Fatalf("seeding identity for %s: %v", username, err)
 	}
 	return id
 }

@@ -2744,8 +2744,8 @@ type MeOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema *string `json:"$schema,omitempty"`
 
-	// GithubUsername GitHub login
-	GithubUsername string `json:"github_username"`
+	// DisplayName Name to show for this user; supplied by whichever issuer last signed them in
+	DisplayName string `json:"display_name"`
 
 	// Id User UUID
 	Id string `json:"id"`
@@ -3448,10 +3448,12 @@ type UpdateUserRoleInputBodyRole string
 // UserResponse defines model for UserResponse.
 type UserResponse struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema         *string `json:"$schema,omitempty"`
-	GithubUsername string  `json:"github_username"`
-	Id             string  `json:"id"`
-	Role           string  `json:"role"`
+	Schema *string `json:"$schema,omitempty"`
+
+	// DisplayName Name to show for this user; supplied by whichever issuer last signed them in
+	DisplayName string `json:"display_name"`
+	Id          string `json:"id"`
+	Role        string `json:"role"`
 }
 
 // VersionOutputBody defines model for VersionOutputBody.

@@ -61,7 +61,7 @@ func (h *Handler) SetNamespaceMember(ctx context.Context, in *SetNamespaceMember
 		return nil, mapServiceError(err)
 	}
 	return &SetNamespaceMemberOutput{
-		Body: toNamespaceMemberResponse(member, targetUser.GitHubUsername),
+		Body: toNamespaceMemberResponse(member, targetUser.DisplayName),
 	}, nil
 }
 
@@ -87,7 +87,7 @@ func (h *Handler) usernamesByID(ctx context.Context) map[string]string {
 		return names
 	}
 	for _, u := range users {
-		names[uuidToStr(u.ID)] = u.GitHubUsername
+		names[uuidToStr(u.ID)] = u.DisplayName
 	}
 	return names
 }

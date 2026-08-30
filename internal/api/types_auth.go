@@ -26,10 +26,10 @@ type MyMembership struct {
 // MeOutput is the response for GET /api/v1/users/me.
 type MeOutput struct {
 	Body struct {
-		ID             string         `json:"id" doc:"User UUID"`
-		GitHubUsername string         `json:"github_username" doc:"GitHub login"`
-		Role           string         `json:"role" doc:"User role: admin, member, or viewer"`
-		Memberships    []MyMembership `json:"memberships" doc:"The caller's namespace memberships, for UI emphasis only"`
+		ID          string         `json:"id" doc:"User UUID"`
+		DisplayName string         `json:"display_name" doc:"Name to show for this user; supplied by whichever issuer last signed them in"`
+		Role        string         `json:"role" doc:"User role: admin, member, or viewer"`
+		Memberships []MyMembership `json:"memberships" doc:"The caller's namespace memberships, for UI emphasis only"`
 	}
 }
 
@@ -129,9 +129,9 @@ type DeleteAPIKeyInput struct {
 
 // UserResponse is the public representation of a user.
 type UserResponse struct {
-	ID             string `json:"id"`
-	GitHubUsername string `json:"github_username"`
-	Role           string `json:"role"`
+	ID          string `json:"id"`
+	DisplayName string `json:"display_name" doc:"Name to show for this user; supplied by whichever issuer last signed them in"`
+	Role        string `json:"role"`
 }
 
 // ListUsersOutput is the response for GET /api/v1/users.

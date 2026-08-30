@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/pfenerty/ocidex/internal/auth"
 	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/service"
 )
@@ -65,8 +66,18 @@ func deriveFrontendURL(r *http.Request, configuredFrontendURL string) string {
 	return scheme + "://" + host
 }
 
-// HandleLogin initiates GitHub OAuth flow.
+// HandleLogin initiates the OAuth/OIDC flow for the requested provider.
+//
+// ?provider= names the issuer and defaults to GitHub, which is what every
+// existing bookmark and the frontend's own login link send. The choice is
+// written into the signed state cookie rather than the callback path so that a
+// second issuer needs no second redirect URI registered anywhere.
 func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) {
+	provider := r.URL.Query().Get("provider")
+	if provider == "" {
+		provider = auth.ProviderGitHub
+	}
+
 	nonce := make([]byte, 16)
 	if _, err := rand.Read(nonce); err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
@@ -74,13 +85,30 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	nonceStr := base64.RawURLEncoding.EncodeToString(nonce)
 
+	// The PKCE code verifier is minted here and carried in the state cookie, so
+	// it never leaves this browser. Providers that do not use PKCE ignore it.
+	verifierRaw := make([]byte, 32)
+	if _, err := rand.Read(verifierRaw); err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	verifier := base64.RawURLEncoding.EncodeToString(verifierRaw)
+
 	frontendURL := deriveFrontendURL(r, h.cfg.FrontendURL)
 	state, err := h.stateCookie.Encode("oauth-state", map[string]string{
 		"nonce":        nonceStr,
 		"frontend_url": frontendURL,
+		"provider":     provider,
+		"verifier":     verifier,
 	})
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	authURL, err := h.authService.BuildAuthURL(provider, state, verifier)
+	if err != nil {
+		http.Error(w, "unknown identity provider", http.StatusBadRequest)
 		return
 	}
 
@@ -94,10 +122,14 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		Secure:   h.cfg.Environment == envProduction,
 	})
 
-	http.Redirect(w, r, h.authService.BuildAuthURL(state), http.StatusTemporaryRedirect)
+	// The destination is the selected provider's own authorize endpoint, built
+	// from configuration. ?provider= only picks a map key — an unrecognised one
+	// has already returned 400 above — so no part of the request reaches the URL.
+	http.Redirect(w, r, authURL, http.StatusTemporaryRedirect) //nolint:gosec // G710: destination is provider config, not request input
 }
 
-// HandleCallback handles the GitHub OAuth callback.
+// HandleCallback handles the OAuth/OIDC callback for whichever provider the
+// state cookie says this sign-in began with.
 func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	stateCookie, err := r.Cookie(stateCookieName)
 	if err != nil {
@@ -135,7 +167,14 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.authService.ExchangeCodeForUser(r.Context(), code)
+	provider := stateData["provider"]
+	if provider == "" {
+		// A state cookie minted before providers were named. Treating it as
+		// GitHub keeps sign-ins that were mid-flight across a deploy working.
+		provider = auth.ProviderGitHub
+	}
+
+	user, err := h.authService.ExchangeCodeForUser(r.Context(), provider, code, stateData["verifier"])
 	if err != nil {
 		http.Error(w, "authentication failed", http.StatusUnauthorized)
 		return
@@ -415,7 +454,7 @@ func (h *Handler) GetMe(ctx context.Context, _ *struct{}) (*MeOutput, error) {
 	}
 	out := &MeOutput{}
 	out.Body.ID = uuid.UUID(user.ID.Bytes).String()
-	out.Body.GitHubUsername = user.GitHubUsername
+	out.Body.DisplayName = user.DisplayName
 	out.Body.Role = user.Role
 	// Grants is already on the request — the authenticate middleware loads it
 	// for every call — so this costs no query. Sorted because a map iterates in
@@ -620,9 +659,9 @@ func (h *Handler) ListUsers(ctx context.Context, _ *struct{}) (*ListUsersOutput,
 	out.Body.Users = make([]UserResponse, len(users))
 	for i, u := range users {
 		out.Body.Users[i] = UserResponse{
-			ID:             uuid.UUID(u.ID.Bytes).String(),
-			GitHubUsername: u.GitHubUsername,
-			Role:           u.Role,
+			ID:          uuid.UUID(u.ID.Bytes).String(),
+			DisplayName: u.DisplayName,
+			Role:        u.Role,
 		}
 	}
 	return out, nil
@@ -638,9 +677,9 @@ func (h *Handler) UpdateUserRole(ctx context.Context, in *UpdateUserRoleInput) (
 		return nil, huma.Error400BadRequest(fmt.Sprintf("updating role: %v", err))
 	}
 	return &UpdateUserRoleOutput{Body: UserResponse{
-		ID:             uuid.UUID(u.ID.Bytes).String(),
-		GitHubUsername: u.GitHubUsername,
-		Role:           u.Role,
+		ID:          uuid.UUID(u.ID.Bytes).String(),
+		DisplayName: u.DisplayName,
+		Role:        u.Role,
 	}}, nil
 }
 

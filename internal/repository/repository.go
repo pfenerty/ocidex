@@ -216,7 +216,10 @@ type JobRepository interface {
 
 // AuthRepository defines data access methods for authentication and authorization.
 type AuthRepository interface {
-	UpsertUser(ctx context.Context, arg UpsertUserParams) (OcidexUser, error)
+	GetUserByIdentity(ctx context.Context, arg GetUserByIdentityParams) (OcidexUser, error)
+	CreateUserWithIdentity(ctx context.Context, arg CreateUserWithIdentityParams) (CreateUserWithIdentityRow, error)
+	TouchUserProfile(ctx context.Context, arg TouchUserProfileParams) (OcidexUser, error)
+	UpsertIdentityEmail(ctx context.Context, arg UpsertIdentityEmailParams) error
 	GetUserByID(ctx context.Context, id pgtype.UUID) (OcidexUser, error)
 	ListUsers(ctx context.Context) ([]OcidexUser, error)
 	UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) (OcidexUser, error)

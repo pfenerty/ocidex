@@ -6,17 +6,18 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
+	"sort"
+	"strconv"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/github"
 
+	"github.com/pfenerty/ocidex/internal/auth"
 	"github.com/pfenerty/ocidex/internal/authz"
 	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/event"
@@ -25,10 +26,12 @@ import (
 
 // AuthUser is the authenticated principal attached to a request context.
 type AuthUser struct {
-	ID             pgtype.UUID
-	GitHubID       int64
-	GitHubUsername string
-	Role           string
+	ID pgtype.UUID
+	// DisplayName is what to call this person in the UI. It is deliberately not
+	// an identifier: it comes from whichever issuer last signed them in, and two
+	// accounts may carry the same one.
+	DisplayName string
+	Role        string
 	// APIKeyAuth reports whether this request was authenticated by an API key
 	// rather than by a session cookie.
 	APIKeyAuth bool
@@ -101,10 +104,18 @@ func (u AuthUser) KeyAllowsAnyWrite() bool {
 	return false
 }
 
-// AuthService handles GitHub OAuth, sessions, and API key management.
+// AuthService handles interactive sign-in, sessions, and API key management.
 type AuthService interface {
-	BuildAuthURL(state string) string
-	ExchangeCodeForUser(ctx context.Context, code string) (AuthUser, error)
+	// ProviderNames lists the configured issuers, sorted, for a caller that has
+	// to offer a choice.
+	ProviderNames() []string
+	// BuildAuthURL is where to send the browser to sign in through provider.
+	// verifier is the PKCE code verifier for this attempt; providers that do
+	// not use PKCE ignore it.
+	BuildAuthURL(provider, state, verifier string) (string, error)
+	// ExchangeCodeForUser redeems a callback code against provider and resolves
+	// it to the account that identity belongs to, creating one on first sign-in.
+	ExchangeCodeForUser(ctx context.Context, provider, code, verifier string) (AuthUser, error)
 	CreateSession(ctx context.Context, userID pgtype.UUID) (plaintext string, err error)
 	ValidateSession(ctx context.Context, token string) (AuthUser, error)
 	DeleteSession(ctx context.Context, token string) error
@@ -123,89 +134,144 @@ type AuthService interface {
 }
 
 type authService struct {
-	pool      *pgxpool.Pool
-	repo      repository.AuthRepository
-	oauth2    *oauth2.Config
+	pool *pgxpool.Pool
+	repo repository.AuthRepository
+	// providers is keyed by Provider.Name. The service never names an issuer
+	// itself: which one a sign-in uses arrives from the caller, and an unknown
+	// name is an error rather than a silent fallback to GitHub.
+	providers map[string]auth.Provider
 	cfg       *config.Config
 	publisher event.Publisher
 }
 
-// NewAuthService constructs an AuthService.
-func NewAuthService(pool *pgxpool.Pool, cfg *config.Config, publisher event.Publisher) AuthService {
-	oc := &oauth2.Config{
-		ClientID:     cfg.GitHubClientID,
-		ClientSecret: cfg.GitHubClientSecret,
-		RedirectURL:  cfg.GitHubRedirectURL,
-		Scopes:       []string{"read:user"},
-		Endpoint:     github.Endpoint,
+// NewAuthService constructs an AuthService over the given identity providers,
+// keyed by name.
+func NewAuthService(pool *pgxpool.Pool, cfg *config.Config, publisher event.Publisher, providers []auth.Provider) AuthService {
+	byName := make(map[string]auth.Provider, len(providers))
+	for _, p := range providers {
+		byName[p.Name()] = p
 	}
 	return &authService{
 		pool:      pool,
 		repo:      repository.New(pool),
-		oauth2:    oc,
+		providers: byName,
 		cfg:       cfg,
 		publisher: publisher,
 	}
 }
 
-// githubID and githubUsername read ocidex_user's GitHub columns, nullable since
-// migration 00069 and gone in ocidex-iqkt.5. AuthUser keeps its non-null shape
-// until its readers move, so an account with no GitHub identity reads back as
-// the zero value instead of pushing pgtype out to every caller.
-func githubID(v pgtype.Int8) int64 { return v.Int64 }
+// displayName reads ocidex_user.display_name, which is nullable because the
+// column arrived in migration 00069 with nothing to seed it from for a row that
+// had no github_username. An account with no name renders as empty rather than
+// failing the request.
+func displayName(v pgtype.Text) string { return v.String }
 
-func githubUsername(v pgtype.Text) string { return v.String }
-
-func (s *authService) BuildAuthURL(state string) string {
-	return s.oauth2.AuthCodeURL(state, oauth2.AccessTypeOnline)
+func (s *authService) ProviderNames() []string {
+	names := make([]string, 0, len(s.providers))
+	for name := range s.providers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
-func (s *authService) ExchangeCodeForUser(ctx context.Context, code string) (AuthUser, error) {
-	token, err := s.oauth2.Exchange(ctx, code)
+func (s *authService) BuildAuthURL(provider, state, verifier string) (string, error) {
+	p, ok := s.providers[provider]
+	if !ok {
+		return "", &ValidationError{Message: fmt.Sprintf("unknown identity provider %q", provider)}
+	}
+	return p.AuthURL(state, verifier), nil
+}
+
+func (s *authService) ExchangeCodeForUser(ctx context.Context, provider, code, verifier string) (AuthUser, error) {
+	p, ok := s.providers[provider]
+	if !ok {
+		return AuthUser{}, &ValidationError{Message: fmt.Sprintf("unknown identity provider %q", provider)}
+	}
+	id, err := p.Exchange(ctx, code, verifier)
 	if err != nil {
-		return AuthUser{}, fmt.Errorf("exchanging oauth code: %w", err)
+		return AuthUser{}, fmt.Errorf("exchanging code with %s: %w", provider, err)
 	}
+	if id.Subject == "" {
+		return AuthUser{}, fmt.Errorf("%s returned an identity with no subject", provider)
+	}
+	return s.resolveIdentity(ctx, id)
+}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user", nil)
-	if err != nil {
-		return AuthUser{}, fmt.Errorf("building github user request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
-	req.Header.Set("Accept", "application/vnd.github+json")
-
-	c := &http.Client{Timeout: 10 * time.Second}
-	resp, err := c.Do(req)
-	if err != nil {
-		return AuthUser{}, fmt.Errorf("fetching github user: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return AuthUser{}, fmt.Errorf("github user API returned %d", resp.StatusCode)
-	}
-
-	var ghUser struct {
-		ID    int64  `json:"id"`
-		Login string `json:"login"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&ghUser); err != nil {
-		return AuthUser{}, fmt.Errorf("decoding github user: %w", err)
-	}
-
-	u, err := s.repo.UpsertUser(ctx, repository.UpsertUserParams{
-		GithubID:       pgtype.Int8{Int64: ghUser.ID, Valid: true},
-		GithubUsername: pgtype.Text{String: ghUser.Login, Valid: true},
+// resolveIdentity maps an Identity onto the account that holds it, creating the
+// account on first sign-in.
+//
+// The match is on (provider, subject) and nothing else. Matching on email
+// instead — "this address already has an account, so it must be the same
+// person" — would let any issuer that does not verify addresses take over an
+// account on another issuer, so the address is stored and never compared.
+func (s *authService) resolveIdentity(ctx context.Context, id auth.Identity) (AuthUser, error) {
+	u, err := s.repo.GetUserByIdentity(ctx, repository.GetUserByIdentityParams{
+		Provider: id.Provider,
+		Subject:  id.Subject,
 	})
-	if err != nil {
-		return AuthUser{}, fmt.Errorf("upserting user: %w", err)
-	}
+	switch {
+	case err == nil:
+		if err := s.repo.UpsertIdentityEmail(ctx, repository.UpsertIdentityEmailParams{
+			Provider: id.Provider,
+			Subject:  id.Subject,
+			Email:    id.Email,
+		}); err != nil {
+			return AuthUser{}, fmt.Errorf("updating identity email: %w", err)
+		}
+		u, err = s.repo.TouchUserProfile(ctx, repository.TouchUserProfileParams{
+			ID:          u.ID,
+			DisplayName: id.DisplayName,
+			Email:       id.Email,
+		})
+		if err != nil {
+			return AuthUser{}, fmt.Errorf("updating user profile: %w", err)
+		}
+		return AuthUser{ID: u.ID, DisplayName: displayName(u.DisplayName), Role: u.Role}, nil
 
-	return AuthUser{
-		ID:             u.ID,
-		GitHubID:       githubID(u.GithubID),
-		GitHubUsername: githubUsername(u.GithubUsername),
-		Role:           u.Role,
-	}, nil
+	case errors.Is(err, pgx.ErrNoRows):
+		row, createErr := s.repo.CreateUserWithIdentity(ctx, newUserParams(id))
+		if createErr == nil {
+			return AuthUser{ID: row.ID, DisplayName: displayName(row.DisplayName), Role: row.Role}, nil
+		}
+		// Two tabs can finish a first sign-in at the same time; the loser hits
+		// user_identity's UNIQUE (provider, subject). The account it wanted now
+		// exists, so look it up rather than failing a legitimate login.
+		u, lookupErr := s.repo.GetUserByIdentity(ctx, repository.GetUserByIdentityParams{
+			Provider: id.Provider,
+			Subject:  id.Subject,
+		})
+		if lookupErr != nil {
+			return AuthUser{}, fmt.Errorf("creating user: %w", createErr)
+		}
+		return AuthUser{ID: u.ID, DisplayName: displayName(u.DisplayName), Role: u.Role}, nil
+
+	default:
+		return AuthUser{}, fmt.Errorf("looking up identity: %w", err)
+	}
+}
+
+// newUserParams shapes the insert for a brand-new account.
+//
+// The GitHub columns are still written for the GitHub provider and left NULL
+// for every other one. They are dead weight above the repository — nothing
+// reads them any more — but migration 00069 keeps them for one release so a
+// rollback finds accounts created in the meantime. Delete this special case
+// with the columns in ocidex-iqkt.5.
+func newUserParams(id auth.Identity) repository.CreateUserWithIdentityParams {
+	p := repository.CreateUserWithIdentityParams{
+		Provider:    id.Provider,
+		Subject:     id.Subject,
+		DisplayName: pgtype.Text{String: id.DisplayName, Valid: id.DisplayName != ""},
+		Email:       pgtype.Text{String: id.Email, Valid: id.Email != ""},
+	}
+	if id.Provider == auth.ProviderGitHub {
+		if n, err := strconv.ParseInt(id.Subject, 10, 64); err == nil {
+			p.GithubID = pgtype.Int8{Int64: n, Valid: true}
+		}
+		p.GithubUsername = pgtype.Text{String: id.DisplayName, Valid: id.DisplayName != ""}
+	}
+	return p
 }
 
 func (s *authService) CreateSession(ctx context.Context, userID pgtype.UUID) (string, error) {
@@ -235,10 +301,9 @@ func (s *authService) ValidateSession(ctx context.Context, token string) (AuthUs
 		return AuthUser{}, fmt.Errorf("session not found: %w", err)
 	}
 	return AuthUser{
-		ID:             row.UserID,
-		GitHubID:       githubID(row.GithubID),
-		GitHubUsername: githubUsername(row.GithubUsername),
-		Role:           row.Role,
+		ID:          row.UserID,
+		DisplayName: displayName(row.DisplayName),
+		Role:        row.Role,
 	}, nil
 }
 
@@ -315,12 +380,11 @@ func (s *authService) ValidateAPIKey(ctx context.Context, rawKey string) (AuthUs
 		}
 	}
 	return AuthUser{
-		ID:             row.UserID,
-		GitHubID:       githubID(row.GithubID),
-		GitHubUsername: githubUsername(row.GithubUsername),
-		Role:           row.Role,
-		APIKeyAuth:     true,
-		APIKeyCaps:     caps,
+		ID:          row.UserID,
+		DisplayName: displayName(row.DisplayName),
+		Role:        row.Role,
+		APIKeyAuth:  true,
+		APIKeyCaps:  caps,
 	}, nil
 }
 
@@ -378,10 +442,9 @@ func (s *authService) GetUser(ctx context.Context, userID pgtype.UUID) (AuthUser
 		return AuthUser{}, fmt.Errorf("getting user: %w", err)
 	}
 	return AuthUser{
-		ID:             u.ID,
-		GitHubID:       githubID(u.GithubID),
-		GitHubUsername: githubUsername(u.GithubUsername),
-		Role:           u.Role,
+		ID:          u.ID,
+		DisplayName: displayName(u.DisplayName),
+		Role:        u.Role,
 	}, nil
 }
 
@@ -393,10 +456,9 @@ func (s *authService) ListUsers(ctx context.Context) ([]AuthUser, error) {
 	out := make([]AuthUser, len(users))
 	for i, u := range users {
 		out[i] = AuthUser{
-			ID:             u.ID,
-			GitHubID:       githubID(u.GithubID),
-			GitHubUsername: githubUsername(u.GithubUsername),
-			Role:           u.Role,
+			ID:          u.ID,
+			DisplayName: displayName(u.DisplayName),
+			Role:        u.Role,
 		}
 	}
 	return out, nil
@@ -423,10 +485,9 @@ func (s *authService) UpdateUserRole(ctx context.Context, targetID pgtype.UUID, 
 		return AuthUser{}, fmt.Errorf("updating user role: %w", err)
 	}
 	return AuthUser{
-		ID:             u.ID,
-		GitHubID:       githubID(u.GithubID),
-		GitHubUsername: githubUsername(u.GithubUsername),
-		Role:           u.Role,
+		ID:          u.ID,
+		DisplayName: displayName(u.DisplayName),
+		Role:        u.Role,
 	}, nil
 }
 

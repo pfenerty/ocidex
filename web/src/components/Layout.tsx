@@ -204,7 +204,7 @@ export default function Layout(props: ParentProps) {
                         <div class="sidebar-user">
                             <div class="sidebar-user-info">
                                 <GitHubMark size={14} class="sidebar-github-icon" />
-                                <span class="truncate">{u().github_username}</span>
+                                <span class="truncate">{u().display_name}</span>
                             </div>
                             <button
                                 onClick={() => void handleLogout()}

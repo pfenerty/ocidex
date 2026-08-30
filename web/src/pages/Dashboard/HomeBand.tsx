@@ -37,7 +37,7 @@ export function HomeBand(): JSX.Element {
         <Show when={user()}>
             {(u) => (
                 <section class="home-band">
-                    <span class="home-band-greeting">Welcome back, {u().github_username}</span>
+                    <span class="home-band-greeting">Welcome back, {u().display_name}</span>
                     {/* Each figure appears only once its query has answered.
                         A count that reads 0 while still loading is worse than
                         no count: it is a wrong answer rendered confidently. */}

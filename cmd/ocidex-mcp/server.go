@@ -61,7 +61,7 @@ type whoamiInput struct{}
 // before attempting it.
 type whoamiOutput struct {
 	UserID   string `json:"user_id" jsonschema:"UUID of the authenticated user"`
-	Username string `json:"username" jsonschema:"GitHub login of the authenticated user"`
+	Username string `json:"username" jsonschema:"Display name of the authenticated user, as released by their identity provider"`
 	Role     string `json:"role" jsonschema:"Role of the authenticated user: admin, member, or viewer"`
 	Server   string `json:"server" jsonschema:"Base URL of the OCIDex server these tools talk to"`
 }
@@ -85,7 +85,7 @@ func registerIdentityTools(srv *mcp.Server, api client.Client, server string) {
 		}
 		return nil, whoamiOutput{
 			UserID:   me.Id,
-			Username: me.GithubUsername,
+			Username: me.DisplayName,
 			Role:     me.Role,
 			Server:   server,
 		}, nil

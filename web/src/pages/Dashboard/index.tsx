@@ -108,7 +108,7 @@ export default function Dashboard(): JSX.Element {
                 title="Workspace"
                 subtitle={
                     <Show when={user()} fallback="Your namespaces, ingests and alerts">
-                        {(u) => `Signed in as ${u().github_username}`}
+                        {(u) => `Signed in as ${u().display_name}`}
                     </Show>
                 }
             />

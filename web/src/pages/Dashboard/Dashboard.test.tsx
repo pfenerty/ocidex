@@ -86,7 +86,7 @@ function signedInAs(...roles: string[]) {
     vi.mocked(useAuth).mockReturnValue({
         user: (() => ({
             id: "u1",
-            github_username: "octocat",
+            display_name: "octocat",
             role: "member",
             memberships,
         })) as unknown as ReturnType<typeof useAuth>["user"],

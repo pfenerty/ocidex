@@ -3100,8 +3100,8 @@ export interface components {
              * @example https://example.com/schemas/MeOutputBody.json
              */
             readonly $schema?: string;
-            /** @description GitHub login */
-            github_username: string;
+            /** @description Name to show for this user; supplied by whichever issuer last signed them in */
+            display_name: string;
             /** @description User UUID */
             id: string;
             /** @description The caller's namespace memberships, for UI emphasis only */
@@ -3823,7 +3823,8 @@ export interface components {
              * @example https://example.com/schemas/UserResponse.json
              */
             readonly $schema?: string;
-            github_username: string;
+            /** @description Name to show for this user; supplied by whichever issuer last signed them in */
+            display_name: string;
             id: string;
             role: string;
         };

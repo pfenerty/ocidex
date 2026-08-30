@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
 
@@ -32,7 +33,10 @@ type fakeAuthRepo struct {
 	touchAPIKeyFn       func(ctx context.Context, id pgtype.UUID) error
 	listAPIKeysByUserFn func(ctx context.Context, userID pgtype.UUID) ([]repository.ListAPIKeysByUserRow, error)
 	deleteAPIKeyFn      func(ctx context.Context, arg repository.DeleteAPIKeyParams) (int64, error)
-	upsertUserFn        func(ctx context.Context, arg repository.UpsertUserParams) (repository.OcidexUser, error)
+	getUserByIdentityFn func(ctx context.Context, arg repository.GetUserByIdentityParams) (repository.OcidexUser, error)
+	createUserFn        func(ctx context.Context, arg repository.CreateUserWithIdentityParams) (repository.CreateUserWithIdentityRow, error)
+	touchProfileFn      func(ctx context.Context, arg repository.TouchUserProfileParams) (repository.OcidexUser, error)
+	upsertIdentityFn    func(ctx context.Context, arg repository.UpsertIdentityEmailParams) error
 	getUserByIDFn       func(ctx context.Context, id pgtype.UUID) (repository.OcidexUser, error)
 	listUsersFn         func(ctx context.Context) ([]repository.OcidexUser, error)
 	updateUserRoleFn    func(ctx context.Context, arg repository.UpdateUserRoleParams) (repository.OcidexUser, error)
@@ -96,11 +100,32 @@ func (f *fakeAuthRepo) DeleteAPIKey(ctx context.Context, arg repository.DeleteAP
 	return 1, nil
 }
 
-func (f *fakeAuthRepo) UpsertUser(ctx context.Context, arg repository.UpsertUserParams) (repository.OcidexUser, error) {
-	if f.upsertUserFn != nil {
-		return f.upsertUserFn(ctx, arg)
+func (f *fakeAuthRepo) GetUserByIdentity(ctx context.Context, arg repository.GetUserByIdentityParams) (repository.OcidexUser, error) {
+	if f.getUserByIdentityFn != nil {
+		return f.getUserByIdentityFn(ctx, arg)
+	}
+	return repository.OcidexUser{}, pgx.ErrNoRows
+}
+
+func (f *fakeAuthRepo) CreateUserWithIdentity(ctx context.Context, arg repository.CreateUserWithIdentityParams) (repository.CreateUserWithIdentityRow, error) {
+	if f.createUserFn != nil {
+		return f.createUserFn(ctx, arg)
+	}
+	return repository.CreateUserWithIdentityRow{}, nil
+}
+
+func (f *fakeAuthRepo) TouchUserProfile(ctx context.Context, arg repository.TouchUserProfileParams) (repository.OcidexUser, error) {
+	if f.touchProfileFn != nil {
+		return f.touchProfileFn(ctx, arg)
 	}
 	return repository.OcidexUser{}, nil
+}
+
+func (f *fakeAuthRepo) UpsertIdentityEmail(ctx context.Context, arg repository.UpsertIdentityEmailParams) error {
+	if f.upsertIdentityFn != nil {
+		return f.upsertIdentityFn(ctx, arg)
+	}
+	return nil
 }
 
 func (f *fakeAuthRepo) GetUserByID(ctx context.Context, id pgtype.UUID) (repository.OcidexUser, error) {
@@ -190,10 +215,9 @@ func TestValidateSession_Valid(t *testing.T) {
 	repo := &fakeAuthRepo{
 		getSessionFn: func(_ context.Context, hash string) (repository.GetSessionByTokenHashRow, error) {
 			return repository.GetSessionByTokenHashRow{
-				UserID:         userID,
-				GithubID:       pgtype.Int8{Int64: 42, Valid: true},
-				GithubUsername: pgtype.Text{String: "alice", Valid: true},
-				Role:           "member",
+				UserID:      userID,
+				DisplayName: pgtype.Text{String: "alice", Valid: true},
+				Role:        "member",
 			}, nil
 		},
 	}
@@ -202,7 +226,7 @@ func TestValidateSession_Valid(t *testing.T) {
 	user, err := svc.ValidateSession(context.Background(), "any-token")
 
 	is.NoErr(err)
-	is.Equal(user.GitHubUsername, "alice")
+	is.Equal(user.DisplayName, "alice")
 	is.Equal(user.Role, "member")
 	is.Equal(user.ID, userID)
 }
@@ -284,11 +308,10 @@ func TestValidateAPIKey_Valid(t *testing.T) {
 	repo := &fakeAuthRepo{
 		getAPIKeyByHashFn: func(_ context.Context, _ string) (repository.GetAPIKeyByHashRow, error) {
 			return repository.GetAPIKeyByHashRow{
-				ID:             keyID,
-				UserID:         userID,
-				GithubID:       pgtype.Int8{Int64: 7, Valid: true},
-				GithubUsername: pgtype.Text{String: "bob", Valid: true},
-				Role:           "admin",
+				ID:          keyID,
+				UserID:      userID,
+				DisplayName: pgtype.Text{String: "bob", Valid: true},
+				Role:        "admin",
 			}, nil
 		},
 		touchAPIKeyFn: func(_ context.Context, _ pgtype.UUID) error { return nil },
@@ -298,7 +321,7 @@ func TestValidateAPIKey_Valid(t *testing.T) {
 	user, err := svc.ValidateAPIKey(context.Background(), "ocidex_somekey")
 
 	is.NoErr(err)
-	is.Equal(user.GitHubUsername, "bob")
+	is.Equal(user.DisplayName, "bob")
 	is.Equal(user.Role, "admin")
 }
 
@@ -462,9 +485,9 @@ func TestGetUser_Found(t *testing.T) {
 	repo := &fakeAuthRepo{
 		getUserByIDFn: func(_ context.Context, _ pgtype.UUID) (repository.OcidexUser, error) {
 			return repository.OcidexUser{
-				ID:             userID,
-				GithubUsername: pgtype.Text{String: "carol", Valid: true},
-				Role:           "viewer",
+				ID:          userID,
+				DisplayName: pgtype.Text{String: "carol", Valid: true},
+				Role:        "viewer",
 			}, nil
 		},
 	}
@@ -472,7 +495,7 @@ func TestGetUser_Found(t *testing.T) {
 
 	user, err := svc.GetUser(context.Background(), userID)
 	is.NoErr(err)
-	is.Equal(user.GitHubUsername, "carol")
+	is.Equal(user.DisplayName, "carol")
 	is.Equal(user.Role, "viewer")
 }
 
@@ -498,8 +521,8 @@ func TestListUsers_ReturnsList(t *testing.T) {
 	repo := &fakeAuthRepo{
 		listUsersFn: func(_ context.Context) ([]repository.OcidexUser, error) {
 			return []repository.OcidexUser{
-				{GithubUsername: pgtype.Text{String: "alice", Valid: true}, Role: "admin"},
-				{GithubUsername: pgtype.Text{String: "bob", Valid: true}, Role: "member"},
+				{DisplayName: pgtype.Text{String: "alice", Valid: true}, Role: "admin"},
+				{DisplayName: pgtype.Text{String: "bob", Valid: true}, Role: "member"},
 			}, nil
 		},
 	}
@@ -508,7 +531,7 @@ func TestListUsers_ReturnsList(t *testing.T) {
 	users, err := svc.ListUsers(context.Background())
 	is.NoErr(err)
 	is.Equal(len(users), 2)
-	is.Equal(users[0].GitHubUsername, "alice")
+	is.Equal(users[0].DisplayName, "alice")
 }
 
 func TestListUsers_RepoError(t *testing.T) {

@@ -75,7 +75,7 @@ argument is visible in the process table and in most runners' command logs.`,
 			}
 
 			fmt.Fprintf(cmd.ErrOrStderr(), "logged in to %s as %s (%s); credentials saved to %s\n",
-				server, me.GithubUsername, me.Role, cliconfig.Path())
+				server, me.DisplayName, me.Role, cliconfig.Path())
 			return nil
 		},
 	}

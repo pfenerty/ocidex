@@ -16,7 +16,7 @@ const mutate = vi.fn();
 /** signedIn stubs the auth context; passing false makes the visitor anonymous. */
 function signedIn(yes: boolean) {
     mockAuth.mockReturnValue({
-        user: (() => (yes ? { id: "u1", github_username: "me", role: "member" } : undefined)),
+        user: (() => (yes ? { id: "u1", display_name: "me", role: "member" } : undefined)),
         refetch: vi.fn(),
     } as unknown as ReturnType<typeof useAuth>);
 }

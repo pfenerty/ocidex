@@ -78,7 +78,7 @@ function select(container: HTMLElement, label: string): HTMLSelectElement {
 function renderPanel(
     caller: { id: string; role: string } | undefined,
     members = [owner, viewer],
-    users: unknown[] = [{ id: "u-new", github_username: "monalisa" }],
+    users: unknown[] = [{ id: "u-new", display_name: "monalisa" }],
 ) {
     mockAuth.mockReturnValue({ user: () => caller, refetch: vi.fn() } as never);
     mockMembers.mockImplementation((() => ({
@@ -150,8 +150,8 @@ describe("NamespaceMembers", () => {
 
     it("adds a member, offering only users who are not members yet", () => {
         const { container } = renderPanel({ id: "u-owner", role: "member" }, [owner, viewer], [
-            { id: "u-new", github_username: "monalisa" },
-            { id: "u-viewer", github_username: "hubot" },
+            { id: "u-new", display_name: "monalisa" },
+            { id: "u-viewer", display_name: "hubot" },
         ]);
 
         const picker = select(container, "User to add");

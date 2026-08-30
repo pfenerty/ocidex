@@ -41,7 +41,7 @@ func (f *sessionAuthService) CreateSession(_ context.Context, userID pgtype.UUID
 	for _, u := range f.roster {
 		if u.ID == userID {
 			f.minted++
-			token := "session-" + u.GitHubUsername
+			token := "session-" + u.DisplayName
 			f.sessions[token] = u
 			return token, nil
 		}
@@ -67,8 +67,8 @@ func personaID(b byte) pgtype.UUID {
 
 func devPersonas() []service.AuthUser {
 	return []service.AuthUser{
-		{ID: personaID(0x11), GitHubUsername: "devadmin", Role: "admin"},
-		{ID: personaID(0x22), GitHubUsername: "devviewer", Role: "viewer"},
+		{ID: personaID(0x11), DisplayName: "devadmin", Role: "admin"},
+		{ID: personaID(0x22), DisplayName: "devviewer", Role: "viewer"},
 	}
 }
 

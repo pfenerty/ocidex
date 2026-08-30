@@ -57,7 +57,7 @@ func readConfig(t *testing.T, home string) cliconfig.File {
 func fakeUser() *client.FakeClient {
 	return &client.FakeClient{
 		GetCurrentUserFn: func(context.Context) (client.MeOutputBody, error) {
-			return client.MeOutputBody{Id: "u1", GithubUsername: "pfenerty", Role: "admin"}, nil
+			return client.MeOutputBody{Id: "u1", DisplayName: "pfenerty", Role: "admin"}, nil
 		},
 	}
 }

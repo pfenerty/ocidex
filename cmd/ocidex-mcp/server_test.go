@@ -98,9 +98,9 @@ func TestWhoamiReportsIdentityAndServer(t *testing.T) {
 		GetCurrentUserFn: func(context.Context) (client.MeOutputBody, error) {
 			called = true
 			return client.MeOutputBody{
-				Id:             "11111111-1111-1111-1111-111111111111",
-				GithubUsername: "octocat",
-				Role:           "member",
+				Id:          "11111111-1111-1111-1111-111111111111",
+				DisplayName: "octocat",
+				Role:        "member",
 			}, nil
 		},
 	}
