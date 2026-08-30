@@ -206,11 +206,13 @@ type NamespaceMember struct {
 
 type OcidexUser struct {
 	ID             pgtype.UUID        `json:"id"`
-	GithubID       int64              `json:"github_id"`
-	GithubUsername string             `json:"github_username"`
+	GithubID       pgtype.Int8        `json:"github_id"`
+	GithubUsername pgtype.Text        `json:"github_username"`
 	Role           string             `json:"role"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	Email          pgtype.Text        `json:"email"`
+	DisplayName    pgtype.Text        `json:"display_name"`
 }
 
 type PackageVulnerability struct {
@@ -337,6 +339,18 @@ type Source struct {
 	// Not to be confused with registry.type (zot/harbor/docker/generic), which is an OCI-flavour hint for the scanner and is meaningless for an upload.
 	Kind      string             `json:"kind"`
 	Name      string             `json:"name"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type UserIdentity struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+	// Issuer key: 'github' for the GitHub OAuth2 app, 'oidc:<name>' for a configured OIDC issuer.
+	Provider string `json:"provider"`
+	// The issuer's stable subject. GitHub's numeric user id as text, or the OIDC ID token 'sub' claim.
+	Subject   string             `json:"subject"`
+	Email     pgtype.Text        `json:"email"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }

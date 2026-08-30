@@ -124,8 +124,8 @@ type GetAPIKeyByHashRow struct {
 	Capabilities   []string           `json:"capabilities"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	LastUsedAt     pgtype.Timestamptz `json:"last_used_at"`
-	GithubID       int64              `json:"github_id"`
-	GithubUsername string             `json:"github_username"`
+	GithubID       pgtype.Int8        `json:"github_id"`
+	GithubUsername pgtype.Text        `json:"github_username"`
 	Role           string             `json:"role"`
 }
 
@@ -162,8 +162,8 @@ type GetSessionByTokenHashRow struct {
 	TokenHash      string             `json:"token_hash"`
 	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	GithubID       int64              `json:"github_id"`
-	GithubUsername string             `json:"github_username"`
+	GithubID       pgtype.Int8        `json:"github_id"`
+	GithubUsername pgtype.Text        `json:"github_username"`
 	Role           string             `json:"role"`
 }
 
@@ -184,7 +184,7 @@ func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash string) (
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, github_id, github_username, role, created_at, updated_at FROM ocidex_user WHERE id = $1
+SELECT id, github_id, github_username, role, created_at, updated_at, email, display_name FROM ocidex_user WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (OcidexUser, error) {
@@ -197,6 +197,8 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (OcidexUser, 
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Email,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -245,7 +247,7 @@ func (q *Queries) ListAPIKeysByUser(ctx context.Context, userID pgtype.UUID) ([]
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, github_id, github_username, role, created_at, updated_at FROM ocidex_user ORDER BY created_at ASC
+SELECT id, github_id, github_username, role, created_at, updated_at, email, display_name FROM ocidex_user ORDER BY created_at ASC
 `
 
 func (q *Queries) ListUsers(ctx context.Context) ([]OcidexUser, error) {
@@ -264,6 +266,8 @@ func (q *Queries) ListUsers(ctx context.Context) ([]OcidexUser, error) {
 			&i.Role,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Email,
+			&i.DisplayName,
 		); err != nil {
 			return nil, err
 		}
@@ -289,7 +293,7 @@ UPDATE ocidex_user
 SET role       = $2,
     updated_at = now()
 WHERE id = $1
-RETURNING id, github_id, github_username, role, created_at, updated_at
+RETURNING id, github_id, github_username, role, created_at, updated_at, email, display_name
 `
 
 type UpdateUserRoleParams struct {
@@ -307,6 +311,8 @@ func (q *Queries) UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) 
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Email,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -317,12 +323,12 @@ VALUES ($1, $2)
 ON CONFLICT (github_id) DO UPDATE
     SET github_username = EXCLUDED.github_username,
         updated_at      = now()
-RETURNING id, github_id, github_username, role, created_at, updated_at
+RETURNING id, github_id, github_username, role, created_at, updated_at, email, display_name
 `
 
 type UpsertUserParams struct {
-	GithubID       int64  `json:"github_id"`
-	GithubUsername string `json:"github_username"`
+	GithubID       pgtype.Int8 `json:"github_id"`
+	GithubUsername pgtype.Text `json:"github_username"`
 }
 
 func (q *Queries) UpsertUser(ctx context.Context, arg UpsertUserParams) (OcidexUser, error) {
@@ -335,6 +341,8 @@ func (q *Queries) UpsertUser(ctx context.Context, arg UpsertUserParams) (OcidexU
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Email,
+		&i.DisplayName,
 	)
 	return i, err
 }

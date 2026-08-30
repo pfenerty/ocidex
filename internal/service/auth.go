@@ -148,6 +148,14 @@ func NewAuthService(pool *pgxpool.Pool, cfg *config.Config, publisher event.Publ
 	}
 }
 
+// githubID and githubUsername read ocidex_user's GitHub columns, nullable since
+// migration 00069 and gone in ocidex-iqkt.5. AuthUser keeps its non-null shape
+// until its readers move, so an account with no GitHub identity reads back as
+// the zero value instead of pushing pgtype out to every caller.
+func githubID(v pgtype.Int8) int64 { return v.Int64 }
+
+func githubUsername(v pgtype.Text) string { return v.String }
+
 func (s *authService) BuildAuthURL(state string) string {
 	return s.oauth2.AuthCodeURL(state, oauth2.AccessTypeOnline)
 }
@@ -185,8 +193,8 @@ func (s *authService) ExchangeCodeForUser(ctx context.Context, code string) (Aut
 	}
 
 	u, err := s.repo.UpsertUser(ctx, repository.UpsertUserParams{
-		GithubID:       ghUser.ID,
-		GithubUsername: ghUser.Login,
+		GithubID:       pgtype.Int8{Int64: ghUser.ID, Valid: true},
+		GithubUsername: pgtype.Text{String: ghUser.Login, Valid: true},
 	})
 	if err != nil {
 		return AuthUser{}, fmt.Errorf("upserting user: %w", err)
@@ -194,8 +202,8 @@ func (s *authService) ExchangeCodeForUser(ctx context.Context, code string) (Aut
 
 	return AuthUser{
 		ID:             u.ID,
-		GitHubID:       u.GithubID,
-		GitHubUsername: u.GithubUsername,
+		GitHubID:       githubID(u.GithubID),
+		GitHubUsername: githubUsername(u.GithubUsername),
 		Role:           u.Role,
 	}, nil
 }
@@ -228,8 +236,8 @@ func (s *authService) ValidateSession(ctx context.Context, token string) (AuthUs
 	}
 	return AuthUser{
 		ID:             row.UserID,
-		GitHubID:       row.GithubID,
-		GitHubUsername: row.GithubUsername,
+		GitHubID:       githubID(row.GithubID),
+		GitHubUsername: githubUsername(row.GithubUsername),
 		Role:           row.Role,
 	}, nil
 }
@@ -308,8 +316,8 @@ func (s *authService) ValidateAPIKey(ctx context.Context, rawKey string) (AuthUs
 	}
 	return AuthUser{
 		ID:             row.UserID,
-		GitHubID:       row.GithubID,
-		GitHubUsername: row.GithubUsername,
+		GitHubID:       githubID(row.GithubID),
+		GitHubUsername: githubUsername(row.GithubUsername),
 		Role:           row.Role,
 		APIKeyAuth:     true,
 		APIKeyCaps:     caps,
@@ -371,8 +379,8 @@ func (s *authService) GetUser(ctx context.Context, userID pgtype.UUID) (AuthUser
 	}
 	return AuthUser{
 		ID:             u.ID,
-		GitHubID:       u.GithubID,
-		GitHubUsername: u.GithubUsername,
+		GitHubID:       githubID(u.GithubID),
+		GitHubUsername: githubUsername(u.GithubUsername),
 		Role:           u.Role,
 	}, nil
 }
@@ -386,8 +394,8 @@ func (s *authService) ListUsers(ctx context.Context) ([]AuthUser, error) {
 	for i, u := range users {
 		out[i] = AuthUser{
 			ID:             u.ID,
-			GitHubID:       u.GithubID,
-			GitHubUsername: u.GithubUsername,
+			GitHubID:       githubID(u.GithubID),
+			GitHubUsername: githubUsername(u.GithubUsername),
 			Role:           u.Role,
 		}
 	}
@@ -416,8 +424,8 @@ func (s *authService) UpdateUserRole(ctx context.Context, targetID pgtype.UUID, 
 	}
 	return AuthUser{
 		ID:             u.ID,
-		GitHubID:       u.GithubID,
-		GitHubUsername: u.GithubUsername,
+		GitHubID:       githubID(u.GithubID),
+		GitHubUsername: githubUsername(u.GithubUsername),
 		Role:           u.Role,
 	}, nil
 }

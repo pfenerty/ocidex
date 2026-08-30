@@ -191,8 +191,8 @@ func TestValidateSession_Valid(t *testing.T) {
 		getSessionFn: func(_ context.Context, hash string) (repository.GetSessionByTokenHashRow, error) {
 			return repository.GetSessionByTokenHashRow{
 				UserID:         userID,
-				GithubID:       42,
-				GithubUsername: "alice",
+				GithubID:       pgtype.Int8{Int64: 42, Valid: true},
+				GithubUsername: pgtype.Text{String: "alice", Valid: true},
 				Role:           "member",
 			}, nil
 		},
@@ -286,8 +286,8 @@ func TestValidateAPIKey_Valid(t *testing.T) {
 			return repository.GetAPIKeyByHashRow{
 				ID:             keyID,
 				UserID:         userID,
-				GithubID:       7,
-				GithubUsername: "bob",
+				GithubID:       pgtype.Int8{Int64: 7, Valid: true},
+				GithubUsername: pgtype.Text{String: "bob", Valid: true},
 				Role:           "admin",
 			}, nil
 		},
@@ -463,7 +463,7 @@ func TestGetUser_Found(t *testing.T) {
 		getUserByIDFn: func(_ context.Context, _ pgtype.UUID) (repository.OcidexUser, error) {
 			return repository.OcidexUser{
 				ID:             userID,
-				GithubUsername: "carol",
+				GithubUsername: pgtype.Text{String: "carol", Valid: true},
 				Role:           "viewer",
 			}, nil
 		},
@@ -498,8 +498,8 @@ func TestListUsers_ReturnsList(t *testing.T) {
 	repo := &fakeAuthRepo{
 		listUsersFn: func(_ context.Context) ([]repository.OcidexUser, error) {
 			return []repository.OcidexUser{
-				{GithubUsername: "alice", Role: "admin"},
-				{GithubUsername: "bob", Role: "member"},
+				{GithubUsername: pgtype.Text{String: "alice", Valid: true}, Role: "admin"},
+				{GithubUsername: pgtype.Text{String: "bob", Valid: true}, Role: "member"},
 			}, nil
 		},
 	}
