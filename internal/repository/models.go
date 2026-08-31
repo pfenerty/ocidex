@@ -205,14 +205,12 @@ type NamespaceMember struct {
 }
 
 type OcidexUser struct {
-	ID             pgtype.UUID        `json:"id"`
-	GithubID       pgtype.Int8        `json:"github_id"`
-	GithubUsername pgtype.Text        `json:"github_username"`
-	Role           string             `json:"role"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-	Email          pgtype.Text        `json:"email"`
-	DisplayName    pgtype.Text        `json:"display_name"`
+	ID          pgtype.UUID        `json:"id"`
+	Role        string             `json:"role"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	Email       pgtype.Text        `json:"email"`
+	DisplayName pgtype.Text        `json:"display_name"`
 }
 
 type PackageVulnerability struct {

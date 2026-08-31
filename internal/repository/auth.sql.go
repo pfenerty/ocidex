@@ -11,6 +11,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countIdentitiesByUser = `-- name: CountIdentitiesByUser :one
+SELECT count(*) FROM user_identity WHERE user_id = $1
+`
+
+func (q *Queries) CountIdentitiesByUser(ctx context.Context, userID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countIdentitiesByUser, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAPIKey = `-- name: CreateAPIKey :one
 INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities)
 VALUES ($1, $2, $3, $4, $5)
@@ -47,6 +58,43 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 	return i, err
 }
 
+const createIdentity = `-- name: CreateIdentity :one
+INSERT INTO user_identity (user_id, provider, subject, email)
+VALUES ($1, $2, $3, $4)
+RETURNING id, user_id, provider, subject, email, created_at, updated_at
+`
+
+type CreateIdentityParams struct {
+	UserID   pgtype.UUID `json:"user_id"`
+	Provider string      `json:"provider"`
+	Subject  string      `json:"subject"`
+	Email    pgtype.Text `json:"email"`
+}
+
+// Link a second issuer to an account that already exists. UNIQUE (provider,
+// subject) is what stops one identity being attached to two accounts; the
+// service checks first so it can say which case it hit, but the constraint is
+// the thing that actually holds.
+func (q *Queries) CreateIdentity(ctx context.Context, arg CreateIdentityParams) (UserIdentity, error) {
+	row := q.db.QueryRow(ctx, createIdentity,
+		arg.UserID,
+		arg.Provider,
+		arg.Subject,
+		arg.Email,
+	)
+	var i UserIdentity
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Provider,
+		&i.Subject,
+		&i.Email,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createSession = `-- name: CreateSession :one
 INSERT INTO session (user_id, token_hash, expires_at)
 VALUES ($1, $2, $3)
@@ -74,57 +122,44 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 
 const createUserWithIdentity = `-- name: CreateUserWithIdentity :one
 WITH new_user AS (
-    INSERT INTO ocidex_user (display_name, email, github_id, github_username)
-    VALUES ($1, $2, $3, $4)
-    RETURNING id, github_id, github_username, role, created_at, updated_at, email, display_name
+    INSERT INTO ocidex_user (display_name, email)
+    VALUES ($1, $2)
+    RETURNING id, role, created_at, updated_at, email, display_name
 ), new_identity AS (
     INSERT INTO user_identity (user_id, provider, subject, email)
-    SELECT id, $5, $6, $2 FROM new_user
+    SELECT id, $3, $4, $2 FROM new_user
 )
-SELECT id, github_id, github_username, role, created_at, updated_at, email, display_name FROM new_user
+SELECT id, role, created_at, updated_at, email, display_name FROM new_user
 `
 
 type CreateUserWithIdentityParams struct {
-	DisplayName    pgtype.Text `json:"display_name"`
-	Email          pgtype.Text `json:"email"`
-	GithubID       pgtype.Int8 `json:"github_id"`
-	GithubUsername pgtype.Text `json:"github_username"`
-	Provider       string      `json:"provider"`
-	Subject        string      `json:"subject"`
+	DisplayName pgtype.Text `json:"display_name"`
+	Email       pgtype.Text `json:"email"`
+	Provider    string      `json:"provider"`
+	Subject     string      `json:"subject"`
 }
 
 type CreateUserWithIdentityRow struct {
-	ID             pgtype.UUID        `json:"id"`
-	GithubID       pgtype.Int8        `json:"github_id"`
-	GithubUsername pgtype.Text        `json:"github_username"`
-	Role           string             `json:"role"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
-	Email          pgtype.Text        `json:"email"`
-	DisplayName    pgtype.Text        `json:"display_name"`
+	ID          pgtype.UUID        `json:"id"`
+	Role        string             `json:"role"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	Email       pgtype.Text        `json:"email"`
+	DisplayName pgtype.Text        `json:"display_name"`
 }
 
 // The account and its first identity are written by one statement so a failure
 // between them cannot leave an account nobody can sign in to.
-//
-// github_id/github_username are still populated for the GitHub provider (NULL
-// for every other) because the columns survive one release: a rollback to a
-// binary that still reads them must find an account created in the meantime.
-// Both go away with the columns in ocidex-iqkt.5.
 func (q *Queries) CreateUserWithIdentity(ctx context.Context, arg CreateUserWithIdentityParams) (CreateUserWithIdentityRow, error) {
 	row := q.db.QueryRow(ctx, createUserWithIdentity,
 		arg.DisplayName,
 		arg.Email,
-		arg.GithubID,
-		arg.GithubUsername,
 		arg.Provider,
 		arg.Subject,
 	)
 	var i CreateUserWithIdentityRow
 	err := row.Scan(
 		&i.ID,
-		&i.GithubID,
-		&i.GithubUsername,
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -158,6 +193,25 @@ DELETE FROM session WHERE expires_at <= now()
 func (q *Queries) DeleteExpiredSessions(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, deleteExpiredSessions)
 	return err
+}
+
+const deleteIdentity = `-- name: DeleteIdentity :execrows
+DELETE FROM user_identity WHERE id = $1 AND user_id = $2
+`
+
+type DeleteIdentityParams struct {
+	ID     pgtype.UUID `json:"id"`
+	UserID pgtype.UUID `json:"user_id"`
+}
+
+// Scoped by user_id as well as id: an identity row is only ever the caller's to
+// remove, and matching on id alone would let anyone unlink anyone.
+func (q *Queries) DeleteIdentity(ctx context.Context, arg DeleteIdentityParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteIdentity, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteSession = `-- name: DeleteSession :exec
@@ -208,6 +262,30 @@ func (q *Queries) GetAPIKeyByHash(ctx context.Context, keyHash string) (GetAPIKe
 	return i, err
 }
 
+const getIdentity = `-- name: GetIdentity :one
+SELECT id, user_id, provider, subject, email, created_at, updated_at FROM user_identity WHERE provider = $1 AND subject = $2
+`
+
+type GetIdentityParams struct {
+	Provider string `json:"provider"`
+	Subject  string `json:"subject"`
+}
+
+func (q *Queries) GetIdentity(ctx context.Context, arg GetIdentityParams) (UserIdentity, error) {
+	row := q.db.QueryRow(ctx, getIdentity, arg.Provider, arg.Subject)
+	var i UserIdentity
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Provider,
+		&i.Subject,
+		&i.Email,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getSessionByTokenHash = `-- name: GetSessionByTokenHash :one
 SELECT s.id, s.user_id, s.token_hash, s.expires_at, s.created_at, u.display_name, u.role
 FROM session s
@@ -242,7 +320,7 @@ func (q *Queries) GetSessionByTokenHash(ctx context.Context, tokenHash string) (
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, github_id, github_username, role, created_at, updated_at, email, display_name FROM ocidex_user WHERE id = $1
+SELECT id, role, created_at, updated_at, email, display_name FROM ocidex_user WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (OcidexUser, error) {
@@ -250,8 +328,6 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (OcidexUser, 
 	var i OcidexUser
 	err := row.Scan(
 		&i.ID,
-		&i.GithubID,
-		&i.GithubUsername,
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -262,7 +338,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (OcidexUser, 
 }
 
 const getUserByIdentity = `-- name: GetUserByIdentity :one
-SELECT u.id, u.github_id, u.github_username, u.role, u.created_at, u.updated_at, u.email, u.display_name
+SELECT u.id, u.role, u.created_at, u.updated_at, u.email, u.display_name
 FROM ocidex_user u
 JOIN user_identity i ON i.user_id = u.id
 WHERE i.provider = $1
@@ -279,8 +355,6 @@ func (q *Queries) GetUserByIdentity(ctx context.Context, arg GetUserByIdentityPa
 	var i OcidexUser
 	err := row.Scan(
 		&i.ID,
-		&i.GithubID,
-		&i.GithubUsername,
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -333,8 +407,53 @@ func (q *Queries) ListAPIKeysByUser(ctx context.Context, userID pgtype.UUID) ([]
 	return items, nil
 }
 
+const listIdentitiesByUser = `-- name: ListIdentitiesByUser :many
+SELECT id, provider, subject, email, created_at
+FROM user_identity
+WHERE user_id = $1
+ORDER BY created_at ASC, id ASC
+`
+
+type ListIdentitiesByUserRow struct {
+	ID        pgtype.UUID        `json:"id"`
+	Provider  string             `json:"provider"`
+	Subject   string             `json:"subject"`
+	Email     pgtype.Text        `json:"email"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+// The identities an account can sign in with, oldest first, for the owner's own
+// account page. Nothing here is shown to anybody else: a subject is an issuer's
+// internal key for a person, and publishing the set of issuers somebody uses is
+// a fingerprint they did not ask to hand out.
+func (q *Queries) ListIdentitiesByUser(ctx context.Context, userID pgtype.UUID) ([]ListIdentitiesByUserRow, error) {
+	rows, err := q.db.Query(ctx, listIdentitiesByUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListIdentitiesByUserRow{}
+	for rows.Next() {
+		var i ListIdentitiesByUserRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Provider,
+			&i.Subject,
+			&i.Email,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUsers = `-- name: ListUsers :many
-SELECT id, github_id, github_username, role, created_at, updated_at, email, display_name FROM ocidex_user ORDER BY created_at ASC
+SELECT id, role, created_at, updated_at, email, display_name FROM ocidex_user ORDER BY created_at ASC
 `
 
 func (q *Queries) ListUsers(ctx context.Context) ([]OcidexUser, error) {
@@ -348,8 +467,6 @@ func (q *Queries) ListUsers(ctx context.Context) ([]OcidexUser, error) {
 		var i OcidexUser
 		if err := rows.Scan(
 			&i.ID,
-			&i.GithubID,
-			&i.GithubUsername,
 			&i.Role,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -381,7 +498,7 @@ SET display_name = COALESCE(NULLIF($1::text, ''), display_name),
     email        = COALESCE(NULLIF($2::text, ''), email),
     updated_at   = now()
 WHERE id = $3
-RETURNING id, github_id, github_username, role, created_at, updated_at, email, display_name
+RETURNING id, role, created_at, updated_at, email, display_name
 `
 
 type TouchUserProfileParams struct {
@@ -398,8 +515,6 @@ func (q *Queries) TouchUserProfile(ctx context.Context, arg TouchUserProfilePara
 	var i OcidexUser
 	err := row.Scan(
 		&i.ID,
-		&i.GithubID,
-		&i.GithubUsername,
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -414,7 +529,7 @@ UPDATE ocidex_user
 SET role       = $2,
     updated_at = now()
 WHERE id = $1
-RETURNING id, github_id, github_username, role, created_at, updated_at, email, display_name
+RETURNING id, role, created_at, updated_at, email, display_name
 `
 
 type UpdateUserRoleParams struct {
@@ -427,8 +542,6 @@ func (q *Queries) UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) 
 	var i OcidexUser
 	err := row.Scan(
 		&i.ID,
-		&i.GithubID,
-		&i.GithubUsername,
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,

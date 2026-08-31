@@ -11,7 +11,8 @@ export { useArtifactSearch, useComponentSearch, useVulnerabilitySearch, useLicen
 export type { SearchHit } from "./search";
 export type { DiscoverArtifact, DiscoverRecent, DiscoverVuln, DiscoverLicense } from "./discovery";
 export { useTopVulnerabilities, useVulnerabilityDetail } from "./vulns";
-export { useListAPIKeys, useCreateAPIKey, useDeleteAPIKey, useListUsers, useUpdateUserRole, useGetSystemStatus } from "./auth";
+export { useListAPIKeys, useCreateAPIKey, useDeleteAPIKey, useListUsers, useUpdateUserRole, useGetSystemStatus,
+    useAuthProviders, useMyIdentities, useStartIdentityLink, useUnlinkIdentity } from "./auth";
 export { useListSources } from "./sources";
 export { useWatches, useWatchFeed, useToggleWatch } from "./watches";
 export type { SelfScopedOptions } from "./selfScoped";

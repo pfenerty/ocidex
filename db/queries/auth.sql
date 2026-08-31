@@ -8,20 +8,45 @@ WHERE i.provider = $1
 -- name: CreateUserWithIdentity :one
 -- The account and its first identity are written by one statement so a failure
 -- between them cannot leave an account nobody can sign in to.
---
--- github_id/github_username are still populated for the GitHub provider (NULL
--- for every other) because the columns survive one release: a rollback to a
--- binary that still reads them must find an account created in the meantime.
--- Both go away with the columns in ocidex-iqkt.5.
 WITH new_user AS (
-    INSERT INTO ocidex_user (display_name, email, github_id, github_username)
-    VALUES (sqlc.arg(display_name), sqlc.narg(email), sqlc.narg(github_id), sqlc.narg(github_username))
+    INSERT INTO ocidex_user (display_name, email)
+    VALUES (sqlc.arg(display_name), sqlc.narg(email))
     RETURNING *
 ), new_identity AS (
     INSERT INTO user_identity (user_id, provider, subject, email)
     SELECT id, sqlc.arg(provider), sqlc.arg(subject), sqlc.narg(email) FROM new_user
 )
 SELECT * FROM new_user;
+
+-- name: ListIdentitiesByUser :many
+-- The identities an account can sign in with, oldest first, for the owner's own
+-- account page. Nothing here is shown to anybody else: a subject is an issuer's
+-- internal key for a person, and publishing the set of issuers somebody uses is
+-- a fingerprint they did not ask to hand out.
+SELECT id, provider, subject, email, created_at
+FROM user_identity
+WHERE user_id = $1
+ORDER BY created_at ASC, id ASC;
+
+-- name: CountIdentitiesByUser :one
+SELECT count(*) FROM user_identity WHERE user_id = $1;
+
+-- name: GetIdentity :one
+SELECT * FROM user_identity WHERE provider = $1 AND subject = $2;
+
+-- name: CreateIdentity :one
+-- Link a second issuer to an account that already exists. UNIQUE (provider,
+-- subject) is what stops one identity being attached to two accounts; the
+-- service checks first so it can say which case it hit, but the constraint is
+-- the thing that actually holds.
+INSERT INTO user_identity (user_id, provider, subject, email)
+VALUES ($1, $2, $3, sqlc.narg(email))
+RETURNING *;
+
+-- name: DeleteIdentity :execrows
+-- Scoped by user_id as well as id: an identity row is only ever the caller's to
+-- remove, and matching on id alone would let anyone unlink anyone.
+DELETE FROM user_identity WHERE id = $1 AND user_id = $2;
 
 -- name: TouchUserProfile :one
 -- Refresh the cosmetic fields from whatever the issuer released this sign-in.

@@ -147,6 +147,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 
 	// Middleware stack
 	r.Use(middleware.RequestID)
+	r.Use(WithRequest)
 	r.Use(SlogLogger)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{

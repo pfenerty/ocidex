@@ -80,9 +80,13 @@ cookies carry no ceiling and are unaffected.
 
 | Method | Path | Operation | Class | Capability | Write | Notes |
 |---|---|---|---|---|---|---|
+| GET | `/api/v1/auth/identities` | `list-my-identities` | `authenticated` | — |  | Own identities only; no path segment names a user. |
+| POST | `/api/v1/auth/identities` | `link-identity` | `authenticated` | — | ✓ | Links onto the calling account. An identity already held by another account is refused, never merged. |
+| DELETE | `/api/v1/auth/identities/{id}` | `unlink-identity` | `authenticated` | — | ✓ | Own identities only; refuses the last one with 409. |
 | GET | `/api/v1/auth/keys` | `list-api-keys` | `member` | — |  | Own keys only. |
 | POST | `/api/v1/auth/keys` | `create-api-key` | `member` | — | ✓ | Key is scoped to the calling user. |
 | DELETE | `/api/v1/auth/keys/{id}` | `delete-api-key` | `member` | — | ✓ | Own keys only. |
+| GET | `/api/v1/auth/providers` | `list-auth-providers` | `public` | — |  | Names the operator gave their own issuers; the login page renders these before anyone is signed in. |
 | GET | `/api/v1/users` | `list-users` | `admin` | — |  |  |
 | GET | `/api/v1/users/me` | `get-me` | `authenticated` | — |  | Returns the calling principal. |
 | GET | `/api/v1/users/me/activity` | `list-my-activity` | `authenticated` | — |  | Owned rows only; excludes others' public rows, and admins get no widening. |

@@ -46,9 +46,19 @@ describe("GitHubMark", () => {
 describe("the mark is not inlined anywhere else", () => {
     // Three copies existed before this component, and two of them had drifted
     // apart in arc precision. A fourth would drift too.
-    it.each(["components/Layout.tsx", "pages/Login.tsx"])("%s uses the component", (rel) => {
+    //
+    // Only the login page still draws it. The sidebar dropped it with
+    // ocidex-iqkt.5: a rail that says GitHub is a lie on a deployment whose
+    // only issuer is an OIDC one.
+    it.each(["pages/Login.tsx"])("%s uses the component", (rel) => {
         const src = readFileSync(join(__dirname, "..", "..", rel), "utf-8");
         expect(src).not.toContain("M8 0C3.58");
         expect(src).toContain("<GitHubMark");
+    });
+
+    it("is no longer drawn by the sidebar at all", () => {
+        const src = readFileSync(join(__dirname, "..", "..", "components/Layout.tsx"), "utf-8");
+        expect(src).not.toContain("M8 0C3.58");
+        expect(src).not.toContain("GitHubMark");
     });
 });

@@ -122,6 +122,7 @@ describe("Admin", () => {
             "/admin/sources",
             "/admin/status",
             "/admin/jobs",
+            "/admin/account",
         ]);
         expect(strip?.querySelector("button")).toBeNull();
         expect(links.filter((a) => a.classList.contains("active")).map((a) => a.textContent)).toEqual([

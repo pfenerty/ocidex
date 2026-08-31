@@ -1,6 +1,7 @@
 package api
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/pfenerty/ocidex/internal/service"
@@ -152,4 +153,67 @@ type UpdateUserRoleInput struct {
 // UpdateUserRoleOutput is the response for PATCH /api/v1/users/{id}/role.
 type UpdateUserRoleOutput struct {
 	Body UserResponse
+}
+
+// ---------------------------------------------------------------------------
+// Auth — Identity providers and linked identities
+// ---------------------------------------------------------------------------
+
+// ProviderResponse is one issuer the deployment is configured with.
+type ProviderResponse struct {
+	Name        string `json:"name" doc:"Issuer key: 'github', or 'oidc:<name>'"`
+	DisplayName string `json:"display_name" doc:"Label for a sign-in button"`
+	LoginPath   string `json:"login_path" doc:"Path on the API to begin a sign-in through this issuer"`
+}
+
+// ListProvidersOutput is the response for GET /api/v1/auth/providers.
+type ListProvidersOutput struct {
+	Body struct {
+		Providers []ProviderResponse `json:"providers"`
+	}
+}
+
+// IdentityResponse is one of the caller's own linked identities.
+//
+// Subject is the issuer's key for this person. It is here because it is the
+// only thing that tells two identities from the same issuer apart, and it is
+// only ever returned to the account that holds it.
+type IdentityResponse struct {
+	ID          string    `json:"id" doc:"Identity UUID"`
+	Provider    string    `json:"provider" doc:"Issuer key: 'github', or 'oidc:<name>'"`
+	DisplayName string    `json:"display_name" doc:"Label for the issuer"`
+	Subject     string    `json:"subject" doc:"The issuer's stable identifier for this account"`
+	Email       string    `json:"email,omitempty" doc:"Address this issuer released, if any"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+// ListIdentitiesOutput is the response for GET /api/v1/auth/identities.
+type ListIdentitiesOutput struct {
+	Body struct {
+		Identities []IdentityResponse `json:"identities"`
+	}
+}
+
+// StartIdentityLinkInput is the request for POST /api/v1/auth/identities.
+type StartIdentityLinkInput struct {
+	Body struct {
+		Provider string `json:"provider" minLength:"1" doc:"Issuer key to link, as returned by GET /api/v1/auth/providers"`
+	}
+}
+
+// StartIdentityLinkOutput is the response for POST /api/v1/auth/identities.
+//
+// The Set-Cookie is the load-bearing half: it carries the signed state that
+// makes the resulting callback a link rather than a sign-in. The body only
+// tells the page where to navigate.
+type StartIdentityLinkOutput struct {
+	SetCookie http.Cookie `header:"Set-Cookie"`
+	Body      struct {
+		AuthorizeURL string `json:"authorize_url" doc:"Navigate the browser here to continue linking"`
+	}
+}
+
+// UnlinkIdentityInput is the request for DELETE /api/v1/auth/identities/{id}.
+type UnlinkIdentityInput struct {
+	ID string `path:"id" doc:"Identity UUID" format:"uuid"`
 }

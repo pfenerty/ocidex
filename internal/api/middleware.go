@@ -29,6 +29,27 @@ func isWriteAllowed(user service.AuthUser) bool {
 
 type ctxKeyUser struct{}
 
+type ctxKeyRequest struct{}
+
+// WithRequest stashes the *http.Request on its own context.
+//
+// It exists for the handful of huma handlers that need something huma's typed
+// input cannot carry: the Host and TLS state of the connection, which is how
+// deriveFrontendURL follows the host the browser actually used rather than the
+// one in configuration. Handlers that only need headers, path, or body must
+// keep declaring them on their input struct.
+func WithRequest(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKeyRequest{}, r)))
+	})
+}
+
+// requestFromContext retrieves the request stashed by WithRequest.
+func requestFromContext(ctx context.Context) (*http.Request, bool) {
+	r, ok := ctx.Value(ctxKeyRequest{}).(*http.Request)
+	return r, ok
+}
+
 // OptionalAuthenticate attaches the user to the context if a valid session or
 // API key is present, but allows unauthenticated requests through (user will
 // be absent from context). Use this for browse endpoints that should be

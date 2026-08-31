@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
-	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -127,6 +126,15 @@ type AuthService interface {
 	ListUsers(ctx context.Context) ([]AuthUser, error)
 	UpdateUserRole(ctx context.Context, targetID pgtype.UUID, role string) (AuthUser, error)
 	CleanExpiredSessions(ctx context.Context) error
+	// ListIdentities returns the issuers this account can sign in with.
+	ListIdentities(ctx context.Context, userID pgtype.UUID) ([]LinkedIdentity, error)
+	// LinkIdentity redeems a callback code and attaches the identity it
+	// resolves to onto an account that already exists, instead of signing in as
+	// whoever holds it.
+	LinkIdentity(ctx context.Context, userID pgtype.UUID, provider, code, verifier string) (LinkedIdentity, error)
+	// UnlinkIdentity removes one of the account's identities, refusing to
+	// remove the last one.
+	UnlinkIdentity(ctx context.Context, userID, identityID pgtype.UUID) error
 	// LoadGrants returns the user's namespace memberships keyed by namespace ID.
 	// The API layer calls it once per authenticated request; see AuthUser.Grants
 	// for why it is not folded into ValidateSession's row.
@@ -251,27 +259,139 @@ func (s *authService) resolveIdentity(ctx context.Context, id auth.Identity) (Au
 	}
 }
 
-// newUserParams shapes the insert for a brand-new account.
-//
-// The GitHub columns are still written for the GitHub provider and left NULL
-// for every other one. They are dead weight above the repository — nothing
-// reads them any more — but migration 00069 keeps them for one release so a
-// rollback finds accounts created in the meantime. Delete this special case
-// with the columns in ocidex-iqkt.5.
+// newUserParams shapes the insert for a brand-new account. Nothing in it names
+// an issuer: the provider and subject arrive as data, which is the whole point
+// of user_identity.
 func newUserParams(id auth.Identity) repository.CreateUserWithIdentityParams {
-	p := repository.CreateUserWithIdentityParams{
+	return repository.CreateUserWithIdentityParams{
 		Provider:    id.Provider,
 		Subject:     id.Subject,
 		DisplayName: pgtype.Text{String: id.DisplayName, Valid: id.DisplayName != ""},
 		Email:       pgtype.Text{String: id.Email, Valid: id.Email != ""},
 	}
-	if id.Provider == auth.ProviderGitHub {
-		if n, err := strconv.ParseInt(id.Subject, 10, 64); err == nil {
-			p.GithubID = pgtype.Int8{Int64: n, Valid: true}
-		}
-		p.GithubUsername = pgtype.Text{String: id.DisplayName, Valid: id.DisplayName != ""}
+}
+
+// LinkedIdentity is one row of user_identity as its owner sees it.
+//
+// Subject is included because it is the only thing that tells two identities
+// from the same issuer apart, and an owner deciding which one to unlink has to
+// be able to. It is never shown to anybody else: the set of issuers a person
+// signs in with, and their key at each, is a fingerprint they did not offer.
+type LinkedIdentity struct {
+	ID        pgtype.UUID
+	Provider  string
+	Subject   string
+	Email     string
+	CreatedAt time.Time
+}
+
+func (s *authService) ListIdentities(ctx context.Context, userID pgtype.UUID) ([]LinkedIdentity, error) {
+	rows, err := s.repo.ListIdentitiesByUser(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("listing identities: %w", err)
 	}
-	return p
+	out := make([]LinkedIdentity, len(rows))
+	for i, r := range rows {
+		out[i] = LinkedIdentity{
+			ID:        r.ID,
+			Provider:  r.Provider,
+			Subject:   r.Subject,
+			Email:     r.Email.String,
+			CreatedAt: r.CreatedAt.Time,
+		}
+	}
+	return out, nil
+}
+
+// LinkIdentity attaches a second issuer to an account that already exists.
+//
+// An identity that already belongs to somebody else is refused outright rather
+// than moved or merged. A silent merge is how an attacker who controls one
+// identity absorbs another account: link the identity you hold to the account
+// you want and the two become one. The only safe answer is that the identity is
+// spoken for and nothing changes.
+func (s *authService) LinkIdentity(
+	ctx context.Context, userID pgtype.UUID, provider, code, verifier string,
+) (LinkedIdentity, error) {
+	p, ok := s.providers[provider]
+	if !ok {
+		return LinkedIdentity{}, &ValidationError{Message: fmt.Sprintf("unknown identity provider %q", provider)}
+	}
+	id, err := p.Exchange(ctx, code, verifier)
+	if err != nil {
+		return LinkedIdentity{}, fmt.Errorf("exchanging code with %s: %w", provider, err)
+	}
+	if id.Subject == "" {
+		return LinkedIdentity{}, fmt.Errorf("%s returned an identity with no subject", provider)
+	}
+
+	existing, err := s.repo.GetIdentity(ctx, repository.GetIdentityParams{
+		Provider: id.Provider,
+		Subject:  id.Subject,
+	})
+	switch {
+	case err == nil && existing.UserID == userID:
+		// Already linked here. Linking twice is a double-click, not an error.
+		return identityFromRow(existing), nil
+	case err == nil:
+		return LinkedIdentity{}, fmt.Errorf("identity %s is linked elsewhere: %w", id.Provider, ErrConflict)
+	case !errors.Is(err, pgx.ErrNoRows):
+		return LinkedIdentity{}, fmt.Errorf("looking up identity: %w", err)
+	}
+
+	row, err := s.repo.CreateIdentity(ctx, repository.CreateIdentityParams{
+		UserID:   userID,
+		Provider: id.Provider,
+		Subject:  id.Subject,
+		Email:    pgtype.Text{String: id.Email, Valid: id.Email != ""},
+	})
+	if err != nil {
+		// The UNIQUE (provider, subject) index is the real guard; the lookup
+		// above only decides which answer to give. Two links racing land here.
+		if isUniqueViolation(err) {
+			return LinkedIdentity{}, fmt.Errorf("identity %s is linked elsewhere: %w", id.Provider, ErrConflict)
+		}
+		return LinkedIdentity{}, fmt.Errorf("linking identity: %w", err)
+	}
+	slog.Info("identity linked", "provider", id.Provider)
+
+	return identityFromRow(row), nil
+}
+
+// UnlinkIdentity removes one identity from the caller's account.
+//
+// Removing the last one is refused. The account would still exist, still own
+// namespaces and hold API keys, and nobody could ever sign in to it again;
+// deleting an account is a different operation and this is not it.
+func (s *authService) UnlinkIdentity(ctx context.Context, userID, identityID pgtype.UUID) error {
+	count, err := s.repo.CountIdentitiesByUser(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("counting identities: %w", err)
+	}
+	if count <= 1 {
+		return fmt.Errorf("last identity on the account: %w", ErrConflict)
+	}
+	rows, err := s.repo.DeleteIdentity(ctx, repository.DeleteIdentityParams{ID: identityID, UserID: userID})
+	if err != nil {
+		return fmt.Errorf("unlinking identity: %w", err)
+	}
+	if rows == 0 {
+		// Scoped by user_id, so somebody else's identity is indistinguishable
+		// from one that does not exist. That is the intended answer.
+		return fmt.Errorf("identity: %w", ErrNotFound)
+	}
+
+	return nil
+}
+
+func identityFromRow(r repository.UserIdentity) LinkedIdentity {
+	return LinkedIdentity{
+		ID:        r.ID,
+		Provider:  r.Provider,
+		Subject:   r.Subject,
+		Email:     r.Email.String,
+		CreatedAt: r.CreatedAt.Time,
+	}
 }
 
 func (s *authService) CreateSession(ctx context.Context, userID pgtype.UUID) (string, error) {

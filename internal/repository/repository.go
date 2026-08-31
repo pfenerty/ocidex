@@ -220,6 +220,11 @@ type AuthRepository interface {
 	CreateUserWithIdentity(ctx context.Context, arg CreateUserWithIdentityParams) (CreateUserWithIdentityRow, error)
 	TouchUserProfile(ctx context.Context, arg TouchUserProfileParams) (OcidexUser, error)
 	UpsertIdentityEmail(ctx context.Context, arg UpsertIdentityEmailParams) error
+	ListIdentitiesByUser(ctx context.Context, userID pgtype.UUID) ([]ListIdentitiesByUserRow, error)
+	CountIdentitiesByUser(ctx context.Context, userID pgtype.UUID) (int64, error)
+	GetIdentity(ctx context.Context, arg GetIdentityParams) (UserIdentity, error)
+	CreateIdentity(ctx context.Context, arg CreateIdentityParams) (UserIdentity, error)
+	DeleteIdentity(ctx context.Context, arg DeleteIdentityParams) (int64, error)
 	GetUserByID(ctx context.Context, id pgtype.UUID) (OcidexUser, error)
 	ListUsers(ctx context.Context) ([]OcidexUser, error)
 	UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) (OcidexUser, error)

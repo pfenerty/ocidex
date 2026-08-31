@@ -81,54 +81,81 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		provider = auth.ProviderGitHub
 	}
 
-	nonce := make([]byte, 16)
-	if _, err := rand.Read(nonce); err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	nonceStr := base64.RawURLEncoding.EncodeToString(nonce)
-
-	// The PKCE code verifier is minted here and carried in the state cookie, so
-	// it never leaves this browser. Providers that do not use PKCE ignore it.
-	verifierRaw := make([]byte, 32)
-	if _, err := rand.Read(verifierRaw); err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	verifier := base64.RawURLEncoding.EncodeToString(verifierRaw)
-
-	frontendURL := deriveFrontendURL(r, h.cfg.FrontendURL)
-	state, err := h.stateCookie.Encode("oauth-state", map[string]string{
-		"nonce":        nonceStr,
-		"frontend_url": frontendURL,
-		"provider":     provider,
-		"verifier":     verifier,
-	})
-	if err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-
-	authURL, err := h.authService.BuildAuthURL(provider, state, verifier)
+	authURL, state, err := h.beginOAuth(r, provider, nil)
 	if err != nil {
 		http.Error(w, "unknown identity provider", http.StatusBadRequest)
 		return
 	}
-
-	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is env-conditional; dev runs over http.
-		Name:     stateCookieName,
-		Value:    state,
-		Path:     "/",
-		MaxAge:   int(stateMaxAge.Seconds()),
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   h.cfg.Environment == envProduction,
-	})
+	writeStateCookie(w, h.cfg.Environment, state)
 
 	// The destination is the selected provider's own authorize endpoint, built
 	// from configuration. ?provider= only picks a map key — an unrecognised one
 	// has already returned 400 above — so no part of the request reaches the URL.
 	http.Redirect(w, r, authURL, http.StatusTemporaryRedirect) //nolint:gosec // G710: destination is provider config, not request input
+}
+
+// beginOAuth mints the signed state for one round trip and returns where to
+// send the browser.
+//
+// extra is folded into the state, which is how a link differs from a sign-in:
+// both make the identical trip to the issuer, and only the state cookie — which
+// the browser cannot forge or read — says what to do with the code that comes
+// back.
+func (h *Handler) beginOAuth(r *http.Request, provider string, extra map[string]string) (authURL, state string, err error) {
+	nonce := make([]byte, 16)
+	if _, err := rand.Read(nonce); err != nil {
+		return "", "", fmt.Errorf("generating state nonce: %w", err)
+	}
+
+	// The PKCE code verifier is minted here and carried in the state cookie, so
+	// it never leaves this browser. Providers that do not use PKCE ignore it.
+	verifierRaw := make([]byte, 32)
+	if _, err := rand.Read(verifierRaw); err != nil {
+		return "", "", fmt.Errorf("generating pkce verifier: %w", err)
+	}
+	verifier := base64.RawURLEncoding.EncodeToString(verifierRaw)
+
+	data := map[string]string{
+		"nonce":        base64.RawURLEncoding.EncodeToString(nonce),
+		"frontend_url": deriveFrontendURL(r, h.cfg.FrontendURL),
+		"provider":     provider,
+		"verifier":     verifier,
+	}
+	for k, v := range extra {
+		data[k] = v
+	}
+
+	state, err = h.stateCookie.Encode("oauth-state", data)
+	if err != nil {
+		return "", "", fmt.Errorf("encoding state: %w", err)
+	}
+
+	authURL, err = h.authService.BuildAuthURL(provider, state, verifier)
+	if err != nil {
+		return "", "", err
+	}
+
+	return authURL, state, nil
+}
+
+// stateCookieFor is the one place the state cookie's attributes are written.
+// The clear in HandleCallback has to mirror them exactly — a clear sent with a
+// stricter Secure than the original is rejected by the browser over http and
+// never takes effect — so both go through here.
+func stateCookieFor(environment, value string, maxAge int) *http.Cookie {
+	return &http.Cookie{ //nolint:gosec // G124: Secure is env-conditional; dev runs over http.
+		Name:     stateCookieName,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   environment == envProduction,
+	}
+}
+
+func writeStateCookie(w http.ResponseWriter, environment, state string) {
+	http.SetCookie(w, stateCookieFor(environment, state, int(stateMaxAge.Seconds())))
 }
 
 // HandleCallback handles the OAuth/OIDC callback for whichever provider the
@@ -140,19 +167,10 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Clear the state cookie immediately. The attributes must mirror the ones
-	// used when setting it — a clear sent with a stricter Secure than the
-	// original would be rejected by the browser over http and never take effect.
-	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is env-conditional; dev runs over http.
-		Name:     stateCookieName,
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		Expires:  time.Unix(0, 0),
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   h.cfg.Environment == envProduction,
-	})
+	// Clear the state cookie immediately, through the same builder that set it.
+	cleared := stateCookieFor(h.cfg.Environment, "", -1) //nolint:gosec // G124: attributes come from stateCookieFor, which mirrors the set.
+	cleared.Expires = time.Unix(0, 0)
+	http.SetCookie(w, cleared)
 
 	var stateData map[string]string
 	if err := h.stateCookie.Decode("oauth-state", stateCookie.Value, &stateData); err != nil {
@@ -180,6 +198,14 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	if provider == "" {
 		provider = auth.ProviderGitHub
+	}
+
+	// A link round trip is the same trip with a different destination for the
+	// code: it attaches the identity to the account already signed in rather
+	// than signing in as whoever holds it.
+	if stateData["mode"] == oauthModeLink {
+		h.finishIdentityLink(w, r, provider, code, stateData)
+		return
 	}
 
 	user, err := h.authService.ExchangeCodeForUser(r.Context(), provider, code, stateData["verifier"])
@@ -400,6 +426,51 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Tags:        []string{tagAuth},
 		Middlewares: huma.Middlewares{authMW},
 	}, h.ListMyWatchFeed)
+
+	// Identity providers and linked identities (ocidex-iqkt.5). The provider
+	// list is public because the login page renders it before anyone is signed
+	// in; everything about a particular account's identities is
+	// authenticated-class and self-scoped, with no path segment naming a user.
+	huma.Register(api, huma.Operation{
+		OperationID: "list-auth-providers",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/auth/providers",
+		Summary:     "List identity providers",
+		Description: "Issuers this deployment is configured with, for rendering sign-in buttons.",
+		Tags:        []string{tagAuth},
+	}, h.ListAuthProviders)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-my-identities",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/auth/identities",
+		Summary:     "List my linked identities",
+		Description: "The issuers the calling account can sign in with.",
+		Tags:        []string{tagAuth},
+		Middlewares: huma.Middlewares{authMW},
+	}, h.ListMyIdentities)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "link-identity",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/auth/identities",
+		Summary:     "Start linking an identity",
+		Description: "Returns a URL to navigate to, and sets the state cookie that makes the " +
+			"resulting callback a link rather than a sign-in.",
+		Tags:        []string{tagAuth},
+		Middlewares: huma.Middlewares{authMW, writeMW},
+	}, h.StartIdentityLink)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "unlink-identity",
+		Method:        http.MethodDelete,
+		Path:          "/api/v1/auth/identities/{id}",
+		Summary:       "Unlink an identity",
+		Description:   "Refuses with 409 when it is the last identity on the account.",
+		Tags:          []string{tagAuth},
+		DefaultStatus: http.StatusNoContent,
+		Middlewares:   huma.Middlewares{authMW, writeMW},
+	}, h.UnlinkIdentity)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "create-api-key",

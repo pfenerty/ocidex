@@ -1,10 +1,9 @@
 import "./Layout.css";
 import { A, useNavigate, useLocation } from "@solidjs/router";
 import { createEffect, createSignal, lazy, onCleanup, onMount, Show, type ParentProps } from "solid-js";
-import { Home, LayoutDashboard, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Server, Database, Settings, LogOut, Search, Menu, X } from "lucide-solid";
+import { Home, LayoutDashboard, Package, Layers, ShieldCheck, ArrowUpDown, ShieldAlert, Server, Database, Settings, LogOut, Search, Menu, X, User } from "lucide-solid";
 import ThemeToggle from "~/components/ThemeToggle";
 import CommandPalette, { openCommandPalette, isAppleShortcut } from "~/components/CommandPalette";
-import { GitHubMark } from "./icons/GitHubMark";
 import { useAuth } from "~/context/auth";
 import { roleEmphasis, type Emphasis } from "~/utils/emphasis";
 import { API_BASE_URL } from "~/api/client";
@@ -194,16 +193,19 @@ export default function Layout(props: ParentProps) {
                 </nav>
                 <div class="sidebar-footer">
                     <ThemeToggle />
+                    {/* Neither the sign-in label nor its icon names an issuer:
+                        which ones exist is a deployment decision, and the login
+                        page is what asks. */}
                     <Show when={user()} fallback={
-                        <A href="/login" class="sidebar-sign-in" aria-label="Sign in with GitHub">
-                            <GitHubMark />
-                            <span>Sign in with GitHub</span>
+                        <A href="/login" class="sidebar-sign-in" aria-label="Sign in">
+                            <User size={16} />
+                            <span>Sign in</span>
                         </A>
                     }>
                         {(u) => (
                         <div class="sidebar-user">
                             <div class="sidebar-user-info">
-                                <GitHubMark size={14} class="sidebar-github-icon" />
+                                <User size={14} class="sidebar-user-icon" />
                                 <span class="truncate">{u().display_name}</span>
                             </div>
                             <button

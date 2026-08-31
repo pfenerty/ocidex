@@ -8,6 +8,7 @@ import { StatusTab } from "./admin/StatusTab";
 import { SourcesTab } from "./admin/SourcesTab";
 import { NamespacesTab } from "./admin/NamespacesTab";
 import { JobsTab } from "./admin/JobsTab";
+import { AccountTab } from "./admin/AccountTab";
 import { PageHeader, TabBar } from "~/components/ui";
 import type { TabDef } from "~/components/ui";
 
@@ -49,7 +50,27 @@ const TABS: AdminTab[] = [
     },
     { label: "System Status", href: "/admin/status", paths: ["/admin/status"], adminOnly: true, render: () => <StatusTab /> },
     { label: "Jobs", href: "/admin/jobs", paths: ["/admin/jobs"], adminOnly: true, render: () => <JobsTab /> },
+    // Everyone has an account, so this tab is never filtered out. It is
+    // also where the link round trip lands, which is why its path is fixed
+    // in internal/api/identity.go rather than chosen here.
+    {
+        label: "Account",
+        href: "/admin/account",
+        paths: ["/admin/account"],
+        adminOnly: false,
+        render: () => <AccountTab />,
+    },
 ];
+
+/**
+ * What the header says for a non-admin, who sees a two-tab strip rather than
+ * "Admin". The title is the tab's own label, so only the sentence under it has
+ * to be spelled out here.
+ */
+const NON_ADMIN_SUBTITLES: Record<string, string> = {
+    "/admin/sources": "Registries and other ingest channels you own",
+    "/admin/account": "The issuers you can sign in with",
+};
 
 export default function Admin() {
     const location = useLocation();
@@ -79,11 +100,11 @@ export default function Admin() {
     return (
         <Show when={!user.loading} fallback={<SkeletonHeader />}>
             <PageHeader
-                title={user()?.role === "admin" ? "Admin" : "Sources"}
+                title={user()?.role === "admin" ? "Admin" : active().label}
                 subtitle={
                     user()?.role === "admin"
                         ? "User management, API keys, and system configuration"
-                        : "Registries and other ingest channels you own"
+                        : NON_ADMIN_SUBTITLES[active().href]
                 }
             />
 

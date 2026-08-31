@@ -173,8 +173,10 @@ describe("CommandPalette", () => {
         const last = all[all.length - 1];
         fireEvent.keyDown(input(), { key: "ArrowUp" });
         fireEvent.keyDown(input(), { key: "Enter" });
-        expect(last).toBe("Sources");
-        expect(mockNavigate).toHaveBeenCalledWith("/admin/sources");
+        // Whichever entry sits last for this role — the point is that ArrowUp
+        // from the top lands on it rather than doing nothing.
+        expect(last).toBe("Account");
+        expect(mockNavigate).toHaveBeenCalledWith("/admin/account");
     });
 
     it("selects on mousedown, before the input can lose focus", () => {

@@ -121,8 +121,11 @@ describe("Layout", () => {
 
     it("shows sign-in link when not authenticated", () => {
         mockUserFn = asResource(undefined);
-        const { getByText } = render(() => <Wrapped>page</Wrapped>);
-        expect(getByText("Sign in with GitHub")).toBeDefined();
+        const { getByRole } = render(() => <Wrapped>page</Wrapped>);
+        // The rail cannot name an issuer: which ones exist is a deployment
+        // decision, and /login is what asks the API. (The command palette
+        // carries a "Sign in" entry of its own, hence the role.)
+        expect(getByRole("link", { name: "Sign in" })).toBeDefined();
     });
 
     it("redirects to /login when unauthenticated on /admin path", () => {

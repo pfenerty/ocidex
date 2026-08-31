@@ -49,3 +49,49 @@ export function useGetSystemStatus() {
         queryFn: () => unwrap(client.GET("/api/v1/admin/status")),
     }));
 }
+
+/**
+ * The issuers this deployment is configured with.
+ *
+ * Public, and deliberately so: the login page has to render its buttons before
+ * anyone is signed in.
+ */
+export function useAuthProviders() {
+    return createQuery(() => ({
+        queryKey: ["auth", "providers"],
+        queryFn: () => unwrap(client.GET("/api/v1/auth/providers")),
+        // Issuers change when the deployment is reconfigured, not while someone
+        // is looking at the login page.
+        staleTime: 5 * 60_000,
+    }));
+}
+
+/** The caller's own linked identities. */
+export function useMyIdentities() {
+    return createQuery(() => ({
+        queryKey: ["auth", "identities"],
+        queryFn: () => unwrap(client.GET("/api/v1/auth/identities")),
+    }));
+}
+
+/**
+ * Begins a link round trip and returns where to send the browser.
+ *
+ * The navigation is the caller's job: this leaves the page, so it cannot be a
+ * redirect the fetch follows.
+ */
+export function useStartIdentityLink() {
+    return createMutation(() => ({
+        mutationFn: (provider: string) =>
+            unwrap(client.POST("/api/v1/auth/identities", { body: { provider } })),
+    }));
+}
+
+export function useUnlinkIdentity() {
+    const queryClient = useQueryClient();
+    return createMutation(() => ({
+        mutationFn: (id: string) =>
+            unwrap(client.DELETE("/api/v1/auth/identities/{id}", { params: { path: { id } } })),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ["auth", "identities"] }),
+    }));
+}

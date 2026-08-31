@@ -321,6 +321,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/identities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List my linked identities
+         * @description The issuers the calling account can sign in with.
+         */
+        get: operations["list-my-identities"];
+        put?: never;
+        /**
+         * Start linking an identity
+         * @description Returns a URL to navigate to, and sets the state cookie that makes the resulting callback a link rather than a sign-in.
+         */
+        post: operations["link-identity"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/identities/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Unlink an identity
+         * @description Refuses with 409 when it is the last identity on the account.
+         */
+        delete: operations["unlink-identity"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/keys": {
         parameters: {
             query?: never;
@@ -351,6 +395,26 @@ export interface paths {
         post?: never;
         /** Delete API key */
         delete: operations["delete-api-key"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List identity providers
+         * @description Issuers this deployment is configured with, for rendering sign-in buttons.
+         */
+        get: operations["list-auth-providers"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2625,6 +2689,20 @@ export interface components {
              */
             status: string;
         };
+        IdentityResponse: {
+            /** Format: date-time */
+            created_at: string;
+            /** @description Label for the issuer */
+            display_name: string;
+            /** @description Address this issuer released, if any */
+            email?: string;
+            /** @description Identity UUID */
+            id: string;
+            /** @description Issuer key: 'github', or 'oidc:<name>' */
+            provider: string;
+            /** @description The issuer's stable identifier for this account */
+            subject: string;
+        };
         IngestSBOMOutputBody: {
             /**
              * Format: uri
@@ -2901,6 +2979,15 @@ export interface components {
             data: components["schemas"]["EnrichmentJobResponse"][] | null;
             pagination: components["schemas"]["PaginationMeta"];
         };
+        ListIdentitiesOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListIdentitiesOutputBody.json
+             */
+            readonly $schema?: string;
+            identities: components["schemas"]["IdentityResponse"][] | null;
+        };
         ListLicensesOutputBody: {
             /**
              * Format: uri
@@ -2958,6 +3045,15 @@ export interface components {
              */
             readonly $schema?: string;
             data: components["schemas"]["NamespaceResponse"][] | null;
+        };
+        ListProvidersOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListProvidersOutputBody.json
+             */
+            readonly $schema?: string;
+            providers: components["schemas"]["ProviderResponse"][] | null;
         };
         ListRecentDriftOutputBody: {
             /**
@@ -3204,6 +3300,14 @@ export interface components {
             newStatus: string;
             previousStatus: string;
             reason: string;
+        };
+        ProviderResponse: {
+            /** @description Label for a sign-in button */
+            display_name: string;
+            /** @description Path on the API to begin a sign-in through this issuer */
+            login_path: string;
+            /** @description Issuer key: 'github', or 'oidc:<name>' */
+            name: string;
         };
         PutInventoryInputBody: {
             /**
@@ -3607,6 +3711,26 @@ export interface components {
             /** @description Owning namespace name; populated on list responses */
             namespace_name?: string;
             updated_at: string;
+        };
+        StartIdentityLinkInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/StartIdentityLinkInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Issuer key to link, as returned by GET /api/v1/auth/providers */
+            provider: string;
+        };
+        StartIdentityLinkOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/StartIdentityLinkOutputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Navigate the browser here to continue linking */
+            authorize_url: string;
         };
         SystemStatusOutputBody: {
             /**
@@ -4578,6 +4702,99 @@ export interface operations {
             };
         };
     };
+    "list-my-identities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListIdentitiesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "link-identity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartIdentityLinkInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StartIdentityLinkOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "unlink-identity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identity UUID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "list-api-keys": {
         parameters: {
             query?: never;
@@ -4658,6 +4875,35 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-auth-providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListProvidersOutputBody"];
+                };
             };
             /** @description Error */
             default: {

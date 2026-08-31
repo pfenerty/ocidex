@@ -42,6 +42,47 @@ type fakeAuthRepo struct {
 	updateUserRoleFn    func(ctx context.Context, arg repository.UpdateUserRoleParams) (repository.OcidexUser, error)
 	deleteExpiredFn     func(ctx context.Context) error
 	listMembershipsFn   func(ctx context.Context, userID pgtype.UUID) ([]repository.NamespaceMember, error)
+
+	listIdentitiesFn  func(ctx context.Context, userID pgtype.UUID) ([]repository.ListIdentitiesByUserRow, error)
+	countIdentitiesFn func(ctx context.Context, userID pgtype.UUID) (int64, error)
+	getIdentityFn     func(ctx context.Context, arg repository.GetIdentityParams) (repository.UserIdentity, error)
+	createIdentityFn  func(ctx context.Context, arg repository.CreateIdentityParams) (repository.UserIdentity, error)
+	deleteIdentityFn  func(ctx context.Context, arg repository.DeleteIdentityParams) (int64, error)
+}
+
+func (f *fakeAuthRepo) ListIdentitiesByUser(ctx context.Context, userID pgtype.UUID) ([]repository.ListIdentitiesByUserRow, error) {
+	if f.listIdentitiesFn != nil {
+		return f.listIdentitiesFn(ctx, userID)
+	}
+	return nil, nil
+}
+
+func (f *fakeAuthRepo) CountIdentitiesByUser(ctx context.Context, userID pgtype.UUID) (int64, error) {
+	if f.countIdentitiesFn != nil {
+		return f.countIdentitiesFn(ctx, userID)
+	}
+	return 0, nil
+}
+
+func (f *fakeAuthRepo) GetIdentity(ctx context.Context, arg repository.GetIdentityParams) (repository.UserIdentity, error) {
+	if f.getIdentityFn != nil {
+		return f.getIdentityFn(ctx, arg)
+	}
+	return repository.UserIdentity{}, pgx.ErrNoRows
+}
+
+func (f *fakeAuthRepo) CreateIdentity(ctx context.Context, arg repository.CreateIdentityParams) (repository.UserIdentity, error) {
+	if f.createIdentityFn != nil {
+		return f.createIdentityFn(ctx, arg)
+	}
+	return repository.UserIdentity{}, nil
+}
+
+func (f *fakeAuthRepo) DeleteIdentity(ctx context.Context, arg repository.DeleteIdentityParams) (int64, error) {
+	if f.deleteIdentityFn != nil {
+		return f.deleteIdentityFn(ctx, arg)
+	}
+	return 0, nil
 }
 
 func (f *fakeAuthRepo) CreateSession(ctx context.Context, arg repository.CreateSessionParams) (repository.Session, error) {

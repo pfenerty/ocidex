@@ -105,7 +105,7 @@ migrate() {
 # sidebar lead with different things for each (ocidex-y0hg.9), which is only
 # observable with two personas whose *roles* differ and whose *data* does not.
 #
-# Fields: username:github_id:global_role:owned_namespace:memberships
+# Fields: username:github_subject:global_role:owned_namespace:memberships
 # where memberships is a comma-separated list of `namespace=role` in addition
 # to the owner row implied by owned_namespace.
 PERSONAS=(
@@ -142,21 +142,29 @@ seed_auth() {
 
     for persona in "${PERSONAS[@]}"; do
         IFS=: read -r user gid role ns extra <<<"$persona"
-        # display_name and the user_identity row are what the server reads
-        # since ocidex-iqkt.2. github_id/github_username are still written only
-        # because the columns outlive that story by one release; they go with
-        # the columns in ocidex-iqkt.5, and $gid becomes the identity subject.
+        # ocidex_user carries no issuer column since ocidex-iqkt.5, so the
+        # persona's identity under the github provider is the natural key: the
+        # account is found through user_identity, updated if it is there and
+        # inserted if it is not, and the identity rows follow. $gid is the
+        # GitHub subject; the mock issuer keys on the persona name instead,
+        # which is what its login_hint carries.
         sql+="
-INSERT INTO ocidex_user (github_id, github_username, display_name, role)
-VALUES ($gid, '$user', '$user', '$role')
-ON CONFLICT (github_id) DO UPDATE SET github_username = EXCLUDED.github_username,
-                                      display_name    = EXCLUDED.display_name,
-                                      role            = EXCLUDED.role;
-INSERT INTO user_identity (user_id, provider, subject)
-SELECT id, 'github', '$gid' FROM ocidex_user WHERE github_id = $gid
-ON CONFLICT (provider, subject) DO NOTHING;
+WITH existing AS (
+    SELECT user_id AS id FROM user_identity WHERE provider = 'github' AND subject = '$gid'
+), updated AS (
+    UPDATE ocidex_user SET display_name = '$user', role = '$role', updated_at = now()
+    WHERE id IN (SELECT id FROM existing) RETURNING id
+), created AS (
+    INSERT INTO ocidex_user (display_name, role)
+    SELECT '$user', '$role' WHERE NOT EXISTS (SELECT 1 FROM existing)
+    RETURNING id
+), persona AS (
+    SELECT id FROM updated UNION ALL SELECT id FROM created
+)
 INSERT INTO user_identity (user_id, provider, subject, email)
-SELECT id, 'oidc:mock', '$user', '$user@ocidex.test' FROM ocidex_user WHERE github_id = $gid
+SELECT id, 'github', '$gid', NULL FROM persona
+UNION ALL
+SELECT id, 'oidc:mock', '$user', '$user@ocidex.test' FROM persona
 ON CONFLICT (provider, subject) DO NOTHING;
 "
         # Two keys per persona, spanning the ceiling (ADR-046): one holding
@@ -175,8 +183,8 @@ ON CONFLICT (provider, subject) DO NOTHING;
             fi
             sql+="
 INSERT INTO api_key (user_id, name, key_hash, prefix, capabilities)
-SELECT id, '$user $variant', '$hash', '$prefix', '$caps'
-FROM ocidex_user WHERE github_id = $gid;
+SELECT user_id, '$user $variant', '$hash', '$prefix', '$caps'
+FROM user_identity WHERE provider = 'github' AND subject = '$gid';
 "
             var="OCIDEX_DEV_KEY_$(printf '%s' "$user" | tr '[:lower:]' '[:upper:]')"
             [ "$variant" = full ] && var="${var}_RW" || var="${var}_RO"
@@ -194,8 +202,8 @@ FROM ocidex_user WHERE github_id = $gid;
 INSERT INTO namespace (name, visibility) VALUES ('$ns', 'private')
 ON CONFLICT (name) DO NOTHING;
 INSERT INTO namespace_member (namespace_id, user_id, role)
-SELECT n.id, u.id, 'owner' FROM namespace n, ocidex_user u
-WHERE n.name = '$ns' AND u.github_id = $gid
+SELECT n.id, i.user_id, 'owner' FROM namespace n, user_identity i
+WHERE n.name = '$ns' AND i.provider = 'github' AND i.subject = '$gid'
 ON CONFLICT (namespace_id, user_id) DO NOTHING;
 "
         fi
@@ -210,8 +218,8 @@ ON CONFLICT (namespace_id, user_id) DO NOTHING;
                 mrole="${pair#*=}"
                 sql+="
 INSERT INTO namespace_member (namespace_id, user_id, role)
-SELECT n.id, u.id, '$mrole' FROM namespace n, ocidex_user u
-WHERE n.name = '$mns' AND u.github_id = $gid
+SELECT n.id, i.user_id, '$mrole' FROM namespace n, user_identity i
+WHERE n.name = '$mns' AND i.provider = 'github' AND i.subject = '$gid'
 ON CONFLICT (namespace_id, user_id) DO UPDATE SET role = EXCLUDED.role;
 "
             done
@@ -248,7 +256,7 @@ FROM ocidex_user u
 LEFT JOIN namespace_member m ON m.user_id = u.id
 LEFT JOIN namespace n ON n.id = m.namespace_id
 GROUP BY u.id, u.display_name, u.role
-ORDER BY u.github_id;
+ORDER BY u.created_at;
 SQL
 }
 

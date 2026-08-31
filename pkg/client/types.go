@@ -2347,6 +2347,26 @@ type HealthCheckOutputBody struct {
 	Status string `json:"status"`
 }
 
+// IdentityResponse defines model for IdentityResponse.
+type IdentityResponse struct {
+	CreatedAt time.Time `json:"created_at"`
+
+	// DisplayName Label for the issuer
+	DisplayName string `json:"display_name"`
+
+	// Email Address this issuer released, if any
+	Email *string `json:"email,omitempty"`
+
+	// Id Identity UUID
+	Id string `json:"id"`
+
+	// Provider Issuer key: 'github', or 'oidc:<name>'
+	Provider string `json:"provider"`
+
+	// Subject The issuer's stable identifier for this account
+	Subject string `json:"subject"`
+}
+
 // IngestSBOMOutputBody defines model for IngestSBOMOutputBody.
 type IngestSBOMOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -2581,6 +2601,13 @@ type ListEnrichmentJobsOutputBody struct {
 	Pagination PaginationMeta           `json:"pagination"`
 }
 
+// ListIdentitiesOutputBody defines model for ListIdentitiesOutputBody.
+type ListIdentitiesOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema     *string             `json:"$schema,omitempty"`
+	Identities *[]IdentityResponse `json:"identities"`
+}
+
 // ListLicensesOutputBody defines model for ListLicensesOutputBody.
 type ListLicensesOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
@@ -2625,6 +2652,13 @@ type ListNamespacesOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
 	Schema *string              `json:"$schema,omitempty"`
 	Data   *[]NamespaceResponse `json:"data"`
+}
+
+// ListProvidersOutputBody defines model for ListProvidersOutputBody.
+type ListProvidersOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema    *string             `json:"$schema,omitempty"`
+	Providers *[]ProviderResponse `json:"providers"`
 }
 
 // ListRecentDriftOutputBody defines model for ListRecentDriftOutputBody.
@@ -2855,6 +2889,18 @@ type ProvenanceDriftSummary struct {
 	NewStatus      string    `json:"newStatus"`
 	PreviousStatus string    `json:"previousStatus"`
 	Reason         string    `json:"reason"`
+}
+
+// ProviderResponse defines model for ProviderResponse.
+type ProviderResponse struct {
+	// DisplayName Label for a sign-in button
+	DisplayName string `json:"display_name"`
+
+	// LoginPath Path on the API to begin a sign-in through this issuer
+	LoginPath string `json:"login_path"`
+
+	// Name Issuer key: 'github', or 'oidc:<name>'
+	Name string `json:"name"`
 }
 
 // PutInventoryInputBody defines model for PutInventoryInputBody.
@@ -3241,6 +3287,24 @@ type SourceResponse struct {
 
 // SourceResponseKind Ingest channel kind
 type SourceResponseKind string
+
+// StartIdentityLinkInputBody defines model for StartIdentityLinkInputBody.
+type StartIdentityLinkInputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// Provider Issuer key to link, as returned by GET /api/v1/auth/providers
+	Provider string `json:"provider"`
+}
+
+// StartIdentityLinkOutputBody defines model for StartIdentityLinkOutputBody.
+type StartIdentityLinkOutputBody struct {
+	// Schema A URL to the JSON Schema for this object.
+	Schema *string `json:"$schema,omitempty"`
+
+	// AuthorizeUrl Navigate the browser here to continue linking
+	AuthorizeUrl string `json:"authorize_url"`
+}
 
 // SystemStatusOutputBody defines model for SystemStatusOutputBody.
 type SystemStatusOutputBody struct {
@@ -4287,6 +4351,9 @@ type ListVulnerabilityWorkloadsParams struct {
 	ClusterId *string `form:"cluster_id,omitempty" json:"cluster_id,omitempty"`
 	Limit     *int32  `form:"limit,omitempty" json:"limit,omitempty"`
 }
+
+// LinkIdentityJSONRequestBody defines body for LinkIdentity for application/json ContentType.
+type LinkIdentityJSONRequestBody = StartIdentityLinkInputBody
 
 // CreateApiKeyJSONRequestBody defines body for CreateApiKey for application/json ContentType.
 type CreateApiKeyJSONRequestBody = CreateAPIKeyInputBody

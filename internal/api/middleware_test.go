@@ -120,6 +120,14 @@ type fakeAuthService struct {
 	// "no such user" answer, which is the safe default.
 	usersByID map[string]service.AuthUser
 
+	// identities, linked, linkErr and unlinkErr back the identity-linking
+	// routes: what ListIdentities answers, which providers a link was started
+	// for, and the failures a handler has to turn into 409s.
+	identities []service.LinkedIdentity
+	linked     []string
+	linkErr    error
+	unlinkErr  error
+
 	// buildAuthURL and exchange let a test observe which provider the login
 	// and callback handlers resolved. Nil keeps the stub behaviour.
 	buildAuthURL func(provider, state, verifier string) (string, error)
@@ -199,6 +207,24 @@ func (f *fakeAuthService) UpdateUserRole(_ context.Context, _ pgtype.UUID, _ str
 
 func (f *fakeAuthService) CleanExpiredSessions(_ context.Context) error {
 	return nil
+}
+
+func (f *fakeAuthService) ListIdentities(_ context.Context, _ pgtype.UUID) ([]service.LinkedIdentity, error) {
+	return f.identities, nil
+}
+
+func (f *fakeAuthService) LinkIdentity(
+	_ context.Context, _ pgtype.UUID, provider, _, _ string,
+) (service.LinkedIdentity, error) {
+	if f.linkErr != nil {
+		return service.LinkedIdentity{}, f.linkErr
+	}
+	f.linked = append(f.linked, provider)
+	return service.LinkedIdentity{Provider: provider}, nil
+}
+
+func (f *fakeAuthService) UnlinkIdentity(_ context.Context, _, _ pgtype.UUID) error {
+	return f.unlinkErr
 }
 
 func (f *fakeAuthService) LoadGrants(_ context.Context, userID pgtype.UUID) (map[string]authz.Role, error) {

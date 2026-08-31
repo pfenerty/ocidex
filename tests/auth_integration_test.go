@@ -98,12 +98,11 @@ func refreshRollups(t *testing.T, pool *pgxpool.Pool) {
 func seedUser(t *testing.T, pool *pgxpool.Pool, githubID int64, username, role string) pgtype.UUID {
 	t.Helper()
 	var id pgtype.UUID
-	// display_name and the identity row are what the server actually reads
-	// since ocidex-iqkt.1/.2; the github_* columns are written only because
-	// they outlive this story by one release.
+	// The account carries no issuer column any more (ocidex-iqkt.5); the GitHub
+	// id survives only as the subject of the identity row written below.
 	row := pool.QueryRow(t.Context(),
-		"INSERT INTO ocidex_user (github_id, github_username, display_name, role) VALUES ($1, $2, $2, $3) RETURNING id",
-		githubID, username, role)
+		"INSERT INTO ocidex_user (display_name, role) VALUES ($1, $2) RETURNING id",
+		username, role)
 	if err := row.Scan(&id); err != nil {
 		t.Fatalf("seeding user %s: %v", username, err)
 	}

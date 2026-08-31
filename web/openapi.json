@@ -2761,6 +2761,43 @@
         ],
         "type": "object"
       },
+      "IdentityResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "display_name": {
+            "description": "Label for the issuer",
+            "type": "string"
+          },
+          "email": {
+            "description": "Address this issuer released, if any",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identity UUID",
+            "type": "string"
+          },
+          "provider": {
+            "description": "Issuer key: 'github', or 'oidc:\u003cname\u003e'",
+            "type": "string"
+          },
+          "subject": {
+            "description": "The issuer's stable identifier for this account",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "display_name",
+          "subject",
+          "created_at"
+        ],
+        "type": "object"
+      },
       "IngestSBOMOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -3496,6 +3533,33 @@
         ],
         "type": "object"
       },
+      "ListIdentitiesOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListIdentitiesOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "identities": {
+            "items": {
+              "$ref": "#/components/schemas/IdentityResponse"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "identities"
+        ],
+        "type": "object"
+      },
       "ListLicensesOutputBody": {
         "additionalProperties": false,
         "properties": {
@@ -3671,6 +3735,33 @@
         },
         "required": [
           "data"
+        ],
+        "type": "object"
+      },
+      "ListProvidersOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/ListProvidersOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderResponse"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "providers"
         ],
         "type": "object"
       },
@@ -4354,6 +4445,29 @@
           "newStatus",
           "reason",
           "detectedAt"
+        ],
+        "type": "object"
+      },
+      "ProviderResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "description": "Label for a sign-in button",
+            "type": "string"
+          },
+          "login_path": {
+            "description": "Path on the API to begin a sign-in through this issuer",
+            "type": "string"
+          },
+          "name": {
+            "description": "Issuer key: 'github', or 'oidc:\u003cname\u003e'",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "display_name",
+          "login_path"
         ],
         "type": "object"
       },
@@ -5439,6 +5553,51 @@
           "name",
           "created_at",
           "updated_at"
+        ],
+        "type": "object"
+      },
+      "StartIdentityLinkInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/StartIdentityLinkInputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "provider": {
+            "description": "Issuer key to link, as returned by GET /api/v1/auth/providers",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider"
+        ],
+        "type": "object"
+      },
+      "StartIdentityLinkOutputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "description": "A URL to the JSON Schema for this object.",
+            "examples": [
+              "https://example.com/schemas/StartIdentityLinkOutputBody.json"
+            ],
+            "format": "uri",
+            "readOnly": true,
+            "type": "string"
+          },
+          "authorize_url": {
+            "description": "Navigate the browser here to continue linking",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorize_url"
         ],
         "type": "object"
       },
@@ -7408,6 +7567,123 @@
         ]
       }
     },
+    "/api/v1/auth/identities": {
+      "get": {
+        "description": "The issuers the calling account can sign in with.",
+        "operationId": "list-my-identities",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListIdentitiesOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List my linked identities",
+        "tags": [
+          "Auth"
+        ]
+      },
+      "post": {
+        "description": "Returns a URL to navigate to, and sets the state cookie that makes the resulting callback a link rather than a sign-in.",
+        "operationId": "link-identity",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartIdentityLinkInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartIdentityLinkOutputBody"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Start linking an identity",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/identities/{id}": {
+      "delete": {
+        "description": "Refuses with 409 when it is the last identity on the account.",
+        "operationId": "unlink-identity",
+        "parameters": [
+          {
+            "description": "Identity UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Identity UUID",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "Unlink an identity",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/auth/keys": {
       "get": {
         "operationId": "list-api-keys",
@@ -7510,6 +7786,38 @@
           }
         },
         "summary": "Delete API key",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/providers": {
+      "get": {
+        "description": "Issuers this deployment is configured with, for rendering sign-in buttons.",
+        "operationId": "list-auth-providers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListProvidersOutputBody"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "summary": "List identity providers",
         "tags": [
           "Auth"
         ]

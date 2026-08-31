@@ -74,6 +74,7 @@ export default function App() {
                 <Route path="/admin/registries" component={Admin} />
                 <Route path="/admin/status" component={Admin} />
                 <Route path="/admin/jobs" component={Admin} />
+                <Route path="/admin/account" component={Admin} />
                 <Route path="/login" component={Login} />
                 <Route path="*404" component={NotFound} />
             </Router>
