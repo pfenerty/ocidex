@@ -11,8 +11,12 @@
 # No containers. postgresql and nats-server are native binaries in the Flox
 # environment; everything below runs out of .dev/ (gitignored).
 #
-# The GitHub OAuth vars are set to placeholders only because the API validates
-# their presence at startup; no GitHub OAuth app exists and none is needed.
+# No GitHub OAuth app exists and none is needed: the API no longer requires one
+# (ocidex-fx5k), so the rig configures the mock OIDC issuer and nothing else.
+# That makes it the standing proof that an OIDC-only deployment starts -- which
+# is why the GitHub vars are blanked explicitly below rather than just omitted:
+# `make` exports everything in .env, so a developer with real credentials there
+# would otherwise get a two-provider rig and the proof would be silently gone.
 #
 # The /auth routes ARE exercised here, via cmd/mock-idp (ocidex-iqkt.4): a
 # dev-only OIDC issuer on :9999 that the API is pointed at with
@@ -24,8 +28,7 @@
 # Auth uses no bypass and no new code path. internal/api/middleware.go already
 # accepts `Authorization: Bearer <api-key>` as equivalent to a session cookie,
 # so the rig mints keys for five seeded personas (see PERSONAS below) and the
-# dev vite config injects one. GitHub OAuth is never involved; its config vars
-# stay empty.
+# dev vite config injects one. GitHub OAuth is never involved.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -305,8 +308,7 @@ start_api() {
         ENVIRONMENT=development \
         LOG_LEVEL=info \
         SESSION_SECRET="$(openssl rand -hex 32)" \
-        GITHUB_CLIENT_ID=dev-unused \
-        GITHUB_CLIENT_SECRET=dev-unused \
+        GITHUB_CLIENT_ID= GITHUB_CLIENT_SECRET= \
         OIDC_ISSUER_URL="$IDP_URL" \
         OIDC_CLIENT_ID=ocidex-dev \
         OIDC_NAME=mock \

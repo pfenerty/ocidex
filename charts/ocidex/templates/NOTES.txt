@@ -4,11 +4,15 @@ OCIDex {{ .Chart.AppVersion }} has been deployed to namespace {{ .Release.Namesp
 
 The application requires a Secret named "{{ .Values.existingSecret }}" containing:
   - DATABASE_URL      (PostgreSQL connection string, e.g. postgres://user:pass@host:5432/db)
-  - GITHUB_CLIENT_ID  (GitHub OAuth app client ID)
-  - GITHUB_CLIENT_SECRET
   - SESSION_SECRET    (random 32-byte hex: openssl rand -hex 32)
+  - at least one identity provider, either or both of:
+      GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET   (GitHub OAuth app)
+      OIDC_ISSUER_URL  + OIDC_CLIENT_ID         (any OIDC issuer)
 
-Create it with:
+The API refuses to start with no provider configured. Setting only one half of the
+GitHub pair is a startup error, not a silent disable.
+
+Create it with (GitHub shown; swap in the OIDC keys for an OIDC-only install):
 
   kubectl create secret generic {{ .Values.existingSecret }} \
     --namespace {{ .Release.Namespace }} \

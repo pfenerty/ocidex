@@ -1,6 +1,9 @@
 # OCIDex application Helm values.
 #
-# Required before install:
+# Required before install (GitHub shown; an OIDC-only install swaps the GitHub pair
+# for OIDC_ISSUER_URL + OIDC_CLIENT_ID — the API needs SESSION_SECRET plus at least
+# one provider, and the Secret is mounted with envFrom so any extra keys are picked
+# up as-is):
 #   kubectl create secret generic <existingSecret> \
 #     --from-literal=DATABASE_URL=<postgres-connection-string> \
 #     --from-literal=GITHUB_CLIENT_ID=<github-oauth-client-id> \
@@ -23,8 +26,8 @@ image:
   digests: {}
 
 # --- Secrets -----------------------------------------------------------------
-# Name of a pre-created Secret containing DATABASE_URL, GITHUB_CLIENT_ID,
-# GITHUB_CLIENT_SECRET, and SESSION_SECRET.
+# Name of a pre-created Secret containing DATABASE_URL, SESSION_SECRET, and the
+# credentials for at least one identity provider (see above).
 existingSecret: ocidex-secrets
 
 # --- API server --------------------------------------------------------------

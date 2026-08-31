@@ -254,10 +254,16 @@ by Flux. It is **not** in this repo; the chart only references it via `envFrom`.
 |---|---|---|
 | `DATABASE_URL` | Composed from the CNPG service and password (see below) | every workload |
 | `SESSION_SECRET` | `openssl rand -hex 32` | API |
-| `GITHUB_CLIENT_ID` | GitHub OAuth App | API |
+| `GITHUB_CLIENT_ID` | GitHub OAuth App | API — this deployment's provider; see below |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth App | API |
 | `POSTGRES_USER` / `POSTGRES_DB` | `ocidex` / `ocidex` | nothing — see below |
 | `POSTGRES_PASSWORD` | `openssl rand -base64 24` (no shell-special chars) | nothing — see below |
+
+The GitHub pair is what *this* deployment authenticates with, not a requirement. The API
+needs `SESSION_SECRET` plus at least one identity provider; a deployment against an OIDC
+issuer swaps the pair for `OIDC_ISSUER_URL` and `OIDC_CLIENT_ID`
+(see [CONFIGURATION.md](CONFIGURATION.md#authentication)). Setting only one half of the
+GitHub pair is a startup error.
 
 `DATABASE_URL` is a libpq **keyword DSN**, not a URL:
 

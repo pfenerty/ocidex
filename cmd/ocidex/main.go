@@ -277,46 +277,71 @@ func setupNATSClient(cfg *config.Config) (*natspkg.Client, error) {
 	return client, nil
 }
 
-func validateOAuthConfig(cfg *config.Config) error {
-	if cfg.GitHubClientID == "" || cfg.GitHubClientSecret == "" || cfg.SessionSecret == "" {
-		return fmt.Errorf("GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, and SESSION_SECRET are required")
-	}
-	return nil
-}
-
 // buildIdentityProviders assembles the provider list, which is the whole of
 // OCIDex's identity configuration.
+//
+// No single provider is mandatory: an installation may run on GitHub, on an
+// OIDC issuer, or on both. What is mandatory is that it ends up with at least
+// one, because a server with an empty provider list can mint no session and
+// nobody could ever sign in — a failure that would otherwise present itself as
+// a login page with no buttons on it.
+//
+// SESSION_SECRET is required regardless, since it signs the cookies every
+// provider's flow depends on.
 //
 // OIDC discovery is a network call and it is made here, before the server
 // listens, so a wrong OIDC_ISSUER_URL stops the process instead of producing a
 // login button that 500s on click.
 func buildIdentityProviders(ctx context.Context, cfg *config.Config) ([]auth.Provider, error) {
-	if err := validateOAuthConfig(cfg); err != nil {
-		return nil, err
+	if cfg.SessionSecret == "" {
+		return nil, fmt.Errorf("SESSION_SECRET is required")
 	}
 
 	providers := make([]auth.Provider, 0, 2)
-	providers = append(providers,
-		auth.NewGitHubProvider(cfg.GitHubClientID, cfg.GitHubClientSecret, cfg.GitHubRedirectURL))
 
-	if cfg.OIDCIssuerURL == "" {
-		return providers, nil
+	// Half a credential pair is a typo or a half-finished rollout, never an
+	// intent to disable GitHub; treating it as the latter would silently drop
+	// a login method the operator believes they configured.
+	switch {
+	case cfg.GitHubClientID != "" && cfg.GitHubClientSecret != "":
+		providers = append(providers,
+			auth.NewGitHubProvider(cfg.GitHubClientID, cfg.GitHubClientSecret, cfg.GitHubRedirectURL))
+	case cfg.GitHubClientID != "" || cfg.GitHubClientSecret != "":
+		return nil, fmt.Errorf(
+			"GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET must be set together; set both to enable " +
+				"GitHub login, or neither to disable it")
 	}
 
-	oidcProvider, err := auth.NewOIDCProvider(ctx, auth.OIDCConfig{
-		Name:         cfg.OIDCName,
-		IssuerURL:    cfg.OIDCIssuerURL,
-		ClientID:     cfg.OIDCClientID,
-		ClientSecret: cfg.OIDCClientSecret,
-		RedirectURL:  cfg.OIDCRedirectURL,
-		Scopes:       cfg.OIDCScopes,
-	})
-	if err != nil {
-		return nil, err
-	}
-	slog.Info("oidc provider configured", "provider", oidcProvider.Name(), "issuer", cfg.OIDCIssuerURL)
+	if cfg.OIDCIssuerURL != "" {
+		oidcProvider, err := auth.NewOIDCProvider(ctx, auth.OIDCConfig{
+			Name:         cfg.OIDCName,
+			IssuerURL:    cfg.OIDCIssuerURL,
+			ClientID:     cfg.OIDCClientID,
+			ClientSecret: cfg.OIDCClientSecret,
+			RedirectURL:  cfg.OIDCRedirectURL,
+			Scopes:       cfg.OIDCScopes,
+		})
+		if err != nil {
+			return nil, err
+		}
+		slog.Info("oidc provider configured", "provider", oidcProvider.Name(), "issuer", cfg.OIDCIssuerURL)
 
-	return append(providers, oidcProvider), nil
+		providers = append(providers, oidcProvider)
+	}
+
+	if len(providers) == 0 {
+		return nil, fmt.Errorf(
+			"no identity provider configured: set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET, " +
+				"or OIDC_ISSUER_URL and OIDC_CLIENT_ID, or both")
+	}
+
+	names := make([]string, 0, len(providers))
+	for _, p := range providers {
+		names = append(names, p.Name())
+	}
+	slog.Info("identity providers configured", "providers", names)
+
+	return providers, nil
 }
 
 func warnUnpolledRegistries(ctx context.Context, registrySvc service.RegistryService) {

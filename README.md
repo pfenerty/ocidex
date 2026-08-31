@@ -75,9 +75,9 @@ make init
 # Start PostgreSQL and NATS (via docker-compose, or provide your own)
 docker compose up -d postgres nats
 
-# Configure — fill in GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET and SESSION_SECRET
-# (all three are required to start; any non-empty placeholder boots the API if
-# you don't need login yet), and edit DATABASE_URL / NATS_URL if needed
+# Configure — SESSION_SECRET is always required, plus at least one identity
+# provider: GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET, or OIDC_ISSUER_URL +
+# OIDC_CLIENT_ID, or both. Edit DATABASE_URL / NATS_URL if needed
 cp .env.example .env
 
 # Run migrations and build
@@ -226,9 +226,10 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full reference. Key v
 | `PORT` | `8080` | HTTP listen port (API server) |
 | `LOG_LEVEL` | `info` | Log level (`debug`, `info`, `warn`, `error`) |
 | `ENVIRONMENT` | `development` | Runtime environment |
-| `GITHUB_CLIENT_ID` | — | GitHub OAuth app client ID (required for login) |
+| `GITHUB_CLIENT_ID` | — | GitHub OAuth app client ID (set with the secret, or leave both unset) |
 | `GITHUB_CLIENT_SECRET` | — | GitHub OAuth app client secret |
-| `SESSION_SECRET` | — | Session signing key (required; generate with `openssl rand -hex 32`) |
+| `OIDC_ISSUER_URL` | — | OIDC discovery base; enables the generic OIDC provider |
+| `SESSION_SECRET` | — | Session signing key (always required; generate with `openssl rand -hex 32`) |
 | `FRONTEND_URL` | `http://localhost:3000` | Frontend origin (used for CORS and OAuth redirect) |
 | `NATS_STREAM_NAME` | `ocidex` | JetStream stream name |
 | `SCANNER_MAX_CONCURRENCY` | `10` | Max parallel scans per scanner-worker pod |

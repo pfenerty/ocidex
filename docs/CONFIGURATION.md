@@ -41,33 +41,40 @@ OCIDex authenticates against one or more *providers*. A provider is keyed `githu
 identity is matched on `(provider, subject)` and never on email. See
 [ADR-047](adr/0047-provider-agnostic-identity.md).
 
-The API server currently requires the GitHub provider to be configured even when a generic
-OIDC issuer is also set; a GitHub-free deployment is not yet possible.
+No individual provider is required: configure GitHub, an OIDC issuer, or both. What the
+server does require is that it ends up with at least one — it refuses to start with an
+empty provider list rather than serve a login page nobody can get past. `SESSION_SECRET`
+is required in every case, because it signs the cookies every provider's flow depends on.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SESSION_SECRET` | — | Cookie signing key. Required. Min 32 bytes. Generate with: `openssl rand -hex 32` |
+| `SESSION_MAX_AGE_DAYS` | `7` | How long login sessions last. |
 
 #### GitHub OAuth
 
-All three vars are required. The app will refuse to start without them.
+Set both vars to enable GitHub login, or neither to leave it off. Setting one without the
+other is a startup error rather than a silent disable, because half a credential pair is a
+typo far more often than it is an intent.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GITHUB_CLIENT_ID` | — | GitHub OAuth App client ID. |
 | `GITHUB_CLIENT_SECRET` | — | GitHub OAuth App client secret. |
-| `SESSION_SECRET` | — | Cookie signing key. Min 32 bytes. Generate with: `openssl rand -hex 32` |
 | `GITHUB_REDIRECT_URL` | `http://localhost:8080/auth/callback` | OAuth callback URL. Must be registered in the GitHub OAuth App. When accessed via a non-localhost address (Tailscale, remote IP), set to that address. |
-| `SESSION_MAX_AGE_DAYS` | `7` | How long login sessions last. |
 
 #### Generic OIDC
 
-Optional and additive: GitHub stays available whether or not this is set. Setting
-`OIDC_ISSUER_URL` is what enables the provider, and one implementation covers Google, Okta,
-Entra, Keycloak, Auth0 and GitLab.
+Additive: GitHub stays available whether or not this is set, and this is enough on its own
+if GitHub is not configured. Setting `OIDC_ISSUER_URL` is what enables the provider, and one
+implementation covers Google, Okta, Entra, Keycloak, Auth0 and GitLab.
 
 Discovery runs at **startup**. A wrong issuer URL stops the process with a clear error rather
 than producing a login button that fails on click.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OIDC_ISSUER_URL` | `""` | Discovery base — the URL serving `/.well-known/openid-configuration`. Must match the `iss` claim exactly. Empty leaves OCIDex GitHub-only. |
+| `OIDC_ISSUER_URL` | `""` | Discovery base — the URL serving `/.well-known/openid-configuration`. Must match the `iss` claim exactly. Empty leaves OCIDex with whatever else is configured — with nothing else configured, the server will not start. |
 | `OIDC_CLIENT_ID` | — | Required when `OIDC_ISSUER_URL` is set. |
 | `OIDC_CLIENT_SECRET` | `""` | Omit for a public client; PKCE is always used regardless. |
 | `OIDC_NAME` | `oidc` | Permanent key half of the `oidc:<name>` provider string stored against every account signed in through this issuer. **Changing it after the first login orphans those accounts.** |
@@ -75,7 +82,8 @@ than producing a login button that fails on click.
 | `OIDC_REDIRECT_URL` | `http://localhost:8080/auth/callback` | The shared callback: the provider a sign-in began with rides in the signed state cookie, so one registered redirect URI serves every issuer. Point it at `/auth/callback/oidc:<name>` only for an IdP that insists on a distinct URI per client. |
 
 Login routes: `/auth/login` (defaults to GitHub) and `/auth/login/{provider}`, where
-`{provider}` is `github` or `oidc:<name>`. `GET /api/v1/auth/providers` lists what this
+`{provider}` is `github` or `oidc:<name>`. A provider that is not configured answers 400,
+so an OIDC-only deployment refuses `/auth/login/github` rather than half-starting a flow. `GET /api/v1/auth/providers` lists what this
 deployment has configured; the login page draws its buttons from it.
 
 Signed-in users can link a second issuer to their account from `/admin/account`. A subject

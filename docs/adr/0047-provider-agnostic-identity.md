@@ -122,6 +122,14 @@ one. One registered redirect URI therefore serves every issuer.
 OIDC discovery runs at **startup**, not on first click, so a wrong `OIDC_ISSUER_URL` stops
 the process with a clear error instead of producing a login button that 500s.
 
+**No provider is individually mandatory; the list being non-empty is.** GitHub, OIDC, or
+both — `buildIdentityProviders` refuses to start only when it would end up with nothing,
+because a server with an empty provider list can mint no session and presents its failure
+as a login page with no buttons on it. `SESSION_SECRET` is required in every case: it signs
+the cookies every provider's flow depends on. Half a GitHub credential pair is a startup
+error rather than a silent disable, since one var without the other is a typo far more
+often than an intent to turn GitHub off.
+
 ### Rule I4 — Linking is explicit, and a conflict is a 409 that never merges
 
 An authenticated user starts a link from the account page. It runs the same OAuth round
@@ -186,10 +194,6 @@ mode is silent.
 * Bad, because trusting `sub` alone means an issuer that recycles subjects across deleted
   and recreated users would hand a new person an old account. No mainstream IdP does this,
   but OCIDex has no way to detect it.
-* Bad, because `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` and `SESSION_SECRET` are still
-  required for the API server to start (`validateOAuthConfig`), so a genuinely
-  OIDC-only deployment is not yet possible even though every layer above config supports
-  one. This is scope left on the table, not a decision — tracked as `ocidex-fx5k`.
 * Bad, because there is no administrative view of identities: a user sees and manages only
   their own, and an administrator cannot answer "which issuer does this person use" from
   the UI.
@@ -208,6 +212,13 @@ mode is silent.
   is a 401, and unlinking the last identity is refused.
 * `internal/devidp/devidp_test.go`'s `TestMockIDPShipsInNoImage` fails the build if the
   mock issuer is ever referenced by the production Dockerfile.
+* `cmd/ocidex/main_test.go` covers the startup rule from both sides: GitHub-only,
+  OIDC-only and both-configured all produce a working provider list, while a missing
+  `SESSION_SECRET`, an empty provider list and a half-set GitHub credential pair each stop
+  the process.
+* `scripts/dev-auth.sh` blanks the GitHub credentials outright, so the local rig is a
+  standing OIDC-only deployment: if the GitHub requirement ever comes back, the rig stops
+  booting.
 * `grep -r 'github_id\|github_username'` over `internal/`, `web/src/`, `db/queries/` and
   `pkg/` matches only two explanatory comments — no identifier, column or field. Outside
   `db/migrations/`, the words are history.
