@@ -753,6 +753,21 @@ func (s *searchService) GetSBOMDependencies(ctx context.Context, sbomID pgtype.U
 		}
 	}
 
+	// A root is one hop from the image, which is what "direct dependency"
+	// means here — the same definition computeRootsAndDirect uses for the diff
+	// tree. Without this every node in the graph reports isDirect:false, so a
+	// caller reading the field is told the SBOM has no direct dependencies at
+	// all.
+	direct := make(map[string]bool, len(roots))
+	for _, r := range roots {
+		direct[r] = true
+	}
+	for i := range nodes {
+		if nodes[i].BomRef != nil {
+			nodes[i].IsDirect = direct[*nodes[i].BomRef]
+		}
+	}
+
 	// The tree view renders a Vulns column from these nodes, exactly as the
 	// component-list paths do, so the graph must carry the same decoration.
 	if err := decorateComponentVulns(ctx, q, sbomID, nodes); err != nil {

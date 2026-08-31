@@ -186,6 +186,87 @@ def npm_component(name, version, lic):
             "purl": f"pkg:npm/{name}@{version}", "licenses": licensed(lic)}
 
 
+# Dependency edges, keyed on package name rather than purl so a release's
+# version drift cannot invalidate them. Read "A pulls in B".
+#
+# The shape is chosen to make the tree view worth looking at rather than to be
+# accurate about any real image. Three cases have to be visible on the rig or
+# the views that read this graph cannot be verified in a browser:
+#
+#   * a branch that reaches a vulnerable leaf   -- apk-tools -> openssl (CRITICAL)
+#   * a branch that reaches none                -- ca-certificates-bundle, tzdata,
+#                                                  cyclonedx-go, vite
+#   * a finding that is transitive only         -- libssl3, x/net, x/crypto and
+#                                                  stdlib are never direct
+#                                                  dependencies of the image
+#
+# zlib and zlib1g are deliberately left hanging off the image rather than off a
+# parent, so the direct half of the direct/transitive split is not empty on
+# every artifact in the corpus.
+#
+# libssl3 appears in both the apk and deb sets with different dependencies, so
+# its entry lists both; the ones absent from a given SBOM filter themselves out.
+DEPENDS_ON = {
+    # alpine
+    "busybox": ["musl", "ssl_client"],
+    "apk-tools": ["scanelf", "openssl"],
+    "openssl": ["libssl3", "libcrypto3"],
+    "ssl_client": ["libssl3"],
+    "libssl3": ["libcrypto3", "libc6"],
+    "libcrypto3": ["musl"],
+    "zlib": ["musl"],
+    "scanelf": ["musl"],
+    # debian
+    "bash": ["libc6"],
+    "coreutils": ["libc6", "libgcc-s1"],
+    "libpq5": ["libssl3"],
+    "zlib1g": ["libc6"],
+    "libgcc-s1": ["libc6"],
+    # go
+    "github.com/go-chi/chi/v5": ["golang.org/x/net"],
+    "github.com/danielgtaylor/huma/v2": ["golang.org/x/net"],
+    "github.com/jackc/pgx/v5": ["golang.org/x/crypto", "stdlib"],
+    "github.com/nats-io/nats.go": ["golang.org/x/crypto"],
+    "golang.org/x/net": ["stdlib"],
+    "golang.org/x/crypto": ["stdlib"],
+    # npm
+    "@tanstack/solid-query": ["solid-js"],
+    "@solidjs/router": ["solid-js"],
+    "lucide-solid": ["solid-js"],
+}
+
+
+def dependency_graph(root_ref, components):
+    """The CycloneDX `dependencies` array for one document.
+
+    Without this the ingest writes no `dependency` rows, /dependencies comes
+    back with no edges, and PackagesTab silently falls back to list mode -- so
+    the tree, the vulnerable-only filter and the direct/transitive split are all
+    unverifiable on the rig.
+
+    `roots` additionally needs an entry whose ref is metadata.component's
+    bom-ref (internal/service/search_sbom.go anchors on it), which is why the
+    first entry below is the image itself.
+    """
+    by_name = {c["name"]: c["bom-ref"] for c in components}
+
+    edges = []
+    pulled = set()
+    for c in components:
+        targets = [by_name[t] for t in DEPENDS_ON.get(c["name"], []) if t in by_name]
+        if targets:
+            edges.append({"ref": c["bom-ref"], "dependsOn": targets})
+            pulled.update(targets)
+
+    # Whatever nothing else pulls in hangs off the image. drift() removes the
+    # tail of a component list per release, so a hardcoded direct set would
+    # strand its children; deriving it keeps every component reachable in
+    # every release.
+    direct = [c["bom-ref"] for c in components if c["bom-ref"] not in pulled]
+
+    return [{"ref": root_ref, "dependsOn": direct}] + edges
+
+
 def bump(version: str) -> str:
     """Nudges the last numeric run, so consecutive releases differ."""
     head, _, tail = version.rpartition(".")
@@ -209,13 +290,23 @@ def build_sbom(image, tag, arch, os_name, os_version, components):
     props.append({"name": "syft:image:labels:org.opencontainers.image.architecture",
                   "value": arch})
     serial = hashlib.md5(f"{image}{tag}{arch}".encode()).hexdigest()
+
+    # A component's purl is its bom-ref, which is what syft emits and what the
+    # dependency graph is expressed in. It has to be set here rather than in
+    # the per-ecosystem builders, because drift() rewrites the purl for a
+    # release and the ref must follow it.
+    components = [dict(c, **{"bom-ref": c["purl"]}) for c in components]
+    root_ref = f"{image}:{tag}"
+
     return {
         "bomFormat": "CycloneDX", "specVersion": "1.6",
         "serialNumber": f"urn:uuid:{serial[:8]}-{serial[8:12]}-4{serial[13:16]}-8{serial[17:20]}-{serial[20:32]}",
         "version": 1,
-        "metadata": {"component": {"type": "container", "name": image,
-                                   "version": tag, "properties": props}},
+        "metadata": {"component": {"type": "container", "bom-ref": root_ref,
+                                   "name": image, "version": tag,
+                                   "properties": props}},
         "components": components,
+        "dependencies": dependency_graph(root_ref, components),
     }
 
 
