@@ -34,7 +34,17 @@ schema. See `docs/DEPLOYMENT.md`.
 | `LOG_LEVEL` | `info` | no | Log verbosity: `debug`, `info`, `warn`, `error`. |
 | `ENVIRONMENT` | `development` | no | Runtime environment label: `development`, `staging`, `production`. |
 
-### Authentication (GitHub OAuth)
+### Authentication
+
+OCIDex authenticates against one or more *providers*. A provider is keyed `github` or
+`oidc:<name>`, and that key is stored against every account that signs in through it —
+identity is matched on `(provider, subject)` and never on email. See
+[ADR-047](adr/0047-provider-agnostic-identity.md).
+
+The API server currently requires the GitHub provider to be configured even when a generic
+OIDC issuer is also set; a GitHub-free deployment is not yet possible.
+
+#### GitHub OAuth
 
 All three vars are required. The app will refuse to start without them.
 
@@ -46,7 +56,7 @@ All three vars are required. The app will refuse to start without them.
 | `GITHUB_REDIRECT_URL` | `http://localhost:8080/auth/callback` | OAuth callback URL. Must be registered in the GitHub OAuth App. When accessed via a non-localhost address (Tailscale, remote IP), set to that address. |
 | `SESSION_MAX_AGE_DAYS` | `7` | How long login sessions last. |
 
-### Authentication (generic OIDC)
+#### Generic OIDC
 
 Optional and additive: GitHub stays available whether or not this is set. Setting
 `OIDC_ISSUER_URL` is what enables the provider, and one implementation covers Google, Okta,
@@ -65,7 +75,12 @@ than producing a login button that fails on click.
 | `OIDC_REDIRECT_URL` | `http://localhost:8080/auth/callback` | The shared callback: the provider a sign-in began with rides in the signed state cookie, so one registered redirect URI serves every issuer. Point it at `/auth/callback/oidc:<name>` only for an IdP that insists on a distinct URI per client. |
 
 Login routes: `/auth/login` (defaults to GitHub) and `/auth/login/{provider}`, where
-`{provider}` is `github` or `oidc:<name>`.
+`{provider}` is `github` or `oidc:<name>`. `GET /api/v1/auth/providers` lists what this
+deployment has configured; the login page draws its buttons from it.
+
+Signed-in users can link a second issuer to their account from `/admin/account`. A subject
+already linked to a different account is refused with 409 — OCIDex never merges accounts —
+and so is unlinking an account's last remaining identity.
 
 ### Frontend / CORS
 
