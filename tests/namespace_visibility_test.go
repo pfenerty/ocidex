@@ -41,18 +41,38 @@ const alpineSBOM = `{
 }`
 
 // seedNamespace inserts a namespace owned by ownerID.
+//
+// Ownership is a namespace_member row with role 'owner', not a column: 00065
+// introduced the membership table and 00067 dropped namespace.owner_id
+// (ADR-046). The unique namespace_one_owner index means this is the only owner
+// the namespace will ever have unless a test says otherwise.
 func seedNamespace(t *testing.T, pool *pgxpool.Pool, name string, ownerID pgtype.UUID, visibility string) string {
 	t.Helper()
 	var id string
 	err := pool.QueryRow(t.Context(), `
-		INSERT INTO namespace (name, owner_id, visibility)
-		VALUES ($1, $2, $3)
+		INSERT INTO namespace (name, visibility)
+		VALUES ($1, $2)
 		RETURNING id::text
-	`, name, ownerID, visibility).Scan(&id)
+	`, name, visibility).Scan(&id)
 	if err != nil {
 		t.Fatalf("seed namespace %q: %v", name, err)
 	}
+	seedMember(t, pool, id, ownerID, "owner")
+
 	return id
+}
+
+// seedMember grants userID a role in a namespace, which is what an
+// authorization question is now answered from.
+func seedMember(t *testing.T, pool *pgxpool.Pool, namespaceID string, userID pgtype.UUID, role string) {
+	t.Helper()
+	_, err := pool.Exec(t.Context(), `
+		INSERT INTO namespace_member (namespace_id, user_id, role)
+		VALUES ($1, $2, $3)
+	`, namespaceID, userID, role)
+	if err != nil {
+		t.Fatalf("seed %s membership in %s: %v", role, namespaceID, err)
+	}
 }
 
 // seedSource inserts a source inside a namespace.
