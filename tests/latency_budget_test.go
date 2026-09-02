@@ -217,11 +217,7 @@ func TestReadPathLatencyBudget(t *testing.T) {
 		{name: "stats", path: "/api/v1/stats"},
 		{name: "discover", path: "/api/v1/discover"},
 		{name: "artifact changelog", path: "/api/v1/artifacts/" + artifactID + "/changelog"},
-		{
-			name: "artifact vulns",
-			path: "/api/v1/artifacts/" + artifactID + "/vulns?sort=severity&dir=desc&limit=50",
-			skip: "ocidex-7gf7.5",
-		},
+		{name: "artifact vulns", path: "/api/v1/artifacts/" + artifactID + "/vulns?sort=severity&dir=desc&limit=50"},
 		{
 			name: "component versions",
 			path: "/api/v1/components/versions?name=pkg-1&limit=50",

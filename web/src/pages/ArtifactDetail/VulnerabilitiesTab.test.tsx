@@ -23,13 +23,17 @@ let lastParams: Record<string, unknown> | undefined;
 
 type VulnQuery = ReturnType<typeof useArtifactVulns>;
 
-function stubQuery(rows: ArtifactVulnEntry[]): void {
+function stubQuery(
+    rows: ArtifactVulnEntry[],
+    scope: { versionScope: number; totalVersions: number } = { versionScope: 20, totalVersions: 3 },
+): void {
     mockVulns.mockImplementation((_id, params) => {
         lastParams = params?.() as Record<string, unknown> | undefined;
         return {
             data: {
                 data: rows,
                 pagination: { total: rows.length, limit: 50, offset: 0 },
+                ...scope,
             },
             isFetching: false,
             isError: false,
@@ -164,6 +168,24 @@ describe("Artifact VulnerabilitiesTab", () => {
         // The tile counts the newest SBOM; this list counts the newest SBOM per
         // version. Unexplained, the mismatch reads as a bug in one of them.
         const { container } = renderTab();
-        expect(container.textContent).toContain("newest SBOM of each version");
+        expect(container.textContent).toContain("newest SBOM of each");
+    });
+
+    // The server caps how many versions it scans (ocidex-7gf7.5). A cap the
+    // page does not mention turns "clean in the last 20 releases" into an
+    // unqualified "clean", which is a worse failure than the timeout the cap
+    // replaced — so both sides of the truncation are asserted here.
+    it("names the cap and the history it leaves out when the scan is truncated", () => {
+        stubQuery([vuln({})], { versionScope: 20, totalVersions: 1025 });
+        const { container } = renderTab();
+        expect(container.textContent).toContain("20 most recent versions");
+        expect(container.textContent).toContain("1,025 in all");
+    });
+
+    it("says so plainly when nothing was left out", () => {
+        stubQuery([vuln({})], { versionScope: 20, totalVersions: 3 });
+        const { container } = renderTab();
+        expect(container.textContent).toContain("each of this artifact's 3 versions");
+        expect(container.textContent).not.toContain("most recent versions");
     });
 });

@@ -2516,9 +2516,11 @@ type ListArtifactVersionsOutputBodyResolvedMode string
 // ListArtifactVulnsOutputBody defines model for ListArtifactVulnsOutputBody.
 type ListArtifactVulnsOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema     *string              `json:"$schema,omitempty"`
-	Data       *[]ArtifactVulnEntry `json:"data"`
-	Pagination PaginationMeta       `json:"pagination"`
+	Schema        *string              `json:"$schema,omitempty"`
+	Data          *[]ArtifactVulnEntry `json:"data"`
+	Pagination    PaginationMeta       `json:"pagination"`
+	TotalVersions int64                `json:"totalVersions"`
+	VersionScope  int32                `json:"versionScope"`
 }
 
 // ListArtifactsOutputBody defines model for ListArtifactsOutputBody.
@@ -3770,6 +3772,9 @@ type ListArtifactVulnsParams struct {
 
 	// Dir Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it.
 	Dir *ListArtifactVulnsParamsDir `form:"dir,omitempty" json:"dir,omitempty"`
+
+	// VersionScope How many of the artifact's most recent versions to scan
+	VersionScope *int32 `form:"versionScope,omitempty" json:"versionScope,omitempty"`
 
 	// Limit Maximum number of results per page
 	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`

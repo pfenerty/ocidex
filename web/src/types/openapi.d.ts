@@ -2877,6 +2877,10 @@ export interface components {
             readonly $schema?: string;
             data: components["schemas"]["ArtifactVulnEntry"][] | null;
             pagination: components["schemas"]["PaginationMeta"];
+            /** Format: int64 */
+            totalVersions: number;
+            /** Format: int32 */
+            versionScope: number;
         };
         ListArtifactsOutputBody: {
             /**
@@ -4681,6 +4685,8 @@ export interface operations {
                 sort?: "severity" | "cvss_score" | "affected_package_count" | "affected_version_count" | "canonical_id";
                 /** @description Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it. */
                 dir?: "asc" | "desc";
+                /** @description How many of the artifact's most recent versions to scan */
+                versionScope?: number;
                 /** @description Maximum number of results per page */
                 limit?: number;
                 /** @description Number of results to skip */

@@ -98,6 +98,26 @@ export function VulnerabilitiesTab(props: {
 
     const rowKey = (v: ArtifactVulnEntry) => v.canonicalId || v.id;
 
+    /**
+     * scopeNote states how much of the artifact's history this list covers.
+     *
+     * The server caps the scan at the most recent versions (ocidex-7gf7.5) —
+     * uncapped it walked every version of the artifact and timed out. A cap the
+     * reader cannot see is worse than the timeout it replaced: it turns "clean
+     * in the last 20 releases" into an unqualified "clean". So the cap and the
+     * artifact's true version count are both named, and when nothing is left
+     * out the sentence says that too rather than going quiet.
+     */
+    const scopeNote = () => {
+        const data = query.data;
+        if (!data) return "Across the newest SBOM of each version.";
+        const { versionScope: scope, totalVersions: total } = data;
+        if (total <= scope) {
+            return `Across the newest SBOM of each of this artifact's ${total.toLocaleString()} ${total === 1 ? "version" : "versions"}.`;
+        }
+        return `Across the newest SBOM of each of the ${scope.toLocaleString()} most recent versions, of ${total.toLocaleString()} in all.`;
+    };
+
     const columns: Column<ArtifactVulnEntry>[] = [
         {
             header: "ID",
@@ -164,9 +184,9 @@ export function VulnerabilitiesTab(props: {
                 cheaper than the alternative reading, which is that one of them
                 is broken. */}
             <p class="text-muted text-sm mb-4">
-                Across the newest SBOM of each version. The Vulnerabilities tile
-                above counts this artifact's newest SBOM only, so a finding fixed
-                in the latest version still appears here.
+                {scopeNote()} The Vulnerabilities tile above counts this
+                artifact's newest SBOM only, so a finding fixed in the latest
+                version still appears here.
             </p>
 
             {/* A pre-filtered list that does not say it is filtered reads as
@@ -213,10 +233,10 @@ export function VulnerabilitiesTab(props: {
                 }
                 emptyMessage={
                     props.vuln !== undefined
-                        ? "No version of this artifact carries a package this advisory affects. Other versions may still carry other findings — clear the filter to see them."
+                        ? "No version in scope carries a package this advisory affects. Older versions outside the scope above, and other advisories, may still — clear the filter to see them."
                         : props.summary === undefined
                           ? "No SBOM for this artifact has been matched against the vulnerability store yet. That is unknown exposure, not zero."
-                          : "No advisory in the vulnerability store matches a package in any version of this artifact. That is a statement about what is known today, not a guarantee."
+                          : "No advisory in the vulnerability store matches a package in any version in scope. That is a statement about what is known today, over the versions named above, not a guarantee."
                 }
             />
         </>

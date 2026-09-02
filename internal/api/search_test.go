@@ -264,22 +264,26 @@ func (f *fakeSearchService) ListSBOMVulns(_ context.Context, _ pgtype.UUID, _ se
 	}, nil
 }
 
-func (f *fakeSearchService) ListArtifactVulns(_ context.Context, _ pgtype.UUID, _ service.ArtifactVulnParams, _ service.VisibilityFilter) (service.PagedResult[service.ArtifactVulnEntry], error) {
-	return service.PagedResult[service.ArtifactVulnEntry]{
-		Data: []service.ArtifactVulnEntry{{
-			ID:                   "GHSA-yyyy",
-			CanonicalID:          "CVE-2024-0002",
-			Severity:             "CRITICAL",
-			AffectedPackageCount: 1,
-			AffectedVersionCount: 2,
-			AffectedVersions: []service.ArtifactVulnVersion{
-				{Version: "1.0.0", SbomID: "11111111-1111-1111-1111-111111111111", AffectedPackageCount: 1, PackageNames: []string{"zlib1g"}},
-				{Version: "1.1.0", SbomID: "22222222-2222-2222-2222-222222222222", AffectedPackageCount: 1, PackageNames: []string{"zlib1g"}},
-			},
-		}},
-		Total:  1,
-		Limit:  20,
-		Offset: 0,
+func (f *fakeSearchService) ListArtifactVulns(_ context.Context, _ pgtype.UUID, _ service.ArtifactVulnParams, _ service.VisibilityFilter) (service.ArtifactVulnPage, error) {
+	return service.ArtifactVulnPage{
+		VersionScope:  20,
+		TotalVersions: 2,
+		PagedResult: service.PagedResult[service.ArtifactVulnEntry]{
+			Data: []service.ArtifactVulnEntry{{
+				ID:                   "GHSA-yyyy",
+				CanonicalID:          "CVE-2024-0002",
+				Severity:             "CRITICAL",
+				AffectedPackageCount: 1,
+				AffectedVersionCount: 2,
+				AffectedVersions: []service.ArtifactVulnVersion{
+					{Version: "1.0.0", SbomID: "11111111-1111-1111-1111-111111111111", AffectedPackageCount: 1, PackageNames: []string{"zlib1g"}},
+					{Version: "1.1.0", SbomID: "22222222-2222-2222-2222-222222222222", AffectedPackageCount: 1, PackageNames: []string{"zlib1g"}},
+				},
+			}},
+			Total:  1,
+			Limit:  20,
+			Offset: 0,
+		},
 	}, nil
 }
 
@@ -340,8 +344,8 @@ func (f *notFoundSearchService) ListSBOMVulns(_ context.Context, _ pgtype.UUID, 
 	return service.PagedResult[service.SBOMVulnEntry]{}, service.ErrNotFound
 }
 
-func (f *notFoundSearchService) ListArtifactVulns(_ context.Context, _ pgtype.UUID, _ service.ArtifactVulnParams, _ service.VisibilityFilter) (service.PagedResult[service.ArtifactVulnEntry], error) {
-	return service.PagedResult[service.ArtifactVulnEntry]{}, service.ErrNotFound
+func (f *notFoundSearchService) ListArtifactVulns(_ context.Context, _ pgtype.UUID, _ service.ArtifactVulnParams, _ service.VisibilityFilter) (service.ArtifactVulnPage, error) {
+	return service.ArtifactVulnPage{}, service.ErrNotFound
 }
 
 // cursorBody is a helper for decoding keyset-paginated JSON responses.

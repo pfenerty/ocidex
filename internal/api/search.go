@@ -856,12 +856,13 @@ func (h *Handler) ListArtifactVulns(ctx context.Context, in *ListArtifactVulnsIn
 	}
 
 	result, err := h.searchService.ListArtifactVulns(ctx, id, service.ArtifactVulnParams{
-		Severity: in.Severity,
-		Vuln:     in.Vuln,
-		SortBy:   in.Sort,
-		SortDir:  in.Dir,
-		Limit:    in.Limit,
-		Offset:   in.Offset,
+		Severity:     in.Severity,
+		Vuln:         in.Vuln,
+		SortBy:       in.Sort,
+		SortDir:      in.Dir,
+		Limit:        in.Limit,
+		Offset:       in.Offset,
+		VersionScope: in.VersionScope,
 	}, visibilityFilterFromContext(ctx))
 	if err != nil {
 		return nil, mapServiceError(err)
@@ -869,6 +870,8 @@ func (h *Handler) ListArtifactVulns(ctx context.Context, in *ListArtifactVulnsIn
 
 	out := &ListArtifactVulnsOutput{}
 	out.Body.Data = result.Data
-	out.Body.Pagination = paginationMeta(result)
+	out.Body.Pagination = paginationMeta(result.PagedResult)
+	out.Body.VersionScope = result.VersionScope
+	out.Body.TotalVersions = result.TotalVersions
 	return out, nil
 }

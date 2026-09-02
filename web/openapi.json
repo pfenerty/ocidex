@@ -3214,11 +3214,21 @@
           },
           "pagination": {
             "$ref": "#/components/schemas/PaginationMeta"
+          },
+          "totalVersions": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "versionScope": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "required": [
           "data",
-          "pagination"
+          "pagination",
+          "versionScope",
+          "totalVersions"
         ],
         "type": "object"
       },
@@ -7563,6 +7573,20 @@
                 "desc"
               ],
               "type": "string"
+            }
+          },
+          {
+            "description": "How many of the artifact's most recent versions to scan",
+            "explode": false,
+            "in": "query",
+            "name": "versionScope",
+            "schema": {
+              "default": 20,
+              "description": "How many of the artifact's most recent versions to scan",
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
             }
           },
           {

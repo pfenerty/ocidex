@@ -478,11 +478,18 @@ func (s *searchService) GetArtifactVulnSummary(ctx context.Context, artifactID p
 // ListArtifactVulns returns one page of the artifact's vulnerability list.
 //
 // Scope note: this is wider than GetArtifactVulnSummary, which counts the
-// artifact's newest SBOM only. This list covers the newest SBOM per version,
-// because its job is to say *which versions* carry a finding — the question
-// /vulnerabilities/{id} sends a reader here with. The band tile and this tab
-// therefore report different totals by design; the tab states its scope.
-func (s *searchService) ListArtifactVulns(ctx context.Context, artifactID pgtype.UUID, params ArtifactVulnParams, vis VisibilityFilter) (PagedResult[ArtifactVulnEntry], error) {
+// artifact's newest SBOM only. This list covers the newest SBOM of each of the
+// most recent params.VersionScope versions, because its job is to say *which
+// versions* carry a finding — the question /vulnerabilities/{id} sends a reader
+// here with. The band tile and this tab therefore report different totals by
+// design; the tab states its scope.
+//
+// The version cap is ocidex-7gf7.5: uncapped, this walked every version of the
+// artifact and timed out on the widest one in the corpus. Both the cap and the
+// artifact's true version count come back on the page so the tab can say which
+// slice of history the numbers describe — an unstated truncation would be worse
+// than the timeout it replaces.
+func (s *searchService) ListArtifactVulns(ctx context.Context, artifactID pgtype.UUID, params ArtifactVulnParams, vis VisibilityFilter) (ArtifactVulnPage, error) {
 	q := repository.New(s.db)
 
 	visible, err := q.IsArtifactVisible(ctx, repository.IsArtifactVisibleParams{
@@ -492,44 +499,60 @@ func (s *searchService) ListArtifactVulns(ctx context.Context, artifactID pgtype
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return PagedResult[ArtifactVulnEntry]{}, ErrNotFound
+			return ArtifactVulnPage{}, ErrNotFound
 		}
-		return PagedResult[ArtifactVulnEntry]{}, fmt.Errorf("checking artifact visibility: %w", err)
+		return ArtifactVulnPage{}, fmt.Errorf("checking artifact visibility: %w", err)
 	}
 	if !visible {
-		return PagedResult[ArtifactVulnEntry]{}, ErrNotFound
+		return ArtifactVulnPage{}, ErrNotFound
 	}
 
 	limit, offset := clampPage(params.Limit, params.Offset)
 	severity := optionalText(params.Severity)
 	vuln := optionalText(params.Vuln)
+	scope := clampVersionScope(params.VersionScope)
+	scopeArg := pgtype.Int4{Int32: scope, Valid: true}
 
-	total, err := q.CountArtifactVulns(ctx, repository.CountArtifactVulnsParams{
+	// The artifact's full version count is a cheap COUNT over sbom alone — no
+	// component join — so reporting how much history the scope leaves out costs
+	// nothing next to the query it is describing.
+	totalVersions, err := q.CountArtifactVersions(ctx, repository.CountArtifactVersionsParams{
 		ArtifactID: artifactID,
 		UserID:     vis.UserID,
 		IsAdmin:    visAdminBool(vis),
-		Severity:   severity,
-		Vuln:       vuln,
 	})
 	if err != nil {
-		return PagedResult[ArtifactVulnEntry]{}, fmt.Errorf("counting artifact vulns: %w", err)
+		return ArtifactVulnPage{}, fmt.Errorf("counting artifact versions: %w", err)
+	}
+
+	total, err := q.CountArtifactVulns(ctx, repository.CountArtifactVulnsParams{
+		ArtifactID:   artifactID,
+		UserID:       vis.UserID,
+		IsAdmin:      visAdminBool(vis),
+		Severity:     severity,
+		Vuln:         vuln,
+		VersionScope: scopeArg,
+	})
+	if err != nil {
+		return ArtifactVulnPage{}, fmt.Errorf("counting artifact vulns: %w", err)
 	}
 
 	sortBy, sortDir := clampSort(params.SortBy, params.SortDir, ArtifactVulnSortKeys)
 
 	rows, err := q.ListArtifactVulns(ctx, repository.ListArtifactVulnsParams{
-		ArtifactID: artifactID,
-		UserID:     vis.UserID,
-		IsAdmin:    visAdminBool(vis),
-		Severity:   severity,
-		Vuln:       vuln,
-		SortBy:     sortBy,
-		SortDir:    sortDir,
-		Limit:      pgtype.Int4{Int32: limit, Valid: true},
-		Offset:     pgtype.Int4{Int32: offset, Valid: true},
+		ArtifactID:   artifactID,
+		UserID:       vis.UserID,
+		IsAdmin:      visAdminBool(vis),
+		Severity:     severity,
+		Vuln:         vuln,
+		SortBy:       sortBy,
+		SortDir:      sortDir,
+		Limit:        pgtype.Int4{Int32: limit, Valid: true},
+		Offset:       pgtype.Int4{Int32: offset, Valid: true},
+		VersionScope: scopeArg,
 	})
 	if err != nil {
-		return PagedResult[ArtifactVulnEntry]{}, fmt.Errorf("listing artifact vulns: %w", err)
+		return ArtifactVulnPage{}, fmt.Errorf("listing artifact vulns: %w", err)
 	}
 
 	items := make([]ArtifactVulnEntry, len(rows))
@@ -549,22 +572,31 @@ func (s *searchService) ListArtifactVulns(ctx context.Context, artifactID pgtype
 	}
 
 	if len(canonicalIDs) > 0 {
-		if err := attachArtifactVulnVersions(ctx, q, artifactID, vis, canonicalIDs, items); err != nil {
-			return PagedResult[ArtifactVulnEntry]{}, err
+		if err := attachArtifactVulnVersions(ctx, q, artifactID, vis, scopeArg, canonicalIDs, items); err != nil {
+			return ArtifactVulnPage{}, err
 		}
 	}
 
-	return PagedResult[ArtifactVulnEntry]{Data: items, Total: total}, nil
+	return ArtifactVulnPage{
+		PagedResult:   PagedResult[ArtifactVulnEntry]{Data: items, Total: total},
+		VersionScope:  scope,
+		TotalVersions: totalVersions,
+	}, nil
 }
 
 // attachArtifactVulnVersions fills in the AffectedVersions of one page of
 // findings with a single extra query, one per page rather than one per row.
-func attachArtifactVulnVersions(ctx context.Context, q *repository.Queries, artifactID pgtype.UUID, vis VisibilityFilter, canonicalIDs []string, items []ArtifactVulnEntry) error {
+//
+// It takes the same version scope as the list it decorates: a wider scope here
+// would attach versions the list itself never looked at, so a row's
+// affectedVersionCount and its listed versions would disagree.
+func attachArtifactVulnVersions(ctx context.Context, q *repository.Queries, artifactID pgtype.UUID, vis VisibilityFilter, scope pgtype.Int4, canonicalIDs []string, items []ArtifactVulnEntry) error {
 	rows, err := q.ListArtifactVulnAffectedVersions(ctx, repository.ListArtifactVulnAffectedVersionsParams{
 		ArtifactID:   artifactID,
 		UserID:       vis.UserID,
 		IsAdmin:      visAdminBool(vis),
 		CanonicalIds: canonicalIDs,
+		VersionScope: scope,
 	})
 	if err != nil {
 		return fmt.Errorf("listing affected versions: %w", err)

@@ -225,13 +225,25 @@ type ListArtifactVulnsInput struct {
 	Vuln string `query:"vuln" doc:"Filter to a single advisory, by canonical id or native OSV id"`
 	Sort string `query:"sort" enum:"severity,cvss_score,affected_package_count,affected_version_count,canonical_id" doc:"Column to sort by. Unset means worst first: severity, then CVSS."`
 	Dir  string `query:"dir" enum:"asc,desc" doc:"Sort direction (default asc). Applies to sort only — with sort unset the worst-first default ordering ignores it."`
+	// VersionScope bounds the versions scanned, newest version first. The list
+	// is computed over the newest SBOM of each version in scope, so its cost
+	// scales with this rather than with the artifact's whole history.
+	VersionScope int32 `query:"versionScope" default:"20" minimum:"1" maximum:"200" doc:"How many of the artifact's most recent versions to scan"`
 	PaginationParams
 }
 
 // ListArtifactVulnsOutput is the response for GET /api/v1/artifacts/{id}/vulns.
+//
+// VersionScope and TotalVersions are on the body rather than left implicit
+// because the list is a truncation of the artifact's history: without them a
+// reader cannot tell "clean" from "clean in the versions we looked at".
 type ListArtifactVulnsOutput struct {
 	Body struct {
 		Data       []service.ArtifactVulnEntry `json:"data"`
 		Pagination PaginationMeta              `json:"pagination"`
+		// VersionScope is how many versions were scanned, newest first.
+		VersionScope int32 `json:"versionScope"`
+		// TotalVersions is how many versions the artifact has in all.
+		TotalVersions int64 `json:"totalVersions"`
 	}
 }

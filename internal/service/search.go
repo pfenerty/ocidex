@@ -44,7 +44,7 @@ type SearchService interface {
 	GetVulnerabilityDetail(ctx context.Context, id string, limit, offset int32, vis VisibilityFilter) (VulnerabilityDetailResult, error)
 	GetComponentVulns(ctx context.Context, id pgtype.UUID, vis VisibilityFilter) ([]ComponentVulnEntry, error)
 	ListSBOMVulns(ctx context.Context, sbomID pgtype.UUID, params SBOMVulnParams, vis VisibilityFilter) (PagedResult[SBOMVulnEntry], error)
-	ListArtifactVulns(ctx context.Context, artifactID pgtype.UUID, params ArtifactVulnParams, vis VisibilityFilter) (PagedResult[ArtifactVulnEntry], error)
+	ListArtifactVulns(ctx context.Context, artifactID pgtype.UUID, params ArtifactVulnParams, vis VisibilityFilter) (ArtifactVulnPage, error)
 	ListSBOMDriftHistory(ctx context.Context, sbomID pgtype.UUID, page DriftPage, vis VisibilityFilter) (CursorPage[ProvenanceDriftSummary], error)
 	ListRecentProvenanceDrift(ctx context.Context, page DriftPage, vis VisibilityFilter) (CursorPage[RecentDriftEntry], error)
 	ListOwnedActivity(ctx context.Context, ownerID pgtype.UUID, page FeedPage) (CursorPage[ActivityEntry], error)
@@ -268,6 +268,46 @@ type ArtifactVulnParams struct {
 	SortDir string
 	Limit   int32
 	Offset  int32
+	// VersionScope caps how many of the artifact's versions the list looks at,
+	// newest version first. Zero means defaultArtifactVulnVersionScope.
+	VersionScope int32
+}
+
+// Version scope of the artifact vulnerability list (ocidex-7gf7.5).
+//
+// The list is computed over the newest SBOM of each version. Uncapped that was
+// 1,025 SBOMs at ~1,093 components for the widest artifact in the corpus, and
+// the request died on the router's 30s ceiling. 20 covers the recent releases a
+// reader is actually triaging; the ceiling exists so a caller cannot ask for the
+// unbounded query back.
+const (
+	defaultArtifactVulnVersionScope = 20
+	maxArtifactVulnVersionScope     = 200
+)
+
+// clampVersionScope resolves the requested scope to a value the query can use.
+func clampVersionScope(scope int32) int32 {
+	switch {
+	case scope <= 0:
+		return defaultArtifactVulnVersionScope
+	case scope > maxArtifactVulnVersionScope:
+		return maxArtifactVulnVersionScope
+	}
+	return scope
+}
+
+// ArtifactVulnPage is one page of an artifact's findings together with the
+// version scope it was computed over.
+//
+// The scope travels with the data because the page is a truncation the caller
+// cannot otherwise see: without TotalVersions a reader has no way to tell "no
+// findings" from "no findings in the 20 versions we looked at".
+type ArtifactVulnPage struct {
+	PagedResult[ArtifactVulnEntry]
+	// VersionScope is how many versions were scanned, newest first.
+	VersionScope int32 `json:"versionScope"`
+	// TotalVersions is how many versions the artifact has in all.
+	TotalVersions int64 `json:"totalVersions"`
 }
 
 // ArtifactVulnSortKeys are the columns ListArtifactVulns will order by. As with
