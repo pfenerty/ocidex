@@ -7459,6 +7459,7 @@
     },
     "/api/v1/artifacts/{id}/vuln-summary": {
       "get": {
+        "description": "Per-severity counts over the newest SBOM of the artifact's latest version — the same scope as the vulnerability column on the artifact list. Narrower than /vulns, which spans the most recent versions.",
         "operationId": "get-artifact-vuln-summary",
         "parameters": [
           {
@@ -7503,7 +7504,7 @@
     },
     "/api/v1/artifacts/{id}/vulns": {
       "get": {
-        "description": "Findings keyed by canonical id over the newest SBOM per version, with the versions each affects. Wider than /vuln-summary, which counts the newest SBOM only. ?vuln= pre-filters to a single advisory.",
+        "description": "Findings keyed by canonical id over the newest SBOM per version, with the versions each affects. Wider than /vuln-summary, which counts the latest version's newest SBOM only. ?vuln= pre-filters to a single advisory.",
         "operationId": "list-artifact-vulns",
         "parameters": [
           {

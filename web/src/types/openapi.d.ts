@@ -291,7 +291,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get artifact vulnerability summary */
+        /**
+         * Get artifact vulnerability summary
+         * @description Per-severity counts over the newest SBOM of the artifact's latest version — the same scope as the vulnerability column on the artifact list. Narrower than /vulns, which spans the most recent versions.
+         */
         get: operations["get-artifact-vuln-summary"];
         put?: never;
         post?: never;
@@ -310,7 +313,7 @@ export interface paths {
         };
         /**
          * List vulnerabilities across an artifact's versions
-         * @description Findings keyed by canonical id over the newest SBOM per version, with the versions each affects. Wider than /vuln-summary, which counts the newest SBOM only. ?vuln= pre-filters to a single advisory.
+         * @description Findings keyed by canonical id over the newest SBOM per version, with the versions each affects. Wider than /vuln-summary, which counts the latest version's newest SBOM only. ?vuln= pre-filters to a single advisory.
          */
         get: operations["list-artifact-vulns"];
         put?: never;

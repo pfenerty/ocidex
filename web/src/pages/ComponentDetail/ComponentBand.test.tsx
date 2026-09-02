@@ -63,7 +63,16 @@ function renderBand(
     return {
         container,
         tiles,
-        head: (i: number) => tiles[i].querySelector(".tile-head")?.textContent,
+        // The label without its scope caption, which the head has carried since
+        // ocidex-7gf7.7; `scope` reads the caption on its own.
+        head: (i: number) => {
+            const h = tiles[i].querySelector(".tile-head");
+            if (h === null) return undefined;
+            const copy = h.cloneNode(true) as HTMLElement;
+            copy.querySelector(".tile-scope")?.remove();
+            return copy.textContent;
+        },
+        scope: (i: number) => tiles[i].querySelector(".tile-scope")?.textContent,
         value: (i: number) => tiles[i].querySelector(".tile-value")?.textContent,
         sub: (i: number) => tiles[i].querySelector(".tile-sub")?.textContent,
     };
@@ -73,6 +82,19 @@ describe("ComponentBand", () => {
     // The whole point of the band: these two numbers describe the corpus, and
     // a component row is scoped to one SBOM, so neither can be read off the
     // page the reader is on.
+    // The band mixes two scopes: the first two tiles count the whole corpus,
+    // the last two describe the one component row on screen. Rendered without
+    // labels they read as one set, and "used by 12" beside "2 licenses" invites
+    // the conclusion that the licences are those 12 artifacts' licences
+    // (ocidex-7gf7.7).
+    it("labels which of its tiles are corpus-wide and which are not", () => {
+        const b = renderBand();
+        expect(b.scope(0)).toBe("corpus-wide");
+        expect(b.scope(1)).toBe("corpus-wide");
+        expect(b.scope(2)).toBe("this version");
+        expect(b.scope(3)).toBe("this version");
+    });
+
     it("reports the corpus-wide artifact and version counts, not the page's", () => {
         const b = renderBand();
         expect(b.head(0)).toBe("Used by");

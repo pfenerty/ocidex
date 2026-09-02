@@ -176,3 +176,26 @@ th.th-sortable .sort-arrow {
         min-width: 44rem;
     }
 }
+
+/*
+ * A column's scope, on a second line under its label.
+ *
+ * Two columns on /artifacts count different things over different sets of
+ * SBOMs — vulnerabilities over the artifact's latest version, signing over
+ * every SBOM it has — and read as if they agreed. The label is deliberately
+ * the header rather than a tooltip: the ambiguity is present the moment the
+ * table is on screen, so the answer has to be too, with the tooltip left to
+ * carry the reason.
+ *
+ * Undoes the uppercase treatment `thead th` applies, which is legible for a
+ * one-word label and not for a phrase.
+ */
+th .col-scope {
+    display: block;
+    margin-top: 0.125rem;
+    font-size: 0.7rem;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--color-text-dim);
+}

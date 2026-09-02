@@ -167,22 +167,50 @@ function ComponentBrowser() {
                 />
             ),
         },
+        // Every number on this row is corpus-wide, and each column said so only
+        // in the page subtitle (ocidex-7gf7.7). Read from the row rather than
+        // from the heading — which is how a wide table is read — "3 versions"
+        // could as easily have meant three in whatever SBOM the reader came
+        // from.
         {
-            header: "Versions",
+            header: (
+                <>
+                    Versions
+                    <span class="col-scope">all SBOMs</span>
+                </>
+            ),
+            mobileLabel: "Versions",
             sortKey: "version_count",
             sortType: "numeric",
             align: "right",
             render: (c) => formatCount(c.versionCount),
         },
         {
-            header: "Found In",
+            header: (
+                <>
+                    Found In
+                    <span class="col-scope">SBOMs</span>
+                </>
+            ),
+            mobileLabel: "Found In",
             sortKey: "sbom_count",
             sortType: "numeric",
             align: "right",
             render: (c) => formatCount(c.sbomCount),
         },
         {
-            header: "Vulnerabilities",
+            header: (
+                <>
+                    Vulnerabilities
+                    <span
+                        class="col-scope"
+                        title="Known findings against any version of this package — unlike the artifact list, a zero here means nothing is known against it, not that it was never scanned"
+                    >
+                        all SBOMs
+                    </span>
+                </>
+            ),
+            mobileLabel: "Vulnerabilities",
             sortKey: "severity",
             sortType: "numeric",
             align: "right",

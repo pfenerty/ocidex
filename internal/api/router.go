@@ -521,6 +521,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/artifacts/{id}/vuln-summary",
 		Summary:     "Get artifact vulnerability summary",
+		Description: "Per-severity counts over the newest SBOM of the artifact's latest version — the same scope as the vulnerability column on the artifact list. Narrower than /vulns, which spans the most recent versions.",
 		Tags:        []string{tagArtifacts},
 	}, h.GetArtifactVulnSummary)
 
@@ -529,7 +530,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Method:      http.MethodGet,
 		Path:        "/api/v1/artifacts/{id}/vulns",
 		Summary:     "List vulnerabilities across an artifact's versions",
-		Description: "Findings keyed by canonical id over the newest SBOM per version, with the versions each affects. Wider than /vuln-summary, which counts the newest SBOM only. ?vuln= pre-filters to a single advisory.",
+		Description: "Findings keyed by canonical id over the newest SBOM per version, with the versions each affects. Wider than /vuln-summary, which counts the latest version's newest SBOM only. ?vuln= pre-filters to a single advisory.",
 		Tags:        []string{tagArtifacts},
 	}, h.ListArtifactVulns)
 

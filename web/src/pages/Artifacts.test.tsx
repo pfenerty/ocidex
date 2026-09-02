@@ -314,6 +314,22 @@ describe("Artifacts severity column", () => {
         expect(chip?.textContent.replace(/\s+/g, "")).toBe("23010");
     });
 
+    // The two count columns sit side by side and are scoped opposite ways: the
+    // vulnerability rollup follows the latest version (ocidex-7gf7.2) because a
+    // finding only an old release carries has been superseded, while signing is
+    // the worst rung across every SBOM (ocidex-7gf7.3) because a failure
+    // anywhere is not cancelled by a sibling that passed. Neither said so, and
+    // read together they implied a scope they did not share (ocidex-7gf7.7).
+    it("states the scope of the vulnerability and signing columns", () => {
+        mockUseArtifacts.mockReturnValue(makeQuery({ data: page([makeArtifact()]) }) as never);
+        const { container } = renderArtifacts();
+        const scopes = [...container.querySelectorAll("th .col-scope")].map(
+            (s) => s.textContent.trim(),
+        );
+        expect(scopes).toContain("latest version");
+        expect(scopes).toContain("any SBOM");
+    });
+
     it("writes the sort to the URL instead of reordering in place", () => {
         mockUseArtifacts.mockReturnValue(makeQuery({ data: page([makeArtifact()]) }) as never);
         const { getByText } = renderArtifacts();

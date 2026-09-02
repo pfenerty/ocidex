@@ -171,6 +171,17 @@ describe("Components severity column", () => {
         return renderAt("/components");
     };
 
+    // Every number on a row here is taken over the whole corpus, and the only
+    // thing that said so was the page subtitle — which nobody reads while
+    // scanning a wide table (ocidex-7gf7.7).
+    it("states that its counts are corpus-wide", () => {
+        const { container } = renderRows([row()]);
+        const scopes = [...container.querySelectorAll("th .col-scope")].map(
+            (s) => s.textContent.trim(),
+        );
+        expect(scopes).toEqual(["all SBOMs", "SBOMs", "all SBOMs"]);
+    });
+
     it("renders the per-severity counts as a chip", () => {
         const { container } = renderRows([row()]);
 

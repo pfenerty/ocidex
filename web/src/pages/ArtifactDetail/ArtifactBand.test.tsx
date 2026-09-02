@@ -38,9 +38,26 @@ function renderBand(over: Partial<BandProps> = {}) {
     return render(() => <ArtifactBand {...props} />);
 }
 
+/**
+ * A tile's label with its scope stripped off. The head carries both since
+ * ocidex-7gf7.7, and matching on the raw textContent would tie every lookup
+ * below to the wording of a caption none of them is about.
+ */
+function headLabel(t: HTMLElement): string {
+    const head = t.querySelector(".tile-head");
+    if (head === null) return "";
+    const copy = head.cloneNode(true) as HTMLElement;
+    copy.querySelector(".tile-scope")?.remove();
+    return copy.textContent.trim();
+}
+
+function tileScope(t: HTMLElement): string {
+    return t.querySelector(".tile-scope")?.textContent.trim() ?? "";
+}
+
 function tile(container: HTMLElement, head: string): HTMLElement {
     const found = [...container.querySelectorAll<HTMLElement>(".tile")].find(
-        (t) => t.querySelector(".tile-head")?.textContent.trim() === head,
+        (t) => headLabel(t) === head,
     );
     if (found === undefined) throw new Error(`no "${head}" tile in the band`);
     return found;
@@ -112,6 +129,22 @@ describe("ArtifactBand vulnerability tile", () => {
         // became decoration again.
         const { container } = renderBand();
         expect(tile(container, "Vulnerabilities").tagName).toBe("BUTTON");
+    });
+});
+
+describe("ArtifactBand tile scopes", () => {
+    // The two count tiles are scoped opposite ways and sit side by side, and
+    // the vulnerability tile opens a tab whose own count spans more versions
+    // than the tile does (ocidex-7gf7.5). Without the labels the tab reads as
+    // contradicting the tile the reader clicked to reach it.
+    it("scopes the vulnerability tile to the latest version", () => {
+        const { container } = renderBand();
+        expect(tileScope(tile(container, "Vulnerabilities"))).toBe("latest version");
+    });
+
+    it("scopes the signing tile to any SBOM", () => {
+        const { container } = renderBand();
+        expect(tileScope(tile(container, "Signing"))).toBe("any SBOM");
     });
 });
 

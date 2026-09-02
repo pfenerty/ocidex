@@ -145,6 +145,32 @@ func TestArtifactRollupVulns_LatestVersionNotLatestIngest(t *testing.T) {
 	// did, and it is what made the column change under a backfill.
 	is.Equal(vulns["critical"], float64(0))
 	is.Equal(vulns["low"], float64(1))
+
+	// The artifact page's own tile reads GetArtifactVulnSummary, which kept
+	// ordering by created_at after the list stopped (ocidex-7gf7.7). Both
+	// surfaces call the number "latest version", so a reader moving from the
+	// list to the page would have seen the same artifact's count change from 0
+	// critical to 1 with no explanation.
+	artifactID, ok := entry["id"].(string)
+	is.True(ok)
+
+	resp, err := doWithAuth(t, http.MethodGet,
+		srv.URL+"/api/v1/artifacts/"+artifactID+"/vuln-summary", "", memberKey)
+	is.NoErr(err)
+	defer resp.Body.Close()
+	is.Equal(resp.StatusCode, http.StatusOK)
+
+	var summary struct {
+		Summary struct {
+			Critical int64 `json:"critical"`
+			Low      int64 `json:"low"`
+		} `json:"summary"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&summary); err != nil {
+		t.Fatalf("decoding vuln summary: %v", err)
+	}
+	is.Equal(summary.Summary.Critical, int64(0))
+	is.Equal(summary.Summary.Low, int64(1))
 }
 
 // TestArtifactRollupSigningStatus_FailureBeatsVerified pins the other half of

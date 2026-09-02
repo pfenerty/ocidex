@@ -85,11 +85,40 @@ const columns: Column<ArtifactSummary>[] = [
         render: (a) => <TypeBadge type={a.type} />,
     },
     {
-        header: "Signing",
+        // The two count columns have different scopes and had no way to say so
+        // (ocidex-7gf7.7). Signing is a ladder across every SBOM the artifact
+        // has, worst rung first, because a signature that failed anywhere is a
+        // fact about the artifact that a passing sibling does not cancel.
+        header: (
+            <>
+                Signing
+                <span
+                    class="col-scope"
+                    title="Worst status across every SBOM of this artifact — a verification that failed anywhere is not cancelled by a sibling that passed"
+                >
+                    any SBOM
+                </span>
+            </>
+        ),
+        mobileLabel: "Signing",
         render: (a) => <SigningBadge status={a.signingStatus} />,
     },
     {
-        header: "Vulnerabilities",
+        // Vulnerabilities are the opposite: scoped to the latest version
+        // (ocidex-7gf7.2), because a finding only an old release carries has
+        // already been superseded and is not a live gap.
+        header: (
+            <>
+                Vulnerabilities
+                <span
+                    class="col-scope"
+                    title="Counted over the artifact's latest version only — a finding that only an older release carries has already been superseded"
+                >
+                    latest version
+                </span>
+            </>
+        ),
+        mobileLabel: "Vulnerabilities",
         sortKey: "severity",
         sortType: "numeric",
         render: (a) => (

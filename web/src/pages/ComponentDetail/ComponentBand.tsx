@@ -55,9 +55,20 @@ export function ComponentBand(props: {
 
     const licenses = () => d().licenses ?? [];
 
+    // The band mixes two scopes and used to render them identically
+    // (ocidex-7gf7.7): the first two tiles count every SBOM in the corpus that
+    // carries this component identity, the last two describe the single
+    // component row this page is showing. Read as one set, "used by 44" next to
+    // "3 licenses" invites the conclusion that the licences are the 44
+    // artifacts' licences.
     const tiles = (): StatTile<ComponentTab>[] => [
         {
-            head: "Used by",
+            head: (
+                <>
+                    Used by
+                    <span class="tile-scope">corpus-wide</span>
+                </>
+            ),
             href: overviewHref(),
             value: count((c) => c.artifactCount),
             sub:
@@ -66,14 +77,24 @@ export function ComponentBand(props: {
                     : `artifacts · ${plural(props.counts.sbomCount, "SBOM")}`,
         },
         {
-            head: "Versions",
+            head: (
+                <>
+                    Versions
+                    <span class="tile-scope">corpus-wide</span>
+                </>
+            ),
             href: overviewHref(),
             value: count((c) => c.versionCount),
-            sub: "in the corpus",
+            sub: "distinct versions seen",
         },
         {
             id: "licenses",
-            head: "Licenses",
+            head: (
+                <>
+                    Licenses
+                    <span class="tile-scope">this version</span>
+                </>
+            ),
             value: licenses().length,
             // The SPDX id is the answer for the common single-licence case;
             // listing two of five would be worse than counting them.
@@ -82,7 +103,7 @@ export function ComponentBand(props: {
                     ? (licenses()[0].spdxId ?? licenses()[0].name)
                     : "declared",
         },
-        vulnTile<ComponentTab>(props.vulns, "vulns"),
+        vulnTile<ComponentTab>(props.vulns, "vulns", "this version"),
     ];
 
     return <StatBand tiles={tiles()} active={props.active} onSelect={props.onSelect} />;

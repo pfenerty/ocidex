@@ -66,6 +66,26 @@
     color: var(--color-text-muted);
 }
 
+/*
+ * A tile's scope, beside its label (ocidex-7gf7.7).
+ *
+ * Bands on three different pages share the vulnerability tile and count over
+ * three different sets of SBOMs, so the label alone does not say what the
+ * number is a number of. It sits in the head row rather than the sub-line
+ * because the sub-line already carries worst severity, and undoes the head's
+ * uppercase, which is legible for a one-word label and not for a phrase.
+ */
+.tile-scope {
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 0.68rem;
+    color: var(--color-text-dim);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .tile-value {
     font-size: 1.05rem;
     font-weight: 600;

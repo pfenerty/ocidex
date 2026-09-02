@@ -104,7 +104,10 @@ export default function SummaryBand(props: {
             value: props.packageCount ?? "\u2014",
             sub: props.ecosystems.length > 0 ? props.ecosystems.join(" \u00b7 ") : "components",
         },
-        vulnTile<SbomTab>(props.vulns, "vulns"),
+        // This band is the one place the vulnerability count is scoped to a
+        // single SBOM; the artifact and component bands share the tile and
+        // count over wider sets (ocidex-7gf7.7).
+        vulnTile<SbomTab>(props.vulns, "vulns", "this SBOM"),
         {
             id: "raw",
             head: "SBOM",

@@ -59,7 +59,13 @@ export function ArtifactBand(props: {
             // The tile passes an id now that the page has a vulnerabilities tab
             // to send the reader to. Without one StatBand renders it as a plain
             // <div> — which is what it was, sitting among buttons doing nothing.
-            vulnTile<ArtifactTab>(props.vulns, "vulns"),
+            //
+            // The scope is not cosmetic here: this tile counts the newest SBOM
+            // of the latest version, while the tab it opens counts across the
+            // most recent versions (ocidex-7gf7.5). The two numbers legitimately
+            // differ, and without a label the tab looks like it contradicts the
+            // tile the reader clicked to reach it.
+            vulnTile<ArtifactTab>(props.vulns, "vulns", "latest version"),
         ];
 
         // Signing is image-only. On an uploaded binary or library it would be a
@@ -67,7 +73,15 @@ export function ArtifactBand(props: {
         // why the rest of the page's image chrome is gated the same way.
         if (props.isContainer) {
             t.push({
-                head: "Signing",
+                // Worst rung across every SBOM, not the latest version's
+                // (ocidex-7gf7.3), so it says which — the vulnerability tile
+                // beside it is scoped the other way.
+                head: (
+                    <>
+                        Signing
+                        <span class="tile-scope">any SBOM</span>
+                    </>
+                ),
                 // trustStatus returns null, not undefined, for an unenriched artifact.
                 value: trust()?.label ?? "Not enriched",
                 valueClass: (() => {
