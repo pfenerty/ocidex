@@ -199,3 +199,15 @@ th .col-scope {
     letter-spacing: 0;
     color: var(--color-text-dim);
 }
+
+/*
+ * A qualifier on a cell's value — "13 SBOMs, unenriched" (ocidex-7gf7.8).
+ *
+ * Smaller and dimmer than the value it follows, because it is a caveat about
+ * that value rather than a second value. Inline so it wraps with the cell on a
+ * narrow column instead of forcing a fixed second line on every row.
+ */
+.row-note {
+    margin-left: 0.4rem;
+    font-size: 0.72rem;
+}

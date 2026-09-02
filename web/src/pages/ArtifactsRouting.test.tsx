@@ -95,12 +95,12 @@ describe("Artifacts type filter against the real router", () => {
     });
 });
 
-// Adopting <Toolbar> (ocidex-ag4q.28) moved the name filter and "show all" out
-// of component-local signals and into the query string, alongside the type that
-// was already there. Against the real router these assert the thing the local
-// signals could not do: a filtered list that survives a reload and can be sent
+// Adopting <Toolbar> (ocidex-ag4q.28) moved the name filter out of a
+// component-local signal and into the query string, alongside the type that was
+// already there. Against the real router these assert the thing the local
+// signal could not do: a filtered list that survives a reload and can be sent
 // to someone else.
-describe("Artifacts name and show-all filters against the real router", () => {
+describe("Artifacts name filter against the real router", () => {
     const idleQuery = () => ({
         isLoading: false,
         isFetching: false,
@@ -147,20 +147,22 @@ describe("Artifacts name and show-all filters against the real router", () => {
         expect(mockUseArtifacts.mock.calls[0][0]().name).toBe("pg");
     });
 
-    // `sufficient` is the inverse of the box: checked means "stop hiding the
-    // artifacts whose SBOMs are too thin to say anything about".
-    it("maps ?all=1 onto sufficient=false, and its absence onto true", () => {
+    // The list is unconditionally complete since ocidex-7gf7.8 removed the
+    // "Show all" box. `sufficient` stays in the request and stays false: the
+    // server's own default is true, so omitting it would restore exactly the
+    // hiding the box used to do, silently and with no control to undo it.
+    it("asks for every artifact, with no way for the URL to narrow it", () => {
         renderAt("/artifacts?all=1");
         expect(mockUseArtifacts.mock.calls[0][0]().sufficient).toBe(false);
 
         vi.clearAllMocks();
         mockUseArtifacts.mockReturnValue(idleQuery() as never);
         renderAt("/artifacts");
-        expect(mockUseArtifacts.mock.calls[0][0]().sufficient).toBe(true);
+        expect(mockUseArtifacts.mock.calls[0][0]().sufficient).toBe(false);
     });
 
     it("clears every filter param at once, not just the one last touched", async () => {
-        const { getByRole } = renderAt("/artifacts?name=postgres&type=library&all=1");
+        const { getByRole } = renderAt("/artifacts?name=postgres&type=library");
 
         getByRole("button", { name: "Clear" }).click();
 

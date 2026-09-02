@@ -35,7 +35,6 @@ const FILTERS: ToolbarField[] = [
         allLabel: "All types",
         label: "Artifact type",
     },
-    { kind: "checkbox", key: "all", label: "Show all" },
 ];
 
 /** How a group of artifacts got its heading, which decides how it renders. */
@@ -149,16 +148,32 @@ const columns: Column<ArtifactSummary>[] = [
     },
     {
         header: "SBOMs",
-        render: (a) => plural(a.sbomCount, "SBOM"),
+        render: (a) => (
+            <>
+                {plural(a.sbomCount, "SBOM")}
+                {/* What the "Show all" checkbox used to hide (ocidex-7gf7.8).
+                    An artifact whose SBOMs are all too thin to enrich is worth
+                    knowing about — it is usually the sign of a failed or
+                    missing enrichment run — but hiding it behind an unchecked
+                    box meant the reader had to already suspect it existed. */}
+                <Show when={a.sbomCount > 0 && a.sufficientSbomCount === 0}>
+                    <span
+                        class="text-muted row-note"
+                        title="No SBOM of this artifact carries enough enrichment to report provenance or image metadata"
+                    >
+                        unenriched
+                    </span>
+                </Show>
+            </>
+        ),
     },
 ];
 
 export default function Artifacts() {
-    // Every filter now lives in the URL, not just the type. Home's breakdown
-    // chips already linked into `?type=`; name and "show all" were local
-    // signals, so the one view a reader would actually want to send someone —
-    // "these artifacts, filtered this way" — was the one that could not be
-    // linked to or survive a reload.
+    // Every filter lives in the URL, not just the type. Home's breakdown chips
+    // already linked into `?type=`; name was a local signal, so the one view a
+    // reader would actually want to send someone — "these artifacts, filtered
+    // this way" — was the one that could not be linked to or survive a reload.
     const [searchParams, setSearchParams] = useSearchParams();
     const param = (key: string): string => {
         const v = searchParams[key];
@@ -175,10 +190,16 @@ export default function Artifacts() {
         name: param("name"),
         type: param("type"),
         limit: DEFAULT_PAGE_SIZE,
-        // "Show all" lifts a constraint rather than adding one: unchecked, the
-        // list is limited to artifacts whose SBOMs are substantial enough to
-        // say anything about.
-        sufficient: param("all") !== "1",
+        // Always every artifact (ocidex-7gf7.8). This used to be a "Show all"
+        // checkbox, defaulted off, hiding artifacts with no sufficiently
+        // enriched SBOM. Migration 00056 flipped enrichment_sufficient true for
+        // every non-container SBOM carrying a subject version, which dissolved
+        // most of what the box filtered — it hid 1 artifact of 52 — so what was
+        // left was a control that mostly did nothing and, in the one case where
+        // it did something, hid the row a reader most needed to see. The state
+        // it filtered on is now a note on the row instead. The API parameter
+        // stays; only the control is gone.
+        sufficient: false,
         // Sorting is server-side: the list is paged, so a client-side sort
         // would only reorder the rows fetched so far.
         sort: sortBy(),

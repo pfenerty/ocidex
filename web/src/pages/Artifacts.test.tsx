@@ -288,6 +288,49 @@ describe("Artifacts", () => {
 // The bug this guards is the one ADR-044 names: an artifact nobody has scanned
 // must never render as a clean zero, and VulnCountBadges' own em-dash fallback
 // for an all-zero summary reads exactly like one.
+// What the removed "Show all" checkbox used to hide (ocidex-7gf7.8). Migration
+// 00056 dissolved most of what that box filtered — one artifact of 52 — so it
+// was a control that usually did nothing and, in the case where it did
+// something, hid the row a reader most needed to see.
+describe("Artifacts unenriched rows", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        for (const k of Object.keys(router.searchParams)) delete router.searchParams[k];
+    });
+
+    it("has no control that can hide an artifact", () => {
+        mockUseArtifacts.mockReturnValue(makeQuery({ data: page([makeArtifact()]) }) as never);
+        const { container, queryByText } = renderArtifacts();
+        expect(queryByText("Show all")).toBeNull();
+        expect(container.querySelector('input[type="checkbox"]')).toBeNull();
+    });
+
+    it("notes on the row when no SBOM of an artifact is enriched", () => {
+        mockUseArtifacts.mockReturnValue(
+            makeQuery({ data: page([makeArtifact({ sufficientSbomCount: 0 })]) }) as never,
+        );
+        const { getByText } = renderArtifacts();
+        expect(getByText("unenriched")).toBeDefined();
+    });
+
+    it("says nothing on a row that has an enriched SBOM", () => {
+        mockUseArtifacts.mockReturnValue(
+            makeQuery({ data: page([makeArtifact({ sbomCount: 3, sufficientSbomCount: 1 })]) }) as never,
+        );
+        expect(renderArtifacts().queryByText("unenriched")).toBeNull();
+    });
+
+    // An artifact with no SBOMs at all is not unenriched, it is empty — the
+    // note would be a claim about enrichment runs that never had anything to
+    // run against.
+    it("says nothing on a row with no SBOMs at all", () => {
+        mockUseArtifacts.mockReturnValue(
+            makeQuery({ data: page([makeArtifact({ sbomCount: 0, sufficientSbomCount: 0 })]) }) as never,
+        );
+        expect(renderArtifacts().queryByText("unenriched")).toBeNull();
+    });
+});
+
 describe("Artifacts severity column", () => {
     beforeEach(() => {
         vi.clearAllMocks();
