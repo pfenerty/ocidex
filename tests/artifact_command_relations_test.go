@@ -1,9 +1,10 @@
 package tests
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/url"
-	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -25,6 +26,19 @@ import (
 
 const ocidexModule = "github.com/pfenerty/ocidex"
 
+// digestOf derives a distinct sha256 digest per fixture.
+//
+// Spelling these out by hand is what broke this file the first time: an image
+// named ...@sha256:1111… and a binary uploaded with digest sha256:1111… are one
+// SBOM as far as the unique index on sbom.digest is concerned, and ingest
+// answers a duplicate with 201 and no new artifact — so the collision showed up
+// only as a later "no rows in result set". Hashing the fixture's own identity
+// makes a collision impossible rather than merely unlikely.
+func digestOf(seed string) string {
+	sum := sha256.Sum256([]byte(seed))
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
 // cmdImageSBOM is a distroless image carrying one Go binary. The component is
 // the main module — that is all Syft emits — so syft:location:0:path is the
 // only thing in the document that says which command the binary is.
@@ -42,7 +56,7 @@ func cmdImageSBOM(serial int, command, locationPath string) string {
 	"metadata": {
 		"component": {
 			"type": "container",
-			"name": "ghcr.io/pfenerty/ocidex-%s@sha256:%s",
+			"name": "ghcr.io/pfenerty/ocidex-%s@%s",
 			"version": "v0.0.2",
 			"properties": [
 				{"name": "syft:image:labels:org.opencontainers.image.architecture", "value": "amd64"},
@@ -61,7 +75,7 @@ func cmdImageSBOM(serial int, command, locationPath string) string {
 			]
 		}
 	]
-}`, serial, command, strings.Repeat(fmt.Sprintf("%d", serial%10), 64), location)
+}`, serial, command, digestOf(fmt.Sprintf("image-%d-%s", serial, command)), location)
 }
 
 // cmdBinarySBOM is one uploaded command binary, of the shape
@@ -157,12 +171,10 @@ func TestCommandArtifactsMatchTheirImageByBinaryPath(t *testing.T) {
 
 	// Two of the module's commands, tracked as artifacts in their own right.
 	ingestOK(t, srv.URL, ownerKey,
-		cmdUploadPath(uploadSrc, "git-worker", ocidexModule,
-			"sha256:1111111111111111111111111111111111111111111111111111111111111111"),
+		cmdUploadPath(uploadSrc, "git-worker", ocidexModule, digestOf("binary-git-worker")),
 		cmdBinarySBOM(1, "git-worker"))
 	ingestOK(t, srv.URL, ownerKey,
-		cmdUploadPath(uploadSrc, "vuln-worker", ocidexModule,
-			"sha256:2222222222222222222222222222222222222222222222222222222222222222"),
+		cmdUploadPath(uploadSrc, "vuln-worker", ocidexModule, digestOf("binary-vuln-worker")),
 		cmdBinarySBOM(2, "vuln-worker"))
 
 	gitImageID := artifactIDByName(t, pool, "ghcr.io/pfenerty/ocidex-git-worker")
@@ -216,15 +228,13 @@ func TestCommandMatchRequiresARecordedBinaryPath(t *testing.T) {
 		cmdImageSBOM(3, "nopath", ""))
 
 	ingestOK(t, srv.URL, ownerKey,
-		cmdUploadPath(uploadSrc, "git-worker", ocidexModule,
-			"sha256:3333333333333333333333333333333333333333333333333333333333333333"),
+		cmdUploadPath(uploadSrc, "git-worker", ocidexModule, digestOf("binary-git-worker")),
 		cmdBinarySBOM(3, "git-worker"))
 
 	// A look-alike: same binary name, a module whose path merely begins with
 	// the component's. A string prefix would match it; a path boundary must not.
 	ingestOK(t, srv.URL, ownerKey,
-		cmdUploadPath(uploadSrc, "git-worker", ocidexModule+"-extra",
-			"sha256:4444444444444444444444444444444444444444444444444444444444444444"),
+		cmdUploadPath(uploadSrc, "git-worker", ocidexModule+"-extra", digestOf("binary-git-worker-extra")),
 		cmdBinarySBOM(4, "git-worker"))
 
 	noPathImageID := artifactIDByName(t, pool, "ghcr.io/pfenerty/ocidex-nopath")
