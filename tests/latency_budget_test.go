@@ -30,14 +30,32 @@ const (
 	// to fire while an endpoint is merely getting slow.
 	latencyBudget = 5 * time.Second
 
-	// widthVersions and widthComponents size the fixture. Production's worst
-	// artifact is 4,074 SBOMs across 1,025 versions at ~1,093 components each;
-	// this is a scaled-down shape, chosen so a full clone of the fixture is
-	// seconds of INSERT rather than minutes of ingest while still being wide
-	// enough that a per-version or per-component scan shows up against the
-	// budget.
-	widthVersions   = 600
-	widthComponents = 300
+	// widthVersions and widthComponents size the fixture, matching the shape of
+	// production's worst artifact (4,074 SBOMs across 1,025 versions at ~1,093
+	// components each) closely enough that work proportional to it costs real
+	// time.
+	//
+	// These were calibrated, not guessed. At 600 x 300 with identical package
+	// sets the unbounded changelog answered in 0.25s and the unbounded
+	// /artifacts/{id}/vulns in under 0.01s — a guard that size would have
+	// passed against the exact bugs it exists to catch. At 1000 x 900 with
+	// drift and seeded findings, /vulns takes 24.8s and the changelog 4.2s,
+	// which is the production failure reproduced. Seeding is a few
+	// INSERT ... SELECTs rather than repeated ingest, which is what makes this
+	// size affordable (~60s).
+	//
+	// The changelog's 4.2s clears the budget only narrowly, so time alone is a
+	// weak guard for it; ocidex-7gf7.4 adds the deterministic assertion (the
+	// response holds at most `limit` entries) that does not depend on machine
+	// speed at all.
+	widthVersions   = 1000
+	widthComponents = 900
+
+	// componentDrift is how far each version shifts its package names. Without
+	// it every version holds an identical package set, every changelog diff is
+	// empty, and the diff path costs nothing however many versions it walks —
+	// which is the other half of why a naive fixture cannot reproduce this.
+	componentDrift = 40
 )
 
 // wideArtifactSBOM is the seed the fixture is cloned from. It goes in through
@@ -54,7 +72,8 @@ const wideArtifactSBOM = `{
 			"name": "registry.test/wide@sha256:7f00000000000000000000000000000000000000000000000000000000000001",
 			"version": "v1.0.0",
 			"properties": [
-				{"name": "syft:image:labels:org.opencontainers.image.architecture", "value": "amd64"}
+				{"name": "syft:image:labels:org.opencontainers.image.architecture", "value": "amd64"},
+				{"name": "syft:image:labels:org.opencontainers.image.created", "value": "2026-01-01T00:00:00Z"}
 			]
 		}
 	},
@@ -104,20 +123,45 @@ func seedWideArtifact(t *testing.T, pool *pgxpool.Pool, baseURL, apiKey, sourceI
 		t.Fatalf("cloning SBOMs: %v", err)
 	}
 
+	// Package names shift with the version so consecutive versions genuinely
+	// differ, which is what gives the changelog diffs something to compute.
 	if _, err := pool.Exec(t.Context(),
 		`INSERT INTO component (sbom_id, type, name, version,
 		                        version_major, version_minor, version_patch, purl)
 		 SELECT s.id, 'library',
-		        'pkg-' || c.n,
+		        'pkg-' || (c.n + (COALESCE(s.version_minor, 0) % $4)),
 		        '1.0.' || (c.n % 7),
 		        1, 0, c.n % 7,
-		        'pkg:generic/pkg-' || c.n || '@1.0.' || (c.n % 7)
+		        'pkg:generic/pkg-' || (c.n + (COALESCE(s.version_minor, 0) % $4)) || '@1.0.' || (c.n % 7)
 		 FROM sbom s CROSS JOIN generate_series(1, $3) AS c(n)
-		 WHERE s.artifact_id = $1 AND s.id <> $2`, aID, sID, widthComponents); err != nil {
+		 WHERE s.artifact_id = $1 AND s.id <> $2`,
+		aID, sID, widthComponents, componentDrift); err != nil {
 		t.Fatalf("cloning components: %v", err)
 	}
 
-	if _, err := pool.Exec(t.Context(), `ANALYZE sbom; ANALYZE component;`); err != nil {
+	// A vulnerability store with findings against a share of those packages.
+	// With none, the vulnerability endpoints answer instantly whatever they
+	// scan, and the budget says nothing about them.
+	if _, err := pool.Exec(t.Context(),
+		`INSERT INTO vulnerability (id, severity, cvss_score, summary)
+		 SELECT 'CVE-2026-' || lpad(n::text, 5, '0'),
+		        (ARRAY['CRITICAL','HIGH','MEDIUM','LOW'])[1 + (n % 4)],
+		        9.8 - (n % 4),
+		        'seeded finding ' || n
+		 FROM generate_series(1, $1) AS n`, widthComponents); err != nil {
+		t.Fatalf("seeding vulnerabilities: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(),
+		`INSERT INTO package_vulnerability (purl, vulnerability_id, fixed_version)
+		 SELECT DISTINCT c.purl, 'CVE-2026-' || lpad(((c.version_patch * 7) + 1)::text, 5, '0'), '9.9.9'
+		 FROM component c
+		 JOIN sbom s ON s.id = c.sbom_id
+		 WHERE s.artifact_id = $1 AND c.purl IS NOT NULL
+		 ON CONFLICT DO NOTHING`, aID); err != nil {
+		t.Fatalf("seeding package vulnerabilities: %v", err)
+	}
+
+	if _, err := pool.Exec(t.Context(), `ANALYZE sbom; ANALYZE component; ANALYZE package_vulnerability;`); err != nil {
 		t.Fatalf("analyzing: %v", err)
 	}
 

@@ -11,13 +11,23 @@ RETURNING id;
 -- The nested CASE aggregates signing_status(pe.data) across every SBOM under
 -- this artifact, so unlike signing_status()'s single-row ladder (mutually
 -- exclusive fields on one enrichment blob), here multiple WHEN branches can
--- independently be true across different SBOMs. artifact_missing is checked
--- first deliberately: it's worst-case-first so one missing artifact among
--- many SBOMs dominates the rollup rather than being masked by a sibling
--- SBOM that still verifies. This intentionally inverts the "best status
--- wins" instinct one might expect from a rollup. See ocidex-goh.16 and
--- TestArtifactRollupSigningStatus_ArtifactMissingDominates in
--- tests/integration_test.go.
+-- independently be true across different SBOMs. The order is worst-case-first
+-- throughout, which intentionally inverts the "best status wins" instinct one
+-- might expect from a rollup: one missing artifact, or one signature that
+-- failed to verify, dominates rather than being masked by a sibling SBOM that
+-- still verifies.
+--
+-- verification_failed sits above verified rather than below it (ocidex-7gf7.3).
+-- It used to sit below, which made this ladder worst-first only at its top
+-- rung: a signature that had actually been checked and rejected — the
+-- strongest negative signal the provenance enricher can produce — was hidden
+-- by any sibling that happened to pass.
+--
+-- unsigned stays the ELSE: it is the absence of a claim, not a failed one.
+--
+-- See ocidex-goh.16 and, in tests/artifact_rollup_scope_test.go,
+-- TestArtifactRollupSigningStatus_ArtifactMissingDominates and
+-- TestArtifactRollupSigningStatus_FailureBeatsVerified.
 SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
        (SELECT CASE
            WHEN EXISTS (
@@ -28,13 +38,13 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
-           ) THEN 'verified'
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'verification_failed'
+           ) THEN 'verification_failed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND signing_status(pe.data) = 'verification_failed'
-           ) THEN 'verification_failed'
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
+           ) THEN 'verified'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
@@ -46,9 +56,10 @@ FROM artifact a
 WHERE a.id = $1;
 
 -- name: ListArtifacts :many
--- Same artifact_missing-first rollup precedence as GetArtifact above — see
--- that query's comment for why this cross-SBOM ladder deliberately checks
--- worst-case first.
+-- Same worst-case-first rollup precedence as GetArtifact above — see that
+-- query's comment. The two ladders are duplicated rather than shared, so a
+-- change to one that is not made to the other is how they drift; both are
+-- asserted together in TestArtifactRollupSigningStatus_FailureBeatsVerified.
 SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
        COUNT(s.id) AS sbom_count,
        COUNT(s.id) FILTER (WHERE s.enrichment_sufficient) AS sufficient_sbom_count,
@@ -61,13 +72,13 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
-           ) THEN 'verified'
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'verification_failed'
+           ) THEN 'verification_failed'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
-                 AND pe.status = 'success' AND signing_status(pe.data) = 'verification_failed'
-           ) THEN 'verification_failed'
+                 AND pe.status = 'success' AND signing_status(pe.data) = 'verified'
+           ) THEN 'verified'
            WHEN EXISTS (
                SELECT 1 FROM enrichment pe JOIN sbom sx ON sx.id = pe.sbom_id
                WHERE sx.artifact_id = a.id AND pe.enricher_name = 'provenance'
@@ -75,17 +86,17 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
            ) THEN 'signed'
            ELSE 'unsigned'
        END)::text AS signing_status,
-       -- Severity counts for this artifact's newest SBOM (ocidex-unn8.9). They
-       -- come from sbom_vuln_rollup rather than an aggregate over component:
-       -- ocidex-ckv.2 measured that shape at ~53s against a 30s timeout, which
-       -- is why the rollups exist at all.
+       -- Severity counts for this artifact's latest *version* (ocidex-unn8.9,
+       -- rescoped by ocidex-7gf7.2). They come from sbom_vuln_rollup rather
+       -- than an aggregate over component: ocidex-ckv.2 measured that shape at
+       -- ~53s against a 30s timeout, which is why the rollups exist at all.
        --
-       -- Newest SBOM, not a union across every SBOM under the artifact: a union
+       -- One version, not a union across every SBOM under the artifact: a union
        -- would keep reporting the artifact vulnerable long after the fix
        -- shipped, because the fixed version does not delete its predecessors.
        -- That differs from the signing_status ladder above, which *is*
-       -- worst-case-across-SBOMs — deliberately, since an unsigned sibling is a
-       -- live gap while a superseded CVE is not.
+       -- worst-case-across-SBOMs — deliberately, since a signing failure
+       -- anywhere is a live gap while a superseded CVE is not.
        --
        -- The rollup holds a row only for an SBOM with at least one finding, so
        -- a zero total here means "no findings" *or* "never scanned" and this
@@ -101,7 +112,7 @@ SELECT a.id, a.type, a.name, a.group_name, a.purl, a.cpe, a.created_at,
        COALESCE(vr.unknown,  0)::bigint AS vuln_unknown
 FROM artifact a
 LEFT JOIN sbom s ON s.artifact_id = a.id
--- The inner join is LEFT so the lateral picks the *newest* SBOM and then looks
+-- The inner join is LEFT so the lateral picks the winning SBOM and then looks
 -- for its rollup row, rather than the newest SBOM that happens to have one:
 -- an inner join would silently fall back to a superseded SBOM's findings.
 LEFT JOIN LATERAL (
@@ -115,7 +126,20 @@ LEFT JOIN LATERAL (
     FROM sbom sv
     LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = sv.id
     WHERE sv.artifact_id = a.id
-    ORDER BY sv.created_at DESC, sv.id DESC
+    -- Version parts first, insert order only as a tiebreak. Ordering by
+    -- created_at alone meant "most recently ingested", so re-scanning or
+    -- backfilling an old tag rewrote this row's counts to that old tag's
+    -- findings (ocidex-7gf7.2). NULLS LAST because a subject_version that does
+    -- not parse — a digest, a branch name — is unknown, not newest; the
+    -- matching index idx_sbom_artifact_version declares the same.
+    --
+    -- The latest version still has one SBOM per architecture, so created_at
+    -- picks among those. That is deliberate: the column means "the latest
+    -- version, one arch of it", which the UI states rather than implies.
+    ORDER BY sv.version_major DESC NULLS LAST,
+             sv.version_minor DESC NULLS LAST,
+             sv.version_patch DESC NULLS LAST,
+             sv.created_at DESC, sv.id DESC
     LIMIT 1
 ) vr ON TRUE
 WHERE (sqlc.narg('type')::text IS NULL OR a.type = sqlc.narg('type'))

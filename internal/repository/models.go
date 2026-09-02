@@ -289,7 +289,10 @@ type Sbom struct {
 	Flavor      pgtype.Text `json:"flavor"`
 	IndexDigest pgtype.Text `json:"index_digest"`
 	// How this SBOM arrived. ON DELETE SET NULL: removing a channel loses attribution, never the SBOM and never its visibility.
-	SourceID pgtype.UUID `json:"source_id"`
+	SourceID     pgtype.UUID `json:"source_id"`
+	VersionMajor pgtype.Int4 `json:"version_major"`
+	VersionMinor pgtype.Int4 `json:"version_minor"`
+	VersionPatch pgtype.Int4 `json:"version_patch"`
 }
 
 // Per-severity finding counts per SBOM, deduplicated by canonical_id, scoped purl ∪ source_purl. Absence of a row means no findings OR never scanned — callers must not render it as a clean zero.
