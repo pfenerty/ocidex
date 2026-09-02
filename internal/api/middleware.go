@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -232,6 +233,17 @@ func RequireWrite(api huma.API) func(huma.Context, func(huma.Context)) {
 	}
 }
 
+// slowRequestThreshold is the latency past which a request is logged at Warn
+// rather than Info.
+//
+// It is well under router.go's 30s middleware.Timeout on purpose: by the time a
+// request times out a user has already seen the failure, so the only useful
+// signal is the one that fires while an endpoint is merely getting slow. 5s is
+// where the slowest healthy endpoint sits today (/artifacts/{id}/contains, at
+// ~4.2s against the widest artifact in the corpus), which makes a crossing here
+// a genuine change rather than routine noise.
+const slowRequestThreshold = 5 * time.Second
+
 // SlogLogger returns middleware that logs each request using slog.
 func SlogLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -240,12 +252,33 @@ func SlogLogger(next http.Handler) http.Handler {
 
 		next.ServeHTTP(ww, r)
 
-		slog.InfoContext(r.Context(), "request",
+		elapsed := time.Since(start)
+
+		// route is the chi pattern, not r.URL.Path: the path carries inline
+		// UUIDs, so every request to an artifact endpoint is its own unique
+		// string and no aggregation over "how slow is this endpoint" is
+		// possible. Both are logged — the pattern to group by, the path to
+		// reproduce with. RouteContext is only populated once next has routed,
+		// which is why this reads it after ServeHTTP.
+		route := r.URL.Path
+		if rctx := chi.RouteContext(r.Context()); rctx != nil && rctx.RoutePattern() != "" {
+			route = rctx.RoutePattern()
+		}
+
+		attrs := []any{
 			"method", r.Method,
 			"path", r.URL.Path,
+			"route", route,
 			"status", ww.Status(),
-			"duration_ms", time.Since(start).Milliseconds(),
+			"duration_ms", elapsed.Milliseconds(),
 			"request_id", middleware.GetReqID(r.Context()),
-		)
+		}
+
+		if elapsed >= slowRequestThreshold {
+			slog.WarnContext(r.Context(), "slow request", attrs...)
+			return
+		}
+
+		slog.InfoContext(r.Context(), "request", attrs...)
 	})
 }

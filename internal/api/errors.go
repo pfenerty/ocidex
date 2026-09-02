@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -24,6 +25,16 @@ func mapServiceError(err error) error {
 
 	if errors.Is(err, service.ErrConflict) {
 		return huma.Error409Conflict("conflict")
+	}
+
+	// A request that ran past router.go's middleware.Timeout arrives here with
+	// the deadline error wrapped somewhere in the chain, and used to fall
+	// through to the 500 below — which says the server broke when in fact the
+	// query is simply too big for the ceiling. 504 says the true thing, and
+	// keeps the slog.Error below meaning "nobody handled this", which is what
+	// makes it worth alerting on.
+	if errors.Is(err, context.DeadlineExceeded) {
+		return huma.Error504GatewayTimeout("the query did not complete within the request deadline")
 	}
 
 	slog.Error("unhandled error", "err", err)

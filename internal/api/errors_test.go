@@ -1,13 +1,30 @@
 package api_test
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	cdx "github.com/CycloneDX/cyclonedx-go"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
+
+	"github.com/pfenerty/ocidex/internal/service"
 )
+
+// timeoutSBOMService fails the way a request that outran router.go's
+// middleware.Timeout does: the deadline error wrapped by whatever layer noticed
+// it first, never returned bare.
+type timeoutSBOMService struct {
+	failSBOMService
+}
+
+func (t *timeoutSBOMService) Ingest(_ context.Context, _ *cdx.BOM, _ []byte, _ service.IngestParams) (pgtype.UUID, error) {
+	return pgtype.UUID{}, fmt.Errorf("querying components: %w", context.DeadlineExceeded)
+}
 
 func TestMapServiceError_NotFound(t *testing.T) {
 	is := is.New(t)
@@ -49,4 +66,27 @@ func TestBadUUIDPathParamIsRejected(t *testing.T) {
 	router.ServeHTTP(w, r)
 
 	is.Equal(w.Code, http.StatusUnprocessableEntity)
+}
+
+// TestMapServiceError_DeadlineExceeded pins the distinction the 500 used to
+// erase: a query that ran out of time is not a server that broke, and reporting
+// it as one sent three real timeouts to production disguised as crashes.
+func TestMapServiceError_DeadlineExceeded(t *testing.T) {
+	is := is.New(t)
+	router := newTestRouterWithAuth(&timeoutSBOMService{}, &fakeSearchService{}, memberAuthSvc())
+
+	body := `{
+		"bomFormat": "CycloneDX",
+		"specVersion": "1.5",
+		"components": [
+			{"type": "library", "name": "test-lib", "version": "1.0.0"}
+		]
+	}`
+	r := httptest.NewRequest(http.MethodPost, ingestPath, strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("Authorization", "Bearer member-token")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, r)
+
+	is.Equal(w.Code, http.StatusGatewayTimeout)
 }
