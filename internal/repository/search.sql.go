@@ -12,25 +12,29 @@ import (
 )
 
 const countComponentVersions = `-- name: CountComponentVersions :one
+WITH matched AS MATERIALIZED (
+    SELECT c.sbom_id, c.version
+    FROM component c
+    WHERE c.name = $3
+      AND ($4::text IS NULL OR c.group_name = $4)
+      AND ($5::text IS NULL OR c.version = $5)
+      AND ($6::text IS NULL OR c.type = $6)
+)
 SELECT COUNT(*) AS total,
-       COUNT(DISTINCT c.version) AS version_count,
+       COUNT(DISTINCT m.version) AS version_count,
        COUNT(DISTINCT s.artifact_id) AS artifact_count
-FROM component c
-JOIN sbom s ON s.id = c.sbom_id
-WHERE c.name = $1
-  AND ($2::text IS NULL OR c.group_name = $2)
-  AND ($3::text IS NULL OR c.version = $3)
-  AND ($4::text IS NULL OR c.type = $4)
-  AND sbom_visible(s.namespace_id, $5::uuid, $6::boolean)
+FROM matched m
+JOIN sbom s ON s.id = m.sbom_id
+WHERE sbom_visible(s.namespace_id, $1::uuid, $2::boolean)
 `
 
 type CountComponentVersionsParams struct {
+	UserID    pgtype.UUID `json:"user_id"`
+	IsAdmin   pgtype.Bool `json:"is_admin"`
 	Name      string      `json:"name"`
 	GroupName pgtype.Text `json:"group_name"`
 	Version   pgtype.Text `json:"version"`
 	Type      pgtype.Text `json:"type"`
-	UserID    pgtype.UUID `json:"user_id"`
-	IsAdmin   pgtype.Bool `json:"is_admin"`
 }
 
 type CountComponentVersionsRow struct {
@@ -57,14 +61,23 @@ type CountComponentVersionsRow struct {
 // would report "3 versions" for a component with 300 — worse than saying
 // nothing. They ride along here rather than in a third query: the scan and the
 // filters are identical, so the only added cost is the DISTINCT aggregation.
+//
+// The CTE is MATERIALIZED to pin the join order (ocidex-7gf7.6). Written as a
+// plain two-table join this query timed out: sbom_visible() is opaque to the
+// planner, so it underestimated the sbom side, drove a nested loop from a seq
+// scan of all 14,208 visible SBOMs, and probed the component index once per row
+// -- 17.2s against name='stdlib', under a 30s HTTP ceiling. The component-side
+// filter is by far the more selective of the two, so matching components first
+// and hash-joining sbom to them returns the identical result in 146ms. The page
+// query below already gets this plan on its own; only the count needs telling.
 func (q *Queries) CountComponentVersions(ctx context.Context, arg CountComponentVersionsParams) (CountComponentVersionsRow, error) {
 	row := q.db.QueryRow(ctx, countComponentVersions,
+		arg.UserID,
+		arg.IsAdmin,
 		arg.Name,
 		arg.GroupName,
 		arg.Version,
 		arg.Type,
-		arg.UserID,
-		arg.IsAdmin,
 	)
 	var i CountComponentVersionsRow
 	err := row.Scan(&i.Total, &i.VersionCount, &i.ArtifactCount)

@@ -441,13 +441,26 @@ LIMIT @row_limit OFFSET @row_offset;
 -- would report "3 versions" for a component with 300 — worse than saying
 -- nothing. They ride along here rather than in a third query: the scan and the
 -- filters are identical, so the only added cost is the DISTINCT aggregation.
+--
+-- The CTE is MATERIALIZED to pin the join order (ocidex-7gf7.6). Written as a
+-- plain two-table join this query timed out: sbom_visible() is opaque to the
+-- planner, so it underestimated the sbom side, drove a nested loop from a seq
+-- scan of all 14,208 visible SBOMs, and probed the component index once per row
+-- -- 17.2s against name='stdlib', under a 30s HTTP ceiling. The component-side
+-- filter is by far the more selective of the two, so matching components first
+-- and hash-joining sbom to them returns the identical result in 146ms. The page
+-- query below already gets this plan on its own; only the count needs telling.
+WITH matched AS MATERIALIZED (
+    SELECT c.sbom_id, c.version
+    FROM component c
+    WHERE c.name = @name
+      AND (sqlc.narg('group_name')::text IS NULL OR c.group_name = sqlc.narg('group_name'))
+      AND (sqlc.narg('version')::text IS NULL OR c.version = sqlc.narg('version'))
+      AND (sqlc.narg('type')::text IS NULL OR c.type = sqlc.narg('type'))
+)
 SELECT COUNT(*) AS total,
-       COUNT(DISTINCT c.version) AS version_count,
+       COUNT(DISTINCT m.version) AS version_count,
        COUNT(DISTINCT s.artifact_id) AS artifact_count
-FROM component c
-JOIN sbom s ON s.id = c.sbom_id
-WHERE c.name = @name
-  AND (sqlc.narg('group_name')::text IS NULL OR c.group_name = sqlc.narg('group_name'))
-  AND (sqlc.narg('version')::text IS NULL OR c.version = sqlc.narg('version'))
-  AND (sqlc.narg('type')::text IS NULL OR c.type = sqlc.narg('type'))
-  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
+FROM matched m
+JOIN sbom s ON s.id = m.sbom_id
+WHERE sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);

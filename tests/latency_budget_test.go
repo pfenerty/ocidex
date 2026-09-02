@@ -200,7 +200,9 @@ func TestReadPathLatencyBudget(t *testing.T) {
 		// skip names the issue that will make this endpoint bounded. An
 		// endpoint listed here is known to scale with artifact width today;
 		// the story that fixes it clears this field, which is what turns this
-		// table into the epic's own checklist.
+		// table into the epic's own checklist. It is empty everywhere as of
+		// ocidex-7gf7.6 — every endpoint here is inside the budget — and stays
+		// for the next one that is not.
 		skip string
 	}{
 		{name: "artifact list", path: "/api/v1/artifacts?limit=50"},
@@ -218,11 +220,7 @@ func TestReadPathLatencyBudget(t *testing.T) {
 		{name: "discover", path: "/api/v1/discover"},
 		{name: "artifact changelog", path: "/api/v1/artifacts/" + artifactID + "/changelog"},
 		{name: "artifact vulns", path: "/api/v1/artifacts/" + artifactID + "/vulns?sort=severity&dir=desc&limit=50"},
-		{
-			name: "component versions",
-			path: "/api/v1/components/versions?name=pkg-1&limit=50",
-			skip: "ocidex-7gf7.6",
-		},
+		{name: "component versions", path: "/api/v1/components/versions?name=pkg-1&limit=50"},
 	}
 
 	for _, tc := range cases {
