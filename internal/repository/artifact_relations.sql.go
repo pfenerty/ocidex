@@ -37,6 +37,14 @@ type GetArtifactCurrentVersionParams struct {
 // neither filtered nor sorted here, so these results are a superset; the service
 // narrows them with the same key function diff uses.
 //
+// ADR-048 R6 adds a third coarse branch, for a Go command whose artifact purl
+// sits under the module purl a scanner records. On the usages side the caller
+// passes every path-boundary prefix of its own purl base as an array, so the
+// branch is still an equality lookup the purl-base index can serve; on the
+// contains side both inputs are small (one SBOM's components against the
+// artifact table) and the prefix test is written out directly. Either way the
+// binary-path check that makes the match exact is in Go, beside componentKey.
+//
 // '?' is split before '@' to mirror normalizeComponentPurl(): qualifiers follow
 // the version in purl format, so a component with qualifiers and no version
 // (pkg:golang/foo?arch=amd64) would otherwise keep its qualifiers in the base.
@@ -75,6 +83,7 @@ SELECT a.id           AS artifact_id,
        c.group_name   AS matched_group,
        c.version      AS matched_version,
        c.purl         AS matched_purl,
+       c.file_path    AS matched_file_path,
        ls.subject_version AS current_version,
        ls.digest          AS current_digest,
        ls.flavor          AS current_flavor,
@@ -88,6 +97,10 @@ JOIN artifact a ON (
          AND a.type = c.type
          AND a.name = c.name
          AND COALESCE(a.group_name, '') = COALESCE(c.group_name, ''))
+     OR (c.purl IS NOT NULL AND a.purl IS NOT NULL
+         AND c.file_path IS NOT NULL
+         AND starts_with(split_part(split_part(a.purl, '?', 1), '@', 1),
+                         split_part(split_part(c.purl, '?', 1), '@', 1) || '/'))
 )
 LEFT JOIN LATERAL (
     SELECT s2.id, s2.subject_version, s2.digest, s2.flavor
@@ -112,20 +125,21 @@ type ListArtifactContainsParams struct {
 }
 
 type ListArtifactContainsRow struct {
-	ArtifactID     pgtype.UUID `json:"artifact_id"`
-	ArtifactType   string      `json:"artifact_type"`
-	ArtifactName   string      `json:"artifact_name"`
-	ArtifactGroup  pgtype.Text `json:"artifact_group"`
-	ArtifactPurl   pgtype.Text `json:"artifact_purl"`
-	MatchedType    string      `json:"matched_type"`
-	MatchedName    string      `json:"matched_name"`
-	MatchedGroup   pgtype.Text `json:"matched_group"`
-	MatchedVersion pgtype.Text `json:"matched_version"`
-	MatchedPurl    pgtype.Text `json:"matched_purl"`
-	CurrentVersion pgtype.Text `json:"current_version"`
-	CurrentDigest  pgtype.Text `json:"current_digest"`
-	CurrentFlavor  pgtype.Text `json:"current_flavor"`
-	CurrentSbomID  pgtype.UUID `json:"current_sbom_id"`
+	ArtifactID      pgtype.UUID `json:"artifact_id"`
+	ArtifactType    string      `json:"artifact_type"`
+	ArtifactName    string      `json:"artifact_name"`
+	ArtifactGroup   pgtype.Text `json:"artifact_group"`
+	ArtifactPurl    pgtype.Text `json:"artifact_purl"`
+	MatchedType     string      `json:"matched_type"`
+	MatchedName     string      `json:"matched_name"`
+	MatchedGroup    pgtype.Text `json:"matched_group"`
+	MatchedVersion  pgtype.Text `json:"matched_version"`
+	MatchedPurl     pgtype.Text `json:"matched_purl"`
+	MatchedFilePath pgtype.Text `json:"matched_file_path"`
+	CurrentVersion  pgtype.Text `json:"current_version"`
+	CurrentDigest   pgtype.Text `json:"current_digest"`
+	CurrentFlavor   pgtype.Text `json:"current_flavor"`
+	CurrentSbomID   pgtype.UUID `json:"current_sbom_id"`
 }
 
 // "What of ours does this carry?" — tracked artifacts matched by components of
@@ -163,6 +177,7 @@ func (q *Queries) ListArtifactContains(ctx context.Context, arg ListArtifactCont
 			&i.MatchedGroup,
 			&i.MatchedVersion,
 			&i.MatchedPurl,
+			&i.MatchedFilePath,
 			&i.CurrentVersion,
 			&i.CurrentDigest,
 			&i.CurrentFlavor,
@@ -193,7 +208,8 @@ SELECT a.id           AS artifact_id,
        c.name         AS matched_name,
        c.group_name   AS matched_group,
        c.version      AS matched_version,
-       c.purl         AS matched_purl
+       c.purl         AS matched_purl,
+       c.file_path    AS matched_file_path
 FROM component c
 JOIN sbom s ON s.id = c.sbom_id
 JOIN artifact a ON a.id = s.artifact_id
@@ -206,47 +222,53 @@ WHERE (
          AND c.type = $2
          AND c.name = $3
          AND COALESCE(c.group_name, '') = $4)
+     OR (cardinality($5::text[]) > 0
+         AND c.purl IS NOT NULL
+         AND c.file_path IS NOT NULL
+         AND split_part(split_part(c.purl, '?', 1), '@', 1) = ANY($5::text[]))
       )
-  AND s.artifact_id <> $5
-  AND sbom_visible(s.namespace_id, $6::uuid, $7::boolean)
+  AND s.artifact_id <> $6
+  AND sbom_visible(s.namespace_id, $7::uuid, $8::boolean)
   AND s.id = (
       SELECT s2.id FROM sbom s2
       WHERE s2.artifact_id = s.artifact_id
-        AND sbom_visible(s2.namespace_id, $6::uuid, $7::boolean)
+        AND sbom_visible(s2.namespace_id, $7::uuid, $8::boolean)
       ORDER BY s2.created_at DESC, s2.id DESC
       LIMIT 1
   )
 ORDER BY a.name, a.type, a.id
-LIMIT $8
+LIMIT $9
 `
 
 type ListArtifactUsagesParams struct {
-	PurlBase     pgtype.Text `json:"purl_base"`
-	SubjectType  string      `json:"subject_type"`
-	SubjectName  string      `json:"subject_name"`
-	SubjectGroup pgtype.Text `json:"subject_group"`
-	ArtifactID   pgtype.UUID `json:"artifact_id"`
-	UserID       pgtype.UUID `json:"user_id"`
-	IsAdmin      pgtype.Bool `json:"is_admin"`
-	RowLimit     int32       `json:"row_limit"`
+	PurlBase        pgtype.Text `json:"purl_base"`
+	SubjectType     string      `json:"subject_type"`
+	SubjectName     string      `json:"subject_name"`
+	SubjectGroup    pgtype.Text `json:"subject_group"`
+	ModulePurlBases []string    `json:"module_purl_bases"`
+	ArtifactID      pgtype.UUID `json:"artifact_id"`
+	UserID          pgtype.UUID `json:"user_id"`
+	IsAdmin         pgtype.Bool `json:"is_admin"`
+	RowLimit        int32       `json:"row_limit"`
 }
 
 type ListArtifactUsagesRow struct {
-	ArtifactID     pgtype.UUID        `json:"artifact_id"`
-	ArtifactType   string             `json:"artifact_type"`
-	ArtifactName   string             `json:"artifact_name"`
-	ArtifactGroup  pgtype.Text        `json:"artifact_group"`
-	ArtifactPurl   pgtype.Text        `json:"artifact_purl"`
-	SbomID         pgtype.UUID        `json:"sbom_id"`
-	SubjectVersion pgtype.Text        `json:"subject_version"`
-	Digest         pgtype.Text        `json:"digest"`
-	Flavor         pgtype.Text        `json:"flavor"`
-	CreatedAt      pgtype.Timestamptz `json:"created_at"`
-	MatchedType    string             `json:"matched_type"`
-	MatchedName    string             `json:"matched_name"`
-	MatchedGroup   pgtype.Text        `json:"matched_group"`
-	MatchedVersion pgtype.Text        `json:"matched_version"`
-	MatchedPurl    pgtype.Text        `json:"matched_purl"`
+	ArtifactID      pgtype.UUID        `json:"artifact_id"`
+	ArtifactType    string             `json:"artifact_type"`
+	ArtifactName    string             `json:"artifact_name"`
+	ArtifactGroup   pgtype.Text        `json:"artifact_group"`
+	ArtifactPurl    pgtype.Text        `json:"artifact_purl"`
+	SbomID          pgtype.UUID        `json:"sbom_id"`
+	SubjectVersion  pgtype.Text        `json:"subject_version"`
+	Digest          pgtype.Text        `json:"digest"`
+	Flavor          pgtype.Text        `json:"flavor"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	MatchedType     string             `json:"matched_type"`
+	MatchedName     string             `json:"matched_name"`
+	MatchedGroup    pgtype.Text        `json:"matched_group"`
+	MatchedVersion  pgtype.Text        `json:"matched_version"`
+	MatchedPurl     pgtype.Text        `json:"matched_purl"`
+	MatchedFilePath pgtype.Text        `json:"matched_file_path"`
 }
 
 // "Where does this ship?" — artifacts whose latest visible SBOM contains a
@@ -268,6 +290,7 @@ func (q *Queries) ListArtifactUsages(ctx context.Context, arg ListArtifactUsages
 		arg.SubjectType,
 		arg.SubjectName,
 		arg.SubjectGroup,
+		arg.ModulePurlBases,
 		arg.ArtifactID,
 		arg.UserID,
 		arg.IsAdmin,
@@ -296,6 +319,7 @@ func (q *Queries) ListArtifactUsages(ctx context.Context, arg ListArtifactUsages
 			&i.MatchedGroup,
 			&i.MatchedVersion,
 			&i.MatchedPurl,
+			&i.MatchedFilePath,
 		); err != nil {
 			return nil, err
 		}

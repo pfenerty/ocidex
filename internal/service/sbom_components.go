@@ -96,6 +96,7 @@ var componentColumns = []string{
 	"version", "version_major", "version_minor", "version_patch",
 	"purl", "cpe", "description", "scope", "publisher", "copyright",
 	"layer_id", "found_by", "source_package", "source_version", "source_purl",
+	"file_path",
 }
 
 func copyComponents(ctx context.Context, tx copyFromer, sbomID pgtype.UUID, flat []flatComponent, flavor string) error {
@@ -110,6 +111,7 @@ func copyComponents(ctx context.Context, tx copyFromer, sbomID pgtype.UUID, flat
 			textOrNull(c.PackageURL), textOrNull(c.CPE), textOrNull(c.Description), textOrNull(string(c.Scope)),
 			textOrNull(c.Publisher), textOrNull(c.Copyright),
 			prov.layerID, prov.foundBy, prov.sourcePackage, prov.sourceVersion, prov.sourcePurl,
+			prov.filePath,
 		}
 	}
 	if _, err := tx.CopyFrom(ctx, pgx.Identifier{"component"}, componentColumns, pgx.CopyFromRows(rows)); err != nil {
@@ -121,7 +123,11 @@ func copyComponents(ctx context.Context, tx copyFromer, sbomID pgtype.UUID, flat
 // componentProvenance holds syft-derived provenance fields extracted from a
 // component's CycloneDX properties, normalized across package ecosystems.
 type componentProvenance struct {
-	layerID       pgtype.Text
+	layerID pgtype.Text
+	// filePath is the file the component was read from — for a Go main-module
+	// component, the binary itself. ADR-048 R6 uses its basename to tell one
+	// command of a module apart from another, which the module purl cannot.
+	filePath      pgtype.Text
 	foundBy       pgtype.Text
 	sourcePackage pgtype.Text
 	sourceVersion pgtype.Text
@@ -136,6 +142,7 @@ func extractComponentProvenance(props *[]cdx.Property, purl, flavor string) comp
 	propSets := [][]cdx.Property{propertySlice(props)}
 
 	layerID := findPropValue(propSets, []string{"syft:location:0:layerID"})
+	filePath := findPropValue(propSets, []string{"syft:location:0:path"})
 	foundBy := findPropValue(propSets, []string{"syft:package:foundBy"})
 
 	var srcPkg, srcVersion string
@@ -158,6 +165,7 @@ func extractComponentProvenance(props *[]cdx.Property, purl, flavor string) comp
 
 	return componentProvenance{
 		layerID:       textOrNull(layerID),
+		filePath:      textOrNull(filePath),
 		foundBy:       textOrNull(foundBy),
 		sourcePackage: textOrNull(srcPkg),
 		sourceVersion: textOrNull(srcVersion),

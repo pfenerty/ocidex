@@ -8,6 +8,14 @@
 -- neither filtered nor sorted here, so these results are a superset; the service
 -- narrows them with the same key function diff uses.
 --
+-- ADR-048 R6 adds a third coarse branch, for a Go command whose artifact purl
+-- sits under the module purl a scanner records. On the usages side the caller
+-- passes every path-boundary prefix of its own purl base as an array, so the
+-- branch is still an equality lookup the purl-base index can serve; on the
+-- contains side both inputs are small (one SBOM's components against the
+-- artifact table) and the prefix test is written out directly. Either way the
+-- binary-path check that makes the match exact is in Go, beside componentKey.
+--
 -- '?' is split before '@' to mirror normalizeComponentPurl(): qualifiers follow
 -- the version in purl format, so a component with qualifiers and no version
 -- (pkg:golang/foo?arch=amd64) would otherwise keep its qualifiers in the base.
@@ -57,7 +65,8 @@ SELECT a.id           AS artifact_id,
        c.name         AS matched_name,
        c.group_name   AS matched_group,
        c.version      AS matched_version,
-       c.purl         AS matched_purl
+       c.purl         AS matched_purl,
+       c.file_path    AS matched_file_path
 FROM component c
 JOIN sbom s ON s.id = c.sbom_id
 JOIN artifact a ON a.id = s.artifact_id
@@ -70,6 +79,10 @@ WHERE (
          AND c.type = @subject_type
          AND c.name = @subject_name
          AND COALESCE(c.group_name, '') = @subject_group)
+     OR (cardinality(@module_purl_bases::text[]) > 0
+         AND c.purl IS NOT NULL
+         AND c.file_path IS NOT NULL
+         AND split_part(split_part(c.purl, '?', 1), '@', 1) = ANY(@module_purl_bases::text[]))
       )
   AND s.artifact_id <> @artifact_id
   AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
@@ -112,6 +125,7 @@ SELECT a.id           AS artifact_id,
        c.group_name   AS matched_group,
        c.version      AS matched_version,
        c.purl         AS matched_purl,
+       c.file_path    AS matched_file_path,
        ls.subject_version AS current_version,
        ls.digest          AS current_digest,
        ls.flavor          AS current_flavor,
@@ -125,6 +139,10 @@ JOIN artifact a ON (
          AND a.type = c.type
          AND a.name = c.name
          AND COALESCE(a.group_name, '') = COALESCE(c.group_name, ''))
+     OR (c.purl IS NOT NULL AND a.purl IS NOT NULL
+         AND c.file_path IS NOT NULL
+         AND starts_with(split_part(split_part(a.purl, '?', 1), '@', 1),
+                         split_part(split_part(c.purl, '?', 1), '@', 1) || '/'))
 )
 LEFT JOIN LATERAL (
     SELECT s2.id, s2.subject_version, s2.digest, s2.flavor

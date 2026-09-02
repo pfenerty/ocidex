@@ -246,8 +246,7 @@ const listSBOMComponentsMissingProvenance = `-- name: ListSBOMComponentsMissingP
 SELECT id, bom_ref, purl FROM component
 WHERE sbom_id = $1
   AND bom_ref IS NOT NULL AND bom_ref != ''
-  AND layer_id IS NULL AND found_by IS NULL
-  AND source_package IS NULL AND source_version IS NULL AND source_purl IS NULL
+  AND file_path IS NULL
 `
 
 type ListSBOMComponentsMissingProvenanceRow struct {
@@ -281,8 +280,7 @@ SELECT DISTINCT s.id, s.flavor, s.raw_bom
 FROM sbom s
 JOIN component c ON c.sbom_id = s.id
 WHERE c.bom_ref IS NOT NULL AND c.bom_ref != ''
-  AND c.layer_id IS NULL AND c.found_by IS NULL
-  AND c.source_package IS NULL AND c.source_version IS NULL AND c.source_purl IS NULL
+  AND c.file_path IS NULL
 `
 
 type ListSBOMsWithMissingProvenanceRow struct {
@@ -291,6 +289,13 @@ type ListSBOMsWithMissingProvenanceRow struct {
 	RawBom []byte      `json:"raw_bom"`
 }
 
+// file_path alone selects the work, rather than the conjunction of every
+// provenance column that stood here before 00072. A row backfilled by an
+// earlier run has layer_id set and file_path NULL, so the old predicate would
+// have skipped it forever and ADR-048's rule would never reach the corpus it
+// exists for. A component whose SBOM records no location is re-selected on
+// every run and written unchanged — the same waste the old conjunction already
+// carried for components with no source package.
 func (q *Queries) ListSBOMsWithMissingProvenance(ctx context.Context) ([]ListSBOMsWithMissingProvenanceRow, error) {
 	rows, err := q.db.Query(ctx, listSBOMsWithMissingProvenance)
 	if err != nil {
@@ -446,7 +451,8 @@ func (q *Queries) LookupSBOMs(ctx context.Context, arg LookupSBOMsParams) ([]Loo
 
 const updateComponentProvenance = `-- name: UpdateComponentProvenance :exec
 UPDATE component
-SET layer_id = $2, found_by = $3, source_package = $4, source_version = $5, source_purl = $6
+SET layer_id = $2, found_by = $3, source_package = $4, source_version = $5, source_purl = $6,
+    file_path = $7
 WHERE id = $1
 `
 
@@ -457,6 +463,7 @@ type UpdateComponentProvenanceParams struct {
 	SourcePackage pgtype.Text `json:"source_package"`
 	SourceVersion pgtype.Text `json:"source_version"`
 	SourcePurl    pgtype.Text `json:"source_purl"`
+	FilePath      pgtype.Text `json:"file_path"`
 }
 
 func (q *Queries) UpdateComponentProvenance(ctx context.Context, arg UpdateComponentProvenanceParams) error {
@@ -467,6 +474,7 @@ func (q *Queries) UpdateComponentProvenance(ctx context.Context, arg UpdateCompo
 		arg.SourcePackage,
 		arg.SourceVersion,
 		arg.SourcePurl,
+		arg.FilePath,
 	)
 	return err
 }

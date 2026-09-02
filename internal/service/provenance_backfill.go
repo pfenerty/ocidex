@@ -29,6 +29,10 @@ type ProvenanceUpdate struct {
 	SourcePackage pgtype.Text
 	SourceVersion pgtype.Text
 	SourcePurl    pgtype.Text
+	// FilePath is the file the component was read from (ADR-048 R6). Backfilled
+	// here because migration 00072 ships the column empty: existing SBOMs carry
+	// the value in raw_bom, which this pass is already decoding.
+	FilePath pgtype.Text
 }
 
 // bomComponentByRef walks the recursive component tree depth-first and
@@ -110,6 +114,7 @@ func ComputeProvenanceUpdates(rawBom []byte, flavor string, existing []ExistingC
 			SourcePackage: prov.sourcePackage,
 			SourceVersion: prov.sourceVersion,
 			SourcePurl:    prov.sourcePurl,
+			FilePath:      prov.filePath,
 		})
 	}
 

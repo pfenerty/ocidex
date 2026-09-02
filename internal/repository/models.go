@@ -98,6 +98,7 @@ type Component struct {
 	SourcePackage pgtype.Text `json:"source_package"`
 	SourceVersion pgtype.Text `json:"source_version"`
 	SourcePurl    pgtype.Text `json:"source_purl"`
+	FilePath      pgtype.Text `json:"file_path"`
 }
 
 type ComponentHash struct {

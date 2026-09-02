@@ -87,6 +87,7 @@ func run() error {
 				SourcePackage: u.SourcePackage,
 				SourceVersion: u.SourceVersion,
 				SourcePurl:    u.SourcePurl,
+				FilePath:      u.FilePath,
 			}); err != nil {
 				slog.Warn("backfill-provenance: skipping component — update error", "componentID", u.ComponentID, "err", err)
 				errored++

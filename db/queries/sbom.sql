@@ -57,23 +57,29 @@ FROM sbom
 WHERE flavor IS NULL OR flavor = '';
 
 -- name: ListSBOMsWithMissingProvenance :many
+-- file_path alone selects the work, rather than the conjunction of every
+-- provenance column that stood here before 00072. A row backfilled by an
+-- earlier run has layer_id set and file_path NULL, so the old predicate would
+-- have skipped it forever and ADR-048's rule would never reach the corpus it
+-- exists for. A component whose SBOM records no location is re-selected on
+-- every run and written unchanged — the same waste the old conjunction already
+-- carried for components with no source package.
 SELECT DISTINCT s.id, s.flavor, s.raw_bom
 FROM sbom s
 JOIN component c ON c.sbom_id = s.id
 WHERE c.bom_ref IS NOT NULL AND c.bom_ref != ''
-  AND c.layer_id IS NULL AND c.found_by IS NULL
-  AND c.source_package IS NULL AND c.source_version IS NULL AND c.source_purl IS NULL;
+  AND c.file_path IS NULL;
 
 -- name: ListSBOMComponentsMissingProvenance :many
 SELECT id, bom_ref, purl FROM component
 WHERE sbom_id = $1
   AND bom_ref IS NOT NULL AND bom_ref != ''
-  AND layer_id IS NULL AND found_by IS NULL
-  AND source_package IS NULL AND source_version IS NULL AND source_purl IS NULL;
+  AND file_path IS NULL;
 
 -- name: UpdateComponentProvenance :exec
 UPDATE component
-SET layer_id = $2, found_by = $3, source_package = $4, source_version = $5, source_purl = $6
+SET layer_id = $2, found_by = $3, source_package = $4, source_version = $5, source_purl = $6,
+    file_path = $7
 WHERE id = $1;
 
 -- name: DeleteSBOM :execrows

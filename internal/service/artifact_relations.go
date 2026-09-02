@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path"
 	"strings"
 	"time"
 
@@ -83,15 +84,19 @@ func (s *searchService) GetArtifactUsages(ctx context.Context, artifactID pgtype
 		return nil, fmt.Errorf("getting artifact current version: %w", err)
 	}
 
+	subjectPurlBase := purlBaseParam(subject.Purl)
 	rows, err := q.ListArtifactUsages(ctx, repository.ListArtifactUsagesParams{
-		PurlBase:     purlBaseParam(subject.Purl),
-		SubjectType:  subject.Type,
-		SubjectName:  subject.Name,
-		SubjectGroup: textOrEmpty(subject.GroupName),
-		ArtifactID:   artifactID,
-		UserID:       vis.UserID,
-		IsAdmin:      visAdminBool(vis),
-		RowLimit:     relationLimit,
+		PurlBase: subjectPurlBase,
+		// Empty for anything but a golang purl, which switches the R6 branch
+		// off entirely rather than widening the query for every other subject.
+		ModulePurlBases: modulePurlBases(subjectPurlBase),
+		SubjectType:     subject.Type,
+		SubjectName:     subject.Name,
+		SubjectGroup:    textOrEmpty(subject.GroupName),
+		ArtifactID:      artifactID,
+		UserID:          vis.UserID,
+		IsAdmin:         visAdminBool(vis),
+		RowLimit:        relationLimit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("listing artifact usages: %w", err)
@@ -102,7 +107,13 @@ func (s *searchService) GetArtifactUsages(ctx context.Context, artifactID pgtype
 		// Exact identity check. The SQL match was a superset — it ignored the
 		// identity qualifiers ADR-019 Rule 1 keeps, so e.g. an arm64 build of the
 		// same package reaches here and is rejected below.
-		if componentKey(r.MatchedType, r.MatchedName, r.MatchedGroup, r.MatchedPurl) != subjectKey {
+		//
+		// A pair that fails R1 gets one more chance under ADR-048 R6: the module
+		// component of a Go binary whose filename is this artifact's name. R6 is
+		// consulted second and never loosens R1 — it only reaches pairs R1 has
+		// already rejected.
+		if componentKey(r.MatchedType, r.MatchedName, r.MatchedGroup, r.MatchedPurl) != subjectKey &&
+			!commandMatch(subject.Purl, subject.Name, r.MatchedPurl, r.MatchedFilePath) {
 			continue
 		}
 		rel := ArtifactRelation{
@@ -154,7 +165,8 @@ func (s *searchService) GetArtifactContains(ctx context.Context, artifactID pgty
 		// Both sides must produce the same key. The SQL join paired them on the
 		// purl base alone, so qualifier-level differences are filtered here.
 		if componentKey(r.MatchedType, r.MatchedName, r.MatchedGroup, r.MatchedPurl) !=
-			componentKey(r.ArtifactType, r.ArtifactName, r.ArtifactGroup, r.ArtifactPurl) {
+			componentKey(r.ArtifactType, r.ArtifactName, r.ArtifactGroup, r.ArtifactPurl) &&
+			!commandMatch(r.ArtifactPurl, r.ArtifactName, r.MatchedPurl, r.MatchedFilePath) {
 			continue
 		}
 		rel := ArtifactRelation{
@@ -232,4 +244,88 @@ func sameVersion(matched, current *string) *bool {
 	}
 	eq := *matched == *current
 	return &eq
+}
+
+// Command matching (ADR-048 R6/R7).
+//
+// A `golang` purl names a module, and one module ships many commands: every
+// binary this repo builds is pkg:golang/github.com/pfenerty/ocidex to a
+// scanner, while push-sboms.nu declares each one as
+// pkg:golang/github.com/pfenerty/ocidex/cmd/<name> so the twelve stay distinct
+// artifacts. ADR-041 R1 cannot bridge that, and a prefix rule on its own would
+// bridge it far too well — every ocidex image would claim to contain all twelve
+// binaries.
+//
+// What separates them is the file the scanner read. Syft records it as
+// syft:location:0:path; ingest keeps it in component.file_path (00072); its
+// basename is the binary's name, which is exactly what --subject-name declares.
+
+// golangPurlPrefix is the purl type this rule is scoped to. R6 is deliberately
+// not general: it exists for the ecosystem where one module yields many shipped
+// commands, and there is no second case to generalize from yet.
+const golangPurlPrefix = "pkg:golang/"
+
+// modulePurlBases returns every path-boundary prefix of a golang purl base, so
+// the usages query can look for a module component with an equality test the
+// purl-base index serves rather than a per-row prefix scan.
+//
+// "pkg:golang/github.com/pfenerty/ocidex/cmd/git-worker" yields
+// ".../github.com", ".../github.com/pfenerty", ".../github.com/pfenerty/ocidex"
+// and ".../github.com/pfenerty/ocidex/cmd". Which of those is the real module
+// path is not knowable from the purl, and does not need to be: the coarse query
+// may match any of them, and commandMatch rejects everything the binary's name
+// does not confirm.
+//
+// Returns nil for a non-golang purl or one with nothing under its type, which
+// leaves the caller passing an empty array and the branch switched off.
+func modulePurlBases(purlBase pgtype.Text) []string {
+	if !purlBase.Valid || !strings.HasPrefix(purlBase.String, golangPurlPrefix) {
+		return nil
+	}
+	path := strings.TrimPrefix(purlBase.String, golangPurlPrefix)
+	segments := strings.Split(path, "/")
+	if len(segments) < 2 {
+		return nil
+	}
+	out := make([]string, 0, len(segments)-1)
+	for i := 1; i < len(segments); i++ {
+		out = append(out, golangPurlPrefix+strings.Join(segments[:i], "/"))
+	}
+	return out
+}
+
+// commandMatch reports whether a component is the module a command artifact was
+// built from, as evidenced by the binary it was read from (ADR-048 R6).
+//
+// All four conditions are required. Dropping the last one is the difference
+// between "this image ships git-worker" and "this image ships all twelve of our
+// binaries".
+func commandMatch(artifactPurl pgtype.Text, artifactName string, componentPurl, componentFilePath pgtype.Text) bool {
+	// R7: no recorded path, no match — never a wildcard. SBOMs ingested before
+	// 00072 have NULL here until cmd/backfill-provenance runs over them, and
+	// treating that as "matches any command of the module" would turn exactly
+	// the corpus this rule exists for into a wall of false relationships.
+	if !componentFilePath.Valid || componentFilePath.String == "" {
+		return false
+	}
+	if !artifactPurl.Valid || !componentPurl.Valid {
+		return false
+	}
+	artifactBase := stripPurlVersion(firstCut(artifactPurl.String))
+	componentBase := stripPurlVersion(firstCut(componentPurl.String))
+	if !strings.HasPrefix(artifactBase, golangPurlPrefix) || !strings.HasPrefix(componentBase, golangPurlPrefix) {
+		return false
+	}
+	// A path boundary, not a string prefix: pkg:golang/…/ocidex must not reach
+	// pkg:golang/…/ocidex-cli.
+	if !strings.HasPrefix(artifactBase, componentBase+"/") {
+		return false
+	}
+	return path.Base(componentFilePath.String) == artifactName
+}
+
+// firstCut drops a purl's qualifiers, which follow the version.
+func firstCut(purl string) string {
+	base, _, _ := strings.Cut(purl, "?")
+	return base
 }
