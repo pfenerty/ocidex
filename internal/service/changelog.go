@@ -11,7 +11,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
-// Changelog represents the full changelog for an artifact.
+// Changelog represents one page of an artifact's changelog.
 type Changelog struct {
 	ArtifactID             string   `json:"artifactId"`
 	AvailableArchitectures []string `json:"availableArchitectures"`
@@ -23,6 +23,52 @@ type Changelog struct {
 	// resolving an auto request.
 	ResolvedMode string           `json:"resolvedMode"`
 	Entries      []ChangelogEntry `json:"entries"`
+	// Pagination bounds Entries. Total counts consecutive-version pairs in the
+	// selected timeline — see the window comment in GetArtifactChangelog for
+	// why that is the unit.
+	Pagination PageMeta `json:"pagination"`
+}
+
+// ChangelogQuery selects and bounds a changelog.
+//
+// It is a struct rather than the positional arguments it replaced
+// (ocidex-7gf7.4): three adjacent strings were already a swap hazard, and Limit
+// and Offset would have made it three strings and two int32s.
+type ChangelogQuery struct {
+	SubjectVersion string
+	Arch           string
+	Flavor         string
+	Mode           VersionSortMode
+	// Limit and Offset page over entries, newest first. Limit <= 0 means the
+	// default; the API layer enforces the same bounds declaratively, and these
+	// are the backstop for every other caller.
+	Limit  int32
+	Offset int32
+}
+
+// Changelog page bounds. defaultChangelogLimit is what the tab shows without
+// asking; maxChangelogLimit is the ceiling, low because each entry carries a
+// full component diff and the point of the window is that the response stays
+// small.
+const (
+	defaultChangelogLimit = 20
+	maxChangelogLimit     = 100
+)
+
+// clamp returns the effective limit and offset for a page request.
+func (p ChangelogQuery) clamp() (limit, offset int32) {
+	limit = p.Limit
+	if limit <= 0 {
+		limit = defaultChangelogLimit
+	}
+	if limit > maxChangelogLimit {
+		limit = maxChangelogLimit
+	}
+	offset = p.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	return limit, offset
 }
 
 // ChangelogEntry represents a diff between two consecutive SBOMs.
@@ -258,7 +304,9 @@ func (s *searchService) packagesForSBOMs(ctx context.Context, q *repository.Quer
 // GetArtifactChangelog generates a changelog by diffing consecutive SBOMs for an artifact.
 // SBOMs are grouped by (architecture, flavor), deduplicated by (version, arch, flavor), then
 // diffed within the selected (arch, flavor) timeline.
-func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch, flavor string, mode VersionSortMode, vis VisibilityFilter) (Changelog, error) {
+func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, query ChangelogQuery, vis VisibilityFilter) (Changelog, error) {
+	limit, offset := query.clamp()
+
 	q := repository.New(s.db)
 
 	// Access check.
@@ -277,7 +325,7 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgt
 	// Changelog needs every SBOM for the artifact (no cursor); cap defensively.
 	sboms, err := q.ListSBOMsByArtifact(ctx, repository.ListSBOMsByArtifactParams{
 		ArtifactID:     artifactID,
-		SubjectVersion: textOrNull(subjectVersion),
+		SubjectVersion: textOrNull(query.SubjectVersion),
 		UserID:         vis.UserID,
 		IsAdmin:        visAdminBool(vis),
 		HasCursor:      pgtype.Bool{Bool: false, Valid: true},
@@ -289,13 +337,13 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgt
 
 	meta := buildEnrichmentMetaMap(ctx, q, artifactID)
 	best, available, availableFlavors := deduplicateSBOMs(sboms, meta)
-	selectedArch := selectArch(arch, available)
-	selectedFlavor := selectFlavor(flavor, availableFlavors)
+	selectedArch := selectArch(query.Arch, available)
+	selectedFlavor := selectFlavor(query.Flavor, availableFlavors)
 
 	// hasSemver reflects the whole artifact (any arch/flavor), so switching the
 	// selected timeline never flips the default Semver/All toggle.
 	hasSemver := groupsHaveSemver(best)
-	resolved := resolveSortMode(mode, hasSemver)
+	resolved := resolveSortMode(query.Mode, hasSemver)
 
 	candidates := filterByArchAndFlavor(best, selectedArch, selectedFlavor)
 	if resolved == SortSemver {
@@ -315,6 +363,19 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgt
 	}
 	sort.Strings(flavors)
 
+	// An entry is one pair of consecutive candidates, so the total is known
+	// from the candidate count alone — before a single package is loaded. That
+	// is what makes the window below computable, and it is why a pair whose
+	// diff comes out empty is now kept rather than suppressed (ocidex-7gf7.4):
+	// suppression meant the number of entries could not be known without
+	// diffing every pair, which is exactly the unbounded work the window
+	// exists to remove. A release that shipped with no package change is a
+	// fact about that release, not a hole in the timeline.
+	pairs := len(candidates) - 1
+	if pairs < 0 {
+		pairs = 0
+	}
+
 	changelog := Changelog{
 		ArtifactID:             uuidToString(artifactID),
 		AvailableArchitectures: arches,
@@ -322,37 +383,48 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgt
 		HasSemver:              hasSemver,
 		ResolvedMode:           string(resolved),
 		Entries:                []ChangelogEntry{},
+		Pagination:             PageMeta{Total: int64(pairs), Limit: limit, Offset: offset},
 	}
 
-	if len(candidates) < 2 {
+	start := int(offset)
+	if start >= pairs {
 		return changelog, nil
 	}
+	end := start + int(limit)
+	if end > pairs {
+		end = pairs
+	}
 
-	// Fetch packages for every candidate SBOM in a single round-trip rather than
-	// one query per version (the old N+1).
-	pkgsBySBOM, err := s.packagesForSBOMs(ctx, q, candidates)
+	// candidates runs oldest-first; entries are emitted newest-first, so entry
+	// index p is the pair (candidates[n-2-p], candidates[n-1-p]). The window is
+	// therefore contiguous: every candidate the page needs, plus the single
+	// predecessor its oldest pair diffs against. Nothing older is loaded, which
+	// is the whole fix — the old code fetched packages for all n candidates
+	// (1,025 of them, ~1,100 packages each, for kube-apiserver) to return a
+	// list the frontend rendered unpaginated anyway.
+	n := len(candidates)
+	window := candidates[n-end-1 : n-start]
+
+	pkgsBySBOM, err := s.packagesForSBOMs(ctx, q, window)
 	if err != nil {
 		return Changelog{}, err
 	}
 
-	prevMap := buildPackageMap(pkgsBySBOM[candidates[0].sbom.ID])
+	prevMap := buildPackageMap(pkgsBySBOM[window[0].sbom.ID])
 
-	for i := 1; i < len(candidates); i++ {
-		currMap := buildPackageMap(pkgsBySBOM[candidates[i].sbom.ID])
+	for i := 1; i < len(window); i++ {
+		currMap := buildPackageMap(pkgsBySBOM[window[i].sbom.ID])
 
-		fromRef := sbomToRef(candidates[i-1].sbom)
-		fromRef.BuildDate = candidates[i-1].buildDate
-		fromRef.Architecture = nonEmptyStrPtr(candidates[i-1].arch)
-		fromRef.Flavor = nonEmptyStrPtr(candidates[i-1].flavor)
-		toRef := sbomToRef(candidates[i].sbom)
-		toRef.BuildDate = candidates[i].buildDate
-		toRef.Architecture = nonEmptyStrPtr(candidates[i].arch)
-		toRef.Flavor = nonEmptyStrPtr(candidates[i].flavor)
+		fromRef := sbomToRef(window[i-1].sbom)
+		fromRef.BuildDate = window[i-1].buildDate
+		fromRef.Architecture = nonEmptyStrPtr(window[i-1].arch)
+		fromRef.Flavor = nonEmptyStrPtr(window[i-1].flavor)
+		toRef := sbomToRef(window[i].sbom)
+		toRef.BuildDate = window[i].buildDate
+		toRef.Architecture = nonEmptyStrPtr(window[i].arch)
+		toRef.Flavor = nonEmptyStrPtr(window[i].flavor)
 
-		entry := diffComponents(fromRef, toRef, prevMap, currMap)
-		if len(entry.Changes) > 0 {
-			changelog.Entries = append(changelog.Entries, entry)
-		}
+		changelog.Entries = append(changelog.Entries, diffComponents(fromRef, toRef, prevMap, currMap))
 
 		prevMap = currMap
 	}

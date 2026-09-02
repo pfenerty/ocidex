@@ -205,10 +205,21 @@ export function useArtifactChangelog(
         arch?: Accessor<string | undefined>;
         flavor?: Accessor<string | undefined>;
         mode?: Accessor<VersionSortMode | undefined>;
+        limit?: Accessor<number | undefined>;
+        offset?: Accessor<number | undefined>;
     },
 ) {
     return createQuery(() => ({
-        queryKey: ["artifact", id(), "changelog", options?.arch?.(), options?.flavor?.(), options?.mode?.()] as const,
+        queryKey: [
+            "artifact",
+            id(),
+            "changelog",
+            options?.arch?.(),
+            options?.flavor?.(),
+            options?.mode?.(),
+            options?.limit?.(),
+            options?.offset?.(),
+        ] as const,
         queryFn: () => {
             const arch = options?.arch?.();
             const flavor = options?.flavor?.();
@@ -221,11 +232,14 @@ export function useArtifactChangelog(
                             arch: arch !== "" ? arch : undefined,
                             flavor: flavor !== "" ? flavor : undefined,
                             mode,
+                            limit: options?.limit?.(),
+                            offset: options?.offset?.(),
                         },
                     },
                 }),
             );
         },
+        keepPreviousData: true,
         enabled: options?.enabled?.() ?? true,
         select: (resp) => ({
             ...resp,

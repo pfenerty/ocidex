@@ -572,7 +572,7 @@ func TestGetArtifactChangelog_NotVisible(t *testing.T) {
 	svc := NewSearchService(db)
 	uid := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
 
-	_, err := svc.GetArtifactChangelog(context.Background(), uid, "", "", "", SortAuto, VisibilityFilter{})
+	_, err := svc.GetArtifactChangelog(context.Background(), uid, ChangelogQuery{}, VisibilityFilter{})
 	is.Equal(err, ErrNotFound)
 }
 
@@ -598,7 +598,7 @@ func TestGetArtifactChangelog_EmptyChangelog(t *testing.T) {
 	svc := NewSearchService(db)
 	uid := pgtype.UUID{Bytes: [16]byte{2}, Valid: true}
 
-	cl, err := svc.GetArtifactChangelog(context.Background(), uid, "", "", "", SortAuto, VisibilityFilter{IsAdmin: true})
+	cl, err := svc.GetArtifactChangelog(context.Background(), uid, ChangelogQuery{}, VisibilityFilter{IsAdmin: true})
 	is.NoErr(err)
 	is.Equal(len(cl.Entries), 0)
 }

@@ -24,7 +24,7 @@ type SearchService interface {
 	ListArtifacts(ctx context.Context, filter ArtifactFilter) (CursorPage[ArtifactSummary], error)
 	ListSBOMsByArtifact(ctx context.Context, artifactID pgtype.UUID, subjectVersion, imageVersion string, page SBOMByArtifactPage, vis VisibilityFilter) (CursorPage[SBOMSummary], error)
 	ListVersionsByArtifact(ctx context.Context, artifactID pgtype.UUID, limit, offset int32, mode VersionSortMode, colSort VersionColumnSort, vis VisibilityFilter) (ArtifactVersionsPage, error)
-	GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, subjectVersion, arch, flavor string, mode VersionSortMode, vis VisibilityFilter) (Changelog, error)
+	GetArtifactChangelog(ctx context.Context, artifactID pgtype.UUID, query ChangelogQuery, vis VisibilityFilter) (Changelog, error)
 	DiffSBOMs(ctx context.Context, fromID, toID pgtype.UUID, vis VisibilityFilter) (ChangelogEntry, error)
 	DiffSBOMsWithTree(ctx context.Context, fromID, toID pgtype.UUID, vis VisibilityFilter) (DiffTree, error)
 	ListSBOMsByDigest(ctx context.Context, digest string, limit, offset int32, vis VisibilityFilter) (PagedResult[SBOMSummary], error)
@@ -304,6 +304,15 @@ type DailyCount struct {
 // PagedResult wraps a paginated result set.
 type PagedResult[T any] struct {
 	Data   []T   `json:"data"`
+	Total  int64 `json:"total"`
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+// PageMeta is the same offset-pagination envelope without the payload, for a
+// response whose page is not the only thing in its body — the changelog
+// carries the arch, flavor and mode of the timeline alongside its entries.
+type PageMeta struct {
 	Total  int64 `json:"total"`
 	Limit  int32 `json:"limit"`
 	Offset int32 `json:"offset"`

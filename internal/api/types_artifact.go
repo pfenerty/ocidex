@@ -149,6 +149,11 @@ type GetArtifactChangelogInput struct {
 	Arch           string `query:"arch"            doc:"Architecture to show timeline for (e.g. amd64)"`
 	Flavor         string `query:"flavor"          doc:"Flavor to show timeline for (e.g. standard, fips)"`
 	Mode           string `query:"mode" enum:"semver,all" doc:"Sort/filter mode: 'semver' (semver versions, semver order), 'all' (every version, build-time order). Empty auto-selects semver when available."`
+	// The maximum is 100 rather than PaginationParams' 200: each entry carries
+	// a full component diff, so a page is far heavier here than a row is
+	// elsewhere.
+	Limit  int32 `query:"limit"  default:"20" minimum:"1" maximum:"100" doc:"Maximum number of changelog entries per page"`
+	Offset int32 `query:"offset" default:"0"  minimum:"0"                doc:"Number of entries to skip, counting from the newest"`
 }
 
 // GetArtifactChangelogOutput is the response for GET /api/v1/artifacts/{id}/changelog.

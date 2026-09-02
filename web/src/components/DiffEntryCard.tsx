@@ -19,6 +19,15 @@ export function DiffEntryCard(props: {
     const [expanded, setExpanded] = createSignal(props.defaultExpanded);
 
     const summary = () => props.entry.summary;
+    // A pair whose versions carry identical package sets is an entry with every
+    // count at zero. The server stopped suppressing those (ocidex-7gf7.4) — the
+    // count of entries has to be knowable without diffing every pair for the
+    // timeline to be pageable — so the card has to say "nothing changed" rather
+    // than render a header with no badges, which reads as a rendering fault.
+    const unchanged = () => {
+        const s = summary();
+        return s.added === 0 && s.removed === 0 && s.upgraded === 0 && s.downgraded === 0 && s.modified === 0;
+    };
     const kindDefs = [
         { count: () => summary().added,      cls: "badge-primary",  fmt: (n: number) => `+${n} added` },
         { count: () => summary().removed,    cls: "badge-warning",  fmt: (n: number) => `-${n} removed` },
@@ -87,6 +96,9 @@ export function DiffEntryCard(props: {
                             </Show>
                         )}
                     </For>
+                    <Show when={unchanged()}>
+                        <span class="badge text-muted">no package changes</span>
+                    </Show>
                 </div>
             </div>
             <Show when={expanded()}>

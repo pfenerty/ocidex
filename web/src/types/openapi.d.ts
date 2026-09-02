@@ -1917,6 +1917,7 @@ export interface components {
             availableFlavors: string[] | null;
             entries: components["schemas"]["ChangelogEntry"][] | null;
             hasSemver: boolean;
+            pagination: components["schemas"]["PageMeta"];
             resolvedMode: string;
         };
         ChangelogEntry: {
@@ -3276,6 +3277,14 @@ export interface components {
             /** Format: int64 */
             version_count: number;
         };
+        PageMeta: {
+            /** Format: int32 */
+            limit: number;
+            /** Format: int32 */
+            offset: number;
+            /** Format: int64 */
+            total: number;
+        };
         PaginationMeta: {
             /**
              * Format: int32
@@ -4415,6 +4424,10 @@ export interface operations {
                 flavor?: string;
                 /** @description Sort/filter mode: 'semver' (semver versions, semver order), 'all' (every version, build-time order). Empty auto-selects semver when available. */
                 mode?: "semver" | "all";
+                /** @description Maximum number of changelog entries per page */
+                limit?: number;
+                /** @description Number of entries to skip, counting from the newest */
+                offset?: number;
             };
             header?: never;
             path: {

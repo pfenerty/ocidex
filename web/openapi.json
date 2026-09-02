@@ -553,6 +553,9 @@
           "hasSemver": {
             "type": "boolean"
           },
+          "pagination": {
+            "$ref": "#/components/schemas/PageMeta"
+          },
           "resolvedMode": {
             "type": "string"
           }
@@ -563,7 +566,8 @@
           "availableFlavors",
           "hasSemver",
           "resolvedMode",
-          "entries"
+          "entries",
+          "pagination"
         ],
         "type": "object"
       },
@@ -4394,6 +4398,29 @@
         ],
         "type": "object"
       },
+      "PageMeta": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "offset": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "limit",
+          "offset"
+        ],
+        "type": "object"
+      },
       "PaginationMeta": {
         "additionalProperties": false,
         "properties": {
@@ -7028,6 +7055,33 @@
                 "all"
               ],
               "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of changelog entries per page",
+            "explode": false,
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "description": "Maximum number of changelog entries per page",
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of entries to skip, counting from the newest",
+            "explode": false,
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "default": 0,
+              "description": "Number of entries to skip, counting from the newest",
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
             }
           }
         ],

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -46,6 +47,23 @@ func optional(v string) *string {
 		return nil
 	}
 	return &v
+}
+
+// optionalInt32 is optional's counterpart for a bounded numeric argument, where
+// the tool schema carries a plain int and the generated client wants a pointer.
+//
+// Every caller is a page size a model asked for, so the clamp is not
+// defensive noise: an int argument can hold more than an int32, and the API's
+// own maximum is two orders of magnitude below either.
+func optionalInt32(v int) *int32 {
+	if v > math.MaxInt32 {
+		v = math.MaxInt32
+	}
+	if v < 0 {
+		v = 0
+	}
+	n := int32(v)
+	return &n
 }
 
 // deref renders an optional API field for output structs, where "" and absent

@@ -829,7 +829,14 @@ func (h *Handler) GetArtifactChangelog(ctx context.Context, input *GetArtifactCh
 	}
 
 	vis := visibilityFilterFromContext(ctx)
-	changelog, err := h.searchService.GetArtifactChangelog(ctx, id, input.SubjectVersion, input.Arch, input.Flavor, service.ParseVersionSortMode(input.Mode), vis)
+	changelog, err := h.searchService.GetArtifactChangelog(ctx, id, service.ChangelogQuery{
+		SubjectVersion: input.SubjectVersion,
+		Arch:           input.Arch,
+		Flavor:         input.Flavor,
+		Mode:           service.ParseVersionSortMode(input.Mode),
+		Limit:          input.Limit,
+		Offset:         input.Offset,
+	}, vis)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

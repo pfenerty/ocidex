@@ -593,30 +593,32 @@ func registerChangelogTool(srv *mcp.Server, api client.Client) {
 			"with arch and flavor, whose valid values come back in this tool's own response.",
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true},
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in artifactChangelogInput) (*mcp.CallToolResult, artifactChangelogOutput, error) {
+		// The limit goes to the server rather than trimming a full response
+		// here (ocidex-7gf7.4). It used to fetch every version-to-version step
+		// and keep the first twenty, which for a thousand-version artifact meant
+		// the endpoint timed out before this line ever ran.
+		limit := in.Limit
+		if limit <= 0 {
+			limit = defaultRootLimit
+		}
 		changelog, err := api.GetArtifactChangelog(ctx, in.ArtifactID, client.GetArtifactChangelogParams{
 			SubjectVersion: optional(in.Version),
 			Arch:           optional(in.Arch),
 			Flavor:         optional(in.Flavor),
+			Limit:          optionalInt32(limit),
 		})
 		if err != nil {
 			return nil, artifactChangelogOutput{}, toolError(
 				fmt.Sprintf("reading the changelog for artifact %s", in.ArtifactID), err)
 		}
 
-		limit := in.Limit
-		if limit <= 0 {
-			limit = defaultRootLimit
-		}
 		entries := derefSlice(changelog.Entries)
 		out := artifactChangelogOutput{
 			ArtifactID:    changelog.ArtifactId,
 			ResolvedMode:  changelog.ResolvedMode,
-			Total:         int64(len(entries)),
+			Total:         changelog.Pagination.Total,
 			Architectures: derefSlice(changelog.AvailableArchitectures),
 			Flavors:       derefSlice(changelog.AvailableFlavors),
-		}
-		if len(entries) > limit {
-			entries = entries[:limit]
 		}
 		out.Entries = make([]changelogEntryOutput, 0, len(entries))
 		for _, e := range entries {

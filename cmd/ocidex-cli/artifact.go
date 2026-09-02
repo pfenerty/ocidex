@@ -97,6 +97,7 @@ func newArtifactGetCmd(cfg *rootConfig) *cobra.Command {
 func newArtifactChangelogCmd(cfg *rootConfig) *cobra.Command {
 	var params client.GetArtifactChangelogParams
 	var subjectVersion, arch, flavor string
+	var limit, offset int32
 
 	cmd := &cobra.Command{
 		Use:   "changelog <id>",
@@ -106,12 +107,18 @@ func newArtifactChangelogCmd(cfg *rootConfig) *cobra.Command {
 An artifact usually has several SBOMs per version — one per architecture and
 flavor — so a changelog only means something once that axis is pinned. Pass
 --arch and --flavor when the artifact has more than one; the available values
-are printed to stderr in table mode.`,
+are printed to stderr in table mode.
+
+The history is paged, newest first: an artifact with a thousand versions has a
+thousand transitions and each one carries a full component diff. Page back
+through it with --offset.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			params.SubjectVersion = optional(subjectVersion)
 			params.Arch = optional(arch)
 			params.Flavor = optional(flavor)
+			params.Limit = optionalInt32(limit)
+			params.Offset = optionalInt32(offset)
 
 			log, err := cfg.api.GetArtifactChangelog(cmd.Context(), args[0], params)
 			if err != nil {
@@ -130,6 +137,8 @@ are printed to stderr in table mode.`,
 	f.StringVar(&subjectVersion, "subject-version", "", "compare only within this version")
 	f.StringVar(&arch, "arch", "", "architecture to follow, e.g. amd64")
 	f.StringVar(&flavor, "flavor", "", "image flavor to follow, e.g. distroless")
+	f.Int32Var(&limit, "limit", 0, "maximum transitions to return (server default 20)")
+	f.Int32Var(&offset, "offset", 0, "transitions to skip, counting back from the newest")
 	return cmd
 }
 

@@ -349,3 +349,13 @@ func optional(s string) *string {
 	}
 	return &s
 }
+
+// optionalInt32 is optional for a bounded numeric flag. Zero means unset, which
+// costs nothing: a limit of zero asks for no results, and an offset of zero is
+// what the server does anyway.
+func optionalInt32(n int32) *int32 {
+	if n == 0 {
+		return nil
+	}
+	return &n
+}

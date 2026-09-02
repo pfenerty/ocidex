@@ -93,6 +93,18 @@ export default function ArtifactDetail() {
     const [versionSortDir, setVersionSortDir] = createSignal<SortDir>("desc");
     const versionLimit = 25;
 
+    // The changelog is paged (ocidex-7gf7.4): an entry is a full component diff
+    // between two consecutive versions, and an artifact with a thousand versions
+    // was returning a thousand of them in one response.
+    //
+    // The page and the tree/list toggle live here rather than inside
+    // ChangelogTab because QueryBoundary renders its child with <Show keyed>:
+    // a new page is a new data identity, so the tab remounts and anything it
+    // held locally is gone. Above the boundary, both survive.
+    const changelogLimit = 20;
+    const [changelogOffset, setChangelogOffset] = createSignal(0);
+    const [changelogView, setChangelogView] = createSignal<"tree" | "list">("tree");
+
     const artifactQuery = useArtifact(() => params.id);
 
     // Image-specific chrome — signing/provenance, the registry link, the
@@ -138,7 +150,20 @@ export default function ArtifactDetail() {
         arch: selectedArch,
         flavor: selectedFlavor,
         mode: viewMode,
+        limit: () => changelogLimit,
+        offset: changelogOffset,
     });
+
+    // Changing the timeline reorders it, so the page number no longer refers to
+    // anything — the same reason sortVersions resets versionOffset.
+    const selectChangelogArch = (arch: string) => {
+        setSelectedArch(arch);
+        setChangelogOffset(0);
+    };
+    const selectChangelogFlavor = (flavor: string) => {
+        setSelectedFlavor(flavor);
+        setChangelogOffset(0);
+    };
 
     const licenseQuery = useArtifactLicenseSummary(() => params.id, {
         enabled: () => tab() === "licenses",
@@ -245,12 +270,16 @@ export default function ArtifactDetail() {
                                         {(d) => (
                                             <ChangelogTab
                                                 entries={d().entries}
+                                                pagination={d().pagination}
+                                                onPageChange={setChangelogOffset}
                                                 availableArchitectures={d().availableArchitectures ?? []}
                                                 selectedArch={selectedArch()}
-                                                onArchChange={setSelectedArch}
+                                                onArchChange={selectChangelogArch}
                                                 availableFlavors={d().availableFlavors ?? []}
                                                 selectedFlavor={selectedFlavor()}
-                                                onFlavorChange={setSelectedFlavor}
+                                                onFlavorChange={selectChangelogFlavor}
+                                                viewMode={changelogView()}
+                                                onViewModeChange={setChangelogView}
                                             />
                                         )}
                                     </QueryBoundary>

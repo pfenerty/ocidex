@@ -1,25 +1,34 @@
-import { createSignal, Show, For } from "solid-js";
+import { Show, For } from "solid-js";
 import "./ChangelogTab.css";
 import type { ChangelogEntryData } from "~/utils/diff";
+import type { PaginationMeta } from "~/api/client";
 import { ViewToggle } from "~/components/DiffPairView";
 import { DiffEntryCard } from "~/components/DiffEntryCard";
 import { EmptyState } from "~/components/Feedback";
+import Pagination from "~/components/Pagination";
 import { TabBar } from "~/components/ui";
 
+// The changelog is a page of a longer timeline, not the whole of it
+// (ocidex-7gf7.4). Both the page and the tree/list mode are owned by the parent:
+// QueryBoundary renders this component under <Show keyed>, so turning the page
+// remounts it and any state held here would reset.
 export function ChangelogTab(props: {
     entries: ChangelogEntryData[];
+    pagination: PaginationMeta | undefined;
+    onPageChange: (offset: number) => void;
     availableArchitectures: string[];
     selectedArch: string | undefined;
     onArchChange: (arch: string) => void;
     availableFlavors: string[];
     selectedFlavor: string | undefined;
     onFlavorChange: (flavor: string) => void;
+    viewMode: "tree" | "list";
+    onViewModeChange: (mode: "tree" | "list") => void;
 }) {
     const effectiveArch = () =>
         props.selectedArch ?? props.availableArchitectures[0];
     const effectiveFlavor = () =>
         props.selectedFlavor ?? props.availableFlavors[0];
-    const [viewMode, setViewMode] = createSignal<"tree" | "list">("tree");
 
     return (
         <>
@@ -51,7 +60,7 @@ export function ChangelogTab(props: {
                         />
                     </Show>
                 </div>
-                <ViewToggle mode={viewMode()} onChange={setViewMode} />
+                <ViewToggle mode={props.viewMode} onChange={props.onViewModeChange} />
             </div>
             <Show
                 when={props.entries.length > 0}
@@ -79,11 +88,16 @@ export function ChangelogTab(props: {
                     {(entry) => (
                         <DiffEntryCard
                             entry={entry}
-                            viewMode={viewMode()}
+                            viewMode={props.viewMode}
                             defaultExpanded={false}
                         />
                     )}
                 </For>
+                <Show when={props.pagination}>
+                    {(meta) => (
+                        <Pagination pagination={meta()} onPageChange={props.onPageChange} />
+                    )}
+                </Show>
             </Show>
         </>
     );

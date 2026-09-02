@@ -1601,6 +1601,7 @@ type Changelog struct {
 	AvailableFlavors       *[]string         `json:"availableFlavors"`
 	Entries                *[]ChangelogEntry `json:"entries"`
 	HasSemver              bool              `json:"hasSemver"`
+	Pagination             PageMeta          `json:"pagination"`
 	ResolvedMode           string            `json:"resolvedMode"`
 }
 
@@ -2870,6 +2871,13 @@ type PackageSummaryEntry struct {
 	VersionCount int64   `json:"version_count"`
 }
 
+// PageMeta defines model for PageMeta.
+type PageMeta struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+	Total  int64 `json:"total"`
+}
+
 // PaginationMeta defines model for PaginationMeta.
 type PaginationMeta struct {
 	// Limit The limit that was applied
@@ -3696,6 +3704,12 @@ type GetArtifactChangelogParams struct {
 
 	// Mode Sort/filter mode: 'semver' (semver versions, semver order), 'all' (every version, build-time order). Empty auto-selects semver when available.
 	Mode *GetArtifactChangelogParamsMode `form:"mode,omitempty" json:"mode,omitempty"`
+
+	// Limit Maximum number of changelog entries per page
+	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Number of entries to skip, counting from the newest
+	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
 // GetArtifactChangelogParamsMode defines parameters for GetArtifactChangelog.
