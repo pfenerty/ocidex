@@ -53,6 +53,19 @@ export default function SBOMDetail() {
             offset: undefined,
         });
 
+    /* Tree or list for the packages tab. This is a search param and not a
+       signal inside PackagesTab because QueryBoundary renders its child under
+       <Show ... keyed>: a sort produces a new query result object, the subtree
+       remounts, and any local state in it is gone. Sorting a column therefore
+       used to throw the reader back into the tree view. Unlike the vuln
+       filters above it is deliberately *not* cleared by setTab — it is a way of
+       looking at the packages, not a narrowing of them, so leaving the tab and
+       coming back should not undo it. */
+    const pkgView = (): "tree" | "list" =>
+        one(searchParams.view) === "list" ? "list" : "tree";
+    const setPkgView = (next: "tree" | "list") =>
+        setSearchParams({ view: next === "tree" ? undefined : next });
+
     // A hand-edited URL can say anything; an unrecognised value is dropped
     // rather than forwarded, so the list shows everything instead of nothing.
     const vulnSeverity = (): VulnSeverityFilter | undefined => {
@@ -293,6 +306,8 @@ export default function SBOMDetail() {
                                             onLoadMore={() => void componentsQuery.fetchNextPage()}
                                             totalCount={s.packageCount}
                                             componentCount={s.componentCount}
+                                            viewMode={pkgView()}
+                                            onViewMode={setPkgView}
                                             sortBy={pkgSort()}
                                             sortDir={pkgSortDir()}
                                             onSort={(key, dir) => {

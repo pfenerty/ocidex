@@ -189,3 +189,56 @@ describe("Artifact VulnerabilitiesTab", () => {
         expect(container.textContent).not.toContain("most recent versions");
     });
 });
+
+// Same change as the SBOM tab's affected packages (ocidex-7gf7.9): the versions
+// are already on the row, so they are shown rather than gated.
+describe("Artifact VulnerabilitiesTab affected versions", () => {
+    const versions = (n: number) =>
+        Array.from({ length: n }, (_, i) => ({
+            version: `1.0.${i}`,
+            sbomId: `sbom-${i}`,
+            affectedPackageCount: 1,
+            packageNames: ["apt"],
+        }));
+
+    it("names them without waiting for a click", () => {
+        stubQuery([vuln({ affectedVersionCount: 2, affectedVersions: versions(2) })]);
+        const { container } = renderTab();
+        const list = container.querySelector(".affected-versions");
+        expect(list?.textContent).toContain("1.0.0");
+        expect(list?.textContent).toContain("1.0.1");
+        expect(container.querySelector(".affected-more")).toBeNull();
+    });
+
+    it("shows the first three and offers the rest by count", () => {
+        stubQuery([vuln({ affectedVersionCount: 9, affectedVersions: versions(9) })]);
+        const { container } = renderTab();
+        expect(container.querySelectorAll(".affected-versions li")).toHaveLength(3);
+        expect(container.querySelector(".affected-more")?.textContent).toBe("+6 more");
+    });
+
+    it("shows every one once expanded", () => {
+        expandedKeys.add("CVE-2026-1");
+        stubQuery([vuln({ affectedVersionCount: 9, affectedVersions: versions(9) })]);
+        const { container } = renderTab();
+        expect(container.querySelectorAll(".affected-versions li")).toHaveLength(9);
+    });
+});
+
+// The caption reads two fields the server only started sending with the version
+// cap (ocidex-7gf7.5). A web tier that is briefly ahead of the API during a
+// rolling deploy gets neither, and reading them unguarded threw inside a
+// reactive render — which does not surface as an error, it just leaves the tab
+// frozen on its loading skeleton with no way back.
+describe("Artifact VulnerabilitiesTab against a server with no version cap", () => {
+    it("still lists the findings, and says only what it knows", () => {
+        stubQuery(
+            [vuln({})],
+            {} as unknown as { versionScope: number; totalVersions: number },
+        );
+        const { container } = renderTab();
+        expect(container.querySelectorAll("tbody tr").length).toBeGreaterThan(0);
+        expect(container.textContent).toContain("Across the newest SBOM of each version.");
+        expect(container.textContent).not.toContain("most recent versions");
+    });
+});

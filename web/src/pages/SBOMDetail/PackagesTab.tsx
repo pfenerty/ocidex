@@ -46,10 +46,18 @@ export function PackagesTab(props: {
     sortBy?: string;
     sortDir?: SortDir;
     onSort?: (sortKey: string, dir: SortDir) => void;
+    /**
+     * Tree or list, owned by the page for the same reason the sort is: this tab
+     * is mounted inside a QueryBoundary whose `keyed` Show remounts it whenever
+     * the components query resolves a new object, which sorting does. As local
+     * state the mode was silently thrown away on every sort. The page keeps it
+     * in the URL, which survives the remount and makes the list linkable.
+     */
+    viewMode: "tree" | "list";
+    onViewMode: (mode: "tree" | "list") => void;
 }) {
     const [filter, setFilter] = createSignal("");
     const [typeFilter, setTypeFilter] = createSignal("all");
-    const [viewMode, setViewMode] = createSignal<"tree" | "list">("tree");
     // One filter across both view modes: the reader asking "what is vulnerable
     // in here" should not have to re-apply it after switching between the tree
     // and the list, and the answer is the same set either way.
@@ -139,7 +147,10 @@ export function PackagesTab(props: {
     };
 
     const hasTree = () => (props.depsGraph?.edges.length ?? 0) > 0;
-    const effectiveMode = () => (hasTree() ? viewMode() : "list");
+    // With no dependency graph there is no tree to show, so the mode is forced
+    // to list regardless of what the URL asks for — a link to ?view=tree still
+    // opens something rather than an empty pane.
+    const effectiveMode = () => (hasTree() ? props.viewMode : "list");
 
     const columns: Column<ComponentSummary>[] = [
         {
@@ -241,14 +252,14 @@ export function PackagesTab(props: {
                             <Button
                                 size="sm"
                                 active={effectiveMode() === "tree"}
-                                onClick={() => setViewMode("tree")}
+                                onClick={() => props.onViewMode("tree")}
                             >
                                 Tree
                             </Button>
                             <Button
                                 size="sm"
                                 active={effectiveMode() === "list"}
-                                onClick={() => setViewMode("list")}
+                                onClick={() => props.onViewMode("list")}
                             >
                                 List
                             </Button>

@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach } from "vitest";
+import { createSignal } from "solid-js";
 import { Router } from "@solidjs/router";
 import { render, cleanup, fireEvent } from "@solidjs/testing-library";
 import type { ComponentSummary } from "~/api/client";
@@ -18,16 +19,35 @@ function comps(n: number, type = "golang"): ComponentSummary[] {
     }));
 }
 
-type TabProps = Parameters<typeof PackagesTab>[0];
+// View mode is owned by the page, not the tab (ocidex-7gf7.9), so the harness
+// stands in for it. Every other prop stays optional: these tests are about what
+// the tab renders, not about which of its inputs the page happens to pass.
+type TabProps = Partial<Parameters<typeof PackagesTab>[0]> & {
+    components: ComponentSummary[];
+};
 
 // The package rows link out via ComponentNameCell's <A>, so the tab only
 // mounts inside a router.
 function renderTab(props: TabProps) {
-    return render(() => (
-        <Router root={(r) => <>{r.children}</>}>
-            {[{ path: "/", component: () => <PackagesTab {...props} /> }]}
-        </Router>
-    ));
+    return render(() => {
+        const [view, setView] = createSignal<"tree" | "list">("tree");
+        return (
+            <Router root={(r) => <>{r.children}</>}>
+                {[
+                    {
+                        path: "/",
+                        component: () => (
+                            <PackagesTab
+                                viewMode={view()}
+                                onViewMode={setView}
+                                {...props}
+                            />
+                        ),
+                    },
+                ]}
+            </Router>
+        );
+    });
 }
 
 function must<T>(el: T | null | undefined, what: string): T {
@@ -221,5 +241,58 @@ describe("PackagesTab vulnerable-only toggle", () => {
         fireEvent.click(listBtn);
         expect(toggle(container).getAttribute("aria-pressed")).toBe("true");
         expect(rowNames(container)).toEqual(["pkg-1"]);
+    });
+});
+
+// The mode used to be a signal in this component, and the tab is mounted inside
+// a QueryBoundary whose <Show ... keyed> remounts it every time the components
+// query resolves a new object — which sorting a column does. So sorting threw
+// the reader back into the tree. The mode is the page's now (ocidex-7gf7.9),
+// and these tests pin that it is genuinely the page's: the tab renders what it
+// is given and reports clicks rather than acting on them.
+describe("PackagesTab view mode", () => {
+    const graph = (list: ComponentSummary[]) => ({
+        nodes: list,
+        edges: [{ from: "pkg-0", to: "pkg-1" }] as never,
+    });
+
+    function viewButton(container: HTMLElement, label: string): HTMLButtonElement {
+        return must(
+            [...container.querySelectorAll("button")].find((b) => b.textContent === label),
+            `the ${label} button`,
+        );
+    }
+
+    it("renders the mode it is given rather than a default of its own", () => {
+        const list = comps(3);
+        const { container } = renderTab({
+            components: list,
+            depsGraph: graph(list),
+            viewMode: "list",
+        });
+        expect(viewButton(container, "List").className).toContain("active");
+        expect(container.querySelector("table")).not.toBeNull();
+    });
+
+    it("reports a switch upward instead of keeping the answer to itself", () => {
+        const list = comps(3);
+        const asked: string[] = [];
+        const { container } = renderTab({
+            components: list,
+            depsGraph: graph(list),
+            viewMode: "tree",
+            onViewMode: (m) => asked.push(m),
+        });
+        fireEvent.click(viewButton(container, "List"));
+        expect(asked).toEqual(["list"]);
+        // Still the tree, because the parent owns the answer and this render
+        // was never told otherwise.
+        expect(container.querySelector("table")).toBeNull();
+    });
+
+    it("falls back to the list when there is no tree to show", () => {
+        const { container } = renderTab({ components: comps(3), viewMode: "tree" });
+        expect(container.querySelector("table")).not.toBeNull();
+        expect([...container.querySelectorAll("button")].some((b) => b.textContent === "Tree")).toBe(false);
     });
 });

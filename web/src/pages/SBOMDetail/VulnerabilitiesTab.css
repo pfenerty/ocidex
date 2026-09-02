@@ -10,3 +10,11 @@
     gap: 0.25rem;
     font-size: 0.85rem;
 }
+
+/* Matches ArtifactDetail/VulnerabilitiesTab.css — the tail toggle continues the
+ * list above it rather than labelling a count beside it. */
+.affected-more {
+    display: inline-block;
+    margin-top: 0.25rem;
+    font-size: 0.8rem;
+}

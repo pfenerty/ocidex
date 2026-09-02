@@ -10,3 +10,11 @@
     gap: 0.25rem;
     font-size: 0.85rem;
 }
+
+/* The tail toggle sits under the inline rows, not beside a count, so it needs
+ * to read as a continuation of the list rather than a second cell. */
+.affected-more {
+    display: inline-block;
+    margin-top: 0.25rem;
+    font-size: 0.8rem;
+}

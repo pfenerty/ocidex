@@ -125,6 +125,48 @@ describe("SBOM VulnerabilitiesTab", () => {
         expect(container.querySelector(".affected-packages")?.textContent).toContain("via source");
     });
 
+    // The packages a finding lands on arrive inline on the row and used to sit
+    // behind a click anyway, so learning what a page of findings touched cost
+    // one interaction per row (ocidex-7gf7.9).
+    describe("affected packages", () => {
+        const pkgs = (n: number) =>
+            Array.from({ length: n }, (_, i) => ({
+                purl: `pkg:deb/ubuntu/p${i}@1.0`,
+                name: `p${i}`,
+                matchedViaSource: false,
+            }));
+
+        it("names them without waiting for a click", () => {
+            stubQuery([vuln({ affectedPackageCount: 2, affectedPackages: pkgs(2) })]);
+            const { container } = renderTab();
+            const list = container.querySelector(".affected-packages");
+            expect(list?.textContent).toContain("p0");
+            expect(list?.textContent).toContain("p1");
+            expect(container.querySelector(".affected-more")).toBeNull();
+        });
+
+        it("shows the first three and offers the rest by count", () => {
+            stubQuery([vuln({ affectedPackageCount: 7, affectedPackages: pkgs(7) })]);
+            const { container } = renderTab();
+            expect(container.querySelectorAll(".affected-packages li")).toHaveLength(3);
+            expect(container.querySelector(".affected-more")?.textContent).toBe("+4 more");
+        });
+
+        it("shows every one once expanded", () => {
+            expandedKeys.add("CVE-2026-1");
+            stubQuery([vuln({ affectedPackageCount: 7, affectedPackages: pkgs(7) })]);
+            const { container } = renderTab();
+            expect(container.querySelectorAll(".affected-packages li")).toHaveLength(7);
+            expect(container.querySelector(".affected-more")?.textContent).toBe("Show fewer");
+        });
+
+        it("reads as nothing, not as an empty list, when there are none", () => {
+            stubQuery([vuln({ affectedPackageCount: 0, affectedPackages: [] })]);
+            const { container } = renderTab();
+            expect(container.querySelector(".affected-packages")).toBeNull();
+        });
+    });
+
     it("keeps never-scanned and clean apart in the empty state", () => {
         // ADR-044's rule for unmatched workloads applies here too: unknown
         // exposure must never render as zero exposure.

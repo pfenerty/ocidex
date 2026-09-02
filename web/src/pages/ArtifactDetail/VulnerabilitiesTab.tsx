@@ -23,18 +23,27 @@ const SORT_KEYS: ArtifactVulnSortKey[] = [
 const SEVERITIES: VulnSeverityFilter[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
 
 /**
- * AffectedVersionsList expands one finding into the versions it reaches.
+ * AffectedVersionsList names the versions one finding reaches.
  *
  * This is the half of the answer the artifact page could not give before:
  * /vulnerabilities/:id sends a reader here saying "this artifact is affected",
  * and until now the page could not say which of its versions, or point at the
  * SBOM that proves it. Each row links to that version's own SBOM.
+ *
+ * The versions arrive inline on the finding, so the first INLINE_AFFECTED are
+ * shown without asking and only the tail is behind the toggle.
  */
-function AffectedVersionsList(props: { vuln: ArtifactVulnEntry; when: boolean }) {
+function AffectedVersionsList(props: { vuln: ArtifactVulnEntry; limit: number | undefined }) {
+    // affectedVersions is nullable in the generated type because Go's
+    // array_agg column is; no versions and an empty list mean the same thing.
+    const shown = () => {
+        const all = props.vuln.affectedVersions ?? [];
+        return props.limit === undefined ? all : all.slice(0, props.limit);
+    };
     return (
-        <Show when={props.when}>
+        <Show when={shown().length > 0} fallback={<span class="text-muted">—</span>}>
             <ul class="affected-versions">
-                <For each={props.vuln.affectedVersions}>
+                <For each={shown()}>
                     {(v) => (
                         <li>
                             <A href={`/sboms/${v.sbomId}?tab=vulns&vuln=${encodeURIComponent(props.vuln.canonicalId || props.vuln.id)}`}>
@@ -57,6 +66,13 @@ function AffectedVersionsList(props: { vuln: ArtifactVulnEntry; when: boolean })
 }
 
 /**
+ * INLINE_AFFECTED is how many affected versions are shown without asking, the
+ * same figure the SBOM tab uses for packages: enough to see the shape of what
+ * a finding reaches without turning a page of findings into a wall.
+ */
+const INLINE_AFFECTED = 3;
+
+/**
  * VulnerabilitiesTab is where the artifact band's vulnerability tile now leads.
  * Before it existed the tile rendered as a bare <div> among the band's buttons
  * and the page had no vulnerabilities tab at all — so the trail from
@@ -64,10 +80,10 @@ function AffectedVersionsList(props: { vuln: ArtifactVulnEntry; when: boolean })
  * not name a single affected version.
  *
  * Scope note, surfaced in the header rather than left implicit: this list spans
- * the newest SBOM *per version*, while the tile above counts the artifact's
- * newest SBOM only. The two totals therefore differ whenever an older version
- * carries something the newest one does not — which is exactly the case worth
- * showing, and exactly the case a single-SBOM scope would hide.
+ * the newest SBOM *per version*, while the tile above counts the latest version
+ * only (ocidex-7gf7.7). The two totals therefore differ whenever an older
+ * version carries something the latest one does not — which is exactly the case
+ * worth showing, and exactly the case a single-version scope would hide.
  */
 export function VulnerabilitiesTab(props: {
     artifactId: string;
@@ -110,8 +126,17 @@ export function VulnerabilitiesTab(props: {
      */
     const scopeNote = () => {
         const data = query.data;
-        if (!data) return "Across the newest SBOM of each version.";
-        const { versionScope: scope, totalVersions: total } = data;
+        // Both figures come from the server, and a server that predates the cap
+        // sends neither — during a rolling deploy the web tier is ahead of the
+        // API for a few minutes. Reading them without checking turned that into
+        // a TypeError inside a reactive render, which left the tab frozen on its
+        // loading skeleton for good. Unknown scope falls back to the sentence
+        // that is true either way.
+        const scope = data?.versionScope;
+        const total = data?.totalVersions;
+        if (scope === undefined || total === undefined) {
+            return "Across the newest SBOM of each version.";
+        }
         if (total <= scope) {
             return `Across the newest SBOM of each of this artifact's ${total.toLocaleString()} ${total === 1 ? "version" : "versions"}.`;
         }
@@ -143,23 +168,29 @@ export function VulnerabilitiesTab(props: {
         },
         {
             // The count alone is not actionable — "3 versions" only helps once
-            // you know which three — so it expands into them, each linking to
-            // the SBOM that carries it.
+            // you know which three — so the versions themselves are the cell,
+            // each linking to the SBOM that carries it.
             header: "Affected versions",
             sortKey: "affected_version_count",
             sortType: "numeric",
             render: (v) => (
                 <>
-                    <button
-                        type="button"
-                        class="link-button"
-                        aria-expanded={props.expanded.has(rowKey(v))}
-                        onClick={() => props.expanded.toggle(rowKey(v))}
-                    >
-                        {v.affectedVersionCount.toLocaleString()}{" "}
-                        {v.affectedVersionCount === 1 ? "version" : "versions"}
-                    </button>
-                    <AffectedVersionsList vuln={v} when={props.expanded.has(rowKey(v))} />
+                    <AffectedVersionsList
+                        vuln={v}
+                        limit={props.expanded.has(rowKey(v)) ? undefined : INLINE_AFFECTED}
+                    />
+                    <Show when={(v.affectedVersions?.length ?? 0) > INLINE_AFFECTED}>
+                        <button
+                            type="button"
+                            class="link-button affected-more"
+                            aria-expanded={props.expanded.has(rowKey(v))}
+                            onClick={() => props.expanded.toggle(rowKey(v))}
+                        >
+                            {props.expanded.has(rowKey(v))
+                                ? "Show fewer"
+                                : `+${((v.affectedVersions?.length ?? 0) - INLINE_AFFECTED).toLocaleString()} more`}
+                        </button>
+                    </Show>
                 </>
             ),
         },
@@ -184,9 +215,9 @@ export function VulnerabilitiesTab(props: {
                 cheaper than the alternative reading, which is that one of them
                 is broken. */}
             <p class="text-muted text-sm mb-4">
-                {scopeNote()} The Vulnerabilities tile above counts this
-                artifact's newest SBOM only, so a finding fixed in the latest
-                version still appears here.
+                {scopeNote()} The Vulnerabilities tile above counts the latest
+                version only, so a finding that only an older release carries
+                appears here and not there.
             </p>
 
             {/* A pre-filtered list that does not say it is filtered reads as

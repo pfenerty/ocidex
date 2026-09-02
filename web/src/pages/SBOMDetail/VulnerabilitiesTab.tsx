@@ -25,17 +25,25 @@ const SORT_KEYS: SBOMVulnSortKey[] = [
 const SEVERITIES: VulnSeverityFilter[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
 
 /**
- * AffectedPackagesList expands one finding into the packages it lands on.
+ * AffectedPackagesList names the packages one finding lands on.
  *
  * The rows come inline on the vulnerability, not from a second request, because
- * the server already has to gather them to count them — so unlike the cluster
- * page's workload list there is nothing to gate on `when`.
+ * the server already has to gather them to count them. They were still hidden
+ * behind a click, which cost a reader one interaction per row to learn the
+ * thing the row is for — so the first INLINE_AFFECTED are shown outright and
+ * only the tail is behind the toggle.
  */
-function AffectedPackagesList(props: { vuln: SBOMVulnEntry; when: boolean }) {
+function AffectedPackagesList(props: { vuln: SBOMVulnEntry; limit: number | undefined }) {
+    // affectedPackages is nullable in the generated type because the column it
+    // comes from is; no packages and an empty list mean the same thing here.
+    const shown = () => {
+        const all = props.vuln.affectedPackages ?? [];
+        return props.limit === undefined ? all : all.slice(0, props.limit);
+    };
     return (
-        <Show when={props.when}>
+        <Show when={shown().length > 0} fallback={<span class="text-muted">—</span>}>
             <ul class="affected-packages">
-                <For each={props.vuln.affectedPackages}>
+                <For each={shown()}>
                     {(p) => (
                         <li>
                             <A href={componentHref(p.name, p.group, p.version)}>{p.name}</A>
@@ -68,6 +76,13 @@ function AffectedPackagesList(props: { vuln: SBOMVulnEntry; when: boolean }) {
         </Show>
     );
 }
+
+/**
+ * INLINE_AFFECTED is how many affected rows are shown without asking. Three is
+ * enough to recognise what a finding touches — a language runtime, a base image
+ * library — while keeping a fifty-row table readable.
+ */
+const INLINE_AFFECTED = 3;
 
 /**
  * VulnerabilitiesTab is where the SBOM band's vulnerability tile now leads.
@@ -133,22 +148,29 @@ export function VulnerabilitiesTab(props: {
         },
         {
             // A count on its own is not actionable: "3 packages" only helps once
-            // you know which three, so it expands rather than just reporting.
+            // you know which three. The names are already on the row, so they
+            // are simply shown; the count survives as the "+N more" tail.
             header: "Affected packages",
             sortKey: "affected_package_count",
             sortType: "numeric",
             render: (v) => (
                 <>
-                    <button
-                        type="button"
-                        class="link-button"
-                        aria-expanded={props.expanded.has(rowKey(v))}
-                        onClick={() => props.expanded.toggle(rowKey(v))}
-                    >
-                        {v.affectedPackageCount.toLocaleString()}{" "}
-                        {v.affectedPackageCount === 1 ? "package" : "packages"}
-                    </button>
-                    <AffectedPackagesList vuln={v} when={props.expanded.has(rowKey(v))} />
+                    <AffectedPackagesList
+                        vuln={v}
+                        limit={props.expanded.has(rowKey(v)) ? undefined : INLINE_AFFECTED}
+                    />
+                    <Show when={(v.affectedPackages?.length ?? 0) > INLINE_AFFECTED}>
+                        <button
+                            type="button"
+                            class="link-button affected-more"
+                            aria-expanded={props.expanded.has(rowKey(v))}
+                            onClick={() => props.expanded.toggle(rowKey(v))}
+                        >
+                            {props.expanded.has(rowKey(v))
+                                ? "Show fewer"
+                                : `+${((v.affectedPackages?.length ?? 0) - INLINE_AFFECTED).toLocaleString()} more`}
+                        </button>
+                    </Show>
                 </>
             ),
         },
