@@ -3347,7 +3347,7 @@
             ]
           },
           "hosts": {
-            "description": "The entire gap grouped by registry host, biggest first; independent of the page returned",
+            "description": "The entire gap grouped by registry scope, biggest first; independent of the page returned",
             "items": {
               "$ref": "#/components/schemas/UnknownHostResponse"
             },
@@ -5804,7 +5804,7 @@
         "additionalProperties": false,
         "properties": {
           "host": {
-            "description": "Normalized registry host the images in this group name",
+            "description": "Normalized registry host the images in this group name, and the address a registry for it would use",
             "type": "string"
           },
           "image_count": {
@@ -5816,7 +5816,7 @@
             "type": "integer"
           },
           "reason": {
-            "description": "The worst remedy seen for this host; ready and unparseable_ref name no registry to configure and are not grouped here",
+            "description": "The worst remedy seen for this group; ready and unparseable_ref name no registry to configure and are not grouped here",
             "enum": [
               "no_registry",
               "registry_disabled",
@@ -5825,14 +5825,14 @@
             "type": "string"
           },
           "registry_id": {
-            "description": "Registry that serves this host, when one was matched at all",
+            "description": "Registry that serves this group, when one was matched at all",
             "type": "string"
           },
           "registry_name": {
             "type": "string"
           },
           "repositories": {
-            "description": "Distinct repositories a registry would have to cover to close this host's gap, sorted; capped, so compare against repository_count",
+            "description": "Distinct repositories a registry would have to cover to close this group's gap, sorted; capped, so compare against repository_count",
             "items": {
               "type": "string"
             },
@@ -5846,6 +5846,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "scope": {
+            "description": "The group: the host plus any leading repository segments that belong to the registry rather than the image, e.g. ghcr.io/pfenerty",
+            "type": "string"
+          },
           "workload_count": {
             "format": "int64",
             "type": "integer"
@@ -5853,6 +5857,7 @@
         },
         "required": [
           "host",
+          "scope",
           "reason",
           "image_count",
           "pod_count",
@@ -5929,7 +5934,7 @@
             "type": "string"
           },
           "registry_id": {
-            "description": "Registry that serves this host, when one was matched at all",
+            "description": "Registry that serves this group, when one was matched at all",
             "type": "string"
           },
           "registry_name": {

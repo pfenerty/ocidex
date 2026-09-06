@@ -366,7 +366,7 @@ type UnknownImageResponse struct {
 	SampleK8sNamespace string  `json:"sample_k8s_namespace,omitempty"`
 	SampleWorkloadName string  `json:"sample_workload_name,omitempty"`
 	Reason             string  `json:"reason" enum:"ready,no_registry,registry_disabled,pattern_excluded,unparseable_ref" doc:"Why this image can or cannot be ingested"`
-	RegistryID         *string `json:"registry_id,omitempty" doc:"Registry that serves this host, when one was matched at all"`
+	RegistryID         *string `json:"registry_id,omitempty" doc:"Registry that serves this group, when one was matched at all"`
 	RegistryName       *string `json:"registry_name,omitempty"`
 }
 
@@ -383,22 +383,27 @@ type UnknownImageReasonCounts struct {
 	UnparseableRef   int64 `json:"unparseable_ref" doc:"The reported reference carries no host to resolve against"`
 }
 
-// UnknownHostResponse is one registry host the gap points at, rolled up.
+// UnknownHostResponse is one registry the gap points at, rolled up.
 //
 // The gap is a list of images, but the remedy is a registry: one registry
-// closes every row that names its host. Reported per host so the client can
-// offer that as one action rather than repeating the same link on every row.
+// closes every row behind it. Reported per registry so the client can offer
+// that as one action rather than repeating the same link on every row.
+//
+// The group is the scope, not the host. On a multi-tenant host the credentials
+// stop working below the hostname, so ghcr.io/orgA and ghcr.io/orgB are two
+// groups; host stays the registry address both would be configured with.
 //
 // Like the reason counts, this covers the entire gap and not the page.
 type UnknownHostResponse struct {
-	Host            string   `json:"host" doc:"Normalized registry host the images in this group name"`
-	Reason          string   `json:"reason" enum:"no_registry,registry_disabled,pattern_excluded" doc:"The worst remedy seen for this host; ready and unparseable_ref name no registry to configure and are not grouped here"`
+	Host            string   `json:"host" doc:"Normalized registry host the images in this group name, and the address a registry for it would use"`
+	Scope           string   `json:"scope" doc:"The group: the host plus any leading repository segments that belong to the registry rather than the image, e.g. ghcr.io/pfenerty"`
+	Reason          string   `json:"reason" enum:"no_registry,registry_disabled,pattern_excluded" doc:"The worst remedy seen for this group; ready and unparseable_ref name no registry to configure and are not grouped here"`
 	ImageCount      int64    `json:"image_count"`
 	PodCount        int64    `json:"pod_count"`
 	WorkloadCount   int64    `json:"workload_count"`
-	Repositories    []string `json:"repositories" doc:"Distinct repositories a registry would have to cover to close this host's gap, sorted; capped, so compare against repository_count"`
+	Repositories    []string `json:"repositories" doc:"Distinct repositories a registry would have to cover to close this group's gap, sorted; capped, so compare against repository_count"`
 	RepositoryCount int64    `json:"repository_count" doc:"Distinct repository total, which may exceed the length of repositories"`
-	RegistryID      *string  `json:"registry_id,omitempty" doc:"Registry that serves this host, when one was matched at all"`
+	RegistryID      *string  `json:"registry_id,omitempty" doc:"Registry that serves this group, when one was matched at all"`
 	RegistryName    *string  `json:"registry_name,omitempty"`
 }
 
@@ -408,7 +413,7 @@ type ListClusterUnknownImagesOutput struct {
 	Body struct {
 		Data       []UnknownImageResponse   `json:"data"`
 		Reasons    UnknownImageReasonCounts `json:"reasons" doc:"Breakdown of the entire gap by remedy, independent of the page returned"`
-		Hosts      []UnknownHostResponse    `json:"hosts" doc:"The entire gap grouped by registry host, biggest first; independent of the page returned"`
+		Hosts      []UnknownHostResponse    `json:"hosts" doc:"The entire gap grouped by registry scope, biggest first; independent of the page returned"`
 		Pagination PaginationMeta           `json:"pagination"`
 	}
 }

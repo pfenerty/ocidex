@@ -306,3 +306,143 @@ func TestRollUpHostsIgnoresGapsWithNoRegistryRemedy(t *testing.T) {
 		t.Errorf("want no hosts, got %+v", got)
 	}
 }
+
+// The tenancy boundary is where one set of credentials stops working. On a
+// multi-tenant host that is below the host itself, and a rollup that ignores it
+// proposes one registry spanning owners it cannot all authenticate to.
+func TestRegistryTenancyDepth(t *testing.T) {
+	tests := []struct {
+		host string
+		want int
+	}{
+		// Public multi-tenant hosts: the first path segment is the account.
+		{"ghcr.io", 1},
+		{"quay.io", 1},
+		{"docker.io", 1},
+		{"registry-1.docker.io", 1},
+		{"gcr.io", 1},
+		{"us.gcr.io", 1},
+		{"public.ecr.aws", 1},
+		// Artifact Registry addresses a repository *within* a project, and a
+		// reader-role service account is granted on the repository.
+		{"europe-west4-docker.pkg.dev", 2},
+		{"us-central1-docker.pkg.dev", 2},
+		// The host already names the registry — splitting would invent a
+		// boundary the registry does not have.
+		{"123456789012.dkr.ecr.us-east-1.amazonaws.com", 0},
+		{"mycorp.azurecr.io", 0},
+		// Single-tenant public registries. k8s.gcr.io matters: it ends in
+		// .gcr.io but is one project serving everyone anonymously.
+		{"registry.k8s.io", 0},
+		{"k8s.gcr.io", 0},
+		{"mcr.microsoft.com", 0},
+		// An unknown host is far more often someone's own registry than a
+		// multi-tenant one, and over-splitting costs catalog discovery.
+		{"internal-registry.acme.corp", 0},
+		{"zot.lan", 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.host, func(t *testing.T) {
+			if got := registryTenancyDepth(tt.host); got != tt.want {
+				t.Errorf("registryTenancyDepth(%q) = %d, want %d", tt.host, got, tt.want)
+			}
+		})
+	}
+}
+
+// A prefix may never swallow the whole repository: `ghcr.io/pause` would
+// otherwise become a group per image, each proposing a registry serving one
+// tag. At least one segment always remains the image.
+func TestRegistryScopeLeavesAnImageBehind(t *testing.T) {
+	tests := []struct {
+		host, repo, want string
+	}{
+		{"ghcr.io", "pfenerty/ocidex-api", "ghcr.io/pfenerty"},
+		{"ghcr.io", "pfenerty/ocidex/api", "ghcr.io/pfenerty"},
+		{"europe-west4-docker.pkg.dev", "proj/repo/img", "europe-west4-docker.pkg.dev/proj/repo"},
+		// Fewer segments than the depth wants: fall back rather than consume
+		// the image name.
+		{"europe-west4-docker.pkg.dev", "proj/img", "europe-west4-docker.pkg.dev/proj"},
+		{"ghcr.io", "pause", "ghcr.io"},
+		{"registry.k8s.io", "coredns/coredns", "registry.k8s.io"},
+		{"zot.lan", "", "zot.lan"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.host+"/"+tt.repo, func(t *testing.T) {
+			if got := registryScope(tt.host, tt.repo); got != tt.want {
+				t.Errorf("registryScope(%q, %q) = %q, want %q", tt.host, tt.repo, got, tt.want)
+			}
+		})
+	}
+}
+
+// The bug this fixes: two GitHub orgs on ghcr.io are two registries with two
+// credentials, and one row covering both produces a registry that can
+// authenticate to half its repositories.
+func TestRollUpHostsSplitsAMultiTenantHost(t *testing.T) {
+	got := rollUpHosts([]UnknownImage{
+		img("ghcr.io", "orgA/api", IngestReasonNoRegistry, 3, 1, ""),
+		img("ghcr.io", "orgA/web", IngestReasonNoRegistry, 2, 1, ""),
+		img("ghcr.io", "orgB/tool", IngestReasonNoRegistry, 1, 1, ""),
+	})
+	if len(got) != 2 {
+		t.Fatalf("want 2 groups, got %d: %+v", len(got), got)
+	}
+	if got[0].Scope != "ghcr.io/orgA" || got[1].Scope != "ghcr.io/orgB" {
+		t.Fatalf("groups not scoped by owner: %+v", got)
+	}
+	// Host stays the registry address: it is what goes in the form's URL.
+	if got[0].Host != "ghcr.io" {
+		t.Errorf("host = %q, want the registry address", got[0].Host)
+	}
+	if want := []string{"orgA/api", "orgA/web"}; !slices.Equal(got[0].Repositories, want) {
+		t.Errorf("orgA repositories = %v, want %v", got[0].Repositories, want)
+	}
+	if got[0].ImageCount != 2 || got[1].ImageCount != 1 {
+		t.Errorf("counts not split with the groups: %+v", got)
+	}
+}
+
+// The other half of the same judgement: a host with no tenancy below it stays
+// one row. Splitting registry.k8s.io by first segment would turn one anonymous
+// public registry into a row per project, each with catalog discovery off.
+func TestRollUpHostsKeepsASingleTenantHostWhole(t *testing.T) {
+	got := rollUpHosts([]UnknownImage{
+		img("registry.k8s.io", "coredns/coredns", IngestReasonNoRegistry, 2, 1, ""),
+		img("registry.k8s.io", "etcd/etcd", IngestReasonNoRegistry, 1, 1, ""),
+		img("internal-registry.acme.corp", "team-a/api", IngestReasonNoRegistry, 1, 1, ""),
+		img("internal-registry.acme.corp", "team-b/web", IngestReasonNoRegistry, 1, 1, ""),
+	})
+	if len(got) != 2 {
+		t.Fatalf("want 2 groups, got %d: %+v", len(got), got)
+	}
+	for _, g := range got {
+		if g.Scope != g.Host {
+			t.Errorf("single-tenant host was split: scope %q, host %q", g.Scope, g.Host)
+		}
+		if g.ImageCount != 2 {
+			t.Errorf("%s: image count = %d, want 2", g.Scope, g.ImageCount)
+		}
+	}
+}
+
+// Ordering is over groups, not hosts: the biggest group is the registry worth
+// configuring next even when a smaller sibling shares its host.
+func TestRollUpHostsOrdersGroupsByImageCount(t *testing.T) {
+	got := rollUpHosts([]UnknownImage{
+		img("ghcr.io", "small/a", IngestReasonNoRegistry, 1, 1, ""),
+		img("quay.io", "mid/a", IngestReasonNoRegistry, 1, 1, ""),
+		img("quay.io", "mid/b", IngestReasonNoRegistry, 1, 1, ""),
+		img("ghcr.io", "big/a", IngestReasonNoRegistry, 1, 1, ""),
+		img("ghcr.io", "big/b", IngestReasonNoRegistry, 1, 1, ""),
+		img("ghcr.io", "big/c", IngestReasonNoRegistry, 1, 1, ""),
+	})
+	scopes := make([]string, 0, len(got))
+	for _, g := range got {
+		scopes = append(scopes, g.Scope)
+	}
+	want := []string{"ghcr.io/big", "quay.io/mid", "ghcr.io/small"}
+	if !slices.Equal(scopes, want) {
+		t.Errorf("group order = %v, want %v", scopes, want)
+	}
+}

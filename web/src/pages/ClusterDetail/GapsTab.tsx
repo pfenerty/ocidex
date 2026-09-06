@@ -4,7 +4,13 @@ import { Button, Card, CardHeader, StatusPill } from "~/components/ui";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { plural } from "~/utils/format";
-import type { IngestReason, IngestResult, UnknownImage, WorkloadCoverage } from "~/api/client";
+import type {
+    IngestReason,
+    IngestResult,
+    UnknownHost,
+    UnknownImage,
+    WorkloadCoverage,
+} from "~/api/client";
 import { useClusterWorkloads, useClusterUnknownImages, useIngestUnknown } from "~/api/queries";
 import { ImageCell, workloadColumns } from "./WorkloadsTab";
 import { RegistryGaps } from "./RegistryGaps";
@@ -48,16 +54,47 @@ export const REASON_PRESENTATION: Record<
  * `ns` is the cluster's namespace. Registry resolution is namespace-local, and
  * a registry created without one gets a namespace of its own, so omitting it
  * yields a registry the cluster cannot see and a gap that does not close.
+ *
+ * `scope` is the group the server grouped by — the host on a single-tenant
+ * registry, `ghcr.io/orgA` on a multi-tenant one. It names the registry; `host`
+ * still addresses it.
  */
-export function addRegistryHref(host: string, repos: string[], namespace: string): string {
+export function addRegistryHref(
+    host: string,
+    repos: string[],
+    namespace: string,
+    scope: string,
+): string {
     const q = new URLSearchParams({ add: "1", host });
     if (repos.length > 0) q.set("repos", repos.join(","));
     if (namespace !== "") q.set("ns", namespace);
+    if (scope !== "" && scope !== host) q.set("name", scope);
     return `/admin/sources?${q.toString()}`;
+}
+
+/**
+ * scopeForImage finds the rollup group one table row belongs to.
+ *
+ * The row link and the card button must propose the same registry, and the
+ * judgement about how deep a host's tenancy goes is the server's — duplicating
+ * that table in TypeScript would give the two paths two chances to disagree.
+ * So the row asks the rollup it was served alongside: the longest scope on the
+ * same host that this image's path sits under. A row whose group is absent —
+ * it cannot be, every grouped reason is rolled up — falls back to the host.
+ */
+export function scopeForImage(hosts: UnknownHost[], host: string, repository: string): string {
+    const path = repository === "" ? host : `${host}/${repository}`;
+    let best = host;
+    for (const h of hosts) {
+        if (h.host !== host || h.scope.length <= best.length) continue;
+        if (path === h.scope || path.startsWith(`${h.scope}/`)) best = h.scope;
+    }
+    return best;
 }
 
 function IngestTargetCell(props: {
     image: UnknownImage;
+    hosts: UnknownHost[];
     namespace: string;
     onIngest: (digest: string) => void;
     pending: boolean;
@@ -97,6 +134,11 @@ function IngestTargetCell(props: {
                                 ? []
                                 : [props.image.repository],
                             props.namespace,
+                            scopeForImage(
+                                props.hosts,
+                                props.image.registry_host ?? "",
+                                props.image.repository ?? "",
+                            ),
                         )}
                     >
                         add a registry
@@ -119,6 +161,7 @@ function IngestTargetCell(props: {
  * one result.
  */
 function unknownImageColumns(
+    hosts: () => UnknownHost[],
     namespace: string,
     onIngest: (digest: string) => void,
     pendingDigest: () => string | null,
@@ -164,6 +207,7 @@ function unknownImageColumns(
         render: (i) => (
             <IngestTargetCell
                 image={i}
+                hosts={hosts()}
                 namespace={namespace}
                 onIngest={onIngest}
                 pending={pendingDigest() === i.image_digest}
@@ -238,6 +282,7 @@ export function GapsTab(props: {
     // From the server's tally of the whole gap, not from the page in hand: the
     // bulk button ingests everything, so a count taken off one page would
     // understate what the click is about to do.
+    const hosts = () => images.data?.hosts ?? [];
     const readyCount = () => images.data?.reasons.ready ?? 0;
     const gapTotal = () => images.data?.pagination.total ?? 0;
 
@@ -260,7 +305,7 @@ export function GapsTab(props: {
                 work: one registry closes every image behind its host, and a
                 reader who fixes that first never has to read most of the rows
                 below. */}
-            <RegistryGaps hosts={images.data?.hosts ?? []} namespace={props.namespace} />
+            <RegistryGaps hosts={hosts()} namespace={props.namespace} />
 
             <Card class="mb-4">
                 <CardHeader
@@ -297,7 +342,12 @@ export function GapsTab(props: {
                     {(err) => <p class="text-muted">Could not queue scans: {err().message}</p>}
                 </Show>
                 <DataTable
-                    columns={unknownImageColumns(props.namespace, (d) => runIngest([d]), pendingDigest)}
+                    columns={unknownImageColumns(
+                        hosts,
+                        props.namespace,
+                        (d) => runIngest([d]),
+                        pendingDigest,
+                    )}
                     rows={images.data?.data}
                     loading={images.isFetching}
                     isError={images.isError}

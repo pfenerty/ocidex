@@ -207,8 +207,12 @@ let unknownGap: { total: number; reasons: Record<string, number> } | undefined;
 let unknownHosts: unknown[] = [];
 
 function unknownHost(overrides: Record<string, unknown> = {}) {
+    const host = typeof overrides.host === "string" ? overrides.host : "gcr.io";
     return {
-        host: "gcr.io",
+        host,
+        // Single-tenant by default: the server only splits hosts it knows are
+        // multi-tenant, so scope === host is the common shape.
+        scope: host,
         reason: "no_registry",
         image_count: 3,
         pod_count: 9,
@@ -1074,6 +1078,70 @@ describe("ClusterDetail", () => {
             a.textContent.startsWith("Enable"),
         );
         expect(enable?.getAttribute("href")).toBe("/admin/sources?registry=r-2");
+    });
+
+    // Two orgs on ghcr.io are two registries with two credentials. A card that
+    // labels them both "ghcr.io" gives the reader two identical rows, and a
+    // button that names the registry after the host gives them two registries
+    // called the same thing.
+    it("labels a split multi-tenant host by its scope, and names the registry after it", () => {
+        searchParams = { tab: "gaps" };
+        unknownImages = [unknownImage({ reason: "no_registry" })];
+        unknownHosts = [
+            unknownHost({
+                host: "ghcr.io",
+                scope: "ghcr.io/orgA",
+                repositories: ["orgA/api"],
+                repository_count: 1,
+                image_count: 4,
+            }),
+            unknownHost({
+                host: "ghcr.io",
+                scope: "ghcr.io/orgB",
+                repositories: ["orgB/tool"],
+                repository_count: 1,
+                image_count: 1,
+            }),
+        ];
+        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+
+        expect(container.textContent).toContain("ghcr.io/orgA");
+        expect(container.textContent).toContain("ghcr.io/orgB");
+
+        const adds = [...container.querySelectorAll("a")]
+            .filter((a) => a.textContent === "Add registry")
+            .map((a) => a.getAttribute("href"));
+        // `host` stays the address the registry is reached at; `name` is the
+        // scope, so the two rows do not both propose a registry called ghcr.io.
+        expect(adds).toEqual([
+            "/admin/sources?add=1&host=ghcr.io&repos=orgA%2Fapi&ns=acme&name=ghcr.io%2ForgA",
+            "/admin/sources?add=1&host=ghcr.io&repos=orgB%2Ftool&ns=acme&name=ghcr.io%2ForgB",
+        ]);
+    });
+
+    // The row link and the card button must land on the same registry. The
+    // depth judgement lives on the server, so the row reads its group off the
+    // rollup rather than a second copy of that table in the browser.
+    it("gives a table row the same scope the rollup gave its group", () => {
+        searchParams = { tab: "gaps" };
+        unknownImages = [
+            unknownImage({
+                reason: "no_registry",
+                registry_host: "ghcr.io",
+                repository: "orgA/api",
+            }),
+        ];
+        unknownHosts = [
+            unknownHost({ host: "ghcr.io", scope: "ghcr.io/orgA", repositories: ["orgA/api"] }),
+        ];
+        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+
+        const rowLink = [...container.querySelectorAll("a")].find(
+            (a) => a.textContent === "add a registry",
+        );
+        expect(rowLink?.getAttribute("href")).toBe(
+            "/admin/sources?add=1&host=ghcr.io&repos=orgA%2Fapi&ns=acme&name=ghcr.io%2ForgA",
+        );
     });
 
     // A capped repository list that reads as a complete one is exactly the

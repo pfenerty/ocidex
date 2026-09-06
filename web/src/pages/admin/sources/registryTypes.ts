@@ -96,18 +96,25 @@ export const emptyForm = (): RegistryFormState => ({
  * which do not support catalog discovery, and because a list drawn from the gap
  * is the one list guaranteed to close it. It is a visible, editable textarea:
  * a reader who wants catalog discovery on a Zot or Harbor clears it.
+ *
+ * `name` is what the registry is called, and it defaults to the host only when
+ * the caller has nothing better. On a multi-tenant host it should be the scope
+ * — `ghcr.io/orgA` — because two orgs on ghcr.io are two registries here, and
+ * naming both `ghcr.io` would leave a list nobody can tell apart. The URL stays
+ * the host either way: that is the address, and it is not what the scope names.
  */
 export function prefillForHost(
     host: string,
     repos?: string[],
     namespace?: string,
+    name?: string,
 ): Partial<RegistryFormState> {
     const match = (Object.keys(TYPE_CAPS) as RegType[]).find(
         (t) => TYPE_CAPS[t].fixedUrl === host,
     );
     const type: RegType = match ?? "generic";
     return {
-        name: host,
+        name: name === undefined || name === "" ? host : name,
         type,
         url: TYPE_CAPS[type].fixedUrl ?? host,
         scanMode: "poll",

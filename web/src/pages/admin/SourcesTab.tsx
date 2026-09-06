@@ -53,11 +53,16 @@ export function SourcesTab() {
         // and the API's default is a namespace of the registry's own, so a link
         // that omitted this produced a registry that closed nothing.
         const ns = one(searchParams.ns) ?? "";
+        // `name` is the group the caller grouped by, which on a multi-tenant
+        // host is narrower than the host: two ghcr.io orgs are two registries,
+        // and both defaulting to the name "ghcr.io" would be indistinguishable
+        // in the list. Absent, the host is still a reasonable name.
+        const name = one(searchParams.name) ?? "";
         dialog?.openAdd(
-            host === undefined || host === "" ? undefined : prefillForHost(host, repos, ns),
+            host === undefined || host === "" ? undefined : prefillForHost(host, repos, ns, name),
         );
         setSearchParams(
-            { add: undefined, host: undefined, repos: undefined, ns: undefined },
+            { add: undefined, host: undefined, repos: undefined, ns: undefined, name: undefined },
             { replace: true },
         );
     });

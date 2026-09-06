@@ -391,6 +391,21 @@ describe("SourcesTab deep links", () => {
         expect(values).toContain("acme");
     });
 
+    // Two GitHub orgs are two registries. Named after the host they would both
+    // be "ghcr.io" in a list whose whole job is telling registries apart, while
+    // the URL must stay the host — that is the address, not the name.
+    it("names the registry after the scope the link carries, keeping the host as the URL", () => {
+        searchParams = { add: "1", host: "ghcr.io", name: "ghcr.io/orgA", repos: "orgA/api" };
+        const { container } = renderTab([]);
+
+        const dialog = must(container.querySelector("dialog"), "dialog");
+        const values = [...dialog.querySelectorAll<HTMLInputElement>("input[type=text]")].map(
+            (i) => i.value,
+        );
+        expect(values).toContain("ghcr.io/orgA");
+        expect(values).toContain("ghcr.io");
+    });
+
     it("opens the named registry for editing", () => {
         searchParams = { registry: managedRegistry.id };
         const { container } = renderTab([managedRegistry]);

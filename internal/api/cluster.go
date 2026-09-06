@@ -427,6 +427,7 @@ func (h *Handler) ListClusterUnknownImages(ctx context.Context, in *ListClusterU
 		}
 		out.Body.Hosts[i] = UnknownHostResponse{
 			Host:            h.Host,
+			Scope:           h.Scope,
 			Reason:          h.Reason,
 			ImageCount:      h.ImageCount,
 			PodCount:        h.PodCount,

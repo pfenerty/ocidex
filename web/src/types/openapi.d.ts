@@ -2923,7 +2923,7 @@ export interface components {
              */
             readonly $schema?: string;
             data: components["schemas"]["UnknownImageResponse"][] | null;
-            /** @description The entire gap grouped by registry host, biggest first; independent of the page returned */
+            /** @description The entire gap grouped by registry scope, biggest first; independent of the page returned */
             hosts: components["schemas"]["UnknownHostResponse"][] | null;
             pagination: components["schemas"]["PaginationMeta"];
             /** @description Breakdown of the entire gap by remedy, independent of the page returned */
@@ -3807,27 +3807,29 @@ export interface components {
             summary?: string;
         };
         UnknownHostResponse: {
-            /** @description Normalized registry host the images in this group name */
+            /** @description Normalized registry host the images in this group name, and the address a registry for it would use */
             host: string;
             /** Format: int64 */
             image_count: number;
             /** Format: int64 */
             pod_count: number;
             /**
-             * @description The worst remedy seen for this host; ready and unparseable_ref name no registry to configure and are not grouped here
+             * @description The worst remedy seen for this group; ready and unparseable_ref name no registry to configure and are not grouped here
              * @enum {string}
              */
             reason: "no_registry" | "registry_disabled" | "pattern_excluded";
-            /** @description Registry that serves this host, when one was matched at all */
+            /** @description Registry that serves this group, when one was matched at all */
             registry_id?: string;
             registry_name?: string;
-            /** @description Distinct repositories a registry would have to cover to close this host's gap, sorted; capped, so compare against repository_count */
+            /** @description Distinct repositories a registry would have to cover to close this group's gap, sorted; capped, so compare against repository_count */
             repositories: string[] | null;
             /**
              * Format: int64
              * @description Distinct repository total, which may exceed the length of repositories
              */
             repository_count: number;
+            /** @description The group: the host plus any leading repository segments that belong to the registry rather than the image, e.g. ghcr.io/pfenerty */
+            scope: string;
             /** Format: int64 */
             workload_count: number;
         };
@@ -3870,7 +3872,7 @@ export interface components {
             reason: "ready" | "no_registry" | "registry_disabled" | "pattern_excluded" | "unparseable_ref";
             /** @description Host parsed out of image_ref; empty when the reference carries none */
             registry_host?: string;
-            /** @description Registry that serves this host, when one was matched at all */
+            /** @description Registry that serves this group, when one was matched at all */
             registry_id?: string;
             registry_name?: string;
             repository?: string;

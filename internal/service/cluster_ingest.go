@@ -62,19 +62,27 @@ type UnknownImage struct {
 // Ingestable reports whether a scan job can be submitted for this image now.
 func (u UnknownImage) Ingestable() bool { return u.Reason == IngestReasonReady }
 
-// UnknownHost is one registry host the gap points at, rolled up.
+// UnknownHost is one registry the gap points at, rolled up.
 //
 // The gap is a list of images, but the remedy is a registry, and one registry
-// closes every row that names its host at once. Without this rollup a reader
-// looking at twelve ghcr.io rows sees twelve identical "add a registry" links
-// and has to work out for themselves that they are one action.
+// closes every row behind it at once. Without this rollup a reader looking at
+// twelve ghcr.io rows sees twelve identical "add a registry" links and has to
+// work out for themselves that they are one action.
 //
-// Repositories is what a registry would have to cover to close this host's gap.
-// It is capped, and RepositoryCount always carries the true distinct total, so
-// a truncated list can never be read as a complete one (ADR-044 K5).
+// The group is a Scope, not a Host: on a multi-tenant host the credentials stop
+// working below the hostname, so ghcr.io/orgA and ghcr.io/orgB are two
+// registries and one row covering both would propose a registry that can
+// authenticate to half of it. Host remains the registry address — it is what
+// fills the form's URL — while Scope is what the row is named after and what
+// the created registry is named.
+//
+// Repositories is what a registry would have to cover to close this gap. It is
+// capped, and RepositoryCount always carries the true distinct total, so a
+// truncated list can never be read as a complete one (ADR-044 K5).
 type UnknownHost struct {
 	Host          string
-	Reason        string // the worst reason seen for this host
+	Scope         string // Host, plus the path segments that belong to the registry
+	Reason        string // the worst reason seen for this scope
 	ImageCount    int64
 	PodCount      int64
 	WorkloadCount int64
@@ -107,6 +115,92 @@ var hostRemedyRank = map[string]int{
 	IngestReasonPatternExcluded:  1,
 }
 
+// singleTenantHosts are hosts that would otherwise be split by a rule below but
+// must not be: one project or account serving everyone, usually anonymously.
+// k8s.gcr.io is the reason this map exists — it ends in .gcr.io but is not a
+// multi-tenant registry, and splitting it would turn one public registry into a
+// row per Kubernetes subproject.
+var singleTenantHosts = map[string]struct{}{
+	"registry.k8s.io":   {},
+	"k8s.gcr.io":        {},
+	"mcr.microsoft.com": {},
+}
+
+// multiTenantHosts are hosts whose first repository segment is an account or
+// organisation — a different owner, a different credential, a different
+// registry.
+var multiTenantHosts = map[string]struct{}{
+	"ghcr.io":              {},
+	"quay.io":              {},
+	"docker.io":            {},
+	"index.docker.io":      {},
+	"registry-1.docker.io": {},
+	"gcr.io":               {},
+	// Anonymous to pull, but the alias is still an account: two aliases are two
+	// owners, and a registry pinned to one has no business listing the other.
+	"public.ecr.aws": {},
+}
+
+// registryTenancyDepth is how many leading repository path segments belong to
+// the registry rather than to the image, for a given host.
+//
+// This is the "how deep" judgement the rollup turns on, and it is deliberately a
+// table of known hosts rather than something inferred from the data. Inferring
+// it — splitting any host that shows two distinct first segments — would break
+// exactly the case the table's default protects: a self-hosted registry with a
+// repository per team is one registry with one credential, and splitting it
+// would propose several registries each pinned to an explicit repository list,
+// silently giving up catalog discovery.
+//
+// So an unknown host stays whole. Under-splitting proposes one registry where
+// two were needed, which the reader sees and fixes; over-splitting proposes
+// registries that each work, and quietly stops finding new repositories.
+func registryTenancyDepth(host string) int {
+	if _, single := singleTenantHosts[host]; single {
+		return 0
+	}
+	if _, multi := multiTenantHosts[host]; multi {
+		return 1
+	}
+	switch {
+	// Google Artifact Registry: LOCATION-docker.pkg.dev/PROJECT/REPOSITORY.
+	// The repository, not the project, is what an IAM role is granted on.
+	case strings.HasSuffix(host, "-docker.pkg.dev"):
+		return 2
+	// Regional Container Registry mirrors — us.gcr.io, eu.gcr.io, asia.gcr.io.
+	// Reached only after the single-tenant check above has taken k8s.gcr.io.
+	case strings.HasSuffix(host, ".gcr.io"):
+		return 1
+	// Everything else, including ECR (<account>.dkr.ecr.<region>.amazonaws.com)
+	// and ACR (<name>.azurecr.io), whose hostnames already name the registry:
+	// there is no tenancy boundary left below them to split on.
+	default:
+		return 0
+	}
+}
+
+// registryScope is the group key: the host plus the path segments that belong to
+// the registry rather than the image.
+//
+// The prefix may never swallow the whole repository. `ghcr.io/pause` would
+// otherwise scope to itself, making a group per image, each proposing a registry
+// that serves one thing — so at least one segment always stays behind as the
+// image, and a repository too short for its host's depth falls back to what fits.
+func registryScope(host, repository string) string {
+	depth := registryTenancyDepth(host)
+	if depth == 0 || repository == "" {
+		return host
+	}
+	segments := strings.Split(repository, "/")
+	if depth > len(segments)-1 {
+		depth = len(segments) - 1
+	}
+	if depth <= 0 {
+		return host
+	}
+	return host + "/" + strings.Join(segments[:depth], "/")
+}
+
 // UnknownImagesPage is a page of the No-SBOM gap plus the totals that make the
 // page honest: how many images the gap holds, how many of them each remedy
 // applies to, and which registries would close it.
@@ -120,8 +214,10 @@ type UnknownImagesPage struct {
 	Hosts   []UnknownHost
 }
 
-// rollUpHosts groups the gap by the registry host its images name, keeping only
-// the hosts a registry could be configured for.
+// rollUpHosts groups the gap by the registry its images would be served from,
+// keeping only the groups a registry could be configured for.
+//
+// The key is registryScope, not the bare host: see UnknownHost.
 //
 // It folds the whole gap rather than the page: the point of the rollup is to
 // say how much one registry would fix, and a count taken off fifty rows would
@@ -134,18 +230,22 @@ func rollUpHosts(all []UnknownImage) []UnknownHost {
 		// list rather than whatever order the map happened to yield.
 		reposOrdered []string
 	}
-	byHost := make(map[string]*acc)
+	byScope := make(map[string]*acc)
 	order := make([]string, 0, 8)
 
 	for _, img := range all {
 		if _, wanted := hostRemedyRank[img.Reason]; !wanted {
 			continue
 		}
-		entry, seen := byHost[img.RegistryHost]
+		scope := registryScope(img.RegistryHost, img.Repository)
+		entry, seen := byScope[scope]
 		if !seen {
-			entry = &acc{host: &UnknownHost{Host: img.RegistryHost}, repos: map[string]struct{}{}}
-			byHost[img.RegistryHost] = entry
-			order = append(order, img.RegistryHost)
+			entry = &acc{
+				host:  &UnknownHost{Host: img.RegistryHost, Scope: scope},
+				repos: map[string]struct{}{},
+			}
+			byScope[scope] = entry
+			order = append(order, scope)
 		}
 		h := entry.host
 		h.ImageCount++
@@ -168,8 +268,8 @@ func rollUpHosts(all []UnknownImage) []UnknownHost {
 	}
 
 	out := make([]UnknownHost, 0, len(order))
-	for _, host := range order {
-		entry := byHost[host]
+	for _, scope := range order {
+		entry := byScope[scope]
 		h := *entry.host
 		h.RepositoryCount = int64(len(entry.reposOrdered))
 		repos := entry.reposOrdered
@@ -181,13 +281,14 @@ func rollUpHosts(all []UnknownImage) []UnknownHost {
 		out = append(out, h)
 	}
 
-	// Biggest gap first — that is the registry worth configuring next. Host
-	// breaks the tie so the order is stable across reads of the same gap.
+	// Biggest gap first — that is the registry worth configuring next. Scope
+	// breaks the tie so the order is stable across reads of the same gap, and
+	// so two groups sharing a host never tie with each other.
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].ImageCount != out[j].ImageCount {
 			return out[i].ImageCount > out[j].ImageCount
 		}
-		return out[i].Host < out[j].Host
+		return out[i].Scope < out[j].Scope
 	})
 	return out
 }

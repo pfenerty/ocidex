@@ -33,12 +33,12 @@ function remedyFor(host: UnknownHost, namespace: string): { label: string; href:
         default:
             return {
                 label: "Add registry",
-                href: addRegistryHref(host.host, repos, namespace),
+                href: addRegistryHref(host.host, repos, namespace, host.scope),
             };
     }
 }
 
-/** One host: what it costs the cluster, what would close it, and the button. */
+/** One registry: what it costs the cluster, what would close it, and the button. */
 function HostRow(props: { host: UnknownHost; namespace: string }) {
     const remedy = () => remedyFor(props.host, props.namespace);
     const repos = () => props.host.repositories ?? [];
@@ -48,7 +48,10 @@ function HostRow(props: { host: UnknownHost; namespace: string }) {
     return (
         <li class="registry-gap-row">
             <div class="registry-gap-ident">
-                <span class="font-mono registry-gap-host">{props.host.host}</span>
+                {/* The scope, not the host: on ghcr.io the host is the same
+                    string on every row, and a list of identical labels is a
+                    list the reader cannot act on. */}
+                <span class="font-mono registry-gap-host">{props.host.scope}</span>
                 <StatusPill variant={REASON_PRESENTATION[props.host.reason].variant}>
                     {REASON_PRESENTATION[props.host.reason].label}
                 </StatusPill>
@@ -89,8 +92,13 @@ function HostRow(props: { host: UnknownHost; namespace: string }) {
  *
  * The table below it lists images, because an image is the unit of an ingest.
  * But the unit of *configuration* is a registry, and one registry closes every
- * row that names its host at once — twelve ghcr.io rows are one action, not
- * twelve. Without this card that has to be inferred from twelve identical links.
+ * row behind it at once — twelve rows from one org are one action, not twelve.
+ * Without this card that has to be inferred from twelve identical links.
+ *
+ * A group is a registry, not a hostname. The server splits a multi-tenant host
+ * at the boundary where credentials stop working, so ghcr.io/orgA and
+ * ghcr.io/orgB are two rows: one row covering both would propose a single
+ * registry that can authenticate to half of what it claims to close.
  *
  * The counts come from the server's rollup of the whole gap, never the page in
  * hand: a host's total taken off fifty rows would understate every cluster

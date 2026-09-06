@@ -96,9 +96,35 @@ are one thing to ingest. Each row says what stands between it and an SBOM:
 | `no host in reference` | The reported reference names no registry at all | Node runtime issue; see below |
 
 Both link into **Sources**, where registries are managed: `no registry` opens the add dialog
-prefilled with the host that has none, and a named registry opens its editor. You do not need to be
-an administrator — owning the cluster's namespace is enough, and the Sources entry appears in the
+prefilled with the registry that has none, and a named registry opens its editor. You do not need to
+be an administrator — owning the cluster's namespace is enough, and the Sources entry appears in the
 nav for anyone signed in.
+
+**Registries to configure**, above the image list, is the same gap seen from the remedy's side. The
+image list is the unit of an *ingest*; a registry is the unit of *configuration*, and one registry
+closes every image behind it at once. Each row carries the whole gap's totals — never the page on
+screen — and the repositories a registry would have to cover, so the prefill is visible before it is
+clicked.
+
+Rows are grouped by **registry scope**, not by hostname. On a multi-tenant host the credentials stop
+working below the host, so `ghcr.io/orgA` and `ghcr.io/orgB` are two rows proposing two registries;
+`registry.k8s.io` and a self-hosted Zot are one row each. How deep a host splits is a table in
+`internal/service/cluster_ingest.go` (`registryTenancyDepth`):
+
+| Host | Segments owned by the registry |
+|---|---|
+| `ghcr.io`, `quay.io`, `docker.io`, `*.gcr.io`, `public.ecr.aws` | 1 — the account or org |
+| `*-docker.pkg.dev` (Artifact Registry) | 2 — project and repository |
+| ECR, ACR, `registry.k8s.io`, `mcr.microsoft.com`, anything unknown | 0 — the host is the registry |
+
+An unknown host deliberately stays whole. Under-splitting proposes one registry where two were
+needed, which the reader sees and corrects; over-splitting proposes registries that each work and
+quietly stops finding new repositories, because a split registry is pinned to an explicit repository
+list. Adding a host to the table is a one-line change when a real one is misgrouped.
+
+The row's scope names the created registry (`ghcr.io/orgA`); its **URL** stays the host, because
+that is the address. The dialog also opens with the *cluster's* namespace, since registry resolution
+is namespace-local — a registry created into a namespace of its own closes nothing here.
 
 **No digest readable** — the runtime reported a local image ID rather than a registry digest. No
 amount of scanning helps; the remedy is on the node, not in OCIDex.

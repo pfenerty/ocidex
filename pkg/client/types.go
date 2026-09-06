@@ -2574,7 +2574,7 @@ type ListClusterUnknownImagesOutputBody struct {
 	Schema *string                 `json:"$schema,omitempty"`
 	Data   *[]UnknownImageResponse `json:"data"`
 
-	// Hosts The entire gap grouped by registry host, biggest first; independent of the page returned
+	// Hosts The entire gap grouped by registry scope, biggest first; independent of the page returned
 	Hosts      *[]UnknownHostResponse   `json:"hosts"`
 	Pagination PaginationMeta           `json:"pagination"`
 	Reasons    UnknownImageReasonCounts `json:"reasons"`
@@ -3396,27 +3396,30 @@ type TopVulnEntry struct {
 
 // UnknownHostResponse defines model for UnknownHostResponse.
 type UnknownHostResponse struct {
-	// Host Normalized registry host the images in this group name
+	// Host Normalized registry host the images in this group name, and the address a registry for it would use
 	Host       string `json:"host"`
 	ImageCount int64  `json:"image_count"`
 	PodCount   int64  `json:"pod_count"`
 
-	// Reason The worst remedy seen for this host; ready and unparseable_ref name no registry to configure and are not grouped here
+	// Reason The worst remedy seen for this group; ready and unparseable_ref name no registry to configure and are not grouped here
 	Reason UnknownHostResponseReason `json:"reason"`
 
-	// RegistryId Registry that serves this host, when one was matched at all
+	// RegistryId Registry that serves this group, when one was matched at all
 	RegistryId   *string `json:"registry_id,omitempty"`
 	RegistryName *string `json:"registry_name,omitempty"`
 
-	// Repositories Distinct repositories a registry would have to cover to close this host's gap, sorted; capped, so compare against repository_count
+	// Repositories Distinct repositories a registry would have to cover to close this group's gap, sorted; capped, so compare against repository_count
 	Repositories *[]string `json:"repositories"`
 
 	// RepositoryCount Distinct repository total, which may exceed the length of repositories
 	RepositoryCount int64 `json:"repository_count"`
-	WorkloadCount   int64 `json:"workload_count"`
+
+	// Scope The group: the host plus any leading repository segments that belong to the registry rather than the image, e.g. ghcr.io/pfenerty
+	Scope         string `json:"scope"`
+	WorkloadCount int64  `json:"workload_count"`
 }
 
-// UnknownHostResponseReason The worst remedy seen for this host; ready and unparseable_ref name no registry to configure and are not grouped here
+// UnknownHostResponseReason The worst remedy seen for this group; ready and unparseable_ref name no registry to configure and are not grouped here
 type UnknownHostResponseReason string
 
 // UnknownImageReasonCounts defines model for UnknownImageReasonCounts.
@@ -3449,7 +3452,7 @@ type UnknownImageResponse struct {
 	// RegistryHost Host parsed out of image_ref; empty when the reference carries none
 	RegistryHost *string `json:"registry_host,omitempty"`
 
-	// RegistryId Registry that serves this host, when one was matched at all
+	// RegistryId Registry that serves this group, when one was matched at all
 	RegistryId         *string `json:"registry_id,omitempty"`
 	RegistryName       *string `json:"registry_name,omitempty"`
 	Repository         *string `json:"repository,omitempty"`
