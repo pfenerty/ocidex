@@ -58,7 +58,7 @@ spec:
         requests:
           cpu: 200m
           memory: 256Mi
-      image: ghcr.io/pfenerty/apko-cicd/grype:0.114.0
+      image: ghcr.io/pfenerty/apko-cicd/grype:0.117.0
       name: grype-scan
       onError: continue
       script: |-
