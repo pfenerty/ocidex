@@ -44,8 +44,22 @@ export function SourcesTab() {
     createEffect(() => {
         if (one(searchParams.add) !== "1") return;
         const host = one(searchParams.host);
-        dialog?.openAdd(host === undefined || host === "" ? undefined : prefillForHost(host));
-        setSearchParams({ add: undefined, host: undefined }, { replace: true });
+        // `repos` carries the repositories observed at that host, so the Gaps
+        // tab's rollup can open a form that already covers the whole gap rather
+        // than one that names the host and leaves the reader to list them.
+        const repos = (one(searchParams.repos) ?? "").split(",").filter((r) => r !== "");
+        // `ns` is the namespace the caller needs the registry to land in. A
+        // cluster only resolves images against registries in its own namespace,
+        // and the API's default is a namespace of the registry's own, so a link
+        // that omitted this produced a registry that closed nothing.
+        const ns = one(searchParams.ns) ?? "";
+        dialog?.openAdd(
+            host === undefined || host === "" ? undefined : prefillForHost(host, repos, ns),
+        );
+        setSearchParams(
+            { add: undefined, host: undefined, repos: undefined, ns: undefined },
+            { replace: true },
+        );
     });
 
     createEffect(() => {

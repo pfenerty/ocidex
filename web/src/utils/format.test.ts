@@ -35,6 +35,17 @@ describe("plural", () => {
     it("adds s for zero", () => {
         expect(plural(0, "item")).toBe("0 items");
     });
+
+    // "2 registrys" is what the -s rule produces unaided, and the words this
+    // app counts most are exactly the irregular ones.
+    it("takes an explicit plural for words that do not take a bare s", () => {
+        expect(plural(2, "registry", "registries")).toBe("2 registries");
+        expect(plural(0, "repository", "repositories")).toBe("0 repositories");
+    });
+
+    it("ignores the explicit plural in the singular", () => {
+        expect(plural(1, "registry", "registries")).toBe("1 registry");
+    });
 });
 
 describe("hasText", () => {

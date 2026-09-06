@@ -35,6 +35,11 @@ th.th-sortable .sort-arrow {
 td.col-ref,
 th.col-ref {
     max-width: 24rem;
+    /* `overflow-wrap: anywhere` makes the min-content width one character, so
+       without a floor the cap above turns into its opposite the moment the
+       table is under pressure: measured at a 1024px viewport, the image column
+       collapsed to 144px and broke a ref across twelve lines. */
+    min-width: 11rem;
     overflow-wrap: anywhere;
 }
 

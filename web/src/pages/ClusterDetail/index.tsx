@@ -175,7 +175,11 @@ export default function ClusterDetail() {
                             />
                         </Show>
                         <Show when={tab() === "gaps"}>
-                            <GapsTab clusterId={params.id} coverage={data().coverage} />
+                            <GapsTab
+                                clusterId={params.id}
+                                namespace={clusterQuery.data?.namespace_name ?? ""}
+                                coverage={data().coverage}
+                            />
                         </Show>
                     </>
                 )}

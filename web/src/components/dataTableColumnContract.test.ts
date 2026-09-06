@@ -35,6 +35,14 @@ describe("column width policy", () => {
         expect(body).toMatch(/overflow-wrap:\s*anywhere/);
     });
 
+    // `overflow-wrap: anywhere` sets min-content to one character, so the cap
+    // inverts under pressure without a floor beneath it: measured at a 1024px
+    // viewport, the Gaps image column collapsed to 144px and broke a ref across
+    // twelve lines (ocidex-383d.2).
+    it("floors the identifier column as well as capping it", () => {
+        expect(rule("th.col-ref")).toMatch(/min-width:\s*[\d.]+rem/);
+    });
+
     // `.truncate` is the wrong tool for a ref: it takes the tail, and the tail
     // of an image ref is the tag.
     it("does not truncate what it caps", () => {

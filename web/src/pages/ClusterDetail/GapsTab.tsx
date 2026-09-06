@@ -7,6 +7,7 @@ import { plural } from "~/utils/format";
 import type { IngestReason, IngestResult, UnknownImage, WorkloadCoverage } from "~/api/client";
 import { useClusterWorkloads, useClusterUnknownImages, useIngestUnknown } from "~/api/queries";
 import { ImageCell, workloadColumns } from "./WorkloadsTab";
+import { RegistryGaps } from "./RegistryGaps";
 
 /**
  * How each ingest reason is presented. Every one of them is a different thing
@@ -17,7 +18,7 @@ import { ImageCell, workloadColumns } from "./WorkloadsTab";
  *  first screen, which is the point of having one. */
 const PAGE_SIZE = 50;
 
-const REASON_PRESENTATION: Record<
+export const REASON_PRESENTATION: Record<
     IngestReason,
     { label: string; variant: "success" | "warning" | "danger" }
 > = {
@@ -35,8 +36,29 @@ const REASON_PRESENTATION: Record<
  * switched off or excludes the repository: "ghcr is disabled" is only
  * actionable if you know it is ghcr.
  */
+/**
+ * The add-registry deep link.
+ *
+ * The rollup card sends every repository behind a host; a table row sends the
+ * one it names. Both go through this function so a form opened from either
+ * place is filled in the same way — a link that only named the host would leave
+ * a ghcr.io or quay.io registry unusable, since neither supports catalog
+ * discovery and both require the list.
+ *
+ * `ns` is the cluster's namespace. Registry resolution is namespace-local, and
+ * a registry created without one gets a namespace of its own, so omitting it
+ * yields a registry the cluster cannot see and a gap that does not close.
+ */
+export function addRegistryHref(host: string, repos: string[], namespace: string): string {
+    const q = new URLSearchParams({ add: "1", host });
+    if (repos.length > 0) q.set("repos", repos.join(","));
+    if (namespace !== "") q.set("ns", namespace);
+    return `/admin/sources?${q.toString()}`;
+}
+
 function IngestTargetCell(props: {
     image: UnknownImage;
+    namespace: string;
     onIngest: (digest: string) => void;
     pending: boolean;
 }) {
@@ -69,7 +91,13 @@ function IngestTargetCell(props: {
                     nothing configured for{" "}
                     <span class="font-mono">{props.image.registry_host}</span> —{" "}
                     <A
-                        href={`/admin/sources?add=1&host=${encodeURIComponent(props.image.registry_host ?? "")}`}
+                        href={addRegistryHref(
+                            props.image.registry_host ?? "",
+                            props.image.repository === undefined || props.image.repository === ""
+                                ? []
+                                : [props.image.repository],
+                            props.namespace,
+                        )}
                     >
                         add a registry
                     </A>
@@ -91,6 +119,7 @@ function IngestTargetCell(props: {
  * one result.
  */
 function unknownImageColumns(
+    namespace: string,
     onIngest: (digest: string) => void,
     pendingDigest: () => string | null,
 ): Column<UnknownImage>[] {
@@ -135,6 +164,7 @@ function unknownImageColumns(
         render: (i) => (
             <IngestTargetCell
                 image={i}
+                namespace={namespace}
                 onIngest={onIngest}
                 pending={pendingDigest() === i.image_digest}
             />
@@ -178,7 +208,16 @@ function ingestSummary(res: IngestResult): string {
  * unit of the remedy — twelve replicas of one unscanned image are one thing to
  * ingest.
  */
-export function GapsTab(props: { clusterId: string; coverage: WorkloadCoverage }) {
+export function GapsTab(props: {
+    clusterId: string;
+    /**
+     * The cluster's own namespace. It travels into every add-registry link
+     * because resolution is namespace-local: a registry created anywhere else
+     * closes nothing here.
+     */
+    namespace: string;
+    coverage: WorkloadCoverage;
+}) {
     // Both tables used to ask for 200 rows and render no pager, so a cluster
     // past that showed a short list with nothing saying it was short — the
     // quiet omission ADR-044 K5 exists to prevent. Offsets are local rather
@@ -217,6 +256,12 @@ export function GapsTab(props: { clusterId: string; coverage: WorkloadCoverage }
 
     return (
         <>
+            {/* Above the image list, because the registry is the bigger unit of
+                work: one registry closes every image behind its host, and a
+                reader who fixes that first never has to read most of the rows
+                below. */}
+            <RegistryGaps hosts={images.data?.hosts ?? []} namespace={props.namespace} />
+
             <Card class="mb-4">
                 <CardHeader
                     title="No SBOM ingested"
@@ -252,7 +297,7 @@ export function GapsTab(props: { clusterId: string; coverage: WorkloadCoverage }
                     {(err) => <p class="text-muted">Could not queue scans: {err().message}</p>}
                 </Show>
                 <DataTable
-                    columns={unknownImageColumns((d) => runIngest([d]), pendingDigest)}
+                    columns={unknownImageColumns(props.namespace, (d) => runIngest([d]), pendingDigest)}
                     rows={images.data?.data}
                     loading={images.isFetching}
                     isError={images.isError}

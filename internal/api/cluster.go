@@ -417,6 +417,26 @@ func (h *Handler) ListClusterUnknownImages(ctx context.Context, in *ListClusterU
 		PatternExcluded:  page.Reasons[service.IngestReasonPatternExcluded],
 		UnparseableRef:   page.Reasons[service.IngestReasonUnparseableRef],
 	}
+	out.Body.Hosts = make([]UnknownHostResponse, len(page.Hosts))
+	for i, h := range page.Hosts {
+		// Repositories is never left nil: a JSON null here would render as an
+		// absent list where the honest answer is an empty one.
+		repos := h.Repositories
+		if repos == nil {
+			repos = []string{}
+		}
+		out.Body.Hosts[i] = UnknownHostResponse{
+			Host:            h.Host,
+			Reason:          h.Reason,
+			ImageCount:      h.ImageCount,
+			PodCount:        h.PodCount,
+			WorkloadCount:   h.WorkloadCount,
+			Repositories:    repos,
+			RepositoryCount: h.RepositoryCount,
+			RegistryID:      h.RegistryID,
+			RegistryName:    h.RegistryName,
+		}
+	}
 	out.Body.Pagination = paginationMeta(page.Images)
 	return out, nil
 }

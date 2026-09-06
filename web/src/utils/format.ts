@@ -183,11 +183,18 @@ export function shortId(id: string): string {
 /**
  * Pluralize a word based on count.
  *
- *  plural(3, "component") → "3 components"
- *  plural(1, "SBOM")      → "1 SBOM"
+ *  plural(3, "component")               → "3 components"
+ *  plural(1, "SBOM")                    → "1 SBOM"
+ *  plural(2, "registry", "registries")  → "2 registries"
+ *
+ * `plural` names the thing being counted, so it has to handle the words this
+ * app actually counts — "registry" and "repository" among them, neither of
+ * which takes a bare "s". The explicit form is opt-in: without it the -s rule
+ * silently produces "2 registrys".
  */
-export function plural(count: number, word: string): string {
-    return `${count} ${word}${count !== 1 ? "s" : ""}`;
+export function plural(count: number, word: string, pluralWord?: string): string {
+    if (count === 1) return `${count} ${word}`;
+    return `${count} ${pluralWord ?? `${word}s`}`;
 }
 
 /**

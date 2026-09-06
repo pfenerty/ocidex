@@ -331,9 +331,64 @@ describe("SourcesTab deep links", () => {
         // Cleared, or a reload re-opens the dialog over whatever has since been
         // typed into it.
         expect(setSearchParams).toHaveBeenCalledWith(
-            { add: undefined, host: undefined },
+            { add: undefined, host: undefined, repos: undefined, ns: undefined },
             { replace: true },
         );
+    });
+
+    // ghcr.io and quay.io do not support catalog discovery, so a registry added
+    // for one of them without an explicit repository list scans nothing. The
+    // Gaps tab knows exactly which repositories are behind the gap; carrying
+    // them is what makes the prefilled form usable rather than merely opened.
+    it("fills the repositories from the ones the gap named", () => {
+        searchParams = { add: "1", host: "ghcr.io", repos: "org/api,org/web" };
+        const { container } = renderTab([]);
+
+        const repos = [...container.querySelectorAll<HTMLTextAreaElement>("dialog textarea")];
+        expect(repos.some((t) => t.value === "org/api\norg/web")).toBe(true);
+    });
+
+    // An empty or absent `repos` must leave the field alone rather than writing
+    // a blank line into it: for a Zot or Harbor an empty list is what turns
+    // catalog discovery on.
+    it("leaves repositories empty when the link carries none", () => {
+        searchParams = { add: "1", host: "zot.lan" };
+        const { container } = renderTab([]);
+
+        const repos = [...container.querySelectorAll<HTMLTextAreaElement>("dialog textarea")];
+        expect(repos.every((t) => t.value === "")).toBe(true);
+    });
+
+    // A host discovered from a cluster gap is by definition a registry nobody
+    // has wired a webhook from. Webhook is the empty form's default, so without
+    // this the reader can save a registry that never scans and the gap stays.
+    it("prefills a host-derived registry to poll, not webhook", () => {
+        searchParams = { add: "1", host: "zot.lan" };
+        const { container } = renderTab([]);
+
+        const dialog = must(container.querySelector("dialog"), "dialog");
+        const scan = must(
+            [...dialog.querySelectorAll<HTMLSelectElement>("select")].find((sel) =>
+                [...sel.options].some((o) => o.value === "poll"),
+            ),
+            "scan mode select",
+        );
+        expect(scan.value).toBe("poll");
+    });
+
+    // Registry resolution is namespace-local and the API defaults a new
+    // registry into a namespace of its own, so a link that carried only the
+    // host produced a registry the cluster that sent the reader here could not
+    // see — the gap stayed open and nothing said why.
+    it("creates into the namespace the link names", () => {
+        searchParams = { add: "1", host: "ghcr.io", ns: "acme" };
+        const { container } = renderTab([]);
+
+        const dialog = must(container.querySelector("dialog"), "dialog");
+        const values = [...dialog.querySelectorAll<HTMLInputElement>("input[type=text]")].map(
+            (i) => i.value,
+        );
+        expect(values).toContain("acme");
     });
 
     it("opens the named registry for editing", () => {

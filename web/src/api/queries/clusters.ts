@@ -287,7 +287,9 @@ export function useClusterUnknownImages(
                 }),
             ),
         enabled: id() !== undefined && (options?.().enabled ?? true),
-        select: (resp) => ({ ...resp, data: resp.data ?? [] }),
+        // `hosts` is normalized alongside `data` so the rollup card never has
+        // to distinguish "no hosts to configure" from "the field was null".
+        select: (resp) => ({ ...resp, data: resp.data ?? [], hosts: resp.hosts ?? [] }),
     }));
 }
 

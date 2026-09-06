@@ -203,6 +203,22 @@ let unknownImages: unknown[] = [];
  */
 let unknownGap: { total: number; reasons: Record<string, number> } | undefined;
 
+/** The server's per-host rollup of the whole gap; the rollup-card tests set it. */
+let unknownHosts: unknown[] = [];
+
+function unknownHost(overrides: Record<string, unknown> = {}) {
+    return {
+        host: "gcr.io",
+        reason: "no_registry",
+        image_count: 3,
+        pod_count: 9,
+        workload_count: 4,
+        repositories: ["team/api", "team/web"],
+        repository_count: 2,
+        ...overrides,
+    };
+}
+
 const NO_REASONS = {
     ready: 0,
     no_registry: 0,
@@ -345,6 +361,7 @@ function renderPage(
         data: {
             data: unknownImages,
             reasons: unknownGap?.reasons ?? reasonsOf(unknownImages),
+            hosts: unknownHosts,
             pagination: {
                 total: unknownGap?.total ?? unknownImages.length,
                 limit: 50,
@@ -381,6 +398,7 @@ describe("ClusterDetail", () => {
         lastVulnWorkloadArgs = undefined;
         unknownImages = [];
         unknownGap = undefined;
+        unknownHosts = [];
         searchParamWrites = [];
         ingestCalls = [];
         ingestResult = undefined;
@@ -943,11 +961,15 @@ describe("ClusterDetail", () => {
         // never existed in App.tsx, so a tab whose whole job is naming the
         // remedy sent the reader to a 404. Registries are managed on the
         // Sources tab; the host travels with the link so the add dialog opens
-        // knowing what it is being added for.
+        // knowing what it is being added for — and the repository with it, or a
+        // ghcr.io/quay.io registry opens unusable, since neither supports
+        // catalog discovery and both require an explicit list.
         const addRegistry = [...container.querySelectorAll("a")].find(
             (a) => a.textContent === "add a registry",
         );
-        expect(addRegistry?.getAttribute("href")).toBe("/admin/sources?add=1&host=gcr.io");
+        expect(addRegistry?.getAttribute("href")).toBe(
+            "/admin/sources?add=1&host=gcr.io&repos=pfenerty%2Fapi&ns=acme",
+        );
         const named = [...container.querySelectorAll("a")].find(
             (a) => a.getAttribute("href") === "/admin/sources?registry=r-2",
         );
@@ -1006,6 +1028,73 @@ describe("ClusterDetail", () => {
         must(rowButtons[1], "the second row's ingest button").click();
 
         expect(ingestCalls).toEqual([{ id: "c-prod", imageDigests: ["sha256:bbb"] }]);
+    });
+
+    // The image list is the unit of an ingest; the rollup above it is the unit
+    // of configuration. Twelve rows naming one host are one action, and a tab
+    // that only renders twelve identical links leaves the reader to work that
+    // out.
+    it("rolls the gap up into the registries that would close it", () => {
+        searchParams = { tab: "gaps" };
+        unknownImages = [unknownImage({ reason: "no_registry" })];
+        unknownHosts = [
+            unknownHost({ host: "gcr.io", image_count: 12, pod_count: 30 }),
+            unknownHost({
+                host: "quay.io",
+                reason: "registry_disabled",
+                registry_id: "r-2",
+                registry_name: "quay",
+                image_count: 3,
+            }),
+        ];
+        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+
+        expect(container.textContent).toContain("Registries to configure");
+        // The whole gap behind the two hosts, not the one row on the page.
+        expect(container.textContent).toContain("15 images");
+        expect(container.textContent).toContain("12 images");
+
+        // The create path carries the repositories the gap named, because
+        // ghcr.io and quay.io cannot catalog-discover and the field is
+        // required — and the cluster's namespace, because resolution is
+        // namespace-local and the API's default is a namespace of the
+        // registry's own, so without `ns` this button reliably created a
+        // registry the cluster could not see.
+        const add = [...container.querySelectorAll("a")].find(
+            (a) => a.textContent === "Add registry",
+        );
+        expect(add?.getAttribute("href")).toBe(
+            "/admin/sources?add=1&host=gcr.io&repos=team%2Fapi%2Cteam%2Fweb&ns=acme",
+        );
+
+        // A registry that exists but is switched off needs enabling, not a
+        // second registry — and prefilling its repositories from the gap would
+        // propose overwriting a configuration someone chose.
+        const enable = [...container.querySelectorAll("a")].find((a) =>
+            a.textContent.startsWith("Enable"),
+        );
+        expect(enable?.getAttribute("href")).toBe("/admin/sources?registry=r-2");
+    });
+
+    // A capped repository list that reads as a complete one is exactly the
+    // quiet omission ADR-044 K5 exists to prevent.
+    it("says when the repository list it shows is a prefix", () => {
+        searchParams = { tab: "gaps" };
+        unknownHosts = [unknownHost({ repositories: ["team/api"], repository_count: 140 })];
+        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+
+        expect(container.textContent).toContain("140 repositories");
+        expect(container.textContent).toContain("showing 1 of 140");
+    });
+
+    // The card is a list of work to do. With nothing to configure it is not an
+    // empty state, it is noise.
+    it("renders no rollup when every gap has a registry already", () => {
+        searchParams = { tab: "gaps" };
+        unknownImages = [unknownImage({ reason: "ready" })];
+        const { container } = renderPage([workload({ match_state: "unknown" })], GAPPY);
+
+        expect(container.textContent).not.toContain("Registries to configure");
     });
 
     // A row that cannot be ingested must not offer a button that would do

@@ -87,6 +87,10 @@ export function RegistryFormDialog(props: {
             setEditManagedRef(owner === "" ? null : (reg.managed_ref ?? owner));
             setForm({
                 name: reg.name,
+                // Not shown when editing: the update endpoint cannot move a
+                // registry, and RegistryResponse does not carry the namespace
+                // back, so a field here could only be blank or a lie.
+                namespace: "",
                 type: reg.type as RegType,
                 url: reg.url,
                 insecure: reg.insecure,
@@ -135,6 +139,10 @@ export function RegistryFormDialog(props: {
             trust_identity: trustIdentity, trust_issuer: trustIssuer,
         };
 
+        // Create only. The update endpoint takes no namespace: moving a
+        // registry would silently change who can see everything under it.
+        const namespace = f.namespace.trim() || undefined;
+
         if (currentID !== null) {
             updateReg.mutate(
                 { id: currentID, enabled: editEnabled(), ...shared },
@@ -144,7 +152,7 @@ export function RegistryFormDialog(props: {
                 }
             );
         } else {
-            createReg.mutate(shared, {
+            createReg.mutate({ ...shared, namespace }, {
                 onSuccess: (data) => {
                     toast("Registry created", "success");
                     dialogRef?.close();
@@ -188,6 +196,22 @@ export function RegistryFormDialog(props: {
                                 required
                             />
                         </FormField>
+                        {/* Create only. Registry resolution is namespace-local
+                            — a cluster only ever sees registries in its own
+                            namespace — so this is the field that decides
+                            whether the registry is any use to the caller, and
+                            the deep link from a cluster gap sets it. */}
+                        <Show when={editingID() === null}>
+                            <FormField label="Namespace" hint="created on first use; blank gives the registry a namespace of its own">
+                                <input
+                                    type="text"
+                                    value={form().namespace}
+                                    onInput={(e) => setForm(f => ({ ...f, namespace: e.currentTarget.value }))}
+                                    placeholder="leave blank for a namespace of its own"
+                                    class="w-full"
+                                />
+                            </FormField>
+                        </Show>
                         <FormField label="Type">
                             <select
                                 value={form().type}

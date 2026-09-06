@@ -34,6 +34,8 @@ export function useCreateRegistry() {
     return createMutation(() => ({
         mutationFn: (body: {
             name: string;
+            /** Namespace to create it in, created on first use; omit for one of its own. */
+            namespace?: string;
             type: "zot" | "harbor" | "docker" | "generic" | "ghcr";
             url: string;
             insecure: boolean;

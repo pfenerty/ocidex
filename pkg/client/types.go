@@ -506,27 +506,48 @@ func (e SourceResponseKind) Valid() bool {
 	}
 }
 
+// Defines values for UnknownHostResponseReason.
+const (
+	UnknownHostResponseReasonNoRegistry       UnknownHostResponseReason = "no_registry"
+	UnknownHostResponseReasonPatternExcluded  UnknownHostResponseReason = "pattern_excluded"
+	UnknownHostResponseReasonRegistryDisabled UnknownHostResponseReason = "registry_disabled"
+)
+
+// Valid indicates whether the value is a known member of the UnknownHostResponseReason enum.
+func (e UnknownHostResponseReason) Valid() bool {
+	switch e {
+	case UnknownHostResponseReasonNoRegistry:
+		return true
+	case UnknownHostResponseReasonPatternExcluded:
+		return true
+	case UnknownHostResponseReasonRegistryDisabled:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UnknownImageResponseReason.
 const (
-	NoRegistry       UnknownImageResponseReason = "no_registry"
-	PatternExcluded  UnknownImageResponseReason = "pattern_excluded"
-	Ready            UnknownImageResponseReason = "ready"
-	RegistryDisabled UnknownImageResponseReason = "registry_disabled"
-	UnparseableRef   UnknownImageResponseReason = "unparseable_ref"
+	UnknownImageResponseReasonNoRegistry       UnknownImageResponseReason = "no_registry"
+	UnknownImageResponseReasonPatternExcluded  UnknownImageResponseReason = "pattern_excluded"
+	UnknownImageResponseReasonReady            UnknownImageResponseReason = "ready"
+	UnknownImageResponseReasonRegistryDisabled UnknownImageResponseReason = "registry_disabled"
+	UnknownImageResponseReasonUnparseableRef   UnknownImageResponseReason = "unparseable_ref"
 )
 
 // Valid indicates whether the value is a known member of the UnknownImageResponseReason enum.
 func (e UnknownImageResponseReason) Valid() bool {
 	switch e {
-	case NoRegistry:
+	case UnknownImageResponseReasonNoRegistry:
 		return true
-	case PatternExcluded:
+	case UnknownImageResponseReasonPatternExcluded:
 		return true
-	case Ready:
+	case UnknownImageResponseReasonReady:
 		return true
-	case RegistryDisabled:
+	case UnknownImageResponseReasonRegistryDisabled:
 		return true
-	case UnparseableRef:
+	case UnknownImageResponseReasonUnparseableRef:
 		return true
 	default:
 		return false
@@ -2550,8 +2571,11 @@ type ListClusterNamespacesOutputBody struct {
 // ListClusterUnknownImagesOutputBody defines model for ListClusterUnknownImagesOutputBody.
 type ListClusterUnknownImagesOutputBody struct {
 	// Schema A URL to the JSON Schema for this object.
-	Schema     *string                  `json:"$schema,omitempty"`
-	Data       *[]UnknownImageResponse  `json:"data"`
+	Schema *string                 `json:"$schema,omitempty"`
+	Data   *[]UnknownImageResponse `json:"data"`
+
+	// Hosts The entire gap grouped by registry host, biggest first; independent of the page returned
+	Hosts      *[]UnknownHostResponse   `json:"hosts"`
 	Pagination PaginationMeta           `json:"pagination"`
 	Reasons    UnknownImageReasonCounts `json:"reasons"`
 }
@@ -3369,6 +3393,31 @@ type TopVulnEntry struct {
 	Severity          string     `json:"severity"`
 	Summary           *string    `json:"summary,omitempty"`
 }
+
+// UnknownHostResponse defines model for UnknownHostResponse.
+type UnknownHostResponse struct {
+	// Host Normalized registry host the images in this group name
+	Host       string `json:"host"`
+	ImageCount int64  `json:"image_count"`
+	PodCount   int64  `json:"pod_count"`
+
+	// Reason The worst remedy seen for this host; ready and unparseable_ref name no registry to configure and are not grouped here
+	Reason UnknownHostResponseReason `json:"reason"`
+
+	// RegistryId Registry that serves this host, when one was matched at all
+	RegistryId   *string `json:"registry_id,omitempty"`
+	RegistryName *string `json:"registry_name,omitempty"`
+
+	// Repositories Distinct repositories a registry would have to cover to close this host's gap, sorted; capped, so compare against repository_count
+	Repositories *[]string `json:"repositories"`
+
+	// RepositoryCount Distinct repository total, which may exceed the length of repositories
+	RepositoryCount int64 `json:"repository_count"`
+	WorkloadCount   int64 `json:"workload_count"`
+}
+
+// UnknownHostResponseReason The worst remedy seen for this host; ready and unparseable_ref name no registry to configure and are not grouped here
+type UnknownHostResponseReason string
 
 // UnknownImageReasonCounts defines model for UnknownImageReasonCounts.
 type UnknownImageReasonCounts struct {

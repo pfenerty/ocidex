@@ -99,6 +99,8 @@ export type RunningVuln = components["schemas"]["RunningVulnResponse"];
 export type UnknownImage = components["schemas"]["UnknownImageResponse"];
 /** Why an unknown image can or cannot be ingested; each value has its own remedy. */
 export type IngestReason = UnknownImage["reason"];
+/** The whole gap grouped by registry host — one row per registry to configure. */
+export type UnknownHost = components["schemas"]["UnknownHostResponse"];
 /** Per-reason counts from one ingest run (ADR-044 auto-ingest amendment). */
 export type IngestResult = components["schemas"]["IngestUnknownOutputBody"];
 export type RunningWorkload = components["schemas"]["RunningWorkloadResponse"];

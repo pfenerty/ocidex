@@ -1,6 +1,8 @@
 package service
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -174,5 +176,133 @@ func TestIngestResultCountSkip(t *testing.T) {
 				t.Errorf("countSkip(%q) filed %d skips, want exactly 1", reason, total)
 			}
 		})
+	}
+}
+
+// img is a gap row reduced to the fields rollUpHosts reads.
+func img(host, repo, reason string, pods, workloads int64, registryID string) UnknownImage {
+	u := UnknownImage{
+		RegistryHost: host, Repository: repo, Reason: reason,
+		PodCount: pods, WorkloadCount: workloads,
+	}
+	if registryID != "" {
+		name := registryID + "-name"
+		u.RegistryID, u.RegistryName = &registryID, &name
+	}
+	return u
+}
+
+func TestRollUpHosts(t *testing.T) {
+	hosts := rollUpHosts([]UnknownImage{
+		// Two ghcr rows, one of them already ingestable. `ready` names no
+		// registry to configure, so it must not inflate the host's counts.
+		img("ghcr.io", "org/a", IngestReasonNoRegistry, 4, 2, ""),
+		img("ghcr.io", "org/b", IngestReasonNoRegistry, 5, 3, ""),
+		img("ghcr.io", "org/c", IngestReasonReady, 90, 90, "r-ok"),
+		// A reference with no host has nowhere to send the reader.
+		img("", "", IngestReasonUnparseableRef, 70, 70, ""),
+		img("quay.io", "team/x", IngestReasonPatternExcluded, 1, 1, "r-quay"),
+	})
+
+	if len(hosts) != 2 {
+		t.Fatalf("want 2 hosts, got %d: %+v", len(hosts), hosts)
+	}
+	// Biggest gap first: that is the registry worth configuring next.
+	if hosts[0].Host != "ghcr.io" || hosts[1].Host != "quay.io" {
+		t.Fatalf("hosts not ordered by image count: %+v", hosts)
+	}
+	g := hosts[0]
+	if g.ImageCount != 2 || g.PodCount != 9 || g.WorkloadCount != 5 {
+		t.Errorf("ready row leaked into the ghcr.io totals: %+v", g)
+	}
+	if g.RegistryID != nil {
+		t.Errorf("no_registry host named a registry: %v", *g.RegistryID)
+	}
+	// A matched-but-unusable registry has to be named, or "enable it" and
+	// "widen its patterns" have nowhere to point.
+	if hosts[1].RegistryID == nil || *hosts[1].RegistryID != "r-quay" {
+		t.Errorf("quay.io lost its matched registry: %+v", hosts[1])
+	}
+}
+
+// A host whose images hit several reasons is reported by the worst: adding a
+// registry subsumes enabling one, which subsumes widening its patterns.
+func TestRollUpHostsReportsWorstReason(t *testing.T) {
+	tests := []struct {
+		name    string
+		reasons []string
+		want    string
+	}{
+		{"excluded alone", []string{IngestReasonPatternExcluded}, IngestReasonPatternExcluded},
+		{"disabled outranks excluded", []string{IngestReasonPatternExcluded, IngestReasonRegistryDisabled}, IngestReasonRegistryDisabled},
+		{"missing outranks both", []string{IngestReasonRegistryDisabled, IngestReasonNoRegistry, IngestReasonPatternExcluded}, IngestReasonNoRegistry},
+		{"order of arrival does not matter", []string{IngestReasonNoRegistry, IngestReasonPatternExcluded}, IngestReasonNoRegistry},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rows := make([]UnknownImage, len(tt.reasons))
+			for i, r := range tt.reasons {
+				rows[i] = img("ghcr.io", "org/a", r, 1, 1, "r-1")
+			}
+			got := rollUpHosts(rows)
+			if len(got) != 1 {
+				t.Fatalf("want 1 host, got %d", len(got))
+			}
+			if got[0].Reason != tt.want {
+				t.Errorf("reason = %q, want %q", got[0].Reason, tt.want)
+			}
+		})
+	}
+}
+
+func TestRollUpHostsRepositories(t *testing.T) {
+	// Distinct and sorted: the list is pasted straight into a registry's
+	// Repositories field, where a duplicate is noise and an arbitrary order
+	// makes two reads of the same gap look like different gaps.
+	got := rollUpHosts([]UnknownImage{
+		img("ghcr.io", "org/z", IngestReasonNoRegistry, 1, 1, ""),
+		img("ghcr.io", "org/a", IngestReasonNoRegistry, 1, 1, ""),
+		img("ghcr.io", "org/z", IngestReasonNoRegistry, 1, 1, ""),
+	})
+	if len(got) != 1 {
+		t.Fatalf("want 1 host, got %d", len(got))
+	}
+	if want := []string{"org/a", "org/z"}; !slices.Equal(got[0].Repositories, want) {
+		t.Errorf("repositories = %v, want %v", got[0].Repositories, want)
+	}
+	if got[0].RepositoryCount != 2 {
+		t.Errorf("repository count = %d, want 2", got[0].RepositoryCount)
+	}
+}
+
+// Past the cap the list is a prefix, and the count still reports the whole
+// truth — a truncated list that reads as complete is exactly the quiet
+// omission ADR-044 K5 exists to prevent.
+func TestRollUpHostsCapsRepositoriesWithoutHidingTheTotal(t *testing.T) {
+	rows := make([]UnknownImage, 0, maxHostRepositories+20)
+	for i := 0; i < maxHostRepositories+20; i++ {
+		rows = append(rows, img("ghcr.io", fmt.Sprintf("org/repo-%03d", i), IngestReasonNoRegistry, 1, 1, ""))
+	}
+	got := rollUpHosts(rows)[0]
+	if len(got.Repositories) != maxHostRepositories {
+		t.Errorf("repositories not capped: got %d", len(got.Repositories))
+	}
+	if got.RepositoryCount != int64(maxHostRepositories+20) {
+		t.Errorf("repository count = %d, want %d", got.RepositoryCount, maxHostRepositories+20)
+	}
+	// Sorted before the cap, so the prefix is deterministic rather than
+	// whatever order the rows happened to arrive in.
+	if got.Repositories[0] != "org/repo-000" {
+		t.Errorf("cap took an unsorted prefix: starts at %q", got.Repositories[0])
+	}
+}
+
+func TestRollUpHostsIgnoresGapsWithNoRegistryRemedy(t *testing.T) {
+	got := rollUpHosts([]UnknownImage{
+		img("ghcr.io", "org/a", IngestReasonReady, 1, 1, "r-1"),
+		img("", "", IngestReasonUnparseableRef, 1, 1, ""),
+	})
+	if len(got) != 0 {
+		t.Errorf("want no hosts, got %+v", got)
 	}
 }

@@ -144,3 +144,94 @@
     font-size: 0.8rem;
     line-height: 1.2;
 }
+
+/* The Gaps tab's per-host rollup (ocidex-383d.2).
+ *
+ * Not a DataTable: it is three to five rows whose shape is "identity, cost,
+ * evidence, action" rather than a grid of comparable columns, and the evidence
+ * — the repository list the button is about to write into the form — is a
+ * variable-height block that a table row cannot hold without either truncating
+ * it or setting the row height for every other host. */
+.registry-gap-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* Identity and counts stack on the left, the action sits at the right edge and
+   stays vertically centred however tall the repository list grows. The action
+   wraps to its own line below 520px rather than squeezing the host name, which
+   is the one string in the row a reader is scanning for. */
+.registry-gap-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+        "ident  action"
+        "counts action"
+        "repos  action";
+    align-items: center;
+    column-gap: 1rem;
+    row-gap: 0.25rem;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.registry-gap-ident {
+    grid-area: ident;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+/* A host is short and never worth breaking mid-token. */
+.registry-gap-host {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.registry-gap-counts {
+    grid-area: counts;
+}
+
+/* The repositories the button will write into the form. Wrapped inline rather
+   than one per line: at twenty repos a column would push the action button off
+   the first screen, and this is evidence for a decision, not a list to read
+   top to bottom. */
+.registry-gap-repos {
+    grid-area: repos;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem 0.75rem;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* Says the list above is a prefix. Coloured, because a capped list that reads
+   as a complete one is the omission ADR-044 K5 exists to prevent. */
+.registry-gap-more {
+    color: var(--color-warning);
+}
+
+.registry-gap-action {
+    grid-area: action;
+    white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+    .registry-gap-row {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+            "ident"
+            "counts"
+            "repos"
+            "action";
+        justify-items: start;
+        row-gap: 0.4rem;
+    }
+}

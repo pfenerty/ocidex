@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/pfenerty/ocidex/internal/repository"
@@ -61,16 +62,134 @@ type UnknownImage struct {
 // Ingestable reports whether a scan job can be submitted for this image now.
 func (u UnknownImage) Ingestable() bool { return u.Reason == IngestReasonReady }
 
-// UnknownImagesPage is a page of the No-SBOM gap plus the two totals that make
-// the page honest: how many images the gap holds, and how many of them each
-// remedy applies to.
+// UnknownHost is one registry host the gap points at, rolled up.
 //
-// Reasons covers the whole gap, never the page. A reader who is shown twenty
-// rows of "no registry" out of a gap of four hundred needs to know whether
-// adding that registry closes the gap or a twentieth of it (ADR-044 K5).
+// The gap is a list of images, but the remedy is a registry, and one registry
+// closes every row that names its host at once. Without this rollup a reader
+// looking at twelve ghcr.io rows sees twelve identical "add a registry" links
+// and has to work out for themselves that they are one action.
+//
+// Repositories is what a registry would have to cover to close this host's gap.
+// It is capped, and RepositoryCount always carries the true distinct total, so
+// a truncated list can never be read as a complete one (ADR-044 K5).
+type UnknownHost struct {
+	Host          string
+	Reason        string // the worst reason seen for this host
+	ImageCount    int64
+	PodCount      int64
+	WorkloadCount int64
+
+	Repositories    []string
+	RepositoryCount int64
+
+	// Set whenever a registry was matched for this host at all — which is
+	// every reason but NoRegistry. Naming it is what makes "switched off" and
+	// "excludes this repository" actionable.
+	RegistryID   *string
+	RegistryName *string
+}
+
+// maxHostRepositories caps the repository list carried per host. Chosen to be
+// far above any real cluster's per-host repository count while still bounding
+// the response and the deep link the UI builds from it.
+const maxHostRepositories = 100
+
+// hostRemedyRank orders the reasons that name a registry to configure, worst
+// first. A host whose images hit several reasons is reported by the worst one:
+// adding a registry subsumes enabling one, which subsumes widening its
+// patterns, and reporting the mildest would understate the work.
+//
+// Ready and UnparseableRef are absent deliberately — neither names a registry
+// anyone can go and configure, so neither belongs in this rollup.
+var hostRemedyRank = map[string]int{
+	IngestReasonNoRegistry:       3,
+	IngestReasonRegistryDisabled: 2,
+	IngestReasonPatternExcluded:  1,
+}
+
+// UnknownImagesPage is a page of the No-SBOM gap plus the totals that make the
+// page honest: how many images the gap holds, how many of them each remedy
+// applies to, and which registries would close it.
+//
+// Reasons and Hosts cover the whole gap, never the page. A reader who is shown
+// twenty rows of "no registry" out of a gap of four hundred needs to know
+// whether adding that registry closes the gap or a twentieth of it (ADR-044 K5).
 type UnknownImagesPage struct {
 	Images  PagedResult[UnknownImage]
 	Reasons map[string]int64
+	Hosts   []UnknownHost
+}
+
+// rollUpHosts groups the gap by the registry host its images name, keeping only
+// the hosts a registry could be configured for.
+//
+// It folds the whole gap rather than the page: the point of the rollup is to
+// say how much one registry would fix, and a count taken off fifty rows would
+// understate every cluster with more than fifty gapped images.
+func rollUpHosts(all []UnknownImage) []UnknownHost {
+	type acc struct {
+		host  *UnknownHost
+		repos map[string]struct{}
+		// Collected separately from the set so the cap below trims a sorted
+		// list rather than whatever order the map happened to yield.
+		reposOrdered []string
+	}
+	byHost := make(map[string]*acc)
+	order := make([]string, 0, 8)
+
+	for _, img := range all {
+		if _, wanted := hostRemedyRank[img.Reason]; !wanted {
+			continue
+		}
+		entry, seen := byHost[img.RegistryHost]
+		if !seen {
+			entry = &acc{host: &UnknownHost{Host: img.RegistryHost}, repos: map[string]struct{}{}}
+			byHost[img.RegistryHost] = entry
+			order = append(order, img.RegistryHost)
+		}
+		h := entry.host
+		h.ImageCount++
+		h.PodCount += img.PodCount
+		h.WorkloadCount += img.WorkloadCount
+		if hostRemedyRank[img.Reason] > hostRemedyRank[h.Reason] {
+			h.Reason = img.Reason
+		}
+		// The first registry seen wins, matching setRegistry: a host can match
+		// several registries, and the one named must not flip between reads.
+		if h.RegistryID == nil && img.RegistryID != nil {
+			h.RegistryID, h.RegistryName = img.RegistryID, img.RegistryName
+		}
+		if img.Repository != "" {
+			if _, dup := entry.repos[img.Repository]; !dup {
+				entry.repos[img.Repository] = struct{}{}
+				entry.reposOrdered = append(entry.reposOrdered, img.Repository)
+			}
+		}
+	}
+
+	out := make([]UnknownHost, 0, len(order))
+	for _, host := range order {
+		entry := byHost[host]
+		h := *entry.host
+		h.RepositoryCount = int64(len(entry.reposOrdered))
+		repos := entry.reposOrdered
+		sort.Strings(repos)
+		if len(repos) > maxHostRepositories {
+			repos = repos[:maxHostRepositories]
+		}
+		h.Repositories = repos
+		out = append(out, h)
+	}
+
+	// Biggest gap first — that is the registry worth configuring next. Host
+	// breaks the tie so the order is stable across reads of the same gap.
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].ImageCount != out[j].ImageCount {
+			return out[i].ImageCount > out[j].ImageCount
+		}
+		return out[i].Host < out[j].Host
+	})
+	return out
 }
 
 // UnknownImages lists the cluster's No-SBOM gap, each image resolved against
@@ -100,6 +219,7 @@ func (s *clusterService) UnknownImages(ctx context.Context, clusterID string, li
 			Offset: offset,
 		},
 		Reasons: reasons,
+		Hosts:   rollUpHosts(all),
 	}, nil
 }
 

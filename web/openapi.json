@@ -3346,6 +3346,16 @@
               "null"
             ]
           },
+          "hosts": {
+            "description": "The entire gap grouped by registry host, biggest first; independent of the page returned",
+            "items": {
+              "$ref": "#/components/schemas/UnknownHostResponse"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "pagination": {
             "$ref": "#/components/schemas/PaginationMeta"
           },
@@ -3357,6 +3367,7 @@
         "required": [
           "data",
           "reasons",
+          "hosts",
           "pagination"
         ],
         "type": "object"
@@ -5786,6 +5797,68 @@
           "aliases",
           "affectedSbomCount",
           "affectedPurlCount"
+        ],
+        "type": "object"
+      },
+      "UnknownHostResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "description": "Normalized registry host the images in this group name",
+            "type": "string"
+          },
+          "image_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "pod_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reason": {
+            "description": "The worst remedy seen for this host; ready and unparseable_ref name no registry to configure and are not grouped here",
+            "enum": [
+              "no_registry",
+              "registry_disabled",
+              "pattern_excluded"
+            ],
+            "type": "string"
+          },
+          "registry_id": {
+            "description": "Registry that serves this host, when one was matched at all",
+            "type": "string"
+          },
+          "registry_name": {
+            "type": "string"
+          },
+          "repositories": {
+            "description": "Distinct repositories a registry would have to cover to close this host's gap, sorted; capped, so compare against repository_count",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "repository_count": {
+            "description": "Distinct repository total, which may exceed the length of repositories",
+            "format": "int64",
+            "type": "integer"
+          },
+          "workload_count": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "host",
+          "reason",
+          "image_count",
+          "pod_count",
+          "workload_count",
+          "repositories",
+          "repository_count"
         ],
         "type": "object"
       },

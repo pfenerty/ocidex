@@ -22,6 +22,13 @@ export type VerificationMode = "none" | "public_key" | "keyless";
 
 export interface RegistryFormState {
     name: string;
+    /**
+     * Namespace to create the registry in, created on first use. Empty means
+     * "give it a namespace of its own named after it" — the API's documented
+     * default, and the only shape this form could express before ADR-039's
+     * tenancy boundary had a field here.
+     */
+    namespace: string;
     type: RegType;
     url: string;
     insecure: boolean;
@@ -42,6 +49,7 @@ export interface RegistryFormState {
 
 export const emptyForm = (): RegistryFormState => ({
     name: "",
+    namespace: "",
     type: "generic",
     url: "",
     insecure: false,
@@ -66,11 +74,34 @@ export const emptyForm = (): RegistryFormState => ({
  * `ghcr.io` and nothing is configured for it.
  *
  * A host that matches a type's fixed URL selects that type, because choosing it
- * later would overwrite the URL anyway. Fixed-URL types have no webhook, so the
- * scan mode is moved with it rather than left on a value the form would reject.
- * Everything stays editable; this only saves typing.
+ * later would overwrite the URL anyway. Everything stays editable; this only
+ * saves typing.
+ *
+ * Scan mode is always `poll`, unlike the empty form's `webhook`. A host reached
+ * this function because it was *observed* — an image running in a cluster named
+ * it — which says nothing about anyone being able to push a webhook to us from
+ * it. Leaving the form on webhook would let a reader close the dialog on a
+ * registry that never scans, and the gap that sent them here would still be
+ * there tomorrow with no indication why.
+ *
+ * `namespace` is the tenancy boundary the registry has to land in to be of any
+ * use to the caller. Registry resolution is namespace-local by design
+ * (`clusterService.UnknownImages`), so a registry created from a cluster's gap
+ * into a namespace of its own — the API's default — closes nothing: the button
+ * would promise a fix and deliver a registry the cluster cannot see.
+ *
+ * `repos` are the repositories actually seen at that host — on the Gaps tab,
+ * exactly the ones behind the gap. They go into Repositories rather than being
+ * offered as a hint because that field is *required* for ghcr.io and quay.io,
+ * which do not support catalog discovery, and because a list drawn from the gap
+ * is the one list guaranteed to close it. It is a visible, editable textarea:
+ * a reader who wants catalog discovery on a Zot or Harbor clears it.
  */
-export function prefillForHost(host: string): Partial<RegistryFormState> {
+export function prefillForHost(
+    host: string,
+    repos?: string[],
+    namespace?: string,
+): Partial<RegistryFormState> {
     const match = (Object.keys(TYPE_CAPS) as RegType[]).find(
         (t) => TYPE_CAPS[t].fixedUrl === host,
     );
@@ -79,7 +110,9 @@ export function prefillForHost(host: string): Partial<RegistryFormState> {
         name: host,
         type,
         url: TYPE_CAPS[type].fixedUrl ?? host,
-        scanMode: TYPE_CAPS[type].webhook ? "webhook" : "poll",
+        scanMode: "poll",
+        ...(namespace === undefined || namespace === "" ? {} : { namespace }),
+        ...(repos === undefined || repos.length === 0 ? {} : { repositories: repos.join("\n") }),
     };
 }
 
