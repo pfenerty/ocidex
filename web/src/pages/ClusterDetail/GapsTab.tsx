@@ -3,10 +3,10 @@ import { A } from "@solidjs/router";
 import { Button, Card, CardHeader, StatusPill } from "~/components/ui";
 import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
-import { plural, shortDigest } from "~/utils/format";
+import { plural } from "~/utils/format";
 import type { IngestReason, IngestResult, UnknownImage, WorkloadCoverage } from "~/api/client";
 import { useClusterWorkloads, useClusterUnknownImages, useIngestUnknown } from "~/api/queries";
-import { workloadColumns } from "./WorkloadsTab";
+import { ImageCell, workloadColumns } from "./WorkloadsTab";
 
 /**
  * How each ingest reason is presented. Every one of them is a different thing
@@ -96,17 +96,19 @@ function unknownImageColumns(
 ): Column<UnknownImage>[] {
     return [
     {
+        // The same cell the Workloads tab renders, rather than a second
+        // rendering of the same fact: it mutes everything before the last path
+        // segment, so a 60-character ref reads as its image name without the
+        // host being hidden. `col-ref` caps the column — an image ref is one
+        // unbreakable token, and uncapped it took the whole table.
         header: "Image",
+        class: "col-ref",
         sortValue: (i) => i.image_ref,
-        render: (i) => (
-            <>
-                <span class="font-mono text-sm">{i.image_ref}</span>
-                <div class="text-muted text-sm font-mono">{shortDigest(i.image_digest)}</div>
-            </>
-        ),
+        render: (i) => <ImageCell row={i} />,
     },
     {
         header: "Running as",
+        class: "col-ref",
         render: (i) => (
             <>
                 <span class="text-muted">{i.sample_k8s_namespace}/</span>
@@ -128,6 +130,7 @@ function unknownImageColumns(
     },
     {
         header: "Ingest",
+        class: "col-action",
         sortValue: (i) => i.reason,
         render: (i) => (
             <IngestTargetCell
