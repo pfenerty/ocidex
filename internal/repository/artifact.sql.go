@@ -583,6 +583,69 @@ func (q *Queries) ListArtifacts(ctx context.Context, arg ListArtifactsParams) ([
 	return items, nil
 }
 
+const listSBOMCandidatesByArtifact = `-- name: ListSBOMCandidatesByArtifact :many
+SELECT s.id, s.subject_version, s.created_at, s.flavor
+FROM sbom s
+WHERE s.artifact_id = $1
+  AND ($2::text IS NULL OR s.subject_version = $2)
+  AND sbom_visible(s.namespace_id, $3::uuid, $4::boolean)
+ORDER BY s.created_at DESC, s.id DESC
+LIMIT $5
+`
+
+type ListSBOMCandidatesByArtifactParams struct {
+	ArtifactID     pgtype.UUID `json:"artifact_id"`
+	SubjectVersion pgtype.Text `json:"subject_version"`
+	UserID         pgtype.UUID `json:"user_id"`
+	IsAdmin        pgtype.Bool `json:"is_admin"`
+	RowLimit       int32       `json:"row_limit"`
+}
+
+type ListSBOMCandidatesByArtifactRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	SubjectVersion pgtype.Text        `json:"subject_version"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	Flavor         pgtype.Text        `json:"flavor"`
+}
+
+// The changelog's candidate list. Deliberately not ListSBOMsByArtifact: that
+// query carries a correlated (SELECT COUNT(*) FROM component ...) per row, and
+// the changelog asks for up to 10,000 rows, so it paid for counting every
+// component of every version before paging anything (ocidex-7gf7.12). It reads
+// only these four columns -- architecture and build date come from
+// ListSBOMEnrichmentsByArtifact -- so the count and the enrichment joins were
+// pure cost here.
+func (q *Queries) ListSBOMCandidatesByArtifact(ctx context.Context, arg ListSBOMCandidatesByArtifactParams) ([]ListSBOMCandidatesByArtifactRow, error) {
+	rows, err := q.db.Query(ctx, listSBOMCandidatesByArtifact,
+		arg.ArtifactID,
+		arg.SubjectVersion,
+		arg.UserID,
+		arg.IsAdmin,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSBOMCandidatesByArtifactRow{}
+	for rows.Next() {
+		var i ListSBOMCandidatesByArtifactRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SubjectVersion,
+			&i.CreatedAt,
+			&i.Flavor,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSBOMsByArtifact = `-- name: ListSBOMsByArtifact :many
 SELECT s.id, s.serial_number, s.spec_version, s.version, s.subject_version, s.digest, s.created_at,
        (SELECT COUNT(*) FROM component c WHERE c.sbom_id = s.id) AS component_count,

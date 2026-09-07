@@ -285,6 +285,22 @@ WHERE s.artifact_id = $1
 ORDER BY s.created_at DESC, s.id DESC
 LIMIT @row_limit;
 
+-- name: ListSBOMCandidatesByArtifact :many
+-- The changelog's candidate list. Deliberately not ListSBOMsByArtifact: that
+-- query carries a correlated (SELECT COUNT(*) FROM component ...) per row, and
+-- the changelog asks for up to 10,000 rows, so it paid for counting every
+-- component of every version before paging anything (ocidex-7gf7.12). It reads
+-- only these four columns -- architecture and build date come from
+-- ListSBOMEnrichmentsByArtifact -- so the count and the enrichment joins were
+-- pure cost here.
+SELECT s.id, s.subject_version, s.created_at, s.flavor
+FROM sbom s
+WHERE s.artifact_id = $1
+  AND (sqlc.narg('subject_version')::text IS NULL OR s.subject_version = sqlc.narg('subject_version'))
+  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+ORDER BY s.created_at DESC, s.id DESC
+LIMIT @row_limit;
+
 -- name: ListArtifactVersions :many
 WITH sboms_meta AS (
     SELECT

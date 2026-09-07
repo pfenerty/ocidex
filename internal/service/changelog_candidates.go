@@ -23,7 +23,7 @@ type changelogGroupKey struct{ version, arch, flavor string }
 
 // changelogCandidate is a deduplicated SBOM representative for changelog diffing.
 type changelogCandidate struct {
-	sbom      repository.ListSBOMsByArtifactRow
+	sbom      repository.ListSBOMCandidatesByArtifactRow
 	buildDate *time.Time
 	arch      string
 	flavor    string
@@ -31,7 +31,7 @@ type changelogCandidate struct {
 
 // deduplicateSBOMs groups SBOMs by (version, arch, flavor) keeping the latest per group.
 // Returns the best-per-group map, available architectures, and available flavors.
-func deduplicateSBOMs(sboms []repository.ListSBOMsByArtifactRow, meta map[pgtype.UUID]enrichmentMeta) (map[changelogGroupKey]changelogCandidate, map[string]bool, map[string]bool) {
+func deduplicateSBOMs(sboms []repository.ListSBOMCandidatesByArtifactRow, meta map[pgtype.UUID]enrichmentMeta) (map[changelogGroupKey]changelogCandidate, map[string]bool, map[string]bool) {
 	best := map[changelogGroupKey]changelogCandidate{}
 	available := map[string]bool{}
 	availableFlavors := map[string]bool{}
@@ -239,7 +239,7 @@ func nonEmptyStrPtr(s string) *string {
 	return &s
 }
 
-func sbomToRef(row repository.ListSBOMsByArtifactRow) SBOMRef {
+func sbomToRef(row repository.ListSBOMCandidatesByArtifactRow) SBOMRef {
 	return SBOMRef{
 		ID:             uuidToString(row.ID),
 		SubjectVersion: textToPtr(row.SubjectVersion),
