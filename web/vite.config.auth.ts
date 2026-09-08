@@ -1,7 +1,7 @@
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import { defineConfig, mergeConfig } from "vite";
-import base from "./vite.config";
+import base from "./vite.config.ts";
 
 /**
  * Dev server pointed at the local authenticated rig (`scripts/dev-auth.sh`).
@@ -25,7 +25,7 @@ import base from "./vite.config";
  * `scripts/dev-auth.sh`'s PERSONAS array stays the only place personas are
  * declared.
  */
-const KEY_FILE = resolve(__dirname, "../.dev/dev-auth.env");
+const KEY_FILE = resolve(import.meta.dirname, "../.dev/dev-auth.env");
 
 function devPersonas(): string[] {
     let contents: string;

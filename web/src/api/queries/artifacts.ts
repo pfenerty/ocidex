@@ -407,7 +407,6 @@ export function useArtifactNames(): (
         return map;
     });
 
-    // eslint-disable-next-line solid/reactivity
     return (id: string | undefined) => {
         if (id === undefined) return undefined;
         return lookupMap().get(id);

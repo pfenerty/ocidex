@@ -1,4 +1,4 @@
-import base from "./vite.config";
+import base from "./vite.config.ts";
 import { defineConfig, mergeConfig } from "vite";
 
 /**

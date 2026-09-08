@@ -55,6 +55,11 @@ export default tseslint.config(
             "@typescript-eslint/no-implied-eval": "error",
             "prefer-const": "error",
             "no-var": "error",
+            // Promoted into eslint's recommended set in v10. Solid's `ref={el}`
+            // is compiled into the assignment, so the rule sees only the bare
+            // `let el: HTMLElement | undefined` and calls every ref binding in
+            // the app dead.
+            "no-unassigned-vars": "off",
             "object-shorthand": "error",
             "prefer-template": "error",
         },
