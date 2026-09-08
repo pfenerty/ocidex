@@ -323,12 +323,11 @@ func (s *searchService) GetArtifactChangelog(ctx context.Context, artifactID pgt
 	}
 
 	// Changelog needs every SBOM for the artifact (no cursor); cap defensively.
-	sboms, err := q.ListSBOMsByArtifact(ctx, repository.ListSBOMsByArtifactParams{
+	sboms, err := q.ListSBOMCandidatesByArtifact(ctx, repository.ListSBOMCandidatesByArtifactParams{
 		ArtifactID:     artifactID,
 		SubjectVersion: textOrNull(query.SubjectVersion),
 		UserID:         vis.UserID,
 		IsAdmin:        visAdminBool(vis),
-		HasCursor:      pgtype.Bool{Bool: false, Valid: true},
 		RowLimit:       10000,
 	})
 	if err != nil {

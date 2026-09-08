@@ -286,7 +286,7 @@ func TestCandidateEffectiveTime_NoBuildDate(t *testing.T) {
 	is := is.New(t)
 	ingested := time.Now()
 	c := changelogCandidate{
-		sbom: repository.ListSBOMsByArtifactRow{
+		sbom: repository.ListSBOMCandidatesByArtifactRow{
 			CreatedAt: pgtype.Timestamptz{Time: ingested, Valid: true},
 		},
 	}
@@ -297,7 +297,7 @@ func TestSortCandidates_ByVersion(t *testing.T) {
 	is := is.New(t)
 	mkCandidate := func(version string) changelogCandidate {
 		return changelogCandidate{
-			sbom: repository.ListSBOMsByArtifactRow{
+			sbom: repository.ListSBOMCandidatesByArtifactRow{
 				SubjectVersion: pgtype.Text{String: version, Valid: true},
 				CreatedAt:      pgtype.Timestamptz{Time: time.Now(), Valid: true},
 			},
@@ -320,7 +320,7 @@ func TestSortCandidates_BuildTimeModeIgnoresVersion(t *testing.T) {
 	t2 := time.Now().Add(-time.Hour)
 	mk := func(version string, built time.Time) changelogCandidate {
 		return changelogCandidate{
-			sbom: repository.ListSBOMsByArtifactRow{
+			sbom: repository.ListSBOMCandidatesByArtifactRow{
 				SubjectVersion: pgtype.Text{String: version, Valid: true},
 				CreatedAt:      pgtype.Timestamptz{Time: built, Valid: true},
 			},
@@ -342,8 +342,8 @@ func TestSortCandidates_FallsBackToIngestionTime(t *testing.T) {
 	t1 := time.Now().Add(-time.Hour)
 	t2 := time.Now()
 	candidates := []changelogCandidate{
-		{sbom: repository.ListSBOMsByArtifactRow{CreatedAt: pgtype.Timestamptz{Time: t2, Valid: true}}},
-		{sbom: repository.ListSBOMsByArtifactRow{CreatedAt: pgtype.Timestamptz{Time: t1, Valid: true}}},
+		{sbom: repository.ListSBOMCandidatesByArtifactRow{CreatedAt: pgtype.Timestamptz{Time: t2, Valid: true}}},
+		{sbom: repository.ListSBOMCandidatesByArtifactRow{CreatedAt: pgtype.Timestamptz{Time: t1, Valid: true}}},
 	}
 	sortCandidates(candidates, SortSemver)
 	// Earlier ingestion time should be first.
@@ -382,7 +382,7 @@ func TestDeduplicateSBOMs_KeepsLatestPerGroup(t *testing.T) {
 	uid1 := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
 	uid2 := pgtype.UUID{Bytes: [16]byte{2}, Valid: true}
 
-	sboms := []repository.ListSBOMsByArtifactRow{
+	sboms := []repository.ListSBOMCandidatesByArtifactRow{
 		{ID: uid1, SubjectVersion: pgtype.Text{String: "v1", Valid: true}, CreatedAt: pgtype.Timestamptz{Time: t1, Valid: true}},
 		{ID: uid2, SubjectVersion: pgtype.Text{String: "v1", Valid: true}, CreatedAt: pgtype.Timestamptz{Time: t2, Valid: true}},
 	}
@@ -406,7 +406,7 @@ func TestDeduplicateSBOMs_SeparateGroups(t *testing.T) {
 	uid1 := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
 	uid2 := pgtype.UUID{Bytes: [16]byte{2}, Valid: true}
 
-	sboms := []repository.ListSBOMsByArtifactRow{
+	sboms := []repository.ListSBOMCandidatesByArtifactRow{
 		{ID: uid1, SubjectVersion: pgtype.Text{String: "v1", Valid: true}, CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}},
 		{ID: uid2, SubjectVersion: pgtype.Text{String: "v2", Valid: true}, CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}},
 	}
@@ -424,7 +424,7 @@ func TestDeduplicateSBOMs_SeparateFlavorsSameVersionArch(t *testing.T) {
 	uid1 := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
 	uid2 := pgtype.UUID{Bytes: [16]byte{2}, Valid: true}
 
-	sboms := []repository.ListSBOMsByArtifactRow{
+	sboms := []repository.ListSBOMCandidatesByArtifactRow{
 		{ID: uid1, SubjectVersion: pgtype.Text{String: "v1", Valid: true}, Flavor: pgtype.Text{String: "alpine", Valid: true}, CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}},
 		{ID: uid2, SubjectVersion: pgtype.Text{String: "v1", Valid: true}, Flavor: pgtype.Text{String: "debian", Valid: true}, CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}},
 	}
@@ -447,7 +447,7 @@ func TestDeduplicateSBOMs_SameFlavorTripleDeduplicates(t *testing.T) {
 	uid1 := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
 	uid2 := pgtype.UUID{Bytes: [16]byte{2}, Valid: true}
 
-	sboms := []repository.ListSBOMsByArtifactRow{
+	sboms := []repository.ListSBOMCandidatesByArtifactRow{
 		{ID: uid1, SubjectVersion: pgtype.Text{String: "v1", Valid: true}, Flavor: pgtype.Text{String: "alpine", Valid: true}, CreatedAt: pgtype.Timestamptz{Time: t1, Valid: true}},
 		{ID: uid2, SubjectVersion: pgtype.Text{String: "v1", Valid: true}, Flavor: pgtype.Text{String: "alpine", Valid: true}, CreatedAt: pgtype.Timestamptz{Time: t2, Valid: true}},
 	}
@@ -470,7 +470,7 @@ func TestDeduplicateSBOMs_ThreeWaySplit(t *testing.T) {
 	uid2 := pgtype.UUID{Bytes: [16]byte{2}, Valid: true}
 	uid3 := pgtype.UUID{Bytes: [16]byte{3}, Valid: true}
 
-	sboms := []repository.ListSBOMsByArtifactRow{
+	sboms := []repository.ListSBOMCandidatesByArtifactRow{
 		{ID: uid1, SubjectVersion: pgtype.Text{String: "v1", Valid: true}, Flavor: pgtype.Text{String: "alpine", Valid: true}, CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}},
 		{ID: uid2, SubjectVersion: pgtype.Text{String: "v1", Valid: true}, Flavor: pgtype.Text{String: "debian", Valid: true}, CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}},
 		{ID: uid3, SubjectVersion: pgtype.Text{String: "v1", Valid: true}, Flavor: pgtype.Text{String: "alpine", Valid: true}, CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}},
@@ -1098,7 +1098,7 @@ func TestSbomToRef(t *testing.T) {
 	is := is.New(t)
 	id := pgtype.UUID{Bytes: [16]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}, Valid: true}
 	ts := time.Now()
-	row := repository.ListSBOMsByArtifactRow{
+	row := repository.ListSBOMCandidatesByArtifactRow{
 		ID:             id,
 		SubjectVersion: pgtype.Text{String: "v1.2.3", Valid: true},
 		CreatedAt:      pgtype.Timestamptz{Time: ts, Valid: true},
