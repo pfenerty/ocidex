@@ -60,9 +60,9 @@
       "automerge": false
     },
     {
-      "description": "Hold eslint at <10: eslint-plugin-solid (^0.14) only peer-supports eslint ^6||^7||^8||^9, so eslint 10 fails npm install (ERESOLVE) and leaves the major-update PR perpetually red. Lift once eslint-plugin-solid supports eslint 10.",
-      "matchPackageNames": ["eslint"],
-      "allowedVersions": "<10"
+      "description": "Hold typescript at <7: typescript-eslint (^8) peer-depends on typescript \">=4.8.4 <6.1.0\", so TypeScript 7 fails npm install (ERESOLVE) and leaves the major-update PR perpetually red. This rule must also cover the eslint scope if that combination ever regresses — matchPackageNames matches the exact name, so a hold on \"eslint\" does not hold \"@eslint/js\". Lift once typescript-eslint peer-supports TypeScript 7.",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<7"
     }
   ],
   "customManagers": [
