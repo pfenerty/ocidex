@@ -13,7 +13,7 @@ require (
 	github.com/go-chi/cors v1.2.2
 	github.com/google/go-containerregistry v0.22.1
 	github.com/in-toto/attestation v1.2.0
-	github.com/jackc/pgx/v5 v5.10.0
+	github.com/jackc/pgx/v5 v5.11.0
 	github.com/matryer/is v1.4.1
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/nats-io/nats.go v1.53.1
@@ -393,8 +393,8 @@ require (
 	golang.org/x/mod v0.41.0
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sync v0.23.0
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/term v0.45.0
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/term v0.46.0
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect
