@@ -11,6 +11,10 @@ import (
 	"github.com/matryer/is"
 )
 
+// testTypeMap is the pgtype.Map reported by the package's fake pgx.Rows
+// implementations. They decode nothing themselves, but pgx.Rows requires it.
+var testTypeMap = pgtype.NewMap()
+
 // scanFnRows implements pgx.Rows where each row is defined by a scan function.
 // Used to return multi-column results from fakeDB.queryFn.
 type scanFnRows struct {
@@ -26,6 +30,7 @@ func (r *scanFnRows) FieldDescriptions() []pgconn.FieldDescription { return nil 
 func (r *scanFnRows) Values() ([]any, error)                       { return nil, nil }
 func (r *scanFnRows) RawValues() [][]byte                          { return nil }
 func (r *scanFnRows) Conn() *pgx.Conn                              { return nil }
+func (r *scanFnRows) TypeMap() *pgtype.Map                         { return testTypeMap }
 func (r *scanFnRows) Scan(dest ...any) error {
 	fn := r.fns[r.idx]
 	r.idx++
