@@ -152,6 +152,12 @@ func extractComponentProvenance(props *[]cdx.Property, purl, flavor string) comp
 		srcVersion = findPropValue(propSets, []string{"syft:metadata:sourceVersion"})
 	case purlTypeAPK:
 		srcPkg = findPropValue(propSets, []string{"syft:metadata:originPackage"})
+		// syft emits no origin-version property for apk, but an apk subpackage
+		// is built from its origin at the same version, so the component's own
+		// version is the origin's. Without it buildSourcePurl would emit a
+		// versionless source purl, which OSV cannot version-match (see
+		// vuln.queryablePurls) and which would therefore never be scanned.
+		srcVersion = purlVersionValue(purl)
 	case purlTypeRPM:
 		if sourceRpm := findPropValue(propSets, []string{"syft:metadata:sourceRpm"}); sourceRpm != "" {
 			srcPkg, srcVersion = parseSourceRpm(sourceRpm)
