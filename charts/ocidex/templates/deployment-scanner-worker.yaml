@@ -69,6 +69,10 @@ spec:
               value: {{ .Values.scannerWorker.env.databaseMaxConnections | quote }}
             - name: SCANNER_MAX_CONCURRENCY
               value: {{ .Values.scannerWorker.env.maxConcurrency | quote }}
+            {{- with .Values.scannerWorker.env.maxImageBytes }}
+            - name: SCANNER_MAX_IMAGE_BYTES
+              value: {{ . | quote }}
+            {{- end }}
             - name: ENVIRONMENT
               value: {{ .Values.scannerWorker.env.environment | quote }}
             - name: LOG_LEVEL

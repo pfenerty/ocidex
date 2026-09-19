@@ -123,6 +123,7 @@ Controls webhook-triggered and poll-triggered OCI image scanning (runs Syft).
 | `SCANNER_ENABLED` | `false` | On the API, enables publishing scan requests (required for both webhook and poll scan modes). The API never scans in-process, so a `scanner-worker` must run to consume the requests. |
 | `SCANNER_WORKERS` | `2` | Number of concurrent scan goroutines inside each `scanner-worker` process. |
 | `SCANNER_QUEUE_SIZE` | `50` | Scan work queue depth inside each `scanner-worker` process. |
+| `SCANNER_MAX_IMAGE_BYTES` | `2147483648` | Largest image the worker hands to Syft, as total *compressed* layer bytes read from its manifest. Above this the job fails permanently without pulling anything — Syft unpacks every layer, so an image past what `limits.memory` can hold OOMKills the container instead of returning an error, taking any concurrent scan with it. Raise this and the memory limit together; `0` disables the check. |
 | `REGISTRY_POLLER_ENABLED` | `false` | Enable the background poller for registries with `scan_mode=poll` or `scan_mode=both`. Requires `SCANNER_ENABLED=true`. Uses leader election so multiple API replicas are safe. |
 
 **Scan mode summary:**

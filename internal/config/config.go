@@ -91,6 +91,17 @@ type Config struct {
 	// ScannerMaxAttempts is the per-row retry budget. When attempts >= max,
 	// FailOrRequeueByID transitions to 'failed' instead of 'queued'.
 	ScannerMaxAttempts int `env:"SCANNER_MAX_ATTEMPTS" envDefault:"3"`
+	// ScannerMaxImageBytes is the largest image the worker will hand to syft,
+	// measured as the total *compressed* layer size its manifest advertises.
+	// Syft has to pull and unpack every layer, so an image past what the pod's
+	// memory limit can hold does not fail — the container is OOMKilled, which
+	// records no error on the row and takes any concurrent scan down with it.
+	// The row is then reaped by the stuck sweep and retried, so one oversized
+	// image degrades the whole worker on a loop. Checking the manifest first
+	// costs one small GET and converts that into a single 'failed' row that
+	// says why. Keep it below what limits.memory can actually catalogue; 0
+	// disables the check.
+	ScannerMaxImageBytes int64 `env:"SCANNER_MAX_IMAGE_BYTES" envDefault:"2147483648"`
 
 	// Enrichment worker outbox-pattern settings (mirrors the scanner equivalents).
 	EnrichmentMaxConcurrency int           `env:"ENRICHMENT_MAX_CONCURRENCY"  envDefault:"10"`
