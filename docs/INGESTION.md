@@ -127,6 +127,10 @@ The `scan_jobs` row is the single source of truth for queued work. NATS carries 
 
 **Stuck-running sweep.** `runStuckRunningSweep` calls `RequeueStuckRunning` every `SCANNER_STUCK_THRESHOLD/3`. Any `running` row whose `last_attempt_at` is older than the threshold goes back to `queued` (or `failed` if retries are exhausted). This replaces the orphan reconciler — under the outbox model there is no NATS-aware reconciliation.
 
+Both sweep branches write `last_error`. A worker that dies without returning — OOMKilled, evicted, SIGKILLed — never reaches `FailOrRequeueByID`, so the only trace it leaves is the sweep's. A row showing `attempts=N` with no error at all means the worker is being killed rather than failing, and that is what `SCANNER_MAX_IMAGE_BYTES` exists to prevent.
+
+**Terminal rows are not re-enqueued by a walk.** `InsertScanJob`'s `ON CONFLICT` resets a `succeeded` row to `queued` so a re-scan works, but leaves a `failed` row alone. A catalog walk calls it for every image it sees on every poll, so resetting `failed` meant a deterministically-broken image got a fresh attempts budget every poll interval and re-ran forever, never staying failed long enough to be read. Requeueing a failed row is now an explicit operator action: `RetryScanJob` (the Retry button) or `RetryAllFailedScanJobs`.
+
 #### Knobs
 
 | Var | Default | Purpose |
@@ -135,6 +139,7 @@ The `scan_jobs` row is the single source of truth for queued work. NATS carries 
 | `SCANNER_POLL_INTERVAL` | 30s | DB poll cadence for the queue-drain fallback. Lower = lower latency when NATS hints fail; higher = lower DB load. |
 | `SCANNER_STUCK_THRESHOLD` | 15m | A `running` row idle longer than this is presumed dead and requeued. |
 | `SCANNER_MAX_ATTEMPTS` | 3 | Retry budget per row. Beyond this, `FailOrRequeueByID` marks `failed`. |
+| `SCANNER_MAX_IMAGE_BYTES` | 2GiB | Largest image handed to Syft, as total *compressed* layer bytes from its manifest. Over this the job fails permanently without pulling. Must stay under what the pod's memory limit can catalogue. `0` disables. |
 
 `SCANNER_MAX_ACK_PENDING`, `SCANNER_WORKERS`, `SCANNER_QUEUE_SIZE` are gone — they existed only to coordinate the dual-write design.
 
@@ -145,7 +150,8 @@ The `scan_jobs` row is the single source of truth for queued work. NATS carries 
 | NATS pod down | Poll loop drains the queue at `SCANNER_POLL_INTERVAL` latency. |
 | NATS PVC lost | Same as above. No work loss — rows are in Postgres. |
 | Publish fails after row insert | Poll loop picks up within `SCANNER_POLL_INTERVAL`. |
-| Worker crashes mid-scan | Stuck-running sweep requeues the row after `SCANNER_STUCK_THRESHOLD`. |
+| Worker crashes mid-scan | Stuck-running sweep requeues the row after `SCANNER_STUCK_THRESHOLD`, recording `stuck: …` as `last_error`. |
+| Image too large for the worker's memory | Rejected from its manifest before the pull, permanently, with `image too large to scan: …`. Without this the container is OOMKilled: no error is recorded, any concurrent scan dies with it, and the sweep requeues the row into the same crash on a loop. |
 | Two workers race the same hint | One `ClaimByID` claim succeeds, the other returns no row and no-ops. |
 | Duplicate enqueue (same registry@digest) | `nats_msg_id` UNIQUE → producer's `Enqueue` errors with PG `23505`; submitter treats as no-op. |
 

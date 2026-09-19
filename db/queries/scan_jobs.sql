@@ -1,17 +1,33 @@
 -- name: InsertScanJob :one
--- On conflict with a terminal row (succeeded/failed), reset it to queued so
--- ad-hoc re-scans work. On conflict with an active row (queued/running), leave
--- it unchanged — the existing job is still being processed.
+-- On conflict with a 'succeeded' row, reset it to queued so a re-scan of an
+-- already-scanned digest works. On conflict with an active row
+-- (queued/running), leave it unchanged — the existing job is still running.
+--
+-- 'failed' is deliberately NOT reset here. This query is what every catalog
+-- walk calls for every image it sees, so resetting a failed row meant a
+-- deterministically-broken image (one syft cannot read, one whose ingest
+-- always errors, one too big for the worker) got its attempts zeroed on every
+-- poll and re-ran forever: state churned queued → running → failed → queued on
+-- the registry's poll interval, and the failure was never visible for longer
+-- than one cycle. On ocidex.app that hid a 13-day crash loop behind a row that
+-- always looked freshly started. A failed row now stays failed and is
+-- requeued only by an explicit operator action — RetryScanJob (the Retry
+-- button) or RetryAllFailedScanJobs.
+--
+-- A transient failure therefore needs that one click. It already had a retry
+-- budget of SCANNER_MAX_ATTEMPTS to ride out a blip, so what this gives up is
+-- automatic recovery from an outage longer than the budget — in exchange for a
+-- failed row that is still there to be read.
 INSERT INTO scan_jobs (registry_id, repository, digest, index_digest, tag, nats_msg_id)
 VALUES (sqlc.narg('registry_id')::uuid, @repository, @digest, sqlc.narg('index_digest'), sqlc.narg('tag'), sqlc.narg('nats_msg_id'))
 ON CONFLICT (nats_msg_id) DO UPDATE
-    SET state           = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN 'queued'::text ELSE scan_jobs.state           END,
-        attempts        = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN 0              ELSE scan_jobs.attempts        END,
-        last_error      = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.last_error      END,
-        finished_at     = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.finished_at     END,
-        started_at      = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.started_at      END,
-        last_attempt_at = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.last_attempt_at END,
-        sbom_id         = CASE WHEN scan_jobs.state IN ('succeeded', 'failed') THEN NULL           ELSE scan_jobs.sbom_id         END,
+    SET state           = CASE WHEN scan_jobs.state = 'succeeded' THEN 'queued'::text ELSE scan_jobs.state           END,
+        attempts        = CASE WHEN scan_jobs.state = 'succeeded' THEN 0              ELSE scan_jobs.attempts        END,
+        last_error      = CASE WHEN scan_jobs.state = 'succeeded' THEN NULL           ELSE scan_jobs.last_error      END,
+        finished_at     = CASE WHEN scan_jobs.state = 'succeeded' THEN NULL           ELSE scan_jobs.finished_at     END,
+        started_at      = CASE WHEN scan_jobs.state = 'succeeded' THEN NULL           ELSE scan_jobs.started_at      END,
+        last_attempt_at = CASE WHEN scan_jobs.state = 'succeeded' THEN NULL           ELSE scan_jobs.last_attempt_at END,
+        sbom_id         = CASE WHEN scan_jobs.state = 'succeeded' THEN NULL           ELSE scan_jobs.sbom_id         END,
         index_digest    = EXCLUDED.index_digest,
         tag             = EXCLUDED.tag
 RETURNING *;
@@ -226,6 +242,13 @@ WHERE state = 'failed';
 -- worker hasn't updated last_attempt_at recently is presumed dead; we move it
 -- back to 'queued' for another worker to claim, or 'failed' if it has used up
 -- its retries. This is the only stuck-job sweep the outbox model needs.
+--
+-- Both branches record why. A worker that dies without returning -- OOMKilled
+-- on a large image, evicted, SIGKILLed -- never reaches FailOrRequeue, so
+-- before this the requeue branch left last_error untouched and the row read as
+-- attempts=N with no error at all. That is the one failure mode the operator
+-- cannot diagnose from the row, and it is the common one for an image too big
+-- for the worker's memory limit.
 -- name: RequeueStuckRunning :exec
 UPDATE scan_jobs
 SET state = CASE
@@ -235,7 +258,7 @@ SET state = CASE
     last_error = CASE
         WHEN attempts >= @max_attempts::int
             THEN 'stuck: worker did not complete and retries exhausted'
-        ELSE last_error
+        ELSE 'stuck: worker did not complete (no error reported); requeued for retry'
     END,
     finished_at = CASE
         WHEN attempts >= @max_attempts::int THEN now()

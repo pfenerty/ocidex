@@ -22,17 +22,36 @@ type Dispatcher struct {
 	scanner scanner.Scanner
 	sbomSvc service.SBOMService
 	logger  *slog.Logger
+	// maxImageBytes is the compressed-layer ceiling above which an image is
+	// rejected without being pulled. 0 disables the check.
+	maxImageBytes int64
 }
 
-// NewDispatcher creates a Dispatcher backed by the given Syft scanner and SBOM service.
-func NewDispatcher(sc scanner.Scanner, sbomSvc service.SBOMService, logger *slog.Logger) *Dispatcher {
-	return &Dispatcher{scanner: sc, sbomSvc: sbomSvc, logger: logger}
+// NewDispatcher creates a Dispatcher backed by the given Syft scanner and SBOM
+// service. maxImageBytes rejects images whose manifest advertises more than
+// that many compressed layer bytes; pass 0 to scan regardless of size.
+func NewDispatcher(sc scanner.Scanner, sbomSvc service.SBOMService, maxImageBytes int64, logger *slog.Logger) *Dispatcher {
+	return &Dispatcher{scanner: sc, sbomSvc: sbomSvc, maxImageBytes: maxImageBytes, logger: logger}
 }
 
 // ProcessOne scans the image described by req and ingests the resulting SBOM.
 // Returns the created SBOM id on success.
 func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (pgtype.UUID, error) {
 	req = scanner.FillMetadata(ctx, req)
+
+	// Size gate before the pull, not after: syft unpacks every layer, so an
+	// image past what this pod's memory limit can hold gets the container
+	// OOMKilled rather than returning an error. Nothing is written to the row
+	// in that case, so the stuck sweep requeues it and the next attempt kills
+	// the worker again — and any scan sharing the pod dies with it. Failing
+	// here is permanent because a too-big image is still too big next hour.
+	if d.maxImageBytes > 0 {
+		if size, known := scanner.ImageLayerBytes(ctx, req); known && size > d.maxImageBytes {
+			return pgtype.UUID{}, jobqueue.Permanent(fmt.Errorf(
+				"image too large to scan: %d compressed layer bytes exceeds SCANNER_MAX_IMAGE_BYTES=%d",
+				size, d.maxImageBytes))
+		}
+	}
 
 	raw, err := d.scanner.Scan(ctx, req)
 	if err != nil {

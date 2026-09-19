@@ -521,8 +521,21 @@ type ociManifest struct {
 	} `json:"config"`
 	Layers []struct {
 		MediaType string `json:"mediaType"`
+		Size      int64  `json:"size"`
 	} `json:"layers"`
 	Annotations map[string]string `json:"annotations"`
+}
+
+// totalLayerBytes sums the compressed size the manifest advertises for each
+// layer. Registries are required to populate descriptor sizes, but a manifest
+// that omits them simply sums to 0, which every caller must read as "unknown"
+// rather than "empty".
+func (m ociManifest) totalLayerBytes() int64 {
+	var total int64
+	for _, l := range m.Layers {
+		total += l.Size
+	}
+	return total
 }
 
 // isAttachedArtifact reports whether the manifest describes a cosign signature,

@@ -53,7 +53,9 @@ Worker pods log NATS disconnect / reconnect / closed at WARN — grep for these 
 
 **Symptoms.** A `running` row's `last_attempt_at` is older than `SCANNER_STUCK_THRESHOLD` (default 15 min). Usually means the worker pod was evicted, terminated mid-scan, or networked into a hung Syft.
 
-**Recovery.** Automatic — `runStuckRunningSweep` runs every `SCANNER_STUCK_THRESHOLD/3` (default every 5 min) and moves the row back to `queued` (or to `failed` if `attempts >= SCANNER_MAX_ATTEMPTS`). Operator action only needed if the same row repeatedly cycles through the sweep — that points at a genuine Syft / registry problem on that specific image.
+**Recovery.** Automatic — `runStuckRunningSweep` runs every `SCANNER_STUCK_THRESHOLD/3` (default every 5 min) and moves the row back to `queued` (or to `failed` if `attempts >= SCANNER_MAX_ATTEMPTS`). Both branches record a `stuck: …` `last_error`. Operator action only needed if the same row repeatedly cycles through the sweep — that points at a genuine Syft / registry problem on that specific image.
+
+**A row whose `attempts` climbs while `last_error` stays empty is the worker being killed, not the scan failing.** Nothing reached `FailOrRequeueByID`, so the process died mid-scan: almost always OOMKill on an oversized image, occasionally eviction on `/tmp`. Confirm with `kubectl get pods -l app=ocidex-scanner-worker` (`RESTARTS`, and `lastState.terminated.reason=OOMKilled` in `kubectl describe`). This is not confined to the one row — the OOM takes down every scan sharing that pod. Fix by raising `scannerWorker.resources.limits.memory` if the image is worth scanning, or lowering `SCANNER_MAX_IMAGE_BYTES` so it is rejected from its manifest instead of pulled.
 
 ### 4. Failed rows accumulating
 
@@ -64,9 +66,11 @@ Worker pods log NATS disconnect / reconnect / closed at WARN — grep for these 
 - `manifest unknown` / `404 NotFound` — image was deleted between scheduling and scanning. Nothing to do.
 - `connect: connection refused` — registry was unreachable. Either retry once it's back (Retry button on the row) or accept it.
 - `syft: …` — actual analysis failure. File a `bd` issue with the row id and digest.
-- `stuck: worker did not complete and retries exhausted` — the row cycled through the stuck-running sweep `SCANNER_MAX_ATTEMPTS` times. Usually a specific image Syft can't handle.
+- `stuck: worker did not complete and retries exhausted` — the row cycled through the stuck-running sweep `SCANNER_MAX_ATTEMPTS` times. Usually a specific image Syft can't handle, or one whose scan keeps OOMKilling the worker.
+- `image too large to scan: N compressed layer bytes exceeds SCANNER_MAX_IMAGE_BYTES=M` — rejected from its manifest without being pulled. Raise both the ceiling and `scannerWorker.resources.limits.memory` if you want this image, or leave it: the point of the check is that the alternative is an OOMKill loop that also kills unrelated scans.
+- `ingest: inserting sbom: ERROR: value "…" is out of range for type integer` — fixed in migration 00073. A pre-00073 database still has the unbounded `sbom.version_major` parse, which raises on any tag whose leading digit run exceeds int4.
 
-**Recovery.** Click Retry on the row to reset it to `queued`. The next poll or hint picks it up with `attempts=0`. For bulk retry: `UPDATE scan_jobs SET state='queued', attempts=0, last_error=NULL WHERE state='failed' AND last_error LIKE '%pattern%'`.
+**Recovery.** Click Retry on the row to reset it to `queued`. The next poll or hint picks it up with `attempts=0`. A catalog walk will *not* do this for you — since the `InsertScanJob` change, a failed row stays failed until someone retries it, so that a permanently-broken image stops silently re-running every poll interval. For bulk retry: `UPDATE scan_jobs SET state='queued', attempts=0, last_error=NULL WHERE state='failed' AND last_error LIKE '%pattern%'`.
 
 ### 5. Manual re-enqueue of a specific image
 
