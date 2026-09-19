@@ -10,6 +10,10 @@
     "jsxImportSource": "solid-js",
     "strict": true,
     "skipLibCheck": true,
+    // TypeScript 6 no longer auto-includes every package under node_modules/@types,
+    // so the Node builtins the contract tests import (node:fs, node:path, __dirname)
+    // have to be requested explicitly.
+    "types": ["node"],
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,

@@ -23,6 +23,7 @@
         "@eslint/js": "^10.0.0",
         "@solidjs/testing-library": "^0.8.10",
         "@tailwindcss/vite": "^4.2.1",
+        "@types/node": "^25.6.2",
         "eslint": "^10.10.0",
         "eslint-plugin-solid": "^0.17.0",
         "happy-dom": "^20.9.0",
@@ -33,5 +34,10 @@
         "vite": "^8.0.0",
         "vite-plugin-solid": "^2.11.6",
         "vitest": "^5.0.0"
+    },
+    "overrides": {
+        "openapi-typescript": {
+            "typescript": "$typescript"
+        }
     }
 }
