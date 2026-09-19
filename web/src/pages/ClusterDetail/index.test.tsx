@@ -771,9 +771,9 @@ describe("ClusterDetail", () => {
         const { container } = renderPage([workload()], GAPPY);
 
         const select = must(
-            container.querySelector('[data-testid="grouping-select"]'),
+            container.querySelector<HTMLSelectElement>('[data-testid="grouping-select"]'),
             "grouping select",
-        ) as HTMLSelectElement;
+        );
         select.value = "workload";
         select.dispatchEvent(new Event("change", { bubbles: true }));
 
@@ -886,9 +886,9 @@ describe("ClusterDetail", () => {
         const { container } = renderPage([workload()], GAPPY, [vuln()]);
 
         const toggle = must(
-            container.querySelector(".link-button"),
+            container.querySelector<HTMLButtonElement>(".link-button"),
             "workload-count toggle",
-        ) as HTMLButtonElement;
+        );
         expect(toggle.getAttribute("aria-expanded")).toBe("false");
         expect(lastVulnWorkloadArgs?.options?.().enabled).toBe(false);
         expect(container.textContent).not.toContain("checkout");
