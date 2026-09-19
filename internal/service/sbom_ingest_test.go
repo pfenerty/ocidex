@@ -1187,11 +1187,39 @@ func TestExtractComponentProvenance(t *testing.T) {
 			wantSrcPurl: "pkg:deb/debian/openssl@3.0.11-1~deb12u2?distro=debian-12",
 		},
 		{
-			name: "apk origin package",
+			// syft emits no origin-version property for apk, so the origin
+			// version is taken from the subpackage's own purl. A versionless
+			// source purl here is what made OSV return every advisory ever
+			// filed against the origin package.
+			name: "apk origin package takes its version from the component purl",
 			props: []cdx.Property{
 				{Name: "syft:metadata:originPackage", Value: "openssl"},
 			},
 			purl:        "pkg:apk/alpine/libcrypto3@3.1.4-r5",
+			flavor:      "alpine-3.19",
+			wantSrcPkg:  "openssl",
+			wantSrcVer:  "3.1.4-r5",
+			wantSrcPurl: "pkg:apk/alpine/openssl@3.1.4-r5?distro=alpine-3.19",
+		},
+		{
+			name: "apk origin package with qualifiers on the component purl",
+			props: []cdx.Property{
+				{Name: "syft:metadata:originPackage", Value: "openssl"},
+			},
+			purl:        "pkg:apk/wolfi/openssl-dev@3.5.4-r0?arch=x86_64",
+			flavor:      "wolfi-20230201",
+			wantSrcPkg:  "openssl",
+			wantSrcVer:  "3.5.4-r0",
+			wantSrcPurl: "pkg:apk/wolfi/openssl@3.5.4-r0?distro=wolfi-20230201",
+		},
+		{
+			// No version to borrow: the source purl stays versionless and the
+			// vuln refresh will skip it rather than mismatch it.
+			name: "apk origin package with an unversioned component purl",
+			props: []cdx.Property{
+				{Name: "syft:metadata:originPackage", Value: "openssl"},
+			},
+			purl:        "pkg:apk/alpine/libcrypto3",
 			flavor:      "alpine-3.19",
 			wantSrcPkg:  "openssl",
 			wantSrcPurl: "pkg:apk/alpine/openssl?distro=alpine-3.19",
@@ -1300,6 +1328,9 @@ func TestCopyComponents_Provenance(t *testing.T) {
 			},
 		},
 		version: "3.0.11-1~deb12u2",
+		// Set as flattenComponents would; copyComponents keys off this, not
+		// comp.PackageURL.
+		purl: "pkg:deb/debian/libssl3@3.0.11-1~deb12u2",
 	}}
 
 	err := copyComponents(context.Background(), tx, sbomID, flat, "debian-12")
@@ -1322,4 +1353,5 @@ func TestCopyComponents_Provenance(t *testing.T) {
 	is.Equal(row[idxOf("source_package")].(pgtype.Text).String, "openssl")
 	is.Equal(row[idxOf("source_version")].(pgtype.Text).String, "3.0.11-1~deb12u2")
 	is.Equal(row[idxOf("source_purl")].(pgtype.Text).String, "pkg:deb/debian/openssl@3.0.11-1~deb12u2?distro=debian-12")
+	is.Equal(row[idxOf("purl")].(pgtype.Text).String, "pkg:deb/debian/libssl3@3.0.11-1~deb12u2")
 }

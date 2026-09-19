@@ -1,6 +1,7 @@
 package service
 
 import (
+	"net/url"
 	"strings"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
@@ -250,6 +251,25 @@ func purlNamespace(purl string) string {
 		return ""
 	}
 	return strings.ToLower(parts[1])
+}
+
+// purlVersionValue returns the version segment of a purl (e.g., "3.1.4-r5" from
+// "pkg:apk/alpine/libcrypto3@3.1.4-r5?distro=alpine-3.19"), percent-decoding the
+// result per the purl spec. Returns "" when the purl carries no version.
+// Qualifiers and subpath are stripped before the "@" is looked for, since the
+// spec places the version ahead of both.
+func purlVersionValue(purl string) string {
+	base, _, _ := strings.Cut(purl, "?")
+	base, _, _ = strings.Cut(base, "#")
+	at := strings.LastIndex(base, "@")
+	if at < 0 {
+		return ""
+	}
+	version := base[at+1:]
+	if decoded, err := url.PathUnescape(version); err == nil {
+		version = decoded
+	}
+	return version
 }
 
 // purlDistroQualifier returns the value of the "distro" qualifier from a purl.

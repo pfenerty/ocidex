@@ -214,6 +214,51 @@ func (q *Queries) InsertSBOM(ctx context.Context, arg InsertSBOMParams) (InsertS
 	return i, err
 }
 
+const listComponentsWithUnversionedPurl = `-- name: ListComponentsWithUnversionedPurl :many
+SELECT id, purl, version FROM component
+WHERE purl IS NOT NULL AND purl != ''
+  AND version IS NOT NULL AND version != ''
+  AND version != 'UNKNOWN'
+  AND position('@' in split_part(split_part(purl::text, '?', 1), '#', 1)) = 0
+`
+
+type ListComponentsWithUnversionedPurlRow struct {
+	ID      pgtype.UUID `json:"id"`
+	Purl    pgtype.Text `json:"purl"`
+	Version pgtype.Text `json:"version"`
+}
+
+// Components whose purl carries no version although the row has one. The vuln
+// store is keyed by purl and OSV matches versions server-side, so these rows
+// are unscannable until the version is spliced in. Ingestion does that now
+// (service.effectiveComponentPurl); cmd/backfill-component-purl carries it to
+// rows ingested before that existed.
+//
+// The "@" is looked for only after the qualifier and subpath suffixes are
+// stripped, since the purl spec puts the version ahead of both and an "@"
+// inside a qualifier value (an SSH-form vcs_url) is not a version. The Go side
+// re-derives the purl and writes only the rows that actually change, so a loose
+// match here costs a no-op, never a wrong write.
+func (q *Queries) ListComponentsWithUnversionedPurl(ctx context.Context) ([]ListComponentsWithUnversionedPurlRow, error) {
+	rows, err := q.db.Query(ctx, listComponentsWithUnversionedPurl)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListComponentsWithUnversionedPurlRow{}
+	for rows.Next() {
+		var i ListComponentsWithUnversionedPurlRow
+		if err := rows.Scan(&i.ID, &i.Purl, &i.Version); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDigestsBySource = `-- name: ListDigestsBySource :many
 SELECT DISTINCT digest FROM sbom
 WHERE source_id = $1 AND digest IS NOT NULL
@@ -476,6 +521,20 @@ func (q *Queries) UpdateComponentProvenance(ctx context.Context, arg UpdateCompo
 		arg.SourcePurl,
 		arg.FilePath,
 	)
+	return err
+}
+
+const updateComponentPurl = `-- name: UpdateComponentPurl :exec
+UPDATE component SET purl = $2 WHERE id = $1
+`
+
+type UpdateComponentPurlParams struct {
+	ID   pgtype.UUID `json:"id"`
+	Purl pgtype.Text `json:"purl"`
+}
+
+func (q *Queries) UpdateComponentPurl(ctx context.Context, arg UpdateComponentPurlParams) error {
+	_, err := q.db.Exec(ctx, updateComponentPurl, arg.ID, arg.Purl)
 	return err
 }
 

@@ -21,12 +21,14 @@ type fakeOSV struct {
 	records    map[string]*Record
 	getCalls   map[string]int
 
-	err        error // when set, QueryPurls fails instead of returning results
-	queryCalls int
+	err          error // when set, QueryPurls fails instead of returning results
+	queryCalls   int
+	queriedPurls []string // every purl actually sent to OSV, across all calls
 }
 
 func (f *fakeOSV) QueryPurls(_ context.Context, purls []string) (map[string][]QueryRef, error) {
 	f.queryCalls++
+	f.queriedPurls = append(f.queriedPurls, purls...)
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -674,8 +676,10 @@ func TestFixedVersionForPurl(t *testing.T) {
 	// "go" prefix in purl version (some purls carry it)
 	is.Equal(fixedVersionForPurl(rec, "pkg:golang/stdlib@go1.25.4"), "1.25.7")
 
-	// Purl with no @ → purlBase == "pkg:golang/stdlib", matched; no version → firstFixedVersionFrom
-	is.Equal(fixedVersionForPurl(rec, "pkg:golang/stdlib"), "1.24.13")
+	// Purl with no @ → no installed version → no fixed version to report. The
+	// record's first fixed version is not an answer, it is the lowest bound it
+	// happens to list.
+	is.Equal(fixedVersionForPurl(rec, "pkg:golang/stdlib"), "")
 
 	// Purl with non-semver version → no SEMVER match → firstFixedVersionFrom
 	is.Equal(fixedVersionForPurl(rec, "pkg:golang/stdlib@abc123commit"), "1.24.13")
@@ -743,6 +747,8 @@ func TestPurlVersion(t *testing.T) {
 		{"qualifiers and subpath", "pkg:deb/debian/curl@1.2.3?arch=amd64#sub", "1.2.3"},
 		{"percent-encoded plus", "pkg:generic/foo@1.2.3%2Bbuild.1", "1.2.3+build.1"},
 		{"percent-encoded in qualifiers", "pkg:deb/debian/curl@1.2.3%2Bbuild?arch=amd64", "1.2.3+build"},
+		{"@ inside a qualifier value is not a version", "pkg:golang/example.com/foo?vcs_url=git@github.com:o/r.git", ""},
+		{"version wins over an @ in a later qualifier", "pkg:golang/example.com/foo@v1.2.3?vcs_url=git@github.com:o/r.git", "v1.2.3"},
 	}
 	for _, tc := range cases {
 		is.Equal(purlVersion(tc.purl), tc.want) // tc.name
@@ -1045,4 +1051,121 @@ func TestHydrateSkipsUnchangedRecords(t *testing.T) {
 	is.True(len(store.mappings[purlB]) == 1)
 	is.Equal(store.mappings[purlB][0].VulnerabilityID, "CVE-2025-0002")
 	is.Equal(store.mappings[purlB][0].FixedVersion, "2.1.0")
+}
+
+// TestQueryablePurls covers the versioned/unversioned split that keeps
+// unmatchable purls out of the OSV query.
+func TestQueryablePurls(t *testing.T) {
+	is := is.New(t)
+
+	cases := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{
+			name: "bare purl dropped",
+			in:   []string{"pkg:golang/github.com/fluxcd/kustomize-controller"},
+			want: []string{},
+		},
+		{
+			name: "versioned purl kept",
+			in:   []string{"pkg:golang/github.com/fluxcd/kustomize-controller@v1.9.5"},
+			want: []string{"pkg:golang/github.com/fluxcd/kustomize-controller@v1.9.5"},
+		},
+		{
+			name: "qualifiers alone are not a version",
+			in:   []string{"pkg:apk/wolfi/openssl?distro=wolfi-20230201"},
+			want: []string{},
+		},
+		{
+			name: "version ahead of qualifiers kept",
+			in:   []string{"pkg:apk/wolfi/openssl@3.5.4-r0?distro=wolfi-20230201"},
+			want: []string{"pkg:apk/wolfi/openssl@3.5.4-r0?distro=wolfi-20230201"},
+		},
+		{
+			name: "order preserved across a mixed list",
+			in:   []string{"pkg:npm/a@1.0.0", "pkg:npm/b", "pkg:npm/c@2.0.0"},
+			want: []string{"pkg:npm/a@1.0.0", "pkg:npm/c@2.0.0"},
+		},
+		{
+			name: "empty input",
+			in:   nil,
+			want: []string{},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			is.Equal(queryablePurls(tc.in), tc.want)
+		})
+	}
+}
+
+// TestRefreshSkipsUnversionedPurls is the regression test for the
+// kustomize-controller false positive: a Go main module built without version
+// stamping yields a bare purl, and OSV answers a bare purl with every advisory
+// ever filed against the package. The purl must never be queried, and any
+// mappings an earlier cycle recorded against it must be cleared.
+func TestRefreshSkipsUnversionedPurls(t *testing.T) {
+	is := is.New(t)
+
+	const (
+		bare      = "pkg:golang/github.com/fluxcd/kustomize-controller"
+		versioned = "pkg:npm/a@1.0.0"
+	)
+
+	osv := &fakeOSV{
+		// What OSV would return for the bare purl if we asked it.
+		purlToRefs: map[string][]QueryRef{
+			bare:      {{ID: "GHSA-vvmq-fwmg-2gjc"}},
+			versioned: {{ID: "CVE-1"}},
+		},
+		records: map[string]*Record{
+			"GHSA-vvmq-fwmg-2gjc": {ID: "GHSA-vvmq-fwmg-2gjc"},
+			"CVE-1":               {ID: "CVE-1"},
+		},
+	}
+	store := newFakeStore(bare, versioned)
+	// A false positive recorded before the fix.
+	store.mappings[bare] = []PackageVulnRef{{VulnerabilityID: "GHSA-vvmq-fwmg-2gjc", FixedVersion: "0.23.0"}}
+
+	svc := NewRefreshService(store, osv, nil)
+	is.NoErr(svc.Refresh(context.Background()))
+
+	// The bare purl was never sent to OSV.
+	is.Equal(osv.queriedPurls, []string{versioned})
+	// And its stale mapping was cleared rather than left to rot.
+	is.Equal(len(store.mappings[bare]), 0)
+	// The versioned purl is unaffected.
+	is.Equal(len(store.mappings[versioned]), 1)
+	is.True(store.refreshed)
+}
+
+// TestLookupPurlsSkipsUnversionedPurls covers the ingest-time gap-fill path,
+// which reaches OSV independently of the scheduled refresh.
+func TestLookupPurlsSkipsUnversionedPurls(t *testing.T) {
+	is := is.New(t)
+
+	const bare = "pkg:apk/wolfi/openssl?distro=wolfi-20230201"
+
+	osv := &fakeOSV{
+		purlToRefs: map[string][]QueryRef{
+			bare:              {{ID: "CVE-STALE"}},
+			"pkg:npm/a@1.0.0": {{ID: "CVE-1"}},
+		},
+		records: map[string]*Record{
+			"CVE-STALE": {ID: "CVE-STALE"},
+			"CVE-1":     {ID: "CVE-1"},
+		},
+	}
+	store := newFakeStore()
+	store.mappings[bare] = []PackageVulnRef{{VulnerabilityID: "CVE-STALE"}}
+
+	svc := NewRefreshService(store, osv, nil)
+	is.NoErr(svc.LookupPurls(context.Background(), []string{bare, "pkg:npm/a@1.0.0"}))
+
+	is.Equal(osv.queriedPurls, []string{"pkg:npm/a@1.0.0"})
+	is.Equal(len(store.mappings[bare]), 0)
+	is.Equal(len(store.mappings["pkg:npm/a@1.0.0"]), 1)
 }

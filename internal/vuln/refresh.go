@@ -152,7 +152,10 @@ func (s *RefreshService) Refresh(ctx context.Context) error {
 		}
 	}
 
-	purlToRefs, err := s.osv.QueryPurls(ctx, purls)
+	// Only versioned purls are sent to OSV; see queryablePurls. The unversioned
+	// ones stay in the slice handed to replaceMappings so that any false
+	// positives an earlier cycle recorded against them are deleted.
+	purlToRefs, err := s.osv.QueryPurls(ctx, queryablePurls(purls))
 	if err != nil {
 		return fmt.Errorf("osv querybatch: %w", err)
 	}
@@ -329,7 +332,7 @@ func (s *RefreshService) LookupPurls(ctx context.Context, purls []string) error 
 	if len(purls) == 0 {
 		return nil
 	}
-	purlToRefs, err := s.osv.QueryPurls(ctx, purls)
+	purlToRefs, err := s.osv.QueryPurls(ctx, queryablePurls(purls))
 	if err != nil {
 		return fmt.Errorf("osv querybatch: %w", err)
 	}
@@ -353,6 +356,33 @@ func (s *RefreshService) LookupPurls(ctx context.Context, purls []string) error 
 		}
 	}
 	return nil
+}
+
+// queryablePurls returns only those purls OSV can actually version-match.
+//
+// OSV performs version matching server-side, keyed off the purl's version
+// component. A purl with no version matches no interval, so OSV answers the
+// query with every advisory ever filed against the package — for
+// "pkg:golang/github.com/fluxcd/kustomize-controller" that is eight advisories
+// whose newest fix landed in 0.23.0, returned just the same for an installed
+// v1.9.5. Those hits are indistinguishable from real ones downstream, so an
+// unversioned purl is never queried at all.
+//
+// Unversioned purls reach the store from two directions: Go main modules, which
+// carry "(devel)" in their build info and so get a bare purl from syft, and
+// source purls derived from package metadata that names an origin package but
+// no origin version.
+//
+// Callers keep passing the full purl list to the mapping replacement, which
+// clears stale rows for the purls skipped here.
+func queryablePurls(purls []string) []string {
+	out := make([]string, 0, len(purls))
+	for _, p := range purls {
+		if purlVersion(p) != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // extractIDs strips the Modified field from querybatch results, producing the
@@ -598,7 +628,10 @@ func fixedVersionForPurl(rec *Record, purl string) string {
 	}
 	installed := purlVersion(purl)
 	if installed == "" {
-		return firstFixedVersionFrom(candidates)
+		// With no installed version there is no interval to select, and the
+		// record's first fixed version is just the lowest one it happens to
+		// list. Reporting it would render a guess as a fact.
+		return ""
 	}
 	installedSV := normalizeSemver(installed)
 	if !semver.IsValid(installedSV) {
@@ -694,17 +727,22 @@ func sortByVersionKey(events []Event, key func(Event) string) {
 }
 
 // purlVersion extracts the version component after "@" in a package URL,
-// stripping any qualifiers ("?...") or subpath ("#...") suffix and
-// percent-decoding the result per the purl spec.
+// percent-decoding the result per the purl spec. Returns "" when the purl
+// carries no version.
+//
+// The qualifier ("?...") and subpath ("#...") suffixes are stripped before the
+// "@" is looked for, because the spec orders a purl as
+// "pkg:type/namespace/name@version?qualifiers#subpath". Searching for the "@"
+// first would read an "@" inside a qualifier value — an SSH-form vcs_url, say —
+// as the version separator, and report a version for a purl that has none.
 func purlVersion(purl string) string {
-	at := strings.LastIndex(purl, "@")
+	base, _, _ := strings.Cut(purl, "?")
+	base, _, _ = strings.Cut(base, "#")
+	at := strings.LastIndex(base, "@")
 	if at < 0 {
 		return ""
 	}
-	version := purl[at+1:]
-	if end := strings.IndexAny(version, "?#"); end >= 0 {
-		version = version[:end]
-	}
+	version := base[at+1:]
 	if decoded, err := url.PathUnescape(version); err == nil {
 		version = decoded
 	}

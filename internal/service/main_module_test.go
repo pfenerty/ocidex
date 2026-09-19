@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
 )
 
@@ -162,4 +163,122 @@ func bomWithMetadataProperties(key, value string) *cdx.BOM {
 			Properties: &props,
 		},
 	}
+}
+
+// TestEffectiveComponentPurl covers splicing a resolved version into a purl
+// that the scanner emitted without one. This is what makes a Go main module
+// matchable against OSV, which keys entirely off the purl's version.
+func TestEffectiveComponentPurl(t *testing.T) {
+	tests := []struct {
+		name    string
+		purl    string
+		version string
+		want    string
+	}{
+		{
+			name:    "bare purl gains the resolved version",
+			purl:    "pkg:golang/github.com/fluxcd/kustomize-controller",
+			version: "v1.9.5",
+			want:    "pkg:golang/github.com/fluxcd/kustomize-controller@v1.9.5",
+		},
+		{
+			name:    "version is spliced ahead of qualifiers",
+			purl:    "pkg:golang/example.com/foo?vcs_url=https://example.com/foo",
+			version: "v1.2.3",
+			want:    "pkg:golang/example.com/foo@v1.2.3?vcs_url=https://example.com/foo",
+		},
+		{
+			name:    "version is spliced ahead of a subpath",
+			purl:    "pkg:golang/example.com/foo#cmd/bar",
+			version: "v1.2.3",
+			want:    "pkg:golang/example.com/foo@v1.2.3#cmd/bar",
+		},
+		{
+			name:    "an @ inside a qualifier is not mistaken for a version",
+			purl:    "pkg:golang/example.com/foo?vcs_url=git@github.com:o/r.git",
+			version: "v1.2.3",
+			want:    "pkg:golang/example.com/foo@v1.2.3?vcs_url=git@github.com:o/r.git",
+		},
+		{
+			name:    "existing version is never overwritten",
+			purl:    "pkg:golang/example.com/foo@v1.0.0",
+			version: "v1.2.3",
+			want:    "pkg:golang/example.com/foo@v1.0.0",
+		},
+		{
+			name:    "build metadata is percent-encoded like Syft emits it",
+			purl:    "pkg:generic/foo",
+			version: "1.2.3+build.1",
+			want:    "pkg:generic/foo@1.2.3%2Bbuild.1",
+		},
+		{
+			name:    "UNKNOWN is not a version",
+			purl:    "pkg:golang/example.com/foo",
+			version: "UNKNOWN",
+			want:    "pkg:golang/example.com/foo",
+		},
+		{
+			name:    "empty version leaves the purl alone",
+			purl:    "pkg:golang/example.com/foo",
+			version: "",
+			want:    "pkg:golang/example.com/foo",
+		},
+		{
+			name:    "empty purl stays empty",
+			purl:    "",
+			version: "v1.2.3",
+			want:    "",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			is := is.New(t)
+			got := effectiveComponentPurl(tc.purl, tc.version)
+			is.Equal(got, tc.want)
+			// Whatever is spliced in must survive the round trip the vuln
+			// refresh performs when it reads the version back out.
+			if tc.want != tc.purl {
+				is.Equal(purlVersionValue(got), tc.version)
+			}
+		})
+	}
+}
+
+// TestFlattenComponentsSplicesMainModuleVersionIntoPurl is the end-to-end
+// ingest assertion for the reported kustomize-controller case: the main module
+// arrives versionless and must be persisted with the image tag in its purl,
+// while a submodule and an unrelated component are left untouched.
+func TestFlattenComponentsSplicesMainModuleVersionIntoPurl(t *testing.T) {
+	is := is.New(t)
+
+	components := []cdx.Component{
+		{
+			Name:       "github.com/fluxcd/kustomize-controller",
+			Version:    "",
+			PackageURL: "pkg:golang/github.com/fluxcd/kustomize-controller",
+		},
+		{
+			Name:       "github.com/fluxcd/kustomize-controller/api",
+			Version:    "v1.9.0",
+			PackageURL: "pkg:golang/github.com/fluxcd/kustomize-controller/api@v1.9.0",
+		},
+		{
+			Name:       "github.com/fluxcd/pkg/tar",
+			Version:    "v1.2.0",
+			PackageURL: "pkg:golang/github.com/fluxcd/pkg/tar@v1.2.0",
+		},
+	}
+
+	flat := flattenComponents(components, pgtype.UUID{},
+		"github.com/fluxcd/kustomize-controller", "v1.9.5")
+	is.Equal(len(flat), 3)
+
+	// Main module: version backfilled from the image tag, and now carried in
+	// the purl so the vuln refresh can match it.
+	is.Equal(flat[0].version, "v1.9.5")
+	is.Equal(flat[0].purl, "pkg:golang/github.com/fluxcd/kustomize-controller@v1.9.5")
+
+	// Submodule and unrelated dependency keep their own versions and purls.
+	is.Equal(flat[1].purl, "pkg:golang/github.com/fluxcd/kustomize-controller/api@v1.9.0")
+	is.Equal(flat[2].purl, "pkg:golang/github.com/fluxcd/pkg/tar@v1.2.0")
 }
