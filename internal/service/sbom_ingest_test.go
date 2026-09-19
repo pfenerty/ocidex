@@ -1328,6 +1328,9 @@ func TestCopyComponents_Provenance(t *testing.T) {
 			},
 		},
 		version: "3.0.11-1~deb12u2",
+		// Set as flattenComponents would; copyComponents keys off this, not
+		// comp.PackageURL.
+		purl: "pkg:deb/debian/libssl3@3.0.11-1~deb12u2",
 	}}
 
 	err := copyComponents(context.Background(), tx, sbomID, flat, "debian-12")
@@ -1350,4 +1353,5 @@ func TestCopyComponents_Provenance(t *testing.T) {
 	is.Equal(row[idxOf("source_package")].(pgtype.Text).String, "openssl")
 	is.Equal(row[idxOf("source_version")].(pgtype.Text).String, "3.0.11-1~deb12u2")
 	is.Equal(row[idxOf("source_purl")].(pgtype.Text).String, "pkg:deb/debian/openssl@3.0.11-1~deb12u2?distro=debian-12")
+	is.Equal(row[idxOf("purl")].(pgtype.Text).String, "pkg:deb/debian/libssl3@3.0.11-1~deb12u2")
 }

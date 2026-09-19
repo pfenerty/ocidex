@@ -28,6 +28,10 @@ type flatComponent struct {
 	parentID pgtype.UUID
 	comp     *cdx.Component
 	version  string
+	// purl is comp.PackageURL with the resolved version spliced in when the
+	// scanner emitted none; see effectiveComponentPurl. Everything downstream
+	// of ingestion keys off this, not comp.PackageURL.
+	purl string
 }
 
 // flattenComponents walks the recursive component tree depth-first, assigning a
@@ -38,11 +42,13 @@ func flattenComponents(components []cdx.Component, parentID pgtype.UUID, mainMod
 	walk = func(comps []cdx.Component, parent pgtype.UUID) {
 		for i := range comps {
 			comp := &comps[i]
+			version := effectiveComponentVersion(comp.Version, comp.Name, comp.PackageURL, mainModule, subjectVersion)
 			fc := flatComponent{
 				id:       newComponentID(),
 				parentID: parent,
 				comp:     comp,
-				version:  effectiveComponentVersion(comp.Version, comp.Name, comp.PackageURL, mainModule, subjectVersion),
+				version:  version,
+				purl:     effectiveComponentPurl(comp.PackageURL, version),
 			}
 			flat = append(flat, fc)
 			if comp.Components != nil {
@@ -104,11 +110,11 @@ func copyComponents(ctx context.Context, tx copyFromer, sbomID pgtype.UUID, flat
 	for i, fc := range flat {
 		c := fc.comp
 		major, minor, patch := parseSemver(fc.version)
-		prov := extractComponentProvenance(c.Properties, c.PackageURL, flavor)
+		prov := extractComponentProvenance(c.Properties, fc.purl, flavor)
 		rows[i] = []any{
 			fc.id, sbomID, fc.parentID, textOrNull(c.BOMRef), string(c.Type), c.Name, textOrNull(c.Group),
 			textOrNull(fc.version), intOrNull(major), intOrNull(minor), intOrNull(patch),
-			textOrNull(c.PackageURL), textOrNull(c.CPE), textOrNull(c.Description), textOrNull(string(c.Scope)),
+			textOrNull(fc.purl), textOrNull(c.CPE), textOrNull(c.Description), textOrNull(string(c.Scope)),
 			textOrNull(c.Publisher), textOrNull(c.Copyright),
 			prov.layerID, prov.foundBy, prov.sourcePackage, prov.sourceVersion, prov.sourcePurl,
 			prov.filePath,

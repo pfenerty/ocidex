@@ -82,6 +82,27 @@ SET layer_id = $2, found_by = $3, source_package = $4, source_version = $5, sour
     file_path = $7
 WHERE id = $1;
 
+-- name: ListComponentsWithUnversionedPurl :many
+-- Components whose purl carries no version although the row has one. The vuln
+-- store is keyed by purl and OSV matches versions server-side, so these rows
+-- are unscannable until the version is spliced in. Ingestion does that now
+-- (service.effectiveComponentPurl); cmd/backfill-component-purl carries it to
+-- rows ingested before that existed.
+--
+-- The "@" is looked for only after the qualifier and subpath suffixes are
+-- stripped, since the purl spec puts the version ahead of both and an "@"
+-- inside a qualifier value (an SSH-form vcs_url) is not a version. The Go side
+-- re-derives the purl and writes only the rows that actually change, so a loose
+-- match here costs a no-op, never a wrong write.
+SELECT id, purl, version FROM component
+WHERE purl IS NOT NULL AND purl != ''
+  AND version IS NOT NULL AND version != ''
+  AND version != 'UNKNOWN'
+  AND position('@' in split_part(split_part(purl::text, '?', 1), '#', 1)) = 0;
+
+-- name: UpdateComponentPurl :exec
+UPDATE component SET purl = $2 WHERE id = $1;
+
 -- name: DeleteSBOM :execrows
 DELETE FROM sbom WHERE id = $1;
 
