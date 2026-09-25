@@ -5,9 +5,8 @@
     "synth": "tsx pipeline.ts"
   },
   "dependencies": {
-    "@pfenerty/tektonic": "github:pfenerty/tektonic#v1.4.0",
-    "cdk8s": "^2.68.0",
-    "constructs": "^10.3.0"
+    "@pfenerty/tektonic": "^2.0.1",
+    "@pfenerty/tektonic-reporter-github": "^2.0.1"
   },
   "devDependencies": {
     "@types/node": "^25.0.0",

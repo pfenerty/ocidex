@@ -56,12 +56,36 @@ spec:
         if ($archive | path exists) {
           let archive_size = (ls $archive | get size.0)
           log $"restore-go-cache-cache: hit ($hash) size=($archive_size)"
-          let cache_paths = [".go-mod", ".go-build"]
-          for p in $cache_paths {
-            if ($p | path exists) { ^chmod -R u+w $p; rm -rf $p }
-          }
           let t0 = (date now)
-          ^zstd -d -T1 -c $archive | ^tar xf - -o --no-same-permissions
+          let stage = $".cache-restore-(random uuid)"
+          mkdir $stage
+          try {
+            ^zstd -d -T1 -c $archive | ^tar xf - -C $stage -o --no-same-permissions
+          } catch { |e|
+            rm -rf $stage
+            log $"restore-go-cache-cache: extract failed \(($e.msg)\)"
+            exit 1
+          }
+          for p in [".go-mod", ".go-build"] {
+            let staged = ($stage | path join $p)
+            if not ($staged | path exists) { continue }
+            if ($p | path exists) {
+              # Rename the live tree aside and move the new one in — never delete in place. The
+              # displaced tree is removed afterwards and best-effort: a concurrent writer still inside
+              # it can legitimately make that fail, and by then nothing resolves to it by path.
+              let displaced = $"($p).displaced-(random uuid)"
+              mv $p $displaced
+              mv $staged $p
+              try { ^chmod -R u+w $displaced; rm -rf $displaced } catch { |e|
+                log $"restore-go-cache-cache: displaced tree ($displaced) not removed: ($e.msg)"
+              }
+            } else {
+              let parent = ($p | path dirname)
+              if (($parent | str length) > 0) and ($parent != ".") { mkdir $parent }
+              mv $staged $p
+            }
+          }
+          rm -rf $stage
           let elapsed = (((date now) - $t0) | into int) / 1_000_000_000
           log $"restore-go-cache-cache: restored in ($elapsed)s"
         } else {

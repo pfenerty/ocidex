@@ -42,12 +42,8 @@ spec:
         try { ^chmod 0666 /tekton/home/.exit-code }
         def main [] {
         ^git config --global --add safe.directory (pwd)
-        # npm normalizes github: deps to git+ssh in the lockfile; rewrite to anonymous https so
-        # npm ci can fetch the public @pfenerty/tektonic without SSH keys in CI.
-        ^git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
         cd .tektonic
-        # npm 12+ defaults allow-git to "none", blocking the @pfenerty/tektonic git dependency.
-        ^npm ci --allow-git=all
+        ^npm ci
         ^npx tsx pipeline.ts
         cd ..
         # Bind the whole record, not `| get stdout`: `complete` swallows the exit code, so a git

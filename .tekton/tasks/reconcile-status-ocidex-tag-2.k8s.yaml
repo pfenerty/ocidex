@@ -1,0 +1,73 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-reconcile-status-ocidex-tag-2
+  namespace: ocidex-ci
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+    - name: revision
+      type: string
+    - name: status-sbom-push
+      type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    imagePullPolicy: Always
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+  steps:
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: resolve-sbom-push
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let status = "$(params.status-sbom-push)"
+
+        if $status not-in ["None" "Failed"] {
+          log $"reconcile-status [sbom-push]: task status is ($status), nothing to resolve"
+          exit 0
+        }
+
+        let state = if $status == "None" { "success" } else { "failure" }
+        let desc = if $status == "None" { "Skipped" } else { "Failed or terminated" }
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "sbom-push", description: $desc }
+
+        log $"reconcile-status [sbom-push]: task status is ($status), POST ($url)"
+        log $"reconcile-status [sbom-push]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "reconcile-status [sbom-push]: done"
+        } catch { |e|
+          log $"reconcile-status [sbom-push]: error: ($e.msg)"
+          exit 1
+        }

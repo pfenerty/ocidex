@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: ocidex-resolve-skipped-status-ocidex-pull-request
+  name: ocidex-reconcile-status-ocidex-pull-request
   namespace: ocidex-ci
 spec:
   params:
@@ -13,15 +13,13 @@ spec:
       type: string
     - name: status-go-test
       type: string
+    - name: status-go-build
+      type: string
     - name: status-go-integration-test
       type: string
     - name: status-openapi-verify
       type: string
-    - name: status-govulncheck-scan
-      type: string
-    - name: status-grype-vuln-web
-      type: string
-    - name: status-semgrep-sast
+    - name: status-eslint-lint-web
       type: string
     - name: status-tekton-check
       type: string
@@ -63,25 +61,28 @@ spec:
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let status = "$(params.status-gofmt-check)"
 
-        if $status != "None" {
-          log $"resolve-skipped [gofmt-check]: task status is ($status), nothing to resolve"
+        if $status not-in ["None" "Failed"] {
+          log $"reconcile-status [gofmt-check]: task status is ($status), nothing to resolve"
           exit 0
         }
 
-        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "success", context: "gofmt-check", description: "Skipped" }
+        let state = if $status == "None" { "success" } else { "failure" }
+        let desc = if $status == "None" { "Skipped" } else { "Failed or terminated" }
 
-        log $"resolve-skipped [gofmt-check]: task was skipped, POST ($url)"
-        log $"resolve-skipped [gofmt-check]: body: ($body | to json -r)"
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "gofmt-check", description: $desc }
+
+        log $"reconcile-status [gofmt-check]: task status is ($status), POST ($url)"
+        log $"reconcile-status [gofmt-check]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "resolve-skipped [gofmt-check]: done"
+          log "reconcile-status [gofmt-check]: done"
         } catch { |e|
-          log $"resolve-skipped [gofmt-check]: error: ($e.msg)"
+          log $"reconcile-status [gofmt-check]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -105,25 +106,73 @@ spec:
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let status = "$(params.status-go-test)"
 
-        if $status != "None" {
-          log $"resolve-skipped [go-test]: task status is ($status), nothing to resolve"
+        if $status not-in ["None" "Failed"] {
+          log $"reconcile-status [go-test]: task status is ($status), nothing to resolve"
           exit 0
         }
 
-        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "success", context: "go-test", description: "Skipped" }
+        let state = if $status == "None" { "success" } else { "failure" }
+        let desc = if $status == "None" { "Skipped" } else { "Failed or terminated" }
 
-        log $"resolve-skipped [go-test]: task was skipped, POST ($url)"
-        log $"resolve-skipped [go-test]: body: ($body | to json -r)"
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "go-test", description: $desc }
+
+        log $"reconcile-status [go-test]: task status is ($status), POST ($url)"
+        log $"reconcile-status [go-test]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "resolve-skipped [go-test]: done"
+          log "reconcile-status [go-test]: done"
         } catch { |e|
-          log $"resolve-skipped [go-test]: error: ($e.msg)"
+          log $"reconcile-status [go-test]: error: ($e.msg)"
+          exit 1
+        }
+    - computeResources:
+        limits:
+          cpu: 200m
+          memory: 128Mi
+        requests:
+          cpu: 25m
+          memory: 64Mi
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: resolve-go-build
+      onError: continue
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let status = "$(params.status-go-build)"
+
+        if $status not-in ["None" "Failed"] {
+          log $"reconcile-status [go-build]: task status is ($status), nothing to resolve"
+          exit 0
+        }
+
+        let state = if $status == "None" { "success" } else { "failure" }
+        let desc = if $status == "None" { "Skipped" } else { "Failed or terminated" }
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "go-build", description: $desc }
+
+        log $"reconcile-status [go-build]: task status is ($status), POST ($url)"
+        log $"reconcile-status [go-build]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "reconcile-status [go-build]: done"
+        } catch { |e|
+          log $"reconcile-status [go-build]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -147,25 +196,28 @@ spec:
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let status = "$(params.status-go-integration-test)"
 
-        if $status != "None" {
-          log $"resolve-skipped [go-integration-test]: task status is ($status), nothing to resolve"
+        if $status not-in ["None" "Failed"] {
+          log $"reconcile-status [go-integration-test]: task status is ($status), nothing to resolve"
           exit 0
         }
 
-        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "success", context: "go-integration-test", description: "Skipped" }
+        let state = if $status == "None" { "success" } else { "failure" }
+        let desc = if $status == "None" { "Skipped" } else { "Failed or terminated" }
 
-        log $"resolve-skipped [go-integration-test]: task was skipped, POST ($url)"
-        log $"resolve-skipped [go-integration-test]: body: ($body | to json -r)"
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "go-integration-test", description: $desc }
+
+        log $"reconcile-status [go-integration-test]: task status is ($status), POST ($url)"
+        log $"reconcile-status [go-integration-test]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "resolve-skipped [go-integration-test]: done"
+          log "reconcile-status [go-integration-test]: done"
         } catch { |e|
-          log $"resolve-skipped [go-integration-test]: error: ($e.msg)"
+          log $"reconcile-status [go-integration-test]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -189,25 +241,28 @@ spec:
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let status = "$(params.status-openapi-verify)"
 
-        if $status != "None" {
-          log $"resolve-skipped [openapi-verify]: task status is ($status), nothing to resolve"
+        if $status not-in ["None" "Failed"] {
+          log $"reconcile-status [openapi-verify]: task status is ($status), nothing to resolve"
           exit 0
         }
 
-        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "success", context: "openapi-verify", description: "Skipped" }
+        let state = if $status == "None" { "success" } else { "failure" }
+        let desc = if $status == "None" { "Skipped" } else { "Failed or terminated" }
 
-        log $"resolve-skipped [openapi-verify]: task was skipped, POST ($url)"
-        log $"resolve-skipped [openapi-verify]: body: ($body | to json -r)"
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "openapi-verify", description: $desc }
+
+        log $"reconcile-status [openapi-verify]: task status is ($status), POST ($url)"
+        log $"reconcile-status [openapi-verify]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "resolve-skipped [openapi-verify]: done"
+          log "reconcile-status [openapi-verify]: done"
         } catch { |e|
-          log $"resolve-skipped [openapi-verify]: error: ($e.msg)"
+          log $"reconcile-status [openapi-verify]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -224,116 +279,35 @@ spec:
               key: token
               name: github-pipeline-token
       image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: resolve-govulncheck-scan
+      name: resolve-eslint-lint-web
       onError: continue
       script: |-
         #!/usr/bin/env nu
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let status = "$(params.status-govulncheck-scan)"
+        let status = "$(params.status-eslint-lint-web)"
 
-        if $status != "None" {
-          log $"resolve-skipped [govulncheck-scan]: task status is ($status), nothing to resolve"
+        if $status not-in ["None" "Failed"] {
+          log $"reconcile-status [eslint-lint-web]: task status is ($status), nothing to resolve"
           exit 0
         }
 
-        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "success", context: "govulncheck-scan", description: "Skipped" }
+        let state = if $status == "None" { "success" } else { "failure" }
+        let desc = if $status == "None" { "Skipped" } else { "Failed or terminated" }
 
-        log $"resolve-skipped [govulncheck-scan]: task was skipped, POST ($url)"
-        log $"resolve-skipped [govulncheck-scan]: body: ($body | to json -r)"
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "eslint-lint-web", description: $desc }
+
+        log $"reconcile-status [eslint-lint-web]: task status is ($status), POST ($url)"
+        log $"reconcile-status [eslint-lint-web]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "resolve-skipped [govulncheck-scan]: done"
+          log "reconcile-status [eslint-lint-web]: done"
         } catch { |e|
-          log $"resolve-skipped [govulncheck-scan]: error: ($e.msg)"
-          exit 1
-        }
-    - computeResources:
-        limits:
-          cpu: 200m
-          memory: 128Mi
-        requests:
-          cpu: 25m
-          memory: 64Mi
-      env:
-        - name: GITHUB_TOKEN
-          valueFrom:
-            secretKeyRef:
-              key: token
-              name: github-pipeline-token
-      image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: resolve-grype-vuln-web
-      onError: continue
-      script: |-
-        #!/usr/bin/env nu
-        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let status = "$(params.status-grype-vuln-web)"
-
-        if $status != "None" {
-          log $"resolve-skipped [grype-vuln-web]: task status is ($status), nothing to resolve"
-          exit 0
-        }
-
-        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "success", context: "grype-vuln-web", description: "Skipped" }
-
-        log $"resolve-skipped [grype-vuln-web]: task was skipped, POST ($url)"
-        log $"resolve-skipped [grype-vuln-web]: body: ($body | to json -r)"
-
-        try {
-          http post $url $body -t application/json -H [
-            Authorization $"token ($env.GITHUB_TOKEN)"
-            Accept "application/vnd.github+json"
-          ]
-          log "resolve-skipped [grype-vuln-web]: done"
-        } catch { |e|
-          log $"resolve-skipped [grype-vuln-web]: error: ($e.msg)"
-          exit 1
-        }
-    - computeResources:
-        limits:
-          cpu: 200m
-          memory: 128Mi
-        requests:
-          cpu: 25m
-          memory: 64Mi
-      env:
-        - name: GITHUB_TOKEN
-          valueFrom:
-            secretKeyRef:
-              key: token
-              name: github-pipeline-token
-      image: ghcr.io/pfenerty/apko-cicd/base:stable
-      name: resolve-semgrep-sast
-      onError: continue
-      script: |-
-        #!/usr/bin/env nu
-        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
-        let status = "$(params.status-semgrep-sast)"
-
-        if $status != "None" {
-          log $"resolve-skipped [semgrep-sast]: task status is ($status), nothing to resolve"
-          exit 0
-        }
-
-        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "success", context: "semgrep-sast", description: "Skipped" }
-
-        log $"resolve-skipped [semgrep-sast]: task was skipped, POST ($url)"
-        log $"resolve-skipped [semgrep-sast]: body: ($body | to json -r)"
-
-        try {
-          http post $url $body -t application/json -H [
-            Authorization $"token ($env.GITHUB_TOKEN)"
-            Accept "application/vnd.github+json"
-          ]
-          log "resolve-skipped [semgrep-sast]: done"
-        } catch { |e|
-          log $"resolve-skipped [semgrep-sast]: error: ($e.msg)"
+          log $"reconcile-status [eslint-lint-web]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -357,25 +331,28 @@ spec:
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let status = "$(params.status-tekton-check)"
 
-        if $status != "None" {
-          log $"resolve-skipped [tekton-check]: task status is ($status), nothing to resolve"
+        if $status not-in ["None" "Failed"] {
+          log $"reconcile-status [tekton-check]: task status is ($status), nothing to resolve"
           exit 0
         }
 
-        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "success", context: "tekton-check", description: "Skipped" }
+        let state = if $status == "None" { "success" } else { "failure" }
+        let desc = if $status == "None" { "Skipped" } else { "Failed or terminated" }
 
-        log $"resolve-skipped [tekton-check]: task was skipped, POST ($url)"
-        log $"resolve-skipped [tekton-check]: body: ($body | to json -r)"
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "tekton-check", description: $desc }
+
+        log $"reconcile-status [tekton-check]: task status is ($status), POST ($url)"
+        log $"reconcile-status [tekton-check]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "resolve-skipped [tekton-check]: done"
+          log "reconcile-status [tekton-check]: done"
         } catch { |e|
-          log $"resolve-skipped [tekton-check]: error: ($e.msg)"
+          log $"reconcile-status [tekton-check]: error: ($e.msg)"
           exit 1
         }
     - computeResources:
@@ -399,24 +376,27 @@ spec:
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let status = "$(params.status-helm-check)"
 
-        if $status != "None" {
-          log $"resolve-skipped [helm-check]: task status is ($status), nothing to resolve"
+        if $status not-in ["None" "Failed"] {
+          log $"reconcile-status [helm-check]: task status is ($status), nothing to resolve"
           exit 0
         }
 
-        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        let body = { state: "success", context: "helm-check", description: "Skipped" }
+        let state = if $status == "None" { "success" } else { "failure" }
+        let desc = if $status == "None" { "Skipped" } else { "Failed or terminated" }
 
-        log $"resolve-skipped [helm-check]: task was skipped, POST ($url)"
-        log $"resolve-skipped [helm-check]: body: ($body | to json -r)"
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "helm-check", description: $desc }
+
+        log $"reconcile-status [helm-check]: task status is ($status), POST ($url)"
+        log $"reconcile-status [helm-check]: body: ($body | to json -r)"
 
         try {
           http post $url $body -t application/json -H [
             Authorization $"token ($env.GITHUB_TOKEN)"
             Accept "application/vnd.github+json"
           ]
-          log "resolve-skipped [helm-check]: done"
+          log "reconcile-status [helm-check]: done"
         } catch { |e|
-          log $"resolve-skipped [helm-check]: error: ($e.msg)"
+          log $"reconcile-status [helm-check]: error: ($e.msg)"
           exit 1
         }

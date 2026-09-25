@@ -5,9 +5,11 @@ metadata:
   namespace: ocidex-ci
 spec:
   params:
-    - name: url
+    - description: Repository URL to clone from
+      name: url
       type: string
-    - name: revision
+    - description: Branch, tag or revision to check out
+      name: revision
       type: string
   results:
     - description: Full commit SHA
