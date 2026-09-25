@@ -41,30 +41,9 @@ spec:
         if not ("/tekton/home/.exit-code" | path exists) { try { "0" | save -f /tekton/home/.exit-code } }
         try { ^chmod 0666 /tekton/home/.exit-code }
         def main [] {
-        ^git config --global --add safe.directory (pwd)
         cd .tektonic
         ^npm ci
-        ^npx tsx pipeline.ts
-        cd ..
-        # Bind the whole record, not `| get stdout`: `complete` swallows the exit code, so a git
-        # that failed outright produced empty drift and a green check (ocidex-im4o.1).
-        let res = (^git status --porcelain -- .tekton | complete)
-        if $res.exit_code != 0 {
-          print $res.stderr
-          error make {msg: $"git status: exited ($res.exit_code)"}
-        }
-        let drift = ($res.stdout | str trim)
-        if ($drift | is-not-empty) {
-          print "✗ .tekton is out of sync with .tektonic/ — run 'make tekton-synth' and commit:"
-          print $drift
-          # error make, NOT exit 1: tektonic wraps this body in a try/catch and persists the caught
-          # code to /tekton/home/.exit-code, which the report-status step reads. nushell's exit kills
-          # the process before that wrapper runs, so the file keeps its initial "0" and — with
-          # onError: continue on this step — the task reports green on drift. error make throws, so
-          # the wrapper sees it. Same reason gofmt-check raises instead of exiting.
-          error make {msg: ".tekton is out of sync with .tektonic/"}
-        }
-        print "✓ .tekton is in sync with .tektonic/"
+        ^npx tektonic check
         }
         let __tek_rc = (try { main; 0 } catch { |e| print $"error [tekton-check/synth-drift]: ($e.msg)"; 1 })
         let __tek_prev = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 0 })
