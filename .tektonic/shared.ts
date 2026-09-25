@@ -1,10 +1,5 @@
-import {
-  Param,
-  Workspace,
-  GitHubStatusReporter,
-  TaskVolumeSpec,
-  TaskStepSpec,
-} from "@pfenerty/tektonic";
+import { Param, Workspace, TaskVolumeSpec, TaskStepSpec, rawScript } from "@pfenerty/tektonic";
+import { GitHubStatusReporter } from "@pfenerty/tektonic-reporter-github";
 
 // --- Images ─────────────────────────────────────────────────────────────────
 export const goImage = "ghcr.io/pfenerty/apko-cicd/golang:1.26";
@@ -14,7 +9,7 @@ export const baseImage = "ghcr.io/pfenerty/apko-cicd/base:stable";
 export const govulncheckImage = "ghcr.io/pfenerty/apko-cicd/govulncheck:1.6.0-go1.26";
 // SBOM + vuln scanners shared by the dependency-audit tasks (see jobs/_dep-scan.ts).
 export const syftImage = "ghcr.io/pfenerty/apko-cicd/syft:1.51.0";
-export const grypeImage = "ghcr.io/pfenerty/apko-cicd/grype:0.114.0";
+export const grypeImage = "ghcr.io/pfenerty/apko-cicd/grype:0.117.0";
 // SAST + secrets scanners — first-party apko-cicd images (on base, so nushell + git are
 // present), replacing Docker Hub semgrep/semgrep and zricethezav/gitleaks.
 export const semgrepImage = "ghcr.io/pfenerty/apko-cicd/semgrep:1.165.0";
@@ -173,7 +168,10 @@ export function uploadSarifStep(sarifPath: string, category: string): TaskStepSp
     ],
     onError: "continue",
     // Uses `print` (a builtin) rather than the injected `log` helper: this is a raw shebang
-    // string, which tektonic passes through verbatim with no wrapper.
+    // body, which tektonic passes through verbatim with no wrapper. tektonic 2.x rejects a
+    // bare '#!' string in a reporting task, hence rawScript(): the step never writes the
+    // exit-code contract file, but it always exits 0 and the GitHub reporter also reads
+    // Tekton's own per-step exit codes, so it cannot mask a failure.
     //
     // The body lives in `def main []` under a try/catch so that EVERY path reaches the
     // trailing `exit 0`, which is what the comment above has always claimed. It used not to:
@@ -181,7 +179,7 @@ export function uploadSarifStep(sarifPath: string, category: string): TaskStepSp
     // raised and the step exited 1. Since tektonic v1.3.0 the report-status step takes the
     // max over Tekton's own per-step exit codes, so that 1 would redden the *scan* check for
     // what is only an upload problem (ocidex-im4o.2).
-    script: `#!/usr/bin/env nu
+    script: rawScript(`#!/usr/bin/env nu
 def main [] {
 print "upload-sarif [${category}]: start"
 
@@ -232,6 +230,6 @@ if $resp != null {
 # Never affect the task's scan verdict: a malformed SARIF, a missing gzip, or any other raise
 # inside main is logged and swallowed here rather than becoming the step's exit code.
 try { main } catch { |e| print $"upload-sarif [${category}]: error - ($e.msg)" }
-exit 0`,
+exit 0`),
   };
 }

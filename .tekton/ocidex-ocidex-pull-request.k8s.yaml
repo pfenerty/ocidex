@@ -6,7 +6,7 @@ metadata:
     pipelinesascode.tekton.dev/max-keep-runs: "5"
     pipelinesascode.tekton.dev/on-event: "[pull_request]"
     pipelinesascode.tekton.dev/on-target-branch: "[*]"
-    pipelinesascode.tekton.dev/task: "[.tekton/tasks/set-status-pending-ocidex-push.k8s.yaml, .tekton/tasks/git-clone.k8s.yaml, .tekton/tasks/gofmt-check.k8s.yaml, .tekton/tasks/go-test.k8s.yaml, .tekton/tasks/go-build.k8s.yaml, .tekton/tasks/openapi-verify.k8s.yaml, .tekton/tasks/eslint-lint-web.k8s.yaml, .tekton/tasks/go-integration-test.k8s.yaml, .tekton/tasks/govulncheck-scan.k8s.yaml, .tekton/tasks/grype-vuln-web.k8s.yaml, .tekton/tasks/gitleaks-secrets.k8s.yaml, .tekton/tasks/semgrep-sast.k8s.yaml, .tekton/tasks/image-build-api.k8s.yaml, .tekton/tasks/image-build-scanner-worker.k8s.yaml, .tekton/tasks/image-build-oci-metadata-worker.k8s.yaml, .tekton/tasks/image-build-git-worker.k8s.yaml, .tekton/tasks/image-build-user-enricher-worker.k8s.yaml, .tekton/tasks/image-build-provenance-worker.k8s.yaml, .tekton/tasks/image-build-vuln-worker.k8s.yaml, .tekton/tasks/image-build-web.k8s.yaml, .tekton/tasks/image-build-k8s-agent.k8s.yaml, .tekton/tasks/image-build-operator.k8s.yaml, .tekton/tasks/image-build-cli.k8s.yaml, .tekton/tasks/helm-check.k8s.yaml, .tekton/tasks/helm-publish.k8s.yaml, .tekton/tasks/sbom-push.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-pull-request.k8s.yaml, .tekton/tasks/detect-go.k8s.yaml, .tekton/tasks/detect-node.k8s.yaml, .tekton/tasks/detect-source.k8s.yaml, .tekton/tasks/detect-pipeline.k8s.yaml, .tekton/tasks/detect-charts.k8s.yaml, .tekton/tasks/tekton-check.k8s.yaml, .tekton/tasks/resolve-skipped-status-ocidex-pull-request.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-tag.k8s.yaml, .tekton/tasks/image-release-api.k8s.yaml, .tekton/tasks/image-release-scanner-worker.k8s.yaml, .tekton/tasks/image-release-oci-metadata-worker.k8s.yaml, .tekton/tasks/image-release-git-worker.k8s.yaml, .tekton/tasks/image-release-user-enricher-worker.k8s.yaml, .tekton/tasks/image-release-provenance-worker.k8s.yaml, .tekton/tasks/image-release-vuln-worker.k8s.yaml, .tekton/tasks/image-release-web.k8s.yaml, .tekton/tasks/image-release-k8s-agent.k8s.yaml, .tekton/tasks/image-release-operator.k8s.yaml, .tekton/tasks/image-release-cli.k8s.yaml, .tekton/tasks/helm-release.k8s.yaml, .tekton/tasks/gh-release.k8s.yaml]"
+    pipelinesascode.tekton.dev/task: "[.tekton/tasks/set-status-pending-ocidex-push.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-push-2.k8s.yaml, .tekton/tasks/git-clone.k8s.yaml, .tekton/tasks/gofmt-check.k8s.yaml, .tekton/tasks/go-test.k8s.yaml, .tekton/tasks/go-build.k8s.yaml, .tekton/tasks/openapi-verify.k8s.yaml, .tekton/tasks/eslint-lint-web.k8s.yaml, .tekton/tasks/go-integration-test.k8s.yaml, .tekton/tasks/govulncheck-scan.k8s.yaml, .tekton/tasks/grype-vuln-web.k8s.yaml, .tekton/tasks/gitleaks-secrets.k8s.yaml, .tekton/tasks/semgrep-sast.k8s.yaml, .tekton/tasks/image-build-api.k8s.yaml, .tekton/tasks/image-build-scanner-worker.k8s.yaml, .tekton/tasks/image-build-oci-metadata-worker.k8s.yaml, .tekton/tasks/image-build-git-worker.k8s.yaml, .tekton/tasks/image-build-user-enricher-worker.k8s.yaml, .tekton/tasks/image-build-provenance-worker.k8s.yaml, .tekton/tasks/image-build-vuln-worker.k8s.yaml, .tekton/tasks/image-build-web.k8s.yaml, .tekton/tasks/image-build-k8s-agent.k8s.yaml, .tekton/tasks/image-build-operator.k8s.yaml, .tekton/tasks/image-build-cli.k8s.yaml, .tekton/tasks/helm-check.k8s.yaml, .tekton/tasks/helm-publish.k8s.yaml, .tekton/tasks/sbom-push.k8s.yaml, .tekton/tasks/reconcile-status-ocidex-push.k8s.yaml, .tekton/tasks/reconcile-status-ocidex-push-2.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-pull-request.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-pull-request-2.k8s.yaml, .tekton/tasks/detect-go.k8s.yaml, .tekton/tasks/detect-node.k8s.yaml, .tekton/tasks/detect-source.k8s.yaml, .tekton/tasks/detect-pipeline.k8s.yaml, .tekton/tasks/detect-charts.k8s.yaml, .tekton/tasks/tekton-check.k8s.yaml, .tekton/tasks/reconcile-status-ocidex-pull-request.k8s.yaml, .tekton/tasks/reconcile-status-ocidex-pull-request-2.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-tag.k8s.yaml, .tekton/tasks/set-status-pending-ocidex-tag-2.k8s.yaml, .tekton/tasks/image-release-api.k8s.yaml, .tekton/tasks/image-release-scanner-worker.k8s.yaml, .tekton/tasks/image-release-oci-metadata-worker.k8s.yaml, .tekton/tasks/image-release-git-worker.k8s.yaml, .tekton/tasks/image-release-user-enricher-worker.k8s.yaml, .tekton/tasks/image-release-provenance-worker.k8s.yaml, .tekton/tasks/image-release-vuln-worker.k8s.yaml, .tekton/tasks/image-release-web.k8s.yaml, .tekton/tasks/image-release-k8s-agent.k8s.yaml, .tekton/tasks/image-release-operator.k8s.yaml, .tekton/tasks/image-release-cli.k8s.yaml, .tekton/tasks/helm-release.k8s.yaml, .tekton/tasks/gh-release.k8s.yaml, .tekton/tasks/reconcile-status-ocidex-tag.k8s.yaml, .tekton/tasks/reconcile-status-ocidex-tag-2.k8s.yaml]"
   name: ocidex-ocidex-pull-request
 spec:
   params:
@@ -22,7 +22,7 @@ spec:
       value: "{{ repo_url }}"
   pipelineSpec:
     finally:
-      - name: resolve-skipped-status-ocidex-pull-request
+      - name: reconcile-status-ocidex-pull-request
         params:
           - name: repo-full-name
             value: $(params.repo-full-name)
@@ -32,33 +32,52 @@ spec:
             value: $(tasks.gofmt-check.status)
           - name: status-go-test
             value: $(tasks.go-test.status)
+          - name: status-go-build
+            value: $(tasks.go-build.status)
           - name: status-go-integration-test
             value: $(tasks.go-integration-test.status)
           - name: status-openapi-verify
             value: $(tasks.openapi-verify.status)
-          - name: status-govulncheck-scan
-            value: $(tasks.govulncheck-scan.status)
-          - name: status-grype-vuln-web
-            value: $(tasks.grype-vuln-web.status)
-          - name: status-semgrep-sast
-            value: $(tasks.semgrep-sast.status)
+          - name: status-eslint-lint-web
+            value: $(tasks.eslint-lint-web.status)
           - name: status-tekton-check
             value: $(tasks.tekton-check.status)
           - name: status-helm-check
             value: $(tasks.helm-check.status)
         taskRef:
           kind: Task
-          name: ocidex-resolve-skipped-status-ocidex-pull-request
+          name: ocidex-reconcile-status-ocidex-pull-request
+      - name: reconcile-status-ocidex-pull-request-2
+        params:
+          - name: repo-full-name
+            value: $(params.repo-full-name)
+          - name: revision
+            value: $(params.revision)
+          - name: status-govulncheck-scan
+            value: $(tasks.govulncheck-scan.status)
+          - name: status-grype-vuln-web
+            value: $(tasks.grype-vuln-web.status)
+          - name: status-semgrep-sast
+            value: $(tasks.semgrep-sast.status)
+          - name: status-gitleaks-secrets
+            value: $(tasks.gitleaks-secrets.status)
+        taskRef:
+          kind: Task
+          name: ocidex-reconcile-status-ocidex-pull-request-2
     params:
-      - name: project-name
+      - description: Repository name, bound by PAC from repo_name
+        name: project-name
         type: string
-      - name: repo-full-name
+      - description: Repository owner/name, bound by PAC from repo_owner and repo_name
+        name: repo-full-name
         type: string
-      - name: source-branch
+      - description: Branch or tag ref of the event, bound by PAC from source_branch
+        name: source-branch
         type: string
       - name: revision
         type: string
-      - name: url
+      - description: Repository URL to clone from
+        name: url
         type: string
     tasks:
       - name: set-status-pending-ocidex-pull-request
@@ -72,6 +91,17 @@ spec:
         taskRef:
           kind: Task
           name: ocidex-set-status-pending-ocidex-pull-request
+      - name: set-status-pending-ocidex-pull-request-2
+        params:
+          - name: repo-full-name
+            value: $(params.repo-full-name)
+          - name: revision
+            value: $(params.revision)
+        runAfter:
+          - git-clone
+        taskRef:
+          kind: Task
+          name: ocidex-set-status-pending-ocidex-pull-request-2
       - name: git-clone
         params:
           - name: url
@@ -136,6 +166,7 @@ spec:
           - name: revision
             value: $(params.revision)
         runAfter:
+          - detect-go
           - set-status-pending-ocidex-pull-request
         taskRef:
           kind: Task
@@ -172,6 +203,7 @@ spec:
             value: $(params.revision)
         runAfter:
           - go-build
+          - detect-go
           - set-status-pending-ocidex-pull-request
         taskRef:
           kind: Task
@@ -194,6 +226,7 @@ spec:
             value: $(params.revision)
         runAfter:
           - go-build
+          - detect-go
           - set-status-pending-ocidex-pull-request
         taskRef:
           kind: Task
@@ -234,6 +267,7 @@ spec:
         runAfter:
           - go-build
           - eslint-lint-web
+          - detect-go
           - set-status-pending-ocidex-pull-request
         taskRef:
           kind: Task
@@ -256,7 +290,8 @@ spec:
             value: $(params.revision)
         runAfter:
           - go-build
-          - set-status-pending-ocidex-pull-request
+          - detect-go
+          - set-status-pending-ocidex-pull-request-2
         taskRef:
           kind: Task
           name: ocidex-govulncheck-scan
@@ -279,7 +314,8 @@ spec:
           - name: revision
             value: $(params.revision)
         runAfter:
-          - set-status-pending-ocidex-pull-request
+          - detect-node
+          - set-status-pending-ocidex-pull-request-2
         taskRef:
           kind: Task
           name: ocidex-grype-vuln-web
@@ -300,7 +336,8 @@ spec:
           - name: revision
             value: $(params.revision)
         runAfter:
-          - set-status-pending-ocidex-pull-request
+          - detect-source
+          - set-status-pending-ocidex-pull-request-2
         taskRef:
           kind: Task
           name: ocidex-semgrep-sast
@@ -319,7 +356,7 @@ spec:
           - name: revision
             value: $(params.revision)
         runAfter:
-          - set-status-pending-ocidex-pull-request
+          - set-status-pending-ocidex-pull-request-2
         taskRef:
           kind: Task
           name: ocidex-gitleaks-secrets
@@ -333,6 +370,7 @@ spec:
           - name: revision
             value: $(params.revision)
         runAfter:
+          - detect-pipeline
           - set-status-pending-ocidex-pull-request
         taskRef:
           kind: Task
@@ -352,6 +390,7 @@ spec:
           - name: revision
             value: $(params.revision)
         runAfter:
+          - detect-charts
           - set-status-pending-ocidex-pull-request
         taskRef:
           kind: Task

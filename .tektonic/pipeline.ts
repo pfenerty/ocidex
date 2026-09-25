@@ -1,4 +1,10 @@
-import { GitPipeline, TektonicProject, TRIGGER_EVENTS, gated } from "@pfenerty/tektonic";
+import {
+  GitPipeline,
+  TektonicProject,
+  TRIGGER_EVENTS,
+  gated,
+  DEFAULT_BASE_IMAGE,
+} from "@pfenerty/tektonic";
 
 import { goCacheWs, nodeCacheWs, buildkitCacheWs, buildkitReleaseCacheWs } from "./shared";
 import {
@@ -133,6 +139,9 @@ new TektonicProject({
   outdir: process.env.TEKTON_OUTDIR ?? "../.tekton",
   repoRelativePath: ".tekton",
   serviceAccountName: "default",
+  // tektonic 2.x defaults injected steps (status reporter, git clone) to a neutral
+  // sh+git image; ours are nushell, so keep the apko-cicd base image they ran on under 1.x.
+  injectedStepImage: DEFAULT_BASE_IMAGE,
   workspaceStorageSize: "5Gi",
   workspaceStorageClass: "local-path",
   defaultPodSecurityContext: {
