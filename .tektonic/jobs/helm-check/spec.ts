@@ -1,5 +1,5 @@
 import * as path from "path";
-import { Task, scriptFromFile } from "@pfenerty/tektonic";
+import { Task, scriptFromFile } from "@tektonic-ci/core";
 import { kyvernoImage, statusReporter } from "../../shared";
 
 // Nothing rendered the Helm charts before this task, so chart defects reached the live

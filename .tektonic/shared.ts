@@ -1,5 +1,5 @@
-import { Param, Workspace, TaskVolumeSpec, TaskStepSpec, rawScript } from "@pfenerty/tektonic";
-import { GitHubStatusReporter } from "@pfenerty/tektonic-reporter-github";
+import { Param, Workspace, TaskVolumeSpec, TaskStepSpec, rawScript } from "@tektonic-ci/core";
+import { GitHubStatusReporter } from "@tektonic-ci/reporter-github";
 
 // --- Images ─────────────────────────────────────────────────────────────────
 export const goImage = "ghcr.io/pfenerty/apko-cicd/golang:1.26";

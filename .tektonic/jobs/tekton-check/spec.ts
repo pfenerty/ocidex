@@ -1,4 +1,4 @@
-import { Task, nu } from "@pfenerty/tektonic";
+import { Task, nu } from "@tektonic-ci/core";
 import { nodeImage, statusReporter } from "../../shared";
 
 // Guard against pipeline drift. `make tekton-synth` runs only in dev, so nothing otherwise

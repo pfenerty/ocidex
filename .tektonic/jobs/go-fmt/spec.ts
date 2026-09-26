@@ -1,5 +1,5 @@
 import * as path from "path";
-import { Task, scriptFromFile } from "@pfenerty/tektonic";
+import { Task, scriptFromFile } from "@tektonic-ci/core";
 import { goImage, statusReporter } from "../../shared";
 
 export const goFmt = new Task({

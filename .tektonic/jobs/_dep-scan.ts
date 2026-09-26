@@ -1,4 +1,4 @@
-import { Task, nu, TaskStepSpec, TaskCacheSpec } from "@pfenerty/tektonic";
+import { Task, nu, TaskStepSpec, TaskCacheSpec } from "@tektonic-ci/core";
 import {
   syftImage,
   grypeImage,

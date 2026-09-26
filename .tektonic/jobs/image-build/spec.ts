@@ -1,5 +1,5 @@
 import * as path from "path";
-import { ChainsImage, Task, Workspace, ScriptInput, scriptFromFile, nu } from "@pfenerty/tektonic";
+import { ChainsImage, Task, Workspace, ScriptInput, scriptFromFile, nu } from "@tektonic-ci/core";
 import {
   statusReporter,
   dockerConfigVolume,

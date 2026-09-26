@@ -1,5 +1,5 @@
 import * as path from "path";
-import { Task, scriptFromFile } from "@pfenerty/tektonic";
+import { Task, scriptFromFile } from "@tektonic-ci/core";
 import { statusReporter, dockerConfigVolume } from "../../shared";
 import { imageBuildsTag } from "../image-build/spec";
 import { helmCheck } from "../helm-check/spec";
