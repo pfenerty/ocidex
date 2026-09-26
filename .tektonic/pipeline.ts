@@ -131,12 +131,7 @@ new TektonicProject({
   name: "ocidex",
   namespace: "ocidex-ci",
   pipelines: [pushPipeline, prPipeline, tagPipeline],
-  // TEKTON_OUTDIR redirects synth to a throwaway dir so `make tekton-check` can diff it against
-  // the committed .tekton without touching the working tree. Unset everywhere else (CI included),
-  // so tekton-synth and the tekton-check CI task are unaffected. Only `outdir` moves —
-  // `repoRelativePath` is what gets embedded in the YAML as remote task refs, so the output is
-  // byte-identical either way.
-  outdir: process.env.TEKTON_OUTDIR ?? "../.tekton",
+  outdir: "../.tekton",
   repoRelativePath: ".tekton",
   serviceAccountName: "default",
   // tektonic 2.x defaults injected steps (status reporter, git clone) to a neutral

@@ -1,8 +1,13 @@
 {
   "name": "ocidex-ci",
   "private": true,
+  "tektonic": {
+    "entry": "pipeline.ts",
+    "runner": "npx tsx"
+  },
   "scripts": {
-    "synth": "tsx pipeline.ts"
+    "synth": "tektonic synth",
+    "check": "tektonic check"
   },
   "dependencies": {
     "@pfenerty/tektonic": "^2.0.1",

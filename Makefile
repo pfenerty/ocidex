@@ -171,17 +171,12 @@ helm-check: ## Lint Helm charts and validate rendered manifests against PodSecur
 	scripts/helm-policy-check.sh
 
 tekton-synth: ## Synthesize Tekton pipeline YAML from TypeScript
-	cd .tektonic && npm ci && npx tsx pipeline.ts
+	cd .tektonic && npm ci && npx tektonic synth
 
-# Local counterpart to the tekton-check CI task. CI runs on a clean checkout and can just ask
-# git whether .tekton moved; locally you legitimately have uncommitted .tekton edits mid-work, so
-# that form false-positives. Synthesizing to a temp dir and diffing is git-state-independent, and
-# the recursive diff also catches orphans — files .tektonic no longer emits — which the CI check
-# only sees if synth actively deletes them.
+# Re-synthesizes to a temp dir and diffs recursively, so it is git-state-independent and also
+# catches orphans — files .tektonic no longer emits.
 tekton-check: ## Verify .tekton is in sync with .tektonic/
-	rm -rf /tmp/tekton-check
-	cd .tektonic && npm ci && TEKTON_OUTDIR=/tmp/tekton-check npx tsx pipeline.ts
-	diff -r .tekton /tmp/tekton-check || (echo "ERROR: .tekton is stale. Run 'make tekton-synth'." && exit 1)
+	cd .tektonic && npm ci && npx tektonic check
 
 # talosctl reaches Docker through the Go client, which honours DOCKER_HOST but
 # ignores Docker CLI contexts — and Docker Desktop on macOS does not create
