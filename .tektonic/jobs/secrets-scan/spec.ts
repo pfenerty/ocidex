@@ -1,4 +1,4 @@
-import { Task, nu } from "@pfenerty/tektonic";
+import { Task, nu } from "@tektonic-ci/core";
 import { gitleaksImage, reportOnlyStatusReporter } from "../../shared";
 import { pacBaseline } from "../../script-lib";
 

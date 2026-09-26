@@ -1,4 +1,4 @@
-import { Task, nu } from "@pfenerty/tektonic";
+import { Task, nu } from "@tektonic-ci/core";
 import { semgrepImage, reportOnlyStatusReporter, sourceBranchParam, uploadSarifStep } from "../../shared";
 import { pacBaseline, memoryWatchdog } from "../../script-lib";
 

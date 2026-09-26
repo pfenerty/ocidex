@@ -1,4 +1,4 @@
-import { Task, nu } from "@pfenerty/tektonic";
+import { Task, nu } from "@tektonic-ci/core";
 import { nodeImage, nodeModulesCache, nodeEnv, statusReporter } from "../../shared";
 import { nodeSetup } from "../../script-lib";
 

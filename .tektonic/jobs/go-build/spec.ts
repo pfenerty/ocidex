@@ -1,4 +1,4 @@
-import { Task, nu } from "@pfenerty/tektonic";
+import { Task, nu } from "@tektonic-ci/core";
 import { goImage, goCache, goEnv, statusReporter } from "../../shared";
 import { goSetup } from "../../script-lib";
 

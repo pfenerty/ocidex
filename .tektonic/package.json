@@ -10,8 +10,8 @@
     "check": "tektonic check"
   },
   "dependencies": {
-    "@pfenerty/tektonic": "^2.0.1",
-    "@pfenerty/tektonic-reporter-github": "^2.0.1"
+    "@tektonic-ci/core": "^2.1.0",
+    "@tektonic-ci/reporter-github": "^2.1.1"
   },
   "devDependencies": {
     "@types/node": "^25.0.0",

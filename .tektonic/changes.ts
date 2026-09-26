@@ -1,4 +1,4 @@
-import { onChanges } from "@pfenerty/tektonic";
+import { onChanges } from "@tektonic-ci/core";
 
 // ─── File-change rules ────────────────────────────────────────────────────────
 // Native tektonic `onChanges` (GitLab `rules:changes` style): each creates one

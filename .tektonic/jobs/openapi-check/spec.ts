@@ -1,4 +1,4 @@
-import { Task, nu } from "@pfenerty/tektonic";
+import { Task, nu } from "@tektonic-ci/core";
 import { goImage, nodeImage, goEnv, nodeEnv, statusReporter } from "../../shared";
 import { goSetup, nodeSetup } from "../../script-lib";
 import { goBuild } from "../go-build/spec";

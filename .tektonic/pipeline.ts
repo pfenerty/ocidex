@@ -4,7 +4,7 @@ import {
   TRIGGER_EVENTS,
   gated,
   DEFAULT_BASE_IMAGE,
-} from "@pfenerty/tektonic";
+} from "@tektonic-ci/core";
 
 import { goCacheWs, nodeCacheWs, buildkitCacheWs, buildkitReleaseCacheWs } from "./shared";
 import {

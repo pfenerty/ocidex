@@ -1,5 +1,5 @@
 import * as path from "path";
-import { Task, nu, scriptFromFile } from "@pfenerty/tektonic";
+import { Task, nu, scriptFromFile } from "@tektonic-ci/core";
 import {
   goImage,
   syftImage,

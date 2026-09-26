@@ -46,15 +46,15 @@
       "groupName": "web dependencies"
     },
     {
-      "description": "Track @pfenerty/tektonic minor/patch via git tags — automerge after re-synth",
-      "matchPackageNames": ["@pfenerty/tektonic"],
+      "description": "Track @tektonic-ci/core minor/patch — automerge after re-synth",
+      "matchPackageNames": ["@tektonic-ci/core", "@tektonic-ci/reporter-github"],
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "tektonic",
       "automerge": true
     },
     {
-      "description": "@pfenerty/tektonic major — hold for manual review and re-synth",
-      "matchPackageNames": ["@pfenerty/tektonic"],
+      "description": "@tektonic-ci/core major — hold for manual review and re-synth",
+      "matchPackageNames": ["@tektonic-ci/core", "@tektonic-ci/reporter-github"],
       "matchUpdateTypes": ["major"],
       "groupName": "tektonic (major)",
       "automerge": false

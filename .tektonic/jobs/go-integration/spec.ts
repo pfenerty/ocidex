@@ -1,5 +1,5 @@
 import * as path from "path";
-import { Task, scriptFromFile } from "@pfenerty/tektonic";
+import { Task, scriptFromFile } from "@tektonic-ci/core";
 import { goImage, goCacheIntegration, goEnv, statusReporter } from "../../shared";
 import { goBuild } from "../go-build/spec";
 
