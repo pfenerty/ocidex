@@ -60,6 +60,17 @@
       "automerge": false
     },
     {
+      "description": "Re-synthesize .tekton/ on any branch that touches .tektonic/ — a @tektonic-ci/* bump, a tsx/typescript bump, or an image pin from the customManager below. Without this the PR carries the new source but the old manifests, tekton-check fails it, and the tektonic automerge above never fires. Needs RENOVATE_ALLOWED_COMMANDS on the renovate-ocidex cronjob in homelab, or Renovate skips the commands. installTools because a regex-only (image) branch never installs node on its own. executionMode 'branch' runs the synth once over the final set of updates.",
+      "matchFileNames": [".tektonic/**"],
+      "postUpgradeTasks": {
+        "installTools": { "node": {} },
+        "workingDirTemplate": ".tektonic",
+        "commands": ["npm ci --ignore-scripts", "npm run synth"],
+        "fileFilters": [".tekton/**"],
+        "executionMode": "branch"
+      }
+    },
+    {
       "description": "Hold typescript at <7: typescript-eslint (^8) peer-depends on typescript \">=4.8.4 <6.1.0\", so TypeScript 7 fails npm install (ERESOLVE) and leaves the major-update PR perpetually red. This rule must also cover the eslint scope if that combination ever regresses — matchPackageNames matches the exact name, so a hold on \"eslint\" does not hold \"@eslint/js\". Lift once typescript-eslint peer-supports TypeScript 7.",
       "matchPackageNames": ["typescript"],
       "allowedVersions": "<7"
