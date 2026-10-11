@@ -267,10 +267,19 @@ spec:
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let contract_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
         # A step that never ran has no file; 0 keeps it out of the max.
-        let step_codes = (["/tekton/steps/step-prepare-buildkit-root/exitCode" "/tekton/steps/step-prepare-build-context/exitCode" "/tekton/steps/step-build-and-push/exitCode"] | each { |p| try { open --raw $p | str trim | into int } catch { 0 } })
-        let exit_code = ([$contract_code ...$step_codes] | math max)
+        let step_codes = ([{ name: "prepare-buildkit-root", path: "/tekton/steps/step-prepare-buildkit-root/exitCode" } { name: "prepare-build-context", path: "/tekton/steps/step-prepare-build-context/exitCode" } { name: "build-and-push", path: "/tekton/steps/step-build-and-push/exitCode" }] | each { |s| { name: $s.name, code: (try { open --raw $s.path | str trim | into int } catch { 0 }) } })
+        let exit_code = ([$contract_code ...($step_codes | each { |s| $s.code })] | math max)
         let state = if $exit_code == 0 { "success" } else { "failure" }
-        let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
+        # Name the first step that failed, so the check says where without opening the logs.
+        let failed_steps = ($step_codes | where code != 0)
+        let desc = if $exit_code == 0 {
+          "Passed"
+        } else if ($failed_steps | is-empty) {
+          $"Failed: exit ($exit_code)"
+        } else {
+          let first = ($failed_steps | first)
+          $"Failed: step ($first.name) exited ($first.code)"
+        }
 
         log $"report-status [image-build-git-worker]: exit-code=($exit_code) state=($state)"
 
