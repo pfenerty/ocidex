@@ -61,8 +61,12 @@ func run() error {
 			return fmt.Errorf("%s: %w", path, err)
 		}
 		fmt.Printf("\n%s: %d findings\n", path, len(findings))
+		sev := map[string]string{} // ID -> severity as ocidex stores it
+		for _, r := range grypematch.Rows(findings) {
+			sev[r.ID] = r.Severity
+		}
 		for _, f := range findings {
-			fmt.Printf("  %-28s %-10s %-10s %s fixed=%s\n", canonical(f), severity(f), f.FixState, f.Purl, f.FixedVersion)
+			fmt.Printf("  %-28s %-9s %-10s %s fixed=%s\n", canonical(f), sev[f.VulnerabilityID], f.FixState, f.Purl, f.FixedVersion)
 		}
 	}
 	if *n > 0 {
@@ -176,11 +180,4 @@ func canonical(f grypematch.Finding) string {
 		}
 	}
 	return f.VulnerabilityID
-}
-
-func severity(f grypematch.Finding) string {
-	if f.Metadata == nil {
-		return "Unknown"
-	}
-	return f.Metadata.Severity
 }

@@ -545,7 +545,7 @@ func toRow(rec *Record) Row {
 	return Row{
 		ID:          rec.ID,
 		Aliases:     rec.Aliases,
-		CanonicalID: canonicalID(rec.ID, rec.Aliases),
+		CanonicalID: CanonicalID(rec.ID, rec.Aliases),
 		Summary:     rec.Summary,
 		Details:     rec.Details,
 		Severity:    label,
@@ -558,9 +558,9 @@ func toRow(rec *Record) Row {
 	}
 }
 
-// canonicalID returns the best stable public identifier for a vulnerability:
+// CanonicalID returns the best stable public identifier for a vulnerability:
 // prefers CVE- alias, then GHSA-, then falls back to the native OSV ID.
-func canonicalID(id string, aliases []string) string {
+func CanonicalID(id string, aliases []string) string {
 	for _, a := range aliases {
 		if strings.HasPrefix(a, "CVE-") {
 			return a

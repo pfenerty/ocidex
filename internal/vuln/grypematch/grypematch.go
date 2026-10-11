@@ -37,6 +37,9 @@ type Finding struct {
 	FixState     string
 	FixedVersion string
 	Metadata     *vulnerability.Metadata
+	// RelatedMetadata is the metadata of each Related record that has any; NVD's
+	// CVSS usually arrives this way for distro advisories.
+	RelatedMetadata []*vulnerability.Metadata
 }
 
 // Matcher matches SBOM documents against a loaded grype vulnerability database.
@@ -101,11 +104,14 @@ func (m *Matcher) toFinding(mt match.Match) Finding {
 		FixState:        string(v.Fix.State),
 		Metadata:        v.Metadata,
 	}
-	if len(v.Fix.Versions) > 0 {
-		f.FixedVersion = v.Fix.Versions[0]
-	}
+	f.FixedVersion = suggestedFix(mt.Package, v.Fix.Versions)
 	for _, r := range v.RelatedVulnerabilities {
 		f.Related = append(f.Related, r.ID)
+		// grype's own presenter resolves related records the same way.
+		md, err := m.provider.VulnerabilityMetadata(r) //nolint:staticcheck // no non-deprecated way to read a related record's metadata
+		if err == nil && md != nil {
+			f.RelatedMetadata = append(f.RelatedMetadata, md)
+		}
 	}
 	return f
 }
@@ -141,4 +147,39 @@ func LoadDB(cfg DBConfig, update bool) (vulnerability.Provider, *vulnerability.P
 	// The worker decides when to check; don't let grype's own throttle skip it.
 	inst.UpdateCheckMaxFrequency = 0
 	return grype.LoadVulnerabilityDB(dist, inst, update)
+}
+
+// suggestedFix picks, from a record's fixed versions, the lowest one above the
+// installed version — the upgrade that clears this match. A record spanning
+// several release lines lists one fix per line ("5.29.6", "6.33.5"); the first
+// is wrong for an install on the later line. This is the rule grype's own
+// presenter applies (calculateSuggestedFixedVersion, unexported), on grype's
+// per-ecosystem comparators.
+func suggestedFix(p grypePkg.Package, fixes []string) string {
+	if len(fixes) <= 1 {
+		if len(fixes) == 1 {
+			return fixes[0]
+		}
+		return ""
+	}
+	format := grypePkg.VersionFormat(p)
+	installed := version.New(p.Version, format)
+	var best *version.Version
+	for _, raw := range fixes {
+		v := version.New(raw, format)
+		if above, err := v.Is(version.GT, installed); err != nil || !above {
+			continue
+		}
+		if best == nil {
+			best = v
+			continue
+		}
+		if lower, err := v.Is(version.LT, best); err == nil && lower {
+			best = v
+		}
+	}
+	if best == nil {
+		return fixes[0]
+	}
+	return best.Raw
 }
