@@ -221,6 +221,7 @@ changing the area it governs, and write a new one for a decision of comparable w
 | Diff views, identity rules, flavor axis | [docs/SBOM_DIFF.md](docs/SBOM_DIFF.md) |
 | Cluster page tabs, coverage semantics | [docs/CLUSTER_INVENTORY.md](docs/CLUSTER_INVENTORY.md) |
 | MCP server setup and tools | [docs/MCP.md](docs/MCP.md) |
+| Vulnerability matching (grype), data sources, attribution | [ADR-049](docs/adr/0049-vulnerability-matching-via-grype.md), [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) |
 | Ephemeral `--once` job mode | [docs/EPHEMERAL_JOBS.md](docs/EPHEMERAL_JOBS.md) |
 | API versioning policy | [docs/API_VERSIONING.md](docs/API_VERSIONING.md) |
 | Image labeling | [docs/IMAGE_LABELING.md](docs/IMAGE_LABELING.md) |

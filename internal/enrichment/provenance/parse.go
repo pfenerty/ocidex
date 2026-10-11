@@ -229,8 +229,8 @@ func fetchRekorUUIDFromBase(ctx context.Context, baseURL string, logIndex int64)
 	if err != nil {
 		return ""
 	}
-	params := entries.NewGetLogEntryByIndexParamsWithContext(ctx).WithLogIndex(logIndex)
-	resp, err := c.Entries.GetLogEntryByIndex(params)
+	params := entries.NewGetLogEntryByIndexParams().WithLogIndex(logIndex)
+	resp, err := c.Entries.GetLogEntryByIndexContext(ctx, params)
 	if err != nil {
 		return ""
 	}

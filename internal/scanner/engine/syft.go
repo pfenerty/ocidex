@@ -15,7 +15,11 @@ import (
 	"github.com/anchore/stereoscope/pkg/image"
 	"github.com/anchore/syft/syft"
 	"github.com/anchore/syft/syft/format/cyclonedxjson"
-	_ "modernc.org/sqlite" // register "sqlite" driver for Syft RPM DB cataloging
+
+	// Registers the "sqlite" driver Syft's RPM DB cataloger opens. glebarez/go-sqlite, not
+	// modernc.org/sqlite: grype's database layer links glebarez, and both register the
+	// name "sqlite", so a binary linking the two panics at init (ADR-049).
+	_ "github.com/glebarez/go-sqlite"
 
 	"github.com/pfenerty/ocidex/internal/scanner"
 )
