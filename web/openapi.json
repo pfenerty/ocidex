@@ -1156,6 +1156,9 @@
             "format": "float",
             "type": "number"
           },
+          "fixState": {
+            "type": "string"
+          },
           "fixedVersion": {
             "type": "string"
           },
@@ -5291,6 +5294,9 @@
       "SBOMVulnPackage": {
         "additionalProperties": false,
         "properties": {
+          "fixState": {
+            "type": "string"
+          },
           "fixedVersion": {
             "type": "string"
           },

@@ -1812,6 +1812,7 @@ type ComponentVersionEntry struct {
 type ComponentVulnEntry struct {
 	CanonicalId      string   `json:"canonicalId"`
 	CvssScore        *float32 `json:"cvssScore,omitempty"`
+	FixState         *string  `json:"fixState,omitempty"`
 	FixedVersion     *string  `json:"fixedVersion,omitempty"`
 	Id               string   `json:"id"`
 	MatchedViaSource bool     `json:"matchedViaSource"`
@@ -3209,6 +3210,7 @@ type SBOMVulnEntry struct {
 
 // SBOMVulnPackage defines model for SBOMVulnPackage.
 type SBOMVulnPackage struct {
+	FixState         *string `json:"fixState,omitempty"`
 	FixedVersion     *string `json:"fixedVersion,omitempty"`
 	Group            *string `json:"group,omitempty"`
 	MatchedViaSource bool    `json:"matchedViaSource"`

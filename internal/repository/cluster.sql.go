@@ -86,7 +86,7 @@ WITH running AS (
         LIMIT 1
     ) s ON true
     JOIN component comp ON comp.sbom_id = s.id AND comp.purl IS NOT NULL
-    JOIN package_vulnerability pv ON pv.purl = comp.purl
+    JOIN package_vulnerability pv ON pv.purl = comp.purl AND pv.go_symbol_set_id = COALESCE(comp.go_symbol_set_id, 0)
     JOIN vulnerability v ON v.id = pv.vulnerability_id
     WHERE w.cluster_id = $1
       AND c.namespace_id IN (SELECT visible_namespace_ids($3::uuid, $4::boolean))
@@ -392,8 +392,9 @@ LEFT JOIN LATERAL (
             FILTER (WHERE v.severity = 'MEDIUM')::bigint   AS medium,
         COUNT(DISTINCT COALESCE(NULLIF(v.canonical_id, ''), v.id))
             FILTER (WHERE v.severity = 'LOW')::bigint      AS low
-    FROM (SELECT DISTINCT purl FROM component WHERE sbom_id = s.id AND purl IS NOT NULL) comp
-    JOIN package_vulnerability pv ON pv.purl = comp.purl
+    FROM (SELECT DISTINCT purl, COALESCE(go_symbol_set_id, 0) AS go_symbol_set_id
+          FROM component WHERE sbom_id = s.id AND purl IS NOT NULL) comp
+    JOIN package_vulnerability pv ON pv.purl = comp.purl AND pv.go_symbol_set_id = comp.go_symbol_set_id
     JOIN vulnerability v ON v.id = pv.vulnerability_id
 ) vs ON s.id IS NOT NULL
 WHERE ($2::text IS NULL OR ms.state = $2::text)
@@ -580,6 +581,7 @@ const listClusterRunningVulns = `-- name: ListClusterRunningVulns :many
 WITH running AS (
     SELECT
         COALESCE(NULLIF(v.canonical_id, ''), v.id) AS canonical_id,
+        v.id                                       AS vuln_id,
         w.id                                       AS workload_id
     FROM cluster_workload w
     JOIN cluster c ON c.id = w.cluster_id
@@ -592,7 +594,7 @@ WITH running AS (
         LIMIT 1
     ) s ON true
     JOIN component comp ON comp.sbom_id = s.id AND comp.purl IS NOT NULL
-    JOIN package_vulnerability pv ON pv.purl = comp.purl
+    JOIN package_vulnerability pv ON pv.purl = comp.purl AND pv.go_symbol_set_id = COALESCE(comp.go_symbol_set_id, 0)
     JOIN vulnerability v ON v.id = pv.vulnerability_id
     WHERE w.cluster_id = $1
       AND c.namespace_id IN (SELECT visible_namespace_ids($7::uuid, $8::boolean))
@@ -609,8 +611,11 @@ canonical AS (
         v.severity,
         v.cvss_score,
         v.summary
+    -- The representative is chosen among the records that matched this scope
+    -- (ocidex-33ho.6), not every record sharing the canonical id: an aliased
+    -- record that matched some other package must not lend its id or severity.
     FROM vulnerability v
-    WHERE COALESCE(NULLIF(v.canonical_id, ''), v.id) IN (SELECT canonical_id FROM counts)
+    WHERE v.id IN (SELECT vuln_id FROM running)
     ORDER BY
         COALESCE(NULLIF(v.canonical_id, ''), v.id),
         CASE v.severity
@@ -859,8 +864,9 @@ LEFT JOIN LATERAL (
             FILTER (WHERE v.severity = 'MEDIUM')::bigint   AS medium,
         COUNT(DISTINCT COALESCE(NULLIF(v.canonical_id, ''), v.id))
             FILTER (WHERE v.severity = 'LOW')::bigint      AS low
-    FROM (SELECT DISTINCT purl FROM component WHERE sbom_id = s.id AND purl IS NOT NULL) comp
-    JOIN package_vulnerability pv ON pv.purl = comp.purl
+    FROM (SELECT DISTINCT purl, COALESCE(go_symbol_set_id, 0) AS go_symbol_set_id
+          FROM component WHERE sbom_id = s.id AND purl IS NOT NULL) comp
+    JOIN package_vulnerability pv ON pv.purl = comp.purl AND pv.go_symbol_set_id = comp.go_symbol_set_id
     JOIN vulnerability v ON v.id = pv.vulnerability_id
 ) vs ON s.id IS NOT NULL
 WHERE w.cluster_id = $1
@@ -1153,7 +1159,7 @@ LEFT JOIN artifact a ON a.id = s.artifact_id
 WHERE EXISTS (
     SELECT 1
     FROM component comp
-    JOIN package_vulnerability pv ON pv.purl = comp.purl
+    JOIN package_vulnerability pv ON pv.purl = comp.purl AND pv.go_symbol_set_id = COALESCE(comp.go_symbol_set_id, 0)
     JOIN vulnerability v ON v.id = pv.vulnerability_id
     WHERE comp.sbom_id = s.id
       AND comp.purl IS NOT NULL

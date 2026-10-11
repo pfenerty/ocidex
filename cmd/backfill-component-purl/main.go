@@ -23,8 +23,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/pfenerty/ocidex/internal/mainmodule"
 	"github.com/pfenerty/ocidex/internal/repository"
-	"github.com/pfenerty/ocidex/internal/service"
 )
 
 func main() {
@@ -64,7 +64,7 @@ func run() error {
 
 	updated, skipped, errored := 0, 0, 0
 	for _, row := range rows {
-		next := service.ComponentPurlWithVersion(row.Purl.String, row.Version.String)
+		next := mainmodule.EffectivePurl(row.Purl.String, row.Version.String)
 		if next == row.Purl.String {
 			// The rule declined this row (an unparseable purl, say). The SQL
 			// predicate is deliberately looser than the rule, so this is

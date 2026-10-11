@@ -192,7 +192,7 @@ func TestScanToEnrichFlow(t *testing.T) {
 
 	// Wire scanner pipeline: real Syft Go library → real Red Hat registry.
 	sbomSvc := service.NewSBOMService(pool, bus, nil) // nil validator skips OCI manifest check
-	sc := engine.NewSyftScanner(logger)
+	sc := engine.NewSyftScanner(logger, "all")
 	scanDisp := engine.NewDispatcher(sc, sbomSvc, 0, logger)
 
 	jobSvc := service.NewJobService(pool)

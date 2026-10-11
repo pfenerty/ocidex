@@ -98,3 +98,38 @@ spec:
               mountPath: /run
             - name: nginx-tmp
               mountPath: /var/lib/nginx/tmp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: good-vuln
+spec:
+  selector:
+    matchLabels:
+      app: good-vuln
+  template:
+    metadata:
+      labels:
+        app: good-vuln
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: grype-db
+          emptyDir:
+            sizeLimit: 10Gi
+      containers:
+        - name: vuln-worker
+          image: example/vuln-worker:1
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: grype-db
+              mountPath: /var/lib/ocidex/grype-db

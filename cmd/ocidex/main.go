@@ -33,7 +33,6 @@ import (
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
 	"github.com/pfenerty/ocidex/internal/version"
-	"github.com/pfenerty/ocidex/internal/vuln"
 )
 
 func main() {
@@ -117,7 +116,6 @@ func run() error {
 	enrichJobSvc := service.NewEnrichJobService(pool, "")
 	scanSubmitter := setupScannerExt(cfg, pool, bus, reg, natsClient, logger, jobSvc)
 	setupEnrichmentSubmitter(cfg, reg, natsClient, logger, enrichJobSvc)
-	setupIngestVulnLookup(cfg, pool, reg, logger)
 
 	if err := reg.InitAll(); err != nil {
 		return fmt.Errorf("initializing extensions: %w", err)
@@ -351,17 +349,6 @@ func warnUnpolledRegistries(ctx context.Context, registrySvc service.RegistrySer
 			"count", len(pollable),
 			"hint", "set SCANNER_ENABLED=true and REGISTRY_POLLER_ENABLED=true")
 	}
-}
-
-func setupIngestVulnLookup(cfg *config.Config, pool *pgxpool.Pool, reg *extension.Manager, logger *slog.Logger) {
-	store := vuln.NewPGStore(pool)
-	client := vuln.NewClient(
-		vuln.WithBaseURL(cfg.OSVBaseURL),
-		vuln.WithHTTPClient(&http.Client{Timeout: cfg.OSVTimeout}),
-		vuln.WithBatchSize(cfg.OSVBatchSize),
-	)
-	refresher := vuln.NewRefreshService(store, client, logger)
-	reg.Register(vuln.NewIngestVulnExtension(store, refresher, logger, cfg.IngestVulnLookupEnabled, cfg.IngestVulnLookupMaxConcurrency))
 }
 
 func setupOptionalExts(cfg *config.Config, reg *extension.Manager, natsClient *natspkg.Client, logger *slog.Logger) {

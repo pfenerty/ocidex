@@ -513,6 +513,9 @@ func attachSBOMVulnPackages(ctx context.Context, q *repository.Queries, sbomID p
 		if fv, ok := r.FixedVersion.(string); ok && fv != "" {
 			p.FixedVersion = &fv
 		}
+		if fs, ok := r.FixState.(string); ok && fs != "" {
+			p.FixState = &fs
+		}
 		byCanonical[r.CanonicalID] = append(byCanonical[r.CanonicalID], p)
 	}
 	for i := range items {

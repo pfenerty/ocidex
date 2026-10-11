@@ -104,3 +104,18 @@ export function cvssVersion(vector: string): string {
     const prefix = slash < 0 ? vector : vector.slice(0, slash);
     return prefix.startsWith("CVSS:") ? `CVSSv${prefix.slice(5)}` : "CVSS";
 }
+
+// noFixLabel says why a finding has no fixed version, from grype's fix state
+// (ADR-049): the distro decided not to fix it, or no fix exists yet. Returns
+// undefined when there is a fixed version to show instead, or nothing is known.
+export function noFixLabel(fixedVersion?: string, fixState?: string): string | undefined {
+    if (fixedVersion !== undefined && fixedVersion !== "") return undefined;
+    switch (fixState) {
+        case "wont-fix":
+            return "won't fix";
+        case "not-fixed":
+            return "no fix yet";
+        default:
+            return undefined;
+    }
+}

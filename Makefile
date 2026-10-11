@@ -7,7 +7,7 @@ ifneq (,$(wildcard .env))
   export
 endif
 
-.PHONY: all build run fmt lint test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-dev-live frontend-dev-auth dev-auth-up dev-auth-down dev-auth-fixtures dev-auth-status dev-auth-reset dev-mock-idp frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
+.PHONY: all build run fmt lint license-check test test-coverage test-integration check init clean generate generate-client generate-client-check generate-operator generate-operator-check migrate-up migrate-down seed frontend frontend-dev frontend-dev-live frontend-dev-auth dev-auth-up dev-auth-down dev-auth-fixtures dev-auth-status dev-auth-reset dev-mock-idp frontend-init frontend-lint frontend-lint-fix frontend-typecheck frontend-test openapi openapi-check auth-matrix auth-matrix-check helm-check tekton-synth tekton-check dev-docker-check dev-registry dev-cluster-up dev-cluster-down dev-up dev-down release version help
 
 all: check build ## Run all checks and build
 
@@ -43,11 +43,12 @@ test-coverage: ## Run tests with HTML coverage report
 test-integration: ## Run integration tests
 	go test -v -race ./tests/...
 
-check: fmt lint test openapi-check auth-matrix-check generate-client-check frontend-lint frontend-typecheck frontend-test helm-check ## Run fmt, lint, test, openapi staleness and Helm policy checks
+check: fmt lint test license-check openapi-check auth-matrix-check generate-client-check frontend-lint frontend-typecheck frontend-test helm-check ## Run fmt, lint, test, openapi staleness and Helm policy checks
 
 init: ## Download dependencies and install tools
 	go mod download
 	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+	go install github.com/google/go-licenses/v2@v2.0.1
 	go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
 	go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest
 
@@ -103,6 +104,11 @@ openapi-check: ## Verify OpenAPI spec and TypeScript types are up-to-date
 	diff web/openapi.json /tmp/openapi-check.json || (echo "ERROR: web/openapi.json is stale. Run 'make openapi'." && exit 1)
 	cd web && npx openapi-typescript openapi.json -o /tmp/openapi-check.d.ts
 	diff web/src/types/openapi.d.ts /tmp/openapi-check.d.ts || (echo "ERROR: openapi.d.ts is stale. Run 'make openapi'." && exit 1)
+
+# github.com/spdx/tools-golang is dual Apache-2.0 / GPL-2.0-or-later (LICENSE.code); go-licenses
+# reports only the GPL half. Modules it reports as Unknown are license-file naming misses (ADR-049).
+license-check: ## Fail on copyleft licenses stronger than MPL-2.0 in Go dependencies
+	@go-licenses report ./cmd/... 2>/dev/null | awk -F, '$$3 ~ /GPL|SSPL|EUPL|CC-BY-SA|OSL/ && $$1 !~ /^github.com\/spdx\/tools-golang/ { print "disallowed license: " $$0; bad = 1 } END { exit bad }'
 
 auth-matrix: ## Regenerate docs/AUTH_MATRIX.md from the authRules declarations
 	go run ./cmd/authmatrix > docs/AUTH_MATRIX.md

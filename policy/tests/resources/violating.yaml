@@ -139,3 +139,38 @@ spec:
                 capabilities:
                   drop:
                     - ALL
+---
+# bad-vuln: read-only root and the database volume mounted at the wrong path — grype
+# would fail to install its database (ADR-049).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bad-vuln
+spec:
+  selector:
+    matchLabels:
+      app: bad-vuln
+  template:
+    metadata:
+      labels:
+        app: bad-vuln
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: grype-db
+          emptyDir: {}
+      containers:
+        - name: vuln-worker
+          image: example/vuln-worker:1
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: grype-db
+              mountPath: /data

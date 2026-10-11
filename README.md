@@ -173,7 +173,7 @@ cmd/oci-metadata-worker/ Per-enricher workers, one per enrichment_jobs partition
 cmd/git-worker/          (NATS daemon + --once K8s Job mode; see ADR-033)
 cmd/user-enricher-worker/
 cmd/provenance-worker/
-cmd/vuln-worker/         Scheduled OSV.dev vulnerability store refresher
+cmd/vuln-worker/         Matches SBOMs against the grype vulnerability DB (ADR-049)
 internal/api/            HTTP handlers and routing (chi + huma)
 internal/service/        Business logic interfaces and implementations
 internal/repository/     Data access layer (sqlc-generated queries)

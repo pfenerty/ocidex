@@ -78,6 +78,8 @@ linters:
         path: pkg/client/
     paths:
       - third_party$
+      # Some npm packages ship Go sources (flatted); they are not ocidex code.
+      - web/node_modules
       - builtin$
       - examples$
 formatters:

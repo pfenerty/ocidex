@@ -115,9 +115,9 @@ vuln_events AS (
         v.cvss_score AS vuln_cvss_score,
         v.summary AS vuln_summary
     FROM latest_sbom ls
-    JOIN (SELECT DISTINCT sbom_id, purl FROM component WHERE purl IS NOT NULL) c
+    JOIN (SELECT DISTINCT sbom_id, purl, COALESCE(go_symbol_set_id, 0) AS go_symbol_set_id FROM component WHERE purl IS NOT NULL) c
         ON c.sbom_id = ls.id
-    JOIN package_vulnerability pv ON pv.purl = c.purl
+    JOIN package_vulnerability pv ON pv.purl = c.purl AND pv.go_symbol_set_id = c.go_symbol_set_id
     JOIN vulnerability v ON v.id = pv.vulnerability_id
     -- One row per (artifact, canonical vuln): the same advisory usually matches
     -- several purls in one image, and aliased OSV records collapse onto one

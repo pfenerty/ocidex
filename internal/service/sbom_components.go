@@ -14,6 +14,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/pfenerty/ocidex/internal/gosymbols"
+	"github.com/pfenerty/ocidex/internal/mainmodule"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
@@ -42,13 +44,13 @@ func flattenComponents(components []cdx.Component, parentID pgtype.UUID, mainMod
 	walk = func(comps []cdx.Component, parent pgtype.UUID) {
 		for i := range comps {
 			comp := &comps[i]
-			version := effectiveComponentVersion(comp.Version, comp.Name, comp.PackageURL, mainModule, subjectVersion)
+			version := mainmodule.EffectiveVersion(comp.Version, comp.Name, comp.PackageURL, mainModule, subjectVersion)
 			fc := flatComponent{
 				id:       newComponentID(),
 				parentID: parent,
 				comp:     comp,
 				version:  version,
-				purl:     effectiveComponentPurl(comp.PackageURL, version),
+				purl:     mainmodule.EffectivePurl(comp.PackageURL, version),
 			}
 			flat = append(flat, fc)
 			if comp.Components != nil {
@@ -74,6 +76,7 @@ func (s *sbomService) insertComponentsBatch(
 	sbomID pgtype.UUID,
 	components []cdx.Component,
 	mainModule, subjectVersion, flavor string,
+	goSyms map[*cdx.Component]gosymbols.Table,
 ) error {
 	flat := flattenComponents(components, pgtype.UUID{}, mainModule, subjectVersion)
 	if len(flat) == 0 {
@@ -87,6 +90,9 @@ func (s *sbomService) insertComponentsBatch(
 		return err
 	}
 	if err := copyComponentExtRefs(ctx, tx, flat); err != nil {
+		return err
+	}
+	if err := persistGoSymbols(ctx, tx, flat, goSyms); err != nil {
 		return err
 	}
 	return copyComponentLicenses(ctx, tx, q, flat)

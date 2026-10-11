@@ -1,11 +1,18 @@
-package service
+// Package mainmodule identifies an SBOM's main module — the package built from
+// the image's own source repository — and recovers its version when the
+// scanner could not. Syft emits version "UNKNOWN" (or none) for a Go main module
+// whose build info says "(devel)"; the image's subject version stands in.
+//
+// Ingest (internal/service) applies it to what it stores; the vuln-worker's
+// matcher (internal/vuln/grypematch) applies it to the document it matches, so
+// both see the same versions.
+package mainmodule
 
 import (
 	"net/url"
 	"strings"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
-	"github.com/pfenerty/ocidex/internal/vuln"
 )
 
 // ociSourceKeys are the property names Syft and Trivy use for the source
@@ -15,7 +22,7 @@ var ociSourceKeys = []string{
 	"aquasecurity:trivy:Labels:org.opencontainers.image.source",
 }
 
-// extractMainModulePath returns the host+path of the SBOM's source repository,
+// ExtractPath returns the host+path of the SBOM's source repository,
 // stripped of scheme and ".git" suffix — e.g.
 // "https://github.com/dexidp/dex.git" → "github.com/dexidp/dex".
 //
@@ -25,7 +32,7 @@ var ociSourceKeys = []string{
 // and we use this path to locate that component and backfill its version.
 //
 // Returns "" when no recognized source label is present.
-func extractMainModulePath(bom *cdx.BOM) string {
+func ExtractPath(bom *cdx.BOM) string {
 	if bom == nil || bom.Metadata == nil {
 		return ""
 	}
@@ -44,6 +51,33 @@ func extractMainModulePath(bom *cdx.BOM) string {
 		}
 	}
 	return ""
+}
+
+// purlVersion returns a purl's percent-decoded version segment, or "" when it
+// has none. Qualifiers and subpath are cut first, since a qualifier value (an
+// SSH-form vcs_url) may itself contain "@".
+func purlVersion(purl string) string {
+	base, _, _ := strings.Cut(purl, "?")
+	base, _, _ = strings.Cut(base, "#")
+	at := strings.LastIndex(base, "@")
+	if at < 0 {
+		return ""
+	}
+	version := base[at+1:]
+	if decoded, err := url.PathUnescape(version); err == nil {
+		version = decoded
+	}
+	return version
+}
+
+// unknownVersion is Syft's sentinel for a version it could not determine.
+const unknownVersion = "UNKNOWN"
+
+func propertySlice(p *[]cdx.Property) []cdx.Property {
+	if p == nil {
+		return nil
+	}
+	return *p
 }
 
 func propertySliceFromComponent(mc *cdx.Component) []cdx.Property {
@@ -72,7 +106,7 @@ func normalizeSourceURL(raw string) string {
 	return s
 }
 
-// effectiveComponentVersion returns the version to persist for a component,
+// EffectiveVersion returns the version to persist for a component,
 // applying the main-module backfill rule: when a component matches the
 // SBOM's main module by purl path or name AND its version is "UNKNOWN" or
 // empty, substitute the resolved subjectVersion. Otherwise the original
@@ -82,8 +116,8 @@ func normalizeSourceURL(raw string) string {
 // (e.g. github.com/dexidp/dex/api/v2 under github.com/dexidp/dex) keep their
 // original version, since they may legitimately be UNKNOWN for unrelated
 // reasons and substituting the parent module's version would be wrong.
-func effectiveComponentVersion(version, name, purl, mainModule, subjectVersion string) string {
-	if !isUnknownVersion(version) {
+func EffectiveVersion(version, name, purl, mainModule, subjectVersion string) string {
+	if !IsUnknownVersion(version) {
 		return version
 	}
 	if mainModule == "" || subjectVersion == "" {
@@ -95,7 +129,7 @@ func effectiveComponentVersion(version, name, purl, mainModule, subjectVersion s
 	return subjectVersion
 }
 
-// effectiveComponentPurl returns the purl to persist for a component. When the
+// EffectivePurl returns the purl to persist for a component. When the
 // purl carries no version of its own but the component has a resolved version
 // — the main-module backfill above being the case that matters — the version is
 // spliced in, leaving the purl usable as a version-matching key.
@@ -103,17 +137,17 @@ func effectiveComponentVersion(version, name, purl, mainModule, subjectVersion s
 // This exists because the vulnerability store is keyed entirely by purl and OSV
 // matches versions server-side, so a purl with no version matches nothing and is
 // skipped outright by vuln.queryablePurls. Without this splice the version that
-// effectiveComponentVersion recovers would reach component.version and stop
+// EffectiveVersion recovers would reach component.version and stop
 // there, leaving the component permanently unscannable.
 //
 // Diff identity is unaffected: ADR-0019 strips the @version segment before
 // comparing components (docs/SBOM_DIFF.md, Rule 1), so a purl that gains a
 // version still matches its unversioned self across SBOMs.
-func effectiveComponentPurl(purl, version string) string {
-	if purl == "" || isUnknownVersion(version) {
+func EffectivePurl(purl, version string) string {
+	if purl == "" || IsUnknownVersion(version) {
 		return purl
 	}
-	if purlVersionValue(purl) != "" {
+	if purlVersion(purl) != "" {
 		return purl
 	}
 	// The spec orders a purl as "pkg:type/namespace/name@version?qualifiers
@@ -123,15 +157,6 @@ func effectiveComponentPurl(purl, version string) string {
 		base, suffix = purl[:i], purl[i:]
 	}
 	return base + "@" + encodePurlVersion(version) + suffix
-}
-
-// ComponentPurlWithVersion applies the ingest-path purl rule to an
-// already-stored row. Exported for cmd/backfill-component-purl, which carries
-// the rule to components ingested before it existed; ingestion itself uses the
-// unexported form. Returns purl unchanged when there is nothing to splice, so
-// the caller can write only the rows that actually differ.
-func ComponentPurlWithVersion(purl, version string) string {
-	return effectiveComponentPurl(purl, version)
 }
 
 // encodePurlVersion percent-encodes a version for use as a purl's version
@@ -144,10 +169,10 @@ func encodePurlVersion(v string) string {
 	return strings.ReplaceAll(e, "@", "%40")
 }
 
-// isUnknownVersion is true for the literal Syft sentinel "UNKNOWN" and for
+// IsUnknownVersion is true for the literal Syft sentinel "UNKNOWN" and for
 // the empty string. Either signals that we don't know the version.
-func isUnknownVersion(v string) bool {
-	return v == "" || v == vuln.SeverityUnknown
+func IsUnknownVersion(v string) bool {
+	return v == "" || v == unknownVersion
 }
 
 // componentMatchesMainModule returns true when the component's purl path or
@@ -181,4 +206,36 @@ func purlPath(purl string) string {
 		rest = rest[:i]
 	}
 	return rest
+}
+
+// Apply rewrites, in place, every component of bom that is the SBOM's main
+// module and has no known version: its version becomes subjectVersion and the
+// version is spliced into its purl — the same rule ingest applies to what it
+// stores (EffectiveVersion, EffectivePurl). It reports how many components it
+// changed. Nested components are walked too.
+func Apply(bom *cdx.BOM, subjectVersion string) int {
+	if bom == nil || bom.Components == nil || subjectVersion == "" {
+		return 0
+	}
+	main := ExtractPath(bom)
+	if main == "" {
+		return 0
+	}
+	var changed int
+	var walk func(comps []cdx.Component)
+	walk = func(comps []cdx.Component) {
+		for i := range comps {
+			c := &comps[i]
+			if v := EffectiveVersion(c.Version, c.Name, c.PackageURL, main, subjectVersion); v != c.Version {
+				c.Version = v
+				c.PackageURL = EffectivePurl(c.PackageURL, v)
+				changed++
+			}
+			if c.Components != nil {
+				walk(*c.Components)
+			}
+		}
+	}
+	walk(*bom.Components)
+	return changed
 }
