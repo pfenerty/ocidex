@@ -3,6 +3,7 @@ package tests
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/matryer/is"
 
 	"github.com/pfenerty/ocidex/internal/gosymbols"
+	"github.com/pfenerty/ocidex/internal/service"
 	"github.com/pfenerty/ocidex/internal/vuln"
 	"github.com/pfenerty/ocidex/internal/vuln/grypematch"
 )
@@ -90,12 +92,37 @@ func TestGoSymbolsIngestAndMatch(t *testing.T) {
 	c := mustIngest(t, srv.URL, ingestPath(t, pool, memberID),
 		goBinarySBOM(t, "aaaaaaaa-0000-0000-0000-000000000003", 'c', clientOnly), memberKey)
 
-	// Two distinct symbol lists → two sets, though three components link them.
+	// The in-process scanner hands symbols to Ingest beside the document rather
+	// than inside it. The same symbols resolve to the same set, and raw_bom is
+	// stored as given.
+	plainDoc := goBinarySBOM(t, "aaaaaaaa-0000-0000-0000-000000000004", 'd', nil)
+	var bom cdx.BOM
+	is.NoErr(json.Unmarshal([]byte(plainDoc), &bom))
+	(*bom.Components)[0].BOMRef = "stdlib-ref"
+	raw4, err := json.Marshal(&bom)
+	is.NoErr(err)
+	nsID := seedNamespace(t, pool, "gosymbols-direct", memberID, "public")
+	var sourceID pgtype.UUID
+	is.NoErr(sourceID.Scan(seedSource(t, pool, nsID, "upload", "ci")))
+	d, err := service.NewSBOMService(pool, nil, nil).Ingest(t.Context(), &bom, raw4, service.IngestParams{
+		SourceID:  sourceID,
+		GoSymbols: map[string]gosymbols.Table{"stdlib-ref": serving},
+	})
+	is.NoErr(err)
+	var raw4Stored string
+	is.NoErr(pool.QueryRow(t.Context(), "SELECT raw_bom::text FROM sbom WHERE id = $1", d).Scan(&raw4Stored))
+	is.True(strings.Contains(raw4Stored, "stdlib-ref")) // document stored as given
+
+	// Two distinct symbol lists → two sets, though four components link them.
 	var sets, linked int
 	is.NoErr(pool.QueryRow(t.Context(), "SELECT count(*) FROM go_symbol_set").Scan(&sets))
 	is.NoErr(pool.QueryRow(t.Context(), "SELECT count(*) FROM component WHERE go_symbol_set_id IS NOT NULL").Scan(&linked))
 	is.Equal(sets, 2)
-	is.Equal(linked, 3)
+	is.Equal(linked, 4)
+	var sameSet bool
+	is.NoErr(pool.QueryRow(t.Context(), `SELECT (SELECT go_symbol_set_id FROM component WHERE sbom_id = $1)
+		= (SELECT go_symbol_set_id FROM component WHERE sbom_id = $2)`, a, d).Scan(&sameSet))
+	is.True(sameSet) // property-carried and directly handed symbols dedupe to one set
 
 	// Names are stored normalized, once.
 	var serveRows int
@@ -124,10 +151,9 @@ func TestGoSymbolsIngestAndMatch(t *testing.T) {
 		linking = append(linking, id)
 	}
 	rows.Close()
-	want := []string{a, b}
-	if want[0] > want[1] {
-		want[0], want[1] = want[1], want[0]
-	}
+	dStr := fmt.Sprintf("%x-%x-%x-%x-%x", d.Bytes[0:4], d.Bytes[4:6], d.Bytes[6:8], d.Bytes[8:10], d.Bytes[10:16])
+	want := []string{a, b, dStr}
+	sort.Strings(want)
 	is.Equal(linking, want)
 
 	// The store hands the matcher the symbols keyed by purl and binary path.
@@ -169,4 +195,5 @@ func TestGoSymbolsIngestAndMatch(t *testing.T) {
 	is.Equal(vulnCount(a), 1)
 	is.Equal(vulnCount(b), 1)
 	is.Equal(vulnCount(c), 0) // stdlib@1.18.2 is in range, but Server.Serve is not linked
+	is.Equal(vulnCount(dStr), 1)
 }

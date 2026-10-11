@@ -48,8 +48,9 @@ func NewSyftScanner(logger *slog.Logger, symbolScope string) *SyftScanner {
 	return &SyftScanner{logger: logger, symbols: scope}
 }
 
-// Scan runs syft against the image identified by req and returns CycloneDX JSON.
-func (s *SyftScanner) Scan(ctx context.Context, req scanner.ScanRequest) ([]byte, error) {
+// Scan runs syft against the image identified by req and returns the CycloneDX
+// document plus the Go symbols syft captured, keyed by bom-ref.
+func (s *SyftScanner) Scan(ctx context.Context, req scanner.ScanRequest) (scanner.Result, error) {
 	registryHost := normalizeRegistryHost(req.RegistryURL)
 	ref := fmt.Sprintf("%s/%s@%s", registryHost, req.Repository, req.Digest)
 	s.logger.Info("scanning image", "ref", ref, "tag", req.Tag)
@@ -72,7 +73,7 @@ func (s *SyftScanner) Scan(ctx context.Context, req scanner.ScanRequest) ([]byte
 
 	src, err := syft.GetSource(ctx, ref, srcCfg)
 	if err != nil {
-		return nil, fmt.Errorf("getting source for %s: %w", ref, err)
+		return scanner.Result{}, fmt.Errorf("getting source for %s: %w", ref, err)
 	}
 	defer src.Close()
 
@@ -80,31 +81,32 @@ func (s *SyftScanner) Scan(ctx context.Context, req scanner.ScanRequest) ([]byte
 	cfg.Packages = cfg.Packages.WithGolangConfig(cfg.Packages.Golang.WithCaptureSymbols(s.symbols))
 	result, err := syft.CreateSBOM(ctx, src, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("creating SBOM for %s: %w", ref, err)
+		return scanner.Result{}, fmt.Errorf("creating SBOM for %s: %w", ref, err)
 	}
 
 	encoder, err := cyclonedxjson.NewFormatEncoderWithConfig(cyclonedxjson.DefaultEncoderConfig())
 	if err != nil {
-		return nil, fmt.Errorf("creating encoder: %w", err)
+		return scanner.Result{}, fmt.Errorf("creating encoder: %w", err)
 	}
 
 	var buf bytes.Buffer
 	if err := encoder.Encode(&buf, *result); err != nil {
-		return nil, fmt.Errorf("encoding SBOM for %s: %w", ref, err)
+		return scanner.Result{}, fmt.Errorf("encoding SBOM for %s: %w", ref, err)
 	}
 
-	out, err := addGoSymbols(buf.Bytes(), result)
+	syms, err := goSymbolsByBOMRef(buf.Bytes(), result)
 	if err != nil {
-		return nil, fmt.Errorf("adding go symbols for %s: %w", ref, err)
+		return scanner.Result{}, fmt.Errorf("collecting go symbols for %s: %w", ref, err)
 	}
-	return out, nil
+	return scanner.Result{SBOM: buf.Bytes(), GoSymbols: syms}, nil
 }
 
-// addGoSymbols carries the function symbols syft captured for Go binary packages
-// into the CycloneDX document, which syft's encoder drops (ADR-050). Each
-// component is found by the syft package ID embedded in its bom-ref. The document
-// passes through unchanged when no package has symbols.
-func addGoSymbols(doc []byte, result *sbom.SBOM) ([]byte, error) {
+// goSymbolsByBOMRef collects the function symbols syft captured for Go binary
+// packages, keyed by the bom-ref each package got in the encoded document.
+// syft's CycloneDX encoder has no field for them (ADR-050), so they travel to
+// ingest beside the document. The document is only decoded when some package
+// has symbols.
+func goSymbolsByBOMRef(doc []byte, result *sbom.SBOM) (map[string]gosymbols.Table, error) {
 	byID := map[string]gosymbols.Table{}
 	for p := range result.Artifacts.Packages.Enumerate() {
 		if m, ok := p.Metadata.(syftpkg.GolangBinaryBuildinfoEntry); ok && len(m.Symbols) > 0 {
@@ -112,39 +114,27 @@ func addGoSymbols(doc []byte, result *sbom.SBOM) ([]byte, error) {
 		}
 	}
 	if len(byID) == 0 {
-		return doc, nil
+		return nil, nil
 	}
 	var bom cdx.BOM
 	if err := cdx.NewBOMDecoder(bytes.NewReader(doc), cdx.BOMFileFormatJSON).Decode(&bom); err != nil {
 		return nil, err
 	}
-	attachSymbols(bom.Components, byID)
-	var buf bytes.Buffer
-	if err := cdx.NewBOMEncoder(&buf, cdx.BOMFileFormatJSON).Encode(&bom); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-
-func attachSymbols(comps *[]cdx.Component, byID map[string]gosymbols.Table) {
-	if comps == nil {
-		return
-	}
-	for i := range *comps {
-		c := &(*comps)[i]
-		if t, ok := byID[syftPackageID(c.BOMRef)]; ok {
-			props := append(propertiesOf(c), gosymbols.Properties(t)...)
-			c.Properties = &props
+	out := map[string]gosymbols.Table{}
+	var walk func(comps *[]cdx.Component)
+	walk = func(comps *[]cdx.Component) {
+		if comps == nil {
+			return
 		}
-		attachSymbols(c.Components, byID)
+		for _, c := range *comps {
+			if t, ok := byID[syftPackageID(c.BOMRef)]; ok && c.BOMRef != "" {
+				out[c.BOMRef] = t
+			}
+			walk(c.Components)
+		}
 	}
-}
-
-func propertiesOf(c *cdx.Component) []cdx.Property {
-	if c.Properties == nil {
-		return nil
-	}
-	return *c.Properties
+	walk(bom.Components)
+	return out, nil
 }
 
 // syftPackageID extracts the syft package ID from a bom-ref syft wrote: either

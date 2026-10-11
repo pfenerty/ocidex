@@ -26,11 +26,11 @@ var _ service.SBOMService = (*fakeSBOMSvc)(nil)
 // fakeScanner implements scanner.Scanner, returning minimal valid CycloneDX JSON.
 type fakeScanner struct{ err error }
 
-func (f *fakeScanner) Scan(_ context.Context, _ scanner.ScanRequest) ([]byte, error) {
+func (f *fakeScanner) Scan(_ context.Context, _ scanner.ScanRequest) (scanner.Result, error) {
 	if f.err != nil {
-		return nil, f.err
+		return scanner.Result{}, f.err
 	}
-	return []byte(`{"bomFormat":"CycloneDX","specVersion":"1.4","version":1,"components":[]}`), nil
+	return scanner.Result{SBOM: []byte(`{"bomFormat":"CycloneDX","specVersion":"1.4","version":1,"components":[]}`)}, nil
 }
 
 // fakeSBOMSvc implements service.SBOMService for dispatcher tests.
@@ -200,7 +200,7 @@ func TestDispatcher_ProcessOne_SizeGate(t *testing.T) {
 // countingScanner records how many times the scan was actually attempted.
 type countingScanner struct{ calls int }
 
-func (c *countingScanner) Scan(_ context.Context, _ scanner.ScanRequest) ([]byte, error) {
+func (c *countingScanner) Scan(_ context.Context, _ scanner.ScanRequest) (scanner.Result, error) {
 	c.calls++
-	return []byte(`{"bomFormat":"CycloneDX","specVersion":"1.4","version":1,"components":[]}`), nil
+	return scanner.Result{SBOM: []byte(`{"bomFormat":"CycloneDX","specVersion":"1.4","version":1,"components":[]}`)}, nil
 }

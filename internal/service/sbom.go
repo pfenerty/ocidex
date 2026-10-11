@@ -50,6 +50,12 @@ type IngestParams struct {
 	SubjectGroup string // e.g. "github.com/pfenerty"
 	SubjectPurl  string // e.g. "pkg:golang/github.com/pfenerty/ocidex@v1.2.3"
 	Digest       string // sha256 of the artifact *file*, not of the SBOM
+
+	// GoSymbols maps a component bom-ref to the function symbols linked into the
+	// Go binary it describes (ADR-050). The in-process scanner supplies them here
+	// because CycloneDX has no field for them; uploads may instead carry the
+	// optional ocidex:go:symbols:* component properties.
+	GoSymbols map[string]gosymbols.Table
 }
 
 // SBOMService defines the business logic for SBOM ingestion and management.
@@ -221,7 +227,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 	}
 
 	// Go symbols are stored relationally, not inside raw_bom (ADR-050).
-	goSyms, rawJSON, err := detachGoSymbols(bom, rawJSON)
+	goSyms, rawJSON, err := detachGoSymbols(bom, rawJSON, params.GoSymbols)
 	if err != nil {
 		return pgtype.UUID{}, err
 	}

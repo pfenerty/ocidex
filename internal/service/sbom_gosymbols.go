@@ -11,23 +11,31 @@ import (
 	"github.com/pfenerty/ocidex/internal/gosymbols"
 )
 
-// detachGoSymbols lifts the ocidex Go symbol properties (ADR-050) off bom's
-// components, keyed by component, and returns the document to persist without
-// them, so symbols are stored once — relationally — rather than also inside
-// raw_bom. rawJSON is returned unchanged when the BOM carries no symbols.
-func detachGoSymbols(bom *cdx.BOM, rawJSON []byte) (map[*cdx.Component]gosymbols.Table, []byte, error) {
+// detachGoSymbols resolves each component's Go symbol table (ADR-050), keyed by
+// component, normalized. byBOMRef — supplied by the in-process scanner — wins;
+// otherwise the optional ocidex:go:symbols:* properties an uploaded document may
+// carry are read. Those properties are stripped from the document to persist, so
+// symbols are stored once, relationally; rawJSON is returned unchanged when the
+// BOM carried none.
+func detachGoSymbols(bom *cdx.BOM, rawJSON []byte, byBOMRef map[string]gosymbols.Table) (map[*cdx.Component]gosymbols.Table, []byte, error) {
 	if bom == nil || bom.Components == nil {
 		return nil, rawJSON, nil
 	}
 	syms := map[*cdx.Component]gosymbols.Table{}
+	var carried bool
 	var walk func(comps []cdx.Component)
 	walk = func(comps []cdx.Component) {
 		for i := range comps {
 			c := &comps[i]
+			var fromProps gosymbols.Table
 			if c.Properties != nil {
-				if t, _ := gosymbols.FromProperties(*c.Properties); t != nil {
-					syms[c] = gosymbols.Normalized(t)
-				}
+				fromProps, _ = gosymbols.FromProperties(*c.Properties)
+				carried = carried || fromProps != nil
+			}
+			if t, ok := byBOMRef[c.BOMRef]; ok && c.BOMRef != "" {
+				syms[c] = gosymbols.Normalized(t)
+			} else if fromProps != nil {
+				syms[c] = gosymbols.Normalized(fromProps)
 			}
 			if c.Components != nil {
 				walk(*c.Components)
@@ -37,6 +45,9 @@ func detachGoSymbols(bom *cdx.BOM, rawJSON []byte) (map[*cdx.Component]gosymbols
 	walk(*bom.Components)
 	if len(syms) == 0 {
 		return nil, rawJSON, nil
+	}
+	if !carried {
+		return syms, rawJSON, nil // symbols arrived beside the document; nothing to strip
 	}
 	gosymbols.Strip(bom)
 	var buf bytes.Buffer
