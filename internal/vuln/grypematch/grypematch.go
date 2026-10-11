@@ -10,6 +10,7 @@ import (
 	"sort"
 	"time"
 
+	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/anchore/clio"
 	"github.com/anchore/grype/grype"
 	v6dist "github.com/anchore/grype/grype/db/v6/distribution"
@@ -22,6 +23,9 @@ import (
 	grypePkg "github.com/anchore/grype/grype/pkg"
 	"github.com/anchore/grype/grype/version"
 	"github.com/anchore/grype/grype/vulnerability"
+
+	"github.com/pfenerty/ocidex/internal/gosymbols"
+	"github.com/pfenerty/ocidex/internal/vuln"
 )
 
 // Finding is one (component purl → vulnerability) match produced by grype.
@@ -36,7 +40,9 @@ type Finding struct {
 	Related      []string
 	FixState     string
 	FixedVersion string
-	Metadata     *vulnerability.Metadata
+	// GoSymbolSetID is the symbol set the match was made against (0: module level).
+	GoSymbolSetID int64
+	Metadata      *vulnerability.Metadata
 	// RelatedMetadata is the metadata of each Related record that has any; NVD's
 	// CVSS usually arrives this way for distro advisories.
 	RelatedMetadata []*vulnerability.Metadata
@@ -70,21 +76,30 @@ func NewMatcher(provider vulnerability.Provider) *Matcher {
 	}
 }
 
+// Symbols maps a Go binary package (purl and binary path) to the stored symbol
+// set it links (ADR-050).
+type Symbols map[vuln.GoSymbolKey]vuln.GoSymbolSet
+
 // Match decodes an SBOM document (CycloneDX, SPDX, or syft JSON) and returns
-// every vulnerability grype matches against its packages. Findings are sorted by
-// purl then vulnerability ID.
-func (m *Matcher) Match(ctx context.Context, doc []byte) ([]Finding, error) {
+// every vulnerability grype matches against its packages. Go binary packages
+// found in syms are matched at symbol level: a govulndb advisory whose
+// vulnerable symbols are not linked is dropped. Packages without symbols are
+// matched at module level. Findings are sorted by purl then vulnerability ID.
+func (m *Matcher) Match(ctx context.Context, doc []byte, syms Symbols) ([]Finding, error) {
 	pkgs, pkgCtx, _, err := grypePkg.ProvideFromReader(bytes.NewReader(doc), grypePkg.ProviderConfig{})
 	if err != nil {
 		return nil, fmt.Errorf("decoding sbom: %w", err)
 	}
+	setOf := attachSymbols(pkgs, syms)
 	matches, _, err := m.vm.FindMatchesContext(ctx, pkgs, pkgCtx)
 	if err != nil {
 		return nil, fmt.Errorf("matching: %w", err)
 	}
 	out := make([]Finding, 0, matches.Count())
 	for _, mt := range matches.Sorted() {
-		out = append(out, m.toFinding(mt))
+		f := m.toFinding(mt)
+		f.GoSymbolSetID = setOf[mt.Package.ID]
+		out = append(out, f)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Purl != out[j].Purl {
@@ -182,4 +197,66 @@ func suggestedFix(p grypePkg.Package, fixes []string) string {
 		return fixes[0]
 	}
 	return best.Raw
+}
+
+// attachSymbols sets the linked symbols on each Go binary package syms knows and
+// returns which symbol set each such package got. grype's gosymbols qualifier
+// reads GolangBinMetadata.Symbols and expects names already normalized to
+// govulndb's convention, which is how they are stored.
+func attachSymbols(pkgs []grypePkg.Package, syms Symbols) map[grypePkg.ID]int64 {
+	if len(syms) == 0 {
+		return nil
+	}
+	setOf := map[grypePkg.ID]int64{}
+	for i := range pkgs {
+		md, ok := pkgs[i].Metadata.(grypePkg.GolangBinMetadata)
+		if !ok {
+			continue
+		}
+		for _, loc := range pkgs[i].Locations.ToSlice() {
+			if set, ok := syms[vuln.GoSymbolKey{Purl: pkgs[i].PURL, FilePath: loc.RealPath}]; ok {
+				md.Symbols = set.Symbols
+				pkgs[i].Metadata = md
+				setOf[pkgs[i].ID] = set.ID
+				break
+			}
+		}
+	}
+	return setOf
+}
+
+// SymbolsFromDocument reads the ocidex Go symbol properties (ADR-050) carried by
+// a CycloneDX document's components, normalized — the form a scanner-produced
+// document has before ingest moves them into the database. Anything that is not
+// CycloneDX JSON yields nil.
+func SymbolsFromDocument(doc []byte) Symbols {
+	var bom cdx.BOM
+	if err := cdx.NewBOMDecoder(bytes.NewReader(doc), cdx.BOMFileFormatJSON).Decode(&bom); err != nil || bom.Components == nil {
+		return nil
+	}
+	out := Symbols{}
+	var walk func(comps []cdx.Component)
+	walk = func(comps []cdx.Component) {
+		for _, c := range comps {
+			if c.Properties != nil && c.PackageURL != "" {
+				if t, _ := gosymbols.FromProperties(*c.Properties); t != nil {
+					path := ""
+					for _, p := range *c.Properties {
+						if p.Name == "syft:location:0:path" {
+							path = p.Value
+						}
+					}
+					out[vuln.GoSymbolKey{Purl: c.PackageURL, FilePath: path}] = vuln.GoSymbolSet{Symbols: gosymbols.Normalized(t)}
+				}
+			}
+			if c.Components != nil {
+				walk(*c.Components)
+			}
+		}
+	}
+	walk(*bom.Components)
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

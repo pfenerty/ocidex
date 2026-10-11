@@ -141,9 +141,9 @@ func (s *PGStore) ReplaceVulnerabilityRefs(ctx context.Context, vulnID string, r
 	return tx.Commit(ctx)
 }
 
-// ReplacePackageVulns atomically replaces all mappings for a purl (delete then
-// insert in one transaction) so a reader never sees a purl with no vulns
-// mid-refresh.
+// ReplacePackageVulns atomically replaces all mappings for a purl, across every
+// Go symbol set (delete then insert in one transaction), so a reader never sees a
+// purl with no vulns mid-refresh.
 func (s *PGStore) ReplacePackageVulns(ctx context.Context, purl string, refs []PackageVulnRef) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -178,6 +178,7 @@ func (s *PGStore) AddPackageVulns(ctx context.Context, purl string, refs []Packa
 func packageVulnParams(purl string, ref PackageVulnRef) repository.UpsertPackageVulnParams {
 	return repository.UpsertPackageVulnParams{
 		Purl:            purl,
+		GoSymbolSetID:   ref.GoSymbolSetID,
 		VulnerabilityID: ref.VulnerabilityID,
 		FixedVersion:    text(ref.FixedVersion),
 		FixState:        text(ref.FixState),
@@ -188,6 +189,55 @@ func packageVulnParams(purl string, ref PackageVulnRef) repository.UpsertPackage
 // returning how many it removed.
 func (s *PGStore) PruneOrphanVulnerabilities(ctx context.Context) (int64, error) {
 	return s.q.PruneOrphanVulnerabilities(ctx)
+}
+
+// SBOMGoSymbols returns, for every component of an SBOM that links a Go symbol
+// set (ADR-050), its import path → normalized symbol names. An import path
+// present with no symbols maps to an empty (non-nil) list. Sets shared by several
+// components are loaded once.
+func (s *PGStore) SBOMGoSymbols(ctx context.Context, sbomID pgtype.UUID) (map[GoSymbolKey]GoSymbolSet, error) {
+	comps, err := s.q.ListSBOMGoSymbolSets(ctx, sbomID)
+	if err != nil || len(comps) == 0 {
+		return nil, err
+	}
+	setIDs := make([]int64, 0, len(comps))
+	seen := map[int64]bool{}
+	for _, c := range comps {
+		if id := c.GoSymbolSetID.Int64; !seen[id] {
+			seen[id] = true
+			setIDs = append(setIDs, id)
+		}
+	}
+	rows, err := s.q.ListGoSymbolSetSymbols(ctx, setIDs)
+	if err != nil {
+		return nil, err
+	}
+	sets := make(map[int64]map[string][]string, len(setIDs))
+	for _, r := range rows {
+		t := sets[r.SetID]
+		if t == nil {
+			t = map[string][]string{}
+			sets[r.SetID] = t
+		}
+		if r.Name == "" {
+			if t[r.ImportPath] == nil {
+				t[r.ImportPath] = []string{}
+			}
+			continue
+		}
+		t[r.ImportPath] = append(t[r.ImportPath], r.Name)
+	}
+	out := make(map[GoSymbolKey]GoSymbolSet, len(comps))
+	for _, c := range comps {
+		id := c.GoSymbolSetID.Int64
+		out[GoSymbolKey{Purl: c.Purl, FilePath: c.FilePath}] = GoSymbolSet{ID: id, Symbols: sets[id]}
+	}
+	return out, nil
+}
+
+// PruneOrphanGoSymbolSets deletes symbol sets no component links any more.
+func (s *PGStore) PruneOrphanGoSymbolSets(ctx context.Context) (int64, error) {
+	return s.q.PruneOrphanGoSymbolSets(ctx)
 }
 
 // LastRefreshedAt returns the last successful refresh time.

@@ -103,6 +103,12 @@ type Config struct {
 	// disables the check.
 	ScannerMaxImageBytes int64 `env:"SCANNER_MAX_IMAGE_BYTES" envDefault:"2147483648"`
 
+	// ScannerGoSymbols selects which Go binary packages get their linked function
+	// symbols captured for symbol-level vulnerability matching (ADR-050): none,
+	// stdlib, extended-stdlib or all. "all" is needed to filter third-party module
+	// advisories, not just the standard library's.
+	ScannerGoSymbols string `env:"SCANNER_GO_SYMBOLS" envDefault:"all"`
+
 	// Enrichment worker outbox-pattern settings (mirrors the scanner equivalents).
 	EnrichmentMaxConcurrency int           `env:"ENRICHMENT_MAX_CONCURRENCY"  envDefault:"10"`
 	EnrichmentPollInterval   time.Duration `env:"ENRICHMENT_POLL_INTERVAL"    envDefault:"30s"`

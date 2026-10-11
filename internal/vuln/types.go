@@ -42,8 +42,11 @@ type Severity struct {
 	Score string
 }
 
-// PackageVulnRef is one (purl → vulnerability) mapping row.
+// PackageVulnRef is one (purl, Go symbol set → vulnerability) mapping row.
 type PackageVulnRef struct {
+	// GoSymbolSetID scopes a symbol-level match to the binary build it was made
+	// against (ADR-050); 0 for module-level matches.
+	GoSymbolSetID   int64
 	VulnerabilityID string
 	FixedVersion    string
 	// FixState is grype's fixed / not-fixed / wont-fix / unknown; "" stores NULL.
@@ -71,4 +74,18 @@ func CanonicalID(id string, aliases []string) string {
 		}
 	}
 	return id
+}
+
+// GoSymbolKey identifies a Go binary package within one SBOM: the module's purl
+// and the path of the binary it was read from.
+type GoSymbolKey struct {
+	Purl     string
+	FilePath string
+}
+
+// GoSymbolSet is the stored symbol set a Go binary package links: its id and
+// import path → govulndb-normalized names (an empty list: present, no symbols).
+type GoSymbolSet struct {
+	ID      int64
+	Symbols map[string][]string
 }

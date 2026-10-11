@@ -10,9 +10,11 @@ import (
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/event"
+	"github.com/pfenerty/ocidex/internal/gosymbols"
 	"github.com/pfenerty/ocidex/internal/mainmodule"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
@@ -27,6 +29,7 @@ type dbPool interface {
 // ingestion. Extracted to allow unit-test injection.
 type copyFromer interface {
 	CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error)
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
 }
 
 // IngestParams carries supplemental metadata for SBOM ingestion.
@@ -213,17 +216,14 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		return pgtype.UUID{}, err
 	}
 
-	// Idempotency check: if we already have an SBOM for this digest, skip ingestion.
-	// A declared digest wins — an upload's digest lives nowhere in the BOM, and
-	// missing it here would defer duplicate detection to the UNIQUE index, i.e.
-	// until after a full transaction and component decomposition (ADR-040).
-	if digest := resolveIngestDigest(bom, params); digest != "" {
-		existing, err := repository.New(s.pool).GetSBOMByDigest(ctx, pgtype.Text{String: digest, Valid: true})
-		if err == nil {
-			slog.InfoContext(ctx, "skipping duplicate sbom ingestion", "digest", digest, "existing_id", existing)
-			return existing, nil
-		}
-		// pgx.ErrNoRows → proceed normally; other errors are ignored (UNIQUE index is the backstop)
+	if existing, ok := s.existingByDigest(ctx, bom, params); ok {
+		return existing, nil
+	}
+
+	// Go symbols are stored relationally, not inside raw_bom (ADR-050).
+	goSyms, rawJSON, err := detachGoSymbols(bom, rawJSON)
+	if err != nil {
+		return pgtype.UUID{}, err
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -280,7 +280,7 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 		return pgtype.UUID{}, err
 	}
 
-	if err := s.insertBOMContent(ctx, tx, q, sbomRow.ID, bom, info.subjectVersion.String, flavor); err != nil {
+	if err := s.insertBOMContent(ctx, tx, q, sbomRow.ID, bom, info.subjectVersion.String, flavor, goSyms); err != nil {
 		return pgtype.UUID{}, err
 	}
 
@@ -302,6 +302,25 @@ func (s *sbomService) Ingest(ctx context.Context, bom *cdx.BOM, rawJSON []byte, 
 	}
 
 	return sbomRow.ID, nil
+}
+
+// existingByDigest is ingest's idempotency check: the SBOM already stored for
+// this digest, if any. A declared digest wins — an upload's digest lives nowhere
+// in the BOM, and missing it here would defer duplicate detection to the UNIQUE
+// index, i.e. until after a full transaction and component decomposition
+// (ADR-040). Lookup errors other than "no rows" are ignored; the UNIQUE index is
+// the backstop.
+func (s *sbomService) existingByDigest(ctx context.Context, bom *cdx.BOM, params IngestParams) (pgtype.UUID, bool) {
+	digest := resolveIngestDigest(bom, params)
+	if digest == "" {
+		return pgtype.UUID{}, false
+	}
+	existing, err := repository.New(s.pool).GetSBOMByDigest(ctx, pgtype.Text{String: digest, Valid: true})
+	if err != nil {
+		return pgtype.UUID{}, false
+	}
+	slog.InfoContext(ctx, "skipping duplicate sbom ingestion", "digest", digest, "existing_id", existing)
+	return existing, true
 }
 
 // validateContainerRequired returns a ValidationError if a container SBOM is missing
@@ -399,10 +418,10 @@ func validateUploadRequired(info artifactInfo, params IngestParams) error {
 }
 
 // insertBOMContent inserts components and dependencies for an SBOM within a transaction.
-func (s *sbomService) insertBOMContent(ctx context.Context, tx copyFromer, q *repository.Queries, sbomID pgtype.UUID, bom *cdx.BOM, subjectVersion, flavor string) error {
+func (s *sbomService) insertBOMContent(ctx context.Context, tx copyFromer, q *repository.Queries, sbomID pgtype.UUID, bom *cdx.BOM, subjectVersion, flavor string, goSyms map[*cdx.Component]gosymbols.Table) error {
 	mainModule := mainmodule.ExtractPath(bom)
 	if bom.Components != nil {
-		if err := s.insertComponentsBatch(ctx, tx, q, sbomID, *bom.Components, mainModule, subjectVersion, flavor); err != nil {
+		if err := s.insertComponentsBatch(ctx, tx, q, sbomID, *bom.Components, mainModule, subjectVersion, flavor, goSyms); err != nil {
 			return err
 		}
 	}

@@ -107,7 +107,7 @@ func run() error {
 	// and the DB poll loop is the fallback when hints are lost.
 	jobSvc := service.NewJobService(pool)
 	scannerSbomSvc := service.NewSBOMService(pool, bus, nil)
-	sc := engine.NewSyftScanner(logger)
+	sc := engine.NewSyftScanner(logger, cfg.ScannerGoSymbols)
 	dispatcher := engine.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerMaxImageBytes, logger)
 
 	// Enrichment is driven off the in-process SBOMIngested event, which fires
@@ -206,7 +206,7 @@ func runOnce(ctx context.Context, pool *pgxpool.Pool, natsClient *natspkg.Client
 	logger := slog.Default()
 	bus := event.NewBus(logger)
 	sbomSvc := service.NewSBOMService(pool, bus, nil)
-	sc := engine.NewSyftScanner(logger)
+	sc := engine.NewSyftScanner(logger, cfg.ScannerGoSymbols)
 
 	// Wire the enrichment submitter onto the bus before ingest so the synchronous
 	// SBOMIngested event enqueues per-enricher jobs (and the enrich.hint) — same

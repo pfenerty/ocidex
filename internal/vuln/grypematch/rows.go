@@ -63,23 +63,29 @@ func Rows(findings []Finding) []vuln.Row {
 }
 
 // MappingSet accumulates findings into the per-purl mapping rows
-// ReplacePackageVulns writes, one per (purl, vulnerability). When the same pair
+// ReplacePackageVulns writes, one per (purl, Go symbol set, vulnerability). When the same pair
 // arrives twice (two matchers, two namespaces, or two SBOMs sharing a package),
 // the first carrying a fixed version wins, with its fix state.
 type MappingSet struct {
 	byPurl map[string][]vuln.PackageVulnRef
-	idx    map[[2]string]int
+	idx    map[mappingKey]int
+}
+
+type mappingKey struct {
+	purl string
+	set  int64
+	vuln string
 }
 
 // NewMappingSet returns an empty MappingSet.
 func NewMappingSet() *MappingSet {
-	return &MappingSet{byPurl: map[string][]vuln.PackageVulnRef{}, idx: map[[2]string]int{}}
+	return &MappingSet{byPurl: map[string][]vuln.PackageVulnRef{}, idx: map[mappingKey]int{}}
 }
 
 // Add folds findings in.
 func (ms *MappingSet) Add(findings []Finding) {
 	for _, f := range findings {
-		k := [2]string{f.Purl, f.VulnerabilityID}
+		k := mappingKey{f.Purl, f.GoSymbolSetID, f.VulnerabilityID}
 		if i, ok := ms.idx[k]; ok {
 			if ref := &ms.byPurl[f.Purl][i]; ref.FixedVersion == "" && f.FixedVersion != "" {
 				ref.FixedVersion, ref.FixState = f.FixedVersion, f.FixState
@@ -88,6 +94,7 @@ func (ms *MappingSet) Add(findings []Finding) {
 		}
 		ms.idx[k] = len(ms.byPurl[f.Purl])
 		ms.byPurl[f.Purl] = append(ms.byPurl[f.Purl], vuln.PackageVulnRef{
+			GoSymbolSetID:   f.GoSymbolSetID,
 			VulnerabilityID: f.VulnerabilityID,
 			FixedVersion:    f.FixedVersion,
 			FixState:        f.FixState,

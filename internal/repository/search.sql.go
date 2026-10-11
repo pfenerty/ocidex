@@ -111,7 +111,7 @@ func (q *Queries) CountSBOMPackages(ctx context.Context, sbomID pgtype.UUID) (in
 const getComponent = `-- name: GetComponent :one
 SELECT id, sbom_id, parent_id, bom_ref, type, name, group_name,
        version, purl, cpe, description, scope, publisher, copyright, found_by,
-       source_purl, source_package, layer_id
+       source_purl, source_package, layer_id, COALESCE(go_symbol_set_id, 0)::bigint AS go_symbol_set_id
 FROM component
 WHERE id = $1
 `
@@ -135,6 +135,7 @@ type GetComponentRow struct {
 	SourcePurl    pgtype.Text `json:"source_purl"`
 	SourcePackage pgtype.Text `json:"source_package"`
 	LayerID       pgtype.Text `json:"layer_id"`
+	GoSymbolSetID int64       `json:"go_symbol_set_id"`
 }
 
 func (q *Queries) GetComponent(ctx context.Context, id pgtype.UUID) (GetComponentRow, error) {
@@ -159,6 +160,7 @@ func (q *Queries) GetComponent(ctx context.Context, id pgtype.UUID) (GetComponen
 		&i.SourcePurl,
 		&i.SourcePackage,
 		&i.LayerID,
+		&i.GoSymbolSetID,
 	)
 	return i, err
 }
@@ -939,17 +941,17 @@ func (q *Queries) ListSBOMComponents(ctx context.Context, sbomID pgtype.UUID) ([
 
 const listSBOMComponentsPage = `-- name: ListSBOMComponentsPage :many
 WITH scope AS (
-    SELECT DISTINCT c1.purl::text AS purl, c1.purl::text AS match_purl
+    SELECT DISTINCT c1.purl::text AS purl, c1.purl::text AS match_purl, COALESCE(c1.go_symbol_set_id, 0) AS go_symbol_set_id
     FROM component c1 WHERE c1.sbom_id = $1 AND c1.purl IS NOT NULL
     UNION
-    SELECT DISTINCT c2.purl::text AS purl, c2.source_purl::text AS match_purl
+    SELECT DISTINCT c2.purl::text AS purl, c2.source_purl::text AS match_purl, 0::bigint AS go_symbol_set_id
     FROM component c2 WHERE c2.sbom_id = $1 AND c2.purl IS NOT NULL AND c2.source_purl IS NOT NULL
 ), findings AS (
     SELECT DISTINCT s.purl,
            COALESCE(NULLIF(v.canonical_id, ''), v.id::text) AS finding_id,
            upper(v.severity) AS severity
     FROM scope s
-    JOIN package_vulnerability pv ON pv.purl = s.match_purl
+    JOIN package_vulnerability pv ON pv.purl = s.match_purl AND pv.go_symbol_set_id = s.go_symbol_set_id
     JOIN vulnerability v ON v.id = pv.vulnerability_id
 ), sev AS (
     SELECT f.purl,

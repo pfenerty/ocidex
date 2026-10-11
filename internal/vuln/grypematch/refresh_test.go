@@ -95,6 +95,10 @@ func (s *fakeStore) AddPackageVulns(_ context.Context, purl string, refs []vuln.
 	s.mappings[purl] = append(s.mappings[purl], refs...)
 	return nil
 }
+func (s *fakeStore) SBOMGoSymbols(context.Context, pgtype.UUID) (map[vuln.GoSymbolKey]vuln.GoSymbolSet, error) {
+	return nil, nil
+}
+func (s *fakeStore) PruneOrphanGoSymbolSets(context.Context) (int64, error) { return 0, nil }
 func (s *fakeStore) PruneOrphanVulnerabilities(context.Context) (int64, error) {
 	used := map[string]bool{}
 	for _, refs := range s.mappings {

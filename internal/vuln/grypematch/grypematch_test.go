@@ -5,10 +5,16 @@ import (
 	"encoding/json"
 	"testing"
 
+	cdxlib "github.com/CycloneDX/cyclonedx-go"
+	"github.com/anchore/grype/grype/pkg/qualifier"
+	qgosymbols "github.com/anchore/grype/grype/pkg/qualifier/gosymbols"
 	"github.com/anchore/grype/grype/version"
 	"github.com/anchore/grype/grype/vulnerability"
 	"github.com/anchore/grype/grype/vulnerability/mock"
 	"github.com/matryer/is"
+
+	"github.com/pfenerty/ocidex/internal/gosymbols"
+	"github.com/pfenerty/ocidex/internal/vuln"
 )
 
 // component is a CycloneDX component as syft emits it; props carry the syft
@@ -185,7 +191,7 @@ func TestMatcherMatch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			is := is.New(t)
 			m := NewMatcher(mock.VulnerabilityProvider(tt.vuln))
-			got, err := m.Match(context.Background(), cdxDoc(t, tt.doc...))
+			got, err := m.Match(context.Background(), cdxDoc(t, tt.doc...), nil)
 			is.NoErr(err)
 			if !tt.wantMatch {
 				is.Equal(len(got), 0) // no finding
@@ -214,7 +220,7 @@ func TestMatcherMatchRelatedMetadata(t *testing.T) {
 		RelatedVulnerabilities: []vulnerability.Reference{ref("CVE-2024-35195", "nvd:cpe")},
 	}
 	got, err := NewMatcher(mock.VulnerabilityProvider(ghsa, nvd)).
-		Match(context.Background(), cdxDoc(t, lib("requests", "2.31.0", "pkg:pypi/requests@2.31.0")))
+		Match(context.Background(), cdxDoc(t, lib("requests", "2.31.0", "pkg:pypi/requests@2.31.0")), nil)
 	is.NoErr(err)
 	is.Equal(len(got), 1)
 	is.Equal(got[0].Related, []string{"CVE-2024-35195"})
@@ -224,6 +230,71 @@ func TestMatcherMatchRelatedMetadata(t *testing.T) {
 
 func TestMatcherMatchRejectsGarbage(t *testing.T) {
 	is := is.New(t)
-	_, err := NewMatcher(mock.VulnerabilityProvider()).Match(context.Background(), []byte("not an sbom"))
+	_, err := NewMatcher(mock.VulnerabilityProvider()).Match(context.Background(), []byte("not an sbom"), nil)
 	is.True(err != nil)
+}
+
+// TestMatcherFiltersGoBySymbols pins ADR-050: a govulndb advisory scoped to
+// vulnerable symbols matches a Go binary package only when one of them is linked;
+// without symbol evidence the package falls back to module-level matching.
+func TestMatcherFiltersGoBySymbols(t *testing.T) {
+	adv := vulnerability.Vulnerability{
+		Reference:   ref("GO-2023-1703", "govulndb:language:go"),
+		PackageName: "stdlib",
+		Constraint:  version.MustGetConstraint("< 1.19.8", version.GolangFormat),
+		Fix:         vulnerability.Fix{Versions: []string{"1.19.8"}, State: vulnerability.FixStateFixed},
+		PackageQualifiers: []qualifier.Qualifier{
+			qgosymbols.New([]qgosymbols.Import{{Path: "net/http", Symbols: []string{"Server.Serve"}}}),
+		},
+	}
+	const purl = "pkg:golang/stdlib@1.18.2"
+	stdlib := lib("stdlib", "go1.18.2", purl,
+		property{"syft:package:foundBy", "go-module-binary-cataloger"},
+		property{"syft:package:language", "go"},
+		property{"syft:package:type", "go-module"},
+		property{"syft:package:metadataType", "go-module-buildinfo-entry"},
+		property{"syft:location:0:path", "/usr/local/bin/gosu"},
+		property{"syft:metadata:goCompiledVersion", "go1.18.2"},
+	)
+	key := vuln.GoSymbolKey{Purl: purl, FilePath: "/usr/local/bin/gosu"}
+
+	tests := []struct {
+		name string
+		syms Symbols
+		want int
+	}{
+		{"vulnerable symbol linked", Symbols{key: {ID: 7, Symbols: map[string][]string{"net/http": {"Get", "Server.Serve"}}}}, 1},
+		{"package linked, vulnerable symbol not", Symbols{key: {ID: 8, Symbols: map[string][]string{"net/http": {"Get"}}}}, 0},
+		{"package not linked at all", Symbols{key: {ID: 9, Symbols: map[string][]string{"os": {"Open"}}}}, 0},
+		{"no symbol evidence: module level", nil, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			got, err := NewMatcher(mock.VulnerabilityProvider(adv)).Match(context.Background(), cdxDoc(t, stdlib), tt.syms)
+			is.NoErr(err)
+			is.Equal(len(got), tt.want)
+			if tt.want == 1 && tt.syms != nil {
+				is.Equal(got[0].GoSymbolSetID, int64(7)) // the finding is scoped to the build's set
+			}
+		})
+	}
+}
+
+func TestSymbolsFromDocument(t *testing.T) {
+	is := is.New(t)
+	props := append([]property{{"syft:location:0:path", "/bin/app"}}, toProps(gosymbols.Properties(gosymbols.Table{
+		"net/http": {"(*Server).Serve"},
+	}))...)
+	got := SymbolsFromDocument(cdxDoc(t, lib("stdlib", "go1.22.0", "pkg:golang/stdlib@1.22.0", props...)))
+	is.Equal(got[vuln.GoSymbolKey{Purl: "pkg:golang/stdlib@1.22.0", FilePath: "/bin/app"}].Symbols["net/http"], []string{"Server.Serve"})
+	is.True(SymbolsFromDocument([]byte("{}")) == nil)
+}
+
+func toProps(ps []cdxlib.Property) []property {
+	out := make([]property, len(ps))
+	for i, p := range ps {
+		out[i] = property{p.Name, p.Value}
+	}
+	return out
 }

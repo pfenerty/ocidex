@@ -41,6 +41,8 @@ type Store interface {
 	ReplacePackageVulns(ctx context.Context, purl string, refs []vuln.PackageVulnRef) error
 	AddPackageVulns(ctx context.Context, purl string, refs []vuln.PackageVulnRef) error
 	PruneOrphanVulnerabilities(ctx context.Context) (int64, error)
+	SBOMGoSymbols(ctx context.Context, sbomID pgtype.UUID) (map[vuln.GoSymbolKey]vuln.GoSymbolSet, error)
+	PruneOrphanGoSymbolSets(ctx context.Context) (int64, error)
 }
 
 // matcherSource yields the current matcher and its database build; *DB in
@@ -181,12 +183,16 @@ func (r *Refresher) fullRematch(ctx context.Context, m *Matcher, built time.Time
 	if err != nil {
 		return fmt.Errorf("pruning: %w", err)
 	}
+	prunedSets, err := r.store.PruneOrphanGoSymbolSets(ctx)
+	if err != nil {
+		return fmt.Errorf("pruning go symbol sets: %w", err)
+	}
 	if err := r.store.SetMatchedDBBuilt(ctx, built); err != nil {
 		return fmt.Errorf("recording matched build: %w", err)
 	}
 	r.logger.Info("vuln full re-match complete",
 		"db_built", built, "sboms", n, "vulns", len(vulns), "affected_purls", len(mapping),
-		"pruned", pruned, "duration_ms", r.now().Sub(start).Milliseconds())
+		"pruned", pruned, "pruned_symbol_sets", prunedSets, "duration_ms", r.now().Sub(start).Milliseconds())
 	return nil
 }
 
@@ -237,7 +243,11 @@ func (r *Refresher) eachSBOM(ctx context.Context, m *Matcher, built time.Time, a
 			if err := ctx.Err(); err != nil {
 				return n, err
 			}
-			findings, err := m.Match(ctx, prepare(d))
+			syms, err := r.store.SBOMGoSymbols(ctx, d.ID)
+			if err != nil {
+				return n, fmt.Errorf("loading go symbols for %v: %w", d.ID, err)
+			}
+			findings, err := m.Match(ctx, prepare(d), syms)
 			if err != nil {
 				r.logger.Warn("vuln match: skipping sbom", "sbom_id", d.ID, "err", err)
 			} else if err := fn(findings); err != nil {

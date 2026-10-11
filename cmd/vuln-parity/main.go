@@ -20,8 +20,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/pfenerty/ocidex/internal/vuln"
 	"github.com/pfenerty/ocidex/internal/vuln/grypematch"
 )
 
@@ -56,7 +58,7 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		findings, err := m.Match(ctx, doc)
+		findings, err := m.Match(ctx, doc, grypematch.SymbolsFromDocument(doc))
 		if err != nil {
 			return fmt.Errorf("%s: %w", path, err)
 		}
@@ -76,17 +78,21 @@ func run() error {
 }
 
 func compareStored(ctx context.Context, m *grypematch.Matcher, n int, verbose bool) error {
-	conn, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
+	conn, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
 	if err != nil {
 		return err
 	}
-	defer func() { _ = conn.Close(ctx) }()
+	defer conn.Close()
+	store := vuln.NewPGStore(conn)
 
-	rows, err := conn.Query(ctx, `SELECT id::text, raw_bom::text FROM sbom ORDER BY created_at DESC LIMIT $1`, n)
+	rows, err := conn.Query(ctx, `SELECT id, raw_bom::text FROM sbom ORDER BY created_at DESC LIMIT $1`, n)
 	if err != nil {
 		return err
 	}
-	type sbomDoc struct{ id, raw string }
+	type sbomDoc struct {
+		id  pgtype.UUID
+		raw string
+	}
 	var docs []sbomDoc
 	for rows.Next() {
 		var d sbomDoc
@@ -99,9 +105,13 @@ func compareStored(ctx context.Context, m *grypematch.Matcher, n int, verbose bo
 
 	var tBoth, tGrype, tOSV int
 	for _, d := range docs {
-		findings, err := m.Match(ctx, []byte(d.raw))
+		syms, err := store.SBOMGoSymbols(ctx, d.id)
 		if err != nil {
-			fmt.Printf("%s: match failed: %v\n", d.id, err)
+			return err
+		}
+		findings, err := m.Match(ctx, []byte(d.raw), syms)
+		if err != nil {
+			fmt.Printf("%x: match failed: %v\n", d.id.Bytes, err)
 			continue
 		}
 		g := map[string]string{}
@@ -114,7 +124,7 @@ func compareStored(ctx context.Context, m *grypematch.Matcher, n int, verbose bo
 		}
 		both, gOnly, oOnly := diff(g, o)
 		tBoth, tGrype, tOSV = tBoth+len(both), tGrype+len(gOnly), tOSV+len(oOnly)
-		fmt.Printf("%s: both=%d grype-only=%d osv-only=%d\n", d.id, len(both), len(gOnly), len(oOnly))
+		fmt.Printf("%x: both=%d grype-only=%d osv-only=%d\n", d.id.Bytes, len(both), len(gOnly), len(oOnly))
 		if verbose {
 			for _, id := range gOnly {
 				fmt.Printf("  + %-28s %s\n", id, g[id])
@@ -130,13 +140,13 @@ func compareStored(ctx context.Context, m *grypematch.Matcher, n int, verbose bo
 
 // storedFindings returns canonical ID → purl for the SBOM's current OSV-derived
 // mappings, over the same purl ∪ source_purl scope ListSBOMVulns uses.
-func storedFindings(ctx context.Context, conn *pgx.Conn, sbomID string) (map[string]string, error) {
+func storedFindings(ctx context.Context, conn *pgxpool.Pool, sbomID pgtype.UUID) (map[string]string, error) {
 	rows, err := conn.Query(ctx, `
 		SELECT DISTINCT COALESCE(NULLIF(v.canonical_id, ''), v.id), c.purl
 		FROM component c
 		JOIN package_vulnerability pv ON pv.purl = c.purl OR pv.purl = c.source_purl
 		JOIN vulnerability v ON v.id = pv.vulnerability_id
-		WHERE c.sbom_id = $1::uuid`, sbomID)
+		WHERE c.sbom_id = $1`, sbomID)
 	if err != nil {
 		return nil, err
 	}

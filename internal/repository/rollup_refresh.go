@@ -79,13 +79,13 @@ WITH base AS (
     GROUP BY s.namespace_id, c.type, c.name, c.group_name
 ), scope AS (
     SELECT DISTINCT s1.namespace_id, c1.type, c1.name, c1.group_name,
-           c1.purl::text AS match_purl
+           c1.purl::text AS match_purl, COALESCE(c1.go_symbol_set_id, 0) AS go_symbol_set_id
     FROM component c1
     JOIN sbom s1 ON s1.id = c1.sbom_id
     WHERE c1.purl IS NOT NULL
     UNION
     SELECT DISTINCT s2.namespace_id, c2.type, c2.name, c2.group_name,
-           c2.source_purl::text AS match_purl
+           c2.source_purl::text AS match_purl, 0::bigint AS go_symbol_set_id
     FROM component c2
     JOIN sbom s2 ON s2.id = c2.sbom_id
     WHERE c2.source_purl IS NOT NULL
@@ -93,7 +93,7 @@ WITH base AS (
     SELECT DISTINCT sc.namespace_id, sc.type, sc.name, sc.group_name,
            v.canonical_id, v.severity
     FROM scope sc
-    JOIN package_vulnerability pv ON pv.purl = sc.match_purl
+    JOIN package_vulnerability pv ON pv.purl = sc.match_purl AND pv.go_symbol_set_id = sc.go_symbol_set_id
     JOIN vulnerability v ON v.id = pv.vulnerability_id
 ), sev AS (
     SELECT f.namespace_id, f.type, f.name, f.group_name,
@@ -139,7 +139,7 @@ SELECT v.canonical_id, s.namespace_id,
        array_agg(DISTINCT pv.purl)::text[] AS purls
 FROM vulnerability v
 JOIN package_vulnerability pv ON pv.vulnerability_id = v.id
-JOIN component comp ON comp.purl = pv.purl
+JOIN component comp ON comp.purl = pv.purl AND COALESCE(comp.go_symbol_set_id, 0) = pv.go_symbol_set_id
 JOIN sbom s ON s.id = comp.sbom_id
 WHERE v.canonical_id <> '' AND comp.purl IS NOT NULL
 GROUP BY v.canonical_id, s.namespace_id`
@@ -159,15 +159,15 @@ GROUP BY v.canonical_id, s.namespace_id`
 // reader that renders absence as a clean zero is the ADR-044 bug.
 const sbomVulnRollupAggregate = `
 WITH scope AS (
-    SELECT DISTINCT c1.sbom_id, c1.purl::text AS match_purl
+    SELECT DISTINCT c1.sbom_id, c1.purl::text AS match_purl, COALESCE(c1.go_symbol_set_id, 0) AS go_symbol_set_id
     FROM component c1 WHERE c1.purl IS NOT NULL
     UNION
-    SELECT DISTINCT c2.sbom_id, c2.source_purl::text AS match_purl
+    SELECT DISTINCT c2.sbom_id, c2.source_purl::text AS match_purl, 0::bigint AS go_symbol_set_id
     FROM component c2 WHERE c2.source_purl IS NOT NULL
 ), findings AS (
     SELECT DISTINCT sc.sbom_id, v.canonical_id, v.severity
     FROM scope sc
-    JOIN package_vulnerability pv ON pv.purl = sc.match_purl
+    JOIN package_vulnerability pv ON pv.purl = sc.match_purl AND pv.go_symbol_set_id = sc.go_symbol_set_id
     JOIN vulnerability v ON v.id = pv.vulnerability_id
 )
 SELECT f.sbom_id, s.namespace_id,

@@ -99,6 +99,7 @@ type Component struct {
 	SourceVersion pgtype.Text `json:"source_version"`
 	SourcePurl    pgtype.Text `json:"source_purl"`
 	FilePath      pgtype.Text `json:"file_path"`
+	GoSymbolSetID pgtype.Int8 `json:"go_symbol_set_id"`
 }
 
 type ComponentHash struct {
@@ -173,6 +174,30 @@ type ExternalReference struct {
 	Comment     pgtype.Text `json:"comment"`
 }
 
+type GoPackage struct {
+	ID         int32  `json:"id"`
+	ImportPath string `json:"import_path"`
+}
+
+type GoSymbol struct {
+	ID        int32  `json:"id"`
+	PackageID int32  `json:"package_id"`
+	Name      string `json:"name"`
+}
+
+type GoSymbolSet struct {
+	ID          int64              `json:"id"`
+	Digest      []byte             `json:"digest"`
+	SymbolIds   []int32            `json:"symbol_ids"`
+	SymbolCount int32              `json:"symbol_count"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type GoSymbolSetMember struct {
+	SetID    int64       `json:"set_id"`
+	SymbolID interface{} `json:"symbol_id"`
+}
+
 type License struct {
 	ID     pgtype.UUID `json:"id"`
 	SpdxID pgtype.Text `json:"spdx_id"`
@@ -220,6 +245,7 @@ type PackageVulnerability struct {
 	FixedVersion    pgtype.Text        `json:"fixed_version"`
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 	FixState        pgtype.Text        `json:"fix_state"`
+	GoSymbolSetID   int64              `json:"go_symbol_set_id"`
 }
 
 type ProvenanceDriftEvent struct {

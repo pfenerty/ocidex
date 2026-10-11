@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/pfenerty/ocidex/internal/gosymbols"
 	"github.com/pfenerty/ocidex/internal/mainmodule"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
@@ -75,6 +76,7 @@ func (s *sbomService) insertComponentsBatch(
 	sbomID pgtype.UUID,
 	components []cdx.Component,
 	mainModule, subjectVersion, flavor string,
+	goSyms map[*cdx.Component]gosymbols.Table,
 ) error {
 	flat := flattenComponents(components, pgtype.UUID{}, mainModule, subjectVersion)
 	if len(flat) == 0 {
@@ -88,6 +90,9 @@ func (s *sbomService) insertComponentsBatch(
 		return err
 	}
 	if err := copyComponentExtRefs(ctx, tx, flat); err != nil {
+		return err
+	}
+	if err := persistGoSymbols(ctx, tx, flat, goSyms); err != nil {
 		return err
 	}
 	return copyComponentLicenses(ctx, tx, q, flat)

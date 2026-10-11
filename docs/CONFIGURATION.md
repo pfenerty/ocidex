@@ -124,6 +124,7 @@ Controls webhook-triggered and poll-triggered OCI image scanning (runs Syft).
 | `SCANNER_WORKERS` | `2` | Number of concurrent scan goroutines inside each `scanner-worker` process. |
 | `SCANNER_QUEUE_SIZE` | `50` | Scan work queue depth inside each `scanner-worker` process. |
 | `SCANNER_MAX_IMAGE_BYTES` | `2147483648` | Largest image the worker hands to Syft, as total *compressed* layer bytes read from its manifest. Above this the job fails permanently without pulling anything — Syft unpacks every layer, so an image past what `limits.memory` can hold OOMKills the container instead of returning an error, taking any concurrent scan with it. Raise this and the memory limit together; `0` disables the check. |
+| `SCANNER_GO_SYMBOLS` | `all` | Which Go binary packages get their linked function symbols captured, for symbol-level vulnerability matching ([ADR-050](adr/0050-go-symbol-level-vulnerability-matching.md)): `none`, `stdlib`, `extended-stdlib` or `all`. `all` is needed to filter third-party module advisories, not just the standard library's. A large Go image links ~1M symbols; the scan holds them in memory briefly and ingest stores them deduplicated. |
 | `REGISTRY_POLLER_ENABLED` | `false` | Enable the background poller for registries with `scan_mode=poll` or `scan_mode=both`. Requires `SCANNER_ENABLED=true`. Uses leader election so multiple API replicas are safe. |
 
 **Scan mode summary:**
