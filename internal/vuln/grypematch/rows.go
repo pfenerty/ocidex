@@ -16,51 +16,92 @@ import (
 // a description, while the read side lists a summary per row.
 const summaryMaxRunes = 200
 
-// Rows folds findings into one vulnerability row per ID. The same ID can arrive
-// from several namespaces (a CVE matched against both a Debian and an Ubuntu
-// package, each with NVD as a related record); the row takes the most severe of
-// the matched sources' own assessments (see rowAcc.row). Rows are sorted by ID.
-func Rows(findings []Finding) []vuln.Row {
-	byID := map[string]*rowAcc{}
-	var order []string
+// RowSet accumulates findings into one vulnerability row per ID. The same ID
+// can arrive from several namespaces (a CVE matched against both a Debian and an
+// Ubuntu package, each with NVD as a related record) and from many SBOMs; the row
+// takes the most severe of the matched sources' own assessments (see rowAcc.row).
+// A full re-match feeds every SBOM's findings into one set, so a row's severity
+// is derived from everything that matched it, independent of SBOM order.
+type RowSet struct {
+	byID map[string]*rowAcc
+}
+
+// NewRowSet returns an empty RowSet.
+func NewRowSet() *RowSet { return &RowSet{byID: map[string]*rowAcc{}} }
+
+// Add folds findings in.
+func (rs *RowSet) Add(findings []Finding) {
 	for _, f := range findings {
-		acc, ok := byID[f.VulnerabilityID]
+		acc, ok := rs.byID[f.VulnerabilityID]
 		if !ok {
 			acc = &rowAcc{id: f.VulnerabilityID, seen: map[string]bool{}}
-			byID[f.VulnerabilityID] = acc
-			order = append(order, f.VulnerabilityID)
+			rs.byID[f.VulnerabilityID] = acc
 		}
 		acc.add(f)
 	}
-	sort.Strings(order)
-	out := make([]vuln.Row, 0, len(order))
-	for _, id := range order {
-		out = append(out, byID[id].row())
+}
+
+// Rows returns the accumulated rows sorted by ID.
+func (rs *RowSet) Rows() []vuln.Row {
+	ids := make([]string, 0, len(rs.byID))
+	for id := range rs.byID {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	out := make([]vuln.Row, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, rs.byID[id].row())
 	}
 	return out
 }
 
-// Mappings groups findings into the per-purl mapping rows ReplacePackageVulns
-// writes, one per (purl, vulnerability). When grype reports the same pair twice
-// (two matchers, or two namespaces), the first carrying a fixed version wins.
-func Mappings(findings []Finding) map[string][]vuln.PackageVulnRef {
-	out := map[string][]vuln.PackageVulnRef{}
-	idx := map[[2]string]int{}
+// Rows folds one batch of findings into rows; see RowSet.
+func Rows(findings []Finding) []vuln.Row {
+	rs := NewRowSet()
+	rs.Add(findings)
+	return rs.Rows()
+}
+
+// MappingSet accumulates findings into the per-purl mapping rows
+// ReplacePackageVulns writes, one per (purl, vulnerability). When the same pair
+// arrives twice (two matchers, two namespaces, or two SBOMs sharing a package),
+// the first carrying a fixed version wins.
+type MappingSet struct {
+	byPurl map[string][]vuln.PackageVulnRef
+	idx    map[[2]string]int
+}
+
+// NewMappingSet returns an empty MappingSet.
+func NewMappingSet() *MappingSet {
+	return &MappingSet{byPurl: map[string][]vuln.PackageVulnRef{}, idx: map[[2]string]int{}}
+}
+
+// Add folds findings in.
+func (ms *MappingSet) Add(findings []Finding) {
 	for _, f := range findings {
 		k := [2]string{f.Purl, f.VulnerabilityID}
-		if i, ok := idx[k]; ok {
-			if out[f.Purl][i].FixedVersion == "" {
-				out[f.Purl][i].FixedVersion = f.FixedVersion
+		if i, ok := ms.idx[k]; ok {
+			if ms.byPurl[f.Purl][i].FixedVersion == "" {
+				ms.byPurl[f.Purl][i].FixedVersion = f.FixedVersion
 			}
 			continue
 		}
-		idx[k] = len(out[f.Purl])
-		out[f.Purl] = append(out[f.Purl], vuln.PackageVulnRef{
+		ms.idx[k] = len(ms.byPurl[f.Purl])
+		ms.byPurl[f.Purl] = append(ms.byPurl[f.Purl], vuln.PackageVulnRef{
 			VulnerabilityID: f.VulnerabilityID,
 			FixedVersion:    f.FixedVersion,
 		})
 	}
-	return out
+}
+
+// Mappings returns purl → mapping rows.
+func (ms *MappingSet) Mappings() map[string][]vuln.PackageVulnRef { return ms.byPurl }
+
+// Mappings groups one batch of findings by purl; see MappingSet.
+func Mappings(findings []Finding) map[string][]vuln.PackageVulnRef {
+	ms := NewMappingSet()
+	ms.Add(findings)
+	return ms.Mappings()
 }
 
 type rowAcc struct {

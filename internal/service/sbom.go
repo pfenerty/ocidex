@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/event"
+	"github.com/pfenerty/ocidex/internal/mainmodule"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
@@ -399,7 +400,7 @@ func validateUploadRequired(info artifactInfo, params IngestParams) error {
 
 // insertBOMContent inserts components and dependencies for an SBOM within a transaction.
 func (s *sbomService) insertBOMContent(ctx context.Context, tx copyFromer, q *repository.Queries, sbomID pgtype.UUID, bom *cdx.BOM, subjectVersion, flavor string) error {
-	mainModule := extractMainModulePath(bom)
+	mainModule := mainmodule.ExtractPath(bom)
 	if bom.Components != nil {
 		if err := s.insertComponentsBatch(ctx, tx, q, sbomID, *bom.Components, mainModule, subjectVersion, flavor); err != nil {
 			return err

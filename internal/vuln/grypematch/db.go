@@ -34,6 +34,28 @@ func NewDB(cfg DBConfig, logger *slog.Logger) *DB {
 	}
 }
 
+// NewFixedDB returns a DB over an already-open provider with a fixed build time;
+// Refresh never downloads. For integration tests and offline use. The caller
+// keeps ownership of provider: the DB never closes it.
+func NewFixedDB(provider vulnerability.Provider, built time.Time, logger *slog.Logger) *DB {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &DB{
+		open: func(bool) (vulnerability.Provider, *vulnerability.ProviderStatus, error) {
+			// Each Refresh "reopens" the same provider and closes the redundant
+			// handle; the wrapper keeps that from closing the one in use.
+			return keepOpen{provider}, &vulnerability.ProviderStatus{Built: built}, nil
+		},
+		logger: logger,
+	}
+}
+
+// keepOpen is a provider whose Close is a no-op.
+type keepOpen struct{ vulnerability.Provider }
+
+func (keepOpen) Close() error { return nil }
+
 // Refresh checks for a newer database, installs it if there is one, and reopens
 // the matcher over whatever is installed. changed reports whether the build now
 // open differs from the one open before — the signal to re-match stored SBOMs.

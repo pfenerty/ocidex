@@ -26,7 +26,7 @@ type property struct {
 	Value string `json:"value"`
 }
 
-func cdx(t *testing.T, comps ...component) []byte {
+func cdxDoc(t *testing.T, comps ...component) []byte {
 	t.Helper()
 	b, err := json.Marshal(map[string]any{
 		"bomFormat": "CycloneDX", "specVersion": "1.5", "version": 1, "components": comps,
@@ -185,7 +185,7 @@ func TestMatcherMatch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			is := is.New(t)
 			m := NewMatcher(mock.VulnerabilityProvider(tt.vuln))
-			got, err := m.Match(context.Background(), cdx(t, tt.doc...))
+			got, err := m.Match(context.Background(), cdxDoc(t, tt.doc...))
 			is.NoErr(err)
 			if !tt.wantMatch {
 				is.Equal(len(got), 0) // no finding
@@ -214,7 +214,7 @@ func TestMatcherMatchRelatedMetadata(t *testing.T) {
 		RelatedVulnerabilities: []vulnerability.Reference{ref("CVE-2024-35195", "nvd:cpe")},
 	}
 	got, err := NewMatcher(mock.VulnerabilityProvider(ghsa, nvd)).
-		Match(context.Background(), cdx(t, lib("requests", "2.31.0", "pkg:pypi/requests@2.31.0")))
+		Match(context.Background(), cdxDoc(t, lib("requests", "2.31.0", "pkg:pypi/requests@2.31.0")))
 	is.NoErr(err)
 	is.Equal(len(got), 1)
 	is.Equal(got[0].Related, []string{"CVE-2024-35195"})

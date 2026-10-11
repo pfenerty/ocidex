@@ -90,12 +90,6 @@ spec:
             # the read-only root (ocidex-gsip).
             - name: TMPDIR
               value: {{ .Values.vulnWorker.db.path | quote }}
-            - name: OSV_BASE_URL
-              value: {{ .Values.vulnWorker.env.osvBaseURL | quote }}
-            - name: OSV_TIMEOUT
-              value: {{ .Values.vulnWorker.env.osvTimeout | quote }}
-            - name: OSV_BATCH_SIZE
-              value: {{ .Values.vulnWorker.env.osvBatchSize | quote }}
           livenessProbe:
             httpGet:
               path: /healthz

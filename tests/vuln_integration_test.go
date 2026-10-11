@@ -7,11 +7,16 @@ import (
 	"net/http"
 	"slices"
 	"testing"
+	"time"
 
+	grypeversion "github.com/anchore/grype/grype/version"
+	grypevuln "github.com/anchore/grype/grype/vulnerability"
+	grypemock "github.com/anchore/grype/grype/vulnerability/mock"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/matryer/is"
 
 	"github.com/pfenerty/ocidex/internal/vuln"
+	"github.com/pfenerty/ocidex/internal/vuln/grypematch"
 )
 
 const (
@@ -528,12 +533,12 @@ func TestVulnDuplicatePurlSummaryParity(t *testing.T) {
 	is.Equal(artSummary["total"], float64(1))
 }
 
-// TestPurlVulnStateSkipsCleanPurls verifies a purl checked-and-clean against
-// OSV (ReplacePackageVulns called with no refs) is excluded from the
-// "unknown" purl queries used to drive further OSV lookups, but reappears
-// once its checked_at falls outside the staleness horizon (regression
-// ocidex-0le.17: clean purls were indistinguishable from never-checked ones).
-func TestPurlVulnStateSkipsCleanPurls(t *testing.T) {
+// TestGrypeRefresherEndToEnd runs the vuln-worker's refresher against real
+// Postgres (ADR-049): an ingested SBOM is matched against a grype provider, the
+// finding is readable through the API, a newly ingested SBOM is matched
+// incrementally, and a new database build that drops the vulnerability empties
+// the store on the next full re-match.
+func TestGrypeRefresherEndToEnd(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -541,133 +546,71 @@ func TestPurlVulnStateSkipsCleanPurls(t *testing.T) {
 
 	pool, cleanup := setupTestDB(t)
 	defer cleanup()
-
 	srv, authSvc := setupServerWithAuth(t, pool)
 	defer srv.Close()
-
 	is := is.New(t)
 	store := vuln.NewPGStore(pool)
 
-	memberID := seedUser(t, pool, 8006, "purl-state-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "purl-state-test", nil)
+	memberID := seedUser(t, pool, 8006, "grype-refresh-member", "member")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "grype-refresh-test", nil)
 	is.NoErr(err)
+	sbomID := mustIngest(t, srv.URL, ingestPath(t, pool, memberID), minimalSBOM, memberKey)
 
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), minimalSBOM, memberKey)
-	is.NoErr(err)
-	is.Equal(resp.StatusCode, http.StatusCreated)
-	var ingestResp map[string]any
-	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingestResp))
-	resp.Body.Close()
-	var sbomID pgtype.UUID
-	is.NoErr(sbomID.Scan(ingestResp["id"].(string)))
-
-	// Before any OSV check, addUserPurl is unknown both per-SBOM and globally.
-	unknownForSBOM, err := store.ListUnknownPurlsForSBOM(t.Context(), sbomID)
-	is.NoErr(err)
-	is.True(slices.Contains(unknownForSBOM, addUserPurl))
-
-	unknownGlobal, err := store.ListUnknownComponentPurls(t.Context())
-	is.NoErr(err)
-	is.True(slices.Contains(unknownGlobal, addUserPurl))
-
-	// Simulate an OSV lookup that came back clean.
-	err = store.ReplacePackageVulns(t.Context(), addUserPurl, nil)
-	is.NoErr(err)
-
-	// The purl is now checked-clean: it must drop out of both unknown lists.
-	unknownForSBOM, err = store.ListUnknownPurlsForSBOM(t.Context(), sbomID)
-	is.NoErr(err)
-	is.True(!slices.Contains(unknownForSBOM, addUserPurl))
-
-	unknownGlobal, err = store.ListUnknownComponentPurls(t.Context())
-	is.NoErr(err)
-	is.True(!slices.Contains(unknownGlobal, addUserPurl))
-
-	// Age the checked_at past the staleness horizon (24h) to simulate a
-	// clean purl that's due for re-verification.
-	_, err = pool.Exec(t.Context(),
-		"UPDATE purl_vuln_state SET checked_at = now() - interval '25 hours' WHERE purl = $1",
-		addUserPurl)
-	is.NoErr(err)
-
-	unknownForSBOM, err = store.ListUnknownPurlsForSBOM(t.Context(), sbomID)
-	is.NoErr(err)
-	is.True(slices.Contains(unknownForSBOM, addUserPurl))
-
-	unknownGlobal, err = store.ListUnknownComponentPurls(t.Context())
-	is.NoErr(err)
-	is.True(slices.Contains(unknownGlobal, addUserPurl))
-}
-
-// TestSourcePurlIncludedInGatherQueries verifies a component's derived
-// source_purl (e.g. a source RPM/deb purl) is picked up alongside its
-// binary purl by every purl-gathering query the OSV refresh pipeline uses,
-// and that a source purl coinciding with an existing binary purl doesn't
-// produce a duplicate entry (ocidex-5ur.7).
-func TestSourcePurlIncludedInGatherQueries(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
+	adduser := grypevuln.Vulnerability{
+		Reference:   grypevuln.Reference{ID: "CVE-2025-3000", Namespace: "ubuntu:distro:ubuntu:24.04"},
+		PackageName: "adduser",
+		Constraint:  grypeversion.MustGetConstraint("< 3.118ubuntu3", grypeversion.DebFormat),
+		Fix:         grypevuln.Fix{Versions: []string{"3.118ubuntu3"}, State: grypevuln.FixStateFixed},
+		Metadata: &grypevuln.Metadata{
+			Severity:    "High",
+			Description: "adduser does something it should not",
+		},
 	}
-	requireTestInfra(t)
+	day1 := time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)
+	refresh := func(built time.Time, vulns ...grypevuln.Vulnerability) {
+		t.Helper()
+		db := grypematch.NewFixedDB(grypemock.VulnerabilityProvider(vulns...), built, nil)
+		is.NoErr(grypematch.NewRefresher(db, store, time.Hour, nil).Step(t.Context()))
+	}
+	sbomVulns := func(id string) []any {
+		t.Helper()
+		r, gerr := doWithAuth(t, http.MethodGet, fmt.Sprintf("%s/api/v1/sboms/%s/vulns", srv.URL, id), "", memberKey)
+		is.NoErr(gerr)
+		defer r.Body.Close()
+		is.Equal(r.StatusCode, http.StatusOK)
+		var body map[string]any
+		is.NoErr(json.NewDecoder(r.Body).Decode(&body))
+		return body["data"].([]any)
+	}
 
-	pool, cleanup := setupTestDB(t)
-	defer cleanup()
+	// Full re-match against day1's build.
+	refresh(day1, adduser)
+	data := sbomVulns(sbomID)
+	is.Equal(len(data), 1)
+	row := data[0].(map[string]any)
+	is.Equal(row["canonicalId"], "CVE-2025-3000")
+	is.Equal(row["severity"], "HIGH")
+	pkgs := row["affectedPackages"].([]any)
+	is.Equal(pkgs[0].(map[string]any)["purl"], addUserPurl)
+	is.Equal(pkgs[0].(map[string]any)["fixedVersion"], "3.118ubuntu3")
 
-	srv, authSvc := setupServerWithAuth(t, pool)
-	defer srv.Close()
+	// A newly ingested SBOM sharing the package is matched incrementally.
+	second := mustIngest(t, srv.URL, ingestPath(t, pool, memberID), secondSBOM, memberKey)
+	refresh(day1, adduser)
+	var matched int
+	is.NoErr(pool.QueryRow(t.Context(),
+		"SELECT count(*) FROM sbom_vuln_match WHERE db_built_at = $1", day1).Scan(&matched))
+	is.Equal(matched, 2)
+	_ = second
 
-	is := is.New(t)
-	store := vuln.NewPGStore(pool)
-
-	memberID := seedUser(t, pool, 8007, "source-purl-member", "member")
-	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "source-purl-test", nil)
-	is.NoErr(err)
-
-	resp, err := doWithAuth(t, http.MethodPost, srv.URL+ingestPath(t, pool, memberID), minimalSBOM, memberKey)
-	is.NoErr(err)
-	is.Equal(resp.StatusCode, http.StatusCreated)
-	var ingestResp map[string]any
-	is.NoErr(json.NewDecoder(resp.Body).Decode(&ingestResp))
-	resp.Body.Close()
-	var sbomID pgtype.UUID
-	is.NoErr(sbomID.Scan(ingestResp["id"].(string)))
-
-	// Give adduser a derived source purl distinct from its binary purl.
-	const addUserSourcePurl = "pkg:deb/ubuntu/adduser@3.118ubuntu2?arch=src&distro=ubuntu-24.04"
-	_, err = pool.Exec(t.Context(),
-		"UPDATE component SET source_purl = $1 WHERE sbom_id = $2 AND purl = $3",
-		addUserSourcePurl, sbomID, addUserPurl)
-	is.NoErr(err)
-
-	// Give apt a source purl that happens to coincide with adduser's binary
-	// purl — the union must not produce a duplicate entry for addUserPurl.
-	_, err = pool.Exec(t.Context(),
-		"UPDATE component SET source_purl = $1 WHERE sbom_id = $2 AND purl = $3",
-		addUserPurl, sbomID, aptPurl)
-	is.NoErr(err)
-
-	// Full-refresh feed includes the new source purl, with no duplicate for
-	// the coinciding purl.
-	all, err := store.ListDistinctComponentPurls(t.Context())
-	is.NoErr(err)
-	is.True(slices.Contains(all, addUserSourcePurl))
-	is.Equal(countOccurrences(all, addUserPurl), 1)
-
-	// Ecosystem-type filtered feed (incremental refresh) also includes it.
-	byType, err := store.ListDistinctComponentPurlsByTypes(t.Context(), []string{"deb"})
-	is.NoErr(err)
-	is.True(slices.Contains(byType, addUserSourcePurl))
-	is.Equal(countOccurrences(byType, addUserPurl), 1)
-
-	// Never checked against OSV yet, so it's "unknown" both per-SBOM and
-	// globally.
-	unknownForSBOM, err := store.ListUnknownPurlsForSBOM(t.Context(), sbomID)
-	is.NoErr(err)
-	is.True(slices.Contains(unknownForSBOM, addUserSourcePurl))
-
-	unknownGlobal, err := store.ListUnknownComponentPurls(t.Context())
-	is.NoErr(err)
-	is.True(slices.Contains(unknownGlobal, addUserSourcePurl))
+	// The next build withdraws it: the full re-match empties the mapping and
+	// prunes the orphaned vulnerability row.
+	refresh(day1.Add(24 * time.Hour))
+	is.Equal(len(sbomVulns(sbomID)), 0)
+	var orphans int
+	is.NoErr(pool.QueryRow(t.Context(),
+		"SELECT count(*) FROM vulnerability WHERE id = 'CVE-2025-3000'").Scan(&orphans))
+	is.Equal(orphans, 0)
 }
 
 // TestComponentVulnsMatchSourcePurl verifies the per-component CVE panel

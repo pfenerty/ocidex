@@ -159,9 +159,6 @@ vulnWorker:
     environment: production
     refreshEnabled: "true"
     refreshInterval: "6h"
-    osvBaseURL: "https://api.osv.dev"
-    osvTimeout: "30s"
-    osvBatchSize: "1000"
   # grype vulnerability database (ADR-049). ~3 GB on disk, rebuilt daily upstream; an
   # update needs room for the download plus two copies during the swap.
   db:

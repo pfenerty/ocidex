@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/pfenerty/ocidex/internal/mainmodule"
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
@@ -42,13 +43,13 @@ func flattenComponents(components []cdx.Component, parentID pgtype.UUID, mainMod
 	walk = func(comps []cdx.Component, parent pgtype.UUID) {
 		for i := range comps {
 			comp := &comps[i]
-			version := effectiveComponentVersion(comp.Version, comp.Name, comp.PackageURL, mainModule, subjectVersion)
+			version := mainmodule.EffectiveVersion(comp.Version, comp.Name, comp.PackageURL, mainModule, subjectVersion)
 			fc := flatComponent{
 				id:       newComponentID(),
 				parentID: parent,
 				comp:     comp,
 				version:  version,
-				purl:     effectiveComponentPurl(comp.PackageURL, version),
+				purl:     mainmodule.EffectivePurl(comp.PackageURL, version),
 			}
 			flat = append(flat, fc)
 			if comp.Components != nil {

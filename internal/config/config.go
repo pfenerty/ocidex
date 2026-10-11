@@ -151,14 +151,6 @@ type Config struct {
 	// to true since it already runs unconditionally today; set to false to
 	// disable (e.g. in a test/staging environment without registry access).
 	ProvenanceReverifierEnabled bool `env:"PROVENANCE_REVERIFIER_ENABLED" envDefault:"true"`
-
-	// Ingest-time vuln lookup — queries OSV for purls from newly ingested SBOMs
-	// that are not yet in package_vulnerability. Shares env var names with VulnWorkerConfig.
-	IngestVulnLookupEnabled        bool          `env:"INGEST_VULN_LOOKUP_ENABLED"         envDefault:"true"`
-	IngestVulnLookupMaxConcurrency int           `env:"INGEST_VULN_LOOKUP_MAX_CONCURRENCY" envDefault:"2"`
-	OSVBaseURL                     string        `env:"OSV_BASE_URL"                       envDefault:"https://api.osv.dev"`
-	OSVTimeout                     time.Duration `env:"OSV_TIMEOUT"                        envDefault:"30s"`
-	OSVBatchSize                   int           `env:"OSV_BATCH_SIZE"                     envDefault:"1000"`
 }
 
 // Load reads configuration from environment variables.
@@ -174,32 +166,20 @@ func Load() (*Config, error) {
 }
 
 // VulnWorkerConfig holds configuration for the vulnerability refresh worker
-// (cmd/vuln-worker). It talks only to Postgres and OSV.dev — no NATS — so it has
-// its own loader rather than the NATS-requiring Config.
+// (cmd/vuln-worker). It talks only to Postgres and the grype database listing —
+// no NATS — so it has its own loader rather than the NATS-requiring Config.
 type VulnWorkerConfig struct {
 	LogLevel         string `env:"LOG_LEVEL"    envDefault:"info"`
 	Environment      string `env:"ENVIRONMENT"  envDefault:"development"`
 	DatabaseURL      string `env:"DATABASE_URL,required"`
 	DatabaseMaxConns int    `env:"DATABASE_MAX_CONNECTIONS" envDefault:"5"`
 
-	// OSVBaseURL is the OSV.dev API base URL.
-	OSVBaseURL string `env:"OSV_BASE_URL" envDefault:"https://api.osv.dev"`
-	// OSVTimeout bounds a single OSV HTTP request.
-	OSVTimeout time.Duration `env:"OSV_TIMEOUT" envDefault:"30s"`
-	// OSVBatchSize is the querybatch chunk size (OSV allows up to 1000).
-	OSVBatchSize int `env:"OSV_BATCH_SIZE" envDefault:"1000"`
-
 	// RefreshEnabled gates the scheduled refresh loop.
 	RefreshEnabled bool `env:"VULN_REFRESH_ENABLED" envDefault:"true"`
-	// RefreshInterval is the minimum time between full refreshes.
+	// RefreshInterval is how often the leader checks for a newer grype database
+	// build; a new build triggers a full re-match. Newly ingested SBOMs are
+	// matched within a minute regardless.
 	RefreshInterval time.Duration `env:"VULN_REFRESH_INTERVAL" envDefault:"6h"`
-
-	// IncrementalRefreshEnabled enables per-ecosystem modified_id.csv checks so
-	// only changed ecosystems are re-queried each cycle. Set to false to revert
-	// to a full-scan on every cycle.
-	IncrementalRefreshEnabled bool `env:"VULN_INCREMENTAL_ENABLED" envDefault:"true"`
-	// OSVBucketBaseURL is the base URL for OSV's per-ecosystem modified_id.csv files.
-	OSVBucketBaseURL string `env:"OSV_BUCKET_BASE_URL" envDefault:"https://storage.googleapis.com/osv-vulnerabilities"`
 
 	// VulnDBDir is where the grype vulnerability database is installed (ADR-049).
 	// About 3 GB, and an update briefly needs room for two copies plus the download,

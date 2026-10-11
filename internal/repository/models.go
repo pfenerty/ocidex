@@ -242,11 +242,6 @@ type ProvenanceDriftPending struct {
 	FirstSeenAt    pgtype.Timestamptz `json:"first_seen_at"`
 }
 
-type PurlVulnState struct {
-	Purl      string             `json:"purl"`
-	CheckedAt pgtype.Timestamptz `json:"checked_at"`
-}
-
 // OCI-specific discovery and trust config. Subtype of source: registry.id IS the source id. Ownership lives on namespace (ADR-039).
 type Registry struct {
 	ID                  pgtype.UUID        `json:"id"`
@@ -294,6 +289,12 @@ type Sbom struct {
 	VersionMajor pgtype.Int4 `json:"version_major"`
 	VersionMinor pgtype.Int4 `json:"version_minor"`
 	VersionPatch pgtype.Int4 `json:"version_patch"`
+}
+
+type SbomVulnMatch struct {
+	SbomID    pgtype.UUID        `json:"sbom_id"`
+	DbBuiltAt pgtype.Timestamptz `json:"db_built_at"`
+	MatchedAt pgtype.Timestamptz `json:"matched_at"`
 }
 
 // Per-severity finding counts per SBOM, deduplicated by canonical_id, scoped purl ∪ source_purl. Absence of a row means no findings OR never scanned — callers must not render it as a clean zero.
@@ -357,15 +358,10 @@ type UserIdentity struct {
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
-type VulnEcosystemState struct {
-	Ecosystem      string             `json:"ecosystem"`
-	LastModifiedAt pgtype.Timestamptz `json:"last_modified_at"`
-	CheckedAt      pgtype.Timestamptz `json:"checked_at"`
-}
-
 type VulnRefreshState struct {
 	ID              bool               `json:"id"`
 	LastRefreshedAt pgtype.Timestamptz `json:"last_refreshed_at"`
+	DbBuiltAt       pgtype.Timestamptz `json:"db_built_at"`
 }
 
 type VulnRollup struct {
