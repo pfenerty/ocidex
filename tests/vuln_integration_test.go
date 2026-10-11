@@ -1161,3 +1161,51 @@ func TestArtifactVulnsList(t *testing.T) {
 	is.Equal(data[0].(map[string]any)["canonicalId"], "CVE-2025-4000")
 	is.Equal(page["pagination"].(map[string]any)["total"], float64(2))
 }
+
+// TestVulnListRepresentativeIsAMatchedRecord pins ocidex-33ho.6: when several
+// records share a canonical CVE, the row's representative id, severity and
+// summary must come from a record that actually matched this scope — not from
+// an aliased record that matched some other package elsewhere. The audit found
+// GHSA-w62r-7c53-fmc5 (ranges excluding Grafana 13.2.2) displayed for an SBOM
+// where only GO-2025-4153 had matched.
+func TestVulnListRepresentativeIsAMatchedRecord(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+	requireTestInfra(t)
+
+	pool, cleanup := setupTestDB(t)
+	defer cleanup()
+	srv, authSvc := setupServerWithAuth(t, pool)
+	defer srv.Close()
+	is := is.New(t)
+	store := vuln.NewPGStore(pool)
+
+	memberID := seedUser(t, pool, 8012, "representative-member", "member")
+	memberKey, err := authSvc.CreateAPIKey(t.Context(), memberID, "representative-test", nil)
+	is.NoErr(err)
+	sbomID := mustIngest(t, srv.URL, ingestPath(t, pool, memberID), minimalSBOM, memberKey)
+
+	// Two records for one CVE. The CRITICAL one maps only to a package this SBOM
+	// does not contain; the MEDIUM one maps to adduser, which it does.
+	for _, r := range []vuln.Row{
+		{ID: "GHSA-other", CanonicalID: "CVE-2025-4000", Aliases: []string{"CVE-2025-4000"}, Severity: "CRITICAL", Summary: "other package"},
+		{ID: "UBUNTU-matched", CanonicalID: "CVE-2025-4000", Aliases: []string{"CVE-2025-4000"}, Severity: "MEDIUM", Summary: "adduser"},
+	} {
+		is.NoErr(store.UpsertVulnerability(t.Context(), r))
+	}
+	is.NoErr(store.ReplacePackageVulns(t.Context(), "pkg:npm/unrelated@1.0.0", []vuln.PackageVulnRef{{VulnerabilityID: "GHSA-other"}}))
+	is.NoErr(store.ReplacePackageVulns(t.Context(), addUserPurl, []vuln.PackageVulnRef{{VulnerabilityID: "UBUNTU-matched"}}))
+
+	r, err := doWithAuth(t, http.MethodGet, fmt.Sprintf("%s/api/v1/sboms/%s/vulns", srv.URL, sbomID), "", memberKey)
+	is.NoErr(err)
+	defer r.Body.Close()
+	var body map[string]any
+	is.NoErr(json.NewDecoder(r.Body).Decode(&body))
+	data := body["data"].([]any)
+	is.Equal(len(data), 1)
+	row := data[0].(map[string]any)
+	is.Equal(row["canonicalId"], "CVE-2025-4000")
+	is.Equal(row["id"], "UBUNTU-matched")
+	is.Equal(row["severity"], "MEDIUM")
+}

@@ -580,6 +580,7 @@ const listClusterRunningVulns = `-- name: ListClusterRunningVulns :many
 WITH running AS (
     SELECT
         COALESCE(NULLIF(v.canonical_id, ''), v.id) AS canonical_id,
+        v.id                                       AS vuln_id,
         w.id                                       AS workload_id
     FROM cluster_workload w
     JOIN cluster c ON c.id = w.cluster_id
@@ -609,8 +610,11 @@ canonical AS (
         v.severity,
         v.cvss_score,
         v.summary
+    -- The representative is chosen among the records that matched this scope
+    -- (ocidex-33ho.6), not every record sharing the canonical id: an aliased
+    -- record that matched some other package must not lend its id or severity.
     FROM vulnerability v
-    WHERE COALESCE(NULLIF(v.canonical_id, ''), v.id) IN (SELECT canonical_id FROM counts)
+    WHERE v.id IN (SELECT vuln_id FROM running)
     ORDER BY
         COALESCE(NULLIF(v.canonical_id, ''), v.id),
         CASE v.severity
