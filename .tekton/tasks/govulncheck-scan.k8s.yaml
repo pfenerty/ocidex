@@ -104,7 +104,7 @@ spec:
       env:
         - name: GOMEMLIMIT
           value: 8GiB
-      image: ghcr.io/pfenerty/apko-cicd/govulncheck:1.6.0-go1.26
+      image: ghcr.io/pfenerty/apko-cicd/govulncheck:1.9.0-go1.27
       name: govulncheck-scan
       onError: continue
       script: |-

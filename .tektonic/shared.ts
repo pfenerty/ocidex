@@ -2,11 +2,11 @@ import { Param, Workspace, TaskVolumeSpec, TaskStepSpec, rawScript } from "@tekt
 import { GitHubStatusReporter } from "@tektonic-ci/reporter-github";
 
 // --- Images ─────────────────────────────────────────────────────────────────
-export const goImage = "ghcr.io/pfenerty/apko-cicd/golang:1.26";
+export const goImage = "ghcr.io/pfenerty/apko-cicd/golang:1.27";
 export const nodeImage = "ghcr.io/pfenerty/apko-cicd/nodejs:24";
 export const baseImage = "ghcr.io/pfenerty/apko-cicd/base:stable";
 // Go-version-matched govulncheck image; bump the -goX.Y suffix in lockstep with goImage.
-export const govulncheckImage = "ghcr.io/pfenerty/apko-cicd/govulncheck:1.6.0-go1.26";
+export const govulncheckImage = "ghcr.io/pfenerty/apko-cicd/govulncheck:1.9.0-go1.27";
 // SBOM + vuln scanners shared by the dependency-audit tasks (see jobs/_dep-scan.ts).
 export const syftImage = "ghcr.io/pfenerty/apko-cicd/syft:1.51.0";
 export const grypeImage = "ghcr.io/pfenerty/apko-cicd/grype:0.117.0";
