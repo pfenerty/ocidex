@@ -1,8 +1,12 @@
 {{- /*
-Vulnerability worker Deployment. Runs cmd/vuln-worker, which refreshes the
-package-keyed vulnerability store from OSV.dev on a schedule. Singleton by design:
+Vulnerability worker Deployment. Runs cmd/vuln-worker, which matches stored SBOMs
+against the grype vulnerability database (ADR-049) on a schedule. Singleton by design:
 service.LeaderElect (a Postgres advisory lock) ensures only one replica refreshes
 at a time, so this never needs KEDA and carries no NATS config.
+
+The grype database (~3 GB, updated daily) lives on a volume at vulnWorker.db.path.
+With persistence enabled it is a ReadWriteOnce PVC, so the rollout strategy is
+Recreate: a surge pod could never attach the volume the old pod still holds.
 */ -}}
 {{- if .Values.vulnWorker.enabled }}
 apiVersion: apps/v1
@@ -15,6 +19,10 @@ metadata:
     app.kubernetes.io/component: vuln-worker
 spec:
   replicas: {{ .Values.vulnWorker.replicas }}
+  {{- if .Values.vulnWorker.db.persistence.enabled }}
+  strategy:
+    type: Recreate
+  {{- end }}
   selector:
     matchLabels:
       {{- include "ocidex.selectorLabels" (dict "root" . "component" "vuln-worker") | nindent 6 }}
@@ -25,10 +33,21 @@ spec:
     spec:
       serviceAccountName: {{ include "ocidex.fullname" . }}
       terminationGracePeriodSeconds: 60
-      {{- with .Values.podSecurityContext }}
       securityContext:
+        {{- with .Values.podSecurityContext }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
+        # The distroless nonroot user (65532) must own the database volume to write it.
+        fsGroup: 65532
+      volumes:
+        - name: grype-db
+          {{- if .Values.vulnWorker.db.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.vulnWorker.db.persistence.existingClaim | default (printf "%s-vuln-db" (include "ocidex.fullname" .)) }}
+          {{- else }}
+          emptyDir:
+            sizeLimit: {{ .Values.vulnWorker.db.persistence.size }}
+          {{- end }}
       containers:
         - name: vuln-worker
           image: {{ include "ocidex.image" (dict "root" . "name" "vuln-worker") }}
@@ -42,6 +61,9 @@ spec:
               containerPort: 9090
           resources:
             {{- toYaml .Values.vulnWorker.resources | nindent 12 }}
+          volumeMounts:
+            - name: grype-db
+              mountPath: {{ .Values.vulnWorker.db.path }}
           envFrom:
             - secretRef:
                 name: {{ .Values.existingSecret }}
@@ -56,6 +78,18 @@ spec:
               value: {{ .Values.vulnWorker.env.refreshEnabled | quote }}
             - name: VULN_REFRESH_INTERVAL
               value: {{ .Values.vulnWorker.env.refreshInterval | quote }}
+            - name: VULN_DB_DIR
+              value: {{ .Values.vulnWorker.db.path | quote }}
+            - name: VULN_DB_MAX_AGE
+              value: {{ .Values.vulnWorker.db.maxAge | quote }}
+            {{- with .Values.vulnWorker.db.updateURL }}
+            - name: VULN_DB_UPDATE_URL
+              value: {{ . | quote }}
+            {{- end }}
+            # Anything that falls back to os.TempDir lands on the database volume, not
+            # the read-only root (ocidex-gsip).
+            - name: TMPDIR
+              value: {{ .Values.vulnWorker.db.path | quote }}
             - name: OSV_BASE_URL
               value: {{ .Values.vulnWorker.env.osvBaseURL | quote }}
             - name: OSV_TIMEOUT
@@ -78,4 +112,23 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 3
+{{- end }}
+{{- if and .Values.vulnWorker.enabled .Values.vulnWorker.db.persistence.enabled (not .Values.vulnWorker.db.persistence.existingClaim) }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ocidex.fullname" . }}-vuln-db
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ocidex.labels" . | nindent 4 }}
+    app.kubernetes.io/component: vuln-worker
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- with .Values.vulnWorker.db.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.vulnWorker.db.persistence.size }}
 {{- end }}

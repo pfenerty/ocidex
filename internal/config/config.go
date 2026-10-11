@@ -200,6 +200,16 @@ type VulnWorkerConfig struct {
 	IncrementalRefreshEnabled bool `env:"VULN_INCREMENTAL_ENABLED" envDefault:"true"`
 	// OSVBucketBaseURL is the base URL for OSV's per-ecosystem modified_id.csv files.
 	OSVBucketBaseURL string `env:"OSV_BUCKET_BASE_URL" envDefault:"https://storage.googleapis.com/osv-vulnerabilities"`
+
+	// VulnDBDir is where the grype vulnerability database is installed (ADR-049).
+	// About 3 GB, and an update briefly needs room for two copies plus the download,
+	// so in-cluster it is a persistent volume.
+	VulnDBDir string `env:"VULN_DB_DIR" envDefault:"/var/lib/ocidex/grype-db"`
+	// VulnDBUpdateURL overrides the listing grype checks for newer databases
+	// (empty = grype's default, https://grype.anchore.io/databases).
+	VulnDBUpdateURL string `env:"VULN_DB_UPDATE_URL"`
+	// VulnDBMaxAge rejects a database built longer ago than this; grype publishes daily.
+	VulnDBMaxAge time.Duration `env:"VULN_DB_MAX_AGE" envDefault:"120h"`
 }
 
 // LoadVulnWorker reads vuln-worker configuration from environment variables.

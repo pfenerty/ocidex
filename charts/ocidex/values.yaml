@@ -162,13 +162,26 @@ vulnWorker:
     osvBaseURL: "https://api.osv.dev"
     osvTimeout: "30s"
     osvBatchSize: "1000"
+  # grype vulnerability database (ADR-049). ~3 GB on disk, rebuilt daily upstream; an
+  # update needs room for the download plus two copies during the swap.
+  db:
+    path: /var/lib/ocidex/grype-db
+    maxAge: "120h"
+    # Empty = grype's default listing (https://grype.anchore.io/databases).
+    updateURL: ""
+    persistence:
+      # false falls back to an emptyDir of the same size: every restart re-downloads.
+      enabled: true
+      size: 10Gi
+      storageClass: ""
+      existingClaim: ""
   resources:
     requests:
       cpu: "20m"
-      memory: "32Mi"
+      memory: "128Mi"
     limits:
-      cpu: "500m"
-      memory: "256Mi"
+      cpu: "1"
+      memory: "512Mi"
 
 # --- Web frontend ------------------------------------------------------------
 web:
@@ -253,7 +266,8 @@ podSecurityContext:
 # Two workloads write to their own filesystem and mount emptyDirs over exactly
 # the paths they need rather than dropping this setting: nginx (/run and
 # /var/lib/nginx/tmp, deployment-web.yaml) and the scanner worker, whose syft
-# dependency unpacks image layers into /tmp (deployment-scanner-worker.yaml).
+# dependency unpacks image layers into /tmp (deployment-scanner-worker.yaml). The
+# vuln-worker writes only its grype database volume (deployment-vuln-worker.yaml).
 # Adding a workload that shells out, unpacks archives, or caches to disk means
 # auditing it against this setting — ocidex-gsip was six days of total scan
 # outage from missing that step.

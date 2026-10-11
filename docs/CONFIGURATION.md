@@ -228,6 +228,20 @@ from the registry via the OCI 1.1 Referrers API (with cosign tag-scheme fallback
 registry has a trust anchor configured, delegates verification to cosign (see
 [Per-Registry Trust Anchors](#per-registry-trust-anchors) below and ADR-037).
 
+### `vuln-worker`
+
+Matches stored SBOMs against the [grype](https://github.com/anchore/grype) vulnerability
+database ([ADR-049](adr/0049-vulnerability-matching-via-grype.md)). Needs `DATABASE_URL`
+but not NATS. A Postgres advisory lock makes one replica the leader.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VULN_REFRESH_ENABLED` | `true` | Gates the scheduled refresh loop. |
+| `VULN_REFRESH_INTERVAL` | `6h` | Minimum time between refreshes. |
+| `VULN_DB_DIR` | `/var/lib/ocidex/grype-db` | Where the grype database is installed (~3 GB). An update needs room for the download plus two copies, so give it ~10 GiB. In Kubernetes this is a PVC (`vulnWorker.db.persistence`); use node-local storage, not NFS, because the database is SQLite. |
+| `VULN_DB_UPDATE_URL` | grype default | Listing checked for newer databases (`https://grype.anchore.io/databases`). Point it at a self-hosted `grype-db` build to control the source. |
+| `VULN_DB_MAX_AGE` | `120h` | Reject a database built longer ago than this. grype publishes daily. |
+
 ### `k8s-agent`
 
 The cluster inventory agent (ADR-044). Unlike every other binary here it needs **no
