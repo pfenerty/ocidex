@@ -27,7 +27,7 @@ RUN npm run build
 # Static assets only — no reverse proxy. /api and /auth are routed to the API by
 # the Gateway HTTPRoute in k8s, and by web/nginx.compose.conf under compose.
 # Runs as UID 65532, hence 8080 rather than 80.
-FROM cgr.dev/chainguard/nginx@sha256:f77f61de0f1001a54f3186e8a62adcde80c946603b88379263cf6f3bbaab54a7
+FROM cgr.dev/chainguard/nginx@sha256:028368a7e271b3e0aed3bdc82195de6b38a2fee2bdd2a0b7ce1c4b944907098c
 
 COPY web/nginx.conf /etc/nginx/nginx.conf
 COPY --from=build /app/dist /srv
