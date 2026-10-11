@@ -180,6 +180,7 @@ func packageVulnParams(purl string, ref PackageVulnRef) repository.UpsertPackage
 		Purl:            purl,
 		VulnerabilityID: ref.VulnerabilityID,
 		FixedVersion:    text(ref.FixedVersion),
+		FixState:        text(ref.FixState),
 	}
 }
 

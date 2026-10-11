@@ -46,6 +46,8 @@ type Severity struct {
 type PackageVulnRef struct {
 	VulnerabilityID string
 	FixedVersion    string
+	// FixState is grype's fixed / not-fixed / wont-fix / unknown; "" stores NULL.
+	FixState string
 }
 
 // CanonicalID returns the best stable public identifier for a vulnerability:

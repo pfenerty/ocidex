@@ -10,6 +10,7 @@ import type { SBOMVulnEntry, VulnSummary } from "~/api/client";
 import { useSBOMVulns } from "~/api/queries";
 import type { SBOMVulnSortKey } from "~/api/queries";
 import type { VulnSeverityFilter } from "~/api/queries";
+import { noFixLabel } from "~/utils/vuln";
 import { componentHref } from "./componentHref";
 import "./VulnerabilitiesTab.css";
 
@@ -54,6 +55,9 @@ function AffectedPackagesList(props: { vuln: SBOMVulnEntry; limit: number | unde
                                 {(fixed) => (
                                     <span class="text-sm"> · fixed in <span class="font-mono">{fixed()}</span></span>
                                 )}
+                            </Show>
+                            <Show when={noFixLabel(p.fixedVersion, p.fixState)}>
+                                {(label) => <span class="text-sm text-muted"> · {label()}</span>}
                             </Show>
                             {/* An inherited match is a weaker claim than a direct
                                 one — the advisory was published against the source

@@ -448,6 +448,9 @@ func (s *searchService) GetComponentVulns(ctx context.Context, id pgtype.UUID, v
 		if s, ok := r.FixedVersion.(string); ok && s != "" {
 			e.FixedVersion = &s
 		}
+		if s, ok := r.FixState.(string); ok && s != "" {
+			e.FixState = &s
+		}
 		out = append(out, e)
 	}
 	return out, nil

@@ -175,6 +175,9 @@ type ComponentVulnEntry struct {
 	CvssScore    *float32 `json:"cvssScore,omitempty"`
 	Summary      *string  `json:"summary,omitempty"`
 	FixedVersion *string  `json:"fixedVersion,omitempty"`
+	// FixState is "fixed", "not-fixed", "wont-fix" or "unknown" (ADR-049);
+	// absent for findings recorded before fix states were stored.
+	FixState *string `json:"fixState,omitempty"`
 	// MatchedViaSource is true when this finding matched the component's
 	// source package purl rather than the component's own purl.
 	MatchedViaSource bool `json:"matchedViaSource"`
@@ -205,6 +208,9 @@ type SBOMVulnPackage struct {
 	Group        *string `json:"group,omitempty"`
 	Version      *string `json:"version,omitempty"`
 	FixedVersion *string `json:"fixedVersion,omitempty"`
+	// FixState is "fixed", "not-fixed", "wont-fix" or "unknown" (ADR-049);
+	// absent for findings recorded before fix states were stored.
+	FixState *string `json:"fixState,omitempty"`
 	// MatchedViaSource is true when the finding matched the component's source
 	// package purl rather than its own — an inherited match, not a direct one.
 	MatchedViaSource bool `json:"matchedViaSource"`

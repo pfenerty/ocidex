@@ -219,6 +219,7 @@ type PackageVulnerability struct {
 	VulnerabilityID string             `json:"vulnerability_id"`
 	FixedVersion    pgtype.Text        `json:"fixed_version"`
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	FixState        pgtype.Text        `json:"fix_state"`
 }
 
 type ProvenanceDriftEvent struct {

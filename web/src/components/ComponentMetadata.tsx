@@ -10,6 +10,7 @@ import DataTable from "~/components/DataTable";
 import type { Column } from "~/components/DataTable";
 import { SeverityPill, VulnId, SpdxBadgeCell } from "~/components/cells";
 import { hasText } from "~/utils/format";
+import { noFixLabel } from "~/utils/vuln";
 import { Card, CardHeader, TabBar } from "~/components/ui";
 import type { TabDef } from "~/components/ui";
 
@@ -48,7 +49,14 @@ const vulnColumns: Column<ComponentVulnEntry>[] = [
     },
     {
         header: "Fixed In",
-        render: (v) => <span class="font-mono text-sm">{v.fixedVersion ?? "—"}</span>,
+        render: (v) => {
+            const noFix = noFixLabel(v.fixedVersion, v.fixState);
+            return <>{noFix !== undefined ? (
+                <span class="text-sm text-muted">{noFix}</span>
+            ) : (
+                <span class="font-mono text-sm">{v.fixedVersion ?? "—"}</span>
+            )}</>;
+        },
     },
 ];
 

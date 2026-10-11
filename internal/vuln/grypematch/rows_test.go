@@ -117,14 +117,14 @@ func TestSummarize(t *testing.T) {
 func TestMappings(t *testing.T) {
 	is := is.New(t)
 	got := Mappings([]Finding{
-		{Purl: "pkg:pypi/a@1", VulnerabilityID: "V1"},
-		{Purl: "pkg:pypi/a@1", VulnerabilityID: "V1", FixedVersion: "2"}, // same pair, second carries the fix
-		{Purl: "pkg:pypi/a@1", VulnerabilityID: "V2", FixedVersion: "3"},
-		{Purl: "pkg:pypi/b@1", VulnerabilityID: "V1", FixedVersion: "5"},
+		{Purl: "pkg:pypi/a@1", VulnerabilityID: "V1", FixState: "unknown"},
+		{Purl: "pkg:pypi/a@1", VulnerabilityID: "V1", FixedVersion: "2", FixState: "fixed"}, // same pair, second carries the fix
+		{Purl: "pkg:pypi/a@1", VulnerabilityID: "V2", FixedVersion: "3", FixState: "fixed"},
+		{Purl: "pkg:pypi/b@1", VulnerabilityID: "V1", FixState: "wont-fix"},
 	})
 	is.Equal(got["pkg:pypi/a@1"], []vuln.PackageVulnRef{
-		{VulnerabilityID: "V1", FixedVersion: "2"},
-		{VulnerabilityID: "V2", FixedVersion: "3"},
+		{VulnerabilityID: "V1", FixedVersion: "2", FixState: "fixed"},
+		{VulnerabilityID: "V2", FixedVersion: "3", FixState: "fixed"},
 	})
-	is.Equal(got["pkg:pypi/b@1"], []vuln.PackageVulnRef{{VulnerabilityID: "V1", FixedVersion: "5"}})
+	is.Equal(got["pkg:pypi/b@1"], []vuln.PackageVulnRef{{VulnerabilityID: "V1", FixState: "wont-fix"}})
 }
