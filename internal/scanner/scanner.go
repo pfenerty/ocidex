@@ -4,11 +4,26 @@
 // API binary free of syft and stereoscope when scanning runs out-of-process.
 package scanner
 
-import "context"
+import (
+	"context"
 
-// Scanner scans an OCI image and returns CycloneDX JSON.
+	"github.com/pfenerty/ocidex/internal/gosymbols"
+)
+
+// Scanner scans an OCI image.
 type Scanner interface {
-	Scan(ctx context.Context, req ScanRequest) ([]byte, error)
+	Scan(ctx context.Context, req ScanRequest) (Result, error)
+}
+
+// Result is what a scan produces: the SBOM as CycloneDX JSON, plus data the
+// scanner holds that CycloneDX has no field for, handed to ingest directly
+// rather than smuggled through the document.
+type Result struct {
+	// SBOM is the CycloneDX JSON document.
+	SBOM []byte
+	// GoSymbols maps a component's bom-ref to the function symbols linked into
+	// the Go binary it was read from (ADR-050); nil when none were captured.
+	GoSymbols map[string]gosymbols.Table
 }
 
 // ScanRequest identifies an OCI image to scan.

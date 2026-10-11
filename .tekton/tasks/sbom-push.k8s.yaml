@@ -101,7 +101,7 @@ spec:
           cpu: 250m
           ephemeral-storage: 2Gi
           memory: 1Gi
-      image: ghcr.io/pfenerty/apko-cicd/golang:1.26
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.27
       name: build-binaries
       onError: continue
       script: |-
@@ -192,7 +192,7 @@ spec:
           value: ocidex/ci
         - name: OCIDEX_BINARIES
           value: ocidex scanner-worker oci-metadata-worker git-worker user-enricher-worker provenance-worker vuln-worker k8s-agent operator ocidex-cli ocidex-mcp
-      image: ghcr.io/pfenerty/apko-cicd/golang:1.26
+      image: ghcr.io/pfenerty/apko-cicd/golang:1.27
       name: push-sboms
       onError: continue
       script: |-
@@ -335,10 +335,19 @@ spec:
         def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
         let contract_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
         # A step that never ran has no file; 0 keeps it out of the max.
-        let step_codes = (["/tekton/steps/step-build-binaries/exitCode" "/tekton/steps/step-syft-catalog/exitCode" "/tekton/steps/step-push-sboms/exitCode"] | each { |p| try { open --raw $p | str trim | into int } catch { 0 } })
-        let exit_code = ([$contract_code ...$step_codes] | math max)
+        let step_codes = ([{ name: "build-binaries", path: "/tekton/steps/step-build-binaries/exitCode" } { name: "syft-catalog", path: "/tekton/steps/step-syft-catalog/exitCode" } { name: "push-sboms", path: "/tekton/steps/step-push-sboms/exitCode" }] | each { |s| { name: $s.name, code: (try { open --raw $s.path | str trim | into int } catch { 0 }) } })
+        let exit_code = ([$contract_code ...($step_codes | each { |s| $s.code })] | math max)
         let state = if $exit_code == 0 { "success" } else { "failure" }
-        let desc = if $exit_code == 0 { "Passed" } else { "Failed" }
+        # Name the first step that failed, so the check says where without opening the logs.
+        let failed_steps = ($step_codes | where code != 0)
+        let desc = if $exit_code == 0 {
+          "Passed"
+        } else if ($failed_steps | is-empty) {
+          $"Failed: exit ($exit_code)"
+        } else {
+          let first = ($failed_steps | first)
+          $"Failed: step ($first.name) exited ($first.code)"
+        }
 
         log $"report-status [sbom-push]: exit-code=($exit_code) state=($state)"
 

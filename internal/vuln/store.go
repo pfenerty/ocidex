@@ -2,19 +2,16 @@ package vuln
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
-// PGStore is the Postgres-backed Store used by the refresh loop.
+// PGStore is the Postgres-backed store the vuln-worker writes through.
 type PGStore struct {
 	pool *pgxpool.Pool
 	q    *repository.Queries
@@ -25,40 +22,83 @@ func NewPGStore(pool *pgxpool.Pool) *PGStore {
 	return &PGStore{pool: pool, q: repository.New(pool)}
 }
 
-// ListDistinctComponentPurls returns every purl present in any SBOM.
+// SBOMDoc is one stored SBOM document awaiting matching.
+type SBOMDoc struct {
+	ID             pgtype.UUID
+	Raw            []byte
+	SubjectVersion string
+}
+
+// ListDistinctComponentPurls returns every purl present in any SBOM, plus derived
+// source purls.
 func (s *PGStore) ListDistinctComponentPurls(ctx context.Context) ([]string, error) {
 	return s.q.ListDistinctComponentPurls(ctx)
 }
 
-// ListDistinctPurlTypes returns the distinct purl type tokens (e.g. "npm", "pypi").
-func (s *PGStore) ListDistinctPurlTypes(ctx context.Context) ([]string, error) {
-	return s.q.ListDistinctPurlTypes(ctx)
+// ListSBOMsToMatch returns up to limit SBOMs, ordered by ID after afterID, that
+// have not been matched against the grype build built — or every SBOM when all
+// is set.
+func (s *PGStore) ListSBOMsToMatch(ctx context.Context, built time.Time, all bool, afterID pgtype.UUID, limit int32) ([]SBOMDoc, error) {
+	rows, err := s.q.ListSBOMsToMatch(ctx, repository.ListSBOMsToMatchParams{
+		MatchAll:  all,
+		DbBuiltAt: timestamptz(built),
+		AfterID:   afterID,
+		RowLimit:  limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]SBOMDoc, len(rows))
+	for i, r := range rows {
+		out[i] = SBOMDoc{ID: r.ID, Raw: r.RawBom, SubjectVersion: r.SubjectVersion.String}
+	}
+	return out, nil
 }
 
-// ListDistinctComponentPurlsByTypes returns purls whose purl type matches any entry in types.
-func (s *PGStore) ListDistinctComponentPurlsByTypes(ctx context.Context, types []string) ([]string, error) {
-	return s.q.ListDistinctComponentPurlsByTypes(ctx, types)
+// MarkSBOMMatched records that an SBOM has been matched against build built.
+func (s *PGStore) MarkSBOMMatched(ctx context.Context, sbomID pgtype.UUID, built time.Time) error {
+	return s.q.MarkSBOMVulnMatched(ctx, repository.MarkSBOMVulnMatchedParams{
+		SbomID:    sbomID,
+		DbBuiltAt: timestamptz(built),
+	})
 }
 
-// ListUnknownComponentPurls returns all distinct component purls with no package_vulnerability entry.
-func (s *PGStore) ListUnknownComponentPurls(ctx context.Context) ([]string, error) {
-	return s.q.ListUnknownComponentPurls(ctx)
+// MatchedDBBuilt returns the grype build package_vulnerability was last fully
+// rebuilt from (ok=false if never).
+func (s *PGStore) MatchedDBBuilt(ctx context.Context) (time.Time, bool, error) {
+	ts, err := s.q.GetVulnMatchedDBBuilt(ctx)
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	return ts.Time, ts.Valid, nil
 }
 
-// ListUnknownPurlsForSBOM returns purls from the given SBOM not yet in package_vulnerability.
-func (s *PGStore) ListUnknownPurlsForSBOM(ctx context.Context, sbomID pgtype.UUID) ([]string, error) {
-	return s.q.ListUnknownSBOMComponentPurls(ctx, sbomID)
+// SetMatchedDBBuilt records a completed full re-match against build built, and
+// stamps the refresh time.
+func (s *PGStore) SetMatchedDBBuilt(ctx context.Context, built time.Time) error {
+	return s.q.SetVulnMatchedDBBuilt(ctx, timestamptz(built))
 }
 
 // UpsertVulnerability inserts or updates one vulnerability record.
 func (s *PGStore) UpsertVulnerability(ctx context.Context, v Row) error {
+	return s.q.UpsertVulnerability(ctx, vulnParams(v))
+}
+
+// InsertVulnerabilityIfAbsent inserts a vulnerability record unless its ID
+// already exists, reporting whether it inserted.
+func (s *PGStore) InsertVulnerabilityIfAbsent(ctx context.Context, v Row) (bool, error) {
+	n, err := s.q.InsertVulnerabilityIfAbsent(ctx, repository.InsertVulnerabilityIfAbsentParams(vulnParams(v)))
+	return n > 0, err
+}
+
+func vulnParams(v Row) repository.UpsertVulnerabilityParams {
 	// aliases is NOT NULL: a nil slice encodes as SQL NULL (the column DEFAULT
 	// only applies when the column is omitted), so coalesce to an empty array.
 	aliases := v.Aliases
 	if aliases == nil {
 		aliases = []string{}
 	}
-	return s.q.UpsertVulnerability(ctx, repository.UpsertVulnerabilityParams{
+	return repository.UpsertVulnerabilityParams{
 		ID:          v.ID,
 		Aliases:     aliases,
 		CanonicalID: v.CanonicalID,
@@ -70,13 +110,7 @@ func (s *PGStore) UpsertVulnerability(ctx context.Context, v Row) error {
 		PublishedAt: timestamptz(v.Published),
 		ModifiedAt:  timestamptz(v.Modified),
 		Raw:         v.Raw,
-	})
-}
-
-// DeleteVulnerabilityByID deletes a withdrawn vulnerability; FK cascades clean
-// up package_vulnerability and vulnerability_reference rows.
-func (s *PGStore) DeleteVulnerabilityByID(ctx context.Context, id string) error {
-	return s.q.DeleteVulnerabilityByID(ctx, id)
+	}
 }
 
 // ReplaceVulnerabilityRefs atomically replaces all references for a vulnerability
@@ -107,9 +141,9 @@ func (s *PGStore) ReplaceVulnerabilityRefs(ctx context.Context, vulnID string, r
 	return tx.Commit(ctx)
 }
 
-// ReplacePackageVulns atomically replaces all mappings for a purl (delete then
-// insert in one transaction) so a reader never sees a purl with no vulns
-// mid-refresh.
+// ReplacePackageVulns atomically replaces all mappings for a purl, across every
+// Go symbol set (delete then insert in one transaction), so a reader never sees a
+// purl with no vulns mid-refresh.
 func (s *PGStore) ReplacePackageVulns(ctx context.Context, purl string, refs []PackageVulnRef) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -122,18 +156,88 @@ func (s *PGStore) ReplacePackageVulns(ctx context.Context, purl string, refs []P
 		return fmt.Errorf("delete mappings: %w", err)
 	}
 	for _, ref := range refs {
-		if err := qtx.UpsertPackageVuln(ctx, repository.UpsertPackageVulnParams{
-			Purl:            purl,
-			VulnerabilityID: ref.VulnerabilityID,
-			FixedVersion:    text(ref.FixedVersion),
-		}); err != nil {
+		if err := qtx.UpsertPackageVuln(ctx, packageVulnParams(purl, ref)); err != nil {
 			return fmt.Errorf("insert mapping: %w", err)
 		}
 	}
-	if err := qtx.UpsertPurlVulnState(ctx, purl); err != nil {
-		return fmt.Errorf("upsert purl state: %w", err)
-	}
 	return tx.Commit(ctx)
+}
+
+// AddPackageVulns upserts mappings for a purl without removing existing ones —
+// the incremental path, where one new SBOM can only add to what the last full
+// re-match established.
+func (s *PGStore) AddPackageVulns(ctx context.Context, purl string, refs []PackageVulnRef) error {
+	for _, ref := range refs {
+		if err := s.q.UpsertPackageVuln(ctx, packageVulnParams(purl, ref)); err != nil {
+			return fmt.Errorf("upsert mapping: %w", err)
+		}
+	}
+	return nil
+}
+
+func packageVulnParams(purl string, ref PackageVulnRef) repository.UpsertPackageVulnParams {
+	return repository.UpsertPackageVulnParams{
+		Purl:            purl,
+		GoSymbolSetID:   ref.GoSymbolSetID,
+		VulnerabilityID: ref.VulnerabilityID,
+		FixedVersion:    text(ref.FixedVersion),
+		FixState:        text(ref.FixState),
+	}
+}
+
+// PruneOrphanVulnerabilities deletes vulnerability rows no package maps to,
+// returning how many it removed.
+func (s *PGStore) PruneOrphanVulnerabilities(ctx context.Context) (int64, error) {
+	return s.q.PruneOrphanVulnerabilities(ctx)
+}
+
+// SBOMGoSymbols returns, for every component of an SBOM that links a Go symbol
+// set (ADR-050), its import path → normalized symbol names. An import path
+// present with no symbols maps to an empty (non-nil) list. Sets shared by several
+// components are loaded once.
+func (s *PGStore) SBOMGoSymbols(ctx context.Context, sbomID pgtype.UUID) (map[GoSymbolKey]GoSymbolSet, error) {
+	comps, err := s.q.ListSBOMGoSymbolSets(ctx, sbomID)
+	if err != nil || len(comps) == 0 {
+		return nil, err
+	}
+	setIDs := make([]int64, 0, len(comps))
+	seen := map[int64]bool{}
+	for _, c := range comps {
+		if id := c.GoSymbolSetID.Int64; !seen[id] {
+			seen[id] = true
+			setIDs = append(setIDs, id)
+		}
+	}
+	rows, err := s.q.ListGoSymbolSetSymbols(ctx, setIDs)
+	if err != nil {
+		return nil, err
+	}
+	sets := make(map[int64]map[string][]string, len(setIDs))
+	for _, r := range rows {
+		t := sets[r.SetID]
+		if t == nil {
+			t = map[string][]string{}
+			sets[r.SetID] = t
+		}
+		if r.Name == "" {
+			if t[r.ImportPath] == nil {
+				t[r.ImportPath] = []string{}
+			}
+			continue
+		}
+		t[r.ImportPath] = append(t[r.ImportPath], r.Name)
+	}
+	out := make(map[GoSymbolKey]GoSymbolSet, len(comps))
+	for _, c := range comps {
+		id := c.GoSymbolSetID.Int64
+		out[GoSymbolKey{Purl: c.Purl, FilePath: c.FilePath}] = GoSymbolSet{ID: id, Symbols: sets[id]}
+	}
+	return out, nil
+}
+
+// PruneOrphanGoSymbolSets deletes symbol sets no component links any more.
+func (s *PGStore) PruneOrphanGoSymbolSets(ctx context.Context) (int64, error) {
+	return s.q.PruneOrphanGoSymbolSets(ctx)
 }
 
 // LastRefreshedAt returns the last successful refresh time.
@@ -146,67 +250,6 @@ func (s *PGStore) LastRefreshedAt(ctx context.Context) (time.Time, bool, error) 
 		return time.Time{}, false, nil
 	}
 	return ts.Time, true, nil
-}
-
-// MarkRefreshed stamps the refresh as complete now.
-func (s *PGStore) MarkRefreshed(ctx context.Context) error {
-	return s.q.SetVulnRefreshedAt(ctx)
-}
-
-// GetEcosystemState returns the stored CSV max-modified timestamp for an ecosystem.
-// ok=false if no state has been recorded yet (first run).
-func (s *PGStore) GetEcosystemState(ctx context.Context, ecosystem string) (time.Time, bool, error) {
-	row, err := s.q.GetEcosystemState(ctx, ecosystem)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return time.Time{}, false, nil
-		}
-		return time.Time{}, false, err
-	}
-	if !row.LastModifiedAt.Valid {
-		return time.Time{}, false, nil
-	}
-	return row.LastModifiedAt.Time, true, nil
-}
-
-// UpsertEcosystemState persists the latest CSV modified timestamp for an ecosystem.
-func (s *PGStore) UpsertEcosystemState(ctx context.Context, ecosystem string, lastModifiedAt time.Time) error {
-	return s.q.UpsertEcosystemState(ctx, repository.UpsertEcosystemStateParams{
-		Ecosystem:      ecosystem,
-		LastModifiedAt: timestamptz(lastModifiedAt),
-	})
-}
-
-// GetVulnerabilityModifiedAts bulk-fetches stored modified_at timestamps for the
-// given vulnerability IDs. Returns only IDs that exist in the DB.
-func (s *PGStore) GetVulnerabilityModifiedAts(ctx context.Context, ids []string) (map[string]time.Time, error) {
-	rows, err := s.q.GetVulnerabilityModifiedAts(ctx, ids)
-	if err != nil {
-		return nil, fmt.Errorf("bulk modified_at lookup: %w", err)
-	}
-	out := make(map[string]time.Time, len(rows))
-	for _, r := range rows {
-		if r.ModifiedAt.Valid {
-			out[r.ID] = r.ModifiedAt.Time
-		}
-	}
-	return out, nil
-}
-
-// GetVulnerabilitiesRaw bulk-fetches stored raw OSV JSON for the given IDs.
-// Returns only IDs that exist in the DB.
-func (s *PGStore) GetVulnerabilitiesRaw(ctx context.Context, ids []string) (map[string]json.RawMessage, error) {
-	rows, err := s.q.GetVulnerabilitiesRaw(ctx, ids)
-	if err != nil {
-		return nil, fmt.Errorf("bulk raw fetch: %w", err)
-	}
-	out := make(map[string]json.RawMessage, len(rows))
-	for _, r := range rows {
-		if len(r.Raw) > 0 {
-			out[r.ID] = json.RawMessage(r.Raw)
-		}
-	}
-	return out, nil
 }
 
 func text(s string) pgtype.Text {

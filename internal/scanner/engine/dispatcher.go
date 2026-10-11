@@ -53,7 +53,7 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (p
 		}
 	}
 
-	raw, err := d.scanner.Scan(ctx, req)
+	res, err := d.scanner.Scan(ctx, req)
 	if err != nil {
 		err = fmt.Errorf("scan: %w", err)
 		// Single chokepoint for both the NATS hint path and the DB poll loop, so
@@ -65,7 +65,7 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (p
 	}
 
 	bom := new(cdx.BOM)
-	if err := cdx.NewBOMDecoder(bytes.NewReader(raw), cdx.BOMFileFormatJSON).Decode(bom); err != nil {
+	if err := cdx.NewBOMDecoder(bytes.NewReader(res.SBOM), cdx.BOMFileFormatJSON).Decode(bom); err != nil {
 		return pgtype.UUID{}, fmt.Errorf("decode sbom: %w", err)
 	}
 
@@ -77,7 +77,7 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (p
 	if req.RegistryID != "" {
 		_ = registryID.Scan(req.RegistryID) //nolint:errcheck // invalid UUID → zero-value, harmless
 	}
-	sbomID, err := d.sbomSvc.Ingest(ctx, bom, raw, service.IngestParams{
+	sbomID, err := d.sbomSvc.Ingest(ctx, bom, res.SBOM, service.IngestParams{
 		Version:      version,
 		Architecture: req.Architecture,
 		BuildDate:    req.BuildDate,
@@ -86,6 +86,7 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (p
 		// existing namespace, so Ingest resolves it from the source (ADR-039).
 		SourceID:    registryID,
 		IndexDigest: req.IndexDigest,
+		GoSymbols:   res.GoSymbols,
 	})
 	if err != nil {
 		return pgtype.UUID{}, fmt.Errorf("ingest: %w", err)

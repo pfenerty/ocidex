@@ -285,14 +285,16 @@ func TestNewRollupRefresherDefaultsInterval(t *testing.T) {
 // by 00051 keyed on registry_id and rekeyed to namespace_id by 00053, so their
 // migration text is a historical record rather than a current definition — the
 // aggregate consts are the live truth for those. This one was authored against
-// the current schema, so the two texts can and must agree.
+// the current schema, so the two texts can and must agree. Its newest seed is
+// 00076's, which re-seeded it when package_vulnerability gained Go symbol set
+// keying (ADR-050); 00063's text is now historical too.
 func TestSBOMVulnRollupSeedMatchesTheRefreshAggregate(t *testing.T) {
 	is := is.New(t)
 
 	aggregate, ok := repository.RollupAggregate("sbom_vuln_rollup")
 	is.True(ok) // sbom_vuln_rollup must be a refresh target, not just a table
 
-	raw, err := dbfs.Migrations.ReadFile("migrations/00063_sbom_vuln_rollup.sql")
+	raw, err := dbfs.Migrations.ReadFile("migrations/00076_go_symbols.sql")
 	is.NoErr(err)
 
 	const insertPrefix = "INSERT INTO sbom_vuln_rollup (sbom_id, namespace_id, critical, high, medium, low, unknown)"

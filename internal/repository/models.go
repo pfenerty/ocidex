@@ -99,6 +99,7 @@ type Component struct {
 	SourceVersion pgtype.Text `json:"source_version"`
 	SourcePurl    pgtype.Text `json:"source_purl"`
 	FilePath      pgtype.Text `json:"file_path"`
+	GoSymbolSetID pgtype.Int8 `json:"go_symbol_set_id"`
 }
 
 type ComponentHash struct {
@@ -173,6 +174,30 @@ type ExternalReference struct {
 	Comment     pgtype.Text `json:"comment"`
 }
 
+type GoPackage struct {
+	ID         int32  `json:"id"`
+	ImportPath string `json:"import_path"`
+}
+
+type GoSymbol struct {
+	ID        int32  `json:"id"`
+	PackageID int32  `json:"package_id"`
+	Name      string `json:"name"`
+}
+
+type GoSymbolSet struct {
+	ID          int64              `json:"id"`
+	Digest      []byte             `json:"digest"`
+	SymbolIds   []int32            `json:"symbol_ids"`
+	SymbolCount int32              `json:"symbol_count"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type GoSymbolSetMember struct {
+	SetID    int64       `json:"set_id"`
+	SymbolID interface{} `json:"symbol_id"`
+}
+
 type License struct {
 	ID     pgtype.UUID `json:"id"`
 	SpdxID pgtype.Text `json:"spdx_id"`
@@ -219,6 +244,8 @@ type PackageVulnerability struct {
 	VulnerabilityID string             `json:"vulnerability_id"`
 	FixedVersion    pgtype.Text        `json:"fixed_version"`
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	FixState        pgtype.Text        `json:"fix_state"`
+	GoSymbolSetID   int64              `json:"go_symbol_set_id"`
 }
 
 type ProvenanceDriftEvent struct {
@@ -240,11 +267,6 @@ type ProvenanceDriftPending struct {
 	PreviousData   []byte             `json:"previous_data"`
 	NewData        []byte             `json:"new_data"`
 	FirstSeenAt    pgtype.Timestamptz `json:"first_seen_at"`
-}
-
-type PurlVulnState struct {
-	Purl      string             `json:"purl"`
-	CheckedAt pgtype.Timestamptz `json:"checked_at"`
 }
 
 // OCI-specific discovery and trust config. Subtype of source: registry.id IS the source id. Ownership lives on namespace (ADR-039).
@@ -294,6 +316,12 @@ type Sbom struct {
 	VersionMajor pgtype.Int4 `json:"version_major"`
 	VersionMinor pgtype.Int4 `json:"version_minor"`
 	VersionPatch pgtype.Int4 `json:"version_patch"`
+}
+
+type SbomVulnMatch struct {
+	SbomID    pgtype.UUID        `json:"sbom_id"`
+	DbBuiltAt pgtype.Timestamptz `json:"db_built_at"`
+	MatchedAt pgtype.Timestamptz `json:"matched_at"`
 }
 
 // Per-severity finding counts per SBOM, deduplicated by canonical_id, scoped purl ∪ source_purl. Absence of a row means no findings OR never scanned — callers must not render it as a clean zero.
@@ -357,15 +385,10 @@ type UserIdentity struct {
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
-type VulnEcosystemState struct {
-	Ecosystem      string             `json:"ecosystem"`
-	LastModifiedAt pgtype.Timestamptz `json:"last_modified_at"`
-	CheckedAt      pgtype.Timestamptz `json:"checked_at"`
-}
-
 type VulnRefreshState struct {
 	ID              bool               `json:"id"`
 	LastRefreshedAt pgtype.Timestamptz `json:"last_refreshed_at"`
+	DbBuiltAt       pgtype.Timestamptz `json:"db_built_at"`
 }
 
 type VulnRollup struct {

@@ -163,9 +163,12 @@ kubelet probes.
 
 ### `vuln-worker` (`vulnWorker.enabled: true`, `replicas: 1`)
 
-Scheduled OSV.dev refresh of the package-keyed vulnerability store. Talks only
-to Postgres and OSV.dev — no NATS, no KEDA. A Postgres advisory lock makes >1
-replica safe, but 1 is sufficient.
+Matches stored SBOMs against the grype vulnerability database (ADR-049). Talks
+only to Postgres and the grype database listing — no NATS, no KEDA. A Postgres
+advisory lock elects one writer. The database (~3 GB) lives on a 10Gi
+ReadWriteOnce PVC (`vulnWorker.db.persistence`), so the Deployment uses the
+Recreate strategy and runs one replica. Use node-local storage (`local-path` in
+the homelab), not NFS, because the database is SQLite.
 
 | Variable | Source | Deployed value |
 |---|---|---|
@@ -175,9 +178,10 @@ replica safe, but 1 is sufficient.
 | `LOG_LEVEL` | `vulnWorker.env.logLevel` | `info` |
 | `VULN_REFRESH_ENABLED` | `vulnWorker.env.refreshEnabled` | `true` |
 | `VULN_REFRESH_INTERVAL` | `vulnWorker.env.refreshInterval` | `6h` |
-| `OSV_BASE_URL` | `vulnWorker.env.osvBaseURL` | `https://api.osv.dev` |
-| `OSV_TIMEOUT` | `vulnWorker.env.osvTimeout` | `30s` |
-| `OSV_BATCH_SIZE` | `vulnWorker.env.osvBatchSize` | `1000` |
+| `VULN_DB_DIR` | `vulnWorker.db.path` | `/var/lib/ocidex/grype-db` |
+| `VULN_DB_MAX_AGE` | `vulnWorker.db.maxAge` | `120h` |
+| `VULN_DB_UPDATE_URL` | `vulnWorker.db.updateURL` | unset (grype default) |
+| `TMPDIR` | `vulnWorker.db.path` | `/var/lib/ocidex/grype-db` |
 
 ### `ocidex-dev-migrate` Job (Helm hook, on every install and upgrade)
 

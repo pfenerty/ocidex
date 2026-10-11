@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseCvssVector, cvssVersion } from "./vuln";
+import { parseCvssVector, cvssVersion, noFixLabel } from "./vuln";
 
 describe("cvssVersion", () => {
     it("extracts v3 prefix", () => {
@@ -65,5 +65,17 @@ describe("parseCvssVector", () => {
     it("decodes v4 Active Interaction", () => {
         const result = parseCvssVector("CVSS:4.0/AV:L/AC:H/AT:N/PR:H/UI:A/VC:N/VI:N/VA:N/SC:N/SI:N/SA:N");
         expect(result?.metrics).toContainEqual({ label: "Active Interaction", variant: "" });
+    });
+});
+
+describe("noFixLabel", () => {
+    it("explains a missing fix from the fix state", () => {
+        expect(noFixLabel(undefined, "wont-fix")).toBe("won't fix");
+        expect(noFixLabel(undefined, "not-fixed")).toBe("no fix yet");
+    });
+    it("stays silent when a fixed version exists or nothing is known", () => {
+        expect(noFixLabel("1.2.3", "fixed")).toBeUndefined();
+        expect(noFixLabel(undefined, "unknown")).toBeUndefined();
+        expect(noFixLabel(undefined, undefined)).toBeUndefined();
     });
 });

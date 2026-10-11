@@ -7,8 +7,8 @@
 # syft needs to unpack image layers.
 #
 # The invariant is deliberately per-workload, not blanket "read-only root implies /tmp":
-# api, the four enricher workers, vuln-worker, migrate and nats all run read-only with no
-# writable /tmp and must stay that way. A blanket rule would force pointless emptyDirs
+# api, the four enricher workers, migrate and nats all run read-only with no writable
+# /tmp and must stay that way. vuln-worker writes only its grype database volume (ADR-049). A blanket rule would force pointless emptyDirs
 # onto them and would be deleted the first time it got in the way.
 #
 # Rules match the pod controllers directly rather than Pod + autogen, because the
@@ -73,6 +73,34 @@ spec:
               - key: "/tmp"
                 operator: AnyNotIn
                 value: "{{ request.object.spec.template.spec.containers[?name=='scanner-worker'].volumeMounts[].mountPath }}"
+
+    # Same deny + JMESPath shape as scanner-worker-writable-tmp. grype installs and swaps
+    # its database (and its download/import temp dirs) under VULN_DB_DIR; without a
+    # mount there the worker cannot match anything.
+    - name: vuln-worker-writable-db
+      match:
+        any:
+          - resources:
+              kinds:
+                - Deployment
+                - StatefulSet
+                - Job
+      preconditions:
+        all:
+          - key: "{{ request.object.spec.template.spec.containers[?name=='vuln-worker'] | length(@) }}"
+            operator: GreaterThan
+            value: 0
+      validate:
+        failureAction: Enforce
+        message: >-
+          vuln-worker installs the grype vulnerability database under /var/lib/ocidex/grype-db;
+          with a read-only root and no volume there it cannot match (ADR-049)
+        deny:
+          conditions:
+            all:
+              - key: "/var/lib/ocidex/grype-db"
+                operator: AnyNotIn
+                value: "{{ request.object.spec.template.spec.containers[?name=='vuln-worker'].volumeMounts[].mountPath }}"
 
     - name: web-writable-nginx-paths
       match:

@@ -2128,6 +2128,7 @@ export interface components {
             canonicalId: string;
             /** Format: float */
             cvssScore?: number;
+            fixState?: string;
             fixedVersion?: string;
             id: string;
             matchedViaSource: boolean;
@@ -3616,6 +3617,7 @@ export interface components {
             summary?: string;
         };
         SBOMVulnPackage: {
+            fixState?: string;
             fixedVersion?: string;
             group?: string;
             matchedViaSource: boolean;

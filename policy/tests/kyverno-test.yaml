@@ -22,9 +22,11 @@ results:
       - good-plain
       - good-scanner
       - good-web
+      - good-vuln
       - bad-readonly-root
       - bad-scanner
       - bad-web
+      - bad-vuln
     result: pass
   - policy: pod-security-restricted
     rule: autogen-restricted-profile
@@ -47,6 +49,8 @@ results:
       - good-plain
       - good-scanner
       - good-web
+      - good-vuln
+      - bad-vuln
     result: pass
   - policy: ocidex-writable-paths
     rule: read-only-root-filesystem
@@ -67,6 +71,19 @@ results:
     kind: Deployment
     resources:
       - bad-scanner
+    result: fail
+
+  - policy: ocidex-writable-paths
+    rule: vuln-worker-writable-db
+    kind: Deployment
+    resources:
+      - good-vuln
+    result: pass
+  - policy: ocidex-writable-paths
+    rule: vuln-worker-writable-db
+    kind: Deployment
+    resources:
+      - bad-vuln
     result: fail
 
   - policy: ocidex-writable-paths

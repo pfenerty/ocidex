@@ -403,7 +403,7 @@ SELECT
     )::bigint AS unknown_count
 FROM component c
 JOIN visible_sbom vs ON vs.id = c.sbom_id
-JOIN package_vulnerability pv ON pv.purl = c.purl
+JOIN package_vulnerability pv ON pv.purl = c.purl AND pv.go_symbol_set_id = COALESCE(c.go_symbol_set_id, 0)
 JOIN vulnerability v ON v.id = pv.vulnerability_id
 WHERE c.purl IS NOT NULL
 `

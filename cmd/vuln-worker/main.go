@@ -1,11 +1,13 @@
-// Command vuln-worker maintains the package-keyed vulnerability store. It runs a
-// scheduled refresh (guarded by a Postgres advisory lock so only one replica
-// refreshes at a time) that queries every distinct component purl against OSV.dev
-// and rebuilds the purl->vulnerability mappings. Per-SBOM vulnerability status is
-// derived by joining component.purl at read time, so a newly disclosed CVE filters
-// up to every affected SBOM without re-enriching it.
+// Command vuln-worker maintains the package-keyed vulnerability store by matching
+// stored SBOMs against the grype vulnerability database (ADR-049). The leader
+// (a Postgres advisory lock, so one replica writes at a time) checks for a newer
+// database every VULN_REFRESH_INTERVAL and re-matches every SBOM when the build
+// changes; between builds it matches newly ingested SBOMs within a minute.
+// Per-SBOM vulnerability status is derived by joining component.purl at read
+// time, so a newly disclosed CVE reaches every affected SBOM without re-ingesting.
 //
-// Pass --once to run a single refresh and exit (K8s Job / manual invocation).
+// Pass --once to run a single step (database check, then a full or incremental
+// match) and exit (K8s Job / manual invocation).
 package main
 
 import (
@@ -13,7 +15,6 @@ import (
 	"flag"
 	"hash/fnv"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -25,6 +26,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/health"
 	"github.com/pfenerty/ocidex/internal/service"
 	"github.com/pfenerty/ocidex/internal/vuln"
+	"github.com/pfenerty/ocidex/internal/vuln/grypematch"
 )
 
 func main() {
@@ -71,22 +73,16 @@ func run() error {
 	slog.Info("database connected")
 
 	store := vuln.NewPGStore(pool)
-	osvClient := vuln.NewClient(
-		vuln.WithBaseURL(cfg.OSVBaseURL),
-		vuln.WithHTTPClient(&http.Client{Timeout: cfg.OSVTimeout}),
-		vuln.WithBatchSize(cfg.OSVBatchSize),
-	)
-
-	var refreshOpts []vuln.RefreshOption
-	if cfg.IncrementalRefreshEnabled {
-		csvFetcher := vuln.NewModifiedCSVFetcher(cfg.OSVBucketBaseURL, &http.Client{Timeout: cfg.OSVTimeout})
-		refreshOpts = append(refreshOpts, vuln.WithCSVFetcher(csvFetcher))
-		slog.Info("vuln incremental refresh enabled", "bucket_base_url", cfg.OSVBucketBaseURL)
-	}
-	refresher := vuln.NewRefreshService(store, osvClient, slog.Default(), refreshOpts...)
+	db := grypematch.NewDB(grypematch.DBConfig{
+		RootDir:   cfg.VulnDBDir,
+		UpdateURL: cfg.VulnDBUpdateURL,
+		MaxAge:    cfg.VulnDBMaxAge,
+	}, slog.Default())
+	defer func() { _ = db.Close() }()
+	refresher := grypematch.NewRefresher(db, store, cfg.RefreshInterval, slog.Default())
 
 	if *once {
-		return refresher.Refresh(ctx)
+		return refresher.Step(ctx)
 	}
 
 	if !cfg.RefreshEnabled {
@@ -97,11 +93,10 @@ func run() error {
 	defer cancel()
 
 	if cfg.RefreshEnabled {
-		scheduler := vuln.NewScheduler(refresher, store, cfg.RefreshInterval, slog.Default())
 		h := fnv.New64a()
 		_, _ = h.Write([]byte("ocidex-vuln-refresh"))
 		lockKey := int64(h.Sum64()) //nolint:gosec // G115: advisory lock key
-		go service.LeaderElect(runCtx, pool, lockKey, scheduler.Run)
+		go service.LeaderElect(runCtx, pool, lockKey, refresher.Run)
 		slog.Info("vuln refresh election started", "lock_key", lockKey)
 	}
 
