@@ -10,6 +10,7 @@ metadata:
 policies:
   - ../pod-security-restricted.yaml
   - ../ocidex-writable-paths.yaml
+  - ../ocidex-image-refs.yaml
 resources:
   - resources/compliant.yaml
   - resources/violating.yaml
@@ -104,4 +105,18 @@ results:
     kind: CronJob
     resources:
       - bad-cron
+    result: fail
+  # --- Image references (ocidex-35rx) -----------------------------------------
+  - policy: ocidex-image-refs
+    rule: autogen-valid-image-ref
+    kind: Deployment
+    resources:
+      - good-plain
+      - good-digest
+    result: pass
+  - policy: ocidex-image-refs
+    rule: autogen-valid-image-ref
+    kind: Deployment
+    resources:
+      - bad-image-ref
     result: fail

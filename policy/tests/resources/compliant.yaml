@@ -133,3 +133,31 @@ spec:
           volumeMounts:
             - name: grype-db
               mountPath: /var/lib/ocidex/grype-db
+---
+# good-digest: a digest-pinned reference, the valid form of what ocidex-35rx tried to render.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: good-digest
+spec:
+  selector:
+    matchLabels:
+      app: good-digest
+  template:
+    metadata:
+      labels:
+        app: good-digest
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: example/app@sha256:e84c25c5d6ccc34fdea3167b52254ab1c7e0bcee7690492f9eddf3bbe29d7feb
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL

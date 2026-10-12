@@ -17,7 +17,7 @@ OUT=${1:-${TMPDIR:-/tmp}/ocidex-helm-policy-check}
 APP_CHART=charts/ocidex
 OPERATOR_CHART=charts/ocidex-operator
 AGENT_CHART=charts/ocidex-k8s-agent
-POLICIES="policy/pod-security-restricted.yaml policy/ocidex-writable-paths.yaml"
+POLICIES="policy/pod-security-restricted.yaml policy/ocidex-writable-paths.yaml policy/ocidex-image-refs.yaml"
 
 command -v helm >/dev/null 2>&1 || {
     echo "ERROR: helm not on PATH (locally: run inside 'flox activate')"
