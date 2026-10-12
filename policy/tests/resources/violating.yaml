@@ -174,3 +174,31 @@ spec:
           volumeMounts:
             - name: grype-db
               mountPath: /data
+---
+# bad-image-ref: a digest written into the tag field — the operator outage in ocidex-35rx.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bad-image-ref
+spec:
+  selector:
+    matchLabels:
+      app: bad-image-ref
+  template:
+    metadata:
+      labels:
+        app: bad-image-ref
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: example/app:@sha256:e84c25c5d6ccc34fdea3167b52254ab1c7e0bcee7690492f9eddf3bbe29d7feb
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL

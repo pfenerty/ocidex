@@ -1,0 +1,28 @@
+# Every rendered container image must be a parseable reference.
+#
+# ocidex-35rx: Renovate digest-pinned the operator's own image into image.tag
+# ("@sha256:..."), which the template rendered as "repo:@sha256:..." — helm lint and
+# template accept it, and the kubelet rejects it with InvalidImageName. An empty tag
+# ("repo:") is the same mistake from the other direction.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: ocidex-image-refs
+spec:
+  background: false
+  rules:
+    - name: valid-image-ref
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        failureAction: Enforce
+        message: "image must be repo:tag or repo@sha256:digest, not repo:@digest or repo:"
+        pattern:
+          spec:
+            containers:
+              - image: "!*:@* & !*:"
+            =(initContainers):
+              - image: "!*:@* & !*:"

@@ -24,6 +24,12 @@
       "pinDigests": true
     },
     {
+      "description": "Never pin or bump the images this repo builds itself: the charts take their tag from Chart.appVersion at package time. Pinning wrote the operator digest into image.tag as \"@sha256:...\", which rendered an unparseable reference (ocidex-35rx).",
+      "matchManagers": ["helm-values"],
+      "matchPackageNames": ["ghcr.io/pfenerty/ocidex-*"],
+      "enabled": false
+    },
+    {
       "description": "Chainguard publishes only :latest on the free tier, so the digest IS the version — and a new digest is usually the CVE fix we picked this image for. Skip the global 3-day hold.",
       "matchPackageNames": ["cgr.dev/chainguard/nginx"],
       "minimumReleaseAge": "0"
