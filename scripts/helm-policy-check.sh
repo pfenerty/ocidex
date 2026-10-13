@@ -49,7 +49,11 @@ helm template ocidex "$APP_CHART" >"$OUT/app-defaults.yaml"
 helm template ocidex "$APP_CHART" \
     --set keda.enabled=true \
     --set monitoring.enabled=true \
-    --set cilium.enabled=true \
+    --set networkPolicy.enabled=true \
+    --set-json 'networkPolicy.egress.database=[{"podSelector":{"matchLabels":{"cnpg.io/cluster":"ocidex-pg"}}}]' \
+    --set-json 'networkPolicy.ingress.from=[{"namespaceSelector":{"matchLabels":{"kubernetes.io/metadata.name":"gateway-system"}}}]' \
+    --set-json 'networkPolicy.ingress.apiFrom=[{"namespaceSelector":{"matchLabels":{"kubernetes.io/metadata.name":"ocidex-operator"}}}]' \
+    --set-json 'networkPolicy.ingress.metricsFrom=[{"namespaceSelector":{"matchLabels":{"kubernetes.io/metadata.name":"monitoring"}}}]' \
     --set gatewayApi.enabled=true \
     --set gatewayApi.gatewayName=gateway \
     --set gatewayApi.gatewayNamespace=gateway-system \
@@ -62,6 +66,11 @@ helm template ocidex "$APP_CHART" \
     --set nats.storage.emptyDir=true \
     >"$OUT/app-minimal.yaml"
 helm template ocidex-operator "$OPERATOR_CHART" >"$OUT/operator-defaults.yaml"
+helm template ocidex-operator "$OPERATOR_CHART" \
+    --set networkPolicy.enabled=true \
+    --set-json 'networkPolicy.egress.server=[{"namespaceSelector":{"matchLabels":{"kubernetes.io/metadata.name":"ocidex"}}}]' \
+    --set-json 'networkPolicy.ingress.metricsFrom=[{"namespaceSelector":{"matchLabels":{"kubernetes.io/metadata.name":"monitoring"}}}]' \
+    >"$OUT/operator-network-policy.yaml"
 # The agent chart installs into a cluster nobody has configured yet as often as not, so the
 # defaults render is the one that matters; the second render exercises the namespace
 # allowlist, which is the only value that changes the rendered pod.
@@ -70,6 +79,9 @@ helm template ocidex-k8s-agent "$AGENT_CHART" \
     --set server.url=https://ocidex.example.com \
     --set cluster.id=00000000-0000-0000-0000-000000000000 \
     --set 'namespaces={default,kube-system}' \
+    --set networkPolicy.enabled=true \
+    --set-json 'networkPolicy.egress.server=[{"ipBlock":{"cidr":"203.0.113.10/32"}}]' \
+    --set-json 'networkPolicy.egress.apiServer=[{"ipBlock":{"cidr":"192.0.2.1/32"}}]' \
     >"$OUT/k8s-agent-configured.yaml"
 
 echo "==> kyverno apply (rendered manifests must satisfy every policy)"

@@ -321,7 +321,55 @@ gatewayApi:
   webHostname: ""
   tlsSecretName: ""
 
-# --- Cilium network policies (optional) --------------------------------------
-# Requires Cilium CNI with network policy enforcement enabled.
-cilium:
+# --- Network policies (optional) ---------------------------------------------
+# Plain networking.k8s.io/v1 NetworkPolicy, so any enforcing CNI works. When enabled,
+# every pod in the release is default-deny in both directions and gets only:
+#   - traffic to and from the release's own pods, and DNS;
+#   - api, scanner-worker, enrichers, vuln-worker and migrate: Postgres (egress.database);
+#   - api, scanner-worker, enrichers and vuln-worker: the internet, minus egress.internet.except.
+#     The scanner and enrichers dial registry hosts users supply, so this is the
+#     network-level backstop for SSRF;
+#   - api and web: ingress from ingress.from on 8080; api also from ingress.apiFrom.
+# web, nats and migrate get no internet. Peers are NetworkPolicyPeer objects
+# (podSelector / namespaceSelector / ipBlock).
+networkPolicy:
   enabled: false
+  ingress:
+    # Reaches api and web: the Gateway / Ingress controller's pods.
+    # e.g. [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: gateway-system}}}]
+    from: []
+    # Reaches api only: in-cluster API clients such as ocidex-operator and ocidex-k8s-agent.
+    apiFrom: []
+    # Scrapes the workers' health/metrics port (9090) and NATS monitoring (8222): Prometheus,
+    # and KEDA's operator when keda.enabled (its nats-jetstream scaler polls 8222).
+    metricsFrom: []
+  egress:
+    # Where DNS lives. The default matches kube-dns/CoreDNS in kube-system.
+    dns:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: kube-system
+        podSelector:
+          matchLabels:
+            k8s-app: kube-dns
+    # Postgres. Required when enabled. e.g. a CloudNativePG cluster in the release namespace:
+    # [{podSelector: {matchLabels: {cnpg.io/cluster: ocidex-pg}}}]
+    database: []
+    databasePort: 5432
+    internet:
+      enabled: true
+      # Carved out of 0.0.0.0/0 and ::/0. Must cover the cluster's pod and service CIDRs
+      # on CNIs where ipBlock matches in-cluster IPs; the defaults cover the usual private
+      # ranges, CGNAT (tailnets) and link-local (cloud metadata).
+      except:
+        - 10.0.0.0/8
+        - 100.64.0.0/10
+        - 169.254.0.0/16
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+        - fc00::/7
+        - fe80::/10
+  # Appended to the release-wide policy as-is: NetworkPolicyIngressRule /
+  # NetworkPolicyEgressRule lists (e.g. an in-cluster registry or OIDC provider).
+  extraIngress: []
+  extraEgress: []

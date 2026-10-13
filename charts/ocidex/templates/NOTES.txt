@@ -43,8 +43,8 @@ See docs/CONFIGURATION.md for the full list of supported fields.
     - rebuild the frontend with VITE_API_URL=<api-origin> and set
       api.env.corsAllowedOrigins to the frontend's origin.
 {{- end }}
-{{- if .Values.cilium.enabled }}
-  Cilium: CiliumNetworkPolicy created.
+{{- if .Values.networkPolicy.enabled }}
+  NetworkPolicy: default-deny with per-component allows created.
 {{- end }}
 {{- $natsUID := (default dict .Values.nats.podSecurityContext).runAsUser }}
 {{- if and (not .Values.nats.storage.emptyDir) $natsUID }}

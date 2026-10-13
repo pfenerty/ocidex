@@ -78,3 +78,35 @@ securityContext:
   capabilities:
     drop: ["ALL"]
   readOnlyRootFilesystem: true
+
+# --- Network policy (optional) -----------------------------------------------
+# Plain networking.k8s.io/v1 NetworkPolicy. When enabled the pod is default-deny in both
+# directions and gets only DNS, the OCIDex API (egress.server), the Kubernetes API server
+# (egress.apiServer), and ingress from ingress.metricsFrom on the operator's metrics port (8080).
+# Peers are NetworkPolicyPeer objects (podSelector / namespaceSelector / ipBlock).
+#
+# The Kubernetes API server has no portable selector. On most CNIs list its endpoints as
+# ipBlocks (`kubectl get endpoints kubernetes`). Cilium does not match the API server by
+# ipBlock: leave apiServer empty and add a CiliumNetworkPolicy with
+# `toEntities: [kube-apiserver]` next to the release.
+networkPolicy:
+  enabled: false
+  ingress:
+    # Prometheus, if anything scrapes the pod.
+    metricsFrom: []
+  egress:
+    # Where DNS lives. The default matches kube-dns/CoreDNS in kube-system.
+    dns:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: kube-system
+        podSelector:
+          matchLabels:
+            k8s-app: kube-dns
+    # The OCIDex API (server.url). Required when enabled. It is an in-cluster API: its namespace or pods, e.g.
+    # [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ocidex}}}].
+    server: []
+    apiServer: []
+  # Appended as-is: NetworkPolicyIngressRule / NetworkPolicyEgressRule lists.
+  extraIngress: []
+  extraEgress: []

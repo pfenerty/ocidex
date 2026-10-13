@@ -1,37 +1,184 @@
-{{- if .Values.cilium.enabled }}
+{{- if .Values.networkPolicy.enabled }}
+{{- $np := .Values.networkPolicy }}
+{{- if not $np.egress.database }}
+{{- fail "networkPolicy.egress.database is required when networkPolicy.enabled: without it nothing can reach Postgres" }}
+{{- end }}
+{{- $fullname := include "ocidex.fullname" . }}
+{{- $release := dict "app.kubernetes.io/name" (include "ocidex.name" .) "app.kubernetes.io/instance" .Release.Name }}
 ---
-# Allow api → nats
-apiVersion: cilium.io/v2
-kind: CiliumNetworkPolicy
+# Every pod in the release: default-deny both ways, then the release's own pods and DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
 metadata:
-  name: {{ include "ocidex.fullname" . }}-allow-app-to-nats
+  name: {{ $fullname }}-baseline
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "ocidex.labels" . | nindent 4 }}
 spec:
-  endpointSelector:
+  podSelector:
     matchLabels:
-      app.kubernetes.io/component: nats
+      {{- toYaml $release | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
   ingress:
-    - fromEndpoints:
-        - matchLabels:
-            app.kubernetes.io/name: {{ include "ocidex.name" . }}
-      toPorts:
-        - ports:
-            - port: "4222"
-              protocol: TCP
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- toYaml $release | nindent 14 }}
+    {{- with $np.extraIngress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- toYaml $release | nindent 14 }}
+    - to:
+        {{- toYaml $np.egress.dns | nindent 8 }}
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    {{- with $np.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 ---
-# Deny all other ingress to NATS
-apiVersion: cilium.io/v2
-kind: CiliumNetworkPolicy
+# Everything that holds a database connection: all but web and nats.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
 metadata:
-  name: {{ include "ocidex.fullname" . }}-deny-nats-external
+  name: {{ $fullname }}-database
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "ocidex.labels" . | nindent 4 }}
 spec:
-  endpointSelector:
+  podSelector:
     matchLabels:
-      app.kubernetes.io/component: nats
-  ingress: []
+      {{- toYaml $release | nindent 6 }}
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: NotIn
+        values: [web, nats]
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        {{- toYaml $np.egress.database | nindent 8 }}
+      ports:
+        - port: {{ $np.egress.databasePort }}
+          protocol: TCP
+{{- if $np.egress.internet.enabled }}
+{{- $v4 := list }}
+{{- $v6 := list }}
+{{- range $np.egress.internet.except }}
+{{- if contains ":" . }}{{ $v6 = append $v6 . }}{{ else }}{{ $v4 = append $v4 . }}{{ end }}
+{{- end }}
+---
+# The api and the workers dial registries, git hosts, OAuth/OIDC providers and vuln
+# feeds, several of them at user-supplied addresses: the internet, not the cluster or LAN.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-internet
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ocidex.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $release | nindent 6 }}
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: NotIn
+        values: [web, nats, migrate]
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            {{- with $v4 }}
+            except:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+        - ipBlock:
+            cidr: ::/0
+            {{- with $v6 }}
+            except:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+{{- end }}
+{{- if or $np.ingress.from $np.ingress.apiFrom }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-api-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ocidex.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $release | nindent 6 }}
+      app.kubernetes.io/component: api
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- toYaml (concat $np.ingress.from $np.ingress.apiFrom) | nindent 8 }}
+      ports:
+        - port: 8080
+          protocol: TCP
+{{- end }}
+{{- with $np.ingress.from }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-web-ingress
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "ocidex.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $release | nindent 6 }}
+      app.kubernetes.io/component: web
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- toYaml . | nindent 8 }}
+      ports:
+        - port: 8080
+          protocol: TCP
+{{- end }}
+{{- with $np.ingress.metricsFrom }}
+---
+# Workers' health/metrics port and NATS monitoring (PodMonitors, KEDA).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-metrics
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "ocidex.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml $release | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- toYaml . | nindent 8 }}
+      ports:
+        - port: 9090
+          protocol: TCP
+        - port: 8222
+          protocol: TCP
+{{- end }}
 {{- end }}
