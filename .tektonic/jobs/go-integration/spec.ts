@@ -41,10 +41,10 @@ export const goIntegration = new Task({
     {
       name: "postgres",
       // Same image the testcontainers path uses, so schema behaviour is identical.
-      image: "postgres:15-alpine",
+      image: "postgres:18-alpine",
       // Explicit because Tekton does not apply stepTemplate to sidecars, so the
       // project's defaultImagePullPolicy stops at the steps. Docker Hub republishes
-      // 15-alpine on every patch build.
+      // 18-alpine on every patch build.
       imagePullPolicy: "Always",
       // The project-wide runAsUser: 1024 has no /etc/passwd entry, so initdb dies in
       // getpwuid ("could not look up effective user ID"). As root the image's own

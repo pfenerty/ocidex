@@ -136,7 +136,7 @@ func newContainerTestDB(t *testing.T) (string, func()) {
 	ctx := t.Context()
 
 	pgContainer, err := postgres.Run(ctx,
-		"postgres:15-alpine",
+		"postgres:18-alpine",
 		postgres.WithDatabase("ocidex_test"),
 		postgres.WithUsername("test"),
 		postgres.WithPassword("test"),
