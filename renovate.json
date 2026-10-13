@@ -1,21 +1,36 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
+  "description": "Weekly batch: branches are created/updated only Monday before 06:00 LA time, which the renovate-ocidex CronJob in homelab (every 4h, America/Los_Angeles) hits at 00:00 and 04:00. Vulnerability alerts ignore the schedule. Every automerge is a push to main and a full push pipeline, so batching weekly keeps that to a few runs a week.",
+  "timezone": "America/Los_Angeles",
+  "schedule": ["* 0-5 * * 1"],
+  "rebaseWhen": "conflicted",
   "semanticCommits": "enabled",
   "postUpdateOptions": ["gomodTidy", "npmDedupe"],
   "minimumReleaseAge": "3 days",
+  "minimumReleaseAgeBehaviour": "timestamp-optional",
   "prHourlyLimit": 10,
   "prCreation": "immediate",
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/examples/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/__fixtures__/**",
+    ".tekton/**"
+  ],
   "osvVulnerabilityAlerts": true,
   "vulnerabilityAlerts": {
-    "automerge": false,
     "labels": ["security", "renovate"]
   },
   "labels": ["renovate"],
   "packageRules": [
     {
-      "description": "Automerge minor, patch and digest updates across all managers. Group rules below set groupName only — no automerge, so this rule remains the single source of truth for automerge.",
-      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "description": "Automerge minor, patch, digest and pin updates across all managers. vulnerabilityAlerts sets no automerge, so non-major security fixes inherit this too. Group rules below set groupName only — no automerge, so this rule remains the single source of truth for automerge. rebaseWhen 'conflicted' (top level) lets a green PR merge without first being rebased onto every new main commit, which would re-run the PR pipeline and push the merge to the next Renovate run.",
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest"],
       "automerge": true
     },
     {
@@ -40,10 +55,10 @@
       "groupName": "Go dependencies"
     },
     {
-      "description": "Group .tektonic/ npm updates; keeps CI pipeline deps separate from the web app",
+      "description": "Group all .tektonic/ npm updates (@tektonic-ci/*, tsx, typescript, @types/node) into one branch, so the re-synth below runs once instead of on two competing branches. Majors land on their own major- branch and are not automerged.",
       "matchManagers": ["npm"],
       "matchFileNames": [".tektonic/package.json"],
-      "groupName": "tektonic pipeline dependencies"
+      "groupName": "tektonic"
     },
     {
       "description": "Group web/ npm updates separately from .tektonic/",
@@ -52,21 +67,12 @@
       "groupName": "web dependencies"
     },
     {
-      "description": "Track @tektonic-ci/core minor/patch — automerge after re-synth",
-      "matchPackageNames": ["@tektonic-ci/core", "@tektonic-ci/reporter-github"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "tektonic",
-      "automerge": true
+      "description": "Group every container image — Dockerfiles, docker-compose, chart values and the .tektonic/ image tags from the customManager below — into one branch. Chainguard nginx was otherwise its own PR every day.",
+      "matchDatasources": ["docker"],
+      "groupName": "container images"
     },
     {
-      "description": "@tektonic-ci/core major — hold for manual review and re-synth",
-      "matchPackageNames": ["@tektonic-ci/core", "@tektonic-ci/reporter-github"],
-      "matchUpdateTypes": ["major"],
-      "groupName": "tektonic (major)",
-      "automerge": false
-    },
-    {
-      "description": "Re-synthesize .tekton/ on any branch that touches .tektonic/ — a @tektonic-ci/* bump, a tsx/typescript bump, or an image pin from the customManager below. Without this the PR carries the new source but the old manifests, tekton-check fails it, and the tektonic automerge above never fires. Needs RENOVATE_ALLOWED_COMMANDS on the renovate-ocidex cronjob in homelab, or Renovate skips the commands. installTools because a regex-only (image) branch never installs node on its own. executionMode 'branch' runs the synth once over the final set of updates.",
+      "description": "Re-synthesize .tekton/ on any branch that touches .tektonic/ — a @tektonic-ci/* bump, a tsx/typescript bump, or an image bump from the customManager below. .tekton/ itself is in ignorePaths, so this synth is the only thing that writes it. Without this the PR carries the new source but the old manifests, tekton-check fails it, and automerge never fires. Needs RENOVATE_ALLOWED_COMMANDS on the renovate-ocidex cronjob in homelab, or Renovate skips the commands. installTools because a regex-only (image) branch never installs node on its own. executionMode 'branch' runs the synth once over the final set of updates.",
       "matchFileNames": [".tektonic/**"],
       "postUpgradeTasks": {
         "installTools": { "node": {} },
@@ -77,15 +83,16 @@
       }
     },
     {
-      "description": "Hold typescript at <7: typescript-eslint (^8) peer-depends on typescript \">=4.8.4 <6.1.0\", so TypeScript 7 fails npm install (ERESOLVE) and leaves the major-update PR perpetually red. This rule must also cover the eslint scope if that combination ever regresses — matchPackageNames matches the exact name, so a hold on \"eslint\" does not hold \"@eslint/js\". Lift once typescript-eslint peer-supports TypeScript 7.",
+      "description": "Hold web/ typescript at <7 (.tektonic/ is already on 7 and must keep getting updates): typescript-eslint (^8) peer-depends on typescript \">=4.8.4 <6.1.0\", so TypeScript 7 fails npm install (ERESOLVE) and leaves the major-update PR perpetually red. This rule must also cover the eslint scope if that combination ever regresses — matchPackageNames matches the exact name, so a hold on \"eslint\" does not hold \"@eslint/js\". Lift once typescript-eslint peer-supports TypeScript 7.",
       "matchPackageNames": ["typescript"],
+      "matchFileNames": ["web/package.json"],
       "allowedVersions": "<7"
     }
   ],
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Bump base/tool image tags in the tektonic TypeScript source (.tektonic/**/*.ts) in lockstep with the generated .tekton/ YAML, so re-synthesis never reverts a Renovate bump.",
+      "description": "Bump base/tool image tags in the tektonic TypeScript source (.tektonic/**/*.ts); the postUpgradeTasks re-synth carries the bump into the generated .tekton/ YAML.",
       "managerFilePatterns": ["/\\.tektonic/.*\\.ts$/"],
       "matchStrings": [
         "image:\\s*\"(?<depName>[^\":]+):(?<currentValue>[^\"]+)\"",
