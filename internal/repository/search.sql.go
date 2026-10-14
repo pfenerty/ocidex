@@ -25,7 +25,7 @@ SELECT COUNT(*) AS total,
        COUNT(DISTINCT s.artifact_id) AS artifact_count
 FROM matched m
 JOIN sbom s ON s.id = m.sbom_id
-WHERE sbom_visible(s.namespace_id, $1::uuid, $2::boolean)
+WHERE s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
 `
 
 type CountComponentVersionsParams struct {
@@ -63,7 +63,8 @@ type CountComponentVersionsRow struct {
 // filters are identical, so the only added cost is the DISTINCT aggregation.
 //
 // The CTE is MATERIALIZED to pin the join order (ocidex-7gf7.6). Written as a
-// plain two-table join this query timed out: sbom_visible() is opaque to the
+// plain two-table join this query timed out: sbom_visible(), which this used
+// per row before ocidex-kf1p.6, is opaque to the
 // planner, so it underestimated the sbom side, drove a nested loop from a seq
 // scan of all 14,208 visible SBOMs, and probed the component index once per row
 // -- 17.2s against name='stdlib', under a 30s HTTP ceiling. The component-side
@@ -180,7 +181,7 @@ WHERE c.name = $1
   AND ($2::text IS NULL OR c.group_name = $2)
   AND ($3::text IS NULL OR c.version = $3)
   AND ($4::text IS NULL OR c.type = $4)
-  AND sbom_visible(s.namespace_id, $5::uuid, $6::boolean)
+  AND s.namespace_id IN (SELECT visible_namespace_ids($5::uuid, $6::boolean))
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST,
@@ -615,7 +616,7 @@ WITH ranked AS (
     WHERE cl.license_id = $3
       AND EXISTS (
         SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-          AND sbom_visible(s.namespace_id, $4::uuid, $5::boolean)
+          AND s.namespace_id IN (SELECT visible_namespace_ids($4::uuid, $5::boolean))
       )
 )
 SELECT id, sbom_id, type, name, group_name, version, purl,
@@ -1178,7 +1179,7 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subjec
 FROM sbom s
 WHERE ($1::text IS NULL OR s.serial_number = $1)
   AND ($2::text IS NULL OR s.digest = $2)
-  AND sbom_visible(s.namespace_id, $3::uuid, $4::boolean)
+  AND s.namespace_id IN (SELECT visible_namespace_ids($3::uuid, $4::boolean))
   AND (
     NOT $5::boolean
     OR (s.created_at, s.id) < ($6::timestamptz, $7::uuid)
@@ -1254,7 +1255,7 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subjec
        COUNT(*) OVER() AS total_count
 FROM sbom s
 WHERE s.digest = $1
-  AND sbom_visible(s.namespace_id, $2::uuid, $3::boolean)
+  AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
 ORDER BY s.created_at DESC, s.id DESC
 LIMIT $5 OFFSET $4
 `
@@ -1325,7 +1326,7 @@ WHERE ($1::text IS NULL OR c.name = $1)
   AND ($4::text IS NULL OR c.version = $4)
   AND EXISTS (
     SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-      AND sbom_visible(s.namespace_id, $5::uuid, $6::boolean)
+      AND s.namespace_id IN (SELECT visible_namespace_ids($5::uuid, $6::boolean))
   )
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
@@ -1485,7 +1486,7 @@ type SearchDistinctComponentsRow struct {
 // Reads component_rollup rather than the component table: aggregating 10.9M raw
 // rows per request took ~53s against a 30s HTTP timeout (ocidex-ckv.2).
 //
-// The rollup is per-namespace, so a row set restricted by sbom_visible() must be
+// The rollup is per-namespace, so a row set restricted by visibility must be
 // re-aggregated here. version_count and purl_types use COUNT/string_agg
 // DISTINCT and so are immune to the row multiplication the two unnests cause.
 // SUM is not, hence the ordinality filter: it charges each rollup row's

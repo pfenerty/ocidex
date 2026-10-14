@@ -220,7 +220,7 @@ LIMIT 50;
 SELECT COUNT(*)
 FROM sbom s
 WHERE s.artifact_id = $1
-  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
+  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean));
 
 -- name: CountSufficientSBOMsByArtifact :one
 -- Counts visible SBOMs for an artifact whose enrichment is sufficient. Kept
@@ -231,7 +231,7 @@ SELECT COUNT(*)
 FROM sbom s
 WHERE s.artifact_id = $1
   AND s.enrichment_sufficient
-  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
+  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean));
 
 -- name: GetArtifactNamespaceID :one
 -- Any one namespace holding the artifact. An artifact can hang from several
@@ -277,7 +277,7 @@ WHERE s.artifact_id = $1
   AND (sqlc.narg('subject_version')::text IS NULL OR s.subject_version = sqlc.narg('subject_version'))
   AND (sqlc.narg('image_version')::text IS NULL
        OR COALESCE(e.data->>'imageVersion', u.data->>'imageVersion') = sqlc.narg('image_version'))
-  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
   AND (
     NOT sqlc.narg('has_cursor')::boolean
     OR (s.created_at, s.id) < (sqlc.narg('cursor_created_at')::timestamptz, sqlc.narg('cursor_id')::uuid)
@@ -297,7 +297,7 @@ SELECT s.id, s.subject_version, s.created_at, s.flavor
 FROM sbom s
 WHERE s.artifact_id = $1
   AND (sqlc.narg('subject_version')::text IS NULL OR s.subject_version = sqlc.narg('subject_version'))
-  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
 ORDER BY s.created_at DESC, s.id DESC
 LIMIT @row_limit;
 
@@ -321,7 +321,7 @@ WITH sboms_meta AS (
     LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user'         AND u.status = 'success'
     LEFT JOIN enrichment p ON p.sbom_id = s.id AND p.enricher_name = 'provenance'   AND p.status = 'success'
     WHERE s.artifact_id = $1
-      AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+      AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
 ),
 newest_per_version AS (
     SELECT DISTINCT ON (version_key)
@@ -387,4 +387,4 @@ FROM sbom s
 LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
 LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user'         AND u.status = 'success'
 WHERE s.artifact_id = $1
-  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
+  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean));

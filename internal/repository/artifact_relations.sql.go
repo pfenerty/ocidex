@@ -16,7 +16,7 @@ const getArtifactCurrentVersion = `-- name: GetArtifactCurrentVersion :one
 SELECT s.subject_version
 FROM sbom s
 WHERE s.artifact_id = $1
-  AND sbom_visible(s.namespace_id, $2::uuid, $3::boolean)
+  AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
 ORDER BY s.created_at DESC, s.id DESC
 LIMIT 1
 `
@@ -69,7 +69,7 @@ WITH subject_latest AS (
     SELECT s.id
     FROM sbom s
     WHERE s.artifact_id = $3
-      AND sbom_visible(s.namespace_id, $1::uuid, $2::boolean)
+      AND s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
     ORDER BY s.created_at DESC, s.id DESC
     LIMIT 1
 )
@@ -106,7 +106,7 @@ LEFT JOIN LATERAL (
     SELECT s2.id, s2.subject_version, s2.digest, s2.flavor
     FROM sbom s2
     WHERE s2.artifact_id = a.id
-      AND sbom_visible(s2.namespace_id, $1::uuid, $2::boolean)
+      AND s2.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
     ORDER BY s2.created_at DESC, s2.id DESC
     LIMIT 1
 ) ls ON true
@@ -228,11 +228,11 @@ WHERE (
          AND split_part(split_part(c.purl, '?', 1), '@', 1) = ANY($5::text[]))
       )
   AND s.artifact_id <> $6
-  AND sbom_visible(s.namespace_id, $7::uuid, $8::boolean)
+  AND s.namespace_id IN (SELECT visible_namespace_ids($7::uuid, $8::boolean))
   AND s.id = (
       SELECT s2.id FROM sbom s2
       WHERE s2.artifact_id = s.artifact_id
-        AND sbom_visible(s2.namespace_id, $7::uuid, $8::boolean)
+        AND s2.namespace_id IN (SELECT visible_namespace_ids($7::uuid, $8::boolean))
       ORDER BY s2.created_at DESC, s2.id DESC
       LIMIT 1
   )
