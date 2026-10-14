@@ -243,6 +243,34 @@ nginx runs as UID 65532 and listens on **8080**; the Service maps 80 → 8080.
 Under `docker-compose`, which has no L7 router, `web/nginx.compose.conf` is
 bind-mounted into `/etc/nginx/ocidex.d/` to reinstate the four proxy rules.
 
+### Network policy (`networkPolicy.enabled`, all three charts)
+
+Each chart ships plain `networking.k8s.io/v1` NetworkPolicies, off by default. The chart owns
+its own topology (which component talks to which, on what port); the installer supplies the
+peers only it knows, as `NetworkPolicyPeer` lists.
+
+| Chart | Value | What it is |
+|---|---|---|
+| `ocidex` | `networkPolicy.egress.database` | Postgres (**required**). Homelab: `podSelector: {cnpg.io/cluster: ocidex-pg}` |
+| `ocidex` | `networkPolicy.ingress.from` | The Gateway/Ingress pods that reach `api` and `web` on 8080 |
+| `ocidex` | `networkPolicy.ingress.apiFrom` | In-cluster API clients (operator, k8s-agent) — `api` only |
+| `ocidex` | `networkPolicy.ingress.metricsFrom` | Prometheus and KEDA: workers' 9090, NATS 8222 |
+| `ocidex` | `networkPolicy.egress.internet.except` | Carved out of `0.0.0.0/0` and `::/0`; defaults cover RFC1918, CGNAT, link-local |
+| operator, agent | `networkPolicy.egress.server` | The OCIDex API (**required**): a namespace in-cluster, an ipBlock outside |
+| operator, agent | `networkPolicy.egress.apiServer` | The Kubernetes API server's endpoints as ipBlocks |
+
+With the policy on, every `ocidex` pod is default-deny both ways and may reach the release's
+own pods and DNS. `api`, `scanner-worker`, the enrichers, `vuln-worker` and `migrate` may
+reach Postgres. `api`, `scanner-worker`, the enrichers and `vuln-worker` may reach the internet
+minus `except`. Several of those dial registry hosts users supply, so that carve-out is the
+network-level backstop to the SSRF checks in code. `web` and `nats` reach nothing outside the
+release. An in-cluster registry or OIDC provider goes in `networkPolicy.extraEgress`.
+
+On Cilium, an ipBlock never matches the Kubernetes API server. Leave
+`egress.apiServer` empty and add a `CiliumNetworkPolicy` with
+`toEntities: [kube-apiserver]` beside the operator and agent releases. Cilium enforces it
+alongside the chart's NetworkPolicy.
+
 ---
 
 ## Secret material

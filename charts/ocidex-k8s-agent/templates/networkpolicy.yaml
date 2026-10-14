@@ -1,0 +1,53 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $np := .Values.networkPolicy }}
+{{- if not $np.egress.server }}
+{{- fail "networkPolicy.egress.server is required when networkPolicy.enabled: without it nothing can reach the OCIDex API" }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ocidex-k8s-agent.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ocidex-k8s-agent.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "ocidex-k8s-agent.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes:
+    - Ingress
+    - Egress
+  {{- if not (or $np.ingress.metricsFrom $np.extraIngress) }}
+  ingress: []
+  {{- else }}
+  ingress:
+    {{- with $np.ingress.metricsFrom }}
+    - from:
+        {{- toYaml . | nindent 8 }}
+      ports:
+        - port: 9090
+          protocol: TCP
+    {{- end }}
+    {{- with $np.extraIngress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+  egress:
+    - to:
+        {{- toYaml $np.egress.dns | nindent 8 }}
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        {{- toYaml $np.egress.server | nindent 8 }}
+    {{- with $np.egress.apiServer }}
+    - to:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with $np.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}
