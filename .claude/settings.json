@@ -15,8 +15,9 @@
       {
         "hooks": [
           {
-            "command": "bd prime",
-            "type": "command"
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/beads-session-start.sh",
+            "type": "command",
+            "statusMessage": "Syncing beads\u2026"
           }
         ],
         "matcher": ""

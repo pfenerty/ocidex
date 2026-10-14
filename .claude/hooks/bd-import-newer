@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+"""Import rows from .beads/issues.jsonl that are newer than the local beads DB.
+
+`bd import` upserts blindly: an older JSONL silently reverts newer local
+changes. This imports only issues that are missing locally or whose
+updated_at is newer in the file, plus memories whose key is missing locally.
+
+Usage: bd-import-newer [--force] [repo-dir]
+  --force   skip the "file unchanged since last import" stamp check
+
+Called from git hooks (post-merge, post-rewrite, post-checkout) through
+git-hook-dispatch. It exits 0 when bd or .beads/issues.jsonl is missing.
+"""
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+from datetime import datetime
+
+
+def ts(value):
+    if not value:
+        return datetime.min
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+
+
+def rows(text):
+    for line in text.splitlines():
+        line = line.strip()
+        if line:
+            yield json.loads(line)
+
+
+def main(argv):
+    force = "--force" in argv
+    args = [a for a in argv if a != "--force"]
+    root = args[0] if args else os.getcwd()
+    try:
+        root = subprocess.run(["git", "-C", root, "rev-parse", "--show-toplevel"],
+                              check=True, capture_output=True, text=True).stdout.strip()
+        git_dir = subprocess.run(["git", "-C", root, "rev-parse", "--absolute-git-dir"],
+                                 check=True, capture_output=True, text=True).stdout.strip()
+    except subprocess.CalledProcessError:
+        return 0
+    jsonl = os.path.join(root, ".beads", "issues.jsonl")
+    if not os.path.isfile(jsonl) or not shutil.which("bd"):
+        return 0
+
+    with open(jsonl, "rb") as f:
+        raw = f.read()
+    digest = hashlib.sha256(raw).hexdigest()
+    stamp = os.path.join(git_dir, "beads-import-stamp")
+    if not force and os.path.isfile(stamp) and open(stamp).read().strip() == digest:
+        return 0
+
+    exported = subprocess.run(["bd", "export"], cwd=root, capture_output=True, text=True)
+    if exported.returncode != 0:
+        print(f"beads: export failed in {root}, skipping import: {exported.stderr.strip()}",
+              file=sys.stderr)
+        return 0
+    db_issues, db_memories = {}, set()
+    for o in rows(exported.stdout):
+        if o.get("_type", "issue") == "issue":
+            db_issues[o["id"]] = o
+        elif o.get("_type") == "memory":
+            db_memories.add(o.get("key"))
+
+    newer = []
+    for o in rows(raw.decode()):
+        kind = o.get("_type", "issue")
+        if kind == "issue":
+            mine = db_issues.get(o["id"])
+            if mine is None or ts(o.get("updated_at")) > ts(mine.get("updated_at")):
+                newer.append(o)
+        elif kind == "memory" and o.get("key") not in db_memories:
+            newer.append(o)
+
+    if newer:
+        payload = "".join(json.dumps(o) + "\n" for o in newer)
+        result = subprocess.run(["bd", "import", "-"], cwd=root, input=payload,
+                                capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"beads: import failed in {root}: {result.stderr.strip()}", file=sys.stderr)
+            return 0
+        ids = ", ".join(o.get("id") or o.get("key") for o in newer[:8])
+        more = f" (+{len(newer) - 8} more)" if len(newer) > 8 else ""
+        print(f"beads: imported {len(newer)} newer row(s) from issues.jsonl: {ids}{more}",
+              file=sys.stderr)
+
+    with open(stamp, "w") as f:
+        f.write(digest + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

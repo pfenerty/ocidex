@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+"""Git merge driver for .beads/issues.jsonl.
+
+Merges row by row (issues keyed by id, memories by key) instead of by line:
+a row changed on one side wins over the unchanged base. A row changed on
+both sides resolves to the newer updated_at (ours on a tie). Rows deleted
+on one side and untouched on the other stay deleted.
+
+Configure (once per machine):
+  git config --global merge.beads.name "beads JSONL merge"
+  git config --global merge.beads.driver "$HOME/code/common/bin/bd-jsonl-merge %O %A %B"
+and in each repo's .gitattributes:
+  .beads/issues.jsonl merge=beads
+"""
+import json
+import sys
+from datetime import datetime
+
+
+def ts(value):
+    if not value:
+        return datetime.min
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+
+
+def load(path):
+    out = {}
+    try:
+        with open(path) as f:
+            for n, line in enumerate(f):
+                line = line.strip()
+                if not line:
+                    continue
+                o = json.loads(line)
+                kind = o.get("_type", "issue")
+                key = (kind, o.get("id") if kind == "issue" else o.get("key", line))
+                o["\0raw"] = line
+                out[key] = o
+    except FileNotFoundError:
+        pass
+    return out
+
+
+def same(a, b):
+    def canon(o):
+        return json.dumps({k: v for k, v in o.items() if k != "\0raw"}, sort_keys=True)
+    return canon(a) == canon(b)
+
+
+def main(base_path, ours_path, theirs_path):
+    base, ours, theirs = load(base_path), load(ours_path), load(theirs_path)
+    merged = {}
+    for key in list(ours) + [k for k in theirs if k not in ours] + \
+            [k for k in base if k not in ours and k not in theirs]:
+        o, a, b = base.get(key), ours.get(key), theirs.get(key)
+        if a is not None and b is not None and same(a, b):
+            pick = a
+        elif o is not None and a is not None and same(a, o):
+            pick = b
+        elif o is not None and b is not None and same(b, o):
+            pick = a
+        elif a is None or b is None:
+            pick = a if b is None else b
+        else:
+            pick = b if ts(b.get("updated_at")) > ts(a.get("updated_at")) else a
+        if pick is not None:
+            merged[key] = pick
+    # Write each chosen row's original line: bd's Go encoder escapes <, > and &,
+    # and re-serializing here would churn every merged row.
+    with open(ours_path, "w") as f:
+        for o in merged.values():
+            f.write(o["\0raw"] + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 4:
+        print("usage: bd-jsonl-merge BASE OURS THEIRS", file=sys.stderr)
+        sys.exit(2)
+    sys.exit(main(*sys.argv[1:]))
