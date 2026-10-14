@@ -34,7 +34,8 @@ func tiedSBOM() string {
 			"bom-ref": "tied-%[1]d",
 			"name": "tied-lib",
 			"version": "build-%[1]d",
-			"purl": "pkg:generic/tied-lib@build-%[1]d"
+			"purl": "pkg:generic/tied-lib@build-%[1]d",
+			"licenses": [{"license": {"id": "MIT"}}]
 		}`, i))
 	}
 	return `{
