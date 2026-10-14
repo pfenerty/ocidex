@@ -21,7 +21,7 @@ FROM sbom s
 LEFT JOIN enrichment e ON e.sbom_id = s.id AND e.enricher_name = 'oci-metadata' AND e.status = 'success'
 LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user'         AND u.status = 'success'
 WHERE s.artifact_id = $1
-  AND sbom_visible(s.namespace_id, $2::uuid, $3::boolean)
+  AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
 `
 
 type CountArtifactVersionsParams struct {
@@ -41,7 +41,7 @@ const countSBOMsByArtifact = `-- name: CountSBOMsByArtifact :one
 SELECT COUNT(*)
 FROM sbom s
 WHERE s.artifact_id = $1
-  AND sbom_visible(s.namespace_id, $2::uuid, $3::boolean)
+  AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
 `
 
 type CountSBOMsByArtifactParams struct {
@@ -64,7 +64,7 @@ SELECT COUNT(*)
 FROM sbom s
 WHERE s.artifact_id = $1
   AND s.enrichment_sufficient
-  AND sbom_visible(s.namespace_id, $2::uuid, $3::boolean)
+  AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
 `
 
 type CountSufficientSBOMsByArtifactParams struct {
@@ -228,7 +228,7 @@ WITH sboms_meta AS (
     LEFT JOIN enrichment u ON u.sbom_id = s.id AND u.enricher_name = 'user'         AND u.status = 'success'
     LEFT JOIN enrichment p ON p.sbom_id = s.id AND p.enricher_name = 'provenance'   AND p.status = 'success'
     WHERE s.artifact_id = $1
-      AND sbom_visible(s.namespace_id, $4::uuid, $5::boolean)
+      AND s.namespace_id IN (SELECT visible_namespace_ids($4::uuid, $5::boolean))
 ),
 newest_per_version AS (
     SELECT DISTINCT ON (version_key)
@@ -281,7 +281,7 @@ FROM newest_per_version n
 JOIN architectures_per_version a ON a.version_key = n.version_key
 JOIN sbom_count_per_version c ON c.version_key = n.version_key
 LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = n.id
-ORDER BY n.created_at DESC
+ORDER BY n.created_at DESC, n.version_key
 LIMIT $3 OFFSET $2
 `
 
@@ -588,7 +588,7 @@ SELECT s.id, s.subject_version, s.created_at, s.flavor
 FROM sbom s
 WHERE s.artifact_id = $1
   AND ($2::text IS NULL OR s.subject_version = $2)
-  AND sbom_visible(s.namespace_id, $3::uuid, $4::boolean)
+  AND s.namespace_id IN (SELECT visible_namespace_ids($3::uuid, $4::boolean))
 ORDER BY s.created_at DESC, s.id DESC
 LIMIT $5
 `
@@ -663,7 +663,7 @@ WHERE s.artifact_id = $1
   AND ($2::text IS NULL OR s.subject_version = $2)
   AND ($3::text IS NULL
        OR COALESCE(e.data->>'imageVersion', u.data->>'imageVersion') = $3)
-  AND sbom_visible(s.namespace_id, $4::uuid, $5::boolean)
+  AND s.namespace_id IN (SELECT visible_namespace_ids($4::uuid, $5::boolean))
   AND (
     NOT $6::boolean
     OR (s.created_at, s.id) < ($7::timestamptz, $8::uuid)

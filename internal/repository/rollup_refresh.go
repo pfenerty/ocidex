@@ -6,7 +6,7 @@
 // for their effect, and the aggregate text has to be interpolated into a
 // CREATE TEMP TABLE ... AS, which sqlc has no way to express.
 //
-// The four aggregate statements below are the definition of the rollups. The
+// The aggregate statements below are the definition of the rollups. The
 // seeding INSERTs in db/migrations/00051_list_rollups.sql and
 // db/migrations/00063_sbom_vuln_rollup.sql are the same queries and must be
 // kept in step with these: a divergence would leave the rollup correct
@@ -32,6 +32,7 @@ var rollupTargets = []struct {
 	aggregate string
 }{
 	{"component_rollup", componentRollupAggregate},
+	{"component_version_rollup", componentVersionRollupAggregate},
 	{"license_rollup", licenseRollupAggregate},
 	{"vuln_rollup", vulnRollupAggregate},
 	{"sbom_vuln_rollup", sbomVulnRollupAggregate},
@@ -73,7 +74,8 @@ WITH base AS (
            COALESCE(array_agg(DISTINCT split_part(replace(c.purl, 'pkg:', ''), '/', 1))
                     FILTER (WHERE c.purl IS NOT NULL), '{}')::text[] AS purl_types,
            array_agg(DISTINCT c.version)::text[] AS versions,
-           count(DISTINCT c.sbom_id)::bigint AS sbom_count
+           count(DISTINCT c.sbom_id)::bigint AS sbom_count,
+           min(s.created_at) AS first_seen
     FROM component c
     JOIN sbom s ON s.id = c.sbom_id
     GROUP BY s.namespace_id, c.type, c.name, c.group_name
@@ -111,13 +113,26 @@ SELECT b.namespace_id, b.type, b.name, b.group_name, b.purl_types, b.versions, b
        COALESCE(sv.high,     0)::bigint AS high,
        COALESCE(sv.medium,   0)::bigint AS medium,
        COALESCE(sv.low,      0)::bigint AS low,
-       COALESCE(sv.unknown,  0)::bigint AS unknown
+       COALESCE(sv.unknown,  0)::bigint AS unknown,
+       b.first_seen
 FROM base b
 LEFT JOIN sev sv
        ON sv.namespace_id = b.namespace_id
       AND sv.type = b.type
       AND sv.name = b.name
       AND sv.group_name IS NOT DISTINCT FROM b.group_name`
+
+// One row per (namespace, package identity, version) with when it was first
+// ingested there (ocidex-kf1p.5), for the dashboard's version growth timeline.
+// first_seen decomposes over namespaces — the earliest across the visible set
+// is the minimum of each one's earliest — so the reader can filter by
+// namespace and take MIN. The seeding INSERT in 00077 is this same text.
+const componentVersionRollupAggregate = `
+SELECT s.namespace_id, c.type, c.name, c.group_name, c.version,
+       min(s.created_at) AS first_seen
+FROM component c
+JOIN sbom s ON s.id = c.sbom_id
+GROUP BY s.namespace_id, c.type, c.name, c.group_name, c.version`
 
 // Distinct (license, namespace, component identity) triples. The identity is the
 // same four-part tuple ListLicenses used to count distinct, pre-joined with a
@@ -242,16 +257,17 @@ func BuildRollupSnapshots(ctx context.Context, db DBTX) error {
 // SwapRollupSnapshots replaces the live rollups with the snapshots built by
 // BuildRollupSnapshots.
 //
-// TRUNCATE takes ACCESS EXCLUSIVE, which blocks every reader of the table, so
-// all three swaps are deferred to here and run back to back: the lock window is
-// a truncate plus an insert of a few hundred thousand already-computed rows,
-// well under a second, instead of the minutes the aggregates take. The caller
-// is expected to have set a lock_timeout so a pass that cannot get in fails
-// rather than queueing behind a long read while holding the earlier truncates.
+// DELETE, not TRUNCATE. TRUNCATE takes ACCESS EXCLUSIVE, so under steady read
+// traffic the swap could not get its lock inside the lock_timeout, the whole
+// pass — minutes of aggregation — was thrown away, and the list pages kept
+// serving a snapshot that never advanced. DELETE takes only ROW EXCLUSIVE:
+// readers carry on against the old rows until this transaction commits and
+// then see the new ones, so nothing waits on anything. The cost is dead tuples
+// in tables of a few hundred thousand rows, which autovacuum absorbs.
 func SwapRollupSnapshots(ctx context.Context, db DBTX) error {
 	for _, t := range rollupTargets {
-		if _, err := db.Exec(ctx, "TRUNCATE "+t.table); err != nil {
-			return fmt.Errorf("truncating %s: %w", t.table, err)
+		if _, err := db.Exec(ctx, "DELETE FROM "+t.table); err != nil {
+			return fmt.Errorf("clearing %s: %w", t.table, err)
 		}
 		stmt := fmt.Sprintf("INSERT INTO %s SELECT * FROM %s", t.table, tempName(t.table))
 		if _, err := db.Exec(ctx, stmt); err != nil {

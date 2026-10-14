@@ -129,6 +129,17 @@ type ComponentRollup struct {
 	Medium   int64 `json:"medium"`
 	Low      int64 `json:"low"`
 	Unknown  int64 `json:"unknown"`
+	// Earliest created_at of any SBOM in this namespace carrying this package identity. Backs the package growth timeline.
+	FirstSeen pgtype.Timestamptz `json:"first_seen"`
+}
+
+type ComponentVersionRollup struct {
+	NamespaceID pgtype.UUID        `json:"namespace_id"`
+	Type        string             `json:"type"`
+	Name        string             `json:"name"`
+	GroupName   pgtype.Text        `json:"group_name"`
+	Version     pgtype.Text        `json:"version"`
+	FirstSeen   pgtype.Timestamptz `json:"first_seen"`
 }
 
 type Dependency struct {

@@ -79,16 +79,15 @@ func TestRollupRefreshSkipsWhenAnotherReplicaHoldsTheLock(t *testing.T) {
 	is.NoErr(err)
 	is.True(!ran)
 	is.Equal(tx.firstIndex("CREATE TEMP TABLE"), -1)
-	is.Equal(tx.firstIndex("TRUNCATE"), -1)
+	is.Equal(tx.firstIndex("DELETE FROM"), -1)
 	is.True(!tx.committed)
 }
 
 // The whole point of staging into temp tables is that the expensive aggregates
-// run before anything takes a lock on a live rollup. If a TRUNCATE ever moved
-// ahead of the last CREATE TEMP TABLE, the list pages would block for the
-// minutes those aggregates take instead of the fraction of a second the swap
-// takes — the regression this test exists to catch.
-func TestRollupRefreshBuildsEverySnapshotBeforeTakingAnyTableLock(t *testing.T) {
+// run before any live rollup is touched. If a DELETE ever moved ahead of the
+// last CREATE TEMP TABLE, the live tables would carry row locks — and the pass's
+// uncommitted delete — for the minutes those aggregates take.
+func TestRollupRefreshBuildsEverySnapshotBeforeTouchingALiveTable(t *testing.T) {
 	is := is.New(t)
 
 	tx := newRefreshTx(true)
@@ -98,39 +97,53 @@ func TestRollupRefreshBuildsEverySnapshotBeforeTakingAnyTableLock(t *testing.T) 
 	is.True(ran)
 	is.True(tx.committed)
 
-	var lastBuild, firstTruncate int
+	var lastBuild int
 	for i, s := range tx.stmts {
 		if strings.Contains(s, "CREATE TEMP TABLE") {
 			lastBuild = i
 		}
 	}
-	firstTruncate = tx.firstIndex("TRUNCATE")
-	is.True(firstTruncate > 0)
-	is.True(lastBuild < firstTruncate)
+	firstDelete := tx.firstIndex("DELETE FROM")
+	is.True(firstDelete > 0)
+	is.True(lastBuild < firstDelete)
 }
 
-// Every rollup is rebuilt in one pass, and each rebuild is a truncate followed
-// by a repopulate. A table that was truncated but not refilled would serve an
-// empty list page.
-func TestRollupRefreshTruncatesAndRepopulatesEveryRollup(t *testing.T) {
+// Every rollup is rebuilt in one pass, and each rebuild is a delete followed by
+// a repopulate. A table that was cleared but not refilled would serve an empty
+// list page.
+func TestRollupRefreshClearsAndRepopulatesEveryRollup(t *testing.T) {
 	is := is.New(t)
 
 	tx := newRefreshTx(true)
 	_, err := refresherFor(tx).refresh(context.Background())
 	is.NoErr(err)
 
-	for _, table := range []string{"component_rollup", "license_rollup", "vuln_rollup", "sbom_vuln_rollup"} {
+	for _, table := range []string{"component_rollup", "component_version_rollup", "license_rollup", "vuln_rollup", "sbom_vuln_rollup"} {
 		is.True(tx.firstIndex("CREATE TEMP TABLE tmp_"+table) >= 0)
-		truncate := tx.firstIndex("TRUNCATE " + table)
+		cleared := tx.firstIndex("DELETE FROM " + table)
 		insert := tx.firstIndex("INSERT INTO " + table)
-		is.True(truncate >= 0)
-		is.True(insert > truncate)
+		is.True(cleared >= 0)
+		is.True(insert > cleared)
 	}
 }
 
-// TRUNCATE queues ahead of every reader that arrives after it, so a pass that
-// waits indefinitely for the lock would stall the list pages it exists to make
-// fast. The bounded wait must be in place before the first truncate, not after.
+// TRUNCATE needs ACCESS EXCLUSIVE, which any concurrent list-page read blocks.
+// Under steady traffic the swap timed out, the pass was discarded, and the
+// rollups silently stopped advancing — components and versions ingested since
+// the last lucky pass never appeared. The swap must only ever DELETE.
+func TestRollupRefreshNeverTruncates(t *testing.T) {
+	is := is.New(t)
+
+	tx := newRefreshTx(true)
+	_, err := refresherFor(tx).refresh(context.Background())
+	is.NoErr(err)
+
+	is.Equal(tx.firstIndex("TRUNCATE"), -1)
+}
+
+// The swap still waits on ACCESS EXCLUSIVE holders such as a migration's ALTER,
+// and a pass stuck behind one would hold its row locks while it waited. The
+// bounded wait must be in place before the first delete, not after.
 func TestRollupRefreshBoundsTheSwapLockWait(t *testing.T) {
 	is := is.New(t)
 
@@ -140,10 +153,10 @@ func TestRollupRefreshBoundsTheSwapLockWait(t *testing.T) {
 
 	lockTimeout := tx.firstIndex("lock_timeout")
 	is.True(lockTimeout >= 0)
-	is.True(lockTimeout < tx.firstIndex("TRUNCATE"))
+	is.True(lockTimeout < tx.firstIndex("DELETE FROM"))
 }
 
-// A pass that fails after truncating must not leave the rollups empty. Rolling
+// A pass that fails after clearing a table must not leave the rollups empty. Rolling
 // the whole pass back into one transaction is what guarantees that, so a failed
 // swap must not commit.
 func TestRollupRefreshDoesNotCommitAPartialSwap(t *testing.T) {
@@ -300,6 +313,28 @@ func TestSBOMVulnRollupSeedMatchesTheRefreshAggregate(t *testing.T) {
 	const insertPrefix = "INSERT INTO sbom_vuln_rollup (sbom_id, namespace_id, critical, high, medium, low, unknown)"
 	start := strings.Index(string(raw), insertPrefix)
 	is.True(start >= 0) // the migration must still seed the table
+	body := string(raw)[start+len(insertPrefix):]
+	end := strings.Index(body, ";")
+	is.True(end >= 0)
+
+	is.Equal(normalizeSQL(body[:end]), normalizeSQL(aggregate))
+}
+
+// component_version_rollup (ocidex-kf1p.5) was authored against the current
+// schema like sbom_vuln_rollup, so its seed in 00077 and the refresh aggregate
+// must be the same query for the same reason.
+func TestComponentVersionRollupSeedMatchesTheRefreshAggregate(t *testing.T) {
+	is := is.New(t)
+
+	aggregate, ok := repository.RollupAggregate("component_version_rollup")
+	is.True(ok)
+
+	raw, err := dbfs.Migrations.ReadFile("migrations/00077_stats_rollups.sql")
+	is.NoErr(err)
+
+	const insertPrefix = "INSERT INTO component_version_rollup (namespace_id, type, name, group_name, version, first_seen)"
+	start := strings.Index(string(raw), insertPrefix)
+	is.True(start >= 0)
 	body := string(raw)[start+len(insertPrefix):]
 	end := strings.Index(body, ";")
 	is.True(end >= 0)

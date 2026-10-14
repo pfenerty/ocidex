@@ -128,7 +128,7 @@ WHERE source_id = $1 AND digest IS NOT NULL;
 -- artifact is LEFT JOINed because sbom.artifact_id is nullable — a digest
 -- lookup must still find an SBOM that was never linked to an artifact.
 --
--- R5: sbom_visible() is applied here so the caller counts only visible
+-- R5: the visible-namespace filter is applied here so the caller counts only visible
 -- candidates.
 SELECT s.id,
        a.name AS artifact_name,
@@ -155,7 +155,7 @@ WHERE (sqlc.narg('digest')::text IS NULL OR s.digest = sqlc.narg('digest'))
   AND (sqlc.narg('arch')::text IS NULL
        OR COALESCE(e.data->>'architecture', u.data->>'architecture') = sqlc.narg('arch'))
   AND (sqlc.narg('flavor')::text IS NULL OR s.flavor = sqlc.narg('flavor'))
-  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
 ORDER BY s.created_at DESC, s.id DESC
 LIMIT 50;
 

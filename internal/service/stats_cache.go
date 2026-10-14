@@ -6,7 +6,7 @@ import (
 )
 
 // statsCacheTTL is how long a computed dashboard-stats payload is reused before
-// recomputation. The dashboard aggregates scan the whole component table, so
+// recomputation. The dashboard aggregates span every visible namespace, so
 // recomputing on every load does not scale; stats tolerate staleness.
 //
 // StatsWarmInterval must stay comfortably below this: the warmer is what keeps

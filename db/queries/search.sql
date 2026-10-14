@@ -45,7 +45,7 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subjec
 FROM sbom s
 WHERE (sqlc.narg('serial_number')::text IS NULL OR s.serial_number = sqlc.narg('serial_number'))
   AND (sqlc.narg('digest')::text IS NULL OR s.digest = sqlc.narg('digest'))
-  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
   AND (
     NOT sqlc.narg('has_cursor')::boolean
     OR (s.created_at, s.id) < (sqlc.narg('cursor_created_at')::timestamptz, sqlc.narg('cursor_id')::uuid)
@@ -91,8 +91,8 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subjec
        COUNT(*) OVER() AS total_count
 FROM sbom s
 WHERE s.digest = $1
-  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
-ORDER BY s.created_at DESC
+  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+ORDER BY s.created_at DESC, s.id DESC
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: SearchComponents :many
@@ -110,11 +110,15 @@ WHERE (sqlc.narg('name')::text IS NULL OR c.name = sqlc.narg('name'))
   AND (sqlc.narg('version')::text IS NULL OR c.version = sqlc.narg('version'))
   AND EXISTS (
     SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-      AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+      AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
   )
+-- Version parts alone tie constantly (every unparseable version is all-NULL),
+-- and OFFSET over a tied ordering lets rows slide between pages: one page
+-- repeats a row, another never shows it. The trailing keys make the order total.
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
-         c.version_patch DESC NULLS LAST
+         c.version_patch DESC NULLS LAST,
+         c.name, c.group_name, c.version, c.id
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: GetComponent :one
@@ -170,7 +174,7 @@ WHERE (sqlc.narg('spdx_id')::text IS NULL OR l.spdx_id ILIKE '%' || sqlc.narg('s
   AND (sqlc.narg('name')::text IS NULL OR l.name ILIKE '%' || sqlc.narg('name')::text || '%')
   AND (sqlc.narg('category')::text IS NULL OR license_category(l.spdx_id) = sqlc.narg('category')::text)
 GROUP BY l.id, l.spdx_id, l.name, l.url
-ORDER BY component_count DESC, l.name
+ORDER BY component_count DESC, l.name, l.id
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: ListComponentsByLicense :many
@@ -186,7 +190,7 @@ WITH ranked AS (
     WHERE cl.license_id = @license_id
       AND EXISTS (
         SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-          AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+          AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
       )
 )
 SELECT id, sbom_id, type, name, group_name, version, purl,
@@ -196,7 +200,8 @@ WHERE rn = 1
 ORDER BY name,
          version_major DESC NULLS LAST,
          version_minor DESC NULLS LAST,
-         version_patch DESC NULLS LAST
+         version_patch DESC NULLS LAST,
+         group_name, version, type, id
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: LicenseSummaryByArtifact :many
@@ -343,7 +348,7 @@ LIMIT 200;
 -- Reads component_rollup rather than the component table: aggregating 10.9M raw
 -- rows per request took ~53s against a 30s HTTP timeout (ocidex-ckv.2).
 --
--- The rollup is per-namespace, so a row set restricted by sbom_visible() must be
+-- The rollup is per-namespace, so a row set restricted by visibility must be
 -- re-aggregated here. version_count and purl_types use COUNT/string_agg
 -- DISTINCT and so are immune to the row multiplication the two unnests cause.
 -- SUM is not, hence the ordinality filter: it charges each rollup row's
@@ -397,7 +402,7 @@ ORDER BY
     WHEN 'version_count' THEN COUNT(DISTINCT v.version)
     WHEN 'sbom_count' THEN COALESCE(SUM(r.sbom_count) FILTER (WHERE COALESCE(v.ord, 1) = 1 AND COALESCE(p.ord, 1) = 1), 0)
   END * CASE @sort_dir::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
-  r.name, r.group_name
+  r.name, r.group_name, r.type
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: GetComponentVersions :many
@@ -415,11 +420,16 @@ WHERE c.name = @name
   AND (sqlc.narg('group_name')::text IS NULL OR c.group_name = sqlc.narg('group_name'))
   AND (sqlc.narg('version')::text IS NULL OR c.version = sqlc.narg('version'))
   AND (sqlc.narg('type')::text IS NULL OR c.type = sqlc.narg('type'))
-  AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+  AND s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
+-- c.id last makes the order total. Without it, every row of one SBOM (stdlib
+-- appears many times per Go image) and every version that does not parse tied,
+-- and OFFSET paging over a tie skipped some rows and repeated others -- the
+-- "component is missing versions" report.
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST,
-         s.created_at DESC
+         s.created_at DESC,
+         c.id
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: CountComponentVersions :one
@@ -443,7 +453,8 @@ LIMIT @row_limit OFFSET @row_offset;
 -- filters are identical, so the only added cost is the DISTINCT aggregation.
 --
 -- The CTE is MATERIALIZED to pin the join order (ocidex-7gf7.6). Written as a
--- plain two-table join this query timed out: sbom_visible() is opaque to the
+-- plain two-table join this query timed out: sbom_visible(), which this used
+-- per row before ocidex-kf1p.6, is opaque to the
 -- planner, so it underestimated the sbom side, drove a nested loop from a seq
 -- scan of all 14,208 visible SBOMs, and probed the component index once per row
 -- -- 17.2s against name='stdlib', under a 30s HTTP ceiling. The component-side
@@ -463,4 +474,4 @@ SELECT COUNT(*) AS total,
        COUNT(DISTINCT s.artifact_id) AS artifact_count
 FROM matched m
 JOIN sbom s ON s.id = m.sbom_id
-WHERE sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean);
+WHERE s.namespace_id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean));

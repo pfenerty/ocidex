@@ -419,7 +419,7 @@ WHERE ($1::text IS NULL OR s.digest = $1)
   AND ($4::text IS NULL
        OR COALESCE(e.data->>'architecture', u.data->>'architecture') = $4)
   AND ($5::text IS NULL OR s.flavor = $5)
-  AND sbom_visible(s.namespace_id, $6::uuid, $7::boolean)
+  AND s.namespace_id IN (SELECT visible_namespace_ids($6::uuid, $7::boolean))
 ORDER BY s.created_at DESC, s.id DESC
 LIMIT 50
 `
@@ -457,7 +457,7 @@ type LookupSBOMsRow struct {
 // artifact is LEFT JOINed because sbom.artifact_id is nullable — a digest
 // lookup must still find an SBOM that was never linked to an artifact.
 //
-// R5: sbom_visible() is applied here so the caller counts only visible
+// R5: the visible-namespace filter is applied here so the caller counts only visible
 // candidates.
 func (q *Queries) LookupSBOMs(ctx context.Context, arg LookupSBOMsParams) ([]LookupSBOMsRow, error) {
 	rows, err := q.db.Query(ctx, lookupSBOMs,

@@ -419,7 +419,8 @@ ORDER BY
         WHEN 'succeeded' THEN 4
         ELSE 5
     END,
-    j.created_at DESC
+    j.created_at DESC,
+    j.id
 LIMIT $5 OFFSET $4
 `
 

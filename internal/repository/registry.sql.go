@@ -492,7 +492,7 @@ WHERE (
          ELSE n.id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
     END
 )
-ORDER BY r.created_at ASC
+ORDER BY r.created_at ASC, r.id
 LIMIT $5 OFFSET $4
 `
 

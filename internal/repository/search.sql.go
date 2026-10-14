@@ -25,7 +25,7 @@ SELECT COUNT(*) AS total,
        COUNT(DISTINCT s.artifact_id) AS artifact_count
 FROM matched m
 JOIN sbom s ON s.id = m.sbom_id
-WHERE sbom_visible(s.namespace_id, $1::uuid, $2::boolean)
+WHERE s.namespace_id IN (SELECT visible_namespace_ids($1::uuid, $2::boolean))
 `
 
 type CountComponentVersionsParams struct {
@@ -63,7 +63,8 @@ type CountComponentVersionsRow struct {
 // filters are identical, so the only added cost is the DISTINCT aggregation.
 //
 // The CTE is MATERIALIZED to pin the join order (ocidex-7gf7.6). Written as a
-// plain two-table join this query timed out: sbom_visible() is opaque to the
+// plain two-table join this query timed out: sbom_visible(), which this used
+// per row before ocidex-kf1p.6, is opaque to the
 // planner, so it underestimated the sbom side, drove a nested loop from a seq
 // scan of all 14,208 visible SBOMs, and probed the component index once per row
 // -- 17.2s against name='stdlib', under a 30s HTTP ceiling. The component-side
@@ -180,11 +181,12 @@ WHERE c.name = $1
   AND ($2::text IS NULL OR c.group_name = $2)
   AND ($3::text IS NULL OR c.version = $3)
   AND ($4::text IS NULL OR c.type = $4)
-  AND sbom_visible(s.namespace_id, $5::uuid, $6::boolean)
+  AND s.namespace_id IN (SELECT visible_namespace_ids($5::uuid, $6::boolean))
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST,
-         s.created_at DESC
+         s.created_at DESC,
+         c.id
 LIMIT $8 OFFSET $7
 `
 
@@ -215,6 +217,10 @@ type GetComponentVersionsRow struct {
 	Architecture   interface{}        `json:"architecture"`
 }
 
+// c.id last makes the order total. Without it, every row of one SBOM (stdlib
+// appears many times per Go image) and every version that does not parse tied,
+// and OFFSET paging over a tie skipped some rows and repeated others -- the
+// "component is missing versions" report.
 func (q *Queries) GetComponentVersions(ctx context.Context, arg GetComponentVersionsParams) ([]GetComponentVersionsRow, error) {
 	rows, err := q.db.Query(ctx, getComponentVersions,
 		arg.Name,
@@ -610,7 +616,7 @@ WITH ranked AS (
     WHERE cl.license_id = $3
       AND EXISTS (
         SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-          AND sbom_visible(s.namespace_id, $4::uuid, $5::boolean)
+          AND s.namespace_id IN (SELECT visible_namespace_ids($4::uuid, $5::boolean))
       )
 )
 SELECT id, sbom_id, type, name, group_name, version, purl,
@@ -620,7 +626,8 @@ WHERE rn = 1
 ORDER BY name,
          version_major DESC NULLS LAST,
          version_minor DESC NULLS LAST,
-         version_patch DESC NULLS LAST
+         version_patch DESC NULLS LAST,
+         group_name, version, type, id
 LIMIT $2 OFFSET $1
 `
 
@@ -722,7 +729,7 @@ WHERE ($3::text IS NULL OR l.spdx_id ILIKE '%' || $3::text || '%')
   AND ($4::text IS NULL OR l.name ILIKE '%' || $4::text || '%')
   AND ($5::text IS NULL OR license_category(l.spdx_id) = $5::text)
 GROUP BY l.id, l.spdx_id, l.name, l.url
-ORDER BY component_count DESC, l.name
+ORDER BY component_count DESC, l.name, l.id
 LIMIT $7 OFFSET $6
 `
 
@@ -1172,7 +1179,7 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subjec
 FROM sbom s
 WHERE ($1::text IS NULL OR s.serial_number = $1)
   AND ($2::text IS NULL OR s.digest = $2)
-  AND sbom_visible(s.namespace_id, $3::uuid, $4::boolean)
+  AND s.namespace_id IN (SELECT visible_namespace_ids($3::uuid, $4::boolean))
   AND (
     NOT $5::boolean
     OR (s.created_at, s.id) < ($6::timestamptz, $7::uuid)
@@ -1248,8 +1255,8 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subjec
        COUNT(*) OVER() AS total_count
 FROM sbom s
 WHERE s.digest = $1
-  AND sbom_visible(s.namespace_id, $2::uuid, $3::boolean)
-ORDER BY s.created_at DESC
+  AND s.namespace_id IN (SELECT visible_namespace_ids($2::uuid, $3::boolean))
+ORDER BY s.created_at DESC, s.id DESC
 LIMIT $5 OFFSET $4
 `
 
@@ -1319,11 +1326,12 @@ WHERE ($1::text IS NULL OR c.name = $1)
   AND ($4::text IS NULL OR c.version = $4)
   AND EXISTS (
     SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
-      AND sbom_visible(s.namespace_id, $5::uuid, $6::boolean)
+      AND s.namespace_id IN (SELECT visible_namespace_ids($5::uuid, $6::boolean))
   )
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
-         c.version_patch DESC NULLS LAST
+         c.version_patch DESC NULLS LAST,
+         c.name, c.group_name, c.version, c.id
 LIMIT $8 OFFSET $7
 `
 
@@ -1354,6 +1362,9 @@ type SearchComponentsRow struct {
 // not by prefix, so a link built from one row's purl returns every SBOM
 // carrying that same package version. The API requires name or purl, so the
 // pair of NULLs that would scan the whole table never reaches here.
+// Version parts alone tie constantly (every unparseable version is all-NULL),
+// and OFFSET over a tied ordering lets rows slide between pages: one page
+// repeats a row, another never shows it. The trailing keys make the order total.
 func (q *Queries) SearchComponents(ctx context.Context, arg SearchComponentsParams) ([]SearchComponentsRow, error) {
 	rows, err := q.db.Query(ctx, searchComponents,
 		arg.Name,
@@ -1440,7 +1451,7 @@ ORDER BY
     WHEN 'version_count' THEN COUNT(DISTINCT v.version)
     WHEN 'sbom_count' THEN COALESCE(SUM(r.sbom_count) FILTER (WHERE COALESCE(v.ord, 1) = 1 AND COALESCE(p.ord, 1) = 1), 0)
   END * CASE $8::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
-  r.name, r.group_name
+  r.name, r.group_name, r.type
 LIMIT $10 OFFSET $9
 `
 
@@ -1475,7 +1486,7 @@ type SearchDistinctComponentsRow struct {
 // Reads component_rollup rather than the component table: aggregating 10.9M raw
 // rows per request took ~53s against a 30s HTTP timeout (ocidex-ckv.2).
 //
-// The rollup is per-namespace, so a row set restricted by sbom_visible() must be
+// The rollup is per-namespace, so a row set restricted by visibility must be
 // re-aggregated here. version_count and purl_types use COUNT/string_agg
 // DISTINCT and so are immune to the row multiplication the two unnests cause.
 // SUM is not, hence the ordinality filter: it charges each rollup row's

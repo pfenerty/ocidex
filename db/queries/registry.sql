@@ -114,7 +114,7 @@ WHERE (
          ELSE n.id IN (SELECT visible_namespace_ids(sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
     END
 )
-ORDER BY r.created_at ASC
+ORDER BY r.created_at ASC, r.id
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: UpdateRegistry :one
