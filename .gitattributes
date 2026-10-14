@@ -1,4 +1,5 @@
 
-# Row-level merge for the beads export (driver: ~/code/common/bin/bd-jsonl-merge,
-# configured globally as merge.beads.driver)
-.beads/issues.jsonl merge=beads
+# Beads export: row-level merge (merge=beads) and memory-row sorting (filter=beads).
+# Drivers live in ~/code/common/bin (bd-jsonl-merge, bd-jsonl-clean), configured
+# globally as merge.beads.driver / filter.beads.clean; cloud sessions vendor them.
+.beads/issues.jsonl merge=beads filter=beads

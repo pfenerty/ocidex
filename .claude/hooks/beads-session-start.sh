@@ -109,6 +109,12 @@ if [ -z "$(git config merge.beads.driver 2>/dev/null)" ] && [ -x "$HOOKS_DIR/bd-
   git config merge.beads.name "beads JSONL merge"
   git config merge.beads.driver "\"$HOOKS_DIR/bd-jsonl-merge\" %O %A %B"
 fi
+# filter=beads sorts memory rows, which bd 1.0.3 exports in random order, so a
+# reshuffle doesn't show up as a change.
+if [ -z "$(git config filter.beads.clean 2>/dev/null)" ] && [ -x "$HOOKS_DIR/bd-jsonl-clean" ] \
+   && command -v python3 >/dev/null 2>&1; then
+  git config filter.beads.clean "\"$HOOKS_DIR/bd-jsonl-clean\""
+fi
 
 # ── Issue-tracker context ────────────────────────────────────────────────────
 # stdout becomes session context.

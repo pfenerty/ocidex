@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+"""Git clean filter for .beads/issues.jsonl: sort memory rows by key.
+
+bd 1.0.3 writes `_type: memory` rows in Go map order, which is randomized on
+every export, so the file looked modified with no real change. (Upstream fixed
+it in v1.0.4, commit 651a52afe, but that release also stops exporting memories,
+and Flox jumps from 1.0.3 to 1.2.2.) Issue rows keep bd's order. Memory rows are
+written last and sorted, which is also where bd puts them. Lines are passed
+through byte for byte, never re-serialized.
+
+Configure (once per machine; cloud sessions get it from beads-session-start.sh):
+  git config --global filter.beads.clean "$HOME/code/common/bin/bd-jsonl-clean"
+and in each repo's .gitattributes:
+  .beads/issues.jsonl merge=beads filter=beads
+"""
+import json
+import sys
+
+
+def main():
+    others, memories = [], []
+    for line in sys.stdin.buffer.read().decode("utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            o = json.loads(line)
+        except ValueError:
+            others.append(line)
+            continue
+        if isinstance(o, dict) and o.get("_type") == "memory":
+            memories.append((str(o.get("key", "")), line))
+        else:
+            others.append(line)
+    out = others + [line for _, line in sorted(memories)]
+    sys.stdout.buffer.write("".join(l + "\n" for l in out).encode("utf-8"))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
