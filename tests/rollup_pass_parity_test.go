@@ -9,13 +9,14 @@ import (
 	"github.com/pfenerty/ocidex/internal/repository"
 )
 
-// A refresh pass builds every rollup from tmp_component_slim, a narrow copy of
-// component, rather than from component itself (ocidex-kf1p.4). The copy exists
-// purely to turn six scans of a 44 GB table into one; it must not change a
-// single row. This holds each live rollup, as the pass left it, against the same
-// aggregate run directly over component — in both directions, so a row the
-// pass dropped and a row it invented both fail.
-func TestRollupsBuiltFromSlimCopyMatchTheLiveAggregates(t *testing.T) {
+// What a refresh pass leaves in each live rollup must be exactly what that
+// rollup's aggregate defines. The swap repopulates with a positional
+// `INSERT ... SELECT *`, so a column appended to a rollup table in a migration
+// but in a different place in its aggregate (00064, 00077 both do this) lands
+// in the wrong column without any error. This holds each live table, as the
+// pass left it, against its aggregate run directly — in both directions, so a
+// row the pass dropped and a row it invented both fail.
+func TestRollupPassWritesExactlyWhatEachAggregateDefines(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
@@ -71,7 +72,7 @@ func TestRollupsBuiltFromSlimCopyMatchTheLiveAggregates(t *testing.T) {
 			fmt.Sprintf("SELECT count(*) FROM (SELECT * FROM %s EXCEPT ALL (%s)) d", table, aggregate)).Scan(&extra))
 
 		if missing != 0 || extra != 0 {
-			t.Errorf("%s: %d live rows; %d rows the live aggregate has that the pass did not write, %d the other way",
+			t.Errorf("%s: %d live rows; %d rows the aggregate has that the pass did not write, %d the other way",
 				table, live, missing, extra)
 		}
 		if live == 0 {

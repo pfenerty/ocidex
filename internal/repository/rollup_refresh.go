@@ -6,10 +6,7 @@
 // for their effect, and the aggregate text has to be interpolated into a
 // CREATE TEMP TABLE ... AS, which sqlc has no way to express.
 //
-// The aggregate statements below are the definition of the rollups. They name
-// their component source as %[1]s: a pass fills it with componentSlimTable, a
-// narrow copy of component built once per pass, and RollupAggregate fills it
-// with component itself, which yields the same rows. The
+// The aggregate statements below are the definition of the rollups. The
 // seeding INSERTs in db/migrations/00051_list_rollups.sql and
 // db/migrations/00063_sbom_vuln_rollup.sql are the same queries and must be
 // kept in step with these: a divergence would leave the rollup correct
@@ -48,37 +45,11 @@ var rollupTargets = []struct {
 func RollupAggregate(table string) (string, bool) {
 	for _, t := range rollupTargets {
 		if t.table == table {
-			return fmt.Sprintf(t.aggregate, "component"), true
+			return t.aggregate, true
 		}
 	}
 	return "", false
 }
-
-// componentSlimTable is the per-pass copy of component that every aggregate
-// reads instead of the live table.
-//
-// component is ~44 GB, nearly all of it columns no rollup reads (description,
-// copyright, cpe, ...), and the aggregates used to scan it six times between
-// them: three times for component_rollup alone, once each for the others.
-// Each of those scans also evicted the request path's working set from
-// shared_buffers. Copying the columns the rollups need costs one scan, and the
-// six reads then run against something an order of magnitude smaller.
-const componentSlimTable = "tmp_component_slim"
-
-// componentSlimSelect carries every component column an aggregate references,
-// under its original name, so an aggregate reads the same rows from either
-// source. go_symbol_set_id is kept nullable rather than pre-coalesced for the
-// same reason: the aggregates coalesce it themselves.
-const componentSlimSelect = `
-SELECT c.id, c.sbom_id, c.type, c.name, c.group_name, c.version,
-       c.purl, c.source_purl, c.go_symbol_set_id
-FROM component c`
-
-// rollupWorkMem raises work_mem for the pass's transaction only. At the
-// server's 32MB the aggregates' hashes and sorts over ten million rows spill
-// to disk; this keeps most of them in memory without changing the setting any
-// request sees. The pass runs single-flight, so this is spent at most once.
-const rollupWorkMem = "128MB"
 
 // One row per (namespace, package identity). array_agg(DISTINCT c.version) keeps
 // a NULL version as an array element on purpose: a component with no recorded
@@ -105,19 +76,19 @@ WITH base AS (
            array_agg(DISTINCT c.version)::text[] AS versions,
            count(DISTINCT c.sbom_id)::bigint AS sbom_count,
            min(s.created_at) AS first_seen
-    FROM %[1]s c
+    FROM component c
     JOIN sbom s ON s.id = c.sbom_id
     GROUP BY s.namespace_id, c.type, c.name, c.group_name
 ), scope AS (
     SELECT DISTINCT s1.namespace_id, c1.type, c1.name, c1.group_name,
            c1.purl::text AS match_purl, COALESCE(c1.go_symbol_set_id, 0) AS go_symbol_set_id
-    FROM %[1]s c1
+    FROM component c1
     JOIN sbom s1 ON s1.id = c1.sbom_id
     WHERE c1.purl IS NOT NULL
     UNION
     SELECT DISTINCT s2.namespace_id, c2.type, c2.name, c2.group_name,
            c2.source_purl::text AS match_purl, 0::bigint AS go_symbol_set_id
-    FROM %[1]s c2
+    FROM component c2
     JOIN sbom s2 ON s2.id = c2.sbom_id
     WHERE c2.source_purl IS NOT NULL
 ), findings AS (
@@ -159,7 +130,7 @@ LEFT JOIN sev sv
 const componentVersionRollupAggregate = `
 SELECT s.namespace_id, c.type, c.name, c.group_name, c.version,
        min(s.created_at) AS first_seen
-FROM %[1]s c
+FROM component c
 JOIN sbom s ON s.id = c.sbom_id
 GROUP BY s.namespace_id, c.type, c.name, c.group_name, c.version`
 
@@ -171,7 +142,7 @@ const licenseRollupAggregate = `
 SELECT DISTINCT cl.license_id, s.namespace_id,
        c.name || E'\x1f' || COALESCE(c.group_name, '') || E'\x1f' || COALESCE(c.version, '') || E'\x1f' || c.type AS identity_key
 FROM component_license cl
-JOIN %[1]s c ON c.id = cl.component_id
+JOIN component c ON c.id = cl.component_id
 JOIN sbom s ON s.id = c.sbom_id`
 
 // One row per (canonical vulnerability, namespace). purls is a set because the
@@ -183,7 +154,7 @@ SELECT v.canonical_id, s.namespace_id,
        array_agg(DISTINCT pv.purl)::text[] AS purls
 FROM vulnerability v
 JOIN package_vulnerability pv ON pv.vulnerability_id = v.id
-JOIN %[1]s comp ON comp.purl = pv.purl AND COALESCE(comp.go_symbol_set_id, 0) = pv.go_symbol_set_id
+JOIN component comp ON comp.purl = pv.purl AND COALESCE(comp.go_symbol_set_id, 0) = pv.go_symbol_set_id
 JOIN sbom s ON s.id = comp.sbom_id
 WHERE v.canonical_id <> '' AND comp.purl IS NOT NULL
 GROUP BY v.canonical_id, s.namespace_id`
@@ -204,10 +175,10 @@ GROUP BY v.canonical_id, s.namespace_id`
 const sbomVulnRollupAggregate = `
 WITH scope AS (
     SELECT DISTINCT c1.sbom_id, c1.purl::text AS match_purl, COALESCE(c1.go_symbol_set_id, 0) AS go_symbol_set_id
-    FROM %[1]s c1 WHERE c1.purl IS NOT NULL
+    FROM component c1 WHERE c1.purl IS NOT NULL
     UNION
     SELECT DISTINCT c2.sbom_id, c2.source_purl::text AS match_purl, 0::bigint AS go_symbol_set_id
-    FROM %[1]s c2 WHERE c2.source_purl IS NOT NULL
+    FROM component c2 WHERE c2.source_purl IS NOT NULL
 ), findings AS (
     SELECT DISTINCT sc.sbom_id, v.canonical_id, v.severity
     FROM scope sc
@@ -274,21 +245,8 @@ func TryLockRollupRefresh(ctx context.Context, db DBTX, key int64) (bool, error)
 // table — and it deliberately happens before any lock on the live tables is
 // taken, so readers are unaffected while it runs.
 func BuildRollupSnapshots(ctx context.Context, db DBTX) error {
-	if _, err := db.Exec(ctx, "SET LOCAL work_mem = '"+rollupWorkMem+"'"); err != nil {
-		return fmt.Errorf("setting rollup work_mem: %w", err)
-	}
-	slim := fmt.Sprintf("CREATE TEMP TABLE %s ON COMMIT DROP AS %s", componentSlimTable, componentSlimSelect)
-	if _, err := db.Exec(ctx, slim); err != nil {
-		return fmt.Errorf("building %s: %w", componentSlimTable, err)
-	}
-	// Autovacuum never sees temp tables, so without this the planner costs
-	// every aggregate against a guess about a ten-million-row table.
-	if _, err := db.Exec(ctx, "ANALYZE "+componentSlimTable); err != nil {
-		return fmt.Errorf("analyzing %s: %w", componentSlimTable, err)
-	}
 	for _, t := range rollupTargets {
-		aggregate := fmt.Sprintf(t.aggregate, componentSlimTable)
-		stmt := fmt.Sprintf("CREATE TEMP TABLE %s ON COMMIT DROP AS %s", tempName(t.table), aggregate)
+		stmt := fmt.Sprintf("CREATE TEMP TABLE %s ON COMMIT DROP AS %s", tempName(t.table), t.aggregate)
 		if _, err := db.Exec(ctx, stmt); err != nil {
 			return fmt.Errorf("building %s snapshot: %w", t.table, err)
 		}
