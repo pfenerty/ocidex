@@ -35,6 +35,7 @@ var rollupTargets = []struct {
 	aggregate string
 }{
 	{"component_rollup", componentRollupAggregate},
+	{"component_version_rollup", componentVersionRollupAggregate},
 	{"license_rollup", licenseRollupAggregate},
 	{"vuln_rollup", vulnRollupAggregate},
 	{"sbom_vuln_rollup", sbomVulnRollupAggregate},
@@ -102,7 +103,8 @@ WITH base AS (
            COALESCE(array_agg(DISTINCT split_part(replace(c.purl, 'pkg:', ''), '/', 1))
                     FILTER (WHERE c.purl IS NOT NULL), '{}')::text[] AS purl_types,
            array_agg(DISTINCT c.version)::text[] AS versions,
-           count(DISTINCT c.sbom_id)::bigint AS sbom_count
+           count(DISTINCT c.sbom_id)::bigint AS sbom_count,
+           min(s.created_at) AS first_seen
     FROM %[1]s c
     JOIN sbom s ON s.id = c.sbom_id
     GROUP BY s.namespace_id, c.type, c.name, c.group_name
@@ -140,13 +142,26 @@ SELECT b.namespace_id, b.type, b.name, b.group_name, b.purl_types, b.versions, b
        COALESCE(sv.high,     0)::bigint AS high,
        COALESCE(sv.medium,   0)::bigint AS medium,
        COALESCE(sv.low,      0)::bigint AS low,
-       COALESCE(sv.unknown,  0)::bigint AS unknown
+       COALESCE(sv.unknown,  0)::bigint AS unknown,
+       b.first_seen
 FROM base b
 LEFT JOIN sev sv
        ON sv.namespace_id = b.namespace_id
       AND sv.type = b.type
       AND sv.name = b.name
       AND sv.group_name IS NOT DISTINCT FROM b.group_name`
+
+// One row per (namespace, package identity, version) with when it was first
+// ingested there (ocidex-kf1p.5), for the dashboard's version growth timeline.
+// first_seen decomposes over namespaces — the earliest across the visible set
+// is the minimum of each one's earliest — so the reader can filter by
+// namespace and take MIN. The seeding INSERT in 00077 is this same text.
+const componentVersionRollupAggregate = `
+SELECT s.namespace_id, c.type, c.name, c.group_name, c.version,
+       min(s.created_at) AS first_seen
+FROM %[1]s c
+JOIN sbom s ON s.id = c.sbom_id
+GROUP BY s.namespace_id, c.type, c.name, c.group_name, c.version`
 
 // Distinct (license, namespace, component identity) triples. The identity is the
 // same four-part tuple ListLicenses used to count distinct, pre-joined with a

@@ -55,7 +55,7 @@ func TestRollupsBuiltFromSlimCopyMatchTheLiveAggregates(t *testing.T) {
 
 	refreshRollups(t, pool)
 
-	for _, table := range []string{"component_rollup", "license_rollup", "vuln_rollup", "sbom_vuln_rollup"} {
+	for _, table := range []string{"component_rollup", "component_version_rollup", "license_rollup", "vuln_rollup", "sbom_vuln_rollup"} {
 		aggregate, ok := repository.RollupAggregate(table)
 		is.True(ok)
 

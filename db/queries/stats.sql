@@ -40,20 +40,22 @@ GROUP BY a.type
 ORDER BY artifact_count DESC, a.type;
 
 -- name: GetLicenseCategoryCounts :many
-WITH visible_sbom AS (
-    SELECT s.id
-    FROM sbom s
-    JOIN namespace n ON n.id = s.namespace_id
-    WHERE n.id IN (SELECT visible_namespace_ids(
-             sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
-)
+-- Reads license_rollup rather than joining component_license to component over
+-- every visible SBOM: that was a full scan of the 10.9M-row table, run by the
+-- stats warmer every five minutes per scope (ocidex-kf1p.5).
+--
+-- The count is distinct package identities (name, group, version, type) per
+-- category, the same unit ListLicenses' component_count uses, where it was
+-- distinct component rows. A package carried by a thousand SBOMs is one
+-- package, so the breakdown now answers "how much of what we run is under
+-- copyleft" rather than weighting each package by how often it was scanned.
 SELECT
     license_category(l.spdx_id) AS category,
-    COUNT(DISTINCT cl.component_id)::bigint AS component_count
-FROM license l
-JOIN component_license cl ON cl.license_id = l.id
-JOIN component c ON c.id = cl.component_id
-JOIN visible_sbom vs ON vs.id = c.sbom_id
+    COUNT(DISTINCT lr.identity_key)::bigint AS component_count
+FROM license_rollup lr
+JOIN license l ON l.id = lr.license_id
+WHERE lr.namespace_id IN (SELECT visible_namespace_ids(
+         sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
 GROUP BY 1
 ORDER BY component_count DESC;
 
@@ -76,18 +78,15 @@ ORDER BY day;
 
 -- name: GetPackageGrowthTimeline :many
 -- Cumulative distinct packages (name+group+type) by the day each first appeared.
-WITH visible_sbom AS (
-    SELECT s.id, s.created_at
-    FROM sbom s
-    JOIN namespace n ON n.id = s.namespace_id
-    WHERE n.id IN (SELECT visible_namespace_ids(
+-- component_rollup carries each identity's first_seen per namespace, and the
+-- earliest across the visible namespaces is the MIN of those, so this reads the
+-- rollup instead of scanning component (ocidex-kf1p.5).
+WITH pkg_first_seen AS (
+    SELECT DATE(MIN(r.first_seen)) AS first_seen
+    FROM component_rollup r
+    WHERE r.namespace_id IN (SELECT visible_namespace_ids(
              sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
-),
-pkg_first_seen AS (
-    SELECT DATE(MIN(vs.created_at)) AS first_seen
-    FROM component c
-    JOIN visible_sbom vs ON vs.id = c.sbom_id
-    GROUP BY c.name, COALESCE(c.group_name, ''), c.type
+    GROUP BY r.name, COALESCE(r.group_name, ''), r.type
 ),
 daily_new AS (
     SELECT first_seen, COUNT(*)::bigint AS new_count
@@ -102,19 +101,15 @@ FROM daily_new
 ORDER BY first_seen;
 
 -- name: GetVersionGrowthTimeline :many
--- Cumulative distinct package versions (name+group+version+type) by the day each first appeared.
-WITH visible_sbom AS (
-    SELECT s.id, s.created_at
-    FROM sbom s
-    JOIN namespace n ON n.id = s.namespace_id
-    WHERE n.id IN (SELECT visible_namespace_ids(
+-- Cumulative distinct package versions (name+group+version+type) by the day each
+-- first appeared. Reads component_version_rollup, the version-grain twin of the
+-- package timeline's source (ocidex-kf1p.5).
+WITH ver_first_seen AS (
+    SELECT DATE(MIN(r.first_seen)) AS first_seen
+    FROM component_version_rollup r
+    WHERE r.namespace_id IN (SELECT visible_namespace_ids(
              sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
-),
-ver_first_seen AS (
-    SELECT DATE(MIN(vs.created_at)) AS first_seen
-    FROM component c
-    JOIN visible_sbom vs ON vs.id = c.sbom_id
-    GROUP BY c.name, COALESCE(c.group_name, ''), COALESCE(c.version, ''), c.type
+    GROUP BY r.name, COALESCE(r.group_name, ''), COALESCE(r.version, ''), r.type
 ),
 daily_new AS (
     SELECT first_seen, COUNT(*)::bigint AS new_count
@@ -148,27 +143,37 @@ ORDER BY version_count DESC
 LIMIT @top_n::int;
 
 -- name: GetVulnStats :one
--- Distinct tracked vulnerabilities reachable from any visible SBOM, with per-severity breakdown.
--- Deduplicates aliased OSV records (e.g. GO-xxxx + GHSA-yyyy) by canonical_id so each
--- real-world CVE is counted once.
-WITH visible_sbom AS (
-    SELECT s.id
-    FROM sbom s
-    JOIN namespace n ON n.id = s.namespace_id
-    WHERE n.id IN (SELECT visible_namespace_ids(
+-- Distinct tracked vulnerabilities reachable from any visible SBOM, with
+-- per-severity breakdown, one per canonical_id so aliased OSV records
+-- (GO-xxxx + GHSA-yyyy) count once.
+--
+-- Reads vuln_rollup instead of joining component to package_vulnerability over
+-- every visible SBOM, a full scan of component (ocidex-kf1p.5). Each canonical
+-- vulnerability takes the severity ListTopVulnerabilities' canonical CTE picks
+-- for it, so it lands in exactly one bucket and these totals agree with the
+-- /vulnerabilities list rather than counting a record once per alias severity.
+WITH canonical AS (
+    SELECT DISTINCT ON (canonical_id) canonical_id, severity
+    FROM vulnerability
+    WHERE canonical_id != ''
+    ORDER BY
+        canonical_id,
+        CASE WHEN severity IS NOT NULL AND severity NOT IN ('UNKNOWN') THEN 0 ELSE 1 END,
+        modified_at DESC NULLS LAST
+), reachable AS (
+    SELECT DISTINCT vr.canonical_id
+    FROM vuln_rollup vr
+    WHERE vr.namespace_id IN (SELECT visible_namespace_ids(
              sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean))
 )
 SELECT
-    COUNT(DISTINCT v.canonical_id)::bigint AS total_vulns,
-    COUNT(DISTINCT v.canonical_id) FILTER (WHERE v.severity = 'CRITICAL')::bigint AS critical_count,
-    COUNT(DISTINCT v.canonical_id) FILTER (WHERE v.severity = 'HIGH')::bigint     AS high_count,
-    COUNT(DISTINCT v.canonical_id) FILTER (WHERE v.severity = 'MEDIUM')::bigint   AS medium_count,
-    COUNT(DISTINCT v.canonical_id) FILTER (WHERE v.severity = 'LOW')::bigint      AS low_count,
-    COUNT(DISTINCT v.canonical_id) FILTER (
-        WHERE v.severity IS NULL OR v.severity NOT IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW')
+    COUNT(*)::bigint AS total_vulns,
+    COUNT(*) FILTER (WHERE c.severity = 'CRITICAL')::bigint AS critical_count,
+    COUNT(*) FILTER (WHERE c.severity = 'HIGH')::bigint     AS high_count,
+    COUNT(*) FILTER (WHERE c.severity = 'MEDIUM')::bigint   AS medium_count,
+    COUNT(*) FILTER (WHERE c.severity = 'LOW')::bigint      AS low_count,
+    COUNT(*) FILTER (
+        WHERE c.severity IS NULL OR c.severity NOT IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW')
     )::bigint AS unknown_count
-FROM component c
-JOIN visible_sbom vs ON vs.id = c.sbom_id
-JOIN package_vulnerability pv ON pv.purl = c.purl AND pv.go_symbol_set_id = COALESCE(c.go_symbol_set_id, 0)
-JOIN vulnerability v ON v.id = pv.vulnerability_id
-WHERE c.purl IS NOT NULL;
+FROM reachable r
+JOIN canonical c ON c.canonical_id = r.canonical_id;
