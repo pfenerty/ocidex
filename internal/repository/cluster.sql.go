@@ -910,7 +910,7 @@ ORDER BY
     END DESC NULLS LAST,
     -- The default ordering, and the tiebreaker under every other key: without
     -- a total order, two pages of an offset-paginated list can repeat a row.
-    w.k8s_namespace ASC, w.workload_name ASC, w.container_name ASC
+    w.k8s_namespace ASC, w.workload_name ASC, w.container_name ASC, w.id
 LIMIT $10::int OFFSET $9::int
 `
 

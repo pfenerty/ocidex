@@ -242,16 +242,17 @@ func BuildRollupSnapshots(ctx context.Context, db DBTX) error {
 // SwapRollupSnapshots replaces the live rollups with the snapshots built by
 // BuildRollupSnapshots.
 //
-// TRUNCATE takes ACCESS EXCLUSIVE, which blocks every reader of the table, so
-// all three swaps are deferred to here and run back to back: the lock window is
-// a truncate plus an insert of a few hundred thousand already-computed rows,
-// well under a second, instead of the minutes the aggregates take. The caller
-// is expected to have set a lock_timeout so a pass that cannot get in fails
-// rather than queueing behind a long read while holding the earlier truncates.
+// DELETE, not TRUNCATE. TRUNCATE takes ACCESS EXCLUSIVE, so under steady read
+// traffic the swap could not get its lock inside the lock_timeout, the whole
+// pass — minutes of aggregation — was thrown away, and the list pages kept
+// serving a snapshot that never advanced. DELETE takes only ROW EXCLUSIVE:
+// readers carry on against the old rows until this transaction commits and
+// then see the new ones, so nothing waits on anything. The cost is dead tuples
+// in tables of a few hundred thousand rows, which autovacuum absorbs.
 func SwapRollupSnapshots(ctx context.Context, db DBTX) error {
 	for _, t := range rollupTargets {
-		if _, err := db.Exec(ctx, "TRUNCATE "+t.table); err != nil {
-			return fmt.Errorf("truncating %s: %w", t.table, err)
+		if _, err := db.Exec(ctx, "DELETE FROM "+t.table); err != nil {
+			return fmt.Errorf("clearing %s: %w", t.table, err)
 		}
 		stmt := fmt.Sprintf("INSERT INTO %s SELECT * FROM %s", t.table, tempName(t.table))
 		if _, err := db.Exec(ctx, stmt); err != nil {

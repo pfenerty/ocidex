@@ -184,7 +184,8 @@ WHERE c.name = $1
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST,
-         s.created_at DESC
+         s.created_at DESC,
+         c.id
 LIMIT $8 OFFSET $7
 `
 
@@ -215,6 +216,10 @@ type GetComponentVersionsRow struct {
 	Architecture   interface{}        `json:"architecture"`
 }
 
+// c.id last makes the order total. Without it, every row of one SBOM (stdlib
+// appears many times per Go image) and every version that does not parse tied,
+// and OFFSET paging over a tie skipped some rows and repeated others -- the
+// "component is missing versions" report.
 func (q *Queries) GetComponentVersions(ctx context.Context, arg GetComponentVersionsParams) ([]GetComponentVersionsRow, error) {
 	rows, err := q.db.Query(ctx, getComponentVersions,
 		arg.Name,
@@ -620,7 +625,8 @@ WHERE rn = 1
 ORDER BY name,
          version_major DESC NULLS LAST,
          version_minor DESC NULLS LAST,
-         version_patch DESC NULLS LAST
+         version_patch DESC NULLS LAST,
+         group_name, version, type, id
 LIMIT $2 OFFSET $1
 `
 
@@ -722,7 +728,7 @@ WHERE ($3::text IS NULL OR l.spdx_id ILIKE '%' || $3::text || '%')
   AND ($4::text IS NULL OR l.name ILIKE '%' || $4::text || '%')
   AND ($5::text IS NULL OR license_category(l.spdx_id) = $5::text)
 GROUP BY l.id, l.spdx_id, l.name, l.url
-ORDER BY component_count DESC, l.name
+ORDER BY component_count DESC, l.name, l.id
 LIMIT $7 OFFSET $6
 `
 
@@ -1249,7 +1255,7 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subjec
 FROM sbom s
 WHERE s.digest = $1
   AND sbom_visible(s.namespace_id, $2::uuid, $3::boolean)
-ORDER BY s.created_at DESC
+ORDER BY s.created_at DESC, s.id DESC
 LIMIT $5 OFFSET $4
 `
 
@@ -1323,7 +1329,8 @@ WHERE ($1::text IS NULL OR c.name = $1)
   )
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
-         c.version_patch DESC NULLS LAST
+         c.version_patch DESC NULLS LAST,
+         c.name, c.group_name, c.version, c.id
 LIMIT $8 OFFSET $7
 `
 
@@ -1354,6 +1361,9 @@ type SearchComponentsRow struct {
 // not by prefix, so a link built from one row's purl returns every SBOM
 // carrying that same package version. The API requires name or purl, so the
 // pair of NULLs that would scan the whole table never reaches here.
+// Version parts alone tie constantly (every unparseable version is all-NULL),
+// and OFFSET over a tied ordering lets rows slide between pages: one page
+// repeats a row, another never shows it. The trailing keys make the order total.
 func (q *Queries) SearchComponents(ctx context.Context, arg SearchComponentsParams) ([]SearchComponentsRow, error) {
 	rows, err := q.db.Query(ctx, searchComponents,
 		arg.Name,
@@ -1440,7 +1450,7 @@ ORDER BY
     WHEN 'version_count' THEN COUNT(DISTINCT v.version)
     WHEN 'sbom_count' THEN COALESCE(SUM(r.sbom_count) FILTER (WHERE COALESCE(v.ord, 1) = 1 AND COALESCE(p.ord, 1) = 1), 0)
   END * CASE $8::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
-  r.name, r.group_name
+  r.name, r.group_name, r.type
 LIMIT $10 OFFSET $9
 `
 

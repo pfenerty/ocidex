@@ -374,7 +374,7 @@ FROM newest_per_version n
 JOIN architectures_per_version a ON a.version_key = n.version_key
 JOIN sbom_count_per_version c ON c.version_key = n.version_key
 LEFT JOIN sbom_vuln_rollup r ON r.sbom_id = n.id
-ORDER BY n.created_at DESC
+ORDER BY n.created_at DESC, n.version_key
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: CountArtifactVersions :one

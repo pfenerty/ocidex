@@ -92,7 +92,7 @@ SELECT s.id, s.serial_number, s.spec_version, s.version, s.artifact_id, s.subjec
 FROM sbom s
 WHERE s.digest = $1
   AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
-ORDER BY s.created_at DESC
+ORDER BY s.created_at DESC, s.id DESC
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: SearchComponents :many
@@ -112,9 +112,13 @@ WHERE (sqlc.narg('name')::text IS NULL OR c.name = sqlc.narg('name'))
     SELECT 1 FROM sbom s WHERE s.id = c.sbom_id
       AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
   )
+-- Version parts alone tie constantly (every unparseable version is all-NULL),
+-- and OFFSET over a tied ordering lets rows slide between pages: one page
+-- repeats a row, another never shows it. The trailing keys make the order total.
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
-         c.version_patch DESC NULLS LAST
+         c.version_patch DESC NULLS LAST,
+         c.name, c.group_name, c.version, c.id
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: GetComponent :one
@@ -170,7 +174,7 @@ WHERE (sqlc.narg('spdx_id')::text IS NULL OR l.spdx_id ILIKE '%' || sqlc.narg('s
   AND (sqlc.narg('name')::text IS NULL OR l.name ILIKE '%' || sqlc.narg('name')::text || '%')
   AND (sqlc.narg('category')::text IS NULL OR license_category(l.spdx_id) = sqlc.narg('category')::text)
 GROUP BY l.id, l.spdx_id, l.name, l.url
-ORDER BY component_count DESC, l.name
+ORDER BY component_count DESC, l.name, l.id
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: ListComponentsByLicense :many
@@ -196,7 +200,8 @@ WHERE rn = 1
 ORDER BY name,
          version_major DESC NULLS LAST,
          version_minor DESC NULLS LAST,
-         version_patch DESC NULLS LAST
+         version_patch DESC NULLS LAST,
+         group_name, version, type, id
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: LicenseSummaryByArtifact :many
@@ -397,7 +402,7 @@ ORDER BY
     WHEN 'version_count' THEN COUNT(DISTINCT v.version)
     WHEN 'sbom_count' THEN COALESCE(SUM(r.sbom_count) FILTER (WHERE COALESCE(v.ord, 1) = 1 AND COALESCE(p.ord, 1) = 1), 0)
   END * CASE @sort_dir::text WHEN 'asc' THEN 1 ELSE -1 END ASC NULLS LAST,
-  r.name, r.group_name
+  r.name, r.group_name, r.type
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: GetComponentVersions :many
@@ -416,10 +421,15 @@ WHERE c.name = @name
   AND (sqlc.narg('version')::text IS NULL OR c.version = sqlc.narg('version'))
   AND (sqlc.narg('type')::text IS NULL OR c.type = sqlc.narg('type'))
   AND sbom_visible(s.namespace_id, sqlc.narg('user_id')::uuid, sqlc.narg('is_admin')::boolean)
+-- c.id last makes the order total. Without it, every row of one SBOM (stdlib
+-- appears many times per Go image) and every version that does not parse tied,
+-- and OFFSET paging over a tie skipped some rows and repeated others -- the
+-- "component is missing versions" report.
 ORDER BY c.version_major DESC NULLS LAST,
          c.version_minor DESC NULLS LAST,
          c.version_patch DESC NULLS LAST,
-         s.created_at DESC
+         s.created_at DESC,
+         c.id
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: CountComponentVersions :one

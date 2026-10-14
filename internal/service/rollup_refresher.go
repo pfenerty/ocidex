@@ -44,13 +44,14 @@ const rollupMinGap = 2 * time.Minute
 // aggregates are allowed to take as long as they take.
 const rollupRefreshTimeout = 20 * time.Minute
 
-// rollupSwapLockTimeout bounds how long the swap waits for the ACCESS EXCLUSIVE
-// lock on each rollup table.
+// rollupSwapLockTimeout bounds how long the swap waits for its lock on each
+// rollup table.
 //
-// Without it, a pass that arrives while a long read holds ACCESS SHARE would
-// queue for that lock — and because TRUNCATE queues ahead of every subsequent
-// reader, every list request behind it would block too. Failing the pass is
-// strictly better: the previous snapshot stays live and the next pass retries.
+// The swap DELETEs, so it takes ROW EXCLUSIVE and readers never block it. What
+// can is an ACCESS EXCLUSIVE holder — a migration's ALTER, a manual VACUUM
+// FULL — and a pass queued behind one would hold its earlier tables' row locks
+// for as long as that took. Failing the pass is strictly better: the previous
+// snapshot stays live and the next pass retries.
 const rollupSwapLockTimeout = 5 * time.Second
 
 // RollupRefresher rebuilds the component/license/vulnerability rollup tables in
@@ -78,6 +79,12 @@ type RollupRefresher struct {
 	lastPass time.Time
 	lastMark repository.RollupWatermark
 	haveMark bool
+
+	// lastSuccess is when this replica last saw a pass commit (its own, or
+	// another replica's that held the lock), seeded with Run's start so a
+	// replica whose passes never succeed still warns. Only Run's goroutine
+	// touches it.
+	lastSuccess time.Time
 }
 
 // NewRollupRefresher constructs a RollupRefresher. A non-positive interval falls
@@ -115,6 +122,7 @@ func (r *RollupRefresher) LockKey() int64 { return r.lockKey }
 func (r *RollupRefresher) Run(ctx context.Context) {
 	timer := time.NewTimer(r.pollInterval)
 	defer timer.Stop()
+	r.lastSuccess = time.Now()
 
 	for {
 		r.tick(ctx)
@@ -158,14 +166,23 @@ func (r *RollupRefresher) tick(ctx context.Context) {
 	switch ran, err := r.refresh(passCtx); {
 	case err != nil:
 		r.logger.Error("rollup refresh failed", "reason", reason, "duration", time.Since(start), "err", err)
+		// One failed pass is noise; a run of them means every list page that
+		// reads a rollup is serving data that has stopped advancing, which is
+		// otherwise invisible — the pages still render, just without whatever
+		// was ingested since. Say so at a level someone will see.
+		if time.Since(r.lastSuccess) > 2*r.interval {
+			r.logger.Warn("rollups are stale", "last_success", r.lastSuccess, "age", time.Since(r.lastSuccess))
+		}
 	case !ran:
 		// Another replica is doing the work, so its result will be visible to
 		// this one. Record the pass to keep both replicas from spinning on a
 		// watermark neither of them can clear.
 		r.recordPass(mark, markErr == nil)
+		r.lastSuccess = time.Now()
 		r.logger.Debug("rollup refresh skipped", "reason", "another replica holds the lock")
 	default:
 		r.recordPass(mark, markErr == nil)
+		r.lastSuccess = time.Now()
 		// Log the cost even on success: this is the only place the true
 		// aggregate time is visible now that no request waits on it.
 		r.logger.Info("rollups refreshed", "reason", reason, "duration", time.Since(start))
