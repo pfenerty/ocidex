@@ -553,6 +553,8 @@ multi-arch index digest with `crane`, bakes them into `image.digests` in
 `appVersion: v<semver>`. A released chart therefore pins every component to an
 immutable `...@sha256:...` reference. To track releases rather than `main`, set
 the HelmRelease `version` to a semver range such as `">=1.0.0"`.
+Before moving to a new release, follow [UPGRADING.md](UPGRADING.md): back up the database
+and do that version's *before upgrading* steps.
 
 ## Rollback
 
@@ -572,8 +574,9 @@ will hold the release there indefinitely. On a non-Flux cluster,
 
 Database state is unaffected: Postgres is external to the chart and its PVC
 belongs to the CNPG `Cluster`. Note that migrations are **not** rolled back by
-either mechanism — a rollback across a schema change needs
-`ocidex migrate down` run deliberately.
+either mechanism. To roll back across a schema change, restore the pre-upgrade backup.
+`ocidex migrate down` is not a supported rollback, because several down steps lose data. See
+[UPGRADING.md § Rolling back](UPGRADING.md#rolling-back).
 
 ---
 
