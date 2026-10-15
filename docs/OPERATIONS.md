@@ -140,6 +140,36 @@ kubectl get ociregistries -n <old-ns>          # wait for: No resources found
 
 The operator logs its live scope as `watch_namespaces` at startup — check there first when the deployed value is in doubt.
 
+### Rotating the credential encryption key
+
+Registry credentials are encrypted with a key from `DATA_ENCRYPTION_KEYS`
+([ADR-051](adr/0051-credential-encryption-at-rest.md)). Every listed key decrypts;
+`DATA_ENCRYPTION_ACTIVE_KEY` encrypts. A stored value names the key that sealed it
+(`enc:v1:<key-id>:...`), so a rotation is online:
+
+1. Generate a key: `openssl rand -base64 32`.
+2. Add it to `DATA_ENCRYPTION_KEYS` in the Secret alongside the old one
+   (`old:<b64>,new:<b64>`) and set `DATA_ENCRYPTION_ACTIVE_KEY=new`.
+3. Roll out. New writes use `new`, and every process can still read `old`. The chart's
+   migrate hook Job runs `ocidex migrate encrypt-secrets` after `migrate up`, which
+   re-seals every value under `new`. Outside the chart, run it yourself (`--dry-run` to
+   preview). It is idempotent.
+4. Confirm the job's output reports `0 rotated` on a second run, or check that no value
+   still names the old key:
+   `SELECT count(*) FROM registry WHERE auth_token LIKE 'enc:v1:old:%' OR webhook_secret LIKE 'enc:v1:old:%';`
+5. Remove `old` from `DATA_ENCRYPTION_KEYS` and roll out again.
+
+Removing a key before step 4 makes the values it sealed unreadable: those registries
+fail on read until their credentials are re-entered.
+
+**First enablement** follows the same path: set one key, roll out, and `encrypt-secrets`
+seals the existing plaintext. Until it runs, plaintext rows keep working.
+
+**Losing every key** makes stored credentials unrecoverable. Nothing else is affected.
+Configure a new key, then re-enter each registry's auth token and regenerate its webhook
+secret (`POST /api/v1/registries/{id}/webhook-secret`) and update the sender. Back up the
+key separately from the database: a backup holding both defeats the encryption.
+
 - **PVC backups** — back up the Postgres volume. The NATS volume is now no-data: at worst, losing it costs you queue latency until workers' next poll, which is bounded by `SCANNER_POLL_INTERVAL`.
 - **Tuning concurrency** — `SCANNER_MAX_CONCURRENCY` directly maps to active worker goroutines. Watch pod memory: Syft is the cost. There is no longer a `SCANNER_MAX_ACK_PENDING` to tune in lockstep.
 - **DLQ table cleanup** — `scan_job_failures` is the legacy DLQ-via-NATS audit table. It is no longer written to. `SCAN_DLQ_RETENTION_DAYS` (default 30) controls how long old rows linger before the purge sweep deletes them. The table itself is scheduled for removal in a follow-up migration (`ocidex-ujj.74.6`).

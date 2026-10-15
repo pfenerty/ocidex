@@ -5,6 +5,9 @@ OCIDex {{ .Chart.AppVersion }} has been deployed to namespace {{ .Release.Namesp
 The application requires a Secret named "{{ .Values.existingSecret }}" containing:
   - DATABASE_URL      (PostgreSQL connection string, e.g. postgres://user:pass@host:5432/db)
   - SESSION_SECRET    (random 32-byte hex: openssl rand -hex 32)
+  - DATA_ENCRYPTION_KEYS + DATA_ENCRYPTION_ACTIVE_KEY
+                      (encrypts stored registry credentials; required in production:
+                       k1:$(openssl rand -base64 32) and k1. Back the key up separately.)
   - at least one identity provider, either or both of:
       GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET   (GitHub OAuth app)
       OIDC_ISSUER_URL  + OIDC_CLIENT_ID         (any OIDC issuer)
@@ -19,7 +22,9 @@ Create it with (GitHub shown; swap in the OIDC keys for an OIDC-only install):
     --from-literal=DATABASE_URL=<your-postgres-url> \
     --from-literal=GITHUB_CLIENT_ID=<client-id> \
     --from-literal=GITHUB_CLIENT_SECRET=<client-secret> \
-    --from-literal=SESSION_SECRET=$(openssl rand -hex 32)
+    --from-literal=SESSION_SECRET=$(openssl rand -hex 32) \
+    --from-literal=DATA_ENCRYPTION_KEYS=k1:$(openssl rand -base64 32) \
+    --from-literal=DATA_ENCRYPTION_ACTIVE_KEY=k1
 
 See docs/CONFIGURATION.md for the full list of supported fields.
 

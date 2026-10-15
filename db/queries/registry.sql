@@ -13,8 +13,11 @@
 -- for pre-existing registries. When namespace_id is supplied (the operator
 -- defaulting an OCIDex namespace from the CR's K8s namespace) only source and
 -- registry are written, and they share an id inside the existing namespace.
+--
+-- The caller supplies the id: stored credentials are encrypted bound to the
+-- row id (ADR-051), so it must be known before the row is written.
 WITH new_id AS (
-    SELECT gen_random_uuid() AS id
+    SELECT @id::uuid AS id
 ),
 ns AS (
     INSERT INTO namespace (id, name, visibility)
@@ -216,3 +219,24 @@ SELECT source_id AS registry_id, signing_status, COUNT(*) AS artifact_count
 FROM latest_provenance
 GROUP BY source_id, signing_status
 ORDER BY source_id, signing_status;
+
+-- name: ListRegistrySecretsPage :many
+-- Keyset page of stored registry credentials, for `ocidex migrate
+-- encrypt-secrets` (ADR-051). Pass the nil UUID to start.
+SELECT id, auth_token, webhook_secret
+FROM registry
+WHERE id > @after::uuid
+  AND (auth_token IS NOT NULL OR webhook_secret IS NOT NULL)
+ORDER BY id
+LIMIT @row_limit;
+
+-- name: RewriteRegistrySecrets :execrows
+-- Compare-and-swap: a row whose credentials changed since they were read is
+-- left alone (0 rows) for the next run. updated_at is untouched because the
+-- credentials themselves have not changed.
+UPDATE registry
+SET auth_token     = sqlc.narg('new_auth_token')::text,
+    webhook_secret = sqlc.narg('new_webhook_secret')::text
+WHERE id = @id
+  AND auth_token IS NOT DISTINCT FROM sqlc.narg('old_auth_token')::text
+  AND webhook_secret IS NOT DISTINCT FROM sqlc.narg('old_webhook_secret')::text;

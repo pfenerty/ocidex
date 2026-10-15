@@ -196,7 +196,7 @@ func TestScanToEnrichFlow(t *testing.T) {
 	sc := engine.NewSyftScanner(logger, "all")
 	scanDisp := engine.NewDispatcher(sc, sbomSvc, 0, netguard.Policy{}, logger)
 
-	jobSvc := service.NewJobService(pool)
+	jobSvc := service.NewJobService(pool, nil)
 	submitter := scanner.NewNATSSubmitter(natsClient, streamName, jobSvc)
 
 	extCtx, extCancel := context.WithCancel(ctx)

@@ -24,26 +24,16 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      containers:
+      # The schema migration runs first as an init container; encrypt-secrets
+      # (ADR-051) then seals legacy plaintext registry credentials and
+      # re-seals any under a non-active DATA_ENCRYPTION_KEYS key. Both read
+      # DATA_ENCRYPTION_* from existingSecret.
+      initContainers:
         - name: migrate
-          image: {{ include "ocidex.image" (dict "root" . "name" "api") }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- include "ocidex.migrateContainer" . | nindent 10 }}
           command: ["/ocidex", "migrate", "up"]
-          {{- with .Values.securityContext }}
-          securityContext:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          resources:
-            requests:
-              cpu: "50m"
-              memory: "64Mi"
-            limits:
-              cpu: "200m"
-              memory: "128Mi"
-          envFrom:
-            - secretRef:
-                name: {{ .Values.existingSecret }}
-          env:
-            - name: NATS_URL
-              value: "nats://{{ include "ocidex.fullname" . }}-nats:4222"
+      containers:
+        - name: encrypt-secrets
+          {{- include "ocidex.migrateContainer" . | nindent 10 }}
+          command: ["/ocidex", "migrate", "encrypt-secrets"]
 {{- end }}

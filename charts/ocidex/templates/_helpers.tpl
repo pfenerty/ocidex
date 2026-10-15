@@ -97,3 +97,32 @@ scanner worker and the enrichers (internal/netguard).
   value: {{ join "," . | quote }}
 {{- end }}
 {{- end }}
+
+{{/*
+The shared body of the migrate Job's containers, everything but name and
+command. ENVIRONMENT makes encrypt-secrets fail in production without
+DATA_ENCRYPTION_KEYS, the rule the services start under (ADR-051).
+*/}}
+{{- define "ocidex.migrateContainer" -}}
+image: {{ include "ocidex.image" (dict "root" . "name" "api") }}
+imagePullPolicy: {{ .Values.image.pullPolicy }}
+{{- with .Values.securityContext }}
+securityContext:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "200m"
+    memory: "128Mi"
+envFrom:
+  - secretRef:
+      name: {{ .Values.existingSecret }}
+env:
+  - name: NATS_URL
+    value: "nats://{{ include "ocidex.fullname" . }}-nats:4222"
+  - name: ENVIRONMENT
+    value: {{ .Values.api.env.environment | quote }}
+{{- end }}

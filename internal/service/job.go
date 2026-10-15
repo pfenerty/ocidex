@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pfenerty/ocidex/internal/repository"
+	"github.com/pfenerty/ocidex/internal/secretbox"
 )
 
 // ScanJobState represents the lifecycle state of a scan job.
@@ -104,11 +105,16 @@ type JobService interface {
 	RetryAllFailed(ctx context.Context) (int64, error)
 }
 
-type jobService struct{ repo repository.JobRepository }
+type jobService struct {
+	repo repository.JobRepository
+	// box decrypts the registry auth token a claim carries (ADR-051).
+	box *secretbox.Box
+}
 
-// NewJobService constructs a JobService backed by the given pool.
-func NewJobService(pool *pgxpool.Pool) JobService {
-	return &jobService{repo: repository.New(pool)}
+// NewJobService constructs a JobService backed by the given pool. box
+// decrypts stored registry credentials; nil reads them as plaintext.
+func NewJobService(pool *pgxpool.Pool, box *secretbox.Box) JobService {
+	return &jobService{repo: repository.New(pool), box: box}
 }
 
 func (s *jobService) Enqueue(ctx context.Context, registryID, repo, digest, indexDigest, tag, msgID string) (ScanJob, error) {
@@ -290,8 +296,12 @@ func (s *jobService) ClaimByID(ctx context.Context, id, workerID string) (ScanJo
 		}
 		return ScanJobClaim{}, false, fmt.Errorf("claim scan job by id: %w", err)
 	}
+	authToken, err := s.openAuthToken(row.RegistryID, row.AuthToken)
+	if err != nil {
+		return ScanJobClaim{}, false, err
+	}
 	return claimFromRow(row.ID, row.RegistryID, row.Repository, row.Digest, row.IndexDigest,
-		row.Tag, row.RegistryUrl, row.Insecure, row.AuthUsername, row.AuthToken, row.Attempts), true, nil
+		row.Tag, row.RegistryUrl, row.Insecure, row.AuthUsername, authToken, row.Attempts), true, nil
 }
 
 func (s *jobService) ClaimNext(ctx context.Context, workerID string) (ScanJobClaim, bool, error) {
@@ -302,8 +312,12 @@ func (s *jobService) ClaimNext(ctx context.Context, workerID string) (ScanJobCla
 		}
 		return ScanJobClaim{}, false, fmt.Errorf("claim next queued job: %w", err)
 	}
+	authToken, err := s.openAuthToken(row.RegistryID, row.AuthToken)
+	if err != nil {
+		return ScanJobClaim{}, false, err
+	}
 	return claimFromRow(row.ID, row.RegistryID, row.Repository, row.Digest, row.IndexDigest,
-		row.Tag, row.RegistryUrl, row.Insecure, row.AuthUsername, row.AuthToken, row.Attempts), true, nil
+		row.Tag, row.RegistryUrl, row.Insecure, row.AuthUsername, authToken, row.Attempts), true, nil
 }
 
 func (s *jobService) FinishByID(ctx context.Context, id string, sbomID pgtype.UUID) error {
@@ -355,6 +369,14 @@ func (s *jobService) Retry(ctx context.Context, id string) error {
 
 func (s *jobService) RetryAllFailed(ctx context.Context) (int64, error) {
 	return s.repo.RetryAllFailedScanJobs(ctx)
+}
+
+// openAuthToken decrypts the auth token a claim row joined from its registry.
+func (s *jobService) openAuthToken(registryID, stored string) (string, error) {
+	if stored == "" {
+		return "", nil
+	}
+	return openCredential(s.box, colAuthToken, registryID, stored)
 }
 
 func claimFromRow(id pgtype.UUID, registryID, repo, digest, indexDigest, tag, registryURL string, insecure bool, authUser, authToken string, attempts int32) ScanJobClaim {

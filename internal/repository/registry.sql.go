@@ -14,28 +14,28 @@ import (
 const createRegistry = `-- name: CreateRegistry :one
 
 WITH new_id AS (
-    SELECT gen_random_uuid() AS id
+    SELECT $19::uuid AS id
 ),
 ns AS (
     INSERT INTO namespace (id, name, visibility)
-    SELECT n.id, $19::text, $20::text
+    SELECT n.id, $20::text, $21::text
     FROM new_id n
-    WHERE $21::uuid IS NULL
+    WHERE $22::uuid IS NULL
     RETURNING id
 ),
 ns_owner AS (
     INSERT INTO namespace_member (namespace_id, user_id, role)
-    SELECT ns.id, $22::uuid, 'owner'
+    SELECT ns.id, $23::uuid, 'owner'
     FROM ns
-    WHERE $22::uuid IS NOT NULL
+    WHERE $23::uuid IS NOT NULL
     RETURNING user_id
 ),
 target_ns AS (
-    SELECT COALESCE($21::uuid, (SELECT id FROM ns)) AS id
+    SELECT COALESCE($22::uuid, (SELECT id FROM ns)) AS id
 ),
 src AS (
     INSERT INTO source (id, namespace_id, kind, name)
-    SELECT n.id, t.id, 'oci_registry', $19::text FROM new_id n, target_ns t
+    SELECT n.id, t.id, 'oci_registry', $20::text FROM new_id n, target_ns t
     RETURNING id
 )
 INSERT INTO registry (
@@ -74,6 +74,7 @@ type CreateRegistryParams struct {
 	TrustIssuer         pgtype.Text `json:"trust_issuer"`
 	ManagedBy           pgtype.Text `json:"managed_by"`
 	ManagedRef          pgtype.Text `json:"managed_ref"`
+	ID                  pgtype.UUID `json:"id"`
 	Name                string      `json:"name"`
 	Visibility          string      `json:"visibility"`
 	NamespaceID         pgtype.UUID `json:"namespace_id"`
@@ -93,6 +94,9 @@ type CreateRegistryParams struct {
 // for pre-existing registries. When namespace_id is supplied (the operator
 // defaulting an OCIDex namespace from the CR's K8s namespace) only source and
 // registry are written, and they share an id inside the existing namespace.
+//
+// The caller supplies the id: stored credentials are encrypted bound to the
+// row id (ADR-051), so it must be known before the row is written.
 // The owner of a namespace minted here is a member row, not a column
 // (ocidex-y0hg.4). It is written only on the mint path: supplying namespace_id
 // means joining a namespace that already has its own members, and an import
@@ -120,6 +124,7 @@ func (q *Queries) CreateRegistry(ctx context.Context, arg CreateRegistryParams) 
 		arg.TrustIssuer,
 		arg.ManagedBy,
 		arg.ManagedRef,
+		arg.ID,
 		arg.Name,
 		arg.Visibility,
 		arg.NamespaceID,
@@ -570,6 +575,48 @@ func (q *Queries) ListRegistriesPaged(ctx context.Context, arg ListRegistriesPag
 	return items, nil
 }
 
+const listRegistrySecretsPage = `-- name: ListRegistrySecretsPage :many
+SELECT id, auth_token, webhook_secret
+FROM registry
+WHERE id > $1::uuid
+  AND (auth_token IS NOT NULL OR webhook_secret IS NOT NULL)
+ORDER BY id
+LIMIT $2
+`
+
+type ListRegistrySecretsPageParams struct {
+	After    pgtype.UUID `json:"after"`
+	RowLimit int32       `json:"row_limit"`
+}
+
+type ListRegistrySecretsPageRow struct {
+	ID            pgtype.UUID `json:"id"`
+	AuthToken     pgtype.Text `json:"auth_token"`
+	WebhookSecret pgtype.Text `json:"webhook_secret"`
+}
+
+// Keyset page of stored registry credentials, for `ocidex migrate
+// encrypt-secrets` (ADR-051). Pass the nil UUID to start.
+func (q *Queries) ListRegistrySecretsPage(ctx context.Context, arg ListRegistrySecretsPageParams) ([]ListRegistrySecretsPageRow, error) {
+	rows, err := q.db.Query(ctx, listRegistrySecretsPage, arg.After, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRegistrySecretsPageRow{}
+	for rows.Next() {
+		var i ListRegistrySecretsPageRow
+		if err := rows.Scan(&i.ID, &i.AuthToken, &i.WebhookSecret); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRegistryTrustSummary = `-- name: ListRegistryTrustSummary :many
 WITH latest_provenance AS (
     SELECT DISTINCT ON (s.source_id, s.artifact_id)
@@ -625,6 +672,40 @@ func (q *Queries) ListRegistryTrustSummary(ctx context.Context, arg ListRegistry
 		return nil, err
 	}
 	return items, nil
+}
+
+const rewriteRegistrySecrets = `-- name: RewriteRegistrySecrets :execrows
+UPDATE registry
+SET auth_token     = $1::text,
+    webhook_secret = $2::text
+WHERE id = $3
+  AND auth_token IS NOT DISTINCT FROM $4::text
+  AND webhook_secret IS NOT DISTINCT FROM $5::text
+`
+
+type RewriteRegistrySecretsParams struct {
+	NewAuthToken     pgtype.Text `json:"new_auth_token"`
+	NewWebhookSecret pgtype.Text `json:"new_webhook_secret"`
+	ID               pgtype.UUID `json:"id"`
+	OldAuthToken     pgtype.Text `json:"old_auth_token"`
+	OldWebhookSecret pgtype.Text `json:"old_webhook_secret"`
+}
+
+// Compare-and-swap: a row whose credentials changed since they were read is
+// left alone (0 rows) for the next run. updated_at is untouched because the
+// credentials themselves have not changed.
+func (q *Queries) RewriteRegistrySecrets(ctx context.Context, arg RewriteRegistrySecretsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, rewriteRegistrySecrets,
+		arg.NewAuthToken,
+		arg.NewWebhookSecret,
+		arg.ID,
+		arg.OldAuthToken,
+		arg.OldWebhookSecret,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setRegistryEnabled = `-- name: SetRegistryEnabled :one

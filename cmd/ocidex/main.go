@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"flag"
 	"fmt"
 	"hash/fnv"
 	"log/slog"
@@ -31,6 +32,7 @@ import (
 	natspkg "github.com/pfenerty/ocidex/internal/nats"
 	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/scanner"
+	"github.com/pfenerty/ocidex/internal/secretbox"
 	"github.com/pfenerty/ocidex/internal/service"
 	"github.com/pfenerty/ocidex/internal/version"
 )
@@ -55,6 +57,18 @@ func main() {
 	}
 }
 
+// logStartup records the configuration an operator most needs to see at boot.
+func logStartup(cfg *config.Config) {
+	slog.Info("starting ocidex",
+		"port", cfg.Port,
+		"environment", cfg.Environment,
+		"log_level", cfg.LogLevel,
+	)
+	if cfg.SecretBox == nil {
+		slog.Warn("DATA_ENCRYPTION_KEYS is not set: registry credentials are stored in plaintext (ADR-051)")
+	}
+}
+
 func run() error {
 	// Load configuration.
 	cfg, err := config.Load()
@@ -66,11 +80,7 @@ func run() error {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: cfg.SlogLevel(),
 	})))
-	slog.Info("starting ocidex",
-		"port", cfg.Port,
-		"environment", cfg.Environment,
-		"log_level", cfg.LogLevel,
-	)
+	logStartup(cfg)
 
 	ctx := context.Background()
 
@@ -98,7 +108,7 @@ func run() error {
 	bus := event.NewBus(logger)
 	reg := extension.NewManager(bus, logger)
 
-	registrySvc := service.NewRegistryService(pool)
+	registrySvc := service.NewRegistryService(pool, cfg.SecretBox)
 	namespaceSvc := service.NewNamespaceService(pool)
 	sourceSvc := service.NewSourceService(pool)
 	insecureResolver := service.BuildInsecureHostLookup(registrySvc)
@@ -113,7 +123,7 @@ func run() error {
 	searchSvc := service.NewSearchService(pool, service.WithWarmDB(bgPool))
 	authSvc := service.NewAuthService(pool, cfg, bus, providers)
 
-	jobSvc := service.NewJobService(pool)
+	jobSvc := service.NewJobService(pool, cfg.SecretBox)
 	// The API enqueues and administers enrichment jobs but never claims one, so
 	// the ClaimNext partition name is empty (see NewEnrichJobService).
 	enrichJobSvc := service.NewEnrichJobService(pool, "")
@@ -125,7 +135,7 @@ func run() error {
 	}
 
 	watchSvc := service.NewWatchService(pool)
-	clusterSvc := service.NewClusterService(pool)
+	clusterSvc := service.NewClusterService(pool, cfg.SecretBox)
 	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, clusterSvc, pool, scanSubmitter, cfg)
 	router := api.NewRouter(handler, cfg.CORSAllowedOrigins, cfg.FrontendURL, cfg.APIBaseURL)
 
@@ -418,16 +428,19 @@ func serveAndWait(srv *http.Server) error {
 	return nil
 }
 
-// runMigrate dispatches `ocidex migrate up|down|status|audit`. It deliberately
-// avoids config.Load() because the migration tool has no business depending
-// on NATS connectivity — only DATABASE_URL is required.
+// runMigrate dispatches `ocidex migrate up|down|status|audit|encrypt-secrets`.
+// It deliberately avoids config.Load() because the migration tool has no
+// business depending on NATS connectivity — only DATABASE_URL is required.
 func runMigrate(args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: ocidex migrate up|down|status|audit")
+		return errors.New("usage: ocidex migrate up|down|status|audit|encrypt-secrets")
 	}
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		return errors.New("DATABASE_URL is required")
+	}
+	if args[0] == "encrypt-secrets" {
+		return runEncryptSecrets(context.Background(), dbURL, args[1:])
 	}
 	conn, err := sql.Open("pgx", dbURL)
 	if err != nil {
@@ -453,8 +466,55 @@ func runMigrate(args []string) error {
 	case "audit":
 		return ownershipPreflight(context.Background(), conn)
 	default:
-		return fmt.Errorf("unknown migrate subcommand %q (want up|down|status|audit)", args[0])
+		return fmt.Errorf("unknown migrate subcommand %q (want up|down|status|audit|encrypt-secrets)", args[0])
 	}
+}
+
+// encryptSecretsBatch is how many registry rows encrypt-secrets reads at once.
+const encryptSecretsBatch = 100
+
+// runEncryptSecrets is `ocidex migrate encrypt-secrets [--dry-run]` (ADR-051):
+// it seals legacy plaintext registry credentials and re-seals those under a
+// key other than DATA_ENCRYPTION_ACTIVE_KEY. Without DATA_ENCRYPTION_KEYS it
+// is a no-op outside production and an error in it, the same rule the
+// services start under.
+func runEncryptSecrets(ctx context.Context, dbURL string, args []string) error {
+	fs := flag.NewFlagSet("encrypt-secrets", flag.ContinueOnError)
+	dryRun := fs.Bool("dry-run", false, "Report what would change without writing")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	box, err := secretbox.Parse(os.Getenv("DATA_ENCRYPTION_KEYS"), os.Getenv("DATA_ENCRYPTION_ACTIVE_KEY"))
+	if err != nil {
+		return fmt.Errorf("DATA_ENCRYPTION_KEYS: %w", err)
+	}
+	if box == nil {
+		if os.Getenv("ENVIRONMENT") == "production" {
+			return errors.New("DATA_ENCRYPTION_KEYS is required when ENVIRONMENT=production (ADR-051)")
+		}
+		fmt.Println("encrypt-secrets: DATA_ENCRYPTION_KEYS is not set; nothing to do")
+		return nil
+	}
+	pool, err := pgxpool.New(ctx, dbURL)
+	if err != nil {
+		return fmt.Errorf("opening db: %w", err)
+	}
+	defer pool.Close()
+
+	res, err := service.EncryptRegistrySecrets(ctx, repository.New(pool), box, encryptSecretsBatch, *dryRun)
+	if err != nil {
+		return err
+	}
+	verb := "updated"
+	if *dryRun {
+		verb = "would update (dry run)"
+	}
+	fmt.Printf("encrypt-secrets: active key %q; %s: %d encrypted, %d rotated; %d already current; %d conflicted (retry)\n",
+		box.ActiveKey(), verb, res.Encrypted, res.Rotated, res.Current, res.Conflicted)
+	for _, u := range res.Unreadable {
+		fmt.Printf("encrypt-secrets: cannot decrypt registry %s; re-enter that credential\n", u)
+	}
+	return nil
 }
 
 // ownershipPreflight fails the migration before goose touches the schema if any

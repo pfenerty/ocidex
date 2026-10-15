@@ -301,6 +301,8 @@ by Flux. It is **not** in this repo; the chart only references it via `envFrom`.
 |---|---|---|
 | `DATABASE_URL` | Composed from the CNPG service and password (see below) | every workload |
 | `SESSION_SECRET` | `openssl rand -hex 32` | API |
+| `DATA_ENCRYPTION_KEYS` | `<id>:$(openssl rand -base64 32)` ([ADR-051](adr/0051-credential-encryption-at-rest.md)) | API, scanner-worker, enrichers, migrate Job — **required in production** |
+| `DATA_ENCRYPTION_ACTIVE_KEY` | the `<id>` above | same |
 | `GITHUB_CLIENT_ID` | GitHub OAuth App | API — this deployment's provider; see below |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth App | API |
 | `POSTGRES_USER` / `POSTGRES_DB` | `ocidex` / `ocidex` | nothing — see below |

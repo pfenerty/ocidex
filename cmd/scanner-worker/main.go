@@ -107,7 +107,7 @@ func run() error {
 	// Wire scanner worker: stateless scanner + outbox-pattern hint extension.
 	// The scan_jobs row is the source of truth; NATS hints are a latency hint
 	// and the DB poll loop is the fallback when hints are lost.
-	jobSvc := service.NewJobService(pool)
+	jobSvc := service.NewJobService(pool, cfg.SecretBox)
 	scannerSbomSvc := service.NewSBOMService(pool, bus, nil)
 	sc := engine.NewSyftScanner(logger, cfg.ScannerGoSymbols)
 	dispatcher := engine.NewDispatcher(sc, scannerSbomSvc, cfg.ScannerMaxImageBytes, cfg.EgressPolicy, logger)
@@ -150,7 +150,7 @@ func run() error {
 
 	// Wire catalog walk consumer: receives catalog.walk.requested from the API server poller
 	// and performs the OCI catalog walk here in the scanner-worker.
-	registrySvc := service.NewRegistryService(pool)
+	registrySvc := service.NewRegistryService(pool, cfg.SecretBox)
 	natsSubmitter := scanner.NewNATSSubmitter(natsClient, cfg.NATSStreamName, jobSvc)
 	registry.Register(scanner.NewNATSCatalogExtension(
 		natsClient, registrySvc, scannerSbomSvc, natsSubmitter, cfg.NATSStreamName, cfg.EgressPolicy, logger,

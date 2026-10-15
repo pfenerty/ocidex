@@ -888,7 +888,7 @@ func TestClusterWorkloadVulnCountsAndSort(t *testing.T) {
 	ctx := t.Context()
 	is := is.New(t)
 	q := repository.New(pool)
-	svc := service.NewClusterService(pool)
+	svc := service.NewClusterService(pool, nil)
 
 	owner := seedUser(t, pool, 9501, "vulncount-owner", "member")
 	nsID := seedNamespace(t, pool, "vulncount-ns", owner, "private")
@@ -1078,7 +1078,7 @@ func TestClusterIngestUnknown(t *testing.T) {
 	ctx := t.Context()
 	is := is.New(t)
 	q := repository.New(pool)
-	svc := service.NewClusterService(pool)
+	svc := service.NewClusterService(pool, nil)
 
 	owner := seedUser(t, pool, 9601, "ingest-owner", "member")
 	nsID := seedNamespace(t, pool, "ingest-ns", owner, "private")
@@ -1206,7 +1206,7 @@ func TestClusterAutoIngestDefaultsOn(t *testing.T) {
 	defer cleanup()
 
 	is := is.New(t)
-	svc := service.NewClusterService(pool)
+	svc := service.NewClusterService(pool, nil)
 
 	owner := seedUser(t, pool, 9603, "autoingest-owner", "member")
 	nsID := seedNamespace(t, pool, "autoingest-ns", owner, "private")
