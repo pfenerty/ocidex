@@ -157,6 +157,20 @@ Controls webhook-triggered and poll-triggered OCI image scanning (runs Syft).
 | `poll` | Poller periodically lists tags and scans new digests. Requires `SCANNER_ENABLED=true` + `REGISTRY_POLLER_ENABLED=true`. |
 | `both` | Both webhook and poll. |
 
+### Credential Encryption
+
+Registry auth tokens and webhook secrets are encrypted in the database with AES-256-GCM
+([ADR-051](adr/0051-credential-encryption-at-rest.md)). Set the same values on every process
+that loads the main config: the API, `scanner-worker` and the enricher workers.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATA_ENCRYPTION_KEYS` | `""` | Comma-separated `<id>:<base64 32-byte key>`. Every key listed can decrypt. An id is `[A-Za-z0-9_-]{1,32}`. Generate a key with `openssl rand -base64 32`. **Required when `ENVIRONMENT=production`**; without it, startup fails. Outside production, unset means credentials are stored in plaintext and the API logs a warning. |
+| `DATA_ENCRYPTION_ACTIVE_KEY` | `""` | The key id new values are encrypted with. Must name a key in `DATA_ENCRYPTION_KEYS`. |
+
+A malformed key list, a key that is not 32 bytes, or an active id not in the list fails
+startup. Rotation and key loss: [OPERATIONS.md](OPERATIONS.md#rotating-the-credential-encryption-key).
+
 ### Egress Policy
 
 Registry URLs are user-supplied, so every process that dials them — the API, `scanner-worker`

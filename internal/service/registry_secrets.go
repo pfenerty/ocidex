@@ -1,10 +1,12 @@
 package service
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/pfenerty/ocidex/internal/repository"
 	"github.com/pfenerty/ocidex/internal/secretbox"
 )
 
@@ -63,4 +65,101 @@ func decryptCredentials(box *secretbox.Box, r Registry) (Registry, error) {
 		*f.v = &pt
 	}
 	return r, nil
+}
+
+// RegistrySecretsRepository is the slice of the repository the re-encrypt
+// pass needs.
+type RegistrySecretsRepository interface {
+	ListRegistrySecretsPage(ctx context.Context, arg repository.ListRegistrySecretsPageParams) ([]repository.ListRegistrySecretsPageRow, error)
+	RewriteRegistrySecrets(ctx context.Context, arg repository.RewriteRegistrySecretsParams) (int64, error)
+}
+
+// EncryptSecretsResult counts what EncryptRegistrySecrets did, per value.
+type EncryptSecretsResult struct {
+	Encrypted int // legacy plaintext sealed under the active key
+	Rotated   int // re-sealed from an older key to the active one
+	Current   int // already under the active key
+	// Conflicted rows changed between read and write; the next run picks
+	// them up.
+	Conflicted int
+	// Unreadable values could not be decrypted (unknown key or tampering).
+	// They are left as-is; the registry's credentials must be re-entered.
+	Unreadable []string
+}
+
+// EncryptRegistrySecrets seals every legacy plaintext registry credential
+// and re-seals every one under a non-active key (ADR-051). It is idempotent:
+// a second run finds every value Current. With dryRun it counts without
+// writing.
+func EncryptRegistrySecrets(ctx context.Context, repo RegistrySecretsRepository, box *secretbox.Box, batchSize int32, dryRun bool) (EncryptSecretsResult, error) {
+	var res EncryptSecretsResult
+	after := pgtype.UUID{Valid: true}
+	for {
+		rows, err := repo.ListRegistrySecretsPage(ctx, repository.ListRegistrySecretsPageParams{After: after, RowLimit: batchSize})
+		if err != nil {
+			return res, fmt.Errorf("listing registry credentials: %w", err)
+		}
+		for _, row := range rows {
+			if err := rewriteRow(ctx, repo, box, row, dryRun, &res); err != nil {
+				return res, err
+			}
+		}
+		if len(rows) < int(batchSize) {
+			return res, nil
+		}
+		after = rows[len(rows)-1].ID
+	}
+}
+
+func rewriteRow(ctx context.Context, repo RegistrySecretsRepository, box *secretbox.Box, row repository.ListRegistrySecretsPageRow, dryRun bool, res *EncryptSecretsResult) error {
+	id := uuidToStr(row.ID)
+	newToken, tokenChanged := reseal(box, colAuthToken, id, row.AuthToken, res)
+	newSecret, secretChanged := reseal(box, colWebhookSecret, id, row.WebhookSecret, res)
+	if (!tokenChanged && !secretChanged) || dryRun {
+		return nil
+	}
+	n, err := repo.RewriteRegistrySecrets(ctx, repository.RewriteRegistrySecretsParams{
+		ID:               row.ID,
+		NewAuthToken:     newToken,
+		NewWebhookSecret: newSecret,
+		OldAuthToken:     row.AuthToken,
+		OldWebhookSecret: row.WebhookSecret,
+	})
+	if err != nil {
+		return fmt.Errorf("rewriting registry %s credentials: %w", id, err)
+	}
+	if n == 0 {
+		res.Conflicted++
+	}
+	return nil
+}
+
+// reseal returns stored re-sealed under the active key and whether it
+// changed. A value it cannot read is recorded in res.Unreadable and returned
+// unchanged.
+func reseal(box *secretbox.Box, column, registryID string, stored pgtype.Text, res *EncryptSecretsResult) (pgtype.Text, bool) {
+	if !stored.Valid || stored.String == "" {
+		return stored, false
+	}
+	if !box.NeedsRewrite(stored.String) {
+		res.Current++
+		return stored, false
+	}
+	aad := registryAAD(column, registryID)
+	pt, legacy, err := box.Decrypt(stored.String, aad)
+	if err != nil {
+		res.Unreadable = append(res.Unreadable, registryID+" "+column)
+		return stored, false
+	}
+	sealed, err := box.Encrypt(pt, aad)
+	if err != nil {
+		res.Unreadable = append(res.Unreadable, registryID+" "+column)
+		return stored, false
+	}
+	if legacy {
+		res.Encrypted++
+	} else {
+		res.Rotated++
+	}
+	return pgtype.Text{String: sealed, Valid: true}, true
 }

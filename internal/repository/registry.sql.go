@@ -575,6 +575,48 @@ func (q *Queries) ListRegistriesPaged(ctx context.Context, arg ListRegistriesPag
 	return items, nil
 }
 
+const listRegistrySecretsPage = `-- name: ListRegistrySecretsPage :many
+SELECT id, auth_token, webhook_secret
+FROM registry
+WHERE id > $1::uuid
+  AND (auth_token IS NOT NULL OR webhook_secret IS NOT NULL)
+ORDER BY id
+LIMIT $2
+`
+
+type ListRegistrySecretsPageParams struct {
+	After    pgtype.UUID `json:"after"`
+	RowLimit int32       `json:"row_limit"`
+}
+
+type ListRegistrySecretsPageRow struct {
+	ID            pgtype.UUID `json:"id"`
+	AuthToken     pgtype.Text `json:"auth_token"`
+	WebhookSecret pgtype.Text `json:"webhook_secret"`
+}
+
+// Keyset page of stored registry credentials, for `ocidex migrate
+// encrypt-secrets` (ADR-051). Pass the nil UUID to start.
+func (q *Queries) ListRegistrySecretsPage(ctx context.Context, arg ListRegistrySecretsPageParams) ([]ListRegistrySecretsPageRow, error) {
+	rows, err := q.db.Query(ctx, listRegistrySecretsPage, arg.After, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRegistrySecretsPageRow{}
+	for rows.Next() {
+		var i ListRegistrySecretsPageRow
+		if err := rows.Scan(&i.ID, &i.AuthToken, &i.WebhookSecret); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRegistryTrustSummary = `-- name: ListRegistryTrustSummary :many
 WITH latest_provenance AS (
     SELECT DISTINCT ON (s.source_id, s.artifact_id)
@@ -630,6 +672,40 @@ func (q *Queries) ListRegistryTrustSummary(ctx context.Context, arg ListRegistry
 		return nil, err
 	}
 	return items, nil
+}
+
+const rewriteRegistrySecrets = `-- name: RewriteRegistrySecrets :execrows
+UPDATE registry
+SET auth_token     = $1::text,
+    webhook_secret = $2::text
+WHERE id = $3
+  AND auth_token IS NOT DISTINCT FROM $4::text
+  AND webhook_secret IS NOT DISTINCT FROM $5::text
+`
+
+type RewriteRegistrySecretsParams struct {
+	NewAuthToken     pgtype.Text `json:"new_auth_token"`
+	NewWebhookSecret pgtype.Text `json:"new_webhook_secret"`
+	ID               pgtype.UUID `json:"id"`
+	OldAuthToken     pgtype.Text `json:"old_auth_token"`
+	OldWebhookSecret pgtype.Text `json:"old_webhook_secret"`
+}
+
+// Compare-and-swap: a row whose credentials changed since they were read is
+// left alone (0 rows) for the next run. updated_at is untouched because the
+// credentials themselves have not changed.
+func (q *Queries) RewriteRegistrySecrets(ctx context.Context, arg RewriteRegistrySecretsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, rewriteRegistrySecrets,
+		arg.NewAuthToken,
+		arg.NewWebhookSecret,
+		arg.ID,
+		arg.OldAuthToken,
+		arg.OldWebhookSecret,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setRegistryEnabled = `-- name: SetRegistryEnabled :one

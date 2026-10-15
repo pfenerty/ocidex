@@ -9,6 +9,16 @@ Run `make release VERSION=vX.Y.Z` to cut a release.
 
 ### Upgrade notes
 
+- **Registry credentials are encrypted at rest (ocidex-d90k, ADR-051).** Add
+  `DATA_ENCRYPTION_KEYS=<id>:<base64 32 bytes>` and `DATA_ENCRYPTION_ACTIVE_KEY=<id>`
+  to the chart's `existingSecret` **before** upgrading: with `ENVIRONMENT=production`
+  (the chart default) the API, scanner worker, enrichers and the migrate Job refuse to
+  start without them. Generate a key with `openssl rand -base64 32` and back it up
+  apart from the database; losing it means re-entering every registry credential.
+  The migrate hook now runs `ocidex migrate encrypt-secrets` after `migrate up`, which
+  encrypts existing plaintext; until it runs, plaintext rows keep working. See
+  docs/OPERATIONS.md "Rotating the credential encryption key".
+
 - **The seeded admin is gone (ocidex-avsz.1).** Migration 00008 made GitHub user
   `16961380` an installation admin in every database. Migration 00079 demotes that
   account to `viewer` unless it has a session or API key. The first admin now comes

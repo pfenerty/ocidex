@@ -108,7 +108,9 @@ id not in the list is a startup error. Generate a key with `openssl rand -base64
   a key is still an error.
 * `ocidex migrate encrypt-secrets` encrypts legacy plaintext and re-encrypts values
   under a non-active key. It is idempotent, supports `--dry-run`, and the chart runs it
-  in the migrate hook Job after `migrate up`.
+  in the migrate hook Job after `migrate up`. A value it cannot decrypt (its key was
+  removed) is reported and left alone rather than failing the hook, since the fix —
+  re-entering the credential — needs the API running.
 
 ### Which processes need the key
 
@@ -119,11 +121,13 @@ The key goes to every process that reads or writes the two columns:
 | `ocidex` (API) | writes both columns; webhook verification; `webhook-secret` endpoints; `migrate encrypt-secrets` |
 | `scanner-worker` | claims scan jobs, which join `registry.auth_token`; catalog, size, metadata and cluster ingest |
 | `oci-metadata-worker`, `provenance-worker` | `BuildCredentialLookup` presents `auth_token` to the registry |
+| migrate hook Job | runs `ocidex migrate encrypt-secrets` after `migrate up` |
 
 `git-worker`, `user-enricher-worker`, `vuln-worker`, the operator and the k8s agent
 never read the columns. The operator writes credentials through the API, which
-encrypts. Ephemeral scans (ADR-027) receive `SCAN_AUTH_TOKEN` already decrypted from
-their launcher, and NATS carries only job hints, never credentials.
+encrypts. Ephemeral scans (ADR-027) take `SCAN_AUTH_TOKEN` from the environment of
+whoever launches them, never from the database, and NATS carries only job hints, never
+credentials.
 
 The chart already mounts one `existingSecret` into every workload with `envFrom`
 (DEPLOYMENT.md, "Secret material"). The two keys are added to that Secret. Processes
