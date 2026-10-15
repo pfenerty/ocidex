@@ -45,7 +45,921 @@ Run `make release VERSION=vX.Y.Z` to cut a release.
   set it **before** upgrading if you sign in as that account, or as any admin you
   still need. See docs/CONFIGURATION.md "First admin".
 
-## [0.0.1-rc.1]
+### Features
+
+- **vuln**: Package-keyed vulnerability schema + queries (ocidex-b32.1)
+- **vuln**: OSV.dev client (ocidex-b32.2)
+- **vuln**: Refresh service, CVSS severity, PG store, scheduler (ocidex-b32.3)
+- **vuln**: Vuln-worker binary + config + Docker/Tekton/Helm wiring (ocidex-b32.4)
+- **vuln**: Read surface — SBOM vuln summary + component badges (ocidex-b32.5)
+- **vuln**: Frontend SBOM vuln summary + component badges (ocidex-b32.6)
+- **stats**: Add vuln_count + vuln_severity to dashboard stats (ocidex-hfi.1)
+- **ui**: Add shared UI primitives layer (ocidex-hfi.6)
+- **ui**: Group artifacts by registry namespace with collapsible sections (ocidex-hfi.7)
+- **ui**: Add home vuln count, vulnerabilities nav + stub page (ocidex-hfi.10)
+- **vulns**: Add GET /api/v1/vulns top-vulnerabilities endpoint (ocidex-hfi.2)
+- **ui**: Implement Vulnerabilities page with severity filter tabs (ocidex-hfi.11)
+- **api**: Add GET /api/v1/artifacts/{id}/vuln-summary endpoint (ocidex-hfi.4)
+- **ui**: Artifact detail vuln section, TypeBadge, SigningBadge (ocidex-hfi.8)
+- **api**: Per-component-version vuln exposure on GET /components/versions (ocidex-hfi.5)
+- **ui**: Component detail collapse + dark-mode fix + per-version vulns (ocidex-hfi.9)
+- **api+ui**: Vuln detail + affected artifacts endpoint (ocidex-hfi.3)
+- **ui+api**: Vuln tree-view badges + per-component CVE panel (ocidex-b32.10)
+- **vuln**: Ingest-time lookup of unknown purls (ocidex-b32.9)
+- **vuln**: Incremental refresh via OSV modified_id.csv (ocidex-b32.8)
+- **ui**: Compact component version list with per-severity vuln badges + drill-down (ocidex-yx0)
+- **vuln**: Resolve Go advisory severity via GHSA/CVE alias lookup
+- **ui+api**: Vuln detail info card formatting + affected components list
+- **vuln**: Normalized vulnerability_reference table + detail page links
+- **vuln**: Canonical_id — stable CVE-first identifier across full stack
+- **ui**: CVSS metric chips on vulnerability detail page
+- **ui**: Merge ComponentDetail into ComponentOverview; artifact ILIKE search
+- **vuln**: Add CVSS v4 attack-profile chip decoding (ocidex-0le.18)
+- **vuln**: Expose UNKNOWN severity filter tab (ocidex-0le.19)
+- Complete OSV integration hardening epic (ocidex-0le)
+- **db**: Add provenance columns to component (ocidex-5ur.1)
+- **ingest**: Extract component provenance from CycloneDX properties (ocidex-5ur.2)
+- **api**: Add foundBy + derived confidence to ComponentDetail (ocidex-5ur.11)
+- **ui**: Show detected-by + confidence pill on component detail (ocidex-5ur.12)
+- **service**: Backfill component provenance from raw_bom (ocidex-5ur.3)
+- **vuln**: Gather source purls for OSV matching (ocidex-5ur.7)
+- **vuln**: Read-time join on source purl (ocidex-5ur.8)
+- **api**: Source package + source-match vuln flag (ocidex-5ur.9)
+- **ui**: Show source package + 'via source' vuln indicator (ocidex-5ur.10)
+- **enrichment**: Persist ordered layer list from OCI config (ocidex-5ur.4)
+- **api**: Layer fields on ComponentDetail (ocidex-5ur.5)
+- **ui**: Add layer chip to component detail (ocidex-5ur.6)
+- Complete component provenance capture & display (ocidex-5ur)
+- **enrichment**: Declare enricher dependency graph, root-only fan-out (ocidex-2jb.1)
+- **enrichment**: Completion-driven dependent enqueue + ADR-0035 (ocidex-2jb.2)
+- **enrichment**: Git enricher parsing core (ocidex-2jb.3)
+- **enrichment**: Git enricher GitHub client + Enrich (ocidex-2jb.4)
+- **enrichment**: Git-worker binary + wiring (ocidex-2jb.5)
+- **enrichment**: Integration test for dependency chain + docs (ocidex-2jb.8)
+- **enrichment**: Docker + CI image for git-worker (ocidex-2jb.6)
+- **k8s**: Deploy git-worker via Helm chart + Tilt (ocidex-2jb.7)
+- Complete Git enricher + enricher dependency chaining (ocidex-2jb)
+- **operator**: Add verificationMode/trustPublicKey to OCIRegistry CRD (ocidex-82g.1)
+- **operator**: Support public-key provenance verification on OCIRegistry (ocidex-82g.1)
+- **web**: Build shared DataTable component (ocidex-dbg.3)
+- **web**: Build shared cell-renderer module (ocidex-dbg.4)
+- **web**: Migrate Components.tsx to shared DataTable (ocidex-dbg.6)
+- **web**: Migrate Vulnerabilities.tsx to shared DataTable (ocidex-dbg.7)
+- **web**: Migrate Licenses.tsx + LicenseComponents.tsx to DataTable (ocidex-dbg.8)
+- **web**: Migrate ArtifactDetail Versions + Licenses tabs to DataTable (ocidex-dbg.9)
+- **web**: Migrate ComponentOverview.tsx tables to DataTable (ocidex-dbg.10)
+- **web**: Migrate SBOMDetail/PackagesTab.tsx list view to DataTable (ocidex-dbg.11)
+- **web**: Migrate Artifacts.tsx + admin tables to DataTable (ocidex-dbg.12)
+- **web**: Sticky table headers, active-sort styling, row hover transition (ocidex-dbg.5)
+- **web**: Git commit card + tab on SBOM detail (ocidex-dbg.13)
+- Complete UI consistency refresh — DataTable + cell renderers (ocidex-dbg)
+- **tekton**: Add SAST/secrets scans and PR-conditional job execution
+- **tekton**: Situational gitleaks scanning (PR range vs full history)
+- **tekton**: Diff-aware semgrep on PRs
+- **versions**: Semver + build-time views for versions table and changelog (ocidex-vkn, ocidex-vez)
+- **ci**: Apko-cicd semgrep/gitleaks images, nushell, fail-on-high
+- **ci**: Add tekton-check drift guard (regenerate .tekton, fail on drift)
+- **web**: Add Skeleton primitive family (ocidex-7nx.1)
+- **web**: Skeleton placeholders for detail-page headers (ocidex-7nx.2)
+- **web**: DataTable first-load skeleton + admin-tab delegation (ocidex-7nx.3)
+- **web**: Skeletons for remaining content spinners (ocidex-7nx.4)
+- Lower default page size 50->20 and consolidate it (ocidex-a28)
+- Keyless verification via sigstore-go (ocidex-atd.15)
+- Signed-SBOM drift detection (ocidex-atd.13)
+- Registry trust summary + drift history backend (ocidex-atd.14)
+- **admin**: Surface registry trust summary and drift history (ocidex-atd.14)
+- Complete advanced provenance verification & trust epic (ocidex-82g)
+- **web**: Wire drift history into SBOM detail page (ocidex-goh.8)
+- **vulns**: Server-side sorting for the vulnerabilities table (ocidex-7qt.4)
+- **registries**: Mark and guard CRD-managed registries (ocidex-7qt.5)
+- Complete UI bugs epic — five deployed-UI defects (ocidex-7qt)
+- **images**: Chainguard nginx, Gateway-native routing, distroless debian13 (ocidex-348)
+- **db**: Split registry into namespace, source and registry (ocidex-9xs.2)
+- **api**: Namespace and source service + API surface (ocidex-9xs.4)
+- **operator**: Default OCIDex namespace from the CR's K8s namespace (ocidex-9xs.5)
+- **ingest**: Caller-declared subject identity in IngestParams (ocidex-0gp.2)
+- **ingest**: Bind ingest to a source and close the NULL-visibility hole (ocidex-0gp.3)
+- **cli**: Add ocidex-cli sbom push (ocidex-0gp.4)
+- **ci**: Catalog and push binary SBOMs from push/tag pipelines (ocidex-0gp.5)
+- **cli**: Root command config resolution, output flag, exit codes (ocidex-e3g.2)
+- **cli**: Shared table/JSON/YAML output package (ocidex-e3g.3)
+- **cli**: Registry subcommands (ocidex-e3g.4)
+- **cli**: Sbom list, get, delete, diff, diff-tree (ocidex-e3g.5)
+- **cli**: Artifact subcommands (ocidex-e3g.6)
+- **cli**: Component and job subcommands (ocidex-e3g.7)
+- **cli**: Key and login subcommands (ocidex-e3g.8)
+- Complete 1.2 — CLI tool (ocidex-e3g)
+- Artifact relationship endpoints usages and contains (ocidex-rj4.2)
+- **web**: Gate image chrome on artifact type in ArtifactDetail (ocidex-rj4.3)
+- **web**: Relationships tab with version drift (ocidex-rj4.4)
+- **web**: Broaden list and landing surfaces beyond containers (ocidex-rj4.5)
+- **cli**: Declare artifact architecture on sbom push (ocidex-m7vv)
+- **cli**: Distribute ocidex-cli via go install and a published image (ocidex-5dw)
+- Distribute ocidex-cli via go install and a published image (ocidex-5dw)
+- **ci**: Push SBOMs with the published ocidex-cli image (ocidex-2u7y)
+- Sbom-push consumes the published ocidex-cli image (ocidex-2u7y)
+- Report-only task failure visibility (ocidex-im4o)
+- Artifact-type breakdown tile on Home (ocidex-l1e0)
+- **api**: Add artifact lookup resolver (ocidex-ri2p.1)
+- **api**: Add SBOM lookup resolver (ocidex-ri2p.2)
+- **api**: Add license lookup resolver (ocidex-ri2p.3)
+- **client**: Add name-keyed resolver calls (ocidex-ri2p.4)
+- **web**: Add resolver routes and 409 disambiguation view (ocidex-ri2p.5)
+- **web**: Add copy shareable link control to detail pages (ocidex-ri2p.6)
+- Add purl filter to the components list (ocidex-ri2p.7)
+- **ci**: Add helm lint + PodSecurity render check (ocidex-9yq4)
+- **jobqueue**: Add non-retryable error path (ocidex-9eu4)
+- **api**: Adopt ADR-043 pagination convention, keyset-paginate drift feeds (ocidex-wp9b.5)
+- **web**: Namespace management surface and source namespace parity (ocidex-wp9b.6)
+- **cli**: Namespace and source commands (ocidex-wp9b.7)
+- Complete foundation: authorization contract, ADR-039 parity, decomposition (ocidex-wp9b)
+- **api**: Owner-scope the drift, trust and job feeds (ocidex-998g.1)
+- **api**: Self-scoped /users/me/* collections (ocidex-998g.2)
+- Artifact watchlist with star affordance (ocidex-998g.3)
+- Watched-artifact change feed (ocidex-998g.4)
+- **web**: Dashboard workspace and personalized home band (ocidex-998g.5)
+- **db**: Cluster and cluster_workload schema with digest join (ocidex-zeta.2)
+- **api**: Cluster CRUD and inventory ingest endpoint (ocidex-zeta.3)
+- K8s-agent pod watcher and inventory reporter (ocidex-zeta.4)
+- Package k8s-agent image, chart and RBAC (ocidex-zeta.5)
+- **web**: Cluster views scoped to running images (ocidex-zeta.6)
+- **db**: Popularity ranking queries scoped to public namespaces (ocidex-q1z7.1)
+- GET /api/v1/discover with warmed aggregates (ocidex-q1z7.2)
+- **web**: Rebuild Home around live catalog content (ocidex-q1z7.3)
+- Cmd/ocidex-mcp scaffold with CLI credential reuse (ocidex-x59x.1)
+- Lookup and search tools built on the ADR-042 resolvers (ocidex-x59x.2)
+- Diff, vulnerability and ingest tools (ocidex-x59x.3)
+- OpenAPI resource, packaging and docs for the MCP server (ocidex-x59x.4)
+- **api**: Cluster running-vulnerability endpoints (ocidex-6zoe.1)
+- **api**: Filter, paginate and facet the cluster workload list (ocidex-6zoe.2)
+- **web**: Tabbed cluster page with a linkable coverage band (ocidex-6zoe.4)
+- **web**: Filter, sort and paginate the cluster workloads tab (ocidex-6zoe.5)
+- **web**: Cluster vulnerability drill-down and reverse workload panel (ocidex-6zoe.6)
+- Gaps tab resolves each unscanned image to a registry (ocidex-6zoe.7)
+- Auto-ingest unknown cluster images (ocidex-6zoe.8)
+- Ingest surface in the UI + ADR-044 amendment (ocidex-6zoe.9)
+- **cluster**: Report running pods beside the coverage denominator (ocidex-9do0.2)
+- List cluster inventory grouped by image (ocidex-9do0.4)
+- **web**: Group the cluster workloads tab by image (ocidex-9do0.5)
+- **web**: Rebuild the cluster overview vulnerability card (ocidex-9do0.6)
+- **web**: ComponentOverview consumes the paginated versions endpoint (ocidex-ag4q.8)
+- **web**: Load Inter and JetBrains Mono, the typefaces the tokens name (ocidex-ag4q.9)
+- **web**: Establish a type scale so headings carry hierarchy (ocidex-ag4q.10)
+- **web**: Add a Button primitive (ocidex-ag4q.12)
+- **web**: Add a PageHeader primitive (ocidex-ag4q.13)
+- **web**: Add a Toolbar primitive for list-page filters (ocidex-ag4q.14)
+- **web**: Generalize SummaryBand into a reusable StatBand (ocidex-ag4q.15)
+- Vulnerability list filters by id as you type (ocidex-ag4q.30)
+- Licenses list filters as you type, on substrings (ocidex-ag4q.31)
+- **web**: Rebuild ComponentDetail summary-first (ocidex-ag4q.35)
+- **web**: Rebuild VulnerabilityDetail summary-first (ocidex-ag4q.36)
+- **web**: Collapse the cluster register form into a modal (ocidex-ag4q.37)
+- **dev**: Local authenticated rig for browser-verifying auth-gated pages (ocidex-ag4q.55)
+- **dashboard**: Rank panels by severity and dedupe the ingest feed (ocidex-ag4q.40)
+- **diff**: Replace the four native selects with a searchable picker (ocidex-ag4q.41)
+- **home**: Lead with the corpus in numbers and three ways in (ocidex-ag4q.42)
+- **web**: Give filter strips a distinct chip treatment (ocidex-ag4q.44)
+- **web**: Command palette shell reachable with Cmd-K (ocidex-ag4q.45)
+- **web**: Wire live search into the command palette (ocidex-ag4q.46)
+- **web**: Palette offers the ADR-042 lookup resolvers (ocidex-ag4q.47)
+- **web**: DataTable stacks into cards on mobile (ocidex-ag4q.50)
+- **web**: Icon-only mobile rail with a drawer (ocidex-ag4q.49)
+- **dev**: Dev auth rig seeds a real corpus (ocidex-ag4q.60)
+- **web**: One keyboard ring for the whole app (ocidex-ag4q.51)
+- **web**: Breadcrumbs in the header slot on every detail page (ocidex-ag4q.48)
+- **provenance**: Make the enrichment timeout tunable and scope the Rekor lookup (ocidex-5gbm)
+- **provenance**: Store the verification error for UI diagnosis (ocidex-j9qa)
+- **api**: Add GET /api/v1/sboms/{id}/vulns (ocidex-unn8.4)
+- **web**: Add the SBOM Vulnerabilities tab the vuln tile now links to (ocidex-unn8.5)
+- **web**: Add artifact vulnerabilities tab and endpoint (ocidex-unn8.6)
+- **db**: Add sbom_vuln_rollup table and refresh target (ocidex-unn8.7)
+- **web**: Add severity column and sort to the artifact versions table (ocidex-unn8.8)
+- **web**: Add severity column and sort to the artifact list (ocidex-unn8.9)
+- **web**: Add a severity column and sort to the component catalogue (ocidex-unn8.10)
+- **web**: Sort an SBOM's package list by severity (ocidex-unn8.11)
+- **web**: Share one vulnerable-only filter across the tree and list views (ocidex-unn8.12)
+- Seed five personas and a second tenant in the dev rig (ocidex-r6lu.1)
+- Dev-only session mint endpoint for persona switching (ocidex-r6lu.2)
+- Persona switcher in the frontend dev rig (ocidex-r6lu.3)
+- Namespace_member table and owner backfill (ocidex-y0hg.1)
+- Capability model mapping namespace roles to capability sets (ocidex-y0hg.2)
+- Visibility functions consult membership, not owner_id (ocidex-y0hg.3)
+- Retire namespace.owner_id (ocidex-y0hg.4)
+- ClassCapability and RequireCapability middleware (ocidex-y0hg.5)
+- Migrate every ClassOwner row to ClassCapability (ocidex-y0hg.6)
+- Member management API and UI (ocidex-y0hg.7)
+- API keys carry capabilities, not read/read-write (ocidex-y0hg.8)
+- Role-differentiated Workspace and navigation (ocidex-y0hg.9)
+- User_identity table; ocidex_user stops being GitHub-shaped (ocidex-iqkt.1)
+- Put GitHub behind a Provider interface (ocidex-iqkt.2)
+- Generic OIDC provider with discovery and PKCE (ocidex-iqkt.3)
+- Mock OIDC issuer in the dev rig (ocidex-iqkt.4)
+- Multi-provider login, account linking, and the GitHub column drop (ocidex-iqkt.5)
+- No single identity provider is mandatory (ocidex-fx5k)
+- App-wide timeout safety net (ocidex-7gf7.1)
+- State the scope of every count on lists and bands (ocidex-7gf7.7)
+- Remove the "Show all" checkbox from /artifacts (ocidex-7gf7.8)
+- Render the UNKNOWN version sentinel as unknown (ocidex-7gf7.10)
+- Match command artifacts to their image by binary path (ocidex-7gf7.11)
+- Roll the cluster gap up into the registries that would close it (ocidex-383d.2)
+- Group the gap rollup at the registry's tenancy boundary (ocidex-383d.3)
+- Carry the resolved main-module version into the component purl
+- Grype matcher, parity harness, ADR-049 and license gate (ocidex-33ho.1)
+- Grype DB lifecycle, vuln-worker config and volume (ocidex-33ho.2)
+- Map grype findings to vulnerability rows and mappings (ocidex-33ho.3)
+- Vuln-worker matches SBOMs with grype; remove OSV client (ocidex-33ho.4)
+- Store and show grype fix state on vulnerability mappings (ocidex-33ho.5)
+- Filter Go vulnerabilities by linked symbols (ocidex-33ho.7)
+- **charts**: Opt-in NetworkPolicy for ocidex, operator and k8s-agent (ocidex-avsz.9)
+- Add netguard egress address policy and EGRESS_* config (ocidex-avsz.5)
+- SIGNUP_MODE and SELF_SERVICE_NAMESPACES installation policy (ocidex-avsz.4)
+- Secretbox package and DATA_ENCRYPTION_KEYS config (ocidex-d90k.2)
+- Encrypt registry credentials on write and decrypt on read (ocidex-d90k.3)
+- Migrate encrypt-secrets, chart key wiring and rotation runbook (ocidex-d90k.4)
+- Configurable session cookie SameSite, default Lax (ocidex-mqav.2)
+- Fail production startup on wildcard or malformed CORS origins (ocidex-mqav.3)
+- Rate-limit sign-in endpoints per client IP (ocidex-mqav.5)
+- Per-principal rate limits on SBOM ingest and expensive reads (ocidex-mqav.6)
+- Security headers on the web tier and API (ocidex-mqav.7)
+- Strict CSP without 'unsafe-inline'; inline styles moved to classes (ocidex-mqav.9)
+
+### Bug fixes
+
+- **ci**: Monotonic main-publish chart version so dev auto-updates
+- **vuln**: Don't abort refresh on records with no aliases (ocidex-b32.12)
+- **ui**: Pass title prop to EmptyState in Vulnerabilities page
+- **ui**: Component overview LIMIT, missing vuln table, flat artifact table (ocidex-tdk)
+- **db**: Regenerate sqlc after GetComponentVersions LIMIT 200→5000
+- **vuln**: Resolve UNKNOWN severity for Go advisories via database_specific fallback (ocidex-pgz)
+- **ui**: Correct vuln detail link path vulns/ → vulnerabilities/
+- **vuln**: Use GROUP BY instead of DISTINCT window fn in ListAffectedComponentsByVuln
+- **vuln**: Match fixed_version to installed version's branch interval
+- **ui**: Non-null assertion in cvssVersion call
+- **vuln**: Dedupe aliased OSV records by canonical_id in all count queries (ocidex-0le.1)
+- **vuln**: Resolve detail page by canonical_id; aggregate affected across aliases (ocidex-0le.2)
+- **vuln**: Dedupe purls in GetArtifactVulnSummary via DISTINCT subquery (ocidex-0le.3)
+- **vuln**: Skip and delete withdrawn OSV records in hydrate (ocidex-0le.6)
+- **vuln**: Multi-ecosystem mapping for apk/deb purl types (ocidex-0le.4)
+- **vuln**: Filter affected[] by package purl before deriving fixed_version (ocidex-0le.5)
+- **vuln**: Include unknown-state purls in incremental refresh (ocidex-0le.7)
+- **vuln**: Skip re-hydrating unchanged vuln records via modified timestamps (ocidex-0le.8)
+- **vuln**: Add retry backoff to scheduler on refresh failure (ocidex-0le.9)
+- **vuln**: Persist chosen CVSS vector instead of re-deriving from raw (ocidex-0le.10)
+- **vuln**: Follow OSV querybatch pagination (ocidex-0le.11)
+- **vuln**: Strip qualifiers/subpath and percent-decode purlVersion (ocidex-0le.12)
+- **vuln**: Sort OSV events and handle last_affected in matchedFixed (ocidex-0le.13)
+- **vuln**: Resolve alias-only ids and add id-search box (ocidex-0le.14)
+- **vuln**: Show accurate total for affected components list (ocidex-0le.15)
+- **vuln**: Bound ingest-lookup concurrency in IngestVulnExtension (ocidex-0le.16)
+- **vuln**: Track checked-but-clean purls via purl_vuln_state (ocidex-0le.17)
+- **api**: Aggregate signingStatus on artifact detail endpoint (ocidex-vbe)
+- Dedupe per-package vuln counts by canonical_id (ocidex-fxf)
+- Correct per-severity vuln counts and broken package links (ocidex-z30)
+- Give the vuln chip a deuteranopia-safe low-severity color
+- Distinguish critical from high with a redscale, not a new hue
+- Make the whole vuln chip a de-escalating redscale
+- **web**: Flatten /artifacts namespace groups into one table (ocidex-tu7)
+- **web**: Destyle /artifacts group headers to sticky label (ocidex-dnc)
+- Remove invalid excludeManagers from renovate config
+- **deps**: Update npm dependencies
+- **deps**: Update go dependencies
+- **deps**: Update go dependencies
+- **enrichment**: Handle GitHub blob URLs and Sigstore bundles (ocidex-6g9)
+- Correct postgres 18 volume mount path in docker-compose (ocidex-tk0)
+- **stats**: Replace per-row sbom_visible() calls with CTE join (ocidex-343)
+- **tekton**: Prevent node-wide OOM kills in image-build pipeline (ocidex-asx)
+- **controller**: Adopt existing registry on create-conflict (ocidex-2zt)
+- Adopt existing registry on create-conflict (ocidex-2zt)
+- **deps**: Update module github.com/danielgtaylor/huma/v2 to v2.39.0
+- **deps**: Update go dependencies
+- **tekton**: Stop semgrep HOME crash and ignore test files in gitleaks
+- **tekton**: Bound semgrep memory to stop OOMKill
+- **tekton**: Exclude workspace caches from gitleaks scan
+- **tekton**: Mark workspace safe.directory for gitleaks git mode
+- **tekton**: Make security scan tasks report-only, not blocking (ocidex-22i)
+- **tekton**: Set writable GOPATH for go-security/go-build/go-test (ocidex-3cv)
+- **tekton**: Set pod-wide HOME to fix creds-init permission-denied warning (ocidex-bh5)
+- **tekton**: Atomic write for PVC cache saves (ocidex-s8a)
+- **tekton**: Replace gosec+govulncheck with syft+grype in go-security (ocidex-6hr)
+- **deps**: Drop stale docker/docker indirect dep, keep Renovate tidy (ocidex-g5w)
+- **ci**: Upload-sarif logged real HTTP result instead of crashing on paren
+- **deps**: Update go dependencies
+- **ci**: Gate semgrep via a union detect task, not CEL or()
+- **ci**: Put SARIF category in automationDetails.id, not request body
+- **ci**: Raise semgrep memory to 4Gi (semgrep-4pf); drop test trigger
+- **ci**: Raise go-vulncheck memory to 4Gi (OOMKilled on full scan)
+- **web**: Classify tailwind as devDependencies
+- **ci**: Exclude Go module cache from semgrep scan
+- **ci**: Run tekton synth with tsx (ts-node breaks on TypeScript 7)
+- **ci**: Govulncheck 6Gi + scope to ./cmd/...; hold eslint <10 in renovate
+- **web**: Add /components/:id detail page (ocidex-7hn)
+- **web**: DataTable body reactivity + JobsTab first-load skeleton
+- **api**: Update stale pagination default assertion (ocidex-a28 follow-up)
+- **provenance**: Add real crypto integration tests for keyless verification, fix missing digest binding
+- **provenance**: Don't report Verified=true when no check ran (ocidex-goh.1)
+- **enrichment**: Preserve verified provenance data on transient reverify error (ocidex-goh.2)
+- **provenance**: Stop showing drift banner once status has recovered (ocidex-goh.3)
+- **provenance**: Bound TUF trusted-root fetch and staleness ceiling (ocidex-goh.4)
+- **enrichment**: Derive reverifier ticker from interval, tick on start, add enable flag (ocidex-goh.7)
+- **api**: Enforce identical CRD/API validation for verification_mode (ocidex-goh.9)
+- **operator**: Sync chart CRD copy with generated config/operator/crd (ocidex-goh.21)
+- **service**: Use params structs for RegistryService Create/Update, preserve trust fields in service layer (ocidex-goh.11)
+- **provenance**: Replace testIgnoreSCT package global with explicit parameter (ocidex-goh.12)
+- **provenance**: Use sigstore/rekor client for Rekor UUID lookup (ocidex-goh.19)
+- **web**: Keep ProvenanceCard drift banner reactive (ocidex-goh.14)
+- **service**: Apply consistent log-and-degrade policy to malformed provenance JSON (ocidex-goh.15)
+- **ci**: Raise govulncheck memory limit to 10Gi (ocidex-2w2)
+- **ci**: Allow git dependency fetch in tekton-check npm ci
+- **ci**: Resolve govulncheck OOM via GOMEMLIMIT + self-terminating watchdog (ocidex-ads)
+- **security**: Upgrade cosign v2->v3 to resolve CVE-2026-24122 (ocidex-z6h)
+- **provenance**: Scope trust resolution to registry_id, not hostname (ocidex-33h)
+- **renovate**: Set prCreation=immediate to unblock branch->PR conversion
+- **web**: Unify signing-badge presentation on trust.ts (ocidex-xxr)
+- **diff**: Compare versions by ecosystem, not always Debian (ocidex-7qt.1)
+- **diff**: Render every change the tree header counts (ocidex-7qt.2)
+- **stats**: Warm the dashboard cache out-of-band (ocidex-7qt.3)
+- **enrichment**: Decouple reverifier sweep cadence from recheck interval (ocidex-sxq)
+- **operator**: Widen and expose leader-election lease timings (ocidex-vh6)
+- **chart**: Make operator rollout strategy applicable to existing deployments (ocidex-vh6)
+- **changelog**: Stop truncating component names to the last purl segment (ocidex-ckv.3)
+- **web**: Replace the signing legend with a tooltip on the badge (ocidex-ckv.4)
+- **ci**: Stop govulncheck-scan corrupting the shared Go cache (ocidex-plh)
+- **ci**: Stop gofmt-check walking the workspace Go module cache (ocidex-kmx)
+- **ci**: Raise push/tag pipeline timeout to 4h (ocidex-svb)
+- **ci**: Cut sbom-push step CPU requests so the pod can schedule (ocidex-7n9)
+- Guard migrations against out-of-band DB object ownership (ocidex-63b)
+- **enrichment**: Scope the architecture sufficiency gate to containers (ocidex-m7vv)
+- **operator**: Comma-separated WATCH_NAMESPACE; release orphaned finalizers (ocidex-1eo)
+- **lint**: Clear pre-existing golangci-lint issues (ocidex-sgf)
+- Clear pre-existing golangci-lint issues (ocidex-sgf)
+- **charts**: Satisfy PodSecurity 'restricted' on all built workloads (ocidex-1d9)
+- **ci**: Unblock go-integration-test postgres sidecar (ocidex-nqyd)
+- **ci**: Unblock go-integration-test postgres sidecar (ocidex-nqyd)
+- **ci**: Report a failing image build as failed (ocidex-f2bj)
+- Report a failing image build as failed (ocidex-f2bj)
+- **ci**: Make tekton-check actually fail on .tekton drift (ocidex-es6)
+- **ci**: Resolve skipped GitHub statuses instead of leaving them pending (ocidex-6rbk)
+- Resolve skipped GitHub statuses instead of leaving them pending (ocidex-6rbk)
+- **dev**: Give the Tilt dev loop a Postgres and a schema (ocidex-1bbp)
+- **ci**: Push SBOMs with the CLI this task builds, not a stale image (ocidex-qzz2)
+- **dev**: Make the Tilt dev loop work and verify it end to end (ocidex-1bbp)
+- **ci**: Close the remaining silent-green failure paths (ocidex-im4o.1/.2/.3/.4)
+- Add make tekton-check target (ocidex-pakf)
+- Add make tekton-check target (ocidex-pakf)
+- **ci**: Make govulncheck-scan fail only on unaccepted findings (ocidex-1g7f)
+- **chart**: Run NATS under PodSecurity restricted (ocidex-s3tu)
+- **chart**: Mount writable /tmp for scanner-worker under read-only root (ocidex-gsip)
+- **ci**: Resolve kyverno binary by either name (ocidex-9yq4)
+- **deps**: Update module golang.org/x/mod to v0.40.0 [security]
+- **scanner**: Filter cosign signature artifacts out of the catalog walk (ocidex-ptj2)
+- **tekton**: Pull images on every step and sidecar start (ocidex-t3fs)
+- **seed**: Consolidate seeding into seed.nu, drop dead zot path (ocidex-y19y)
+- **scanner**: Follow tags/list and _catalog pagination (ocidex-zogv)
+- **seed**: Report artifact counts from cursor pagination, add nats-server (ocidex-8wun)
+- Catalog pagination + verified seed end-to-end (ocidex-zogv, ocidex-8wun)
+- **seed**: Ship scanner enabled and name the real cause (ocidex-l46a)
+- Seed quick-start config and failure reporting (ocidex-l46a)
+- **tests**: Probe docker once, not once per test (ocidex-wp9b.10)
+- Sbom lookup 500 when no enrichment supplies architecture (ocidex-klj4)
+- **k8s-agent**: Prefer the pod spec image over a bare image ID (ocidex-6zoe.3)
+- **test**: Seed cluster registries with an empty pattern array (ocidex-lhjk)
+- **web**: Registry links from the cluster Gaps tab resolve (ocidex-9do0.3)
+- Gaps tab pages the whole gap instead of truncating at 200 (ocidex-9do0.7)
+- Table refetch dims the rows instead of blanking them (ocidex-9do0.8)
+- Stop swallowed registry errors from faking verified→unsigned drift (ocidex-zvkx)
+- **web**: Unwrap() no longer hard-navigates to /login on 401 (ocidex-ag4q.1)
+- **web**: Gate /users/me/* queries behind a signed-in user (ocidex-ag4q.2)
+- **web**: /vulnerabilities/:id renders for signed-out visitors (ocidex-ag4q.4)
+- **web**: Admin tab strip and rendered panel no longer desync (ocidex-ag4q.5)
+- **web**: Severity filters show which one is active (ocidex-ag4q.6)
+- **api**: Paginate GET /api/v1/components/versions (ocidex-ag4q.7)
+- **web**: SBOMDetail shows one package count, not three (ocidex-ag4q.34)
+- **web**: Move dialog styling from SourcesTab.css to the Modal primitive (ocidex-ag4q.56)
+- **web**: Size the register dialog to its content (ocidex-ag4q.57)
+- **web**: Let --text-sm actually drive text-sm (ocidex-ag4q.53)
+- **web**: Bare button carries an affordance, not a copy of .btn (ocidex-ag4q.54)
+- **web**: Mobile tab strip scrolls instead of wrapping (ocidex-ag4q.59)
+- **web**: .tile-sub is a block, so its ellipsis applies (ocidex-ag4q.58)
+- **web**: Card-stack labels stop breaking mid-word (ocidex-ag4q.61)
+- **web**: Measured contrast audit of both palettes (ocidex-ag4q.52)
+- **chart**: Size provenance-worker independently of the enricher default (ocidex-wvnp.1)
+- **chart**: Pin ENRICHMENT_MAX_CONCURRENCY for the enricher workers (ocidex-wvnp.2)
+- **provenance**: Cap signature and attestation layer reads (ocidex-wvnp.3)
+- **git**: Bound the GitHub API response read (ocidex-puhl)
+- **provenance**: Verify every cosign signature, not just the first (ocidex-r27f)
+- **provenance**: Verify new-format Sigstore bundles (ocidex-gm28)
+- **web**: Stop rendering a rejected cosign signature as a green check (ocidex-vopn)
+- **service**: Decorate dependency-graph nodes with vulnerability counts (ocidex-unn8.1)
+- **db**: Match source_purl in SBOM-scoped vulnerability queries (ocidex-unn8.2)
+- Seed namespace ownership via namespace_member, not the dropped owner_id column (ocidex-kcpn)
+- Seed a dependency graph in the dev fixtures (ocidex-9syw)
+- Scope the artifact rollup to the latest version, worst signing first (ocidex-7gf7.2, ocidex-7gf7.3)
+- Page the artifact changelog instead of diffing every version (ocidex-7gf7.4)
+- Bound the artifact vulnerability list to a version scope (ocidex-7gf7.5)
+- Bound /components/versions counts by pinning the join order (ocidex-7gf7.6)
+- Keep the packages view on sort, and stop hiding affected rows (ocidex-7gf7.9)
+- Stop the command relation fixtures colliding on sbom digest (ocidex-hfnm)
+- Stop the Gaps table's image column taking the whole width (ocidex-383d.1)
+- **deps**: Update web dependencies
+- **deps**: Reconcile web major dependency updates (ocidex-6f6c)
+- **deps**: Update go dependencies
+- Stop the changelog counting every component before paging (ocidex-7gf7.12)
+- **deps**: Update module github.com/google/go-containerregistry to v0.22.1
+- **deps**: Update go dependencies
+- Stop scan jobs looping forever on permanently-broken images
+- **deps**: Update go dependencies
+- **deps**: Make the frontend build under TypeScript 6
+- Stop matching vulnerabilities against versionless purls
+- **deps**: Update go dependencies
+- **deps**: Update module github.com/nats-io/nats.go to v1.54.0
+- **deps**: Update module github.com/sigstore/sigstore to v1.11.0
+- **deps**: Update go dependencies
+- **deps**: Update go dependencies
+- **deps**: Update module github.com/anchore/stereoscope to v0.3.4
+- **deps**: Update go dependencies
+- Pick the representative vuln id from matched records (ocidex-33ho.6)
+- Move CI and build images to Go 1.27 (ocidex-0vgl.1)
+- **chart**: Restore operator image tag; keep Renovate off our own images (ocidex-35rx.1)
+- Operator chart invalid image ref (ocidex-35rx)
+- **deps**: Update go dependencies
+- Complete paginated lists and a rollup swap readers can't starve (ocidex-kf1p.2, ocidex-kf1p.3)
+- Replace hard-coded bootstrap admin with BOOTSTRAP_ADMINS (ocidex-avsz.1) [**breaking**]
+- Require manage_source to create a registry in an existing namespace (ocidex-avsz.2)
+- Deny capabilities on resources with no namespace except to admins (ocidex-avsz.3)
+- Route scanner and test-connection HTTP clients through netguard (ocidex-avsz.6)
+- Guard syft, oci-metadata, provenance and ingest validation dials with netguard (ocidex-avsz.7)
+- Validate registry URLs on create and update (ocidex-avsz.8)
+- Scope cluster image resolution to a registry's explicit repositories (ocidex-o0vq)
+- Reject cross-origin cookie-authenticated writes (ocidex-mqav.1)
+- Build post-login redirect from configuration, not request Host (ocidex-mqav.4)
+
+### Performance
+
+- Bound stats warmer and stop synchronous dashboard compute (ocidex-ckv.1)
+- Rollup tables for components/licenses/vulns lists (ocidex-ckv.2)
+- **ci**: Persist buildkit root on a PVC and build from a clean context (ocidex-2vr.1, ocidex-2vr.2)
+- **ci**: Drop the registry build cache from image builds (ocidex-2vr.3)
+- **ci**: Collapse nine per-binary Go stages into one shared build-all (ocidex-2j2)
+- **ci**: Shrink web image build stage to apko nodejs base (ocidex-5343)
+- **ci**: Shrink web image build stage to apko nodejs base (ocidex-5343)
+- Build every rollup from one scan of component (ocidex-kf1p.4)
+- Dashboard stats read the rollups, not component (ocidex-kf1p.5)
+- Set-based visibility filter and drop 16 GB of unused indexes (ocidex-kf1p.6)
+
+### Refactor
+
+- Compact pipe-separated vuln severity chip
+- **web**: Unify severity color scale via shared SeverityPill
+- **ci**: DRY the dependency scans into a depScanTask factory
+- **ci**: Extract shared script snippets (script-lib), DRY job scripts
+- **ci**: Drop go-security (grype-on-Go), keep govulncheck as the Go gate
+- **web**: Remove unused admin Metrics tab (drops @unovis)
+- Delegate keyless verification to cosign instead of hand-rolled bundle construction
+- Unify public_key verification onto cosign.CheckOpts (ocidex-82g.2)
+- Break internal/enrichment <-> provenance import cycle (ocidex-82g.4)
+- Single source of truth for signing-status derivation (ocidex-82g.3)
+- **provenance**: Drop duplicate cosignBundle struct (ocidex-goh.5)
+- **provenance**: Use upstream in-toto/attestation types for SLSA parsing (ocidex-goh.18)
+- **provenance**: Drop unused ctx param from discover (ocidex-goh.17)
+- **db**: Repoint queries and repository to namespace_id (ocidex-9xs.3)
+- **operator**: Move startup env vars into OperatorConfig (ocidex-dvn2)
+- **api**: Declare authorization via RequireAdmin/RequireWrite middlewares (ocidex-wp9b.1)
+- **api**: Route all VisibilityFilter construction through one constructor (ocidex-wp9b.3)
+- **api**: Delete dead auth scaffolding, make pagination.go about pagination (ocidex-wp9b.4)
+- **web**: Decompose oversized pages, grow components/ui (ocidex-wp9b.9)
+- Split the api and service god files (ocidex-wp9b.8)
+- **web**: Group card-header count with title, share the tile band (ocidex-9do0.1)
+- **web**: One header and one tab strip on ArtifactDetail (ocidex-ag4q.33)
+- **web**: One GitHubMark instead of three inlined copies (ocidex-ag4q.16)
+- **web**: Collapse repeated inline styles onto utility classes (ocidex-ag4q.18)
+- **web**: Admin buttons go through the Button primitive (ocidex-ag4q.19)
+- **web**: List-page buttons go through the Button primitive (ocidex-ag4q.20)
+- **web**: Finish the Button sweep on detail pages and shared components (ocidex-ag4q.21)
+- **web**: List pages adopt <PageHeader> (ocidex-ag4q.22)
+- **web**: Migrate the detail-page headers to <PageHeader> (ocidex-ag4q.23)
+- **web**: Admin pages adopt <Card>/<CardHeader> (ocidex-ag4q.24)
+- **web**: Finish the raw-card sweep onto <Card> (ocidex-ag4q.25)
+- **web**: Admin tables adopt <DataTable> (ocidex-ag4q.26)
+- **web**: Migrate the last raw <table> onto DataTable (ocidex-ag4q.27)
+- **web**: Artifacts list adopts <Toolbar> (ocidex-ag4q.28)
+- **web**: Components list adopts <Toolbar> (ocidex-ag4q.29)
+- **web**: Make the keyset footer a sibling of the numbered one (ocidex-ag4q.32)
+- **admin**: One column header for all namespace source groups (ocidex-ag4q.38)
+- **admin**: Tab strip uses TabBar instead of inline styles (ocidex-ag4q.39)
+- **web**: Route every page's states through QueryBoundary (ocidex-ag4q.43)
+- Hand Go symbols to ingest beside the SBOM, not inside it
+
+### Documentation
+
+- Epic-branch workflow — one branch per epic, push on completion
+- Clarify epic-branch model and beads commit requirement in CLAUDE.md
+- Add ADR-0034 for component provenance (ocidex-5ur.13)
+- Add ADR-0036 shared DataTable + cell-renderer conventions (ocidex-dbg.1)
+- Refine ADR-0023 table/interaction/motion spec (ocidex-dbg.2)
+- **adr**: Supersede ADR-032 with cosign-delegated verification (ocidex-goh.6)
+- **db**: Document artifact-missing-first rollup precedence (ocidex-goh.16)
+- **adr**: ADR-039 namespace and source model (ocidex-9xs.1)
+- ADR-040 non-container artifact identity (ocidex-0gp.1)
+- ADR-029 CLI tool design decisions (ocidex-e3g.1)
+- ADR-041 derived artifact relationships (ocidex-rj4.1)
+- Correct ingest validation status codes and drop phantom user enrichment write (ocidex-jxlt)
+- Replace kustomize overlay instructions with the Helm/Flux path (ocidex-2dwl)
+- **adr**: Amend ADR-031 for the Helm-only dev loop (ocidex-b38j)
+- Rewrite DEPLOYMENT.md for the Helm/Flux deployment path (ocidex-2dwl)
+- **adr**: Amend ADR-031 for the Helm-only dev loop (ocidex-b38j)
+- Correct ocidex-ci webhook-exclude provenance (ocidex-m7xq)
+- ADR-042 canonical resource URLs (ocidex-e86)
+- Merge ADR-042 canonical resource URLs spike (ocidex-e86)
+- Make README From Source runnable, drop goose CLI dep (ocidex-wur3)
+- From Source must fill the OAuth vars too (ocidex-wur3)
+- Make README From Source runnable (ocidex-wur3)
+- ADR-044 standalone push-based K8s inventory agent (ocidex-zeta.1)
+- Cluster inventory guide covers the reworked page (ocidex-9do0.10)
+- Slim CLAUDE.md, split long sections into docs/ (ocidex-5r8h)
+- ADR-046 namespace membership RBAC, superseding ADR-025 (ocidex-y0hg.10)
+- ADR-047 provider-agnostic identity (ocidex-iqkt.6)
+- Point cross-repo beads guidance at the planning hub
+- ADR-051 credential encryption at rest (ocidex-d90k.1)
+- Add SECURITY.md vulnerability disclosure policy (ocidex-mqav.8)
+- Propose ADR-052 1.0 scope and compatibility guarantees (ocidex-tkn9.1)
+
+### Tests
+
+- **integration**: Vuln join read path round-trip (ocidex-b32.11)
+- Trigger web-security to verify SARIF upload (revert after)
+- Cover provenance drift guard, sameSigner, and reverifier batch/cutoff (ocidex-goh.10)
+- **web**: Scope the artifact type-badge assertion to the row (ocidex-f13)
+- Fix stale integration fixtures and surface ingest errors (ocidex-784)
+- **api**: Authz conformance suite and generated AUTH_MATRIX.md (ocidex-wp9b.2)
+- Leakage tests for the anonymous discovery surface (ocidex-q1z7.4)
+- **web**: Pin that public routes render for signed-out visitors (ocidex-ag4q.3)
+- **service**: Contract-test every vuln-badge surface (ocidex-unn8.3)
+- Role x operation conformance harness (ocidex-r6lu.4)
+- Cross-tenant denial is a 404, not a 403 (ocidex-r6lu.5)
+- Implement pgx.Rows.TypeMap on service test fakes
+- Run integration tests on postgres:18-alpine
+
+### CI
+
+- Harden security scanning (SARIF, Node+Go reachability, fix grype flood)
+- **pr**: Add node change-detection and gate web-security + semgrep
+- Gate integration tests in Tekton pipeline (ocidex-113l)
+- Install tektonic from npm (2.0.1), drop git-dependency workarounds (ocidex-9cf6)
+- Drop direct cdk8s/constructs deps from .tektonic (ocidex-9cf6)
+- Synth and drift-check through the tektonic CLI (ocidex-jfp0)
+
+### Chore
+
+- **compose**: Add vuln-worker service for local exploration (ocidex-b32)
+- Retrigger CI publish for vuln OSV work (ocidex-b32)
+- Trigger CI for vuln aliases fix (ocidex-b32.12)
+- Commit beads
+- Fix renovate config for go dep grouping
+- Fix renovate config for go dep grouping
+- Untrack local .tokensave/ artifacts
+- Close ocidex-tu7
+- Close ocidex-dnc
+- Plan UI consistency refresh epic (ocidex-dbg)
+- Close ocidex-2jb.1 (deps.go + submitter root fan-out)
+- Close ocidex-2jb.2 (completion-driven dependent enqueue + ADR-0035)
+- Close ocidex-2jb.4 (git enricher GitHub client + Enrich)
+- Close ocidex-2jb.8 (enrich chain integration test + docs)
+- Close ocidex-2jb.6 (git-worker Docker + CI image)
+- Close ocidex-2jb.7 (K8s deploy for git-worker)
+- Close ocidex-2jb epic (8/8 stories complete)
+- Close ocidex-dbg.4 (cell-renderer module)
+- Close ocidex-dbg.6 (Components.tsx DataTable migration)
+- Close ocidex-dbg.8 (Licenses.tsx + LicenseComponents.tsx DataTable migration)
+- Close ocidex-dbg.9 (ArtifactDetail Versions + Licenses tabs DataTable migration)
+- Close ocidex-dbg.12 (DataTable migration)
+- Close ocidex-dbg.2 (ADR-0023 table refinement spec)
+- Close ocidex-dbg.13 and ocidex-dbg epic (13/13 complete)
+- Track new bug issue ocidex-6g9
+- **tekton**: Re-pin tektonic to build-fixed HEAD; keep Renovate image bumps in sync
+- **tekton**: Drop dead generated/ kustomization step from tekton-synth
+- Gofmt
+- **ci**: Rename jobs + steps to <tool>-<function>-<qualifier>
+- Rename hand-written deepcopy file out of zz_generated namespace (ocidex-goh.13)
+- **docs**: Document chained-epic branching workflow
+- **ci**: Lower push pipeline timeout to 2h30m (ocidex-2vr)
+- Sunset legacy enrichment-worker ('all' partition) (ocidex-kg5)
+- **chart**: Rename .Values.enrichmentWorker to enricherWorkerDefaults (ocidex-lshm) [**breaking**]
+- **chart**: Rename .Values.enrichmentWorker to enricherWorkerDefaults (ocidex-lshm) [**breaking**]
+- Make the prod-proxy dev server a documented target (ocidex-lhrm)
+- Beads state after ocidex-iqkt
+- Beads state after ocidex-9syw
+- Beads state after ocidex-fx5k
+- Beads state after ocidex-7gf7.11
+- Update flox
+- Beads state after ocidex-383d
+- Close ocidex-383d
+- Close ocidex-6f6c
+- **ci**: Move .tektonic to @tektonic-ci/core and reporter-github (ocidex-tcxq)
+- **renovate**: Re-synthesize .tekton/ when .tektonic/ deps change
+- File grype vulnerability-matcher epic (ocidex-33ho)
+- Flag ocidex-33ho.7 for a human decision
+- Revise ocidex-33ho.7 decision note
+- Close ocidex-33ho.7
+- Close ocidex-0vgl.1
+- Update flox env
+- Close ocidex-35rx.1
+- **renovate**: Weekly batches that actually automerge
+- **claude**: Bootstrap beads in cloud sessions
+- Metadata
+- Metadata
+
+### Revert
+
+- Build rollups from component directly, not a slim temp copy (ocidex-kf1p.4)
+
+### Style
+
+- Use background color for vuln severity chip, not text color
+- Solid seamless background segments for vuln severity chip
+- **web**: Satisfy eslint (prefer-template, strict-boolean, no-unnecessary-condition)
+- **web**: Give red and blue a semantic rule (ocidex-ag4q.11)
+- **web**: Bound the reading column at 1600px (ocidex-ag4q.17)
+
+### Wip
+
+- Component/job client filters + component subcommands (ocidex-e3g.7)
+- Add ButtonGroup primitive for .btn-group containers (ocidex-ag4q.21)
+
+## [0.0.2] - 2026-07-02
+
+### Features
+
+- **enrichment**: Migrate to per-enricher workers; drop "all" partition (ocidex-1sx)
+- **jobs**: Surface per-enricher enrichment pipeline on admin Jobs page (ocidex-de1)
+- **web**: Redesign SBOM detail — trust pill, summary band, tabs (ocidex-osc)
+- **charts**: Pin release images by digest; fail loud on incomplete release (ocidex-kn6)
+
+### Bug fixes
+
+- **enrichment**: Enrich registry-scanned SBOMs (ocidex-6zt, ocidex-rlp)
+- **provenance**: Look up signatures on the multi-arch index digest (ocidex-9b7)
+- **scanner**: Manual re-scan skips already-scanned digests by default (ocidex-wre)
+- **scanner**: --once K8s Job mode triggers enrichment (ocidex-arw)
+- **api**: Exclude files from keyset SBOM-components endpoint (ocidex-dnt.3)
+- **web**: Label Packages tab/tile with package count, not total components
+
+### Performance
+
+- **db**: Index FK columns to fix slow SBOM cascade delete (ocidex-vi3)
+- **db**: Add efficiency indexes for graph traversal and search (ocidex-dnt.1)
+- **api**: Keyset pagination for SBOM list, drop COUNT(*) OVER() (ocidex-dnt.2)
+- **stats**: TTL-cache dashboard stats per visibility scope (ocidex-dnt.4)
+- **changelog**: Batch package fetch to remove per-version N+1 (ocidex-dnt.5)
+- **ingest**: Batch SBOM inserts with pgx.CopyFrom (ocidex-dnt.6)
+- **db**: Cap unbounded read queries with LIMIT (ocidex-dnt.3)
+- **api**: Keyset pagination for artifact + SBOM-component lists (ocidex-dnt.2, ocidex-dnt.3)
+
+### Tests
+
+- **api**: Keyset pagination no-gaps/dupes integration test (ocidex-dnt.2)
+
+### Chore
+
+- **tekton**: Re-synth after tektonic fail-on-error fix (ocidex-2wi)
+
+## [0.0.1] - 2026-06-28
+
+### Features
+
+- **ci**: Adopt Tekton Chains hints — git source + image digests (ocidex-63u)
+- **db**: Add registry trust-anchor columns (ocidex-atd.1)
+- **db**: Add registry trust-anchor columns (ocidex-atd.1)
+- **enrichment**: Provenance enricher — OCI sig/att discovery (ocidex-atd.2)
+- **enrichment**: Provenance enricher — OCI sig/att discovery (ocidex-atd.2)
+- **enrichment**: Provenance enricher — parse simplesigning + SLSA DSSE (ocidex-atd.3)
+- **enrichment**: Provenance enricher — native ECDSA verification (ocidex-atd.4)
+- **enrichment**: Register provenance enricher + registry-trust resolver (ocidex-atd.5)
+- **api**: Expose signingStatus on artifact-list & version responses (ocidex-atd.6)
+- **web**: ProvenanceCard component (ocidex-atd.7)
+- **web**: Render ProvenanceCard in SBOM detail (ocidex-atd.8)
+- **web**: Signing badge in artifact list & versions tab (ocidex-atd.9)
+- **web**: Registry trust config in admin UI (ocidex-atd.10)
+- **enrichment**: Add enricher_name to enrichment_jobs schema (ocidex-atd.19)
+- **enrichment**: Fan-out enrichment_jobs per enricher on ingest (ocidex-atd.20)
+- **enrichment**: Add per-enricher worker binaries (ocidex-atd.22)
+- **enrichment**: Add per-enricher worker Dockerfile stages (ocidex-atd.23)
+- **ci**: Add per-enricher worker images to Tekton pipeline (ocidex-atd.24)
+- **ci**: Add OCI image labels to buildctl output in all image-build tasks (ocidex-v7t)
+- **ci**: Use skipRestoreIfPathsExist + forceSave for go-test cache (ocidex-dwe)
+
+### Bug fixes
+
+- **ci**: Use sed instead of bash param expansion in release task scripts
+- **ci**: Increase tag pipeline timeout to 3h
+- **ci**: Per-pipeline set-status-pending — no more stuck PR checks
+- **ci**: Scope push to main, 2h timeout, buildkit registry cache (ocidex-7on)
+- **ci**: Serialize image builds to fit the single CI worker
+- **provenance**: Bind verification to image digest + surface verification-failed (ocidex-atd.16/.17/.18)
+- Exclude .docker, .github, .tektonic from build context (ocidex-y2p)
+- **provenance**: Recognise buildkit-native in-toto attestations (ocidex-0e1)
+- **workers**: Wire credential resolver + fetch Rekor UUID (ocidex-zzv, ocidex-vep)
+- **ci**: Skip redundant go-cache restore and always overwrite in go-test (ocidex-dwe)
+- **ci**: Redirect HOME from workspace to /tmp to prevent cred-init .docker leak (ocidex-iup)
+- **ci**: Add -f to zstd in go-test save step to force overwrite existing archive (ocidex-dwe)
+- **ci**: Move OCI labels into Dockerfile LABEL instructions
+- **docker**: Switch builder base image from Docker Hub golang to apko-cicd
+- **ci**: Set OCI labels via --opt label + annotations, not --output (ocidex-ac5)
+- **chart**: Operator image tag falls back to appVersion (ocidex-95l)
+
+### Refactor
+
+- **tekton**: Reorganize .tektonic into per-job folders (ocidex-qh3)
+- **enrichment**: Extract shared worker scaffolding into internal/worker/enrichment (ocidex-atd.21)
+
+### Documentation
+
+- **ci**: Add Tekton CI dev loop to CLAUDE.md
+- Add supply-chain verification guide + cosign public key (ocidex-8ob)
+- Use slsaprovenance1 for cosign verify-attestation
+- Add ADR-0032 provenance verification + ADR-0033 per-enricher services (ocidex-atd.25)
+- Update CONFIGURATION.md + DEVELOPMENT.md for per-enricher workers (ocidex-atd.26)
+
+### Tests
+
+- **provenance**: Table tests + golden assertions for enricher (ocidex-atd.11)
+
+### CI
+
+- **tekton**: Migrate go-fmt to the tektonic script API
+- **tekton**: Migrate image-build to sh`` and helm-publish to a script file
+- **tekton**: Full migration to tektonic script API; drop nuHeader/run_and_save (plan tektonic-3px)
+- Re-trigger PR pipeline (transient etcd timeout on prior run)
+
+### Chore
+
+- **ci**: Remove release.yml superseded by Tekton tag pipeline
+- Gitignore stray operator build artifact; sync beads
+- Update beads issues
+- Update beads issues
+
+## [0.0.1-rc.2] - 2026-06-21
+
+### Features
+
+- **k8s**: Add production Postgres StatefulSet to k8s/base
+- **k8s**: Add ocidex-web Deployment + Service; switch web image to Caddy
+- **k8s**: Add goose-migrate Job + 'migrate' image target
+- **k8s**: Add k8s/overlays/prod for ocidex.app deploy
+- **cli**: Make migrate an ocidex subcommand; stop auto-migrating [**breaking**]
+- **ci**: Publish prod manifests as OCI artifact (ocidex-0my.16)
+- **scanner**: Make concurrency configurable via SCANNER_MAX_CONCURRENCY
+- **dev-image**: Flox dev-workspace image + GitHub Actions build
+- Build history button and changelog arch tab fix
+- **nats,scanner**: Health probes, DLQ visibility, reconciler backoff
+- **repo,service**: Id-based Claim/Finish/FailOrRequeue + stuck-running sweep
+- **api,web**: Retry admin action replaces DLQ-via-NATS visibility
+- **api,web**: Bulk 'Retry all failed' admin action
+- Introduce internal/jobqueue generic outbox-pattern worker
+- **sdk**: Bootstrap pkg/client/ with oapi-codegen types and ADR-028
+- **sdk**: Add shared client infrastructure (ocidex-3nu.3)
+- **sdk**: Registry + auth method implementations (ocidex-3nu.4)
+- **sdk**: SBOM + artifact method implementations (ocidex-3nu.5)
+- **sdk**: Component + job + stats implementations (ocidex-3nu.6)
+- **sdk**: FakeClient test double (ocidex-3nu.7)
+- **operator**: Kubebuilder scaffold — CRD types, manager, generated manifests (ocidex-01v.1, ocidex-01v.2)
+- **operator**: OCIRegistry reconciler with create/update/delete+finalizer (ocidex-01v.3)
+- **operator**: ScanRequest reconciler — fire-and-forget dispatch (ocidex-01v.4)
+- **operator**: ScanRequest controller + beads sync (ocidex-01v.4)
+- **operator**: APIKey reconciler with rotation and Secret write (ocidex-01v.5)
+- **operator**: APIKey reconciler (ocidex-01v.5)
+- **operator**: Lifecycle hardening — shutdown timeout, RBAC markers, generated ClusterRole (ocidex-01v.6)
+- **operator**: Lifecycle hardening (ocidex-01v.6)
+- **operator**: Kustomize overlay + Helm chart scaffold (ocidex-01v.7)
+- **operator**: Kustomize overlay + Helm chart scaffold (ocidex-01v.7)
+- **deploy**: Helm chart + operator image + CI/CD pipeline overhaul (ocidex-8ik)
+- **deploy**: Helm chart + operator image + CI/CD overhaul (ocidex-8ik)
+- **chart**: Add KEDA ScaledObject for enrichment-worker
+- **chart**: KEDA ScaledObject for enrichment-worker
+- **tekton**: Add BuildKit daemonless image build tasks to push pipeline
+- **tekton**: Add Helm chart build and push to push pipeline
+- **tekton**: Add image build inheritance and tag release tasks (ocidex-1k6, ocidex-avi)
+- **tekton**: Wire ocidex TAG pipeline and bump tektonic dep (ocidex-e9t)
+- **scripts**: Add release.nu for semver releases (ocidex-8bh)
+
+### Bug fixes
+
+- **docker**: Use /go/bin/goose in migrate stage
+- **compose**: Enable NATS monitoring port for healthcheck
+- **compose**: Stop overriding FRONTEND_URL/CORS from .env
+- **web**: Make Caddy reverse-proxy backend paths; fix compose port
+- **k8s**: Set NATS server_name for clustered JetStream (ocidex-cto)
+- **docker**: Correct module-cache mount path to /go/pkg/mod (ocidex-qoq)
+- **k8s**: Set NATS cluster_name and unblock API startup
+- **k8s**: Force image repull with Always policy on prod workloads
+- **ci**: Pass full newname:newtag to kustomize edit set image
+- **k8s**: Tighten prod resource limits based on actual Pi usage
+- **nats**: Switch to standalone mode, persist JetStream to PVC
+- **k8s**: Raise scanner-worker memory limit to 1Gi
+- **dev-image**: Dereference nss symlinks for containerd compatibility
+- **dev-image**: Dereference nss symlinks via Dockerfile RUN, not docker commit
+- **web**: Use handle blocks so /auth/* proxy runs before try_files
+- Persist NATS JetStream data in docker-compose and K8s dev
+- Filter unsupported manifest types before scan queue
+- Preserve started_at on scan job retry, add last_attempt_at
+- **nats**: Decouple MaxAckPending from per-pod concurrency; add worker tracking
+- **scanner**: Auto-reconcile scan jobs orphaned by NATS stream reset
+- **scanner**: Disable orphan reconciler — root cause of prod duplicate-scan thrash
+- **prod**: Revert SCANNER_MAX_CONCURRENCY to 1 — Pi4 CPU was the real cap
+- **docker**: Bump builder to golang:1.26 — go.mod requires go 1.26.0
+- **chart**: Enable NATS monitoring port and fix KEDA endpoint
+- **scanner**: Ad-hoc scans silently no-op for already-succeeded registries (ocidex-ggq)
+- **operator**: Use LoadOperator() to avoid DATABASE_URL and NATS_URL requirements
+- **operator**: Wire ctrl.SetLogger and grant events RBAC
+- **operator**: Scope cache to WATCH_NAMESPACE to prevent multi-instance conflicts
+- **service**: NonEmpty returns non-nil slice to avoid NOT NULL violation
+- **tilt**: Restore live updates — fix image ref mismatch and orphaned builds
+- **ci**: Use run_number for chart pre-release version instead of sha
+- **ci**: Bump chart pre-release base to 0.1.0 to clear old sha versions
+- Use default ServiceAccount for PAC PipelineRuns
+- Reduce go-build/frontend-lint CPU requests to fit single worker node
+- Increase openapi-check check-types memory to 3Gi
+- **beads**: Remove repos.additional to prevent HydrateFromMultiRepo panic
+- **tekton**: Allow privilege escalation for BuildKit newuidmap
+- **tekton**: Grant CAP_SETUID/SETGID for rootless BuildKit user namespace setup
+- **tekton**: Use buildctl --opt for attestations, not docker buildx flags
+- **tekton**: Add CAP_SYS_ADMIN for runc /proc mount in rootless BuildKit
+- **tekton**: Replace rootless BuildKit with non-rootless + SYS_ADMIN
+- **tekton**: Use native snapshotter to avoid rootless overlayfs xattr failure
+- **tekton**: Add --oci-worker-no-process-sandbox to fix rootless BuildKit RUN steps
+- **tekton**: Use BuildKit default SBOM scanner instead of anchore/syft:latest
+- **scripts**: Check only tracked file changes in release.nu
+- **ci**: Inject GITHUB_TOKEN from PAC git auth secret via podTemplate
+- **ci**: Use github-pipeline-token for per-task GitHub API access
+- **ci**: Strip refs/tags/ prefix from source-branch in release tasks
+- **ci**: Replace ghcr.io/cli/cli with base image for gh-release task
+
+### Performance
+
+- **docker**: Cross-compile Go/Node; eliminate QEMU for arm64 builds
+- Parallelize dashboard stats queries and add sbom index
+- **prod**: 3x scanner throughput — postgres CPU, +1 replica, concurrency=2
+
+### Refactor
+
+- **scanner**: Split syft engine out of API binary
+- **enrichment**: Split OCI digest validator into ocivalidate package
+- **config**: Drop OCIDEX_MODE; NATS is always required [**breaking**]
+- **api**: Drop dead setupEnrichmentExt shell and call site
+- **enrichment**: Delete dead in-process Extension
+- **compose**: Distributed-only topology [**breaking**]
+- Finish distributed-only close-out (ocidex-ujj.61-64)
+- **service**: Rename and cache OCI host resolvers (ocidex-5fh)
+- **naming**: Disambiguate overloaded Registry type name (ocidex-cke)
+- **scanner**: Outbox pattern — Postgres is the queue, NATS is the doorbell [**breaking**]
+- **frontend**: Replace recursive TreeNodeRow with flat-DFS pattern
+- **ci**: Reuse pac-github-token for gh release instead of github-cli (ocidex-wcn)
+
+### Documentation
+
+- Add DEPLOYMENT.md env-var contract and switch 1.1 epic to ocidex.app
+- Outbox pattern playbook + ADR-0024
+- CNPG migration playbook in OPERATIONS.md
+- Close epics 1.0 and 1.1 — ADRs, docs, zot config template
+- **adr**: Correct stale ADR 0015 and 0016
+- **claude**: Require git commit before bd close to prevent stranded changes
+
+### Tests
+
+- **config**: Regression guard for worker OAuth-optional contract (ocidex-mf3)
+
+### CI
+
+- Drop QEMU setup — cross-compilation makes it unnecessary
+- Install flux CLI via install script instead of broken action ref
+- Migrate to PVC caches, fix OOM on set-status-pending, update tektonic
+- Verify PAC GitHub App Checks permission fix
+
+### Chore
+
+- **k8s**: Add secrets.yaml.example template + .gitignore entry
+- Commit beads
+- **prod**: Scale NATS to 1 replica and set NATS_STREAM_REPLICAS=1
+- Add flox config for arm macs
+- Remove zot from docker compose
+- Bump k8s replicas
+- Add postgresql to flox env; regen repository with sqlc v1.31.1
+- Drop scan_job_failures table and remaining DLQ-via-NATS plumbing
+- **k8s**: Remove postgres StatefulSet now that CNPG owns the DB
+- **k8s**: Let KEDA own scanner-worker replicas
+- **flox**: Add repomix to dev environment; document CLI fallback
+- Add Hubble labels to Helm charts, remove kustomize
+- **ci**: Remove dead manifests job
+- Migrate CI from TektonProject/EventListener to PACProject (tektonic-5p6.7)
+- Remove stale .tektonic/generated/ artifacts (tektonic-5p6.4)
+- Update CI images to Go 1.26 / golangci-lint 2.12.2
+- Wire common/ shared flox env, cross-repo planning, and CI issues
+- **ci**: Remove images.yml superseded by Tekton push pipeline
+
+### Revert
+
+- **tekton**: Restore rootless BuildKit now that Talos NoNewPrivileges is fixed
+
+## [0.0.1-rc.1] - 2026-05-16
 
 ### Features
 
@@ -176,6 +1090,7 @@ Run `make release VERSION=vX.Y.Z` to cut a release.
 - **dev**: Prune stale talos/kube contexts on dev-cluster-down
 - **dev**: Clean up stale tilt processes in dev-up/dev-down
 - **dev**: Stop docker-compose stack before starting Tilt
+- **ci**: Replace orhun/git-cliff-action with taiki-e/install-action
 
 ### Refactor
 

@@ -12,7 +12,6 @@ export const ghRelease = new Task({
       name: "gh-release-create",
       image: "ghcr.io/pfenerty/apko-cicd/base:stable",
       workingDir: "$(workspaces.workspace.path)",
-      onError: "continue",
       env: [
         {
           name: "GH_TOKEN",
