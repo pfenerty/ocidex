@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -162,4 +163,36 @@ func TestNamespaceCreationRestricted(t *testing.T) {
 			is.Equal(w.Code, tt.wantStatus)
 		})
 	}
+}
+
+// TestRegistryURLValidatedOnCreateAndUpdate covers ocidex-avsz.8 through the
+// router: both write paths answer 422 for a URL that carries credentials.
+func TestRegistryURLValidatedOnCreateAndUpdate(t *testing.T) {
+	const bad = `{"name":"r","type":"generic","url":"https://u:p@registry.example.com","insecure":false,"enabled":true,"scan_mode":"webhook","repositories":[],"repository_patterns":[],"tag_patterns":[]}`
+	authSvc := &fakeAuthService{
+		users: map[string]service.AuthUser{
+			"owner-token": {ID: ownerUUID, Role: "member", APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()},
+		},
+		grants: map[string]map[string]authz.Role{uuidString(ownerUUID): {mwNamespaceID: authz.RoleOwner}},
+	}
+	regSvc := &recordingRegistryService{fakeRegistryService: fakeRegistryService{registry: testRegistry}}
+	h := api.NewHandler(nil, nil, authSvc, regSvc, &namedNamespaceService{}, nil, nil, nil, nil, nil, &fakePinger{}, nil, &config.Config{})
+	router := api.NewRouter(h, "*", "", "")
+
+	t.Run("create", func(t *testing.T) {
+		is := is.New(t)
+		w := memberRequest(router, http.MethodPost, "/api/v1/registries", bad, "owner-token")
+		is.Equal(w.Code, http.StatusUnprocessableEntity)
+		is.Equal(len(regSvc.calls), 0)
+	})
+	t.Run("update", func(t *testing.T) {
+		is := is.New(t)
+		w := memberRequest(router, http.MethodPatch, "/api/v1/registries/"+testRegistryID, bad, "owner-token")
+		is.Equal(w.Code, http.StatusUnprocessableEntity)
+		// The same body with a clean URL goes through, so the 422 above is the
+		// URL check and not the schema.
+		good := strings.Replace(bad, "u:p@", "", 1)
+		w = memberRequest(router, http.MethodPatch, "/api/v1/registries/"+testRegistryID, good, "owner-token")
+		is.Equal(w.Code, http.StatusOK)
+	})
 }

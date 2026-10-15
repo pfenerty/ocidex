@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/netip"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -92,6 +95,68 @@ func ensureWebhookSecret(scanMode string, provided *string) (secret *string, gen
 // validateVerificationConfig rejects a keyless verification_mode that's missing the
 // trust_identity/trust_issuer it needs to match a Fulcio certificate against, and a
 // public_key verification_mode that's missing trust_public_key.
+// validateRegistryURL checks the shape of a user-supplied registry address
+// (ocidex-avsz.8): an optional http/https scheme (http only with insecure), a
+// host with an optional numeric port, and nothing else — credentials belong in
+// auth_username/auth_token, and a path, query or fragment would be silently
+// dropped or mangled by the scanner. A literal IP the egress policy refuses is
+// rejected here so the user hears about it now rather than from a failed scan;
+// the dial-time guard in internal/netguard remains the real enforcement, since a
+// hostname can resolve anywhere.
+func validateRegistryURL(raw string, insecure bool, egress netguard.Policy) error {
+	invalid := func(msg string) error {
+		return huma.Error422UnprocessableEntity("invalid registry url", &huma.ErrorDetail{
+			Location: "body.url", Message: msg, Value: raw,
+		})
+	}
+	rest, msg := stripRegistryScheme(raw, insecure)
+	if msg != "" {
+		return invalid(msg)
+	}
+	u, err := url.Parse("//" + rest)
+	if err != nil {
+		return invalid(fmt.Sprintf("not a valid host[:port]: %v", err))
+	}
+	switch {
+	case u.User != nil:
+		return invalid("must not contain credentials; use auth_username and auth_token")
+	case u.RawQuery != "" || u.ForceQuery:
+		return invalid("must not contain a query")
+	case u.Fragment != "" || strings.Contains(rest, "#"):
+		return invalid("must not contain a fragment")
+	case u.Path != "" && u.Path != "/":
+		return invalid("must not contain a path; list repositories in repositories instead")
+	case u.Hostname() == "":
+		return invalid("host is required")
+	}
+	if ip, err := netip.ParseAddr(u.Hostname()); err == nil {
+		if err := egress.Check(ip); err != nil {
+			return invalid(fmt.Sprintf("%s is refused by this installation's egress policy", ip))
+		}
+	}
+	return nil
+}
+
+// stripRegistryScheme returns raw without its scheme, or a message saying why
+// the scheme is not acceptable.
+func stripRegistryScheme(raw string, insecure bool) (rest, msg string) {
+	scheme, after, ok := strings.Cut(raw, "://")
+	if !ok {
+		return raw, ""
+	}
+	switch strings.ToLower(scheme) {
+	case schemeHTTPS:
+		return after, ""
+	case schemeHTTP:
+		if !insecure {
+			return "", "http:// requires insecure to be true"
+		}
+		return after, ""
+	default:
+		return "", "scheme must be http or https"
+	}
+}
+
 func validateVerificationConfig(verificationMode string, trustPublicKey, trustIdentity, trustIssuer *string) error {
 	switch verificationMode {
 	case trust.ModeKeyless:
@@ -246,6 +311,8 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 	regURL := in.Body.URL
 	if fixedURL, ok := typeFixedURL[regType]; ok {
 		regURL = fixedURL
+	} else if err := validateRegistryURL(regURL, in.Body.Insecure, h.egress()); err != nil {
+		return nil, err
 	}
 
 	scanMode := in.Body.ScanMode
@@ -426,6 +493,8 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 	regURL := in.Body.URL
 	if fixedURL, ok := typeFixedURL[regType]; ok {
 		regURL = fixedURL
+	} else if err := validateRegistryURL(regURL, in.Body.Insecure, h.egress()); err != nil {
+		return nil, err
 	}
 
 	scanMode := in.Body.ScanMode
