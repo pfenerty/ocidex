@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pfenerty/ocidex/internal/repository"
+	"github.com/pfenerty/ocidex/internal/secretbox"
 )
 
 // Workload match states (ADR-044 K4/K5). These mirror the match_state column
@@ -346,12 +347,16 @@ type ClusterService interface {
 type clusterService struct {
 	pool *pgxpool.Pool
 	repo repository.ClusterRepository
+	// box decrypts the registry credentials unknown-image ingest pulls with
+	// (ADR-051).
+	box *secretbox.Box
 }
 
 // NewClusterService constructs a ClusterService. It keeps the pool as well as
 // the repository because ReplaceInventory needs to open its own transaction.
-func NewClusterService(pool *pgxpool.Pool) ClusterService {
-	return &clusterService{pool: pool, repo: repository.New(pool)}
+// box decrypts stored registry credentials; nil reads them as plaintext.
+func NewClusterService(pool *pgxpool.Pool, box *secretbox.Box) ClusterService {
+	return &clusterService{pool: pool, repo: repository.New(pool), box: box}
 }
 
 func (s *clusterService) Create(ctx context.Context, params CreateClusterParams) (Cluster, error) {

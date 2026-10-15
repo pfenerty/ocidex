@@ -50,7 +50,7 @@ func setupServerWithStats(t *testing.T, pool *pgxpool.Pool) (*httptest.Server, s
 	})
 	sbomSvc := service.NewSBOMService(pool, nil, nil)
 	searchSvc := service.NewSearchService(pool)
-	registrySvc := service.NewRegistryService(pool)
+	registrySvc := service.NewRegistryService(pool, nil)
 	// Ingest resolves its namespace through the source (ADR-039), so both of
 	// these are on the write path, not just the /namespaces and /sources routes.
 	namespaceSvc := service.NewNamespaceService(pool)
@@ -58,10 +58,10 @@ func setupServerWithStats(t *testing.T, pool *pgxpool.Pool) (*httptest.Server, s
 	// The job services are wired so the /jobs and /enrichment-jobs feeds are
 	// exercisable; they are owner-scoped reads, not admin-only ones
 	// (ocidex-998g.1).
-	jobSvc := service.NewJobService(pool)
+	jobSvc := service.NewJobService(pool, nil)
 	enrichJobSvc := service.NewEnrichJobService(pool, "")
 	watchSvc := service.NewWatchService(pool)
-	clusterSvc := service.NewClusterService(pool)
+	clusterSvc := service.NewClusterService(pool, nil)
 	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc,
 		namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, clusterSvc, pool, nil, cfg)
 	router := api.NewRouter(handler, "*", "", "")

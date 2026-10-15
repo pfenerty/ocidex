@@ -11,11 +11,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/pfenerty/ocidex/internal/repository"
+	"github.com/pfenerty/ocidex/internal/secretbox"
 	"github.com/pfenerty/ocidex/internal/trust"
 )
 
@@ -400,14 +402,37 @@ type RegistryTrustCount struct {
 type registryService struct {
 	pool *pgxpool.Pool
 	repo repository.RegistryRepository
+	// box encrypts auth_token and webhook_secret at rest (ADR-051). Nil
+	// stores plaintext, which config allows only outside production.
+	box *secretbox.Box
 }
 
-// NewRegistryService constructs a RegistryService.
-func NewRegistryService(pool *pgxpool.Pool) RegistryService {
+// NewRegistryService constructs a RegistryService. box encrypts stored
+// credentials; nil stores them in plaintext.
+func NewRegistryService(pool *pgxpool.Pool, box *secretbox.Box) RegistryService {
 	return &registryService{
 		pool: pool,
 		repo: repository.New(pool),
+		box:  box,
 	}
+}
+
+// toDomain maps a row to the domain model with its credentials decrypted.
+func (s *registryService) toDomain(c registryComposite) (Registry, error) {
+	return decryptCredentials(s.box, fromRepo(c))
+}
+
+// toDomainAll maps rows built by composite to domain models.
+func toDomainAll[T any](s *registryService, rows []T, composite func(T) registryComposite) ([]Registry, error) {
+	out := make([]Registry, len(rows))
+	for i, r := range rows {
+		reg, err := s.toDomain(composite(r))
+		if err != nil {
+			return nil, err
+		}
+		out[i] = reg
+	}
+	return out, nil
 }
 
 func (s *registryService) Create(ctx context.Context, params CreateRegistryParams) (Registry, error) {
@@ -423,20 +448,30 @@ func (s *registryService) Create(ctx context.Context, params CreateRegistryParam
 	if err != nil {
 		return Registry{}, err
 	}
+	id := uuid.New()
+	webhookSecret, err := sealCredential(s.box, colWebhookSecret, id.String(), params.WebhookSecret)
+	if err != nil {
+		return Registry{}, err
+	}
+	authToken, err := sealCredential(s.box, colAuthToken, id.String(), params.AuthToken)
+	if err != nil {
+		return Registry{}, err
+	}
 	r, err := s.repo.CreateRegistry(ctx, repository.CreateRegistryParams{
+		ID:                  pgtype.UUID{Bytes: id, Valid: true},
 		NamespaceID:         namespaceID,
 		Name:                params.Name,
 		Type:                params.Type,
 		Url:                 params.URL,
 		Insecure:            params.Insecure,
-		WebhookSecret:       toNullText(params.WebhookSecret),
+		WebhookSecret:       webhookSecret,
 		Repositories:        nonEmpty(params.Repositories),
 		RepositoryPatterns:  nonEmpty(params.RepositoryPatterns),
 		TagPatterns:         nonEmpty(params.TagPatterns),
 		ScanMode:            params.ScanMode,
 		PollIntervalMinutes: int32(params.PollIntervalMinutes), //nolint:gosec // G115: poll interval is validated to fit int32
 		AuthUsername:        toNullText(params.AuthUsername),
-		AuthToken:           toNullText(params.AuthToken),
+		AuthToken:           authToken,
 		OwnerUserID:         params.OwnerID,
 		Visibility:          visibility,
 		IncludeUntagged:     params.IncludeUntagged,
@@ -453,13 +488,13 @@ func (s *registryService) Create(ctx context.Context, params CreateRegistryParam
 		}
 		return Registry{}, fmt.Errorf("creating registry: %w", err)
 	}
-	return fromRepo(registryComposite{
+	return s.toDomain(registryComposite{
 		reg:         r,
 		name:        params.Name,
 		namespaceID: namespaceID,
 		ownerID:     params.OwnerID,
 		visibility:  visibility,
-	}), nil
+	})
 }
 
 // resolveNamespace turns params into the id CreateRegistry should place the
@@ -506,9 +541,9 @@ func (s *registryService) GetByName(ctx context.Context, name string) (Registry,
 	if err != nil {
 		return Registry{}, ErrNotFound
 	}
-	return fromRepo(registryComposite{
+	return s.toDomain(registryComposite{
 		reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, ownerID: r.OwnerID, visibility: r.Visibility,
-	}), nil
+	})
 }
 
 func (s *registryService) Get(ctx context.Context, id string) (Registry, error) {
@@ -520,9 +555,9 @@ func (s *registryService) Get(ctx context.Context, id string) (Registry, error) 
 	if err != nil {
 		return Registry{}, ErrNotFound
 	}
-	return fromRepo(registryComposite{
+	return s.toDomain(registryComposite{
 		reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, ownerID: r.OwnerID, visibility: r.Visibility,
-	}), nil
+	})
 }
 
 func (s *registryService) List(ctx context.Context, filter VisibilityFilter) ([]Registry, error) {
@@ -533,11 +568,11 @@ func (s *registryService) List(ctx context.Context, filter VisibilityFilter) ([]
 	if err != nil {
 		return nil, fmt.Errorf("listing registries: %w", err)
 	}
-	out := make([]Registry, len(rows))
-	for i, r := range rows {
-		out[i] = fromRepo(registryComposite{
-			reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, ownerID: r.OwnerID, visibility: r.Visibility,
-		})
+	out, err := toDomainAll(s, rows, func(r repository.ListRegistriesRow) registryComposite {
+		return registryComposite{reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, ownerID: r.OwnerID, visibility: r.Visibility}
+	})
+	if err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -557,11 +592,11 @@ func (s *registryService) ListPaged(ctx context.Context, filter VisibilityFilter
 	if len(rows) > 0 {
 		total = rows[0].TotalCount
 	}
-	out := make([]Registry, len(rows))
-	for i, r := range rows {
-		out[i] = fromRepo(registryComposite{
-			reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, ownerID: r.OwnerID, visibility: r.Visibility,
-		})
+	out, err := toDomainAll(s, rows, func(r repository.ListRegistriesPagedRow) registryComposite {
+		return registryComposite{reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, ownerID: r.OwnerID, visibility: r.Visibility}
+	})
+	if err != nil {
+		return PagedResult[Registry]{}, err
 	}
 	return PagedResult[Registry]{Data: out, Total: total, Limit: limit, Offset: offset}, nil
 }
@@ -575,13 +610,16 @@ func (s *registryService) Update(ctx context.Context, params UpdateRegistryParam
 	if err != nil {
 		return Registry{}, ErrNotFound
 	}
-	existing := fromRepo(registryComposite{
+	existing, err := s.toDomain(registryComposite{
 		reg:         existingRow.Registry,
 		name:        existingRow.Name,
 		namespaceID: existingRow.NamespaceID,
 		ownerID:     existingRow.OwnerID,
 		visibility:  existingRow.Visibility,
 	})
+	if err != nil {
+		return Registry{}, err
+	}
 
 	visibility := params.Visibility
 	if visibility == "" {
@@ -617,13 +655,21 @@ func (s *registryService) Update(ctx context.Context, params UpdateRegistryParam
 		managedRef = existing.ManagedRef
 	}
 
+	webhookSecret, err := sealCredential(s.box, colWebhookSecret, uuidToStr(uid), params.WebhookSecret)
+	if err != nil {
+		return Registry{}, err
+	}
+	authToken, err := sealCredential(s.box, colAuthToken, uuidToStr(uid), params.AuthToken)
+	if err != nil {
+		return Registry{}, err
+	}
 	r, err := s.repo.UpdateRegistry(ctx, repository.UpdateRegistryParams{
 		ID:                  uid,
 		Name:                params.Name,
 		Type:                params.Type,
 		Url:                 params.URL,
 		Insecure:            params.Insecure,
-		WebhookSecret:       toNullText(params.WebhookSecret),
+		WebhookSecret:       webhookSecret,
 		Enabled:             params.Enabled,
 		Repositories:        nonEmpty(params.Repositories),
 		RepositoryPatterns:  nonEmpty(params.RepositoryPatterns),
@@ -631,7 +677,7 @@ func (s *registryService) Update(ctx context.Context, params UpdateRegistryParam
 		ScanMode:            params.ScanMode,
 		PollIntervalMinutes: int32(params.PollIntervalMinutes), //nolint:gosec // G115: poll interval is validated to fit int32
 		AuthUsername:        toNullText(params.AuthUsername),
-		AuthToken:           toNullText(params.AuthToken),
+		AuthToken:           authToken,
 		Visibility:          visibility,
 		IncludeUntagged:     params.IncludeUntagged,
 		VerificationMode:    verificationMode,
@@ -644,13 +690,13 @@ func (s *registryService) Update(ctx context.Context, params UpdateRegistryParam
 	if err != nil {
 		return Registry{}, fmt.Errorf("updating registry: %w", err)
 	}
-	return fromRepo(registryComposite{
+	return s.toDomain(registryComposite{
 		reg:         r,
 		name:        params.Name,
 		namespaceID: existingRow.NamespaceID,
 		ownerID:     existingRow.OwnerID,
 		visibility:  visibility,
-	}), nil
+	})
 }
 
 func (s *registryService) ListPollable(ctx context.Context) ([]Registry, error) {
@@ -658,11 +704,11 @@ func (s *registryService) ListPollable(ctx context.Context) ([]Registry, error) 
 	if err != nil {
 		return nil, fmt.Errorf("listing pollable registries: %w", err)
 	}
-	out := make([]Registry, len(rows))
-	for i, r := range rows {
-		out[i] = fromRepo(registryComposite{
-			reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, ownerID: r.OwnerID, visibility: r.Visibility,
-		})
+	out, err := toDomainAll(s, rows, func(r repository.ListPollableRegistriesRow) registryComposite {
+		return registryComposite{reg: r.Registry, name: r.Name, namespaceID: r.NamespaceID, ownerID: r.OwnerID, visibility: r.Visibility}
+	})
+	if err != nil {
+		return nil, err
 	}
 	return out, nil
 }

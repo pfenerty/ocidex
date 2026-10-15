@@ -13,8 +13,11 @@
 -- for pre-existing registries. When namespace_id is supplied (the operator
 -- defaulting an OCIDex namespace from the CR's K8s namespace) only source and
 -- registry are written, and they share an id inside the existing namespace.
+--
+-- The caller supplies the id: stored credentials are encrypted bound to the
+-- row id (ADR-051), so it must be known before the row is written.
 WITH new_id AS (
-    SELECT gen_random_uuid() AS id
+    SELECT @id::uuid AS id
 ),
 ns AS (
     INSERT INTO namespace (id, name, visibility)

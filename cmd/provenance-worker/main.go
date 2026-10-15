@@ -25,7 +25,7 @@ func main() {
 }
 
 func buildEnrichers(pool *pgxpool.Pool, appCfg *config.Config) []enrichment.Enricher {
-	registrySvc := service.NewRegistryService(pool)
+	registrySvc := service.NewRegistryService(pool, appCfg.SecretBox)
 	insecureResolver := service.BuildInsecureHostLookup(registrySvc)
 	trustResolver := service.BuildTrustLookup(registrySvc)
 	credResolver := service.BuildCredentialLookup(registrySvc)

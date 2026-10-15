@@ -89,10 +89,10 @@ func setupOIDCRig(t *testing.T, pool *pgxpool.Pool) string {
 	})
 	handler := api.NewHandler(
 		service.NewSBOMService(pool, nil, nil), service.NewSearchService(pool), authSvc,
-		service.NewRegistryService(pool), service.NewNamespaceService(pool),
-		service.NewSourceService(pool), service.NewJobService(pool),
+		service.NewRegistryService(pool, nil), service.NewNamespaceService(pool),
+		service.NewSourceService(pool), service.NewJobService(pool, nil),
 		service.NewEnrichJobService(pool, ""), service.NewWatchService(pool),
-		service.NewClusterService(pool), pool, nil, cfg)
+		service.NewClusterService(pool, nil), pool, nil, cfg)
 
 	srv := httptest.NewUnstartedServer(api.NewRouter(handler, "*", "", ""))
 	if err := srv.Listener.Close(); err != nil {

@@ -55,6 +55,18 @@ func main() {
 	}
 }
 
+// logStartup records the configuration an operator most needs to see at boot.
+func logStartup(cfg *config.Config) {
+	slog.Info("starting ocidex",
+		"port", cfg.Port,
+		"environment", cfg.Environment,
+		"log_level", cfg.LogLevel,
+	)
+	if cfg.SecretBox == nil {
+		slog.Warn("DATA_ENCRYPTION_KEYS is not set: registry credentials are stored in plaintext (ADR-051)")
+	}
+}
+
 func run() error {
 	// Load configuration.
 	cfg, err := config.Load()
@@ -66,11 +78,7 @@ func run() error {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: cfg.SlogLevel(),
 	})))
-	slog.Info("starting ocidex",
-		"port", cfg.Port,
-		"environment", cfg.Environment,
-		"log_level", cfg.LogLevel,
-	)
+	logStartup(cfg)
 
 	ctx := context.Background()
 
@@ -98,7 +106,7 @@ func run() error {
 	bus := event.NewBus(logger)
 	reg := extension.NewManager(bus, logger)
 
-	registrySvc := service.NewRegistryService(pool)
+	registrySvc := service.NewRegistryService(pool, cfg.SecretBox)
 	namespaceSvc := service.NewNamespaceService(pool)
 	sourceSvc := service.NewSourceService(pool)
 	insecureResolver := service.BuildInsecureHostLookup(registrySvc)
@@ -113,7 +121,7 @@ func run() error {
 	searchSvc := service.NewSearchService(pool, service.WithWarmDB(bgPool))
 	authSvc := service.NewAuthService(pool, cfg, bus, providers)
 
-	jobSvc := service.NewJobService(pool)
+	jobSvc := service.NewJobService(pool, cfg.SecretBox)
 	// The API enqueues and administers enrichment jobs but never claims one, so
 	// the ClaimNext partition name is empty (see NewEnrichJobService).
 	enrichJobSvc := service.NewEnrichJobService(pool, "")
@@ -125,7 +133,7 @@ func run() error {
 	}
 
 	watchSvc := service.NewWatchService(pool)
-	clusterSvc := service.NewClusterService(pool)
+	clusterSvc := service.NewClusterService(pool, cfg.SecretBox)
 	handler := api.NewHandler(sbomSvc, searchSvc, authSvc, registrySvc, namespaceSvc, sourceSvc, jobSvc, enrichJobSvc, watchSvc, clusterSvc, pool, scanSubmitter, cfg)
 	router := api.NewRouter(handler, cfg.CORSAllowedOrigins, cfg.FrontendURL, cfg.APIBaseURL)
 

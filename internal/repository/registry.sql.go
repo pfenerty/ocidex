@@ -14,28 +14,28 @@ import (
 const createRegistry = `-- name: CreateRegistry :one
 
 WITH new_id AS (
-    SELECT gen_random_uuid() AS id
+    SELECT $19::uuid AS id
 ),
 ns AS (
     INSERT INTO namespace (id, name, visibility)
-    SELECT n.id, $19::text, $20::text
+    SELECT n.id, $20::text, $21::text
     FROM new_id n
-    WHERE $21::uuid IS NULL
+    WHERE $22::uuid IS NULL
     RETURNING id
 ),
 ns_owner AS (
     INSERT INTO namespace_member (namespace_id, user_id, role)
-    SELECT ns.id, $22::uuid, 'owner'
+    SELECT ns.id, $23::uuid, 'owner'
     FROM ns
-    WHERE $22::uuid IS NOT NULL
+    WHERE $23::uuid IS NOT NULL
     RETURNING user_id
 ),
 target_ns AS (
-    SELECT COALESCE($21::uuid, (SELECT id FROM ns)) AS id
+    SELECT COALESCE($22::uuid, (SELECT id FROM ns)) AS id
 ),
 src AS (
     INSERT INTO source (id, namespace_id, kind, name)
-    SELECT n.id, t.id, 'oci_registry', $19::text FROM new_id n, target_ns t
+    SELECT n.id, t.id, 'oci_registry', $20::text FROM new_id n, target_ns t
     RETURNING id
 )
 INSERT INTO registry (
@@ -74,6 +74,7 @@ type CreateRegistryParams struct {
 	TrustIssuer         pgtype.Text `json:"trust_issuer"`
 	ManagedBy           pgtype.Text `json:"managed_by"`
 	ManagedRef          pgtype.Text `json:"managed_ref"`
+	ID                  pgtype.UUID `json:"id"`
 	Name                string      `json:"name"`
 	Visibility          string      `json:"visibility"`
 	NamespaceID         pgtype.UUID `json:"namespace_id"`
@@ -93,6 +94,9 @@ type CreateRegistryParams struct {
 // for pre-existing registries. When namespace_id is supplied (the operator
 // defaulting an OCIDex namespace from the CR's K8s namespace) only source and
 // registry are written, and they share an id inside the existing namespace.
+//
+// The caller supplies the id: stored credentials are encrypted bound to the
+// row id (ADR-051), so it must be known before the row is written.
 // The owner of a namespace minted here is a member row, not a column
 // (ocidex-y0hg.4). It is written only on the mint path: supplying namespace_id
 // means joining a namespace that already has its own members, and an import
@@ -120,6 +124,7 @@ func (q *Queries) CreateRegistry(ctx context.Context, arg CreateRegistryParams) 
 		arg.TrustIssuer,
 		arg.ManagedBy,
 		arg.ManagedRef,
+		arg.ID,
 		arg.Name,
 		arg.Visibility,
 		arg.NamespaceID,

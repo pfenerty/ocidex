@@ -378,10 +378,14 @@ func (s *clusterService) resolveUnknownImages(ctx context.Context, clusterID str
 	registries := make([]Registry, len(regRows))
 	byID := make(map[string]Registry, len(regRows))
 	for i, r := range regRows {
-		registries[i] = fromRepo(registryComposite{
+		reg, err := decryptCredentials(s.box, fromRepo(registryComposite{
 			reg: r.Registry, name: r.Name, ownerID: r.OwnerID, visibility: r.Visibility,
-		})
-		byID[registries[i].ID] = registries[i]
+		}))
+		if err != nil {
+			return nil, nil, err
+		}
+		registries[i] = reg
+		byID[reg.ID] = reg
 	}
 
 	out := make([]UnknownImage, len(rows))

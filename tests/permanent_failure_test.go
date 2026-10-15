@@ -39,7 +39,7 @@ func TestFailOrRequeue_PermanentBudget(t *testing.T) {
 	pool, cleanDB := setupTestDB(t)
 	defer cleanDB()
 
-	jobSvc := service.NewJobService(pool)
+	jobSvc := service.NewJobService(pool, nil)
 
 	enqueueClaimed := func(digest string) string {
 		t.Helper()
