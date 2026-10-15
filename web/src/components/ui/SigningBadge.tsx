@@ -5,7 +5,7 @@ import { Badge } from "./Badge";
 import { Tooltip } from "./Tooltip";
 import { trustStatus, trustBadgeVariant } from "~/utils/trust";
 
-const iconStyle = { "vertical-align": "middle", "margin-right": "3px" };
+const iconClass = "mr-[3px] align-middle";
 
 // SigningBadge renders a signing status as a badge with an explanatory
 // tooltip. Presentation is derived entirely from trust.ts so this component
@@ -26,12 +26,12 @@ export function SigningBadge(props: { status: string }) {
     return (
         <Show
             when={trust()}
-            fallback={<Badge><Shield size={12} style={iconStyle} />{props.status}</Badge>}
+            fallback={<Badge><Shield size={12} class={iconClass} />{props.status}</Badge>}
         >
             {(t) => (
                 <Tooltip content={t().description}>
                     <Badge variant={trustBadgeVariant(t().variant)}>
-                        <Dynamic component={t().icon} size={12} style={iconStyle} />
+                        <Dynamic component={t().icon} size={12} class={iconClass} />
                         {t().label}
                     </Badge>
                 </Tooltip>

@@ -9,6 +9,25 @@ Run `make release VERSION=vX.Y.Z` to cut a release.
 
 ### Upgrade notes
 
+- **The session cookie is now `SameSite=Lax` in production (ocidex-mqav.2).** It
+  was `SameSite=None`. Lax works whenever the SPA and the API share a registrable
+  domain. A deployment that serves the SPA from a **different** registrable domain
+  must set `SESSION_COOKIE_SAMESITE=none` (chart: `api.env.sessionCookieSameSite`),
+  or every API call from the SPA will arrive without its session.
+- **Sign-in endpoints are rate-limited per client IP (ocidex-mqav.5).** 30 requests
+  per minute by default (`AUTH_RATE_LIMIT`, chart `api.env.authRateLimit`; `0`
+  disables). Behind an ingress, set `TRUSTED_PROXY_CIDRS` (chart
+  `api.env.trustedProxyCidrs`) to the ingress's address range, or every visitor
+  shares the ingress's budget.
+- **SBOM ingest and the expensive reads are rate-limited per principal
+  (ocidex-mqav.6).** 120 requests per minute each by default
+  (`API_RATE_LIMIT_INGEST`, `API_RATE_LIMIT_HEAVY`; `0` disables). No role is
+  exempt: raise the ingest limit if a CI or operator key pushes faster.
+- **Cookie-authenticated writes must come from a trusted origin (ocidex-mqav.1).**
+  A `POST`/`PUT`/`PATCH`/`DELETE` that authenticates by session cookie is refused
+  with 403 unless its `Origin` (or `Referer`) is in `CORS_ALLOWED_ORIGINS` (or
+  `FRONTEND_URL` when that is unset) or is the API's own origin (`API_BASE_URL`).
+  API-key clients are unaffected.
 - **Registry credentials are encrypted at rest (ocidex-d90k, ADR-051).** Add
   `DATA_ENCRYPTION_KEYS=<id>:<base64 32 bytes>` and `DATA_ENCRYPTION_ACTIVE_KEY=<id>`
   to the chart's `existingSecret` **before** upgrading: with `ENVIRONMENT=production`

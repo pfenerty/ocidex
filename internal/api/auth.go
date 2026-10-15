@@ -19,6 +19,7 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/auth"
 	"github.com/pfenerty/ocidex/internal/authz"
+	"github.com/pfenerty/ocidex/internal/config"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -43,10 +44,23 @@ const (
 		"excluding public resources owned by others."
 )
 
-// deriveFrontendURL returns a frontend URL using the request's host with the
-// port from the configured FRONTEND_URL. This lets the post-OAuth redirect
-// follow the host the browser used (e.g. Tailscale IP or localhost).
-func deriveFrontendURL(r *http.Request, configuredFrontendURL string) string {
+// deriveFrontendURL returns where the browser goes after signing in.
+//
+// In production that is FRONTEND_URL verbatim (ocidex-mqav.4): behind a
+// TLS-terminating proxy r.TLS is nil, so deriving the scheme sent users to
+// http://, and the Host header is the client's to choose.
+//
+// Outside production the request's host with FRONTEND_URL's port is used, so
+// the redirect follows the host the browser used (a Tailscale IP or
+// localhost) — but only when that origin is one allowedOrigins already
+// trusts. A foreign Host falls back to FRONTEND_URL, and a "*" in
+// allowedOrigins trusts nothing here: it would hand the redirect back to the
+// header. The scheme comes from r.TLS alone; X-Forwarded-Proto is not
+// trusted.
+func deriveFrontendURL(r *http.Request, configuredFrontendURL, environment string, allowedOrigins []string) string {
+	if environment == envProduction {
+		return configuredFrontendURL
+	}
 	parsed, err := url.Parse(configuredFrontendURL)
 	if err != nil {
 		return configuredFrontendURL
@@ -60,11 +74,16 @@ func deriveFrontendURL(r *http.Request, configuredFrontendURL string) string {
 	if h, _, splitErr := net.SplitHostPort(host); splitErr == nil {
 		host = h
 	}
-	port := parsed.Port()
-	if port != "" {
-		return scheme + "://" + host + ":" + port
+	derived := scheme + "://" + host
+	if port := parsed.Port(); port != "" {
+		derived += ":" + port
 	}
-	return scheme + "://" + host
+	for _, o := range allowedOrigins {
+		if n := normalizeOrigin(o); n != "" && n == normalizeOrigin(derived) {
+			return derived
+		}
+	}
+	return configuredFrontendURL
 }
 
 // HandleLogin initiates the OAuth/OIDC flow for the requested provider.
@@ -117,10 +136,11 @@ func (h *Handler) beginOAuth(r *http.Request, provider string, extra map[string]
 	verifier := base64.RawURLEncoding.EncodeToString(verifierRaw)
 
 	data := map[string]string{
-		"nonce":        base64.RawURLEncoding.EncodeToString(nonce),
-		"frontend_url": deriveFrontendURL(r, h.cfg.FrontendURL),
-		"provider":     provider,
-		"verifier":     verifier,
+		"nonce": base64.RawURLEncoding.EncodeToString(nonce),
+		"frontend_url": deriveFrontendURL(r, h.cfg.FrontendURL, h.cfg.Environment,
+			parseCORSOrigins(h.cfg.CORSAllowedOrigins, h.cfg.FrontendURL)),
+		"provider": provider,
+		"verifier": verifier,
 	}
 	for k, v := range extra {
 		data[k] = v
@@ -225,20 +245,7 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	secure := h.cfg.Environment == envProduction
-	sameSite := http.SameSiteNoneMode
-	if !secure {
-		sameSite = http.SameSiteLaxMode
-	}
-	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is env-conditional; dev runs over http.
-		Name:     sessionCookieName,
-		Value:    token,
-		Path:     "/",
-		MaxAge:   h.cfg.SessionMaxAgeDays * 86400,
-		HttpOnly: true,
-		SameSite: sameSite,
-		Secure:   secure,
-	})
+	http.SetCookie(w, h.sessionCookie(token, h.cfg.SessionMaxAgeDays*86400))
 
 	frontendURL := stateData["frontend_url"]
 	if frontendURL == "" {
@@ -247,29 +254,49 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, frontendURL, http.StatusSeeOther)
 }
 
+// sessionCookie builds the session cookie with the attributes every path that
+// sets or clears it must agree on: a clear whose attributes differ from the
+// set is ignored by the browser. SameSite comes from SESSION_COOKIE_SAMESITE
+// (ocidex-mqav.2); Secure is forced on for SameSite=None, which browsers
+// otherwise reject, and config validation only allows None in production.
+func (h *Handler) sessionCookie(value string, maxAge int) *http.Cookie {
+	sameSite := http.SameSiteLaxMode
+	switch h.cfg.SessionCookieSameSite {
+	case config.SameSiteStrict:
+		sameSite = http.SameSiteStrictMode
+	case config.SameSiteNone:
+		sameSite = http.SameSiteNoneMode
+	}
+	return &http.Cookie{ //nolint:gosec // G124: Secure is env-conditional; dev runs over http.
+		Name:     sessionCookieName,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		SameSite: sameSite,
+		Secure:   h.cfg.Environment == envProduction || sameSite == http.SameSiteNoneMode,
+	}
+}
+
+// authRateLimit is AUTH_RATE_LIMIT, or 0 (disabled) without a config.
+func (h *Handler) authRateLimit() int {
+	if h.cfg == nil {
+		return 0
+	}
+	return h.cfg.AuthRateLimit
+}
+
 // HandleLogout clears the session.
 func (h *Handler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	c, err := r.Cookie(sessionCookieName)
 	if err == nil {
 		_ = h.authService.DeleteSession(r.Context(), c.Value)
 	}
-	// Attributes mirror HandleCallback's setter so the clear is accepted in
-	// both dev (http) and production (https).
-	secure := h.cfg.Environment == envProduction
-	sameSite := http.SameSiteNoneMode
-	if !secure {
-		sameSite = http.SameSiteLaxMode
-	}
-	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is env-conditional; dev runs over http.
-		Name:     sessionCookieName,
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		Expires:  time.Unix(0, 0),
-		HttpOnly: true,
-		SameSite: sameSite,
-		Secure:   secure,
-	})
+	// Built by the same helper as HandleCallback's setter, so the clear
+	// carries matching attributes and the browser accepts it.
+	expired := h.sessionCookie("", -1) //nolint:gosec // G124: attributes come from sessionCookie, as on the setter.
+	expired.Expires = time.Unix(0, 0)
+	http.SetCookie(w, expired)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -284,10 +311,16 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 	// URI per client, and to give the multi-provider login UI a stable link
 	// per provider. Both hit the same handler — the path is a shorthand for
 	// ?provider=, not a second code path.
-	r.Get("/auth/login", h.HandleLogin)
-	r.Get("/auth/login/{provider}", h.HandleLogin)
-	r.Get("/auth/callback", h.HandleCallback)
-	r.Get("/auth/callback/{provider}", h.HandleCallback)
+	//
+	// Sign-in is the unauthenticated surface, so it is limited per client IP
+	// (AUTH_RATE_LIMIT, ocidex-mqav.5). Starting an identity link shares the
+	// limit: it is the same trip to the issuer.
+	authLimit := newRateLimiter(h.authRateLimit(), h.clientIPs.ClientIP,
+		"too many sign-in requests from this address; retry later")
+	r.With(authLimit.Middleware).Get("/auth/login", h.HandleLogin)
+	r.With(authLimit.Middleware).Get("/auth/login/{provider}", h.HandleLogin)
+	r.With(authLimit.Middleware).Get("/auth/callback", h.HandleCallback)
+	r.With(authLimit.Middleware).Get("/auth/callback/{provider}", h.HandleCallback)
 	r.Post("/auth/logout", h.HandleLogout)
 
 	authMW := RequireAuthenticated(api)
@@ -463,7 +496,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Description: "Returns a URL to navigate to, and sets the state cookie that makes the " +
 			"resulting callback a link rather than a sign-in.",
 		Tags:        []string{tagAuth},
-		Middlewares: huma.Middlewares{authMW, writeMW},
+		Middlewares: huma.Middlewares{authMW, writeMW, authLimit.Huma(api)},
 	}, h.StartIdentityLink)
 
 	huma.Register(api, huma.Operation{

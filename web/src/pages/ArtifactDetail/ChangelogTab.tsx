@@ -32,15 +32,8 @@ export function ChangelogTab(props: {
 
     return (
         <>
-            <div
-                style={{
-                    display: "flex",
-                    "align-items": "flex-start",
-                    gap: "0.75rem",
-                    "margin-bottom": "1rem",
-                }}
-            >
-                <div style={{ flex: "1", display: "flex", "flex-direction": "column", gap: "0.5rem", "min-width": "0" }}>
+            <div class="mb-4 flex items-start gap-3">
+                <div class="flex min-w-0 flex-1 flex-col gap-2">
                     <Show when={props.availableArchitectures.length > 1}>
                         <TabBar
                             variant="filter"

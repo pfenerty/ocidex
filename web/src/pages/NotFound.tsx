@@ -3,8 +3,8 @@ import { Button } from "~/components/ui";
 
 export default function NotFound() {
   return (
-    <div class="empty-state" style={{ "min-height": "60vh" }}>
-      <h2 style={{ "font-size": "3rem", "font-weight": "700", "margin-bottom": "0.5rem" }}>
+    <div class="empty-state min-h-[60vh]">
+      <h2 class="mb-2 text-[3rem] font-bold">
         404
       </h2>
       <strong>Page not found</strong>

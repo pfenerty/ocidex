@@ -36,8 +36,9 @@ type ctxKeyRequest struct{}
 //
 // It exists for the handful of huma handlers that need something huma's typed
 // input cannot carry: the Host and TLS state of the connection, which is how
-// deriveFrontendURL follows the host the browser actually used rather than the
-// one in configuration. Handlers that only need headers, path, or body must
+// deriveFrontendURL can follow the host the browser actually used (outside
+// production, and only to an allowed origin) rather than the one in
+// configuration. Handlers that only need headers, path, or body must
 // keep declaring them on their input struct.
 func WithRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -62,15 +63,18 @@ func OptionalAuthenticate(authSvc service.AuthService) func(http.Handler) http.H
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var (
-				user service.AuthUser
-				err  error
+				user   service.AuthUser
+				err    error
+				method authMethod
 			)
 
 			if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
 				token := strings.TrimPrefix(auth, "Bearer ")
 				user, err = authSvc.ValidateAPIKey(r.Context(), token)
+				method = authMethodBearer
 			} else if c, cerr := r.Cookie("ocidex_session"); cerr == nil {
 				user, err = authSvc.ValidateSession(r.Context(), c.Value)
+				method = authMethodCookie
 			} else {
 				// No credentials — continue without user context.
 				next.ServeHTTP(w, r)
@@ -102,7 +106,9 @@ func OptionalAuthenticate(authSvc service.AuthService) func(http.Handler) http.H
 			}
 			user.Grants = grants
 
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKeyUser{}, user)))
+			ctx := context.WithValue(r.Context(), ctxKeyUser{}, user)
+			ctx = context.WithValue(ctx, ctxKeyAuthMethod{}, method)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }

@@ -204,13 +204,7 @@ export function NamespaceMembers(props: { namespace: Namespace; onClose: () => v
 
                 <form
                     onSubmit={handleAdd}
-                    style={{
-                        display: "flex",
-                        gap: "0.75rem",
-                        "align-items": "flex-end",
-                        "flex-wrap": "wrap",
-                        "margin-top": "1rem",
-                    }}
+                    class="mt-4 flex flex-wrap items-end gap-3"
                 >
                     <FormField label="Add member">
                         <select

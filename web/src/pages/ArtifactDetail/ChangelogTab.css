@@ -21,6 +21,14 @@
     gap: 0.75rem;
 }
 
+/* The per-entry badge row in DiffEntryCard: tighter, and wraps. A modifier
+   here rather than utilities on the element, because this file is unlayered
+   and would beat them. */
+.changelog-summary-compact {
+    gap: 0.35rem;
+    flex-wrap: wrap;
+}
+
 .changelog-entry table {
     font-size: 0.825rem;
 }

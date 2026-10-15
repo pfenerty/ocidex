@@ -1,7 +1,6 @@
 package api
 
 import (
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -150,8 +149,10 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	r.Use(WithRequest)
 	r.Use(SlogLogger)
 	r.Use(middleware.Recoverer)
+	r.Use(SecurityHeaders)
+	allowedOrigins := parseCORSOrigins(corsOrigins, frontendURL)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   parseCORSOrigins(corsOrigins, frontendURL),
+		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 		ExposedHeaders:   []string{"X-Request-Id"},
@@ -159,6 +160,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 		MaxAge:           300,
 	}))
 	r.Use(OptionalAuthenticate(h.authService))
+	r.Use(CrossOriginGuard(allowedOrigins, apiBaseURL))
 	r.Use(middleware.Timeout(30 * time.Second))
 
 	config := huma.DefaultConfig("OCIDex API", "1.0.0")
@@ -195,6 +197,9 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	api := humachi.New(r, config)
 
 	h.api = api
+
+	// Built before registration, because the operations capture the limiters.
+	h.buildAPIRateLimits()
 
 	registerHealthOps(api, h)
 	registerVersionOps(api, h)
@@ -276,7 +281,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 		Tags:          []string{tagSBOMs},
 		MaxBodyBytes:  maxSBOMBodyBytes,
 		DefaultStatus: http.StatusCreated,
-		Middlewares:   huma.Middlewares{memberMW, writeMW},
+		Middlewares:   huma.Middlewares{memberMW, writeMW, h.ingestLimit.Huma(api)},
 	}, h.IngestSBOM)
 
 	huma.Register(api, huma.Operation{
@@ -387,6 +392,7 @@ func registerComponentOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/components/versions",
 		Summary:     "Get component versions",
 		Tags:        []string{tagComponents},
+		Middlewares: huma.Middlewares{h.heavyLimit.Huma(api)},
 	}, h.GetComponentVersions)
 
 	huma.Register(api, huma.Operation{
@@ -506,6 +512,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/artifacts/{id}/changelog",
 		Summary:     "Get artifact changelog",
 		Tags:        []string{tagArtifacts},
+		Middlewares: huma.Middlewares{h.heavyLimit.Huma(api)},
 	}, h.GetArtifactChangelog)
 
 	huma.Register(api, huma.Operation{
@@ -532,6 +539,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Summary:     "List vulnerabilities across an artifact's versions",
 		Description: "Findings keyed by canonical id over the newest SBOM per version, with the versions each affects. Wider than /vuln-summary, which counts the latest version's newest SBOM only. ?vuln= pre-filters to a single advisory.",
 		Tags:        []string{tagArtifacts},
+		Middlewares: huma.Middlewares{h.heavyLimit.Huma(api)},
 	}, h.ListArtifactVulns)
 
 	huma.Register(api, huma.Operation{
@@ -550,6 +558,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Summary:     "List tracked artifacts this artifact ships",
 		Description: "Tracked artifacts matched by components of this artifact's latest SBOM (ADR-041).",
 		Tags:        []string{tagArtifacts},
+		Middlewares: huma.Middlewares{h.heavyLimit.Huma(api)},
 	}, h.GetArtifactContains)
 }
 
@@ -1184,6 +1193,8 @@ func registerJobOps(api huma.API, h *Handler) {
 
 // parseCORSOrigins splits a comma-separated origins string into a slice.
 // When raw is empty, frontendURL is used as the default allowed origin.
+// Validation — the production ban on '*' and on malformed origins, and the
+// development warning — happens at config load (ocidex-mqav.3).
 func parseCORSOrigins(raw, frontendURL string) []string {
 	parts := strings.Split(raw, ",")
 	origins := make([]string, 0, len(parts))
@@ -1194,12 +1205,6 @@ func parseCORSOrigins(raw, frontendURL string) []string {
 	}
 	if len(origins) == 0 && frontendURL != "" {
 		return []string{frontendURL}
-	}
-	for _, o := range origins {
-		if o == "*" {
-			slog.Warn("CORS: wildcard origin '*' used with AllowCredentials — this is insecure in production")
-			break
-		}
 	}
 	return origins
 }

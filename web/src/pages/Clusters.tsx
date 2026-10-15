@@ -172,7 +172,7 @@ export default function Clusters() {
                         data-testid="edit-name"
                         value={editName()}
                         onInput={(e) => setEditName(e.currentTarget.value)}
-                        style={{ "min-width": "10rem" }}
+                        class="min-w-40"
                     />
                 </Show>
             ),
@@ -195,7 +195,7 @@ export default function Clusters() {
                         data-testid="edit-description"
                         value={editDescription()}
                         onInput={(e) => setEditDescription(e.currentTarget.value)}
-                        style={{ "min-width": "12rem" }}
+                        class="min-w-48"
                     />
                 </Show>
             ),
@@ -213,7 +213,7 @@ export default function Clusters() {
                         <span class="text-muted">{c.auto_ingest ? "On" : "Off"}</span>
                     }
                 >
-                    <label style={{ display: "flex", gap: "0.375rem", "align-items": "center" }}>
+                    <label class="flex items-center gap-1.5">
                         <input
                             type="checkbox"
                             data-testid="edit-auto-ingest"
@@ -302,13 +302,7 @@ export default function Clusters() {
                 onClose={resetForm}
             >
                 <form onSubmit={handleCreate}>
-                    <div
-                        style={{
-                            display: "grid",
-                            gap: "0.75rem",
-                            "margin-bottom": "0.75rem",
-                        }}
-                    >
+                    <div class="mb-3 grid gap-3">
                         <FormField label="Name">
                             <input
                                 type="text"

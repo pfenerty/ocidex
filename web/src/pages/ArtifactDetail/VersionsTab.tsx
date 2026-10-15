@@ -37,8 +37,7 @@ export function VersionsTab(props: {
                     <For each={version.architectures ?? []}>
                         {(arch) => (
                             <span
-                                class="badge badge-primary"
-                                style={{ "margin-right": "4px" }}
+                                class="badge badge-primary mr-[4px]"
                             >
                                 {arch}
                             </span>

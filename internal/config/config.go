@@ -4,6 +4,8 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"net/netip"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -59,6 +61,29 @@ type Config struct {
 	GitHubRedirectURL  string `env:"GITHUB_REDIRECT_URL" envDefault:"http://localhost:8080/auth/callback"`
 	SessionSecret      string `env:"SESSION_SECRET"` //nolint:gosec
 	SessionMaxAgeDays  int    `env:"SESSION_MAX_AGE_DAYS" envDefault:"7"`
+	// SessionCookieSameSite is the session cookie's SameSite attribute: "lax",
+	// "strict" or "none". Lax suffices whenever the SPA and the API share a
+	// registrable domain; "none" is for an SPA on a different site, and is only
+	// accepted in production, where the cookie is Secure. Empty (a Config not
+	// built by Load) reads as lax.
+	SessionCookieSameSite string `env:"SESSION_COOKIE_SAMESITE" envDefault:"lax"`
+
+	// AuthRateLimit is AUTH_RATE_LIMIT: requests per minute one client IP may
+	// make to the sign-in endpoints. 0 disables the limit, which is also what
+	// a Config not built by Load gets.
+	AuthRateLimit int `env:"AUTH_RATE_LIMIT" envDefault:"30"`
+	// APIRateLimitIngest and APIRateLimitHeavy are per-principal requests per
+	// minute (the user when authenticated, the client IP otherwise) for SBOM
+	// ingest and for the expensive artifact/component reads. 0 disables. No
+	// role is exempt: an operator or admin pushing harder raises the knob.
+	APIRateLimitIngest int `env:"API_RATE_LIMIT_INGEST" envDefault:"120"`
+	APIRateLimitHeavy  int `env:"API_RATE_LIMIT_HEAVY"  envDefault:"120"`
+	// TrustedProxyCIDRs lists the reverse proxies whose X-Forwarded-For is
+	// believed when resolving a client IP for rate limiting. Empty trusts no
+	// proxy, so the direct peer is the client. Parsed into TrustedProxies by
+	// validate.
+	TrustedProxyCIDRs []string `env:"TRUSTED_PROXY_CIDRS" envSeparator:","`
+	TrustedProxies    []netip.Prefix
 
 	// Generic OIDC. Setting OIDC_ISSUER_URL is what enables the provider;
 	// leaving it empty leaves OCIDex GitHub-only, exactly as before.
@@ -452,6 +477,16 @@ const (
 	SignupExisting = "existing"
 )
 
+// envProduction is the ENVIRONMENT value that turns on production-only checks.
+const envProduction = "production"
+
+// SameSite values for SESSION_COOKIE_SAMESITE.
+const (
+	SameSiteLax    = "lax"
+	SameSiteStrict = "strict"
+	SameSiteNone   = "none"
+)
+
 // IdentityRef names one sign-in identity by its user_identity key.
 type IdentityRef struct {
 	Provider string
@@ -519,8 +554,11 @@ func (c *Config) validate() error {
 	if c.SecretBox, err = secretbox.Parse(c.DataEncryptionKeys, c.DataEncryptionActiveKey); err != nil {
 		return fmt.Errorf("DATA_ENCRYPTION_KEYS: %w", err)
 	}
-	if c.SecretBox == nil && c.Environment == "production" {
+	if c.SecretBox == nil && c.Environment == envProduction {
 		return fmt.Errorf("DATA_ENCRYPTION_KEYS is required when ENVIRONMENT=production (ADR-051)")
+	}
+	if err := c.validatePerimeter(); err != nil {
+		return err
 	}
 	// Half-configured OIDC is worse than none: the login button would exist
 	// and fail. Discovery itself is validated at startup in cmd/ocidex.
@@ -531,6 +569,90 @@ func (c *Config) validate() error {
 		return fmt.Errorf("OIDC_ISSUER_URL is required when OIDC_CLIENT_ID is set")
 	}
 	return nil
+}
+
+// validatePerimeter checks the settings that govern who may reach the API and
+// how: the session cookie's SameSite, the CORS allow-list, and rate limiting.
+func (c *Config) validatePerimeter() error {
+	var err error
+	if c.SessionCookieSameSite, err = sessionCookieSameSite(c.SessionCookieSameSite, c.Environment); err != nil {
+		return err
+	}
+	if err := validateCORSOrigins(c.CORSAllowedOrigins, c.Environment); err != nil {
+		return err
+	}
+	for name, v := range map[string]int{
+		"AUTH_RATE_LIMIT":       c.AuthRateLimit,
+		"API_RATE_LIMIT_INGEST": c.APIRateLimitIngest,
+		"API_RATE_LIMIT_HEAVY":  c.APIRateLimitHeavy,
+	} {
+		if v < 0 {
+			return fmt.Errorf("%s must be 0 (disabled) or a positive number of requests per minute, got %d", name, v)
+		}
+	}
+	if c.TrustedProxies, err = netguard.ParsePrefixes(trimAll(c.TrustedProxyCIDRs)); err != nil {
+		return fmt.Errorf("TRUSTED_PROXY_CIDRS: %w", err)
+	}
+	return nil
+}
+
+// validateCORSOrigins checks CORS_ALLOWED_ORIGINS (ocidex-mqav.3). CORS is
+// served with credentials, so a wildcard lets every site read authenticated
+// responses: in production it, and anything that is not a bare
+// scheme://host[:port] origin a browser could send, fails the load. A path,
+// even "/", never matches a browser's Origin header and would silently lock
+// the SPA out. Outside production a wildcard is only warned about.
+func validateCORSOrigins(raw, environment string) error {
+	for _, o := range strings.Split(raw, ",") {
+		o = strings.TrimSpace(o)
+		if o == "" {
+			continue
+		}
+		if environment != envProduction {
+			if o == "*" {
+				slog.Warn("CORS: wildcard origin '*' used with AllowCredentials — this is insecure in production")
+			}
+			continue
+		}
+		if o == "*" {
+			return fmt.Errorf("CORS_ALLOWED_ORIGINS: wildcard '*' is not allowed with ENVIRONMENT=production: list the SPA's origin(s) explicitly")
+		}
+		if !isOrigin(o) {
+			return fmt.Errorf("CORS_ALLOWED_ORIGINS: %q is not an origin: want scheme://host[:port] with an http or https scheme and no path", o)
+		}
+	}
+	return nil
+}
+
+// isOrigin reports whether s is a bare http(s) origin: scheme://host[:port],
+// no user info, path, query or fragment.
+func isOrigin(s string) bool {
+	u, err := url.Parse(s)
+	if err != nil || u.Host == "" || u.User != nil {
+		return false
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
+	}
+	return u.Path == "" && u.RawQuery == "" && u.Fragment == "" && !u.ForceQuery
+}
+
+// sessionCookieSameSite normalizes SESSION_COOKIE_SAMESITE, refusing "none"
+// outside production: browsers drop a SameSite=None cookie that is not Secure,
+// and the session cookie is only Secure in production.
+func sessionCookieSameSite(raw, environment string) (string, error) {
+	v := strings.ToLower(strings.TrimSpace(raw))
+	switch v {
+	case "", SameSiteLax, SameSiteStrict:
+		return v, nil
+	case SameSiteNone:
+		if environment != envProduction {
+			return "", fmt.Errorf("SESSION_COOKIE_SAMESITE=none requires ENVIRONMENT=production: browsers drop a SameSite=None cookie that is not Secure")
+		}
+		return v, nil
+	}
+	return "", fmt.Errorf("SESSION_COOKIE_SAMESITE must be %q, %q or %q, got %q",
+		SameSiteLax, SameSiteStrict, SameSiteNone, raw)
 }
 
 // egressPolicy builds a netguard.Policy from the EGRESS_* settings, naming the

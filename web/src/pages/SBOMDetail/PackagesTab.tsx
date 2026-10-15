@@ -207,14 +207,14 @@ export function PackagesTab(props: {
             }
         >
             <>
-                <div class="search-bar mb-4" style={{ "flex-wrap": "wrap" }}>
+                <div class="search-bar mb-4 flex-wrap">
                     <Show when={effectiveMode() === "list"}>
                         <input
                             type="text"
                             placeholder="Filter packages…"
                             value={filter()}
                             onInput={(e) => updateFilter(e.currentTarget.value)}
-                            style={{ flex: "1", "min-width": "200px" }}
+                            class="min-w-[200px] flex-1"
                         />
                         <select
                             value={typeFilter()}

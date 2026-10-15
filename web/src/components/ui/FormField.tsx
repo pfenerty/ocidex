@@ -1,16 +1,11 @@
 import type { JSX } from "solid-js";
 import { Show } from "solid-js";
 
-const labelStyle: JSX.CSSProperties = {
-    display: "block",
-    "margin-bottom": "0.25rem",
-    "font-size": "0.85rem",
-};
-
 /**
  * FormField is a label above a control, with an optional muted (or emphasised)
  * hint after the label text. The registry dialog repeated this block fifteen
- * times with the same three inline style rules; the hint variant is what makes
+ * times with the same three inline style rules (now classes, since the CSP
+ * forbids inline style attributes); the hint variant is what makes
  * a shared component worth having, since "(optional)" vs "(required for
  * ghcr.io)" differ only in tone.
  */
@@ -24,16 +19,16 @@ export function FormField(props: {
     children: JSX.Element;
 }): JSX.Element {
     return (
-        <div style={props.fullWidth === true ? { "grid-column": "1 / -1" } : undefined}>
-            <label style={labelStyle}>
+        <div classList={{ "col-span-full": props.fullWidth === true }}>
+            <label class="mb-1 block text-[0.85rem]">
                 {props.label}
                 <Show when={props.hint !== undefined}>
                     {" "}
                     <span
-                        style={
+                        class={
                             props.hintEmphasis === true
-                                ? { color: "var(--color-danger)", "font-weight": "bold" }
-                                : { color: "var(--color-text-muted)" }
+                                ? "font-bold text-[var(--color-danger)]"
+                                : "text-[var(--color-text-muted)]"
                         }
                     >
                         {props.hint}
@@ -55,13 +50,8 @@ export function CheckboxField(props: {
     const enabled = () => props.disabled !== true;
     return (
         <label
-            style={{
-                display: "flex",
-                "align-items": "center",
-                gap: "0.4rem",
-                cursor: enabled() ? "pointer" : "not-allowed",
-                opacity: enabled() ? 1 : 0.4,
-            }}
+            class="flex items-center gap-[0.4rem]"
+            classList={{ "cursor-pointer": enabled(), "cursor-not-allowed opacity-40": !enabled() }}
         >
             <input
                 type="checkbox"
@@ -77,15 +67,7 @@ export function CheckboxField(props: {
 /** FilterBar is the wrapping row of selects/inputs that sits above a table. */
 export function FilterBar(props: { children: JSX.Element }): JSX.Element {
     return (
-        <div
-            style={{
-                display: "flex",
-                gap: "0.75rem",
-                "align-items": "center",
-                "margin-bottom": "1rem",
-                "flex-wrap": "wrap",
-            }}
-        >
+        <div class="mb-4 flex flex-wrap items-center gap-3">
             {props.children}
         </div>
     );

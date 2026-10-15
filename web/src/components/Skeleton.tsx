@@ -22,13 +22,11 @@ export function Skeleton(props: {
     /** Flow with surrounding text rather than breaking onto its own line. */
     inline?: boolean;
     class?: string;
-    style?: JSX.CSSProperties;
 }): JSX.Element {
     const style = (): JSX.CSSProperties => ({
         width: props.width ?? "100%",
         height: props.height ?? "1em",
         ...(props.radius !== undefined ? { "border-radius": props.radius } : {}),
-        ...props.style,
     });
     return (
         <span

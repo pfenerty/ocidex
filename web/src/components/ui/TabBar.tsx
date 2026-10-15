@@ -43,14 +43,12 @@ export function TabBar<T extends string>(props: {
     variant?: "nav" | "filter";
     /** Appended to the strip class, for spacing utilities like `mb-4`. */
     class?: string;
-    style?: JSX.CSSProperties;
 }): JSX.Element {
     const base = (): string => (props.variant === "filter" ? "filter-chips" : "tab-bar");
 
     return (
         <div
             class={props.class !== undefined ? `${base()} ${props.class}` : base()}
-            style={props.style}
             role={props.variant === "filter" ? "group" : undefined}
             aria-label={props.variant === "filter" ? props.label : undefined}
         >

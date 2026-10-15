@@ -39,12 +39,11 @@ export function registryColumns(opts: {
         {
             header: "Name",
             render: (reg) => (
-                <div style={{ display: "flex", "align-items": "center", gap: "0.4rem", "flex-wrap": "wrap" }}>
+                <div class="flex flex-wrap items-center gap-[0.4rem]">
                     {reg.name}
                     <Show when={(reg.managed_by ?? "") !== ""}>
                         <span
-                            class="badge"
-                            style={{ "font-size": "0.7rem" }}
+                            class="badge text-[0.7rem]"
                             title={`Configured by ${reg.managed_by ?? ""}${(reg.managed_ref ?? "") === "" ? "" : ` (${reg.managed_ref ?? ""})`} — edits made here are reverted on the next reconcile`}
                         >
                             {reg.managed_by === "kubernetes" ? "Managed by Kubernetes" : `Managed by ${reg.managed_by ?? ""}`}
@@ -67,7 +66,7 @@ export function registryColumns(opts: {
         {
             header: "Status",
             render: (reg) => (
-                <span style={{ color: reg.enabled ? "var(--color-success)" : "var(--color-text-muted)" }}>
+                <span class={reg.enabled ? "text-[var(--color-success)]" : "text-[var(--color-text-muted)]"}>
                     {reg.enabled ? "Enabled" : "Disabled"}
                 </span>
             ),
@@ -83,7 +82,7 @@ export function registryColumns(opts: {
                     fallback={<span class="text-muted">—</span>}
                 >
                     {(statuses) => (
-                        <div style={{ display: "flex", "flex-wrap": "wrap", gap: "0.3rem" }}>
+                        <div class="flex flex-wrap gap-[0.3rem]">
                             <For each={[...statuses().entries()]}>
                                 {([status, count]) => {
                                     const t = trustStatus(status);
@@ -106,7 +105,7 @@ export function registryColumns(opts: {
         {
             header: "Webhook URL",
             render: (reg) => (
-                <div style={{ display: "flex", gap: "0.3rem" }}>
+                <div class="flex gap-[0.3rem]">
                     <Show when={hasWebhook(reg)} fallback={<span class="text-muted">—</span>}>
                         <Button
                             size="sm"
@@ -132,7 +131,7 @@ export function registryColumns(opts: {
         {
             header: "",
             render: (reg) => (
-                <div style={{ display: "flex", gap: "0.4rem" }}>
+                <div class="flex gap-[0.4rem]">
                     <Button onClick={() => opts.onEdit(reg)}>
                         Edit
                     </Button>

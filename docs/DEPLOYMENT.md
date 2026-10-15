@@ -108,6 +108,11 @@ authoritative default set.
 | `SELF_SERVICE_NAMESPACES` | `api.env.selfServiceNamespaces` | `true` |
 | `EGRESS_*` | `egressGuard.*` | defaults (private ranges refused) |
 | `SESSION_MAX_AGE_DAYS` | Default | `7` |
+| `SESSION_COOKIE_SAMESITE` | `api.env.sessionCookieSameSite` | `lax` |
+| `AUTH_RATE_LIMIT` | `api.env.authRateLimit` | `30` |
+| `TRUSTED_PROXY_CIDRS` | `api.env.trustedProxyCidrs` | `""` (omitted) |
+| `API_RATE_LIMIT_INGEST` | `api.env.apiRateLimitIngest` | `120` |
+| `API_RATE_LIMIT_HEAVY` | `api.env.apiRateLimitHeavy` | `120` |
 | `AUDIT_LOG_ENABLED` | Default | `true` |
 
 `NATS_URL` is templated from `ocidex.fullname`, so it tracks the release name —
@@ -117,6 +122,16 @@ different host. `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS`, `API_BASE_URL` and
 `""` default omits the env var entirely rather than setting it blank.
 
 Source of truth: [`internal/config/config.go`](../internal/config/config.go).
+
+**Security headers.** The web image (`web/nginx.conf`) sends a
+Content-Security-Policy, `X-Content-Type-Options: nosniff`, `Referrer-Policy` and
+`Permissions-Policy`; the API sends `nosniff` everywhere and `Cache-Control:
+no-store` on `/auth/*`, `/api/v1/auth/*` and `/api/v1/users/me*`. The CSP's
+`connect-src 'self'` assumes the SPA reaches the API on its own origin, as the
+HTTPRoute arranges — a build with `VITE_API_URL` pointing elsewhere must add that
+origin. **HSTS is not sent by either**: both listen on plain http behind the TLS
+terminator, so set `Strict-Transport-Security` there (the ingress/Gateway, or
+Cloudflare's HSTS setting).
 
 **Hardening a private installation.** The defaults suit a public, open
 instance: anyone your identity provider vouches for — any GitHub account, with

@@ -249,7 +249,7 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
                     </div>
                 </div>
             </Show>
-            <div style={{ display: "flex", gap: "0.75rem", "align-items": "center", padding: "0.5rem 0", "flex-wrap": "wrap" }}>
+            <div class="flex flex-wrap items-center gap-3 py-2">
                 <Button
                     size="sm"
                     title="Expand every branch that contains a changed package"
@@ -259,7 +259,7 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
                 </Button>
                 <label
                     title="Include unchanged ancestors of changed packages so you can see where each change lives in the tree. Off by default — only changed packages and their changed descendants are shown."
-                    style={{ display: "flex", gap: "0.35rem", "align-items": "center", "font-size": "0.85rem", cursor: "pointer" }}
+                    class="flex cursor-pointer items-center gap-[0.35rem] text-[0.85rem]"
                 >
                     <input
                         type="checkbox"
@@ -270,7 +270,7 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
                 </label>
                 <label
                     title="Include indirect (transitive) dependencies. Off by default — only direct dependencies of the image's metadata.component are shown, with their changed descendants. Turn on to see deeper dependency chains."
-                    style={{ display: "flex", gap: "0.35rem", "align-items": "center", "font-size": "0.85rem", cursor: "pointer" }}
+                    class="flex cursor-pointer items-center gap-[0.35rem] text-[0.85rem]"
                 >
                     <input
                         type="checkbox"
@@ -281,7 +281,7 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
                 </label>
             </div>
             <Show when={hiddenChangeCount() > 0}>
-                <p class="text-muted text-sm" style={{ padding: "0 0 0.5rem" }}>
+                <p class="text-muted text-sm pb-2">
                     Showing {shownChangeCount()} of {changes().length} changes —{" "}
                     {hiddenChangeCount()} hidden under indirect dependencies.{" "}
                     <Button size="sm" onClick={revealHidden}>
@@ -292,7 +292,7 @@ export function DiffTreeView(props: { tree: DiffTree; hideHeader?: boolean }) {
             <Show
                 when={treeData().roots.length > 0 || treeData().orphanChanges.length > 0}
                 fallback={
-                    <p class="text-muted text-sm" style={{ padding: "1rem 0" }}>
+                    <p class="text-muted text-sm py-4">
                         No dependency tree available for this diff. Switch to list view to see all changes.
                     </p>
                 }

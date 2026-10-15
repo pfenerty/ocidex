@@ -36,7 +36,7 @@ export function DiffEntryCard(props: {
     ];
 
     return (
-        <Card class="mb-4" style={{ "padding": "0", overflow: "hidden" }}>
+        <Card class="mb-4 overflow-hidden p-0">
             <div
                 role="button"
                 tabindex="0"
@@ -48,29 +48,13 @@ export function DiffEntryCard(props: {
                         setExpanded(!expanded());
                     }
                 }}
-                style={{
-                    display: "flex",
-                    "align-items": "center",
-                    "justify-content": "space-between",
-                    gap: "0.75rem",
-                    padding: "0.75rem 1rem",
-                    cursor: "pointer",
-                    "user-select": "none",
-                    "border-bottom": expanded() ? "1px solid var(--color-border)" : "none",
-                    "flex-wrap": "wrap",
-                }}
+                class="flex cursor-pointer flex-wrap items-center justify-between gap-3 px-4 py-3 select-none"
+                classList={{ "border-b border-[var(--color-border)]": expanded() }}
             >
-                <div style={{ display: "flex", "align-items": "center", gap: "0.5rem", "min-width": "0", "flex-wrap": "wrap" }}>
+                <div class="flex min-w-0 flex-wrap items-center gap-2">
                     <span
-                        style={{
-                            width: "1rem",
-                            "text-align": "center",
-                            color: "var(--color-text-dim)",
-                            "font-size": "0.7rem",
-                            "flex-shrink": "0",
-                            transition: "transform 0.15s",
-                            transform: expanded() ? "rotate(90deg)" : "rotate(0deg)",
-                        }}
+                        class="w-4 shrink-0 text-center text-[0.7rem] text-[var(--color-text-dim)] [transition:rotate_0.15s]"
+                        classList={{ "rotate-90": expanded() }}
                     >
                         ▸
                     </span>
@@ -88,7 +72,7 @@ export function DiffEntryCard(props: {
                         </span>
                     </div>
                 </div>
-                <div class="changelog-summary" style={{ display: "flex", gap: "0.35rem", "flex-wrap": "wrap" }}>
+                <div class="changelog-summary changelog-summary-compact">
                     <For each={kindDefs}>
                         {(k) => (
                             <Show when={k.count() > 0}>
@@ -102,7 +86,7 @@ export function DiffEntryCard(props: {
                 </div>
             </div>
             <Show when={expanded()}>
-                <div style={{ padding: "0.75rem 1rem" }}>
+                <div class="px-4 py-3">
                     <DiffPairView
                         fromId={props.entry.from.id}
                         toId={props.entry.to.id}

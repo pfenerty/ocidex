@@ -50,6 +50,21 @@ is required in every case, because it signs the cookies every provider's flow de
 |----------|---------|-------------|
 | `SESSION_SECRET` | — | Cookie signing key. Required. Min 32 bytes. Generate with: `openssl rand -hex 32` |
 | `SESSION_MAX_AGE_DAYS` | `7` | How long login sessions last. |
+| `AUTH_RATE_LIMIT` | `30` | Requests per minute one client IP may make to `/auth/login*`, `/auth/callback*` and `POST /api/v1/auth/identities`. Over the limit: `429` with `Retry-After`. `0` disables. Counters are per API replica. |
+| `API_RATE_LIMIT_INGEST` | `120` | Requests per minute per principal to `POST /api/v1/sboms`. A principal is the user for an authenticated request (any of their sessions or API keys) and the client IP otherwise. Over the limit: `429` problem document with `Retry-After`. `0` disables. No role is exempt — raise this for an operator or CI key that pushes harder. Per API replica. |
+| `API_RATE_LIMIT_HEAVY` | `120` | Requests per minute per principal, one budget shared across the expensive reads: `/api/v1/artifacts/{id}/changelog`, `/api/v1/artifacts/{id}/vulns`, `/api/v1/artifacts/{id}/contains`, `/api/v1/components/versions`. `0` disables. Per API replica. |
+| `TRUSTED_PROXY_CIDRS` | `""` | Comma-separated CIDRs (or bare IPs) of reverse proxies whose `X-Forwarded-For` is believed when resolving a client IP for rate limiting. Only when the direct peer is inside these is the header read, and then the right-most hop outside them is the client. Empty: the direct peer is the client — behind an ingress, every request then shares the ingress's budget, so set this to the ingress's pod/node range. |
+| `SESSION_COOKIE_SAMESITE` | `lax` | Session cookie `SameSite`: `lax`, `strict` or `none`. `none` is accepted only with `ENVIRONMENT=production` (it forces `Secure`). See below. |
+
+`SameSite` is decided by **site**, not origin: two hosts are same-site when they share a
+registrable domain, so `ocidex.example.com` serving the SPA and `api.ocidex.example.com`
+serving the API are same-site and work with the default `lax`, which also stops most
+cross-site request forgery on its own. Set `none` only when the SPA is on a different
+registrable domain from the API (say `ocidex-ui.net` against `api.ocidex.example.com`) —
+the browser will not send a `lax` cookie on those cross-site fetches, and every API call
+will look signed out. `strict` additionally withholds the cookie on top-level navigation
+from another site, so a link into OCIDex from elsewhere lands signed out until the SPA's
+first API call.
 
 #### GitHub OAuth
 
@@ -116,8 +131,8 @@ and so is unlinking an account's last remaining identity.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `FRONTEND_URL` | `http://localhost:3000` | Post-login redirect target and CORS default. Only the port matters — hostname is derived from the login request. |
-| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated CORS origins. Must NOT be `*` when credentials are involved. Should match `FRONTEND_URL`. |
+| `FRONTEND_URL` | `http://localhost:3000` | Post-login redirect target and CORS default. With `ENVIRONMENT=production` the redirect is this URL exactly. Outside production the redirect follows the login request's hostname with this URL's port — so several dev hostnames work — but only when that origin is in `CORS_ALLOWED_ORIGINS`; any other host falls back to this URL. |
+| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated CORS origins, each a bare `scheme://host[:port]` (no path, not even `/`). Empty falls back to `FRONTEND_URL`. With `ENVIRONMENT=production` a `*` or a malformed entry fails startup; in development `*` is only warned about. The same set decides which origins may send cookie-authenticated writes. |
 | `API_BASE_URL` | `""` | Public base URL of the API, used to populate the OpenAPI `servers` block for tooling/docs. Optional. |
 
 ### Database Pool

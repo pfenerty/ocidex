@@ -9,6 +9,27 @@
 After any frontend change, run `make frontend-lint-fix` to auto-fix ESLint errors, then
 `make frontend-lint` to verify none remain.
 
+## No static inline styles
+
+The web tier's Content-Security-Policy (`web/nginx.conf`) has no `'unsafe-inline'`. Solid
+compiles a JSX `style` whose value is fixed at build time into the template's HTML, so the
+browser sees an inline `style` attribute and the CSP **drops it** in production, while dev
+and Vitest (no CSP) look fine. Use a class: a Tailwind utility (`mb-3`, `gap-[0.35rem]`) or a
+rule in the component's stylesheet. `npm run build` runs `web/scripts/check-inline-styles.mjs`,
+which fails on any static style attribute in the bundle.
+
+Two traps:
+
+- **The root font size is 14px.** `mr-1` is 3.5px, not 4px; use `mr-[4px]` when a pixel
+  value is what was meant.
+- **Component stylesheets (`*.css` beside a component) are unlayered,** and unlayered CSS
+  beats Tailwind's `@layer utilities`. A utility that overrides a property such a file
+  already sets on that class silently loses — add a modifier class to that stylesheet
+  instead (see `.changelog-summary-compact`).
+
+A style computed at runtime (`style={{ "--depth": row.depth }}`, tooltip coordinates,
+colours from a lookup map) is applied through `element.style` and is unaffected by the CSP.
+
 ## Verify UI changes in a browser, not only in Vitest
 
 A CSS or markup change that passes `make frontend-test` can still be invisible or

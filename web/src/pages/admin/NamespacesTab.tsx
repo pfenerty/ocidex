@@ -121,7 +121,7 @@ export function NamespacesTab() {
                         data-testid="edit-name"
                         value={editName()}
                         onInput={(e) => setEditName(e.currentTarget.value)}
-                        style={{ "min-width": "10rem" }}
+                        class="min-w-40"
                     />
                 </Show>
             ),
@@ -228,7 +228,7 @@ export function NamespacesTab() {
                 <CardHeader title="Create Namespace" />
                 <form
                     onSubmit={handleCreate}
-                    style={{ display: "flex", gap: "0.75rem", "align-items": "flex-end", "flex-wrap": "wrap" }}
+                    class="flex flex-wrap items-end gap-3"
                 >
                     <FormField label="Name">
                         <input

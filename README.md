@@ -275,6 +275,9 @@ is signed by Tekton Chains (cosign + public Rekor). See
 cosign verify --key cosign.pub ghcr.io/pfenerty/ocidex-api@sha256:<digest>
 ```
 
+To report a vulnerability, see **[SECURITY.md](SECURITY.md)** — please do not open a public
+issue.
+
 ## AI Acknowledgment
 
 This project was built with significant AI assistance (Claude). Architecture decisions, technology selection, and code review are human-driven; implementation, refactoring, and documentation are collaborative. See [How AI Was Used](docs/AI.md) for the full picture.

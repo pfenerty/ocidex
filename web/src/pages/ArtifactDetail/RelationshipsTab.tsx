@@ -30,31 +30,15 @@ function RelationCard(props: { relation: ArtifactRelation }) {
 
     return (
         <Card
-            class="mb-4"
-            style={{
-                padding: "0.75rem 1rem",
-                display: "flex",
-                "align-items": "center",
-                "justify-content": "space-between",
-                gap: "0.75rem",
-                "flex-wrap": "wrap",
-                // The left rule is the at-a-glance signal: a scan down the list
-                // shows which consumers need attention without reading text.
-                "border-left":
-                    drift() === "behind"
-                        ? "3px solid var(--color-warning)"
-                        : "3px solid transparent",
+            // The left rule is the at-a-glance signal: a scan down the list
+            // shows which consumers need attention without reading text.
+            class="mb-4 flex flex-wrap items-center justify-between gap-3 border-l-[3px] border-solid px-4 py-3"
+            classList={{
+                "border-l-[var(--color-warning)]": drift() === "behind",
+                "border-l-transparent": drift() !== "behind",
             }}
         >
-            <div
-                style={{
-                    display: "flex",
-                    "align-items": "center",
-                    gap: "0.5rem",
-                    "min-width": "0",
-                    "flex-wrap": "wrap",
-                }}
-            >
+            <div class="flex min-w-0 flex-wrap items-center gap-2">
                 <TypeBadge type={rel().artifactType} />
                 <A href={`/artifacts/${rel().artifactId}`}>
                     {rel().artifactGroup !== undefined &&
@@ -77,14 +61,7 @@ function RelationCard(props: { relation: ArtifactRelation }) {
                 </Show>
             </div>
 
-            <div
-                style={{
-                    display: "flex",
-                    "align-items": "center",
-                    gap: "0.5rem",
-                    "flex-wrap": "wrap",
-                }}
-            >
+            <div class="flex flex-wrap items-center gap-2">
                 <Show when={rel().matchedVersion}>
                     {(v) => (
                         <span class="text-sm">
