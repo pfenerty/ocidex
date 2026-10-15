@@ -13,7 +13,7 @@ Run `make release VERSION=vX.Y.Z` to cut a release.
 body = """
 {% if version %}\
 ## [{{ version | trim_start_matches(pat="v") }}]\
-{% if previous and previous.version %} - {{ now() | date(format="%Y-%m-%d") }}{% endif %}
+{% if timestamp %} - {{ timestamp | date(format="%Y-%m-%d") }}{% endif %}
 {% else %}\
 ## [unreleased]
 {% endif %}\
