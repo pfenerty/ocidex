@@ -105,7 +105,10 @@ func run() error {
 
 	setupOptionalExts(cfg, reg, natsClient, logger)
 
-	ociValidator := ocivalidate.NewValidator(ocivalidate.WithInsecureResolver(insecureResolver))
+	ociValidator := ocivalidate.NewValidator(
+		ocivalidate.WithInsecureResolver(insecureResolver),
+		ocivalidate.WithEgress(cfg.EgressPolicy),
+	)
 	sbomSvc := service.NewSBOMService(pool, bus, ociValidator)
 	searchSvc := service.NewSearchService(pool, service.WithWarmDB(bgPool))
 	authSvc := service.NewAuthService(pool, cfg, bus, providers)

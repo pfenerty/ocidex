@@ -150,7 +150,9 @@ Controls webhook-triggered and poll-triggered OCI image scanning (runs Syft).
 
 Registry URLs are user-supplied, so every process that dials them — the API, `scanner-worker`
 and the enricher workers — checks the resolved IP of each connection against this policy
-(`internal/netguard`). Set the same values on all of them.
+(`internal/netguard`). Set the same values on all of them. On the API this includes ingest:
+an uploaded container SBOM's image is HEADed at its registry, so an SBOM naming a refused
+address is rejected with 400 — including a private registry unless it is allowed here.
 
 | Variable | Default | Description |
 |----------|---------|-------------|

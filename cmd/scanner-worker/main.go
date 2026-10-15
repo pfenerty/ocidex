@@ -50,6 +50,8 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
+	// Before anything clones the default transport: syft's pulls do, per scan.
+	engine.GuardDefaultTransport(cfg.EgressPolicy)
 
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: cfg.SlogLevel(),

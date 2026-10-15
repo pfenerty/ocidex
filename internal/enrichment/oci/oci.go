@@ -18,6 +18,7 @@ import (
 	"github.com/pfenerty/ocidex/internal/enrichment"
 	"github.com/pfenerty/ocidex/internal/enrichment/names"
 	"github.com/pfenerty/ocidex/internal/enrichment/subject"
+	"github.com/pfenerty/ocidex/internal/netguard"
 )
 
 // Metadata is the structured data stored in the enrichment JSONB column.
@@ -75,6 +76,12 @@ func WithTimeout(d time.Duration) Option {
 // WithRemoteOptions sets additional options for the remote client.
 func WithRemoteOptions(opts ...remote.Option) Option {
 	return func(e *Enricher) { e.options = append(e.options, opts...) }
+}
+
+// WithEgress routes every registry dial through p, so an artifact name pointing
+// at a refused address fails with an error wrapping netguard.ErrDenied.
+func WithEgress(p netguard.Policy) Option {
+	return func(e *Enricher) { e.options = append(e.options, remote.WithTransport(p.Transport())) }
 }
 
 // WithInsecure configures the enricher to use plain HTTP for registry connections.

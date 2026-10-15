@@ -34,8 +34,10 @@ func isPermanentScanError(err error) bool {
 	if err == nil {
 		return false
 	}
-	// The egress policy refuses the same address on every retry.
-	if errors.Is(err, netguard.ErrDenied) {
+	// The egress policy refuses the same address on every retry. Stereoscope
+	// flattens the dial error into text, so the sentinel's message is matched
+	// too.
+	if errors.Is(err, netguard.ErrDenied) || strings.Contains(err.Error(), netguard.ErrDenied.Error()) {
 		return true
 	}
 	var terr *transport.Error

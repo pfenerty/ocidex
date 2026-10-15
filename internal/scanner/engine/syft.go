@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
@@ -26,8 +27,30 @@ import (
 	_ "github.com/glebarez/go-sqlite"
 
 	"github.com/pfenerty/ocidex/internal/gosymbols"
+	"github.com/pfenerty/ocidex/internal/netguard"
 	"github.com/pfenerty/ocidex/internal/scanner"
 )
+
+// GuardDefaultTransport makes every connection http.DefaultTransport opens — and
+// every clone of it made afterwards — obey p.
+//
+// This is how syft's registry pulls are guarded (ocidex-avsz.7). Syft takes no
+// transport: stereoscope's RegistryOptions has no hook, and its registry
+// provider builds one per pull from http.DefaultTransport.(*http.Transport).Clone()
+// (stereoscope pkg/image/oci/registry_provider.go getTransport), not from
+// go-containerregistry's remote.DefaultTransport. Clone copies DialContext, so
+// replacing it here puts the check on the resolved IP of every pull connection,
+// redirects and DNS rebinding included.
+//
+// It mutates process-global state, so only the scanner-worker main calls it,
+// once, at startup. Everything else in that process that uses the default
+// transport is held to the same policy, which is intended: none of it should
+// reach a private address on a user's say-so. The residual risk is a future
+// stereoscope that stops cloning the default transport; TestScanEgressDenied
+// fails if it does.
+func GuardDefaultTransport(p netguard.Policy) {
+	http.DefaultTransport.(*http.Transport).DialContext = p.DialContext
+}
 
 // SyftScanner runs syft against an OCI registry to produce CycloneDX JSON SBOMs.
 // It is stateless; registry address and insecure flag are provided per-request.

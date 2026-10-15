@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/pfenerty/ocidex/internal/netguard"
 )
 
 // Index media types — a Content-Type match means the digest points at a
@@ -57,7 +59,15 @@ func WithInsecureResolver(fn func(ctx context.Context, host string) bool) Option
 	return func(v *Validator) { v.insecureResolver = fn }
 }
 
-// NewValidator returns a Validator configured with opts.
+// WithEgress routes every dial — the manifest HEAD and the token exchange, whose
+// realm the registry chooses — through p, so an image name pointing at a refused
+// address fails with an error wrapping netguard.ErrDenied.
+func WithEgress(p netguard.Policy) Option {
+	return func(v *Validator) { v.client = &http.Client{Transport: p.Transport()} }
+}
+
+// NewValidator returns a Validator configured with opts. Without WithEgress it
+// dials anything.
 func NewValidator(opts ...Option) *Validator {
 	v := &Validator{
 		timeout: 30 * time.Second,
