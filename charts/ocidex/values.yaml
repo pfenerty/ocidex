@@ -75,6 +75,12 @@ api:
     # believed when resolving the client IP. Empty keys every request by the
     # direct peer — behind an ingress, that is the ingress itself.
     trustedProxyCidrs: ""
+    # API_RATE_LIMIT_INGEST / API_RATE_LIMIT_HEAVY: per-principal requests per
+    # minute for SBOM ingest and for the expensive artifact/component reads.
+    # "0" disables. Admins and the operator key are not exempt; raise these if
+    # a CI or operator key ingests faster.
+    apiRateLimitIngest: "120"
+    apiRateLimitHeavy: "120"
     frontendUrl: ""
     corsAllowedOrigins: ""
     apiBaseUrl: ""

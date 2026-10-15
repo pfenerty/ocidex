@@ -72,6 +72,12 @@ type Config struct {
 	// make to the sign-in endpoints. 0 disables the limit, which is also what
 	// a Config not built by Load gets.
 	AuthRateLimit int `env:"AUTH_RATE_LIMIT" envDefault:"30"`
+	// APIRateLimitIngest and APIRateLimitHeavy are per-principal requests per
+	// minute (the user when authenticated, the client IP otherwise) for SBOM
+	// ingest and for the expensive artifact/component reads. 0 disables. No
+	// role is exempt: an operator or admin pushing harder raises the knob.
+	APIRateLimitIngest int `env:"API_RATE_LIMIT_INGEST" envDefault:"120"`
+	APIRateLimitHeavy  int `env:"API_RATE_LIMIT_HEAVY"  envDefault:"120"`
 	// TrustedProxyCIDRs lists the reverse proxies whose X-Forwarded-For is
 	// believed when resolving a client IP for rate limiting. Empty trusts no
 	// proxy, so the direct peer is the client. Parsed into TrustedProxies by
@@ -575,8 +581,14 @@ func (c *Config) validatePerimeter() error {
 	if err := validateCORSOrigins(c.CORSAllowedOrigins, c.Environment); err != nil {
 		return err
 	}
-	if c.AuthRateLimit < 0 {
-		return fmt.Errorf("AUTH_RATE_LIMIT must be 0 (disabled) or a positive number of requests per minute, got %d", c.AuthRateLimit)
+	for name, v := range map[string]int{
+		"AUTH_RATE_LIMIT":       c.AuthRateLimit,
+		"API_RATE_LIMIT_INGEST": c.APIRateLimitIngest,
+		"API_RATE_LIMIT_HEAVY":  c.APIRateLimitHeavy,
+	} {
+		if v < 0 {
+			return fmt.Errorf("%s must be 0 (disabled) or a positive number of requests per minute, got %d", name, v)
+		}
 	}
 	if c.TrustedProxies, err = netguard.ParsePrefixes(trimAll(c.TrustedProxyCIDRs)); err != nil {
 		return fmt.Errorf("TRUSTED_PROXY_CIDRS: %w", err)

@@ -230,8 +230,19 @@ func TestLoad(t *testing.T) {
 			},
 			check: func(is *is.I, cfg *config.Config) {
 				is.Equal(cfg.AuthRateLimit, 30)
+				is.Equal(cfg.APIRateLimitIngest, 120)
+				is.Equal(cfg.APIRateLimitHeavy, 120)
 				is.Equal(len(cfg.TrustedProxies), 0)
 			},
+		},
+		{
+			name: "negative API_RATE_LIMIT_HEAVY is rejected",
+			env: map[string]string{
+				"DATABASE_URL":         "postgres://localhost/test",
+				"NATS_URL":             "nats://localhost:4222",
+				"API_RATE_LIMIT_HEAVY": "-5",
+			},
+			wantErr: true,
 		},
 		{
 			name: "TRUSTED_PROXY_CIDRS parses CIDRs and bare addresses",

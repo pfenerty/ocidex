@@ -11,6 +11,7 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/api"
 	"github.com/pfenerty/ocidex/internal/config"
+	"github.com/pfenerty/ocidex/internal/service"
 )
 
 func TestClientIP(t *testing.T) {
@@ -105,5 +106,73 @@ func TestAuthRateLimitZeroDisables(t *testing.T) {
 	router := newRateLimitedRouter(0, nil)
 	for range 50 {
 		is.True(loginFrom(router, "203.0.113.9:1", "").Code != http.StatusTooManyRequests)
+	}
+}
+
+func newAPILimitedRouter(ingest, heavy int) http.Handler {
+	authSvc := &fakeAuthService{users: map[string]service.AuthUser{
+		"alice": {ID: ownerUUID, Role: "member"},
+		"bob":   {ID: otherUUID, Role: "member"},
+	}}
+	h := api.NewHandler(nil, nil, authSvc, nil, nil, nil, nil, nil, nil, nil, &fakePinger{}, nil,
+		&config.Config{
+			Environment:        "development",
+			SessionSecret:      strings.Repeat("k", 32),
+			APIRateLimitIngest: ingest,
+			APIRateLimitHeavy:  heavy,
+		})
+	return api.NewRouter(h, "*", "", "")
+}
+
+func requestAs(router http.Handler, method, path, token, remote string) *httptest.ResponseRecorder {
+	r := httptest.NewRequest(method, path, strings.NewReader("{}"))
+	r.Header.Set("Content-Type", "application/json")
+	r.RemoteAddr = remote
+	if token != "" {
+		r.Header.Set("Authorization", "Bearer "+token)
+	}
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, r)
+	return w
+}
+
+// TestHeavyRateLimitIsPerPrincipal checks the heavy-read budget is one per
+// principal, shared across the operations that carry it, and answered with a
+// problem document.
+func TestHeavyRateLimitIsPerPrincipal(t *testing.T) {
+	is := is.New(t)
+	router := newAPILimitedRouter(0, 2)
+	const versions = "/api/v1/components/versions?name=x"
+	changelog := "/api/v1/artifacts/" + testRegistryID + "/changelog"
+
+	is.True(requestAs(router, http.MethodGet, versions, "alice", "203.0.113.9:1").Code != http.StatusTooManyRequests)
+	is.True(requestAs(router, http.MethodGet, changelog, "alice", "203.0.113.9:1").Code != http.StatusTooManyRequests)
+	w := requestAs(router, http.MethodGet, versions, "alice", "198.51.100.1:1") // a new address does not help
+	is.Equal(w.Code, http.StatusTooManyRequests)
+	is.Equal(w.Header().Get("Content-Type"), "application/problem+json")
+	is.True(w.Header().Get("Retry-After") != "")
+
+	// Another user from the same address has a budget of their own.
+	is.True(requestAs(router, http.MethodGet, versions, "bob", "203.0.113.9:1").Code != http.StatusTooManyRequests)
+
+	// Anonymous callers are keyed by address.
+	is.True(requestAs(router, http.MethodGet, versions, "", "203.0.113.50:1").Code != http.StatusTooManyRequests)
+	is.True(requestAs(router, http.MethodGet, versions, "", "203.0.113.50:1").Code != http.StatusTooManyRequests)
+	is.Equal(requestAs(router, http.MethodGet, versions, "", "203.0.113.50:1").Code, http.StatusTooManyRequests)
+	is.True(requestAs(router, http.MethodGet, versions, "", "203.0.113.51:1").Code != http.StatusTooManyRequests)
+}
+
+func TestIngestRateLimit(t *testing.T) {
+	is := is.New(t)
+	router := newAPILimitedRouter(1, 0)
+
+	is.True(requestAs(router, http.MethodPost, "/api/v1/sboms", "alice", "203.0.113.9:1").Code != http.StatusTooManyRequests)
+	is.Equal(requestAs(router, http.MethodPost, "/api/v1/sboms", "alice", "203.0.113.9:1").Code, http.StatusTooManyRequests)
+	is.True(requestAs(router, http.MethodPost, "/api/v1/sboms", "bob", "203.0.113.9:1").Code != http.StatusTooManyRequests)
+
+	// The heavy limit is disabled at 0, and ingest's budget is its own.
+	for range 5 {
+		is.True(requestAs(router, http.MethodGet, "/api/v1/components/versions?name=x", "alice", "203.0.113.9:1").Code !=
+			http.StatusTooManyRequests)
 	}
 }

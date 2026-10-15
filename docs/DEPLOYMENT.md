@@ -111,6 +111,8 @@ authoritative default set.
 | `SESSION_COOKIE_SAMESITE` | `api.env.sessionCookieSameSite` | `lax` |
 | `AUTH_RATE_LIMIT` | `api.env.authRateLimit` | `30` |
 | `TRUSTED_PROXY_CIDRS` | `api.env.trustedProxyCidrs` | `""` (omitted) |
+| `API_RATE_LIMIT_INGEST` | `api.env.apiRateLimitIngest` | `120` |
+| `API_RATE_LIMIT_HEAVY` | `api.env.apiRateLimitHeavy` | `120` |
 | `AUDIT_LOG_ENABLED` | Default | `true` |
 
 `NATS_URL` is templated from `ocidex.fullname`, so it tracks the release name —

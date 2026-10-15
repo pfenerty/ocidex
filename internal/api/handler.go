@@ -39,6 +39,8 @@ type Handler struct {
 	cfg              *config.Config
 	stateCookie      *securecookie.SecureCookie
 	clientIPs        *ClientIPResolver
+	ingestLimit      *rateLimiter
+	heavyLimit       *rateLimiter
 }
 
 // NewHandler creates a new Handler with the given dependencies.

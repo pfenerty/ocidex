@@ -197,6 +197,9 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 
 	h.api = api
 
+	// Built before registration, because the operations capture the limiters.
+	h.buildAPIRateLimits()
+
 	registerHealthOps(api, h)
 	registerVersionOps(api, h)
 	registerSBOMOps(api, h)
@@ -277,7 +280,7 @@ func registerSBOMOps(api huma.API, h *Handler) {
 		Tags:          []string{tagSBOMs},
 		MaxBodyBytes:  maxSBOMBodyBytes,
 		DefaultStatus: http.StatusCreated,
-		Middlewares:   huma.Middlewares{memberMW, writeMW},
+		Middlewares:   huma.Middlewares{memberMW, writeMW, h.ingestLimit.Huma(api)},
 	}, h.IngestSBOM)
 
 	huma.Register(api, huma.Operation{
@@ -388,6 +391,7 @@ func registerComponentOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/components/versions",
 		Summary:     "Get component versions",
 		Tags:        []string{tagComponents},
+		Middlewares: huma.Middlewares{h.heavyLimit.Huma(api)},
 	}, h.GetComponentVersions)
 
 	huma.Register(api, huma.Operation{
@@ -507,6 +511,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Path:        "/api/v1/artifacts/{id}/changelog",
 		Summary:     "Get artifact changelog",
 		Tags:        []string{tagArtifacts},
+		Middlewares: huma.Middlewares{h.heavyLimit.Huma(api)},
 	}, h.GetArtifactChangelog)
 
 	huma.Register(api, huma.Operation{
@@ -533,6 +538,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Summary:     "List vulnerabilities across an artifact's versions",
 		Description: "Findings keyed by canonical id over the newest SBOM per version, with the versions each affects. Wider than /vuln-summary, which counts the latest version's newest SBOM only. ?vuln= pre-filters to a single advisory.",
 		Tags:        []string{tagArtifacts},
+		Middlewares: huma.Middlewares{h.heavyLimit.Huma(api)},
 	}, h.ListArtifactVulns)
 
 	huma.Register(api, huma.Operation{
@@ -551,6 +557,7 @@ func registerArtifactOps(api huma.API, h *Handler) {
 		Summary:     "List tracked artifacts this artifact ships",
 		Description: "Tracked artifacts matched by components of this artifact's latest SBOM (ADR-041).",
 		Tags:        []string{tagArtifacts},
+		Middlewares: huma.Middlewares{h.heavyLimit.Huma(api)},
 	}, h.GetArtifactContains)
 }
 

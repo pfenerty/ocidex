@@ -58,6 +58,10 @@ spec:
               value: {{ .Values.api.env.sessionCookieSameSite | quote }}
             - name: AUTH_RATE_LIMIT
               value: {{ .Values.api.env.authRateLimit | quote }}
+            - name: API_RATE_LIMIT_INGEST
+              value: {{ .Values.api.env.apiRateLimitIngest | quote }}
+            - name: API_RATE_LIMIT_HEAVY
+              value: {{ .Values.api.env.apiRateLimitHeavy | quote }}
             {{- if .Values.api.env.trustedProxyCidrs }}
             - name: TRUSTED_PROXY_CIDRS
               value: {{ .Values.api.env.trustedProxyCidrs | quote }}

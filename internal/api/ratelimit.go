@@ -10,6 +10,8 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/httprate"
+
+	"github.com/pfenerty/ocidex/internal/config"
 )
 
 // ClientIPResolver answers "which client sent this request" for rate limiting
@@ -125,4 +127,30 @@ func (l *rateLimiter) Huma(api huma.API) func(huma.Context, func(huma.Context)) 
 		}
 		next(ctx)
 	}
+}
+
+// principalKey keys a per-principal limit: the user for an authenticated
+// request, so one account's budget follows it across addresses and an office
+// behind one NAT does not share one, and the client IP otherwise. The prefixes
+// keep a user ID from ever colliding with an address.
+func (h *Handler) principalKey(r *http.Request) string {
+	if user, ok := UserFromContext(r.Context()); ok {
+		return "user:" + uuidToStr(user.ID)
+	}
+	return "ip:" + h.clientIPs.ClientIP(r)
+}
+
+// buildAPIRateLimits builds the per-principal limits on the endpoints that
+// cost the most to serve (ocidex-mqav.6): SBOM ingest, and the heavy
+// artifact/component reads. Each is one budget shared by every operation that
+// carries it. Without a config both are disabled.
+func (h *Handler) buildAPIRateLimits() {
+	cfg := h.cfg
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
+	h.ingestLimit = newRateLimiter(cfg.APIRateLimitIngest, h.principalKey,
+		"SBOM ingest rate limit exceeded; retry later")
+	h.heavyLimit = newRateLimiter(cfg.APIRateLimitHeavy, h.principalKey,
+		"rate limit for expensive queries exceeded; retry later")
 }

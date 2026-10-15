@@ -19,6 +19,10 @@ Run `make release VERSION=vX.Y.Z` to cut a release.
   disables). Behind an ingress, set `TRUSTED_PROXY_CIDRS` (chart
   `api.env.trustedProxyCidrs`) to the ingress's address range, or every visitor
   shares the ingress's budget.
+- **SBOM ingest and the expensive reads are rate-limited per principal
+  (ocidex-mqav.6).** 120 requests per minute each by default
+  (`API_RATE_LIMIT_INGEST`, `API_RATE_LIMIT_HEAVY`; `0` disables). No role is
+  exempt: raise the ingest limit if a CI or operator key pushes faster.
 - **Cookie-authenticated writes must come from a trusted origin (ocidex-mqav.1).**
   A `POST`/`PUT`/`PATCH`/`DELETE` that authenticates by session cookie is refused
   with 403 unless its `Origin` (or `Referer`) is in `CORS_ALLOWED_ORIGINS` (or
