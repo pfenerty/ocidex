@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -209,6 +210,10 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, err := h.authService.ExchangeCodeForUser(r.Context(), provider, code, stateData["verifier"])
+	if errors.Is(err, service.ErrSignupClosed) {
+		http.Error(w, "sign-up is closed on this installation: ask an administrator for access", http.StatusUnauthorized)
+		return
+	}
 	if err != nil {
 		http.Error(w, "authentication failed", http.StatusUnauthorized)
 		return

@@ -170,6 +170,48 @@ func TestLoad(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "installation policy defaults stay open",
+			env: map[string]string{
+				"DATABASE_URL": "postgres://localhost/test",
+				"NATS_URL":     "nats://localhost:4222",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.SignupMode, config.SignupOpen)
+				is.Equal(cfg.RestrictNamespaceCreation, false)
+			},
+		},
+		{
+			name: "installation policy closed",
+			env: map[string]string{
+				"DATABASE_URL":            "postgres://localhost/test",
+				"NATS_URL":                "nats://localhost:4222",
+				"SIGNUP_MODE":             "existing",
+				"SELF_SERVICE_NAMESPACES": "false",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.SignupMode, config.SignupExisting)
+				is.Equal(cfg.RestrictNamespaceCreation, true)
+			},
+		},
+		{
+			name: "unknown SIGNUP_MODE is rejected",
+			env: map[string]string{
+				"DATABASE_URL": "postgres://localhost/test",
+				"NATS_URL":     "nats://localhost:4222",
+				"SIGNUP_MODE":  "closed",
+			},
+			wantErr: true,
+		},
+		{
+			name: "non-boolean SELF_SERVICE_NAMESPACES is rejected",
+			env: map[string]string{
+				"DATABASE_URL":            "postgres://localhost/test",
+				"NATS_URL":                "nats://localhost:4222",
+				"SELF_SERVICE_NAMESPACES": "maybe",
+			},
+			wantErr: true,
+		},
+		{
 			name: "egress defaults deny private",
 			env: map[string]string{
 				"DATABASE_URL": "postgres://localhost/test",
@@ -252,7 +294,7 @@ func TestLoad(t *testing.T) {
 			os.Unsetenv("NATS_URL") //nolint:errcheck
 
 			// Clear OAuth vars — no longer required by config.Load().
-			for _, k := range []string{"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "SESSION_SECRET", "BOOTSTRAP_ADMINS", "EGRESS_ALLOW_PRIVATE", "EGRESS_ALLOW_CIDRS", "EGRESS_DENY_CIDRS"} {
+			for _, k := range []string{"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "SESSION_SECRET", "BOOTSTRAP_ADMINS", "EGRESS_ALLOW_PRIVATE", "EGRESS_ALLOW_CIDRS", "EGRESS_DENY_CIDRS", "SIGNUP_MODE", "SELF_SERVICE_NAMESPACES"} {
 				t.Setenv(k, "")
 				os.Unsetenv(k) //nolint:errcheck
 			}

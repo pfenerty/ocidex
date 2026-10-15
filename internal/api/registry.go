@@ -331,6 +331,12 @@ func (h *Handler) createRegistry(
 			}
 			params.NamespaceID = id
 		}
+		// Anything but an existing namespace means minting one.
+		if params.NamespaceID == "" {
+			if err := h.requireNamespaceCreation(user); err != nil {
+				return service.Registry{}, err
+			}
+		}
 		reg, err := h.registryService.Create(ctx, params)
 		if errors.Is(err, service.ErrNamespaceExists) && attempt == 0 {
 			continue

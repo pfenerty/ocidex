@@ -52,6 +52,12 @@ api:
     # comma-separated "github:<user id>" or "oidc:<name>:<sub>". A fresh
     # install has no admin until one of these signs in.
     bootstrapAdmins: ""
+    # SIGNUP_MODE: "open" provisions any identity the issuers vouch for;
+    # "existing" admits only existing accounts plus bootstrapAdmins.
+    signupMode: open
+    # SELF_SERVICE_NAMESPACES: "false" stops global viewers creating namespaces
+    # (or registries that mint one). See docs/DEPLOYMENT.md "Hardening".
+    selfServiceNamespaces: "true"
     frontendUrl: ""
     corsAllowedOrigins: ""
     apiBaseUrl: ""

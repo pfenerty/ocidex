@@ -230,6 +230,13 @@ func (s *authService) promoteBootstrapAdmin(ctx context.Context, id auth.Identit
 	return u, nil
 }
 
+// signupOpen reports whether a first sign-in may create an account. Only
+// SIGNUP_MODE=existing closes it; a BOOTSTRAP_ADMINS identity is let through
+// regardless, or a closed installation could never get its first admin.
+func (s *authService) signupOpen() bool {
+	return s.cfg == nil || s.cfg.SignupMode != config.SignupExisting
+}
+
 // isBootstrapAdmin matches on (provider, subject) and nothing else — never on
 // email, for the reason resolveIdentity gives.
 func (s *authService) isBootstrapAdmin(id auth.Identity) bool {
@@ -276,6 +283,9 @@ func (s *authService) resolveIdentity(ctx context.Context, id auth.Identity) (Au
 		return AuthUser{ID: u.ID, DisplayName: displayName(u.DisplayName), Role: u.Role}, nil
 
 	case errors.Is(err, pgx.ErrNoRows):
+		if !s.signupOpen() && !s.isBootstrapAdmin(id) {
+			return AuthUser{}, ErrSignupClosed
+		}
 		row, createErr := s.repo.CreateUserWithIdentity(ctx, newUserParams(id))
 		if createErr == nil {
 			return AuthUser{ID: row.ID, DisplayName: displayName(row.DisplayName), Role: row.Role}, nil

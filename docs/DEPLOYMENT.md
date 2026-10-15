@@ -103,6 +103,10 @@ authoritative default set.
 | `GITHUB_REDIRECT_URL` | `api.env.githubRedirectUrl` | `https://ocidex.app/auth/callback` |
 | `SCANNER_ENABLED` | `api.env.scannerEnabled` | `true` *(registry poller side only; scan work runs in `scanner-worker`)* |
 | `REGISTRY_POLLER_ENABLED` | `api.env.registryPollerEnabled` | `true` |
+| `BOOTSTRAP_ADMINS` | `api.env.bootstrapAdmins` | `github:<maintainer id>` |
+| `SIGNUP_MODE` | `api.env.signupMode` | `open` |
+| `SELF_SERVICE_NAMESPACES` | `api.env.selfServiceNamespaces` | `true` |
+| `EGRESS_*` | `egressGuard.*` | defaults (private ranges refused) |
 | `SESSION_MAX_AGE_DAYS` | Default | `7` |
 | `AUDIT_LOG_ENABLED` | Default | `true` |
 
@@ -113,6 +117,17 @@ different host. `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS`, `API_BASE_URL` and
 `""` default omits the env var entirely rather than setting it blank.
 
 Source of truth: [`internal/config/config.go`](../internal/config/config.go).
+
+**Hardening a private installation.** The defaults suit a public, open
+instance: anyone your identity provider vouches for — any GitHub account, with
+GitHub — gets an account on first sign-in, and any signed-in user may create a
+namespace they own. For a company install, set `api.env.signupMode: existing`
+(`SIGNUP_MODE`), so only accounts that already exist and `BOOTSTRAP_ADMINS`
+identities can sign in, and `api.env.selfServiceNamespaces: "false"`
+(`SELF_SERVICE_NAMESPACES`), so a global viewer cannot create a namespace or a
+registry that mints one. There is no invitation flow yet: to admit a new person
+under `existing`, briefly reopen sign-up, or have an OIDC issuer that only
+vouches for your own people and leave sign-up open.
 
 ### `scanner-worker` (`scannerWorker.replicas: 1`)
 

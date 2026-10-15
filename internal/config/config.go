@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -81,6 +82,19 @@ type Config struct {
 	// BootstrapAdmins by validate.
 	BootstrapAdminsRaw string `env:"BOOTSTRAP_ADMINS"`
 	BootstrapAdmins    []IdentityRef
+
+	// SignupMode is the installation's sign-up policy: "open" provisions an
+	// account for any identity the configured issuers vouch for; "existing"
+	// admits only identities that already have one, plus BOOTSTRAP_ADMINS.
+	// Empty (a Config not built by Load) reads as open.
+	SignupMode string `env:"SIGNUP_MODE" envDefault:"open"`
+
+	// SelfServiceNamespacesRaw is SELF_SERVICE_NAMESPACES: whether a global
+	// viewer may create a namespace (directly, or by creating a registry that
+	// mints one). validate turns it into RestrictNamespaceCreation, which is
+	// inverted so a zero Config keeps today's open behaviour.
+	SelfServiceNamespacesRaw  string `env:"SELF_SERVICE_NAMESPACES" envDefault:"true"`
+	RestrictNamespaceCreation bool
 
 	// Frontend URL — used as the post-OAuth redirect target and for CORS defaults.
 	FrontendURL string `env:"FRONTEND_URL" envDefault:"http://localhost:3000"`
@@ -422,6 +436,12 @@ func (c *K8sAgentConfig) SlogLevel() slog.Level {
 	return parseSlogLevel(c.LogLevel)
 }
 
+// Sign-up modes for SIGNUP_MODE.
+const (
+	SignupOpen     = "open"
+	SignupExisting = "existing"
+)
+
 // IdentityRef names one sign-in identity by its user_identity key.
 type IdentityRef struct {
 	Provider string
@@ -473,6 +493,16 @@ func (c *Config) validate() error {
 		return fmt.Errorf("BOOTSTRAP_ADMINS: %w", err)
 	}
 	c.BootstrapAdmins = admins
+	switch c.SignupMode {
+	case SignupOpen, SignupExisting:
+	default:
+		return fmt.Errorf("SIGNUP_MODE must be %q or %q, got %q", SignupOpen, SignupExisting, c.SignupMode)
+	}
+	selfService, err := strconv.ParseBool(c.SelfServiceNamespacesRaw)
+	if err != nil {
+		return fmt.Errorf("SELF_SERVICE_NAMESPACES must be true or false, got %q", c.SelfServiceNamespacesRaw)
+	}
+	c.RestrictNamespaceCreation = !selfService
 	if c.EgressPolicy, err = egressPolicy(c.EgressAllowPrivate, c.EgressAllowCIDRs, c.EgressDenyCIDRs); err != nil {
 		return err
 	}

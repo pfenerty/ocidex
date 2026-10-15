@@ -127,3 +127,39 @@ func TestCreateRegistry_NamespaceRaceRechecks(t *testing.T) {
 	is.Equal(w.Code, http.StatusNotFound)
 	is.Equal(len(regSvc.calls), 1)
 }
+
+// TestNamespaceCreationRestricted covers ocidex-avsz.4: with
+// SELF_SERVICE_NAMESPACES=false a global viewer may not mint a namespace, either
+// directly or by creating a registry; a global member may.
+func TestNamespaceCreationRestricted(t *testing.T) {
+	const newRegistry = `{"name":"r","type":"generic","url":"registry.example.com","insecure":false,"scan_mode":"webhook","repositories":[],"repository_patterns":[],"tag_patterns":[]}`
+	tests := []struct {
+		name       string
+		restrict   bool
+		role       string
+		path       string
+		body       string
+		wantStatus int
+	}{
+		{"viewer namespace, restricted", true, "viewer", "/api/v1/namespaces", `{"name":"mine"}`, http.StatusForbidden},
+		{"member namespace, restricted", true, "member", "/api/v1/namespaces", `{"name":"mine"}`, http.StatusCreated},
+		{"viewer namespace, self-service", false, "viewer", "/api/v1/namespaces", `{"name":"mine"}`, http.StatusCreated},
+		{"viewer registry, restricted", true, "viewer", "/api/v1/registries", newRegistry, http.StatusForbidden},
+		{"member registry, restricted", true, "member", "/api/v1/registries", newRegistry, http.StatusCreated},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			authSvc := &fakeAuthService{users: map[string]service.AuthUser{
+				"token": {ID: strangerUUID, Role: tt.role, APIKeyAuth: true, APIKeyCaps: authz.AllCapabilities()},
+			}}
+			regSvc := &recordingRegistryService{}
+			h := api.NewHandler(nil, nil, authSvc, regSvc, &namedNamespaceService{}, nil, nil, nil, nil, nil,
+				&fakePinger{}, nil, &config.Config{RestrictNamespaceCreation: tt.restrict})
+			router := api.NewRouter(h, "*", "", "")
+
+			w := memberRequest(router, http.MethodPost, tt.path, tt.body, "token")
+			is.Equal(w.Code, tt.wantStatus)
+		})
+	}
+}

@@ -226,7 +226,7 @@ var authRules = map[string]AuthRule{
 	"list-namespaces":       {Class: ClassAuthenticated, Notes: "Own plus public namespaces."},
 	"get-namespace":         {Class: ClassAuthenticated, Notes: "A private namespace the caller does not own 404s, so its existence is not leaked."},
 	"get-namespace-by-name": {Class: ClassAuthenticated, Notes: "A private namespace the caller does not own 404s."},
-	"create-namespace":      {Class: ClassAuthenticated, Write: true, Notes: "Owned by the calling user."},
+	"create-namespace":      {Class: ClassAuthenticated, Write: true, Notes: "Owned by the calling user. With SELF_SERVICE_NAMESPACES=false a global viewer gets 403, checked in the handler."},
 	"update-namespace":      {Class: ClassCapability, Cap: authz.CapManageMember, Write: true, Notes: "manage_member capability check in handler."},
 	"delete-namespace":      {Class: ClassCapability, Cap: authz.CapDeleteNamespace, Write: true, Notes: "delete_namespace capability check in handler; deletes everything ingested under the namespace."},
 
@@ -264,7 +264,7 @@ var authRules = map[string]AuthRule{
 	"list-registries":            {Class: ClassAuthenticated, Notes: "Own plus public registries."},
 	"get-registry":               {Class: ClassAuthenticated, Notes: "A private registry the caller does not own 404s."},
 	"get-registry-by-name":       {Class: ClassAuthenticated, Notes: "A private registry the caller does not own 404s."},
-	"create-registry":            {Class: ClassAuthenticated, Write: true, Notes: "A new or omitted `namespace` is created and owned by the caller. Naming an existing namespace requires manage_source in it, checked in the handler; a non-member gets 404."},
+	"create-registry":            {Class: ClassAuthenticated, Write: true, Notes: "A new or omitted `namespace` is created and owned by the caller. Naming an existing namespace requires manage_source in it, checked in the handler; a non-member gets 404. Minting a namespace with SELF_SERVICE_NAMESPACES=false is 403 for a global viewer."},
 	"update-registry":            {Class: ClassCapability, Cap: authz.CapManageSource, Write: true, Notes: noteManageRegistryMW},
 	"delete-registry":            {Class: ClassCapability, Cap: authz.CapManageSource, Write: true, Notes: noteManageRegistryMW},
 	"scan-registry":              {Class: ClassCapability, Cap: authz.CapTriggerScan, Write: true, Notes: "RequireCapability(trigger_scan) middleware."},

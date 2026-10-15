@@ -92,6 +92,17 @@ deployment has configured; the login page draws its buttons from it.
 |----------|---------|-------------|
 | `BOOTSTRAP_ADMINS` | `""` | Comma-separated identities promoted to installation admin when they sign in: `github:<subject>` or `oidc:<name>:<subject>`. `<subject>` is the issuer's stable user id — the numeric GitHub user id (`gh api users/<login> --jq .id`), or the OIDC `sub` claim — and may itself contain colons. Matched on (provider, subject) only, never email ([ADR-047](adr/0047-provider-agnostic-identity.md)). A malformed entry fails startup. |
 
+#### Installation policy
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SIGNUP_MODE` | `open` | `open` creates an account (global role `viewer`) for any identity a configured issuer vouches for — any GitHub account, with GitHub. `existing` signs in only identities that already have an account, plus `BOOTSTRAP_ADMINS`; anyone else gets 401 at the callback. |
+| `SELF_SERVICE_NAMESPACES` | `true` | Whether a global `viewer` may create a namespace, either directly or by creating a registry without naming an existing namespace. `false` restricts both to global `member` and `admin` (403 otherwise). |
+
+A private installation usually wants `SIGNUP_MODE=existing` and
+`SELF_SERVICE_NAMESPACES=false`; see [DEPLOYMENT.md](DEPLOYMENT.md) "Hardening a private
+installation".
+
 Nothing else creates an admin: a fresh install has none, and every new account starts as
 `viewer`. Promotion happens at sign-in, so an account can be listed before it exists. It
 only ever promotes — an admin demoted by hand is promoted again at their next sign-in until
