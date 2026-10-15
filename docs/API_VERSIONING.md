@@ -27,6 +27,20 @@ The version of the running server is reported by `GET /api/v1/`:
 `build` is the release tag for release images. Otherwise it is the Go module version, or
 `dev` for a local build. It is the same version that `ocidex --version` prints.
 
+## Go SDK
+
+`pkg/client` is a separate Go module, `github.com/pfenerty/ocidex/pkg/client`, so importing it
+does not bring in the server's dependency graph. It is released with
+`make release VERSION=pkg/client/vX.Y.Z`, independently of server releases, and its exported
+identifiers follow semver (ADR-052). Its major version tracks the API's `/api/vN` prefix.
+
+In this repository, `go.work` joins the SDK to the root module, so a change to both builds and
+tests together. The root `go.mod` still requires a **published** SDK version, because
+`go install github.com/pfenerty/ocidex/cmd/...@<version>` ignores `go.work`. When the binaries
+start using new SDK API, release the SDK first and update the requirement
+(`GOWORK=off go get github.com/pfenerty/ocidex/pkg/client@vX.Y.Z`). A server release refuses to
+tag while the root module does not build without `go.work`.
+
 ## What Counts as a Breaking Change
 
 A breaking change is any modification that would cause a correctly-written client targeting the current spec to fail or behave incorrectly:

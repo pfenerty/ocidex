@@ -113,7 +113,14 @@ const prPipeline = new GitPipeline({
 
 const tagPipeline = new GitPipeline({
   name: "ocidex-tag",
-  trigger: { rules: [{ on: TRIGGER_EVENTS.TAG, branch: "refs/tags/*" }], cancelInProgress: true },
+  // Server releases only. The Go SDK is tagged pkg/client/vX.Y.Z (ADR-052); the Go proxy
+  // serves it straight from the tag, and it must not set off an image and chart release.
+  // Raw CEL because @tektonic-ci/core 2.2.0 drops a TAG rule's `branch` and emits
+  // [refs/tags/*]; once a release carries tektonic 9c42b5a, use `branch: "v*"` instead.
+  trigger: {
+    rules: [{ on: TRIGGER_EVENTS.TAG, cel: "target_branch.startsWith('refs/tags/v')" }],
+    cancelInProgress: true,
+  },
   cloneDepth: "full",
   // Same serial image-build chain as the push pipeline, plus helm-release and
   // gh-release. Deliberately still 4h while push is 2h30m: these builds are multi-arch

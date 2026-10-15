@@ -30,11 +30,15 @@ run: build ## Run the API server
 fmt: ## Format code with gofmt
 	gofmt -w -s .
 
+# pkg/client is its own module (ADR-052), joined by go.work. A root-level ./... does not
+# reach into another workspace module, so it is named explicitly.
+GO_PKGS := ./... ./pkg/client/...
+
 lint: ## Run golangci-lint
-	golangci-lint run ./...
+	golangci-lint run $(GO_PKGS)
 
 test: ## Run unit tests
-	go test -v -race -short ./...
+	go test -v -race -short $(GO_PKGS)
 
 test-coverage: ## Run tests with HTML coverage report
 	go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
@@ -294,7 +298,7 @@ dev-down: ## Stop Tilt and remove deployed resources
 	  pgrep -x tilt >/dev/null 2>&1 && pkill -9 -x tilt 2>/dev/null || true; \
 	fi
 
-release: ## Cut a release: regen CHANGELOG.md, commit, tag. Usage: make release VERSION=v0.1.0
+release: ## Cut a release: regen CHANGELOG.md, commit, tag. Usage: make release VERSION=v0.1.0 (SDK: VERSION=pkg/client/v0.1.0)
 	@scripts/release.sh "$(VERSION)"
 
 version: ## Print the version of the ocidex binary (from build-time -ldflags)
