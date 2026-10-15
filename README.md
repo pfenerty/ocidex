@@ -243,6 +243,7 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full reference. Key v
 | [Development Guide](docs/DEVELOPMENT.md) | Coding patterns, testing strategy, and stack examples |
 | [Configuration](docs/CONFIGURATION.md) | All environment variables with descriptions and defaults |
 | [Deployment](docs/DEPLOYMENT.md) | Production deployment guide (K8s + Flux) |
+| [Releasing](docs/RELEASING.md) | Release checklist, tag pipeline, verification, and rollback |
 | [Upgrading](docs/UPGRADING.md) | Upgrade paths, backups, rollback, and per-version upgrade steps |
 | [Ephemeral Jobs](docs/EPHEMERAL_JOBS.md) | K8s Job / `--once` mode for scanner and enrichment workers |
 | [MCP Server](docs/MCP.md) | Serving the catalog to agents over stdio: setup, tools, troubleshooting |
@@ -263,7 +264,7 @@ make release VERSION=v0.1.0
 git push origin main v0.1.0
 ```
 
-The release workflow (`.github/workflows/release.yml`) then builds multi-arch (linux/amd64, linux/arm64) container images for `api`, `scanner-worker`, the per-enricher workers, `vuln-worker`, and `web`, pushes them to `ghcr.io/pfenerty/ocidex-*` tagged with the semver version (plus `latest` for stable releases), and creates a GitHub Release with the changelog as the body. Images carry the standard `org.opencontainers.image.*` annotations and binaries embed their build version (`ocidex --version`).
+The Tekton tag pipeline then builds multi-arch (linux/amd64, linux/arm64) images for every component and pushes them to `ghcr.io/pfenerty/ocidex-*`, tagged with the semver version (plus `latest` for stable releases). It publishes the three Helm charts with their image digests pinned, and creates a GitHub Release whose body is the version's CHANGELOG section. Images carry the standard `org.opencontainers.image.*` annotations, and binaries embed their build version (`ocidex --version`). The full checklist, the verification steps and the rollback steps are in [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Supply chain security
 
