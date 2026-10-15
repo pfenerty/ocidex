@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cut a release: regenerate CHANGELOG.md, commit, and tag.
+# Cut a release: add the version's CHANGELOG.md section, commit, and tag.
 #
 # Usage: scripts/release.sh vX.Y.Z[-prerelease]
 #        scripts/release.sh pkg/client/vX.Y.Z[-prerelease]
@@ -72,8 +72,33 @@ echo "release: building the root module without go.work"
 GOWORK=off go build ./... \
   || die "root module does not build against the pkg/client version in go.mod; release the SDK first (scripts/release.sh pkg/client/vX.Y.Z) and require it"
 
-echo "release: regenerating CHANGELOG.md for $VERSION"
-git cliff --tag "$VERSION" --output CHANGELOG.md
+# The new section covers the commits since the previous release. Older sections are kept
+# as they are, not regenerated. v0.0.1-rc.1..v0.0.2 were tagged on a history that main
+# was later rewritten from, so git cliff on main cannot see them. The base is that tag
+# when it is an ancestor of HEAD, otherwise the commit on HEAD with the same tree.
+prev_tag=$(git -c versionsort.suffix=- tag -l 'v[0-9]*' --sort=-v:refname | head -1)
+if [[ -z "$prev_tag" ]]; then
+  range="HEAD"
+elif git merge-base --is-ancestor "$prev_tag" HEAD; then
+  range="$prev_tag..HEAD"
+else
+  prev_tree=$(git rev-parse "$prev_tag^{tree}")
+  base=$(git log --format='%H %T' HEAD | awk -v t="$prev_tree" '$2 == t { print $1; exit }')
+  [[ -n "$base" ]] || die "$prev_tag is not on this branch and no commit here has its tree"
+  echo "release: $prev_tag is off this history; using its tree twin ${base:0:10} as the base"
+  range="$base..HEAD"
+fi
+
+echo "release: adding the $VERSION section to CHANGELOG.md ($range)"
+section=$(git cliff "$range" --tag "$VERSION" --strip all)
+[[ -n "$section" ]] || die "no changelog entries for $range"
+# Keep the header (everything before the first "## "), drop the old [unreleased] section,
+# put the new section in its place, and keep every released section after it.
+SECTION="$section" awk '
+  /^## / { if (!done) { print ENVIRON["SECTION"]; print ""; done = 1 } skip = /^## \[unreleased\]/ }
+  !skip { print }
+' CHANGELOG.md > CHANGELOG.md.new
+mv CHANGELOG.md.new CHANGELOG.md
 
 if [[ "$DRY_RUN" == "1" ]]; then
   echo "release: DRY_RUN=1, showing planned changes:"

@@ -298,7 +298,7 @@ dev-down: ## Stop Tilt and remove deployed resources
 	  pgrep -x tilt >/dev/null 2>&1 && pkill -9 -x tilt 2>/dev/null || true; \
 	fi
 
-release: ## Cut a release: regen CHANGELOG.md, commit, tag. Usage: make release VERSION=v0.1.0 (SDK: VERSION=pkg/client/v0.1.0)
+release: ## Cut a release: add the CHANGELOG.md section, commit, tag. Usage: make release VERSION=v0.1.0 (SDK: VERSION=pkg/client/v0.1.0)
 	@scripts/release.sh "$(VERSION)"
 
 version: ## Print the version of the ocidex binary (from build-time -ldflags)
