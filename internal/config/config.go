@@ -11,6 +11,7 @@ import (
 	"github.com/caarlos0/env/v11"
 
 	"github.com/pfenerty/ocidex/internal/netguard"
+	"github.com/pfenerty/ocidex/internal/secretbox"
 )
 
 // parseSlogLevel maps a log-level string to its slog.Level (default Info).
@@ -192,6 +193,15 @@ type Config struct {
 	EgressDenyCIDRs    []string `env:"EGRESS_DENY_CIDRS"    envSeparator:","`
 	// EgressPolicy is built from the three fields above by validate.
 	EgressPolicy netguard.Policy
+
+	// Encryption of stored registry credentials (ADR-051).
+	// DATA_ENCRYPTION_KEYS is "<id>:<base64 32 bytes>,..."; every listed key
+	// decrypts, DATA_ENCRYPTION_ACTIVE_KEY names the one that encrypts.
+	DataEncryptionKeys      string `env:"DATA_ENCRYPTION_KEYS"` //nolint:gosec
+	DataEncryptionActiveKey string `env:"DATA_ENCRYPTION_ACTIVE_KEY"`
+	// SecretBox is built from the two fields above by validate. Nil means no
+	// key is configured, which validate allows only outside production.
+	SecretBox *secretbox.Box
 }
 
 // Load reads configuration from environment variables.
@@ -505,6 +515,12 @@ func (c *Config) validate() error {
 	c.RestrictNamespaceCreation = !selfService
 	if c.EgressPolicy, err = egressPolicy(c.EgressAllowPrivate, c.EgressAllowCIDRs, c.EgressDenyCIDRs); err != nil {
 		return err
+	}
+	if c.SecretBox, err = secretbox.Parse(c.DataEncryptionKeys, c.DataEncryptionActiveKey); err != nil {
+		return fmt.Errorf("DATA_ENCRYPTION_KEYS: %w", err)
+	}
+	if c.SecretBox == nil && c.Environment == "production" {
+		return fmt.Errorf("DATA_ENCRYPTION_KEYS is required when ENVIRONMENT=production (ADR-051)")
 	}
 	// Half-configured OIDC is worse than none: the login button would exist
 	// and fail. Discovery itself is validated at startup in cmd/ocidex.

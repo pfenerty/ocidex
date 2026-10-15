@@ -11,6 +11,9 @@ import (
 	"github.com/pfenerty/ocidex/internal/config"
 )
 
+// testKey is a valid base64 AES-256 key for DATA_ENCRYPTION_KEYS.
+const testKey = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
+
 func TestLoad(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -261,13 +264,15 @@ func TestLoad(t *testing.T) {
 		{
 			name: "overrides",
 			env: map[string]string{
-				"PORT":                     "9090",
-				"LOG_LEVEL":                "debug",
-				"ENVIRONMENT":              "production",
-				"DATABASE_URL":             "postgres://prod/ocidex",
-				"DATABASE_MAX_CONNECTIONS": "3",
-				"NATS_STREAM_REPLICAS":     "3",
-				"NATS_URL":                 "nats://nats:4222",
+				"PORT":                       "9090",
+				"LOG_LEVEL":                  "debug",
+				"ENVIRONMENT":                "production",
+				"DATABASE_URL":               "postgres://prod/ocidex",
+				"DATABASE_MAX_CONNECTIONS":   "3",
+				"NATS_STREAM_REPLICAS":       "3",
+				"NATS_URL":                   "nats://nats:4222",
+				"DATA_ENCRYPTION_KEYS":       "k1:" + testKey,
+				"DATA_ENCRYPTION_ACTIVE_KEY": "k1",
 			},
 			check: func(is *is.I, cfg *config.Config) {
 				is.Equal(cfg.Port, 9090)
@@ -276,7 +281,47 @@ func TestLoad(t *testing.T) {
 				is.Equal(cfg.DatabaseMaxConns, 3)
 				is.Equal(cfg.NATSStreamReplicas, 3)
 				is.Equal(cfg.NATSURL, "nats://nats:4222")
+				is.Equal(cfg.SecretBox.ActiveKey(), "k1")
 			},
+		},
+		{
+			name: "no encryption key outside production leaves SecretBox nil",
+			env: map[string]string{
+				"DATABASE_URL": "postgres://localhost/test",
+				"NATS_URL":     "nats://localhost:4222",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.True(cfg.SecretBox == nil)
+			},
+		},
+		{
+			name: "production without an encryption key is rejected",
+			env: map[string]string{
+				"ENVIRONMENT":  "production",
+				"DATABASE_URL": "postgres://localhost/test",
+				"NATS_URL":     "nats://localhost:4222",
+			},
+			wantErr: true,
+		},
+		{
+			name: "malformed DATA_ENCRYPTION_KEYS is rejected",
+			env: map[string]string{
+				"DATABASE_URL":               "postgres://localhost/test",
+				"NATS_URL":                   "nats://localhost:4222",
+				"DATA_ENCRYPTION_KEYS":       "k1:tooshort",
+				"DATA_ENCRYPTION_ACTIVE_KEY": "k1",
+			},
+			wantErr: true,
+		},
+		{
+			name: "active key not in DATA_ENCRYPTION_KEYS is rejected",
+			env: map[string]string{
+				"DATABASE_URL":               "postgres://localhost/test",
+				"NATS_URL":                   "nats://localhost:4222",
+				"DATA_ENCRYPTION_KEYS":       "k1:" + testKey,
+				"DATA_ENCRYPTION_ACTIVE_KEY": "k2",
+			},
+			wantErr: true,
 		},
 	}
 
@@ -294,7 +339,7 @@ func TestLoad(t *testing.T) {
 			os.Unsetenv("NATS_URL") //nolint:errcheck
 
 			// Clear OAuth vars — no longer required by config.Load().
-			for _, k := range []string{"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "SESSION_SECRET", "BOOTSTRAP_ADMINS", "EGRESS_ALLOW_PRIVATE", "EGRESS_ALLOW_CIDRS", "EGRESS_DENY_CIDRS", "SIGNUP_MODE", "SELF_SERVICE_NAMESPACES"} {
+			for _, k := range []string{"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "SESSION_SECRET", "BOOTSTRAP_ADMINS", "EGRESS_ALLOW_PRIVATE", "EGRESS_ALLOW_CIDRS", "EGRESS_DENY_CIDRS", "SIGNUP_MODE", "SELF_SERVICE_NAMESPACES", "DATA_ENCRYPTION_KEYS", "DATA_ENCRYPTION_ACTIVE_KEY", "ENVIRONMENT"} {
 				t.Setenv(k, "")
 				os.Unsetenv(k) //nolint:errcheck
 			}
