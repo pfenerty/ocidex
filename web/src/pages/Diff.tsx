@@ -152,7 +152,7 @@ export default function Diff() {
 
                 <Show when={fromSbomArch() !== undefined && fromSbomArch() !== ""}>
                     <label
-                        style={{ display: "flex", gap: "0.4rem", "align-items": "center", "font-size": "0.85rem", cursor: "pointer", "margin-top": "0.75rem" }}
+                        class="mt-3 flex cursor-pointer items-center gap-[0.4rem] text-[0.85rem]"
                     >
                         <input
                             type="checkbox"

@@ -5,25 +5,25 @@ import { Button } from "~/components/ui";
 
 type Pipeline = "scan" | "enrichment";
 
-const activeStyle = { "border-color": "var(--color-secondary)", color: "var(--color-secondary)" };
+const activeClass = "border-[var(--color-secondary)] text-[var(--color-secondary)]";
 
 /** JobsTab switches between the two job queues; each view owns its own filters. */
 export function JobsTab() {
     const [pipeline, setPipeline] = createSignal<Pipeline>("scan");
     return (
         <div>
-            <div style={{ display: "flex", gap: "0.25rem", "margin-bottom": "1rem" }}>
+            <div class="mb-4 flex gap-1">
                 <Button
                     aria-pressed={pipeline() === "scan"}
                     onClick={() => setPipeline("scan")}
-                    style={pipeline() === "scan" ? activeStyle : {}}
+                    class={pipeline() === "scan" ? activeClass : undefined}
                 >
                     Scan jobs
                 </Button>
                 <Button
                     aria-pressed={pipeline() === "enrichment"}
                     onClick={() => setPipeline("enrichment")}
-                    style={pipeline() === "enrichment" ? activeStyle : {}}
+                    class={pipeline() === "enrichment" ? activeClass : undefined}
                 >
                     Enrichment jobs
                 </Button>

@@ -99,7 +99,7 @@ export function APIKeysTab() {
                         when={caps.length < CAPABILITIES.length}
                         fallback={<span class="badge badge-success">all</span>}
                     >
-                        <span class="flex gap-1" style={{ "flex-wrap": "wrap" }}>
+                        <span class="flex flex-wrap gap-1">
                             <For each={caps}>
                                 {(c) => <span class="badge">{capabilityLabel(c)}</span>}
                             </For>
@@ -139,10 +139,10 @@ export function APIKeysTab() {
         <>
             <Show when={revealedKey()}>
                 <Card tone="success" class="mb-4">
-                    <p style={{ "margin-bottom": "0.5rem" }}>
+                    <p class="mb-2">
                         <strong>API key created.</strong> Copy it now — it will not be shown again.
                     </p>
-                    <code style={{ "word-break": "break-all", display: "block", "margin-bottom": "0.5rem" }}>
+                    <code class="mb-2 block break-all">
                         {revealedKey()}
                     </code>
                     <div class="flex gap-2">
@@ -163,13 +163,13 @@ export function APIKeysTab() {
             <Card class="mb-4">
                 <CardHeader title="Create Bot Token" />
                 <form onSubmit={handleCreate}>
-                    <div style={{ display: "flex", gap: "0.5rem", "align-items": "center", "flex-wrap": "wrap" }}>
+                    <div class="flex flex-wrap items-center gap-2">
                         <input
                             type="text"
                             placeholder="Token name"
                             value={newKeyName()}
                             onInput={(e) => setNewKeyName(e.currentTarget.value)}
-                            style={{ flex: "1", "min-width": "12rem" }}
+                            class="min-w-48 flex-1"
                         />
                         <select
                             aria-label="Key capabilities"
@@ -187,11 +187,11 @@ export function APIKeysTab() {
                     <Show when={preset() === "custom"}>
                         <fieldset
                             data-testid="capability-picker"
-                            style={{ display: "flex", gap: "0.75rem", "flex-wrap": "wrap", "margin-top": "0.75rem", border: "none", padding: "0" }}
+                            class="mt-3 flex flex-wrap gap-3 border-none p-0"
                         >
                             <For each={CAPABILITIES}>
                                 {(c) => (
-                                    <label class="flex gap-1" style={{ "align-items": "center" }}>
+                                    <label class="flex items-center gap-1">
                                         <input
                                             type="checkbox"
                                             checked={custom().includes(c)}
@@ -203,7 +203,7 @@ export function APIKeysTab() {
                             </For>
                         </fieldset>
                     </Show>
-                    <p class="text-muted" style={{ "margin-top": "0.5rem", "margin-bottom": "0" }}>
+                    <p class="text-muted mt-2 mb-0">
                         A key can never exceed what its owner's namespace roles allow — narrowing a
                         member's role narrows every key they hold, with no key change.
                     </p>

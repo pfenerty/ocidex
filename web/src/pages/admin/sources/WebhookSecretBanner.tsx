@@ -13,10 +13,10 @@ export function WebhookSecretBanner(props: { secret: string | null; onDismiss: (
     return (
         <Show when={props.secret}>
             <Card tone="success" class="mb-4">
-                <p style={{ "margin-bottom": "0.5rem" }}>
+                <p class="mb-2">
                     <strong>Webhook secret.</strong> Copy it now — it will not be shown again.
                 </p>
-                <code style={{ "word-break": "break-all", display: "block", "margin-bottom": "0.5rem" }}>
+                <code class="mb-2 block break-all">
                     {props.secret}
                 </code>
                 <div class="flex gap-2">

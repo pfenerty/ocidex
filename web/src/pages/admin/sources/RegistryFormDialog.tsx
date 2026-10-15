@@ -30,7 +30,7 @@ export interface RegistryDialogHandle {
     openEdit: (reg: Registry) => void;
 }
 
-const monoInput = { width: "100%", "font-family": "monospace", "font-size": "0.85rem" };
+const monoInput = "w-full text-[0.85rem] [font-family:monospace]";
 
 export function RegistryFormDialog(props: {
     ref: (handle: RegistryDialogHandle) => void;
@@ -175,7 +175,7 @@ export function RegistryFormDialog(props: {
                 <Card
                     tone="warning"
                     data-testid="managed-notice"
-                    style={{ "margin-bottom": "0.75rem", "font-size": "0.85rem" }}
+                    class="mb-3 text-[0.85rem]"
                 >
                     This registry is configured by Kubernetes
                     (<code>{editManagedRef()}</code>). Its settings are reconciled from
@@ -184,8 +184,8 @@ export function RegistryFormDialog(props: {
                 </Card>
             </Show>
             <form onSubmit={handleSubmit}>
-                <fieldset disabled={editingManaged()} style={{ border: "none", padding: "0", margin: "0" }}>
-                    <div style={{ display: "grid", "grid-template-columns": "1fr 1fr", gap: "0.75rem", "margin-bottom": "0.75rem" }}>
+                <fieldset disabled={editingManaged()} class="m-0 border-none p-0">
+                    <div class="mb-3 grid grid-cols-[1fr_1fr] gap-3">
                         <FormField label="Name">
                             <input
                                 type="text"
@@ -234,13 +234,14 @@ export function RegistryFormDialog(props: {
                             </select>
                         </FormField>
                         <FormField label="URL">
-                            <div style={{ display: "flex", gap: "0.4rem" }}>
+                            <div class="flex gap-[0.4rem]">
                                 <input
                                     type="text"
                                     value={form().url}
                                     onInput={(e) => { setForm(f => ({ ...f, url: e.currentTarget.value })); setTestResult(null); }}
                                     placeholder="registry:5000"
-                                    style={{ flex: "1", ...(TYPE_CAPS[form().type].fixedUrl !== null ? { background: "var(--color-surface-hover)", cursor: "not-allowed" } : {}) }}
+                                    class="flex-1"
+                                    classList={{ "cursor-not-allowed bg-[var(--color-surface-hover)]": TYPE_CAPS[form().type].fixedUrl !== null }}
                                     readOnly={TYPE_CAPS[form().type].fixedUrl !== null}
                                     required
                                 />
@@ -259,11 +260,7 @@ export function RegistryFormDialog(props: {
                                 </Button>
                             </div>
                             <Show when={testResult()}>
-                                <div style={{
-                                    "margin-top": "0.3rem",
-                                    "font-size": "0.8rem",
-                                    color: testResult()?.reachable === true ? "var(--color-success)" : "var(--color-danger)",
-                                }}>
+                                <div class={`mt-[0.3rem] text-[0.8rem] ${testResult()?.reachable === true ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}`}>
                                     {testResult()?.reachable === true ? "✓" : "✗"} {testResult()?.message}
                                 </div>
                             </Show>
@@ -298,7 +295,7 @@ export function RegistryFormDialog(props: {
                                 onInput={(e) => setForm(f => ({ ...f, repositories: e.currentTarget.value }))}
                                 placeholder={form().type === "ghcr" ? "my-org/my-image\nmy-org/other-image" : "buildah/buildah\nbuildah/buildah-testing"}
                                 rows={3}
-                                style={monoInput}
+                                class={monoInput}
                             />
                         </FormField>
                         <FormField label="Repository Patterns" hint="(one per line; filters catalog-discovered repos; empty = all)">
@@ -307,7 +304,7 @@ export function RegistryFormDialog(props: {
                                 onInput={(e) => setForm(f => ({ ...f, repositoryPatterns: e.currentTarget.value }))}
                                 placeholder={"my/project/**\nmy/other/app"}
                                 rows={3}
-                                style={monoInput}
+                                class={monoInput}
                             />
                         </FormField>
                         <FormField label="Tag Patterns" hint={'(one per line; "semver" for semantic versions; empty = all)'}>
@@ -316,7 +313,7 @@ export function RegistryFormDialog(props: {
                                 onInput={(e) => setForm(f => ({ ...f, tagPatterns: e.currentTarget.value }))}
                                 placeholder={"semver\nlatest"}
                                 rows={3}
-                                style={monoInput}
+                                class={monoInput}
                             />
                         </FormField>
                         <FormField label="Scan Mode">
@@ -335,7 +332,7 @@ export function RegistryFormDialog(props: {
                                 </Show>
                             </select>
                             <Show when={!TYPE_CAPS[form().type].webhook && !showPollOptions()}>
-                                <div style={{ "margin-top": "0.3rem", "font-size": "0.8rem", color: "var(--color-danger)" }}>
+                                <div class="mt-[0.3rem] text-[0.8rem] text-[var(--color-danger)]">
                                     Requires REGISTRY_POLLER_ENABLED=true — this registry type only supports polling.
                                 </div>
                             </Show>
@@ -385,7 +382,7 @@ export function RegistryFormDialog(props: {
                                     onInput={(e) => setForm(f => ({ ...f, trustPublicKey: e.currentTarget.value }))}
                                     rows={6}
                                     placeholder={"-----BEGIN PUBLIC KEY-----\n..."}
-                                    style={monoInput}
+                                    class={monoInput}
                                 />
                             </FormField>
                         </Show>
@@ -396,7 +393,7 @@ export function RegistryFormDialog(props: {
                                     value={form().trustIdentity}
                                     onInput={(e) => setForm(f => ({ ...f, trustIdentity: e.currentTarget.value }))}
                                     placeholder="https://github.com/org/repo/.*"
-                                    style={monoInput}
+                                    class={monoInput}
                                 />
                             </FormField>
                             <FormField label="Trust Issuer">
@@ -405,12 +402,12 @@ export function RegistryFormDialog(props: {
                                     value={form().trustIssuer}
                                     onInput={(e) => setForm(f => ({ ...f, trustIssuer: e.currentTarget.value }))}
                                     placeholder="https://token.actions.githubusercontent.com"
-                                    style={monoInput}
+                                    class={monoInput}
                                 />
                             </FormField>
                         </Show>
                     </div>
-                    <div style={{ display: "flex", gap: "1rem", "align-items": "center", "margin-bottom": "0.75rem" }}>
+                    <div class="mb-3 flex items-center gap-4">
                         <CheckboxField
                             label="Allow insecure (HTTP)"
                             checked={form().insecure}

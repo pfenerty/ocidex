@@ -396,7 +396,7 @@ export function GapsTab(props: {
             </Card>
 
             <Show when={props.coverage.unknown + props.coverage.unresolvable === 0}>
-                <p class="text-muted" style={{ "margin-top": "1rem" }}>
+                <p class="text-muted mt-4">
                     All {plural(props.coverage.total, "running container")} matched an ingested
                     SBOM.
                 </p>

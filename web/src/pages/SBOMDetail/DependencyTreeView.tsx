@@ -333,7 +333,7 @@ export function DependencyTreeView(props: {
 
     return (
         <>
-            <div style={{ display: "flex", gap: "0.5rem", padding: "0.5rem 0" }}>
+            <div class="flex gap-2 py-2">
                 <Button size="sm" onClick={expandAll}>Expand all</Button>
                 <Button size="sm" onClick={collapseAll}>Collapse all</Button>
             </div>

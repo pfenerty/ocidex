@@ -29,7 +29,7 @@ export function Modal(props: {
             class={props.size === "sm" ? "modal-sm" : undefined}
             onClose={() => props.onClose?.()}
         >
-            <div style={{ padding: "1.5rem" }}>
+            <div class="p-6">
                 <div class="card-header">
                     <h3>{props.title}</h3>
                 </div>

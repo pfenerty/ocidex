@@ -180,18 +180,13 @@ export function NamespaceGroups(props: {
                 </Show>
 
                 <Show when={uploadRows().length > 0}>
-                    <Card style={{ "margin-top": registryRows().length > 0 ? "0.75rem" : "0" }}>
+                    <Card class={registryRows().length > 0 ? "mt-3" : "mt-0"}>
                         <CardHeader title="Upload sources" count={uploadRows().length} />
                         <For each={uploadRows()}>
                             {(row) => (
                                 <div
                                     data-testid="upload-source"
-                                    style={{
-                                        display: "flex",
-                                        "align-items": "center",
-                                        gap: "0.5rem",
-                                        padding: "0.35rem 0",
-                                    }}
+                                    class="flex items-center gap-2 py-[0.35rem]"
                                 >
                                     <span class="badge">upload</span>
                                     <span class="text-muted text-sm">{row.namespace}</span>

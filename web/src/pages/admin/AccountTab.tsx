@@ -125,14 +125,14 @@ export function AccountTab() {
                 <Show
                     when={linkable().length > 0}
                     fallback={
-                        <p class="text-muted" style={{ "margin-bottom": "0" }}>
+                        <p class="text-muted mb-0">
                             Every issuer this deployment is configured with is already linked to
                             this account.
                         </p>
                     }
                 >
                     <form onSubmit={handleLink}>
-                        <div style={{ display: "flex", gap: "0.5rem", "align-items": "center", "flex-wrap": "wrap" }}>
+                        <div class="flex flex-wrap items-center gap-2">
                             <select
                                 aria-label="Issuer to link"
                                 value={chosen()}
@@ -146,7 +146,7 @@ export function AccountTab() {
                                 Link
                             </Button>
                         </div>
-                        <p class="text-muted" style={{ "margin-top": "0.5rem", "margin-bottom": "0" }}>
+                        <p class="text-muted mt-2 mb-0">
                             You will be sent to the issuer to sign in. An identity another account
                             already holds cannot be linked here — the two accounts are never merged.
                         </p>

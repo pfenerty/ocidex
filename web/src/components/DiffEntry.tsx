@@ -130,12 +130,10 @@ export default function DiffEntry(props: DiffEntryProps) {
                                     .filter(k => k.count > 0)
                                     .map(k => (
                                         <button
-                                            class={`badge ${k.cls}`}
-                                            style={{
-                                                cursor: "pointer",
-                                                border: "none",
-                                                opacity: props.typeFilter !== null && props.typeFilter !== k.key ? "0.45" : "1",
-                                                "font-weight": props.typeFilter === k.key ? "700" : undefined,
+                                            class={`badge ${k.cls} cursor-pointer border-none`}
+                                            classList={{
+                                                "opacity-45": props.typeFilter !== null && props.typeFilter !== k.key,
+                                                "font-bold": props.typeFilter === k.key,
                                             }}
                                             onClick={() => props.onTypeFilterToggle(k.key)}
                                             title={props.typeFilter === k.key ? "Click to clear filter" : `Click to show only ${k.key}`}

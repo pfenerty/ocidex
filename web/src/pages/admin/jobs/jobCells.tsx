@@ -42,7 +42,7 @@ export function workerColumn<T extends JobRow>(): Column<T> {
     return {
         header: "Worker",
         render: (job) => (
-            <span style={{ "font-size": "0.8rem", color: "var(--color-text-muted)", "white-space": "nowrap" }}>
+            <span class="text-[0.8rem] whitespace-nowrap text-[var(--color-text-muted)]">
                 {job.worker_id ?? "—"}
             </span>
         ),
@@ -60,7 +60,7 @@ export function createdColumn<T extends JobRow>(): Column<T> {
 /** DigestLine is the muted second line under an image name. */
 export function DigestLine(props: { digest: string }): JSX.Element {
     return (
-        <code style={{ display: "block", "font-size": "0.75rem", color: "var(--color-text-muted)", "margin-top": "0.15rem" }}>
+        <code class="mt-[0.15rem] block text-[0.75rem] text-[var(--color-text-muted)]">
             {props.digest.replace(/^sha256:/, "").slice(0, 12)}
         </code>
     );
@@ -76,13 +76,13 @@ export function lastErrorColumn<T extends JobRow>(expanded: {
         render: (job) => (
             <Show when={job.last_error}>
                 <button
-                    style={{ cursor: "pointer", "font-size": "0.85rem", background: "none", border: "none", padding: 0, color: "var(--color-secondary)" }}
+                    class="cursor-pointer border-none bg-transparent p-0 text-[0.85rem] text-[var(--color-secondary)]"
                     onClick={() => expanded.toggle(job.id)}
                 >
                     {expanded.has(job.id) ? "Hide error" : "View error"}
                 </button>
                 <Show when={expanded.has(job.id)}>
-                    <code style={{ "font-size": "0.8rem", "word-break": "break-all", display: "block", "margin-top": "0.25rem" }}>
+                    <code class="mt-1 block text-[0.8rem] break-all">
                         {job.last_error}
                     </code>
                 </Show>

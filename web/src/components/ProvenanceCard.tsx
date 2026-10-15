@@ -99,7 +99,7 @@ export default function ProvenanceCard(props: {
 
             <Show when={props.drift}>
                 {(d) => (
-                    <div class="badge badge-warning" style={{ display: "block", "margin-bottom": "0.75rem" }}>
+                    <div class="badge badge-warning mb-3 block">
                         Verification status changed from{" "}
                         <strong>{signingStatusLabel(d().previousStatus)}</strong> to{" "}
                         <strong>{signingStatusLabel(d().newStatus)}</strong> on{" "}

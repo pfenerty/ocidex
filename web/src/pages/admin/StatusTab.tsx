@@ -52,14 +52,14 @@ export function StatusTab() {
     return (
         <QueryBoundary query={query} loading={<Loading />}>
             {() => (
-                <div style={{ display: "flex", "flex-direction": "column", gap: "1.5rem" }}>
+                <div class="flex flex-col gap-6">
 
                     <div>
                         <div class="section-title mb-3">Services</div>
                         <div class="stats-grid">
                             <div class="stat-card">
                                 <div class="stat-label">Enrichment</div>
-                                <div class="stat-value" style={{ color: query.data?.enrichment.enabled === true ? "var(--color-success)" : "var(--color-text-muted)" }}>
+                                <div class={`stat-value ${query.data?.enrichment.enabled === true ? "text-[var(--color-success)]" : "text-[var(--color-text-muted)]"}`}>
                                     {query.data?.enrichment.enabled === true ? "Enabled" : "Disabled"}
                                 </div>
                                 <Show when={query.data?.enrichment.enabled === true}>
@@ -70,19 +70,19 @@ export function StatusTab() {
                             </div>
                             <div class="stat-card">
                                 <div class="stat-label">Scanner</div>
-                                <div class="stat-value" style={{ color: query.data?.scanner.enabled === true ? "var(--color-success)" : "var(--color-text-muted)" }}>
+                                <div class={`stat-value ${query.data?.scanner.enabled === true ? "text-[var(--color-success)]" : "text-[var(--color-text-muted)]"}`}>
                                     {query.data?.scanner.enabled === true ? "Enabled" : "Disabled"}
                                 </div>
                             </div>
                             <div class="stat-card">
                                 <div class="stat-label">Poller</div>
-                                <div class="stat-value" style={{ color: query.data?.scanner.poller_enabled === true ? "var(--color-success)" : "var(--color-text-muted)" }}>
+                                <div class={`stat-value ${query.data?.scanner.poller_enabled === true ? "text-[var(--color-success)]" : "text-[var(--color-text-muted)]"}`}>
                                     {query.data?.scanner.poller_enabled === true ? "Enabled" : "Disabled"}
                                 </div>
                             </div>
                             <div class="stat-card">
                                 <div class="stat-label">NATS</div>
-                                <div class="stat-value" style={{ color: query.data?.nats.enabled === true ? "var(--color-success)" : "var(--color-text-muted)" }}>
+                                <div class={`stat-value ${query.data?.nats.enabled === true ? "text-[var(--color-success)]" : "text-[var(--color-text-muted)]"}`}>
                                     {query.data?.nats.enabled === true ? "Enabled" : "Disabled"}
                                 </div>
                                 <Show when={query.data?.nats.enabled === true}>
@@ -99,13 +99,13 @@ export function StatusTab() {
                         <div class="stats-grid">
                             <div class="stat-card">
                                 <div class="stat-label">Queued</div>
-                                <div class="stat-value" style={{ color: (query.data?.scan_jobs.queued ?? 0) > 0 ? "var(--color-warning)" : "inherit" }}>
+                                <div class={`stat-value ${(query.data?.scan_jobs.queued ?? 0) > 0 ? "text-[var(--color-warning)]" : ""}`}>
                                     {query.data?.scan_jobs.queued ?? 0}
                                 </div>
                             </div>
                             <div class="stat-card">
                                 <div class="stat-label">Running</div>
-                                <div class="stat-value" style={{ color: (query.data?.scan_jobs.running ?? 0) > 0 ? "var(--color-success)" : "inherit" }}>
+                                <div class={`stat-value ${(query.data?.scan_jobs.running ?? 0) > 0 ? "text-[var(--color-success)]" : ""}`}>
                                     {query.data?.scan_jobs.running ?? 0}
                                 </div>
                             </div>
@@ -115,7 +115,7 @@ export function StatusTab() {
                             </div>
                             <div class="stat-card">
                                 <div class="stat-label">Failed (24 h)</div>
-                                <div class="stat-value" style={{ color: (query.data?.scan_jobs.failed_24h ?? 0) > 0 ? "var(--color-danger)" : "inherit" }}>
+                                <div class={`stat-value ${(query.data?.scan_jobs.failed_24h ?? 0) > 0 ? "text-[var(--color-danger)]" : ""}`}>
                                     {query.data?.scan_jobs.failed_24h ?? 0}
                                 </div>
                             </div>
@@ -127,7 +127,7 @@ export function StatusTab() {
                         <div class="stats-grid">
                             <div class="stat-card">
                                 <div class="stat-label">Database</div>
-                                <div class="stat-value" style={{ color: query.data?.db.ok === true ? "var(--color-success)" : "var(--color-danger)" }}>
+                                <div class={`stat-value ${query.data?.db.ok === true ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}`}>
                                     {query.data?.db.ok === true ? "OK" : "Error"}
                                 </div>
                                 <div class="text-muted text-sm mt-1">
