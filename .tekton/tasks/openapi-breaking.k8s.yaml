@@ -1,0 +1,122 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: ocidex-openapi-breaking
+  namespace: ocidex-ci
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+    - name: revision
+      type: string
+  stepTemplate:
+    computeResources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    imagePullPolicy: Always
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    workingDir: $(workspaces.workspace.path)
+  steps:
+    - computeResources:
+        limits:
+          cpu: "1"
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      image: docker.io/tufin/oasdiff:v1.33.0@sha256:6263a96dd2ef0726c54e21fea9b8e1607eac4841add0079324b424c1f52b819c
+      name: oasdiff-breaking
+      onError: continue
+      script: |-
+        #!/bin/sh
+        log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+        [ -e /tekton/home/.exit-code ] || printf '%s' 0 > /tekton/home/.exit-code
+        chmod 0666 /tekton/home/.exit-code 2>/dev/null || true
+        (
+        # Fail the PR when web/openapi.json breaks the /api/v1 contract of the last release
+        # (ADR-052, docs/API_VERSIONING.md). Breaks listed in web/openapi-breaking-accepted.txt
+        # are accepted; that file is the reviewed override.
+        set -e
+
+        # The workspace is owned by another uid, and git-clone fetched only the PR's target
+        # branch, so release tags have to be fetched here.
+        g() { git -c safe.directory='*' "$@"; }
+        g fetch -q --no-tags origin 'refs/tags/v*:refs/tags/v*'
+
+        # Newest release by version, prereleases sorting before their release. Not `git
+        # describe`: v0.0.1-rc.1..v0.0.2 are not ancestors of main (ocidex-tkn9.8).
+        TAG=$(g -c versionsort.suffix=- tag -l 'v[0-9]*' --sort=-v:refname | head -n 1)
+        if [ -z "$TAG" ]; then
+          echo "no release tag yet; nothing to compare against"
+          exit 0
+        fi
+
+        g show "$TAG:web/openapi.json" > /tmp/openapi-base.json
+        echo "comparing web/openapi.json against $TAG"
+        oasdiff breaking /tmp/openapi-base.json web/openapi.json \
+          --fail-on ERR \
+          --err-ignore web/openapi-breaking-accepted.txt
+        echo "OK: no unaccepted breaking changes against $TAG"
+        )
+        __tek_rc=$?
+        if [ "$__tek_rc" -ne 0 ]; then log "error [openapi-breaking/oasdiff-breaking]: exited with status $__tek_rc"; fi
+        __tek_prev=$(cat /tekton/home/.exit-code 2>/dev/null || echo 0)
+        if [ "$__tek_rc" -gt "$__tek_prev" ]; then __tek_prev="$__tek_rc"; fi
+        printf '%s' "$__tek_prev" > /tekton/home/.exit-code
+        exit "$__tek_rc"
+      workingDir: $(workspaces.workspace.path)
+    - env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: token
+              name: github-pipeline-token
+      image: ghcr.io/pfenerty/apko-cicd/base:stable
+      name: report-status
+      script: |-
+        #!/usr/bin/env nu
+        def log [msg: string] { print $"[(date now | format date '%H:%M:%S')] ($msg)" }
+        let contract_code = (try { open --raw /tekton/home/.exit-code | str trim | into int } catch { 1 })
+        # A step that never ran has no file; 0 keeps it out of the max.
+        let step_codes = ([{ name: "oasdiff-breaking", path: "/tekton/steps/step-oasdiff-breaking/exitCode" }] | each { |s| { name: $s.name, code: (try { open --raw $s.path | str trim | into int } catch { 0 }) } })
+        let exit_code = ([$contract_code ...($step_codes | each { |s| $s.code })] | math max)
+        let state = if $exit_code == 0 { "success" } else { "failure" }
+        # Name the first step that failed, so the check says where without opening the logs.
+        let failed_steps = ($step_codes | where code != 0)
+        let desc = if $exit_code == 0 {
+          "Passed"
+        } else if ($failed_steps | is-empty) {
+          $"Failed: exit ($exit_code)"
+        } else {
+          let first = ($failed_steps | first)
+          $"Failed: step ($first.name) exited ($first.code)"
+        }
+
+        log $"report-status [openapi-breaking]: exit-code=($exit_code) state=($state)"
+
+        let url = $"https://api.github.com/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        let body = { state: $state, context: "openapi-breaking", description: $desc }
+
+        log $"report-status [openapi-breaking]: POST ($url)"
+        log $"report-status [openapi-breaking]: body: ($body | to json -r)"
+
+        try {
+          http post $url $body -t application/json -H [
+            Authorization $"token ($env.GITHUB_TOKEN)"
+            Accept "application/vnd.github+json"
+          ]
+          log "report-status [openapi-breaking]: done"
+        } catch { |e|
+          log $"report-status [openapi-breaking]: error: ($e.msg)"
+        }
+        exit $exit_code
+  workspaces:
+    - name: workspace

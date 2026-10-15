@@ -21,6 +21,7 @@ import { goTest } from "./jobs/go-test/spec";
 import { goIntegration } from "./jobs/go-integration/spec";
 import { frontendLint } from "./jobs/frontend-lint/spec";
 import { openapiCheck } from "./jobs/openapi-check/spec";
+import { openapiBreaking } from "./jobs/openapi-breaking/spec";
 import { goVulncheck } from "./jobs/go-vulncheck/spec";
 import { webSecurity } from "./jobs/web-security/spec";
 import { secretsScan } from "./jobs/secrets-scan/spec";
@@ -95,6 +96,7 @@ const prPipeline = new GitPipeline({
     gated(goTest, { when: goChanged }),
     gated(goIntegration, { when: goChanged }),
     gated(openapiCheck, { when: goChanged }),
+    gated(openapiBreaking, { when: goChanged }),
     gated(goVulncheck, { when: goChanged }),
     // web-security is a leaf → gate on the frontend bucket. semgrep is multi-language SAST →
     // run when Go OR frontend code changed (skips docs/CI-only PRs). secrets-scan stays

@@ -1,0 +1,15 @@
+# Breaking changes to /api/v1 accepted on purpose (ADR-052, docs/API_VERSIONING.md).
+# The openapi-breaking PR check passes `oasdiff breaking --err-ignore` this file. A line
+# accepts an error when it holds the operation (METHOD /path) and the change text that
+# oasdiff prints. Generate a line with:
+#   oasdiff breaking <base.json> web/openapi.json --format singleline
+# and drop the "error at ..., in API " prefix and the trailing " [rule-id]. ..." text.
+# After 1.0, an entry here needs a new major version (/api/v2); see API_VERSIONING.md.
+# Clear the file after each release: the release's spec becomes the new base.
+
+# Since v0.0.2 (pre-1.0, minor bump allowed):
+GET /api/v1/artifacts/{id}/versions added the new `artifact_missing` enum value to the `data/items/signingStatus` response property for the response status `200`
+GET /api/v1/auth/keys removed the required property `keys/items/scope` from the response with the `200` status
+GET /api/v1/users removed the required property `users/items/github_username` from the response with the `200` status
+GET /api/v1/users/me removed the required property `github_username` from the response with the `200` status
+PATCH /api/v1/users/{id}/role removed the required property `github_username` from the response with the `200` status
