@@ -371,3 +371,89 @@ func TestRequireCapabilityGlobalViewerFloor(t *testing.T) {
 	router := newCapabilityTestRouter(&fakeRegistryService{registry: testRegistry}, authSvc)
 	is.Equal(deleteRegistryAs(router, "viewer-token"), http.StatusForbidden)
 }
+
+// TestCrossOriginGuard drives OptionalAuthenticate and CrossOriginGuard
+// together, so the auth method the guard reads is the one the real middleware
+// recorded.
+func TestCrossOriginGuard(t *testing.T) {
+	const apiBase = "https://api.ocidex.example"
+	allowed := []string{"https://ocidex.example"}
+
+	tests := []struct {
+		name    string
+		method  string
+		cookie  bool
+		bearer  bool
+		origin  string
+		referer string
+		want    int
+	}{
+		{"cookie POST foreign origin", http.MethodPost, true, false, "https://evil.example", "", http.StatusForbidden},
+		{"cookie POST allowed origin", http.MethodPost, true, false, "https://ocidex.example", "", http.StatusOK},
+		{"cookie POST allowed origin, case and port-free", http.MethodPost, true, false, "HTTPS://OCIDEX.EXAMPLE", "", http.StatusOK},
+		{"cookie POST API's own origin", http.MethodPost, true, false, apiBase, "", http.StatusOK},
+		{"cookie POST no origin or referer", http.MethodPost, true, false, "", "", http.StatusForbidden},
+		{"cookie POST null origin", http.MethodPost, true, false, "null", "", http.StatusForbidden},
+		{"cookie POST allowed referer", http.MethodPost, true, false, "", "https://ocidex.example/registries/1", http.StatusOK},
+		{"cookie POST foreign referer", http.MethodPost, true, false, "", "https://evil.example/x", http.StatusForbidden},
+		{"cookie DELETE foreign origin", http.MethodDelete, true, false, "https://evil.example", "", http.StatusForbidden},
+		{"cookie PATCH foreign origin", http.MethodPatch, true, false, "https://evil.example", "", http.StatusForbidden},
+		{"cookie PUT foreign origin", http.MethodPut, true, false, "https://evil.example", "", http.StatusForbidden},
+		{"cookie GET foreign origin", http.MethodGet, true, false, "https://evil.example", "", http.StatusOK},
+		{"bearer POST foreign origin", http.MethodPost, false, true, "https://evil.example", "", http.StatusOK},
+		{"bearer POST no origin", http.MethodPost, false, true, "", "", http.StatusOK},
+		{"anonymous POST foreign origin", http.MethodPost, false, false, "https://evil.example", "", http.StatusOK},
+	}
+
+	member := service.AuthUser{ID: ownerUUID, Role: "member"}
+	authSvc := &sessionAuthService{
+		fakeAuthService: fakeAuthService{users: map[string]service.AuthUser{"key": member}},
+		sessions:        map[string]service.AuthUser{"sess": member},
+	}
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	handler := api.OptionalAuthenticate(authSvc)(api.CrossOriginGuard(allowed, apiBase)(ok))
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			r := httptest.NewRequest(tt.method, "/api/v1/registries/1/scan", nil)
+			if tt.cookie {
+				r.AddCookie(&http.Cookie{Name: "ocidex_session", Value: "sess"})
+			}
+			if tt.bearer {
+				r.Header.Set("Authorization", "Bearer key")
+			}
+			if tt.origin != "" {
+				r.Header.Set("Origin", tt.origin)
+			}
+			if tt.referer != "" {
+				r.Header.Set("Referer", tt.referer)
+			}
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, r)
+			is.Equal(w.Code, tt.want)
+			if tt.want == http.StatusForbidden {
+				is.Equal(w.Header().Get("Content-Type"), "application/problem+json")
+			}
+		})
+	}
+}
+
+// TestCrossOriginGuardSelfOriginFromRequest checks the fallback when no
+// API_BASE_URL is configured: the API's own origin is the host the request
+// arrived on.
+func TestCrossOriginGuardSelfOriginFromRequest(t *testing.T) {
+	is := is.New(t)
+
+	member := service.AuthUser{ID: ownerUUID, Role: "member"}
+	authSvc := &sessionAuthService{sessions: map[string]service.AuthUser{"sess": member}}
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	handler := api.OptionalAuthenticate(authSvc)(api.CrossOriginGuard(nil, "")(ok))
+
+	r := httptest.NewRequest(http.MethodPost, "http://api.local:8080/api/v1/admin/jobs/retry-failed", nil)
+	r.AddCookie(&http.Cookie{Name: "ocidex_session", Value: "sess"})
+	r.Header.Set("Origin", "http://api.local:8080")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+	is.Equal(w.Code, http.StatusOK)
+}

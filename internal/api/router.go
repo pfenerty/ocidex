@@ -150,8 +150,9 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 	r.Use(WithRequest)
 	r.Use(SlogLogger)
 	r.Use(middleware.Recoverer)
+	allowedOrigins := parseCORSOrigins(corsOrigins, frontendURL)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   parseCORSOrigins(corsOrigins, frontendURL),
+		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 		ExposedHeaders:   []string{"X-Request-Id"},
@@ -159,6 +160,7 @@ func NewRouter(h *Handler, corsOrigins, frontendURL, apiBaseURL string) chi.Rout
 		MaxAge:           300,
 	}))
 	r.Use(OptionalAuthenticate(h.authService))
+	r.Use(CrossOriginGuard(allowedOrigins, apiBaseURL))
 	r.Use(middleware.Timeout(30 * time.Second))
 
 	config := huma.DefaultConfig("OCIDex API", "1.0.0")

@@ -62,6 +62,7 @@ func startLink(t *testing.T, router http.Handler, provider string) *http.Cookie 
 	body := strings.NewReader(fmt.Sprintf(`{"provider":%q}`, provider))
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/identities", body)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "http://localhost:3000")
 	req.AddCookie(sessionCookie())
 
 	rec := httptest.NewRecorder()
@@ -172,6 +173,7 @@ func TestUnlinkRefusesTheLastIdentity(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodDelete,
 		"/api/v1/auth/identities/"+testRegistryID, nil)
+	req.Header.Set("Origin", "http://localhost:3000")
 	req.AddCookie(sessionCookie())
 
 	rec := httptest.NewRecorder()
