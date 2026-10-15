@@ -146,6 +146,22 @@ Controls webhook-triggered and poll-triggered OCI image scanning (runs Syft).
 | `poll` | Poller periodically lists tags and scans new digests. Requires `SCANNER_ENABLED=true` + `REGISTRY_POLLER_ENABLED=true`. |
 | `both` | Both webhook and poll. |
 
+### Egress Policy
+
+Registry URLs are user-supplied, so every process that dials them — the API, `scanner-worker`
+and the enricher workers — checks the resolved IP of each connection against this policy
+(`internal/netguard`). Set the same values on all of them.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `EGRESS_ALLOW_PRIVATE` | `false` | Allow private addresses: `10/8`, `172.16/12`, `192.168/16`, `100.64/10` (CGNAT), `fc00::/7`. Needed to scan a registry inside the cluster or LAN; prefer `EGRESS_ALLOW_CIDRS` naming just that host. |
+| `EGRESS_ALLOW_CIDRS` | `""` | Comma-separated CIDRs (or bare IPs) always reachable. The only way to reach loopback, link-local (`169.254/16`, including cloud metadata) or multicast, which are otherwise always refused. |
+| `EGRESS_DENY_CIDRS` | `""` | Comma-separated CIDRs refused in addition to the built-in ranges, e.g. the cluster's service CIDR when `EGRESS_ALLOW_PRIVATE=true`. An allow entry still wins. |
+
+A malformed CIDR in either list fails startup. `HTTP_PROXY`/`HTTPS_PROXY` are honoured; a
+proxied request is checked against the proxy's address, and the proxy's own egress rules apply
+to the target.
+
 ### Provenance Reverification
 
 Periodically requeues the provenance enrichment job for SBOMs whose last successful check is

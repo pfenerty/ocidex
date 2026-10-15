@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"log/slog"
+	"net/netip"
 	"os"
 	"testing"
 	"time"
@@ -169,6 +170,53 @@ func TestLoad(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "egress defaults deny private",
+			env: map[string]string{
+				"DATABASE_URL": "postgres://localhost/test",
+				"NATS_URL":     "nats://localhost:4222",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.EgressPolicy.AllowPrivate, false)
+				is.Equal(len(cfg.EgressPolicy.AllowCIDRs), 0)
+				is.True(cfg.EgressPolicy.Check(netip.MustParseAddr("10.0.0.1")) != nil)
+			},
+		},
+		{
+			name: "egress settings parse",
+			env: map[string]string{
+				"DATABASE_URL":         "postgres://localhost/test",
+				"NATS_URL":             "nats://localhost:4222",
+				"EGRESS_ALLOW_PRIVATE": "true",
+				"EGRESS_ALLOW_CIDRS":   "127.0.0.0/8, 10.0.0.5",
+				"EGRESS_DENY_CIDRS":    "10.96.0.0/12",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.EgressPolicy.AllowPrivate, true)
+				is.Equal(cfg.EgressPolicy.AllowCIDRs, []netip.Prefix{
+					netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("10.0.0.5/32"),
+				})
+				is.Equal(cfg.EgressPolicy.DenyCIDRs, []netip.Prefix{netip.MustParsePrefix("10.96.0.0/12")})
+			},
+		},
+		{
+			name: "bad EGRESS_ALLOW_CIDRS is rejected",
+			env: map[string]string{
+				"DATABASE_URL":       "postgres://localhost/test",
+				"NATS_URL":           "nats://localhost:4222",
+				"EGRESS_ALLOW_CIDRS": "10.0.0.0/33",
+			},
+			wantErr: true,
+		},
+		{
+			name: "bad EGRESS_DENY_CIDRS is rejected",
+			env: map[string]string{
+				"DATABASE_URL":      "postgres://localhost/test",
+				"NATS_URL":          "nats://localhost:4222",
+				"EGRESS_DENY_CIDRS": "nope",
+			},
+			wantErr: true,
+		},
+		{
 			name: "overrides",
 			env: map[string]string{
 				"PORT":                     "9090",
@@ -204,7 +252,7 @@ func TestLoad(t *testing.T) {
 			os.Unsetenv("NATS_URL") //nolint:errcheck
 
 			// Clear OAuth vars — no longer required by config.Load().
-			for _, k := range []string{"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "SESSION_SECRET", "BOOTSTRAP_ADMINS"} {
+			for _, k := range []string{"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "SESSION_SECRET", "BOOTSTRAP_ADMINS", "EGRESS_ALLOW_PRIVATE", "EGRESS_ALLOW_CIDRS", "EGRESS_DENY_CIDRS"} {
 				t.Setenv(k, "")
 				os.Unsetenv(k) //nolint:errcheck
 			}

@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/caarlos0/env/v11"
+
+	"github.com/pfenerty/ocidex/internal/netguard"
 )
 
 // parseSlogLevel maps a log-level string to its slog.Level (default Info).
@@ -165,6 +167,17 @@ type Config struct {
 	// to true since it already runs unconditionally today; set to false to
 	// disable (e.g. in a test/staging environment without registry access).
 	ProvenanceReverifierEnabled bool `env:"PROVENANCE_REVERIFIER_ENABLED" envDefault:"true"`
+
+	// Egress policy for dials to user-supplied hosts (registries), shared by the
+	// API, scanner worker and enrichers. Loopback, link-local (cloud metadata)
+	// and multicast are always refused unless EGRESS_ALLOW_CIDRS names them;
+	// private ranges are refused unless EGRESS_ALLOW_PRIVATE is set. See
+	// internal/netguard.
+	EgressAllowPrivate bool     `env:"EGRESS_ALLOW_PRIVATE" envDefault:"false"`
+	EgressAllowCIDRs   []string `env:"EGRESS_ALLOW_CIDRS"   envSeparator:","`
+	EgressDenyCIDRs    []string `env:"EGRESS_DENY_CIDRS"    envSeparator:","`
+	// EgressPolicy is built from the three fields above by validate.
+	EgressPolicy netguard.Policy
 }
 
 // Load reads configuration from environment variables.
@@ -460,6 +473,9 @@ func (c *Config) validate() error {
 		return fmt.Errorf("BOOTSTRAP_ADMINS: %w", err)
 	}
 	c.BootstrapAdmins = admins
+	if c.EgressPolicy, err = egressPolicy(c.EgressAllowPrivate, c.EgressAllowCIDRs, c.EgressDenyCIDRs); err != nil {
+		return err
+	}
 	// Half-configured OIDC is worse than none: the login button would exist
 	// and fail. Discovery itself is validated at startup in cmd/ocidex.
 	if c.OIDCIssuerURL != "" && c.OIDCClientID == "" {
@@ -469,6 +485,28 @@ func (c *Config) validate() error {
 		return fmt.Errorf("OIDC_ISSUER_URL is required when OIDC_CLIENT_ID is set")
 	}
 	return nil
+}
+
+// egressPolicy builds a netguard.Policy from the EGRESS_* settings, naming the
+// variable that holds a bad CIDR.
+func egressPolicy(allowPrivate bool, allow, deny []string) (netguard.Policy, error) {
+	allowP, err := netguard.ParsePrefixes(trimAll(allow))
+	if err != nil {
+		return netguard.Policy{}, fmt.Errorf("EGRESS_ALLOW_CIDRS: %w", err)
+	}
+	denyP, err := netguard.ParsePrefixes(trimAll(deny))
+	if err != nil {
+		return netguard.Policy{}, fmt.Errorf("EGRESS_DENY_CIDRS: %w", err)
+	}
+	return netguard.Policy{AllowCIDRs: allowP, DenyCIDRs: denyP, AllowPrivate: allowPrivate}, nil
+}
+
+func trimAll(ss []string) []string {
+	out := make([]string, len(ss))
+	for i, s := range ss {
+		out[i] = strings.TrimSpace(s)
+	}
+	return out
 }
 
 // LogLevel returns the slog.Level corresponding to the configured log level string.
