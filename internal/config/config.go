@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
@@ -66,6 +67,17 @@ type Config struct {
 	// accepted in production, where the cookie is Secure. Empty (a Config not
 	// built by Load) reads as lax.
 	SessionCookieSameSite string `env:"SESSION_COOKIE_SAMESITE" envDefault:"lax"`
+
+	// AuthRateLimit is AUTH_RATE_LIMIT: requests per minute one client IP may
+	// make to the sign-in endpoints. 0 disables the limit, which is also what
+	// a Config not built by Load gets.
+	AuthRateLimit int `env:"AUTH_RATE_LIMIT" envDefault:"30"`
+	// TrustedProxyCIDRs lists the reverse proxies whose X-Forwarded-For is
+	// believed when resolving a client IP for rate limiting. Empty trusts no
+	// proxy, so the direct peer is the client. Parsed into TrustedProxies by
+	// validate.
+	TrustedProxyCIDRs []string `env:"TRUSTED_PROXY_CIDRS" envSeparator:","`
+	TrustedProxies    []netip.Prefix
 
 	// Generic OIDC. Setting OIDC_ISSUER_URL is what enables the provider;
 	// leaving it empty leaves OCIDex GitHub-only, exactly as before.
@@ -539,7 +551,7 @@ func (c *Config) validate() error {
 	if c.SecretBox == nil && c.Environment == envProduction {
 		return fmt.Errorf("DATA_ENCRYPTION_KEYS is required when ENVIRONMENT=production (ADR-051)")
 	}
-	if err := c.validateBrowserPolicy(); err != nil {
+	if err := c.validatePerimeter(); err != nil {
 		return err
 	}
 	// Half-configured OIDC is worse than none: the login button would exist
@@ -553,15 +565,23 @@ func (c *Config) validate() error {
 	return nil
 }
 
-// validateBrowserPolicy checks the settings that govern what a browser on
-// another origin may do with the API: the session cookie's SameSite and the
-// CORS allow-list.
-func (c *Config) validateBrowserPolicy() error {
+// validatePerimeter checks the settings that govern who may reach the API and
+// how: the session cookie's SameSite, the CORS allow-list, and rate limiting.
+func (c *Config) validatePerimeter() error {
 	var err error
 	if c.SessionCookieSameSite, err = sessionCookieSameSite(c.SessionCookieSameSite, c.Environment); err != nil {
 		return err
 	}
-	return validateCORSOrigins(c.CORSAllowedOrigins, c.Environment)
+	if err := validateCORSOrigins(c.CORSAllowedOrigins, c.Environment); err != nil {
+		return err
+	}
+	if c.AuthRateLimit < 0 {
+		return fmt.Errorf("AUTH_RATE_LIMIT must be 0 (disabled) or a positive number of requests per minute, got %d", c.AuthRateLimit)
+	}
+	if c.TrustedProxies, err = netguard.ParsePrefixes(trimAll(c.TrustedProxyCIDRs)); err != nil {
+		return fmt.Errorf("TRUSTED_PROXY_CIDRS: %w", err)
+	}
+	return nil
 }
 
 // validateCORSOrigins checks CORS_ALLOWED_ORIGINS (ocidex-mqav.3). CORS is

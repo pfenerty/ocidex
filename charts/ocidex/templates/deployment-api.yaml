@@ -56,6 +56,12 @@ spec:
               value: {{ .Values.api.env.selfServiceNamespaces | quote }}
             - name: SESSION_COOKIE_SAMESITE
               value: {{ .Values.api.env.sessionCookieSameSite | quote }}
+            - name: AUTH_RATE_LIMIT
+              value: {{ .Values.api.env.authRateLimit | quote }}
+            {{- if .Values.api.env.trustedProxyCidrs }}
+            - name: TRUSTED_PROXY_CIDRS
+              value: {{ .Values.api.env.trustedProxyCidrs | quote }}
+            {{- end }}
             {{- if .Values.api.env.bootstrapAdmins }}
             - name: BOOTSTRAP_ADMINS
               value: {{ .Values.api.env.bootstrapAdmins | quote }}

@@ -109,6 +109,8 @@ authoritative default set.
 | `EGRESS_*` | `egressGuard.*` | defaults (private ranges refused) |
 | `SESSION_MAX_AGE_DAYS` | Default | `7` |
 | `SESSION_COOKIE_SAMESITE` | `api.env.sessionCookieSameSite` | `lax` |
+| `AUTH_RATE_LIMIT` | `api.env.authRateLimit` | `30` |
+| `TRUSTED_PROXY_CIDRS` | `api.env.trustedProxyCidrs` | `""` (omitted) |
 | `AUDIT_LOG_ENABLED` | Default | `true` |
 
 `NATS_URL` is templated from `ocidex.fullname`, so it tracks the release name —

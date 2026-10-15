@@ -69,6 +69,12 @@ api:
     # "none" only when the SPA is served from a different site. See
     # docs/CONFIGURATION.md.
     sessionCookieSameSite: lax
+    # AUTH_RATE_LIMIT: sign-in requests per minute per client IP; "0" disables.
+    authRateLimit: "30"
+    # TRUSTED_PROXY_CIDRS: the ingress/proxy ranges whose X-Forwarded-For is
+    # believed when resolving the client IP. Empty keys every request by the
+    # direct peer — behind an ingress, that is the ingress itself.
+    trustedProxyCidrs: ""
     frontendUrl: ""
     corsAllowedOrigins: ""
     apiBaseUrl: ""

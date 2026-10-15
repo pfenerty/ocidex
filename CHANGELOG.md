@@ -14,6 +14,11 @@ Run `make release VERSION=vX.Y.Z` to cut a release.
   domain. A deployment that serves the SPA from a **different** registrable domain
   must set `SESSION_COOKIE_SAMESITE=none` (chart: `api.env.sessionCookieSameSite`),
   or every API call from the SPA will arrive without its session.
+- **Sign-in endpoints are rate-limited per client IP (ocidex-mqav.5).** 30 requests
+  per minute by default (`AUTH_RATE_LIMIT`, chart `api.env.authRateLimit`; `0`
+  disables). Behind an ingress, set `TRUSTED_PROXY_CIDRS` (chart
+  `api.env.trustedProxyCidrs`) to the ingress's address range, or every visitor
+  shares the ingress's budget.
 - **Cookie-authenticated writes must come from a trusted origin (ocidex-mqav.1).**
   A `POST`/`PUT`/`PATCH`/`DELETE` that authenticates by session cookie is refused
   with 403 unless its `Origin` (or `Referer`) is in `CORS_ALLOWED_ORIGINS` (or

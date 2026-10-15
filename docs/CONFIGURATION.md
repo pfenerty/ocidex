@@ -50,6 +50,8 @@ is required in every case, because it signs the cookies every provider's flow de
 |----------|---------|-------------|
 | `SESSION_SECRET` | — | Cookie signing key. Required. Min 32 bytes. Generate with: `openssl rand -hex 32` |
 | `SESSION_MAX_AGE_DAYS` | `7` | How long login sessions last. |
+| `AUTH_RATE_LIMIT` | `30` | Requests per minute one client IP may make to `/auth/login*`, `/auth/callback*` and `POST /api/v1/auth/identities`. Over the limit: `429` with `Retry-After`. `0` disables. Counters are per API replica. |
+| `TRUSTED_PROXY_CIDRS` | `""` | Comma-separated CIDRs (or bare IPs) of reverse proxies whose `X-Forwarded-For` is believed when resolving a client IP for rate limiting. Only when the direct peer is inside these is the header read, and then the right-most hop outside them is the client. Empty: the direct peer is the client — behind an ingress, every request then shares the ingress's budget, so set this to the ingress's pod/node range. |
 | `SESSION_COOKIE_SAMESITE` | `lax` | Session cookie `SameSite`: `lax`, `strict` or `none`. `none` is accepted only with `ENVIRONMENT=production` (it forces `Secure`). See below. |
 
 `SameSite` is decided by **site**, not origin: two hosts are same-site when they share a

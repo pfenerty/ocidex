@@ -278,6 +278,14 @@ func (h *Handler) sessionCookie(value string, maxAge int) *http.Cookie {
 	}
 }
 
+// authRateLimit is AUTH_RATE_LIMIT, or 0 (disabled) without a config.
+func (h *Handler) authRateLimit() int {
+	if h.cfg == nil {
+		return 0
+	}
+	return h.cfg.AuthRateLimit
+}
+
 // HandleLogout clears the session.
 func (h *Handler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	c, err := r.Cookie(sessionCookieName)
@@ -303,10 +311,16 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 	// URI per client, and to give the multi-provider login UI a stable link
 	// per provider. Both hit the same handler — the path is a shorthand for
 	// ?provider=, not a second code path.
-	r.Get("/auth/login", h.HandleLogin)
-	r.Get("/auth/login/{provider}", h.HandleLogin)
-	r.Get("/auth/callback", h.HandleCallback)
-	r.Get("/auth/callback/{provider}", h.HandleCallback)
+	//
+	// Sign-in is the unauthenticated surface, so it is limited per client IP
+	// (AUTH_RATE_LIMIT, ocidex-mqav.5). Starting an identity link shares the
+	// limit: it is the same trip to the issuer.
+	authLimit := newRateLimiter(h.authRateLimit(), h.clientIPs.ClientIP,
+		"too many sign-in requests from this address; retry later")
+	r.With(authLimit.Middleware).Get("/auth/login", h.HandleLogin)
+	r.With(authLimit.Middleware).Get("/auth/login/{provider}", h.HandleLogin)
+	r.With(authLimit.Middleware).Get("/auth/callback", h.HandleCallback)
+	r.With(authLimit.Middleware).Get("/auth/callback/{provider}", h.HandleCallback)
 	r.Post("/auth/logout", h.HandleLogout)
 
 	authMW := RequireAuthenticated(api)
@@ -482,7 +496,7 @@ func registerAuthOps(r chi.Router, api huma.API, h *Handler) {
 		Description: "Returns a URL to navigate to, and sets the state cookie that makes the " +
 			"resulting callback a link rather than a sign-in.",
 		Tags:        []string{tagAuth},
-		Middlewares: huma.Middlewares{authMW, writeMW},
+		Middlewares: huma.Middlewares{authMW, writeMW, authLimit.Huma(api)},
 	}, h.StartIdentityLink)
 
 	huma.Register(api, huma.Operation{

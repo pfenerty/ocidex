@@ -223,6 +223,47 @@ func TestLoad(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "auth rate limit defaults to 30 and trusts no proxy",
+			env: map[string]string{
+				"DATABASE_URL": "postgres://localhost/test",
+				"NATS_URL":     "nats://localhost:4222",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.AuthRateLimit, 30)
+				is.Equal(len(cfg.TrustedProxies), 0)
+			},
+		},
+		{
+			name: "TRUSTED_PROXY_CIDRS parses CIDRs and bare addresses",
+			env: map[string]string{
+				"DATABASE_URL":        "postgres://localhost/test",
+				"NATS_URL":            "nats://localhost:4222",
+				"TRUSTED_PROXY_CIDRS": "10.0.0.0/8, 192.0.2.1",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(len(cfg.TrustedProxies), 2)
+				is.Equal(cfg.TrustedProxies[1].String(), "192.0.2.1/32")
+			},
+		},
+		{
+			name: "malformed TRUSTED_PROXY_CIDRS is rejected",
+			env: map[string]string{
+				"DATABASE_URL":        "postgres://localhost/test",
+				"NATS_URL":            "nats://localhost:4222",
+				"TRUSTED_PROXY_CIDRS": "10.0.0.0/33",
+			},
+			wantErr: true,
+		},
+		{
+			name: "negative AUTH_RATE_LIMIT is rejected",
+			env: map[string]string{
+				"DATABASE_URL":    "postgres://localhost/test",
+				"NATS_URL":        "nats://localhost:4222",
+				"AUTH_RATE_LIMIT": "-1",
+			},
+			wantErr: true,
+		},
+		{
 			name: "OIDC off by default",
 			env: map[string]string{
 				"DATABASE_URL": "postgres://localhost/test",
