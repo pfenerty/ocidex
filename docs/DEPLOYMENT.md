@@ -123,6 +123,16 @@ different host. `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS`, `API_BASE_URL` and
 
 Source of truth: [`internal/config/config.go`](../internal/config/config.go).
 
+**Security headers.** The web image (`web/nginx.conf`) sends a
+Content-Security-Policy, `X-Content-Type-Options: nosniff`, `Referrer-Policy` and
+`Permissions-Policy`; the API sends `nosniff` everywhere and `Cache-Control:
+no-store` on `/auth/*`, `/api/v1/auth/*` and `/api/v1/users/me*`. The CSP's
+`connect-src 'self'` assumes the SPA reaches the API on its own origin, as the
+HTTPRoute arranges — a build with `VITE_API_URL` pointing elsewhere must add that
+origin. **HSTS is not sent by either**: both listen on plain http behind the TLS
+terminator, so set `Strict-Transport-Security` there (the ingress/Gateway, or
+Cloudflare's HSTS setting).
+
 **Hardening a private installation.** The defaults suit a public, open
 instance: anyone your identity provider vouches for — any GitHub account, with
 GitHub — gets an account on first sign-in, and any signed-in user may create a
