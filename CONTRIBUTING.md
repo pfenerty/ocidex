@@ -80,6 +80,11 @@ The frontend TypeScript types are generated from the OpenAPI spec:
 make openapi
 ```
 
+## Reporting Security Issues
+
+Do not open a public issue or pull request for a vulnerability. Follow
+[SECURITY.md](SECURITY.md) to report it privately.
+
 ## Architecture Context
 
 Before proposing significant changes, review the [Architecture Decision Records](docs/adr/). These document the rationale behind every major technical choice. If your change would conflict with an existing ADR, open a discussion first — the ADR might need updating, or the change might need a different approach.
