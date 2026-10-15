@@ -134,13 +134,6 @@ const (
 	// takes a resolver, so writing a body resolver would move these to
 	// capEnforced.
 	capRequestGated capProbe = "request-gated"
-
-	// capNoNamespace: the fake resolves no namespace for the target, and
-	// RequireCapability deliberately falls through to the member/admin floor
-	// when the row hangs from none — the legacy arm that outlives the nullable
-	// sbom.namespace_id. So the probe observes the floor, not the capability
-	// rule.
-	capNoNamespace capProbe = "no-namespace"
 )
 
 // capProbes must name every ClassCapability operation.
@@ -161,6 +154,8 @@ var capProbes = map[string]capProbe{
 	"list-namespace-members":        capEnforced,
 	"set-namespace-member":          capEnforced,
 	"remove-namespace-member":       capEnforced,
+	"delete-artifact":               capEnforced,
+	"delete-sbom":                   capEnforced,
 
 	"create-cluster":        capRequestGated,
 	"update-cluster":        capRequestGated,
@@ -169,9 +164,6 @@ var capProbes = map[string]capProbe{
 	"update-source":         capRequestGated,
 
 	"ingest-sbom": capRequestGated,
-
-	"delete-artifact": capNoNamespace,
-	"delete-sbom":     capNoNamespace,
 }
 
 // verdict is what a persona's probe of one operation produced, reduced to the
@@ -240,13 +232,6 @@ func expectFor(r api.AuthMatrixRow, p persona) (verdict, bool) {
 		switch capProbes[r.OperationID] {
 		case capEnforced:
 			return capabilityVerdict(r.Rule.Cap, p), true
-		case capNoNamespace:
-			// The capability check falls through, but the member/admin floor
-			// still holds and is worth pinning: it is what keeps a viewer out.
-			if isAdmin || isMember {
-				return admitted, true
-			}
-			return forbidden, true
 		case capRequestGated:
 			// The request is answered before the capability check, for every
 			// persona.

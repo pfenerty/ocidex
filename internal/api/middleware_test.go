@@ -323,6 +323,36 @@ func TestRequireCapability(t *testing.T) {
 	}
 }
 
+// TestRequireCapabilityNoNamespace: a resolver that yields no namespace used to
+// admit any member (ocidex-avsz.3). No membership covers such a resource, so
+// only an admin passes.
+func TestRequireCapabilityNoNamespace(t *testing.T) {
+	unNamespaced := testRegistry
+	unNamespaced.NamespaceID = ""
+	tests := []struct {
+		name       string
+		user       service.AuthUser
+		wantStatus int
+	}{
+		{name: "member is forbidden", user: service.AuthUser{ID: ownerUUID, Role: "member"}, wantStatus: http.StatusForbidden},
+		{name: "admin passes", user: service.AuthUser{ID: otherUUID, Role: "admin"}, wantStatus: http.StatusNoContent},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			is := is.New(t)
+			authSvc := &fakeAuthService{
+				users: map[string]service.AuthUser{"token": tt.user},
+				// A grant elsewhere must not leak onto the un-namespaced row.
+				grants: map[string]map[string]authz.Role{
+					uuidString(tt.user.ID): {mwNamespaceID: authz.RoleOwner},
+				},
+			}
+			router := newCapabilityTestRouter(&fakeRegistryService{registry: unNamespaced}, authSvc)
+			is.Equal(deleteRegistryAs(router, "token"), tt.wantStatus)
+		})
+	}
+}
+
 // TestRequireCapabilityGlobalViewerFloor pins the one rule a namespace owner
 // cannot override: an installation-wide viewer given a namespace role still
 // gets no capability beyond reading.

@@ -19,9 +19,7 @@ import (
 // and it would pass every test written for the caller it was added for.
 //
 // An empty namespaceID means the resource has no namespace, which no membership
-// can cover: only a global admin gets through. Callers that must keep admitting
-// members for un-namespaced legacy rows say so themselves rather than having it
-// hidden here.
+// can cover: only a global admin gets through.
 //
 // The key ceiling is applied first and outside authz.Allow, which is the only
 // order that is correct: Allow short-circuits an installation admin, and an

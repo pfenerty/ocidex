@@ -29,8 +29,7 @@ func memberAuthSvc() *fakeAuthService {
 }
 
 // memberRouter returns a router with a wired member auth service (no registry
-// service), so RequireMember and RequireCapability both pass for authenticated
-// members when the resource hangs from no namespace.
+// service), where "member-token" is a maintainer in testNamespaceID.
 func memberRouter(sbomSvc service.SBOMService) http.Handler {
 	return newTestRouterWithAuth(sbomSvc, &fakeSearchService{}, memberAuthSvc())
 }
@@ -130,21 +129,24 @@ func TestIngestSBOM_Unauthenticated(t *testing.T) {
 
 func TestDeleteSBOM(t *testing.T) {
 	tests := []struct {
-		name       string
-		id         string
-		wantStatus int
+		name        string
+		id          string
+		namespaceID string
+		wantStatus  int
 	}{
-		// fakeSBOMService.GetSBOMNamespaceID returns zero UUID → no namespace → member allowed
-		{"valid uuid", "01020304-0506-0708-090a-0b0c0d0e0f10", http.StatusNoContent},
+		{"maintainer in its namespace", "01020304-0506-0708-090a-0b0c0d0e0f10", testNamespaceID, http.StatusNoContent},
+		{"member of another namespace", "01020304-0506-0708-090a-0b0c0d0e0f10", mwNamespaceID, http.StatusForbidden},
+		// A resource hanging from no namespace is admin-only (ocidex-avsz.3).
+		{"no namespace", "01020304-0506-0708-090a-0b0c0d0e0f10", "", http.StatusForbidden},
 		// invalid UUID: RequireCapability's resolve parses the id before huma's
 		// format check runs, so it answers 404 rather than 422.
-		{"bad uuid", "not-a-uuid", http.StatusNotFound},
+		{"bad uuid", "not-a-uuid", testNamespaceID, http.StatusNotFound},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			is := is.New(t)
-			router := memberRouter(&fakeSBOMService{})
+			router := memberRouter(&fakeSBOMService{namespaceID: tt.namespaceID})
 
 			r := httptest.NewRequest(http.MethodDelete, "/api/v1/sboms/"+tt.id, nil)
 			r.Header.Set("Authorization", "Bearer member-token")
@@ -169,21 +171,24 @@ func TestDeleteSBOM_Unauthenticated(t *testing.T) {
 
 func TestDeleteArtifact(t *testing.T) {
 	tests := []struct {
-		name       string
-		id         string
-		wantStatus int
+		name        string
+		id          string
+		namespaceID string
+		wantStatus  int
 	}{
-		// fakeSBOMService.GetArtifactNamespaceID returns zero UUID → no namespace → member allowed
-		{"valid uuid", "01020304-0506-0708-090a-0b0c0d0e0f10", http.StatusNoContent},
+		{"maintainer in its namespace", "01020304-0506-0708-090a-0b0c0d0e0f10", testNamespaceID, http.StatusNoContent},
+		{"member of another namespace", "01020304-0506-0708-090a-0b0c0d0e0f10", mwNamespaceID, http.StatusForbidden},
+		// A resource hanging from no namespace is admin-only (ocidex-avsz.3).
+		{"no namespace", "01020304-0506-0708-090a-0b0c0d0e0f10", "", http.StatusForbidden},
 		// invalid UUID: RequireCapability's resolve parses the id before huma's
 		// format check runs, so it answers 404 rather than 422.
-		{"bad uuid", "not-a-uuid", http.StatusNotFound},
+		{"bad uuid", "not-a-uuid", testNamespaceID, http.StatusNotFound},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			is := is.New(t)
-			router := memberRouter(&fakeSBOMService{})
+			router := memberRouter(&fakeSBOMService{namespaceID: tt.namespaceID})
 
 			r := httptest.NewRequest(http.MethodDelete, "/api/v1/artifacts/"+tt.id, nil)
 			r.Header.Set("Authorization", "Bearer member-token")
