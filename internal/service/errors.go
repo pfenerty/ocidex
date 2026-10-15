@@ -16,6 +16,13 @@ func isUniqueViolation(err error) bool {
 var (
 	ErrNotFound = errors.New("not found")
 	ErrConflict = errors.New("conflict")
+	// ErrNamespaceExists reports that a namespace named for creation already
+	// exists. Whether the caller may use it instead is for the API layer to
+	// decide.
+	ErrNamespaceExists = errors.New("namespace exists")
+	// ErrSignupClosed reports a first sign-in refused because the installation
+	// does not provision new accounts (SIGNUP_MODE=existing).
+	ErrSignupClosed = errors.New("sign-up is closed")
 )
 
 // ValidationError represents a client-supplied input error.

@@ -16,8 +16,12 @@ import (
 // Fake SBOMService implementations
 // ---------------------------------------------------------------------------
 
-// fakeSBOMService is a stub that always succeeds.
-type fakeSBOMService struct{}
+// fakeSBOMService is a stub that always succeeds. namespaceID is the namespace
+// every SBOM and artifact resolves to; empty means none, which RequireCapability
+// admits for an admin only.
+type fakeSBOMService struct {
+	namespaceID string
+}
 
 func (f *fakeSBOMService) Ingest(_ context.Context, _ *cdx.BOM, _ []byte, _ service.IngestParams) (pgtype.UUID, error) {
 	return pgtype.UUID{
@@ -39,11 +43,19 @@ func (f *fakeSBOMService) ListDigestsBySource(_ context.Context, _ string) (map[
 }
 
 func (f *fakeSBOMService) GetSBOMNamespaceID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
-	return pgtype.UUID{}, nil
+	return f.namespace()
 }
 
 func (f *fakeSBOMService) GetArtifactNamespaceID(_ context.Context, _ pgtype.UUID) (pgtype.UUID, error) {
-	return pgtype.UUID{}, nil
+	return f.namespace()
+}
+
+func (f *fakeSBOMService) namespace() (pgtype.UUID, error) {
+	var id pgtype.UUID
+	if f.namespaceID == "" {
+		return id, nil
+	}
+	return id, id.Scan(f.namespaceID)
 }
 
 // failSBOMService is a stub that always returns an error.

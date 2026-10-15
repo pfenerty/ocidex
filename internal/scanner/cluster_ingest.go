@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/pfenerty/ocidex/internal/netguard"
 	"github.com/pfenerty/ocidex/internal/service"
 )
 
@@ -19,23 +20,24 @@ const clusterIngestTimeout = 15 * time.Second
 // running (ADR-044). It satisfies service.RunningImageSubmitter.
 type ClusterIngestor struct {
 	submitter Submitter
+	egress    netguard.Policy
 	logger    *slog.Logger
 }
 
 // NewClusterIngestor constructs a ClusterIngestor over an existing submitter,
 // so cluster ingest shares the scan queue — and its (registry, digest)
 // idempotency key — with the catalog walk rather than opening a second path.
-func NewClusterIngestor(sub Submitter, logger *slog.Logger) *ClusterIngestor {
+func NewClusterIngestor(sub Submitter, egress netguard.Policy, logger *slog.Logger) *ClusterIngestor {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &ClusterIngestor{submitter: sub, logger: logger}
+	return &ClusterIngestor{submitter: sub, egress: egress, logger: logger}
 }
 
 // SubmitForRunningImage queues a scan for one running image, returning the
 // number of scan jobs enqueued.
 func (c *ClusterIngestor) SubmitForRunningImage(ctx context.Context, reg service.Registry, repo, digest, tag string) (int, error) {
-	return SubmitForRunningImage(ctx, reg, repo, digest, tag, c.submitter, c.logger)
+	return SubmitForRunningImage(ctx, reg, repo, digest, tag, c.submitter, c.egress, c.logger)
 }
 
 // SubmitForRunningImage queues a scan for one image a cluster is running.
@@ -49,7 +51,7 @@ func (c *ClusterIngestor) SubmitForRunningImage(ctx context.Context, reg service
 //
 // Returns the number of jobs enqueued: one for a single-arch image, one per
 // platform for an index, zero when the registry declines the repository.
-func SubmitForRunningImage(ctx context.Context, reg service.Registry, repo, digest, tag string, sub Submitter, logger *slog.Logger) (int, error) {
+func SubmitForRunningImage(ctx context.Context, reg service.Registry, repo, digest, tag string, sub Submitter, egress netguard.Policy, logger *slog.Logger) (int, error) {
 	if sub == nil {
 		return 0, fmt.Errorf("no scan submitter configured")
 	}
@@ -59,7 +61,7 @@ func SubmitForRunningImage(ctx context.Context, reg service.Registry, repo, dige
 	if !reg.Enabled {
 		return 0, nil
 	}
-	if !reg.MatchesRepository(repo) {
+	if !reg.ClaimsRepository(repo) {
 		return 0, nil
 	}
 	if repo == "" || digest == "" {
@@ -68,10 +70,7 @@ func SubmitForRunningImage(ctx context.Context, reg service.Registry, repo, dige
 
 	scheme, host := registrySchemeHost(reg)
 	baseURL := scheme + "://" + host
-	client := &http.Client{
-		Timeout:   clusterIngestTimeout,
-		Transport: newOCITokenTransport(derefStr(reg.AuthUsername), derefStr(reg.AuthToken)),
-	}
+	client := registryClient(egress, clusterIngestTimeout, derefStr(reg.AuthUsername), derefStr(reg.AuthToken))
 
 	info, err := ociHeadManifest(ctx, client, baseURL, repo, digest)
 	if err != nil {

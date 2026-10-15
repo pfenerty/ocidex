@@ -39,6 +39,7 @@ spec:
             - secretRef:
                 name: {{ .Values.existingSecret }}
           env:
+            {{- include "ocidex.egressGuardEnv" . | nindent 12 }}
             - name: PORT
               value: "8080"
             - name: NATS_URL
@@ -49,6 +50,14 @@ spec:
               value: {{ .Values.api.env.environment | quote }}
             - name: LOG_LEVEL
               value: {{ .Values.api.env.logLevel | quote }}
+            - name: SIGNUP_MODE
+              value: {{ .Values.api.env.signupMode | quote }}
+            - name: SELF_SERVICE_NAMESPACES
+              value: {{ .Values.api.env.selfServiceNamespaces | quote }}
+            {{- if .Values.api.env.bootstrapAdmins }}
+            - name: BOOTSTRAP_ADMINS
+              value: {{ .Values.api.env.bootstrapAdmins | quote }}
+            {{- end }}
             {{- if .Values.api.env.frontendUrl }}
             - name: FRONTEND_URL
               value: {{ .Values.api.env.frontendUrl | quote }}

@@ -24,16 +24,20 @@ type ghcrDiscoverer struct {
 	authToken string
 }
 
-func (g *ghcrDiscoverer) DiscoverManifests(ctx context.Context, _ *http.Client, _, repo string) ([]DiscoveredManifest, error) {
+// DiscoverManifests queries api.github.com rather than the registry, so it
+// sends none of the registry client's auth handling — only its guarded base
+// transport.
+func (g *ghcrDiscoverer) DiscoverManifests(ctx context.Context, client *http.Client, _, repo string) ([]DiscoveredManifest, error) {
+	api := &http.Client{Transport: baseTransport(client)}
 	owner, name, ok := splitGHCRRepo(repo)
 	if !ok {
 		return nil, fmt.Errorf("cannot split GHCR repo %q into owner/name", repo)
 	}
 
 	// Try org endpoint first, fall back to user endpoint.
-	versions, err := g.listVersions(ctx, "orgs", owner, name)
+	versions, err := g.listVersions(ctx, api, "orgs", owner, name)
 	if err != nil {
-		versions, err = g.listVersions(ctx, "users", owner, name)
+		versions, err = g.listVersions(ctx, api, "users", owner, name)
 		if err != nil {
 			return nil, err
 		}
@@ -41,8 +45,7 @@ func (g *ghcrDiscoverer) DiscoverManifests(ctx context.Context, _ *http.Client, 
 	return versions, nil
 }
 
-func (g *ghcrDiscoverer) listVersions(ctx context.Context, ownerType, owner, name string) ([]DiscoveredManifest, error) {
-	client := &http.Client{}
+func (g *ghcrDiscoverer) listVersions(ctx context.Context, client *http.Client, ownerType, owner, name string) ([]DiscoveredManifest, error) {
 	endpoint := fmt.Sprintf("https://api.github.com/%s/%s/packages/container/%s/versions?per_page=100",
 		ownerType, owner, name)
 

@@ -41,6 +41,8 @@ flox activate -- make dev-up
 
 Tilt builds the API, worker, and web images, pushes them to the local registry, and applies the `charts/ocidex` Helm chart rendered with `tilt/values-dev.yaml` plus the dev-only Postgres in `tilt/postgres.yaml`. It watches source files and rebuilds on change.
 
+`tilt/values-dev.yaml` sets `egressGuard.allowPrivate: true`, because the dev registry is reached at the host bridge address `10.5.0.1:5005` and the egress guard refuses private addresses by default (see [CONFIGURATION.md](CONFIGURATION.md#egress-policy)). A registry registered as `localhost:5005` is refused even so — loopback inside a pod is the pod itself; register it as `10.5.0.1:5005`.
+
 Tilt UI: [http://localhost:10350](http://localhost:10350)
 
 ### Access the App

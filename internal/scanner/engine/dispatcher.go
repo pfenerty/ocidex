@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/jobqueue"
+	"github.com/pfenerty/ocidex/internal/netguard"
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
 )
@@ -25,19 +26,22 @@ type Dispatcher struct {
 	// maxImageBytes is the compressed-layer ceiling above which an image is
 	// rejected without being pulled. 0 disables the check.
 	maxImageBytes int64
+	// egress guards the dispatcher's own registry reads (metadata and size).
+	egress netguard.Policy
 }
 
 // NewDispatcher creates a Dispatcher backed by the given Syft scanner and SBOM
 // service. maxImageBytes rejects images whose manifest advertises more than
-// that many compressed layer bytes; pass 0 to scan regardless of size.
-func NewDispatcher(sc scanner.Scanner, sbomSvc service.SBOMService, maxImageBytes int64, logger *slog.Logger) *Dispatcher {
-	return &Dispatcher{scanner: sc, sbomSvc: sbomSvc, maxImageBytes: maxImageBytes, logger: logger}
+// that many compressed layer bytes; pass 0 to scan regardless of size. egress
+// guards the registry reads the dispatcher makes before handing off to sc.
+func NewDispatcher(sc scanner.Scanner, sbomSvc service.SBOMService, maxImageBytes int64, egress netguard.Policy, logger *slog.Logger) *Dispatcher {
+	return &Dispatcher{scanner: sc, sbomSvc: sbomSvc, maxImageBytes: maxImageBytes, egress: egress, logger: logger}
 }
 
 // ProcessOne scans the image described by req and ingests the resulting SBOM.
 // Returns the created SBOM id on success.
 func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (pgtype.UUID, error) {
-	req = scanner.FillMetadata(ctx, req)
+	req = scanner.FillMetadata(ctx, req, d.egress)
 
 	// Size gate before the pull, not after: syft unpacks every layer, so an
 	// image past what this pod's memory limit can hold gets the container
@@ -46,7 +50,12 @@ func (d *Dispatcher) ProcessOne(ctx context.Context, req scanner.ScanRequest) (p
 	// the worker again — and any scan sharing the pod dies with it. Failing
 	// here is permanent because a too-big image is still too big next hour.
 	if d.maxImageBytes > 0 {
-		if size, known := scanner.ImageLayerBytes(ctx, req); known && size > d.maxImageBytes {
+		size, known, err := scanner.ImageLayerBytes(ctx, req, d.egress)
+		if err != nil {
+			// A refused address is refused on every retry.
+			return pgtype.UUID{}, jobqueue.Permanent(err)
+		}
+		if known && size > d.maxImageBytes {
 			return pgtype.UUID{}, jobqueue.Permanent(fmt.Errorf(
 				"image too large to scan: %d compressed layer bytes exceeds SCANNER_MAX_IMAGE_BYTES=%d",
 				size, d.maxImageBytes))

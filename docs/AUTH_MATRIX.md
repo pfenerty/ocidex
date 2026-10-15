@@ -176,7 +176,7 @@ cookies carry no ceiling and are unaffected.
 | Method | Path | Operation | Class | Capability | Write | Notes |
 |---|---|---|---|---|---|---|
 | GET | `/api/v1/namespaces` | `list-namespaces` | `authenticated` | — |  | Own plus public namespaces. |
-| POST | `/api/v1/namespaces` | `create-namespace` | `authenticated` | — | ✓ | Owned by the calling user. |
+| POST | `/api/v1/namespaces` | `create-namespace` | `authenticated` | — | ✓ | Owned by the calling user. With SELF_SERVICE_NAMESPACES=false a global viewer gets 403, checked in the handler. |
 | GET | `/api/v1/namespaces/by-name/{name}` | `get-namespace-by-name` | `authenticated` | — |  | A private namespace the caller does not own 404s. |
 | DELETE | `/api/v1/namespaces/{id}` | `delete-namespace` | `capability` | `delete_namespace` | ✓ | delete_namespace capability check in handler; deletes everything ingested under the namespace. |
 | GET | `/api/v1/namespaces/{id}` | `get-namespace` | `authenticated` | — |  | A private namespace the caller does not own 404s, so its existence is not leaked. |
@@ -190,7 +190,7 @@ cookies carry no ceiling and are unaffected.
 | Method | Path | Operation | Class | Capability | Write | Notes |
 |---|---|---|---|---|---|---|
 | GET | `/api/v1/registries` | `list-registries` | `authenticated` | — |  | Own plus public registries. |
-| POST | `/api/v1/registries` | `create-registry` | `authenticated` | — | ✓ | Creates the namespace and source beneath it, owned by the caller. |
+| POST | `/api/v1/registries` | `create-registry` | `authenticated` | — | ✓ | A new or omitted `namespace` is created and owned by the caller. Naming an existing namespace requires manage_source in it, checked in the handler; a non-member gets 404. Minting a namespace with SELF_SERVICE_NAMESPACES=false is 403 for a global viewer. |
 | GET | `/api/v1/registries/by-name/{name}` | `get-registry-by-name` | `authenticated` | — |  | A private registry the caller does not own 404s. |
 | GET | `/api/v1/registries/drift-feed` | `list-recent-drift` | `authenticated` | — |  | Rows filtered via visible_namespace_ids; admins see every namespace. |
 | POST | `/api/v1/registries/test-connection` | `test-registry-connection` | `admin` | — | ✓ | Dials an arbitrary caller-supplied host from inside the cluster. |

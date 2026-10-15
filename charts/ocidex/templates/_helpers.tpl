@@ -80,3 +80,20 @@ Usage: {{ include "ocidex.image" (dict "root" . "name" "api") }}
 {{ $base }}:{{ .root.Chart.AppVersion }}
 {{- end -}}
 {{- end }}
+
+{{/*
+EGRESS_* for the processes that dial user-supplied registries: the API, the
+scanner worker and the enrichers (internal/netguard).
+*/}}
+{{- define "ocidex.egressGuardEnv" -}}
+- name: EGRESS_ALLOW_PRIVATE
+  value: {{ .Values.egressGuard.allowPrivate | quote }}
+{{- with .Values.egressGuard.allowCidrs }}
+- name: EGRESS_ALLOW_CIDRS
+  value: {{ join "," . | quote }}
+{{- end }}
+{{- with .Values.egressGuard.denyCidrs }}
+- name: EGRESS_DENY_CIDRS
+  value: {{ join "," . | quote }}
+{{- end }}
+{{- end }}

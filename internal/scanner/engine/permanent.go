@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
+
+	"github.com/pfenerty/ocidex/internal/netguard"
 )
 
 // permanentScanErrorSubstrings identify scan failures that will recur
@@ -31,6 +33,12 @@ var permanentScanErrorSubstrings = []string{
 func isPermanentScanError(err error) bool {
 	if err == nil {
 		return false
+	}
+	// The egress policy refuses the same address on every retry. Stereoscope
+	// flattens the dial error into text, so the sentinel's message is matched
+	// too.
+	if errors.Is(err, netguard.ErrDenied) || strings.Contains(err.Error(), netguard.ErrDenied.Error()) {
+		return true
 	}
 	var terr *transport.Error
 	if errors.As(err, &terr) && terr.StatusCode == http.StatusNotFound {

@@ -4,15 +4,20 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/netip"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/pfenerty/ocidex/internal/authz"
+	"github.com/pfenerty/ocidex/internal/netguard"
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
 	"github.com/pfenerty/ocidex/internal/trust"
@@ -90,6 +95,68 @@ func ensureWebhookSecret(scanMode string, provided *string) (secret *string, gen
 // validateVerificationConfig rejects a keyless verification_mode that's missing the
 // trust_identity/trust_issuer it needs to match a Fulcio certificate against, and a
 // public_key verification_mode that's missing trust_public_key.
+// validateRegistryURL checks the shape of a user-supplied registry address
+// (ocidex-avsz.8): an optional http/https scheme (http only with insecure), a
+// host with an optional numeric port, and nothing else — credentials belong in
+// auth_username/auth_token, and a path, query or fragment would be silently
+// dropped or mangled by the scanner. A literal IP the egress policy refuses is
+// rejected here so the user hears about it now rather than from a failed scan;
+// the dial-time guard in internal/netguard remains the real enforcement, since a
+// hostname can resolve anywhere.
+func validateRegistryURL(raw string, insecure bool, egress netguard.Policy) error {
+	invalid := func(msg string) error {
+		return huma.Error422UnprocessableEntity("invalid registry url", &huma.ErrorDetail{
+			Location: "body.url", Message: msg, Value: raw,
+		})
+	}
+	rest, msg := stripRegistryScheme(raw, insecure)
+	if msg != "" {
+		return invalid(msg)
+	}
+	u, err := url.Parse("//" + rest)
+	if err != nil {
+		return invalid(fmt.Sprintf("not a valid host[:port]: %v", err))
+	}
+	switch {
+	case u.User != nil:
+		return invalid("must not contain credentials; use auth_username and auth_token")
+	case u.RawQuery != "" || u.ForceQuery:
+		return invalid("must not contain a query")
+	case u.Fragment != "" || strings.Contains(rest, "#"):
+		return invalid("must not contain a fragment")
+	case u.Path != "" && u.Path != "/":
+		return invalid("must not contain a path; list repositories in repositories instead")
+	case u.Hostname() == "":
+		return invalid("host is required")
+	}
+	if ip, err := netip.ParseAddr(u.Hostname()); err == nil {
+		if err := egress.Check(ip); err != nil {
+			return invalid(fmt.Sprintf("%s is refused by this installation's egress policy", ip))
+		}
+	}
+	return nil
+}
+
+// stripRegistryScheme returns raw without its scheme, or a message saying why
+// the scheme is not acceptable.
+func stripRegistryScheme(raw string, insecure bool) (rest, msg string) {
+	scheme, after, ok := strings.Cut(raw, "://")
+	if !ok {
+		return raw, ""
+	}
+	switch strings.ToLower(scheme) {
+	case schemeHTTPS:
+		return after, ""
+	case schemeHTTP:
+		if !insecure {
+			return "", "http:// requires insecure to be true"
+		}
+		return after, ""
+	default:
+		return "", "scheme must be http or https"
+	}
+}
+
 func validateVerificationConfig(verificationMode string, trustPublicKey, trustIdentity, trustIssuer *string) error {
 	switch verificationMode {
 	case trust.ModeKeyless:
@@ -244,6 +311,8 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 	regURL := in.Body.URL
 	if fixedURL, ok := typeFixedURL[regType]; ok {
 		regURL = fixedURL
+	} else if err := validateRegistryURL(regURL, in.Body.Insecure, h.egress()); err != nil {
+		return nil, err
 	}
 
 	scanMode := in.Body.ScanMode
@@ -276,7 +345,7 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 	if err := validateVerificationConfig(verificationMode, in.Body.TrustPublicKey, in.Body.TrustIdentity, in.Body.TrustIssuer); err != nil {
 		return nil, err
 	}
-	reg, err := h.registryService.Create(ctx, service.CreateRegistryParams{
+	reg, err := h.createRegistry(ctx, user, service.CreateRegistryParams{
 		Name:                in.Body.Name,
 		Namespace:           in.Body.Namespace,
 		Type:                regType,
@@ -301,12 +370,74 @@ func (h *Handler) CreateRegistry(ctx context.Context, in *CreateRegistryInput) (
 		ManagedRef:          in.Body.ManagedRef,
 	})
 	if err != nil {
-		return nil, mapServiceError(err)
+		return nil, err
 	}
 	return &CreateRegistryOutput{Body: CreateRegistryResponseBody{
 		RegistryResponse: toRegistryResponse(reg, h.cfg.APIBaseURL, nil),
 		WebhookSecret:    generatedSecret,
 	}}, nil
+}
+
+// createRegistry creates a registry, authorizing the caller against the
+// namespace the request names when that namespace already exists
+// (ocidex-avsz.2). Without this, naming another tenant's namespace planted a
+// registry — URL, credentials, schedule and all — inside it.
+//
+// The service only ever creates a named namespace; one that exists comes back
+// as ErrNamespaceExists. That includes the race where another request creates
+// it between the lookup here and the insert there, which is why the check
+// re-runs once on that sentinel rather than trusting the first lookup.
+func (h *Handler) createRegistry(
+	ctx context.Context, user service.AuthUser, params service.CreateRegistryParams,
+) (service.Registry, error) {
+	for attempt := 0; ; attempt++ {
+		if params.Namespace != "" {
+			id, err := h.authorizeExistingNamespace(ctx, user, params.Namespace, authz.CapManageSource)
+			if err != nil {
+				return service.Registry{}, err
+			}
+			params.NamespaceID = id
+		}
+		// Anything but an existing namespace means minting one.
+		if params.NamespaceID == "" {
+			if err := h.requireNamespaceCreation(user); err != nil {
+				return service.Registry{}, err
+			}
+		}
+		reg, err := h.registryService.Create(ctx, params)
+		if errors.Is(err, service.ErrNamespaceExists) && attempt == 0 {
+			continue
+		}
+		if err != nil {
+			return service.Registry{}, mapServiceError(err)
+		}
+		return reg, nil
+	}
+}
+
+// authorizeExistingNamespace looks up the namespace called name and, if it
+// exists, requires c in it, returning its ID. A namespace that does not exist
+// yields "" and no error: creating it makes the caller its owner.
+//
+// A caller with no membership gets 404 rather than 403, so the endpoint cannot
+// be used to probe which names other tenants have taken.
+func (h *Handler) authorizeExistingNamespace(
+	ctx context.Context, user service.AuthUser, name string, c authz.Capability,
+) (string, error) {
+	ns, err := h.namespaceService.GetByName(ctx, name)
+	if errors.Is(err, service.ErrNotFound) {
+		return "", nil
+	}
+	if err != nil {
+		return "", mapServiceError(err)
+	}
+	if _, member := user.Grants[ns.ID]; !member && user.Role != roleAdmin {
+		return "", huma.Error404NotFound("namespace not found")
+	}
+	if !can(user, ns.ID, c) {
+		return "", huma.Error403Forbidden("forbidden")
+	}
+	return ns.ID, nil
 }
 
 // RegenerateWebhookSecret generates a new webhook secret for a registry (owner or admin).
@@ -362,6 +493,8 @@ func (h *Handler) UpdateRegistry(ctx context.Context, in *UpdateRegistryInput) (
 	regURL := in.Body.URL
 	if fixedURL, ok := typeFixedURL[regType]; ok {
 		regURL = fixedURL
+	} else if err := validateRegistryURL(regURL, in.Body.Insecure, h.egress()); err != nil {
+		return nil, err
 	}
 
 	scanMode := in.Body.ScanMode
@@ -440,6 +573,15 @@ func (h *Handler) DeleteRegistry(ctx context.Context, in *DeleteRegistryInput) (
 	return nil, nil
 }
 
+// egress is the policy every dial to a user-supplied registry obeys. A handler
+// built without config (tests) gets the default, which is the strict one.
+func (h *Handler) egress() netguard.Policy {
+	if h.cfg == nil {
+		return netguard.Policy{}
+	}
+	return h.cfg.EgressPolicy
+}
+
 // TestRegistryConnection probes the registry's /v2/ endpoint.
 func (h *Handler) TestRegistryConnection(ctx context.Context, in *TestRegistryConnectionInput) (*TestRegistryConnectionOutput, error) {
 	scheme := schemeHTTPS
@@ -448,7 +590,7 @@ func (h *Handler) TestRegistryConnection(ctx context.Context, in *TestRegistryCo
 	}
 	target := fmt.Sprintf("%s://%s/v2/", scheme, in.Body.URL)
 
-	c := &http.Client{Timeout: 5 * time.Second}
+	c := &http.Client{Timeout: 5 * time.Second, Transport: h.egress().Transport()}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		out := &TestRegistryConnectionOutput{}
@@ -500,7 +642,7 @@ func (h *Handler) ScanRegistry(ctx context.Context, in *ScanRegistryInput) (*Sca
 		if !force {
 			known = scanner.FetchKnownDigests(walkCtx, h.sbomService, reg.ID)
 		}
-		queued, err := scanner.WalkRegistry(walkCtx, reg, h.scanSubmitter, known, slog.Default())
+		queued, err := scanner.WalkRegistry(walkCtx, reg, h.scanSubmitter, known, h.egress(), slog.Default())
 		if err != nil {
 			slog.Error("ad-hoc registry scan failed", "registry", reg.Name, "err", err)
 			return

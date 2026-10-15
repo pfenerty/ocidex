@@ -105,7 +105,10 @@ func run() error {
 
 	setupOptionalExts(cfg, reg, natsClient, logger)
 
-	ociValidator := ocivalidate.NewValidator(ocivalidate.WithInsecureResolver(insecureResolver))
+	ociValidator := ocivalidate.NewValidator(
+		ocivalidate.WithInsecureResolver(insecureResolver),
+		ocivalidate.WithEgress(cfg.EgressPolicy),
+	)
 	sbomSvc := service.NewSBOMService(pool, bus, ociValidator)
 	searchSvc := service.NewSearchService(pool, service.WithWarmDB(bgPool))
 	authSvc := service.NewAuthService(pool, cfg, bus, providers)
@@ -366,7 +369,7 @@ func setupRegistryWalker(cfg *config.Config, natsClient *natspkg.Client, sub api
 	if natsClient != nil {
 		return scanner.NewNATSCatalogPublisher(natsClient, cfg.NATSStreamName)
 	}
-	return scanner.NewDirectWalker(sub, dl, logger)
+	return scanner.NewDirectWalker(sub, dl, cfg.EgressPolicy, logger)
 }
 
 // setupScannerExt wires the NATS scan submitter when scanning is enabled.

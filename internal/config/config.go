@@ -4,10 +4,13 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/caarlos0/env/v11"
+
+	"github.com/pfenerty/ocidex/internal/netguard"
 )
 
 // parseSlogLevel maps a log-level string to its slog.Level (default Info).
@@ -71,6 +74,27 @@ type Config struct {
 	// URI serves every issuer. Point it at /auth/callback/oidc:<name> only for
 	// an IdP that insists on a distinct URI per client.
 	OIDCRedirectURL string `env:"OIDC_REDIRECT_URL" envDefault:"http://localhost:8080/auth/callback"`
+
+	// BootstrapAdminsRaw lists the identities promoted to installation admin
+	// when they sign in: comma-separated "github:<subject>" or
+	// "oidc:<name>:<subject>". It is how an installation gets its first admin.
+	// Matched on (provider, subject) only, never email (ADR-047). Parsed into
+	// BootstrapAdmins by validate.
+	BootstrapAdminsRaw string `env:"BOOTSTRAP_ADMINS"`
+	BootstrapAdmins    []IdentityRef
+
+	// SignupMode is the installation's sign-up policy: "open" provisions an
+	// account for any identity the configured issuers vouch for; "existing"
+	// admits only identities that already have one, plus BOOTSTRAP_ADMINS.
+	// Empty (a Config not built by Load) reads as open.
+	SignupMode string `env:"SIGNUP_MODE" envDefault:"open"`
+
+	// SelfServiceNamespacesRaw is SELF_SERVICE_NAMESPACES: whether a global
+	// viewer may create a namespace (directly, or by creating a registry that
+	// mints one). validate turns it into RestrictNamespaceCreation, which is
+	// inverted so a zero Config keeps today's open behaviour.
+	SelfServiceNamespacesRaw  string `env:"SELF_SERVICE_NAMESPACES" envDefault:"true"`
+	RestrictNamespaceCreation bool
 
 	// Frontend URL — used as the post-OAuth redirect target and for CORS defaults.
 	FrontendURL string `env:"FRONTEND_URL" envDefault:"http://localhost:3000"`
@@ -157,6 +181,17 @@ type Config struct {
 	// to true since it already runs unconditionally today; set to false to
 	// disable (e.g. in a test/staging environment without registry access).
 	ProvenanceReverifierEnabled bool `env:"PROVENANCE_REVERIFIER_ENABLED" envDefault:"true"`
+
+	// Egress policy for dials to user-supplied hosts (registries), shared by the
+	// API, scanner worker and enrichers. Loopback, link-local (cloud metadata)
+	// and multicast are always refused unless EGRESS_ALLOW_CIDRS names them;
+	// private ranges are refused unless EGRESS_ALLOW_PRIVATE is set. See
+	// internal/netguard.
+	EgressAllowPrivate bool     `env:"EGRESS_ALLOW_PRIVATE" envDefault:"false"`
+	EgressAllowCIDRs   []string `env:"EGRESS_ALLOW_CIDRS"   envSeparator:","`
+	EgressDenyCIDRs    []string `env:"EGRESS_DENY_CIDRS"    envSeparator:","`
+	// EgressPolicy is built from the three fields above by validate.
+	EgressPolicy netguard.Policy
 }
 
 // Load reads configuration from environment variables.
@@ -401,9 +436,75 @@ func (c *K8sAgentConfig) SlogLevel() slog.Level {
 	return parseSlogLevel(c.LogLevel)
 }
 
+// Sign-up modes for SIGNUP_MODE.
+const (
+	SignupOpen     = "open"
+	SignupExisting = "existing"
+)
+
+// IdentityRef names one sign-in identity by its user_identity key.
+type IdentityRef struct {
+	Provider string
+	Subject  string
+}
+
+// ParseIdentityRefs parses a comma-separated list of "github:<subject>" or
+// "oidc:<name>:<subject>" entries. The subject is everything after the
+// provider, so a subject containing colons survives. Blank entries are
+// skipped; anything else malformed is an error naming the entry.
+func ParseIdentityRefs(raw string) ([]IdentityRef, error) {
+	var refs []IdentityRef
+	for _, entry := range strings.Split(raw, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		head, rest, ok := strings.Cut(entry, ":")
+		if !ok {
+			return nil, fmt.Errorf("%q: want github:<subject> or oidc:<name>:<subject>", entry)
+		}
+		var ref IdentityRef
+		switch head {
+		case "github":
+			ref = IdentityRef{Provider: "github", Subject: rest}
+		case "oidc":
+			name, subject, ok := strings.Cut(rest, ":")
+			if !ok || name == "" {
+				return nil, fmt.Errorf("%q: want oidc:<name>:<subject>", entry)
+			}
+			ref = IdentityRef{Provider: "oidc:" + name, Subject: subject}
+		default:
+			return nil, fmt.Errorf("%q: unknown provider %q (want github or oidc)", entry, head)
+		}
+		if ref.Subject == "" {
+			return nil, fmt.Errorf("%q: subject is empty", entry)
+		}
+		refs = append(refs, ref)
+	}
+	return refs, nil
+}
+
 func (c *Config) validate() error {
 	if c.NATSURL == "" {
 		return fmt.Errorf("NATS_URL is required")
+	}
+	admins, err := ParseIdentityRefs(c.BootstrapAdminsRaw)
+	if err != nil {
+		return fmt.Errorf("BOOTSTRAP_ADMINS: %w", err)
+	}
+	c.BootstrapAdmins = admins
+	switch c.SignupMode {
+	case SignupOpen, SignupExisting:
+	default:
+		return fmt.Errorf("SIGNUP_MODE must be %q or %q, got %q", SignupOpen, SignupExisting, c.SignupMode)
+	}
+	selfService, err := strconv.ParseBool(c.SelfServiceNamespacesRaw)
+	if err != nil {
+		return fmt.Errorf("SELF_SERVICE_NAMESPACES must be true or false, got %q", c.SelfServiceNamespacesRaw)
+	}
+	c.RestrictNamespaceCreation = !selfService
+	if c.EgressPolicy, err = egressPolicy(c.EgressAllowPrivate, c.EgressAllowCIDRs, c.EgressDenyCIDRs); err != nil {
+		return err
 	}
 	// Half-configured OIDC is worse than none: the login button would exist
 	// and fail. Discovery itself is validated at startup in cmd/ocidex.
@@ -414,6 +515,28 @@ func (c *Config) validate() error {
 		return fmt.Errorf("OIDC_ISSUER_URL is required when OIDC_CLIENT_ID is set")
 	}
 	return nil
+}
+
+// egressPolicy builds a netguard.Policy from the EGRESS_* settings, naming the
+// variable that holds a bad CIDR.
+func egressPolicy(allowPrivate bool, allow, deny []string) (netguard.Policy, error) {
+	allowP, err := netguard.ParsePrefixes(trimAll(allow))
+	if err != nil {
+		return netguard.Policy{}, fmt.Errorf("EGRESS_ALLOW_CIDRS: %w", err)
+	}
+	denyP, err := netguard.ParsePrefixes(trimAll(deny))
+	if err != nil {
+		return netguard.Policy{}, fmt.Errorf("EGRESS_DENY_CIDRS: %w", err)
+	}
+	return netguard.Policy{AllowCIDRs: allowP, DenyCIDRs: denyP, AllowPrivate: allowPrivate}, nil
+}
+
+func trimAll(ss []string) []string {
+	out := make([]string, len(ss))
+	for i, s := range ss {
+		out[i] = strings.TrimSpace(s)
+	}
+	return out
 }
 
 // LogLevel returns the slog.Level corresponding to the configured log level string.

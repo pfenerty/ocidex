@@ -30,12 +30,34 @@ image:
 # credentials for at least one identity provider (see above).
 existingSecret: ocidex-secrets
 
+# --- Egress guard ------------------------------------------------------------
+# Which addresses the API, scanner worker and enrichers may dial when they reach
+# a user-supplied registry (EGRESS_*; docs/CONFIGURATION.md "Egress Policy").
+# Loopback, link-local (cloud metadata) and multicast are always refused unless
+# allowCidrs names them. Scanning an in-cluster registry needs allowPrivate, or
+# better, allowCidrs naming just its service/pod address. This is the process-
+# level check; networkPolicy.egress below is the network-level one.
+egressGuard:
+  allowPrivate: false
+  allowCidrs: []
+  denyCidrs: []
+
 # --- API server --------------------------------------------------------------
 api:
   replicas: 1
   env:
     environment: production
     logLevel: info
+    # BOOTSTRAP_ADMINS: identities promoted to installation admin at sign-in,
+    # comma-separated "github:<user id>" or "oidc:<name>:<sub>". A fresh
+    # install has no admin until one of these signs in.
+    bootstrapAdmins: ""
+    # SIGNUP_MODE: "open" provisions any identity the issuers vouch for;
+    # "existing" admits only existing accounts plus bootstrapAdmins.
+    signupMode: open
+    # SELF_SERVICE_NAMESPACES: "false" stops global viewers creating namespaces
+    # (or registries that mint one). See docs/DEPLOYMENT.md "Hardening".
+    selfServiceNamespaces: "true"
     frontendUrl: ""
     corsAllowedOrigins: ""
     apiBaseUrl: ""

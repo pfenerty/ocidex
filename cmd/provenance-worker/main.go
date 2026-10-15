@@ -36,6 +36,7 @@ func buildEnrichers(pool *pgxpool.Pool, appCfg *config.Config) []enrichment.Enri
 			provenance.WithCredentialResolver(credResolver),
 			provenance.WithMaxLayerBytes(appCfg.ProvenanceMaxLayerBytes),
 			provenance.WithTimeout(appCfg.ProvenanceTimeout),
+			provenance.WithEgress(appCfg.EgressPolicy),
 		),
 	}
 }

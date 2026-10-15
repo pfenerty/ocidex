@@ -141,6 +141,11 @@ creates a namespace if absent but **never deletes one on CR deletion**; it delet
 and registry rows it owns. A namespace outliving its last source is the correct outcome, not a
 leak.
 
+Creating a registry into a namespace that already exists requires `manage_source` in it
+(ocidex-avsz.2). The operator's API-key user created the namespace on its first CR and so owns
+it; that key therefore needs the `manage_source` capability, and a namespace someone else
+created first is refused rather than joined.
+
 ### Confirmation
 
 * `make migrate-up` then `make migrate-down` clean on a seeded database — both directions, since

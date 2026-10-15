@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"testing"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/matryer/is"
 
 	"github.com/pfenerty/ocidex/internal/jobqueue"
+	"github.com/pfenerty/ocidex/internal/netguard"
 	"github.com/pfenerty/ocidex/internal/scanner"
 	"github.com/pfenerty/ocidex/internal/service"
 )
@@ -79,6 +81,7 @@ func TestDispatcher_ProcessOne(t *testing.T) {
 				&fakeScanner{err: tt.scanErr},
 				&fakeSBOMSvc{ingestErr: tt.ingestErr},
 				0, // size check disabled: these cases cover scan/ingest errors
+				netguard.Policy{},
 				discardLogger(),
 			)
 
@@ -171,7 +174,7 @@ func TestDispatcher_ProcessOne_SizeGate(t *testing.T) {
 			defer srv.Close()
 
 			sc := &countingScanner{}
-			d := NewDispatcher(sc, &fakeSBOMSvc{}, tt.maxImageBytes, discardLogger())
+			d := NewDispatcher(sc, &fakeSBOMSvc{}, tt.maxImageBytes, loopbackEgress, discardLogger())
 
 			_, err := d.ProcessOne(context.Background(), scanner.ScanRequest{
 				RegistryURL: strings.TrimPrefix(srv.URL, "http://"),
@@ -203,4 +206,25 @@ type countingScanner struct{ calls int }
 func (c *countingScanner) Scan(_ context.Context, _ scanner.ScanRequest) (scanner.Result, error) {
 	c.calls++
 	return scanner.Result{SBOM: []byte(`{"bomFormat":"CycloneDX","specVersion":"1.4","version":1,"components":[]}`)}, nil
+}
+
+// loopbackEgress admits the httptest registries these tests stand up.
+var loopbackEgress = netguard.Policy{AllowCIDRs: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}}
+
+// TestProcessOneEgressDeniedIsPermanent covers ocidex-avsz.6: a registry the
+// egress policy refuses fails the job permanently, before any scan.
+func TestProcessOneEgressDeniedIsPermanent(t *testing.T) {
+	is := is.New(t)
+	srv := httptest.NewServer(http.NotFoundHandler())
+	defer srv.Close()
+
+	sc := &countingScanner{}
+	d := NewDispatcher(sc, &fakeSBOMSvc{}, 1<<30, netguard.Policy{}, discardLogger())
+	_, err := d.ProcessOne(context.Background(), scanner.ScanRequest{
+		RegistryURL: srv.URL, Insecure: true, Repository: "r", Digest: "sha256:abc",
+	})
+
+	is.True(errors.Is(err, jobqueue.ErrPermanent))
+	is.True(errors.Is(err, netguard.ErrDenied))
+	is.Equal(sc.calls, 0)
 }

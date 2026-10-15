@@ -2,7 +2,8 @@ package scanner
 
 import (
 	"context"
-	"net/http"
+
+	"github.com/pfenerty/ocidex/internal/netguard"
 )
 
 // FillMetadata populates Architecture, BuildDate, and ImageVersion on req by
@@ -12,7 +13,7 @@ import (
 // Used by the in-process scan dispatcher to backfill metadata for
 // webhook-triggered requests, which (unlike catalog-walk requests) don't
 // pre-fetch this from the registry index.
-func FillMetadata(ctx context.Context, req ScanRequest) ScanRequest {
+func FillMetadata(ctx context.Context, req ScanRequest, egress netguard.Policy) ScanRequest {
 	if req.Architecture != "" && req.BuildDate != "" && req.ImageVersion != "" {
 		return req
 	}
@@ -21,7 +22,7 @@ func FillMetadata(ctx context.Context, req ScanRequest) ScanRequest {
 		scheme = schemeHTTP
 	}
 	baseURL := scheme + "://" + normalizeRegistryHost(req.RegistryURL)
-	client := &http.Client{Transport: newOCITokenTransport(req.AuthUsername, req.AuthToken)}
+	client := registryClient(egress, 0, req.AuthUsername, req.AuthToken)
 	meta := ociGetImageMetadata(ctx, client, baseURL, req.Repository, req.Digest)
 	if req.Architecture == "" {
 		req.Architecture = meta.architecture

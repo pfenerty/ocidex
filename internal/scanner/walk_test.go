@@ -261,7 +261,7 @@ func TestWalkRegistry_ExplicitRepos(t *testing.T) {
 
 	sub := &fakeSubmitter{}
 	reg := service.Registry{URL: srv.URL, Repositories: []string{"myrepo"}}
-	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 2)
@@ -302,7 +302,7 @@ func TestWalkRegistry_CatalogDiscovery(t *testing.T) {
 	sub := &fakeSubmitter{}
 	// No explicit Repositories → uses catalog discovery.
 	reg := service.Registry{URL: srv.URL}
-	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 1)
@@ -342,7 +342,7 @@ func TestWalkRegistry_KnownDigestDedup_TagPath(t *testing.T) {
 		Repositories: []string{"myrepo"},
 	}
 	knownDigests := map[string]bool{"sha256:already-known": true}
-	queued, err := WalkRegistry(t.Context(), reg, sub, knownDigests, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, knownDigests, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 0)
@@ -377,7 +377,7 @@ func TestWalkRegistry_KnownDigestDedup(t *testing.T) {
 		IncludeUntagged: true,
 	}
 	knownDigests := map[string]bool{"sha256:already-known": true}
-	queued, err := WalkRegistry(t.Context(), reg, sub, knownDigests, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, knownDigests, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 0)
@@ -428,7 +428,7 @@ func TestWalkRegistry_MultiArchIndex(t *testing.T) {
 
 	sub := &fakeSubmitter{}
 	reg := service.Registry{URL: srv.URL, Repositories: []string{"myrepo"}}
-	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 2)
@@ -471,7 +471,7 @@ func TestWalkRegistry_TagFilter(t *testing.T) {
 		Repositories: []string{"myrepo"},
 		TagPatterns:  []string{"v*"},
 	}
-	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 1)
@@ -499,7 +499,7 @@ func TestWalkRegistry_HeadFailureSilentlySkipped(t *testing.T) {
 
 	sub := &fakeSubmitter{}
 	reg := service.Registry{URL: srv.URL, Repositories: []string{"myrepo"}}
-	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 0)
@@ -545,7 +545,7 @@ func TestWalkRegistry_IndexPlatformArchFromMetadata(t *testing.T) {
 
 	sub := &fakeSubmitter{}
 	reg := service.Registry{URL: srv.URL, Repositories: []string{"myrepo"}}
-	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 1)
@@ -578,7 +578,7 @@ func TestWalkRegistry_SubmitError(t *testing.T) {
 
 	sub := &fakeSubmitter{submitErr: errors.New("queue full")}
 	reg := service.Registry{URL: srv.URL, Repositories: []string{"myrepo"}}
-	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 0) // submit failed → not counted
@@ -618,7 +618,7 @@ func TestWalkRegistry_IndexSubmitError(t *testing.T) {
 
 	sub := &fakeSubmitter{submitErr: errors.New("queue full")}
 	reg := service.Registry{URL: srv.URL, Repositories: []string{"myrepo"}}
-	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 0)
@@ -649,7 +649,7 @@ func TestWalkRegistry_IncludeUntagged_DiscoverError(t *testing.T) {
 		Type:            "zot",
 		IncludeUntagged: true,
 	}
-	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 0)
@@ -667,7 +667,7 @@ func TestWalkRegistry_CatalogError(t *testing.T) {
 
 	sub := &fakeSubmitter{}
 	reg := service.Registry{URL: srv.URL} // no explicit repos → uses catalog
-	_, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+	_, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 	is.True(err != nil)
 }
 
@@ -688,7 +688,7 @@ func TestWalkRegistry_TagListError(t *testing.T) {
 
 	sub := &fakeSubmitter{}
 	reg := service.Registry{URL: srv.URL}
-	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 
 	is.NoErr(err) // walk continues; repo silently skipped
 	is.Equal(queued, 0)
@@ -728,7 +728,7 @@ func TestWalkRegistry_RepositoryFilter(t *testing.T) {
 		URL:                srv.URL,
 		RepositoryPatterns: []string{"allowed"},
 	}
-	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 1)
@@ -775,7 +775,7 @@ func TestWalkRegistry_IndexSkipsAttestations(t *testing.T) {
 
 	sub := &fakeSubmitter{}
 	reg := service.Registry{URL: srv.URL, Repositories: []string{"myrepo"}}
-	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 1) // only the real linux/amd64 manifest
@@ -804,7 +804,7 @@ func TestWalkRegistry_IncludeUntagged_NonImageType(t *testing.T) {
 		Type:            "zot",
 		IncludeUntagged: true,
 	}
-	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 0)
@@ -861,7 +861,7 @@ func TestWalkRegistry_IncludeUntagged_IndexExpansion(t *testing.T) {
 		Type:            "zot",
 		IncludeUntagged: true,
 	}
-	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 2)
@@ -907,7 +907,7 @@ func TestWalkRegistry_IncludeUntagged_Zot(t *testing.T) {
 		Type:            "zot",
 		IncludeUntagged: true,
 	}
-	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 1)
@@ -947,7 +947,7 @@ func TestWalkRegistry_SkipsCosignTags(t *testing.T) {
 
 	sub := &fakeSubmitter{}
 	reg := service.Registry{URL: srv.URL, Insecure: true, Repositories: []string{"myrepo"}}
-	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 1)
@@ -1000,7 +1000,7 @@ func TestWalkRegistry_SkipsAttachedArtifactByMediaType(t *testing.T) {
 
 			sub := &fakeSubmitter{}
 			reg := service.Registry{URL: srv.URL, Insecure: true, Repositories: []string{"myrepo"}}
-			queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+			queued, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 
 			is.NoErr(err)
 			is.Equal(queued, 0)
@@ -1043,7 +1043,7 @@ func TestWalkRegistry_OrdinaryImageStillQueued(t *testing.T) {
 
 	sub := &fakeSubmitter{}
 	reg := service.Registry{URL: srv.URL, Insecure: true, Repositories: []string{"myrepo"}}
-	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 1)
@@ -1083,7 +1083,7 @@ func TestWalkRegistry_IncludeUntagged_SkipsCosignTags(t *testing.T) {
 		Repositories:    []string{"myrepo"},
 		IncludeUntagged: true,
 	}
-	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 1)
@@ -1134,7 +1134,7 @@ func TestWalkRegistry_PaginatedTags(t *testing.T) {
 		Repositories: []string{"myrepo"},
 		TagPatterns:  []string{"v2.45.?"},
 	}
-	queued, err := WalkRegistry(t.Context(), reg, sub, nil, discardLogger())
+	queued, err := WalkRegistry(t.Context(), reg, sub, nil, testEgress, discardLogger())
 
 	is.NoErr(err)
 	is.Equal(queued, 2)

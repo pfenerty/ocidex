@@ -105,6 +105,9 @@ func (h *Handler) CreateNamespace(ctx context.Context, in *CreateNamespaceInput)
 	if !ok {
 		return nil, huma.Error401Unauthorized("not authenticated")
 	}
+	if err := h.requireNamespaceCreation(user); err != nil {
+		return nil, err
+	}
 	ns, err := h.namespaceService.Create(ctx, service.CreateNamespaceParams{
 		Name:       in.Body.Name,
 		OwnerID:    user.ID,
@@ -171,6 +174,21 @@ func toNamespaceResponse(ns service.Namespace, ownerUsername *string) NamespaceR
 		CreatedAt:     ns.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 		UpdatedAt:     ns.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 	}
+}
+
+// requireNamespaceCreation refuses a global viewer the creation of a namespace
+// when SELF_SERVICE_NAMESPACES=false. It is a property of the installation, not
+// of any namespace, which is why it is not a capability in authz.Allow's table.
+// With self-service on — the default — anyone signed in may create one and
+// becomes its owner.
+func (h *Handler) requireNamespaceCreation(user service.AuthUser) error {
+	if h.cfg == nil || !h.cfg.RestrictNamespaceCreation {
+		return nil
+	}
+	if user.Role == roleAdmin || user.Role == roleMember {
+		return nil
+	}
+	return huma.Error403Forbidden("namespace creation is restricted to members on this installation")
 }
 
 // requireNamespaceCapability is RequireCapability for the operations that

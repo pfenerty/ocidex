@@ -178,14 +178,13 @@ func RequireAdmin(api huma.API) func(huma.Context, func(huma.Context)) {
 //   - resolve fails: 404. resolve loads the target resource, so its failure is
 //     the resource not existing (or not being visible), and a caller who may
 //     not act on a thing must not learn it exists from the status code.
-//   - resolve yields an invalid UUID: the resource hangs from no namespace.
-//     Legacy uploaded rows are like this — sbom.namespace_id is still nullable
-//     and the visibility functions treat the NULL arm as public — so this
-//     admits any member or admin, exactly as the ownership middlewares did.
-//     That arm dies with the nullable column (ocidex-0gp.3), not before: making
-//     it a 403 now would strand every pre-namespace upload behind admin.
 //   - Otherwise: authz.Allow through can(), so an admin passes regardless of
-//     membership and a member without c gets 403.
+//     membership and a member without c gets 403. A resolver that yields an
+//     invalid UUID — a resource hanging from no namespace — falls into the same
+//     rule, where no membership can cover it and only an admin passes. No live
+//     row is like that: sbom.namespace_id has been NOT NULL since 00054, and the
+//     registry, artifact and namespace resolvers read NOT NULL columns or
+//     inner joins (ocidex-avsz.3).
 func RequireCapability(api huma.API, c authz.Capability,
 	resolve func(huma.Context) (pgtype.UUID, error),
 ) func(huma.Context, func(huma.Context)) {
@@ -198,14 +197,6 @@ func RequireCapability(api huma.API, c authz.Capability,
 		namespaceID, err := resolve(ctx)
 		if err != nil {
 			_ = huma.WriteErr(api, ctx, http.StatusNotFound, "not found")
-			return
-		}
-		if !namespaceID.Valid {
-			if user.Role != roleAdmin && user.Role != roleMember {
-				_ = huma.WriteErr(api, ctx, http.StatusForbidden, "forbidden")
-				return
-			}
-			next(ctx)
 			return
 		}
 		if !can(user, uuidToStr(namespaceID), c) {

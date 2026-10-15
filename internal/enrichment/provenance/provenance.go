@@ -22,6 +22,7 @@ import (
 
 	"github.com/pfenerty/ocidex/internal/enrichment/names"
 	"github.com/pfenerty/ocidex/internal/enrichment/subject"
+	"github.com/pfenerty/ocidex/internal/netguard"
 	"github.com/pfenerty/ocidex/internal/trust"
 )
 
@@ -168,6 +169,13 @@ func WithTimeout(d time.Duration) Option {
 // WithRemoteOptions appends additional go-containerregistry remote options.
 func WithRemoteOptions(opts ...remote.Option) Option {
 	return func(e *Enricher) { e.options = append(e.options, opts...) }
+}
+
+// WithEgress routes every registry dial through p, so an artifact name pointing
+// at a refused address fails with an error wrapping netguard.ErrDenied. Rekor
+// and the Sigstore trust root are fixed public hosts and are not covered.
+func WithEgress(p netguard.Policy) Option {
+	return func(e *Enricher) { e.options = append(e.options, remote.WithTransport(p.Transport())) }
 }
 
 // WithInsecure configures plain HTTP for all registry connections.

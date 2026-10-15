@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"log/slog"
+	"net/netip"
 	"os"
 	"testing"
 	"time"
@@ -109,6 +110,155 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
+			name: "BOOTSTRAP_ADMINS parses github and oidc entries",
+			env: map[string]string{
+				"DATABASE_URL":     "postgres://localhost/test",
+				"NATS_URL":         "nats://localhost:4222",
+				"BOOTSTRAP_ADMINS": " github:42 , oidc:corp:a:b|c,",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.BootstrapAdmins, []config.IdentityRef{
+					{Provider: "github", Subject: "42"},
+					{Provider: "oidc:corp", Subject: "a:b|c"},
+				})
+			},
+		},
+		{
+			name: "BOOTSTRAP_ADMINS unset is empty",
+			env: map[string]string{
+				"DATABASE_URL": "postgres://localhost/test",
+				"NATS_URL":     "nats://localhost:4222",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(len(cfg.BootstrapAdmins), 0)
+			},
+		},
+		{
+			name: "BOOTSTRAP_ADMINS bare subject is rejected",
+			env: map[string]string{
+				"DATABASE_URL":     "postgres://localhost/test",
+				"NATS_URL":         "nats://localhost:4222",
+				"BOOTSTRAP_ADMINS": "16961380",
+			},
+			wantErr: true,
+		},
+		{
+			name: "BOOTSTRAP_ADMINS unknown provider is rejected",
+			env: map[string]string{
+				"DATABASE_URL":     "postgres://localhost/test",
+				"NATS_URL":         "nats://localhost:4222",
+				"BOOTSTRAP_ADMINS": "gitlab:1",
+			},
+			wantErr: true,
+		},
+		{
+			name: "BOOTSTRAP_ADMINS oidc without name is rejected",
+			env: map[string]string{
+				"DATABASE_URL":     "postgres://localhost/test",
+				"NATS_URL":         "nats://localhost:4222",
+				"BOOTSTRAP_ADMINS": "oidc:abc",
+			},
+			wantErr: true,
+		},
+		{
+			name: "BOOTSTRAP_ADMINS empty subject is rejected",
+			env: map[string]string{
+				"DATABASE_URL":     "postgres://localhost/test",
+				"NATS_URL":         "nats://localhost:4222",
+				"BOOTSTRAP_ADMINS": "github:",
+			},
+			wantErr: true,
+		},
+		{
+			name: "installation policy defaults stay open",
+			env: map[string]string{
+				"DATABASE_URL": "postgres://localhost/test",
+				"NATS_URL":     "nats://localhost:4222",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.SignupMode, config.SignupOpen)
+				is.Equal(cfg.RestrictNamespaceCreation, false)
+			},
+		},
+		{
+			name: "installation policy closed",
+			env: map[string]string{
+				"DATABASE_URL":            "postgres://localhost/test",
+				"NATS_URL":                "nats://localhost:4222",
+				"SIGNUP_MODE":             "existing",
+				"SELF_SERVICE_NAMESPACES": "false",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.SignupMode, config.SignupExisting)
+				is.Equal(cfg.RestrictNamespaceCreation, true)
+			},
+		},
+		{
+			name: "unknown SIGNUP_MODE is rejected",
+			env: map[string]string{
+				"DATABASE_URL": "postgres://localhost/test",
+				"NATS_URL":     "nats://localhost:4222",
+				"SIGNUP_MODE":  "closed",
+			},
+			wantErr: true,
+		},
+		{
+			name: "non-boolean SELF_SERVICE_NAMESPACES is rejected",
+			env: map[string]string{
+				"DATABASE_URL":            "postgres://localhost/test",
+				"NATS_URL":                "nats://localhost:4222",
+				"SELF_SERVICE_NAMESPACES": "maybe",
+			},
+			wantErr: true,
+		},
+		{
+			name: "egress defaults deny private",
+			env: map[string]string{
+				"DATABASE_URL": "postgres://localhost/test",
+				"NATS_URL":     "nats://localhost:4222",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.EgressPolicy.AllowPrivate, false)
+				is.Equal(len(cfg.EgressPolicy.AllowCIDRs), 0)
+				is.True(cfg.EgressPolicy.Check(netip.MustParseAddr("10.0.0.1")) != nil)
+			},
+		},
+		{
+			name: "egress settings parse",
+			env: map[string]string{
+				"DATABASE_URL":         "postgres://localhost/test",
+				"NATS_URL":             "nats://localhost:4222",
+				"EGRESS_ALLOW_PRIVATE": "true",
+				"EGRESS_ALLOW_CIDRS":   "127.0.0.0/8, 10.0.0.5",
+				"EGRESS_DENY_CIDRS":    "10.96.0.0/12",
+			},
+			check: func(is *is.I, cfg *config.Config) {
+				is.Equal(cfg.EgressPolicy.AllowPrivate, true)
+				is.Equal(cfg.EgressPolicy.AllowCIDRs, []netip.Prefix{
+					netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("10.0.0.5/32"),
+				})
+				is.Equal(cfg.EgressPolicy.DenyCIDRs, []netip.Prefix{netip.MustParsePrefix("10.96.0.0/12")})
+			},
+		},
+		{
+			name: "bad EGRESS_ALLOW_CIDRS is rejected",
+			env: map[string]string{
+				"DATABASE_URL":       "postgres://localhost/test",
+				"NATS_URL":           "nats://localhost:4222",
+				"EGRESS_ALLOW_CIDRS": "10.0.0.0/33",
+			},
+			wantErr: true,
+		},
+		{
+			name: "bad EGRESS_DENY_CIDRS is rejected",
+			env: map[string]string{
+				"DATABASE_URL":      "postgres://localhost/test",
+				"NATS_URL":          "nats://localhost:4222",
+				"EGRESS_DENY_CIDRS": "nope",
+			},
+			wantErr: true,
+		},
+		{
 			name: "overrides",
 			env: map[string]string{
 				"PORT":                     "9090",
@@ -144,7 +294,7 @@ func TestLoad(t *testing.T) {
 			os.Unsetenv("NATS_URL") //nolint:errcheck
 
 			// Clear OAuth vars — no longer required by config.Load().
-			for _, k := range []string{"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "SESSION_SECRET"} {
+			for _, k := range []string{"GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET", "SESSION_SECRET", "BOOTSTRAP_ADMINS", "EGRESS_ALLOW_PRIVATE", "EGRESS_ALLOW_CIDRS", "EGRESS_DENY_CIDRS", "SIGNUP_MODE", "SELF_SERVICE_NAMESPACES"} {
 				t.Setenv(k, "")
 				os.Unsetenv(k) //nolint:errcheck
 			}

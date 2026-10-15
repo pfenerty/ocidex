@@ -47,7 +47,7 @@ const conformanceUUID = "00000000-0000-0000-0000-0000000000ff"
 // capability enforcement and the suite would pass while proving nothing.
 func newConformanceRouter(authSvc service.AuthService) http.Handler {
 	h := api.NewHandler(
-		&fakeSBOMService{},
+		&fakeSBOMService{namespaceID: mwNamespaceID},
 		nil,
 		authSvc,
 		&fakeRegistryService{registry: testRegistry},
